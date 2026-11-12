@@ -18,7 +18,8 @@ import { reclaimLapsed } from '../../../../jobs/index.js';
 import { takeJob } from '../../../../jobs/index.js';
 import { writeStep } from '../../../../jobs/index.js';
 
-const SLEPT = 8 * 60 * 60_000;
+// Ten minutes: past every two-minute lease, short of the 20 minutes with no step that ends a gate job as infrastructure.
+const SLEPT = 10 * 60_000;
 
 test('after a sleep past every lease the fallback ends the job whose item moved on and drives only the live one [C7]', async t => {
   const { db } = cellBoard(t, ':memory:');
