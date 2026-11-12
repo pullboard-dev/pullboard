@@ -224,9 +224,6 @@
   "apps/cli/journeys/shout/journey.test.js": {
     "launch": 7
   },
-  "apps/cli/journeys/submit/gate/selection.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/rigor/main.test.js": {
     "launch": 4
   },
