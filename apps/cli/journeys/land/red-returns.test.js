@@ -23,12 +23,13 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
-/** A plain landing project in the default shape: no affectedTests, no landing.publish, pushed to its origin. */
+/** A plain landing project in the default shape: no affectedTests, per-item landing, no landing.publish, pushed to its origin. */
 function defaultProject() {
   const box = landProject();
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   delete config.affectedTests;
+  delete config.landing.perItem;
   delete config.landing.publish;
   writeFileSync(path, JSON.stringify(config, null, 2));
   box.git(box.repo, 'commit', '-q', '-am', 'chore: the init default has no affectedTests');
