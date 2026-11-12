@@ -40,6 +40,7 @@ import {
 } from '../entry.js';
 import { boardId } from '../../../../../packages/store/index.js';
 import { describeSetting } from '../../../../../packages/config/index.js';
+import { recordLimitChange } from './stats/limits.js';
 
 const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'inspection.clauses'];
 
@@ -143,7 +144,9 @@ export function settingsCommand(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'workers.budget') {
+    const before = loadMachineSettings().workers?.budget ?? null;
     const settings = setWorkerBudget(parseWorkerBudget(second));
+    recordLimitChange(io, 'workers.budget', before, settings.workers.budget);
     io.result?.({ settings });
     io.say(`workers.budget set to ${settings.workers.budget.spend} spend per ${settings.workers.budget.window}`);
     return 0;
@@ -168,7 +171,9 @@ export function settingsCommand(io, { first, second, rest, values }) {
     if (first === 'gateSlots') throw new Refused('USAGE', 'pullboard settings gateSlots <n>');
     throw new Refused('BAD_BROWSER_SLOTS', 'browserSlots must be a whole number, 0 or more; 0 requires a registered runner');
   }
+  const before = loadMachineSettings().gateSlots;
   const settings = first === 'browserSlots' ? setBrowserSlots(Number(second)) : setGateSlots(Number(second));
+  if (first === 'gateSlots') recordLimitChange(io, 'gateSlots', before, settings.gateSlots);
   io.result?.({ settings });
   io.say(`${first} set to ${settings[first]}`);
   return 0;
