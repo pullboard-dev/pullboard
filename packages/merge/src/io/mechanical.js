@@ -4,16 +4,15 @@ import { rowManifest } from '../logic/manifest.js';
 import { generatedDocResolution } from '../logic/conflicts.js';
 import { generatedDocCommand } from '../logic/conflicts.js';
 import {
-  mkdtempSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { formatJson } from '../../../codemap/index.js';
+import { scratchFolder } from '../../../config/index.js';
 
 export { formatJson };
 
@@ -216,7 +215,7 @@ function jsonValue(base, ours, theirs, rows = false) {
 
 /** Union only conflicts whose ancestor hunk is empty; replacements and deletions remain conflicts. */
 function additiveSource(base, ours, theirs) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-merge-data-'));
+  const directory = scratchFolder('pullboard-merge-data-');
   try {
     const paths = [ours, base, theirs].map((source, index) => {
       const path = join(directory, String(index));

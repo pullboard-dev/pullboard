@@ -11,10 +11,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  homedir,
-  tmpdir,
-} from 'node:os';
+import { homedir } from 'node:os';
 import {
   dirname,
   join,
@@ -23,6 +20,7 @@ import {
 import { spawnSync } from 'node:child_process';
 import { gitConfig } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { scratchRoot } from '../../../config/index.js';
 
 export const SIGNERS_FILE = '.pullboard/signers';
 export const FIRST_COMMIT_FILE = '.pullboard/first-commit';
@@ -159,7 +157,7 @@ export function canonical(record) {
 
 /** Sign canonical text with ssh-keygen under the fixed Pullboard namespace. */
 export function makeSignature(root, record, requestedKey) {
-  const dir = join(tmpdir(), `pullboard-signature-${randomUUID()}`);
+  const dir = join(scratchRoot(), `pullboard-signature-${randomUUID()}`);
   mkdirSync(dir, { recursive: true });
   const message = join(dir, 'message');
   try {
@@ -173,7 +171,7 @@ export function makeSignature(root, record, requestedKey) {
 
 /** Verify a signature using an exact allowed-signers snapshot and the named principal. */
 export function verifySignature(record, allowedText) {
-  const dir = join(tmpdir(), `pullboard-verify-${randomUUID()}`);
+  const dir = join(scratchRoot(), `pullboard-verify-${randomUUID()}`);
   mkdirSync(dir, { recursive: true });
   const allowed = join(dir, 'allowed_signers');
   const signature = join(dir, 'record.sig');

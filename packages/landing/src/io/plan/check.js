@@ -1,8 +1,6 @@
 /** The cells-plan placement check on a recorded landing commit, the one automatic landing applies [C7]. */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
@@ -11,6 +9,7 @@ import { gitSpawnSync } from '../../../../git/index.js';
 import { gateRunnerAdmission } from '../../../../config/index.js';
 import { runCheckOnRunner } from '../main/red.js';
 import { landingPlanProblems } from '../../../../codemap/index.js';
+import { scratchFolder } from '../../../../config/index.js';
 
 /** The folder the engine leaves live in; landing numbers only the placeholders there [V4]. */
 const ENGINE_FOLDER = 'packages/state/src/logic/engines';
@@ -60,7 +59,7 @@ function judgePlanRun(run, commit) {
  * @returns {{ tree: string, cleanup: () => void }} The checkout and the call that removes it.
  */
 function scratchTree(root, commit, env) {
-  const scratch = mkdtempSync(join(tmpdir(), 'pullboard-landing-plan-'));
+  const scratch = scratchFolder('pullboard-landing-plan-');
   const tree = join(scratch, 'tree');
   const cleanup = () => {
     gitSpawnSync(['worktree', 'remove', '--force', tree], { cwd: root, env });
