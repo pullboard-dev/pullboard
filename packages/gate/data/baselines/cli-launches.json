@@ -1694,6 +1694,9 @@
   "apps/cli/journeys/verify/machine.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/verify/packet.test.js": {
+    "launch": 2
+  },
   "apps/cli/journeys/verify/team/repair.test.js": {
     "launch": 3
   },
