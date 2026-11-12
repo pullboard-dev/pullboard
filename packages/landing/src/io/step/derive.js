@@ -33,7 +33,7 @@ export async function deriveOnRunner(state, { runChecks = state.guardServices?.r
   const tree = headTree(root);
   const badges = badgeDocuments(state);
   const practice = /^[\w./-]+$/u.test(state.config.practice ?? '') ? ` --practice ${state.config.practice}` : '';
-  const flags = `${badges.length ? ` --badges ${Buffer.from(JSON.stringify(badges)).toString('base64')}` : ''} --doctrine${practice} --base ${state.batch.base}`;
+  const flags = `${badges.length ? ` --badges ${Buffer.from(JSON.stringify(badges)).toString('base64')}` : ''} --doctrine${practice}${state.batch.base ? ` --base ${state.batch.base}` : ''}`;
   const config = { ...state.config, staticChecks: `node packages/landing/src/io/derive.js --tree ${tree}${flags}` };
   // A runner that cannot run the job (no script in an older base, a lost slot) is no reason to stall: the caller derives here instead.
   const ran = await runChecks(root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }).catch(() => null);
