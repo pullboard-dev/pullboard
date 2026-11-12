@@ -398,6 +398,20 @@ function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
     `fix the two red test failures: ${named}; then commit the code change and submit again`);
 }
 
+/**
+ * Put the item folder back on its pre-submit head after a BOARD_BUSY refusal that followed the automatic main merge.
+ * Why: the refusal records nothing, so a moved head only strands the clause evidence ticked at the old head [#6096].
+ * Only a clean tree whose head is exactly that merge (first parent the old head) is reset; any other state is left alone.
+ */
+function restoreMergedHead(root, before) {
+  if (!before) return;
+  const now = headCommit(root);
+  if (!now || now === before || !isClean(root)) return;
+  const parents = tryGit(root, ['show', '-s', '--format=%P', now]);
+  if (parents.status !== 0 || parents.stdout.trim().split(' ')[0] !== before || parents.stdout.trim().split(' ').length !== 2) return;
+  tryGit(root, ['reset', '--hard', '-q', before]);
+}
+
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
@@ -1291,6 +1305,16 @@ function hostedSubmitRunner(env = process.env) {
   return runner;
 }
 
+/** Submit, then restore the pre-submit head if the board was busy after the automatic main merge [#6096]. */
+async function submitRestoringHead(ctx, id, infra, companionInput = null) {
+  const before = headCommit(ctx.info.root);
+  try { return await submitHere(ctx, id, infra, companionInput); }
+  catch (error) {
+    if (error?.code === 'BOARD_BUSY') restoreMergedHead(ctx.info.root, before);
+    throw error;
+  }
+}
+
 /**
  * Hand a runner-hosted item to the coordinator: the runner pushes the item branch to the coordinator repository, then the
  * seat's coordinator-side item folder checks out the pushed commit, so the ordinary submit gates it and stays the one board writer [C7].
@@ -1350,7 +1374,7 @@ export async function run(io, { first, values }) {
     if (event) submissionResult.event = { ...event };
   };
   let code;
-  try { code = await submitHere(ctx, id, values.infra, companionInput); }
+  try { code = await submitRestoringHead(ctx, id, values.infra, companionInput); }
   catch (error) {
     if (error instanceof Refused && ctx.submitAttempt) {
       try {

@@ -26,6 +26,7 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/withdraw/projector.test.js": 1,
   "apps/cli/journeys/fact/plan/state.test.js": 1,
   "apps/cli/journeys/stats/cockpit.test.js": 1,
+  "apps/cli/journeys/stats/cockpit/crowd.test.js": 1,
   "apps/cli/journeys/merged/map.test.js": 1,
   "apps/cli/journeys/release/metadata.test.js": 1,
   "apps/cli/journeys/companion/main.test.js": 2,
