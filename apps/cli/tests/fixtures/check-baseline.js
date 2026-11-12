@@ -19,6 +19,7 @@ import { runCliInProcess } from './process.js';
 import { closeBoard } from '../../../lib/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { FIXTURE_MODEL } from './e2e.js';
+import { fixtureSettledMachine } from './testkit.js';
 import {
   HOST,
   installSshStandIn,
@@ -60,6 +61,8 @@ export function sandbox() {
     GIT_COMMITTER_NAME: 'Check baseline fixture',
     GIT_COMMITTER_EMAIL: 'check-baseline@example.invalid',
   });
+  // The detached baseline worker measures on the SSH stand-in, which only controller dispatch drives; under the pull default it waits for a pull runner no fixture serves [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run Git with only this fixture's config and identity. */
   function git(cwd, ...args) {
     return runFixtureGit(args, { cwd, env });
