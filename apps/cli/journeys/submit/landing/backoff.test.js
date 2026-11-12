@@ -1,5 +1,5 @@
 /** @pullboard-test-input apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js packages/landing/index.js */
-/** A held or idle lander backs off 60 s doubling to 5 minutes, and an accept, a green gate or a held-test commit wakes it at once [C7]. */
+/** An idle lander backs off 60 s doubling to 5 minutes, and an accept, a green gate or a held-test commit wakes it at once [C7]. */
 import assert from 'node:assert/strict';
 import {
   createHash,
@@ -73,8 +73,8 @@ function command(box, ...args) {
 }
 
 /**
- * A real project whose trunk is held by a recorded landing test defect on web/held.test.js, with automatic landing on
- * and one accepted, unlanded item waiting, so every real landing on it refuses LAND_TEST_DEFECT.
+ * A real project with a recorded landing test defect on web/held.test.js, automatic landing on and one accepted item
+ * waiting under a hold, so every real landing on it moves nothing. A defect no longer holds the trunk [C7,#5862].
  */
 function heldTrunk(t) {
   const box = landProject();
@@ -90,6 +90,7 @@ function heldTrunk(t) {
   onBoard(box, board => store.recordLandingTestDefect(board, { agentId: 'coordinator', test: HELD,
     hash: createHash('sha256').update(HELD_TEXT).digest('hex'), blob, trunkBlob: blob, names: ['held-case'], lane: 'web',
     batchId: randomUUID(), branch: box.git(box.repo, 'symbolic-ref', 'HEAD') }));
+  command(box, 'hold', String(entry.item), '--reason', 'the fixture keeps one accepted item waiting');
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: false } }, null, 2));
@@ -110,24 +111,21 @@ async function backingOff(box) {
   command(box, 'list');
   // One read per poll: the lander and the commands rewrite the record, so a second read can see a newer one.
   let pending = null;
-  await waitForCondition(() => (pending = record(box))?.backoff?.outcome === 'LAND_TEST_DEFECT' && leaseRequests(box).length > 0,
-    'the woken lander refuses on the held trunk and backs off', { signal: AbortSignal.timeout(90_000), state: () => wakeState(box) });
+  await waitForCondition(() => (pending = record(box))?.backoff?.outcome === 'NOTHING_TO_LAND' && leaseRequests(box).length > 0,
+    'the woken lander lands nothing and backs off', { signal: AbortSignal.timeout(90_000), state: () => wakeState(box) });
   return { pending, requests: leaseRequests(box).length };
 }
 
 /**
- * Wait for the lander's next attempt, and prove it started before the back-off it interrupted would have ended: the
- * attempt refuses on the held trunk again and records a fresh 60 s back-off, where an attempt that waited the back-off
- * out would have doubled it to 120 s.
+ * Wait for the woken lander to land `id`, and prove its landing lease was requested before the back-off it interrupted
+ * would have ended: an attempt that waited the back-off out would have started after it.
  */
-async function attemptsBefore(box, { pending }, label) {
-  // One read per poll: an accept replaces the record with an immediate wake that carries no back-off until it refuses.
-  let next = null;
-  await waitForCondition(() => (next = record(box)?.backoff)?.retryAt && next.retryAt !== pending.backoff.retryAt, label,
-    { signal: AbortSignal.timeout(50_000), state: () => record(box) });
-  assert.equal(next.backoffMs, 60_000, 'the woken attempt ran under no back-off, so its refusal starts the waits again');
-  const startedAt = Date.parse(next.retryAt) - next.backoffMs;
-  assert.ok(startedAt < Date.parse(pending.backoff.retryAt), `the next attempt ended at ${new Date(startedAt).toISOString()}, before the back-off ended at ${pending.backoff.retryAt}`);
+async function landsBefore(box, { pending, requests }, id, label) {
+  await waitForCondition(() => onBoard(box, board => Boolean(store.getItem(board, id).item_merged_commit)), label,
+    { signal: AbortSignal.timeout(120_000), state: () => record(box) });
+  const woken = leaseRequests(box).slice(requests);
+  assert.ok(woken.length > 0, 'the wake requested a new landing lease');
+  assert.ok(Date.parse(woken[0].at) < Date.parse(pending.backoff.retryAt), `the next attempt started at ${woken[0].at}, before the back-off ended at ${pending.backoff.retryAt}`);
 }
 
 /**
@@ -160,9 +158,9 @@ function resumeLander(box, { commits = {}, idle = false, pollMs = 5000 } = {}) {
   return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice('RESULT '.length));
 }
 
-test('clause 1: a landing that ends with the trunk held or with nothing to land waits 60 s, doubles to 5 minutes while the outcome repeats, and the lease records backoffMs [C7]', { timeout: 420_000 }, async t => { // budget: seven real held landings in a private repo; hang ceiling, not speed.
+test('clause 1: a landing that moves nothing waits 60 s, doubles to 5 minutes while the outcome repeats, and the lease records backoffMs [C7]', { timeout: 420_000 }, async t => { // budget: seven real idle landings in a private repo; hang ceiling, not speed.
   const { box } = heldTrunk(t);
-  // The real lander, woken by a command on the held trunk, refuses once and backs off 60 s.
+  // The real lander, woken by a command, lands nothing once and backs off 60 s.
   const first = await backingOff(box);
   assert.equal(first.pending.backoff.backoffMs, 60_000);
   assert.deepEqual(Object.keys(first.pending.backoff.marks.held), [HELD], 'the back-off watches the held test file');
@@ -172,13 +170,13 @@ test('clause 1: a landing that ends with the trunk held or with nothing to land 
   command(box, 'list');
   assert.equal(Date.parse(record(box, 'timer.json').dueAt), Date.parse(first.pending.backoff.retryAt), 'recovery keeps the back-off');
   assert.equal(leaseRequests(box).length, first.requests, 'the command started no landing');
-  // Each further held attempt, resumed from its own record on an injected clock, doubles the wait up to 5 minutes.
+  // Each further idle attempt, resumed from its own record on an injected clock, doubles the wait up to 5 minutes.
   const waits = [];
   for (let attempt = 0; attempt < 4; attempt++) {
     const observed = resumeLander(box);
-    assert.equal(observed.backoffs.length, 1, 'the held landing records one back-off');
+    assert.equal(observed.backoffs.length, 1, 'the idle landing records one back-off');
     const next = observed.backoffs[0];
-    assert.equal(next.outcome, 'LAND_TEST_DEFECT');
+    assert.equal(next.outcome, 'NOTHING_TO_LAND');
     assert.equal(observed.clock - observed.start, next.backoffMs, 'the lander waited out the whole back-off');
     assert.equal(Date.parse(observed.pending.dueAt), observed.start + next.backoffMs, 'the next wake is no sooner than the back-off');
     assert.equal(observed.pending.backoff.backoffMs, next.backoffMs, 'the next record carries the back-off');
@@ -188,16 +186,15 @@ test('clause 1: a landing that ends with the trunk held or with nothing to land 
   assert.deepEqual([first.pending.backoff.backoffMs, ...waits], [60_000, 120_000, 240_000, 300_000, 300_000]);
   // Each attempt's landing_lease request names the back-off that delayed it; the first had none.
   assert.deepEqual(leaseRequests(box).slice(-5).map(request => request.backoffMs ?? null), [null, 60_000, 120_000, 240_000, 300_000]);
-  // A landing that moves nothing backs off the same way, and a new outcome starts again at 60 s, then doubles.
+  // A landing replaced by one that moves nothing keeps the same outcome, so the wait stays at its 5-minute ceiling.
   const idle = resumeLander(box, { idle: true });
   assert.equal(idle.backoffs[0].outcome, 'NOTHING_TO_LAND');
-  assert.equal(idle.backoffs[0].backoffMs, 60_000);
-  assert.equal(resumeLander(box, { idle: true }).backoffs[0].backoffMs, 120_000);
+  assert.equal(idle.backoffs[0].backoffMs, 300_000);
   assert.throws(() => onBoard(box, board => store.landingLeaseMove(board, { agentId: 'coordinator', action: 'request', token: randomUUID(),
     branch: 'refs/heads/main', pid: process.pid, backoffMs: 600_000 })), error => error.code === 'LAND_LEASE_REQUEST');
 });
 
-test('clause 2: an accept verdict recorded by the real pullboard verify command during a back-off wakes the lander at once [C7]', { timeout: 300_000 }, async t => { // budget: real lander processes on a held trunk; hang ceiling, not speed.
+test('clause 2: an accept verdict recorded by the real pullboard verify command during a back-off wakes the lander at once [C7]', { timeout: 300_000 }, async t => { // budget: real lander processes on an idle trunk; hang ceiling, not speed.
   const { box } = heldTrunk(t);
   const second = itemWorktree(box, 2);
   submitItem(box, second);
@@ -207,10 +204,10 @@ test('clause 2: an accept verdict recorded by the real pullboard verify command 
   assert.equal(record(box).backoff?.retryAt, backed.pending.backoff.retryAt, 'a command without a wake trigger keeps the back-off');
   assert.equal(leaseRequests(box).length, backed.requests, 'no new landing starts');
   acceptItem(box, second);
-  await attemptsBefore(box, backed, 'the accept wakes the lander');
+  await landsBefore(box, backed, second.item, 'the accept wakes the lander, which lands the accepted item');
 });
 
-test('clause 3: a green gate that verifies an item, recorded by the real submit, wakes the lander at once during a back-off [C7]', { timeout: 300_000 }, async t => { // budget: real lander processes on a held trunk; hang ceiling, not speed.
+test('clause 3: a green gate that verifies an item, recorded by the real submit, wakes the lander at once during a back-off [C7]', { timeout: 300_000 }, async t => { // budget: real lander processes on an idle trunk; hang ceiling, not speed.
   const { box } = heldTrunk(t);
   const path = join(box.dir, 'machine-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/machine-1', path, 'main');
@@ -230,25 +227,22 @@ test('clause 3: a green gate that verifies an item, recorded by the real submit,
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   assert.match(submitted.out + submitted.err, /machine-verified #\d+/u, 'the green gate verified the item');
   assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'verified');
-  await attemptsBefore(box, backed, 'the green gate wakes the lander');
+  await landsBefore(box, backed, id, 'the green gate wakes the lander, which lands the verified item');
 });
 
-test('clause 4: a commit to main that touches the held test file wakes the lander at once; another commit does not [C7]', { timeout: 300_000 }, async t => { // budget: real held landings in a private repo; hang ceiling, not speed.
-  const { box, entry } = heldTrunk(t);
+test('clause 4: a commit to main that touches the held test file wakes the lander at once; another commit does not [C7]', { timeout: 300_000 }, async t => { // budget: real idle landings in a private repo; hang ceiling, not speed.
+  const { box } = heldTrunk(t);
   await backingOff(box);
   const observed = resumeLander(box, { commits: {
     2: { file: 'web/unrelated.txt', text: 'unrelated\n', message: 'chore: an unrelated trunk change' },
     4: { file: HELD, text: `${HELD_TEXT}// corrected\n`, message: 'test: correct the held fixture test' },
   } });
-  assert.equal(observed.backoffs[0].outcome, 'LAND_TEST_DEFECT');
-  assert.equal(observed.backoffs[0].backoffMs, 120_000, 'the repeated refusal doubled the first back-off');
+  assert.equal(observed.backoffs[0].outcome, 'NOTHING_TO_LAND');
+  assert.equal(observed.backoffs[0].backoffMs, 120_000, 'the repeated idle landing doubled the first back-off');
   assert.equal(observed.polls, 4, 'the unrelated commit kept the back-off; the held-file commit ended it at the next look');
   assert.ok(observed.clock - observed.start < observed.backoffs[0].backoffMs, 'the wake came before the back-off ended');
   assert.equal(observed.result.backoff, undefined, 'the woken attempt carries no back-off');
   assert.equal(Date.parse(observed.result.reloadAt), observed.clock + 1000, 'the next attempt is due at once');
   assert.equal(observed.pending?.backoff, undefined, 'the pending wake no longer carries the back-off');
   assert.match(box.git(box.repo, 'log', '-1', '--format=%s', '--', HELD), /correct the held fixture test/u, 'a real commit on the trunk changed the held file');
-  // The corrected test no longer holds the trunk, so the woken lander lands the waiting item.
-  await waitForCondition(() => onBoard(box, board => Boolean(store.getItem(board, entry.item).item_merged_commit)), 'the woken lander lands the waiting item',
-    { signal: AbortSignal.timeout(120_000), state: () => record(box) });
 });
