@@ -2328,5 +2328,13 @@
     "apps/relay->keys",
     "apps/relay->seats",
     "search->store"
+  ],
+  "upwardEdgesGrandfathered": [
+    "apps/cli->apps/relay",
+    "apps/cli->search",
+    "apps/cli->apps/lib",
+    "apps/cli->apps/lib/src",
+    "state->store",
+    "stats->store"
   ]
 }
