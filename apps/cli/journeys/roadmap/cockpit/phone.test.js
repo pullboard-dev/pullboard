@@ -32,7 +32,7 @@ test('a refresh between pointer down and up preserves a roadmap release click [N
   assert.ok(executable, 'Chrome is required for the Roadmap refresh control.');
   const box = machine(), demo = project(box, 'roadmap-refresh-press');
   for (const name of ['0.8.7','0.8.8','0.8.9','0.8.10','0.8.11','0.8.12','0.8.13','0.8.14']) {
-    box.run(demo.repo, 'milestone', 'add', name, '--note', 'Release navigation control.');
+    await box.inProcess(demo.repo, 'milestone', 'add', name, '--note', 'Release navigation control.');
   }
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-refresh-press-'));
@@ -49,7 +49,7 @@ test('a refresh between pointer down and up preserves a roadmap release click [N
       let held;
       await press(chrome, `document.querySelector('#roadmap-panel [data-roadmap-jump="${key}"]')`, {
         afterMouseDown: async () => {
-          box.run(demo.repo, 'shout', 'person', message);
+          await box.inProcess(demo.repo, 'shout', 'person', message);
           await chrome.waitFor(`data.project.shouts.some(shout => shout.shout_text === ${JSON.stringify(message)})`);
           held = await trace.snapshot();
           t.diagnostic(`${width}: held refresh: ${JSON.stringify(held)}`);
@@ -85,11 +85,11 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
   assert.ok(executable, 'Chrome is required for phone release-jump checks.');
   const box = machine();
   const alpha = project(box, 'roadmap-phone-release-jump');
-  for (const title of ['First release item', 'Second release item']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.0', '--reason', 'Arrange fixture release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.1', '--reason', 'Arrange fixture release', '--items', '2');
+  for (const title of ['First release item', 'Second release item']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.9.0', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.9.1', '--reason', 'Arrange fixture release', '--items', '2');
   for (const name of ['0.9.2', '0.9.3', '0.9.4', '0.9.5', '0.9.6', '0.9.7', '0.9.8', '0.9.9', '0.9.10', '0.9.11']) {
-    box.run(alpha.repo, 'milestone', 'add', name, '--note', 'Later release.');
+    await box.inProcess(alpha.repo, 'milestone', 'add', name, '--note', 'Later release.');
   }
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-phone-jump-'));
@@ -153,13 +153,13 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
   assert.ok(executable, 'Chrome is required for the release chevron check.');
   const box = machine();
   const alpha = project(box, 'release-chevron');
-  for (const title of ['Shipped work', 'Open work', 'More open work']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Shipped work', 'Open work', 'More open work']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'shipped.html');
   accept(box, alpha, 1);
-  box.run(alpha.repo, 'milestone', 'add', 'Old release', '--reason', 'Arrange fixture release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', 'Next release with a longer name', '--reason', 'Arrange fixture release', '--items', '2,3');
-  box.run(alpha.repo, 'milestone', 'ship', 'Old release', '--next', 'Next release with a longer name');
-  box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Nothing filed yet.');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Old release', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Next release with a longer name', '--reason', 'Arrange fixture release', '--items', '2,3');
+  await box.inProcess(alpha.repo, 'milestone', 'ship', 'Old release', '--next', 'Next release with a longer name');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Nothing filed yet.');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-release-chevron-chrome-'));
   let chrome;

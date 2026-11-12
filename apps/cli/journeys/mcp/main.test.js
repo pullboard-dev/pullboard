@@ -35,6 +35,7 @@ import { personNeedsState } from '../../../view/index.js';
 import {
   fileFixtureItem,
   fixtureJoinRoute,
+  fixtureMachineSettings,
   joinFixtureSeat,
 } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -164,6 +165,9 @@ async function project(t) {
     MCP_NETWORK_LOG: join(dir, 'network.log'),
   });
   delete env.PULLBOARD_MODEL;
+  // Submits here hold the gate in the submitting process, so the machine home pins controller dispatch (#6182-#6185).
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const guard = join(dir, 'network-guard.mjs');
   writeFileSync(guard, NETWORK_GUARD);
   /** Run real Git under the fixture's isolated identity. */
