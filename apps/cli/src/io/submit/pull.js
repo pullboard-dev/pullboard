@@ -20,6 +20,8 @@ import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
+import { ensureLocalRunner } from '../runner/local.js';
+import { primaryCheckoutRoot } from '../worktree.js';
 
 /** The line a gate job prints its receipt on, the last line of its output; runner serve reads the same prefix. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
@@ -173,7 +175,11 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source: commit, request }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${commit.slice(0, 12)} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
-  if (ctx.json) ctx.io.result({ item: id, commit, gateJob: job.id, queued: true });
-  else ctx.io.say(`#${id} queued as gate job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`);
+  // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
+  const host = primaryCheckoutRoot(ctx.info);
+  const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
+  if (ctx.json) ctx.io.result({ item: id, commit, gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
+  else ctx.io.say(`#${id} queued as gate job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
+    + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
   return 0;
 }
