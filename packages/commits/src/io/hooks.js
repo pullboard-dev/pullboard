@@ -335,9 +335,10 @@ function treeRaw(root, revision, path) {
       : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
   }
   let map = shared.maps.get(revision);
-  if (!map) { map = new Map(); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths, shared.plan ? PLAN_DIRECTORY : null); }
-  if (!map.has(path)) fillRecords(root, revision, map, [path]);
-  const records = map.get(path);
+  if (!map) { map = new Map(); map.planListed = Boolean(shared.plan); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths, shared.plan ? PLAN_DIRECTORY : null); }
+  // A revision listed with the plan folder already knows every plan file it has; the rest are absent.
+  if (!map.has(path) && !(map.planListed && path.startsWith(PLAN_DIRECTORY))) fillRecords(root, revision, map, [path]);
+  const records = map.get(path) ?? [];
   return records.length ? `${records.join('\0')}\0` : '';
 }
 
