@@ -92,10 +92,12 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
   assert.equal(missingJoinModel.stderr,
     'pullboard: [MODEL_REQUIRED] this session has not declared its model\nnext: run pullboard join api --model "<model name>"\n');
   assert.doesNotMatch(missingJoinModel.stderr, /pullboard help/u, 'no generic help footer follows the --model next step');
-  const missingJoinJson = fixtureJoin(box.run, missingJoin, 'api', '--json');
-  assert.equal(missingJoinJson.code, 1);
-  assert.equal(JSON.parse(missingJoinJson.out).error.next,
-    'run pullboard join api --route strong --model "<model name>"', 'the kit adds the strong route, and the next step keeps it');
+  // Spawned bare like the stderr case: the fixture runner adds --route to joins, and the next step echoes the typed command.
+  const missingJoinJson = runFixtureChild(process.execPath, [...fixtureJoinArgv(BIN), 'api', '--json'],
+    { cwd: missingJoin, env: box.env, encoding: 'utf8' });
+  assert.equal(missingJoinJson.status, 1);
+  assert.equal(JSON.parse(missingJoinJson.stdout).error.next,
+    'run pullboard join api --model "<model name>"');
 });
 
 test('a new worktree is created inside the repository [I1,I2]', () => {

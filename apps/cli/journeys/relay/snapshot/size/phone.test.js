@@ -15,10 +15,10 @@ import { relaySnapshot } from '../../../../../../packages/pages/index.js';
 import { findChromeExecutable } from '../../../../tests/fixtures/relay/browser.js';
 import {
   assertFirstPaint,
-  openOnPhone,
   plainTables,
   thirtyThousandBoard,
 } from '../../../../tests/fixtures/relay/sealed-client.js';
+import { openOnPhone } from '../../../../tests/fixtures/relay/sealed/phone.js';
 
 /** Bind the real canonical presentation providers once for this test module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
