@@ -38,7 +38,11 @@ function success(box, cwd, ...args) {
   return JSON.parse(result.stdout);
 }
 
-/** Import the full fixture in bounded normal commits, keeping every installed hook enabled. */
+const IMPORT_CHUNK_BYTES = 6 * 1024 * 1024;
+
+/** Import the full fixture in bounded normal commits, keeping every installed hook enabled.
+ * Why 6 MB: each chunk's staged diff stays under the hook's 8 MB secret-scan limit, and a few large commits
+ * replace forty 1 MB ones whose hook runs alone took two minutes on a loaded runner (#6235). */
 function commitFixture(box) {
   const files = [...new Set(box.git(box.repo, 'ls-files', '--modified', '--others', '--exclude-standard', '-z').split('\0').filter(Boolean))].sort();
   let chunk = [], bytes = 0, number = 0;
@@ -52,7 +56,7 @@ function commitFixture(box) {
   for (const file of files) {
     const size = readFileSync(join(box.repo, file)).length;
     assert.ok(size <= 1024 * 1024, `single fixture file needs a different normal setup: ${file}`);
-    if (bytes + size > 1024 * 1024 || chunk.length === 100) flush();
+    if (bytes + size > IMPORT_CHUNK_BYTES || chunk.length === 1000) flush();
     chunk.push(file); bytes += size;
   }
   flush();
