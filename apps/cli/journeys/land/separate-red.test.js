@@ -59,7 +59,7 @@ function leftQueue(row) {
   return (row.item_status ?? row.status) !== 'verified' || Boolean(row.item_hold_at ?? row.hold);
 }
 
-test('clause 1: with landing.publish separate a red item leaves the landing queue within two cycles, parked or returned, never looping [C7,#6269]', { timeout: 240_000 }, // budget: two real submits, accepts and at most three landings; hang ceiling only.
+test('clause 1 and clause 2: with landing.publish separate a red item leaves the landing queue within two cycles, parked or returned, and a clean item still lands [C7,#6269]', { timeout: 240_000 }, // budget: two real submits, accepts and at most three landings; hang ceiling only.
 async () => {
   const box = separateProject();
   const red = submitted(box, 1, 'RED\n');
