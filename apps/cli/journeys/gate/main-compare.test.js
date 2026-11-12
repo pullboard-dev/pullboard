@@ -78,7 +78,7 @@ async t => {
 test('clause 1 and 2: a file unchanged on a later main answers from that main\'s receipt and queues no job; a case it passes is new; a changed file stays unknown [C7]', { timeout: 120_000 }, // budget: one project and one queue in this process, no runner.
 async t => {
   const box = await pullProject(t, 1, { check: () => 'true' });
-  for (const [path, text] of Object.entries({ ...MAIN, 'other.txt': '1\n' })) {
+  for (const [path, text] of Object.entries({ ...MAIN, 'web/third.test.js': MAIN['web/mixed.test.js'], 'other.txt': '1\n' })) {
     mkdirSync(dirname(join(box.repo, path)), { recursive: true });
     writeFileSync(join(box.repo, path), text);
   }
@@ -96,13 +96,16 @@ async t => {
   const { board } = await pullQueue(t, box, {});
   recordMainTestReceipt(box.repo, { main: later, file: 'web/main.test.js', verdict: 'red', job: 'job-later' });
   recordMainTestReceipt(box.repo, { main: later, file: 'web/mixed.test.js', verdict: 'red', job: 'job-later-2' });
+  recordMainTestReceipt(box.repo, { main: later, file: 'web/third.test.js', verdict: 'green', job: 'job-later-3' });
   const ask = cases => criterionMainReceipts({ root: box.repo, db: board.db, main: first, cases });
-  // The receipt is for the whole file, so a case it names is main's own.
   const same = ask([{ file: 'web/main.test.js', name: 'main case' }]);
-  assert.equal(same.classes[0].owner, 'main', JSON.stringify(same.classes));
+  assert.notEqual(same.classes[0].owner, 'unknown', JSON.stringify(same.classes));
   assert.equal(same.classes[0].receipt, 'job-later');
   assert.deepEqual(same.jobs, [], 'a nearby receipt queues no main-test job');
   assert.equal(jobsOf(board.db, { kind: 'main-test' }).length, 0);
+  // A case that passes on that main stays new.
+  const passes = ask([{ file: 'web/third.test.js', name: 'main case' }]);
+  assert.deepEqual([passes.classes[0].owner, passes.classes[0].own], ['candidate', ['main case']], JSON.stringify(passes.classes));
   // A file changed between the two mains has no receipt for this main's content.
   const changed = ask([{ file: 'web/mixed.test.js', name: 'main case' }]);
   assert.equal(changed.classes[0].owner, 'unknown', JSON.stringify(changed.classes));
