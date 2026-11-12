@@ -12,7 +12,6 @@ import { blockingFailures } from '../../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
 import { landingReceiptReuse } from '../reuse.js';
-import { landingSpan } from '../../../../resources/index.js';
 import { reusableSubmitFiles } from '../reuse.js';
 import { gateVerdictOf } from '../main/red/receipt.js';
 import { toolingFor } from '../../../../pin/index.js';
@@ -311,7 +310,7 @@ async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
   // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
-  await landingSpan('smoke', () => smokeCandidate(state.batch.root, { record: true }));
+  await timedPhase(state.say, 'cli smoke', () => smokeCandidate(state.batch.root, { record: true }));
   state.smoked.add(tree);
 }
 
@@ -477,7 +476,7 @@ async function runGateGroup(state, label, options) {
  * Why: the trunk's static checks waited 80 to 230 s on a runner after a green candidate gate on 9 Nov [C7].
  */
 function earlyStaticChecks(state) {
-  return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+  return timedPhase(state.say, 'static checks', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
     agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
     .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
 }
