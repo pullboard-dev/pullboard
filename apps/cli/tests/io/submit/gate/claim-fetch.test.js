@@ -17,6 +17,8 @@ import { runFixtureGit } from '../../../fixtures/child.js';
 
 /** The real lane-ownership check, which accepted main's stand-in sandbox re-exports into the runner job. */
 const SANDBOX = new URL('../../../../../../packages/sandbox/index.js', import.meta.url).href;
+/** The real claim-base fetch, which accepted main's items cell owns and the runner job calls [C7]. */
+const ITEMS = new URL('../../../../../../packages/items/index.js', import.meta.url).href;
 
 /** A Git environment free of the caller's repository selectors and identity. */
 function gitEnv() {
@@ -42,7 +44,7 @@ function fixture(t, { claim = 'branch' } = {}) {
   git(trunk, 'config', 'pullboard.trunk', 'refs/heads/main');
   put(trunk, 'pullboard.json', JSON.stringify({ lanes: { core: { owns: ['src/'] }, docs: { owns: ['docs/'] } } }) + '\n');
   put(trunk, 'package.json', '{"type":"module"}\n');
-  put(trunk, 'packages/items/index.js', 'export function requirePlannedSource() {}\nexport function requireSubmitComposition() {}\n');
+  put(trunk, 'packages/items/index.js', `export function requirePlannedSource() {}\nexport function requireSubmitComposition() {}\nexport { fetchMissingCommits } from ${JSON.stringify(ITEMS)};\n`);
   put(trunk, 'packages/gate/index.js', 'export async function submitGatePlan() { return { proofFiles: [] }; }\n');
   put(trunk, 'packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put(trunk, 'bin/cells-submit-checks.js', 'export async function requireSubmitCells() { return {}; }\n');
