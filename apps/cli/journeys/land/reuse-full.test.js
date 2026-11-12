@@ -42,7 +42,7 @@ function traced(box) {
 async function landOne(box) {
   const entry = itemWorktree(box, 1);
   const start = traced(box);
-  submitItem(box, entry, 'PASS again\n');
+  submitItem(box, entry, '// PASS again\n');
   acceptItem(box, entry);
   const before = traced(box);
   const landed = await box.runLocal(box.repo, 'land', '--json');
