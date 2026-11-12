@@ -1304,8 +1304,11 @@
   "apps/cli/journeys/submit/fail.test.js": {
     "launch": 11
   },
-  "apps/cli/journeys/submit/gate.test.js": {
-    "launch": 3
+  "apps/cli/journeys/submit/gate/merge-base.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/submit/gate/unchecked.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/submit/handoff/move.test.js": {
     "launch": 1
