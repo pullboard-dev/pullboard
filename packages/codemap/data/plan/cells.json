@@ -2273,6 +2273,7 @@
     "stats->resources",
     "apps/cli->stats",
     "apps/cli->queue",
+    "apps/cli->store",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
@@ -2328,5 +2329,13 @@
     "apps/relay->keys",
     "apps/relay->seats",
     "search->store"
+  ],
+  "upwardEdgesGrandfathered": [
+    "apps/cli->apps/relay",
+    "apps/cli->search",
+    "apps/cli->apps/lib",
+    "apps/cli->apps/lib/src",
+    "state->store",
+    "stats->store"
   ]
 }
