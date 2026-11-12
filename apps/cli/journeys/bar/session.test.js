@@ -47,7 +47,7 @@ function setup(wholeCoverage = false) {
   installSshStandIn({bin,worker,home,machineHome:join(home,'.pullboard'),requests:join(box.dir,'baseline-ssh.jsonl'),nodeCommand:process.execPath});
   box.env.PATH=`${bin}:${box.env.PATH}`;
   fixtureMachineSettings(machine,{gateSlots:0,browserSlots:0,gate:{browserFreeChecks:true,timingRunner:false},
-    runners:[{host:HOST,slots:1,browser:1,node:process.execPath,root:join(home,'.pullboard-runner')}]});
+    runners:[{host:HOST,slots:2,browser:2,node:process.execPath,root:join(home,'.pullboard-runner')}]});
   succeeds(act(box,'private-author-a',box.repo,'join','coordinator','--model','Private author'));
   mkdirSync(join(box.repo,'test'));
   writeFileSync(join(box.repo,'test/witness.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\ntest('named witness',()=>assert.ok(existsSync('web/ready.txt')));\ntest('neighbor witness',()=>assert.ok(true));\n");
