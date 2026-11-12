@@ -105,6 +105,7 @@ const OPTIONS = {
   due: { type: 'boolean' },
   affected: { type: 'boolean' },
   'compare-main': { type: 'boolean' },
+  census: { type: 'boolean' },
   diagnose: { type: 'boolean' },
   'test-run': { type: 'string' },
   waive: { type: 'string' },
