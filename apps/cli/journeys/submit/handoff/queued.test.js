@@ -31,31 +31,31 @@ test('queued submit returns before its gate and remains bound when the builder c
   const box = fixture(t, { companion: true });
   const author = join(box.dir, 'companion-author');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', author, box.commit);
-  const authorId = document(fixtureJoin(box.run, author, 'api', '--json')).agent;
+  const authorId = document(await fixtureJoin(box.runLocal, author, 'api', '--json')).agent;
   mkdirSync(join(author, 'api'), { recursive: true });
   writeFileSync(join(author, 'api', 'companion.txt'), 'required\n');
   box.git(author, 'add', 'api/companion.txt');
   const patch = join(box.dir, 'companion.diff');
   writeFileSync(patch, box.git(author, 'diff', '--cached', '--binary') + '\n');
-  document(box.run(box.repo, 'patch', 'attach', String(box.id), patch, '--key', 'required-companion', '--author', authorId, '--source', box.commit, '--json'));
-  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  document(await box.runLocal(box.repo, 'patch', 'attach', String(box.id), patch, '--key', 'required-companion', '--author', authorId, '--source', box.commit, '--json'));
+  const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
   assert.equal(queued.commit, box.commit);
   assert.match(queued.companionDigest, /^[a-f0-9]{64}$/u);
-  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).commit, queued.commit);
+  assert.equal(document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')).commit, queued.commit);
   assert.equal(existsSync(box.release), false, 'submit acknowledged while the gate was still blocked');
   await box.helpers.waitFor(() => existsSync(box.started), 'actual captured gate execution', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   assert.equal(state(box, box.id).item.item_status, 'claimed', 'unproved work is never reviewable');
   box.git(box.web, 'checkout', '-q', '--detach', 'main');
   assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
   assert.equal(existsSync(join(box.web, 'web/snapshot.txt')), false, 'the next build no longer contains the queued candidate');
-  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  document(await box.runLocal(box.web, 'claim', String(box.second), '--json'));
   assert.equal(helpersCommit(box, 'web/second.txt', 'second\n').status, 0, 'real commit hooks select only the ordinary second claim');
-  const secondQueued = document(box.run(box.web, 'submit', String(box.second), '--no-next', '--json'));
+  const secondQueued = document(await box.runLocal(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
-  document(box.run(box.web, 'claim', String(box.third), '--json'));
-  const fourth = document(fixtureAdd(box.run, box.repo, 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(fourth), '--json'));
+  document(await box.runLocal(box.web, 'claim', String(box.third), '--json'));
+  const fourth = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
+  document(await box.runLocal(box.web, 'claim', String(fourth), '--json'));
   assert.equal(state(box, fourth).item.item_owner, state(box, box.third).item.item_owner, 'B5 permits several live claims in their own folders');
   const duplicate = state(box, box.id).job;
   assert.equal(duplicate.commit, box.commit);
@@ -72,8 +72,8 @@ test('queued submit returns before its gate and remains bound when the builder c
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   // The captured item is filed on the strong route, so its reviewer joins on that route (a mid seat is refused ROUTE).
-  document(fixtureJoin(box.run, reviewer, 'api', '--route', 'strong', '--json'));
-  assert.equal(document(box.run(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
+  document(await fixtureJoin(box.runLocal, reviewer, 'api', '--route', 'strong', '--json'));
+  assert.equal(document(await box.runLocal(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
 });
 
 test('queued gate retains the tool build when the builder changes it [V4,H16,E18]', async t => {
@@ -86,6 +86,7 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
   mkdirSync(actualTemp);
   symlinkSync(actualTemp, aliasedTemp, 'dir');
   box.env.TMPDIR = aliasedTemp;
+  // Process-level: submit from a copied builder tool tree with a symlinked TMPDIR, the installation under test.
   const result = execFileSync(process.execPath, [join(tools, 'apps/cli/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(JSON.parse(result).queued, true);
@@ -108,6 +109,7 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), originalWorker);
   const malformed = join(box.dir, 'malformed-worker-request.json');
   writeFileSync(malformed, JSON.stringify({ tools, job: 'not-native-job', commonDir: join(box.repo, '.git') }));
+  // Process-level: the gate driver child refuses a malformed request in its own process.
   const refused = runFixtureChild(process.execPath, [join(tools, 'apps/cli/src/io/gate/drive.js'), malformed, 'test-driver'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
