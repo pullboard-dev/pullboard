@@ -29,9 +29,6 @@
   "apps/cli/journeys/capacity/main.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/capacity/planner.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/cells/against.test.js": {
     "launch": 1
   },
@@ -57,9 +54,6 @@
     "launch": 10
   },
   "apps/cli/journeys/check/accept.test.js": {
-    "launch": 4
-  },
-  "apps/cli/journeys/check/admission.test.js": {
     "launch": 4
   },
   "apps/cli/journeys/check/receipts.test.js": {
@@ -94,9 +88,6 @@
   },
   "apps/cli/journeys/claim/report.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/companion/attach.test.js": {
-    "launch": 12
   },
   "apps/cli/journeys/companion/companions/applies.test.js": {
     "launch": 3
@@ -447,7 +438,7 @@
     "launch": 12
   },
   "apps/cli/journeys/hold/seat.test.js": {
-    "launch": 9
+    "launch": 1
   },
   "apps/cli/journeys/hold/span.test.js": {
     "launch": 1
@@ -680,9 +671,6 @@
   "apps/cli/journeys/merged/dashboard.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/merged/e2e.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/merged/fast.test.js": {
     "launch": 2
   },
@@ -691,9 +679,6 @@
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/merged/map.test.js": {
-    "launch": 9
   },
   "apps/cli/journeys/merged/ratchet.test.js": {
     "launch": 4
@@ -826,9 +811,6 @@
   },
   "apps/cli/journeys/publish/catalog.test.js": {
     "launch": 23
-  },
-  "apps/cli/journeys/publish/pause.test.js": {
-    "launch": 12
   },
   "apps/cli/journeys/publish/usage/batch.test.js": {
     "launch": 3
@@ -1095,7 +1077,7 @@
     "launch": 6
   },
   "apps/cli/journeys/resources/coordinator.test.js": {
-    "launch": 5
+    "launch": 4
   },
   "apps/cli/journeys/resources/main.test.js": {
     "launch": 15
@@ -1482,7 +1464,7 @@
     "launch": 3
   },
   "apps/cli/journeys/status/board/move.test.js": {
-    "launch": 5
+    "launch": 3
   },
   "apps/cli/journeys/status/counts.test.js": {
     "launch": 3
@@ -1699,9 +1681,6 @@
   },
   "apps/cli/journeys/trace/command.test.js": {
     "launch": 7
-  },
-  "apps/cli/journeys/trace/main.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/trace/why.test.js": {
     "launch": 2
