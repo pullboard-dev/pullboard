@@ -1064,9 +1064,6 @@
   "packages/landing/tests/io/known/main/match.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/inbox/address.test.js": {
-    "launch": 7
-  },
   "apps/cli/journeys/fact/process.test.js": {
     "launch": 2
   },
