@@ -515,9 +515,6 @@
   "apps/cli/journeys/shout/shouts.test.js": {
     "launch": 16
   },
-  "apps/cli/journeys/export/team/link.test.js": {
-    "launch": 5
-  },
   "apps/runner/tests/recovery/self.test.js": {
     "launch": 2
   },
