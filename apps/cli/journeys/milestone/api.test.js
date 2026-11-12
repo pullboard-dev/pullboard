@@ -1282,7 +1282,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     try {
       const freshResponse = await apiFetch(fresh, `${path}/state?detail=full`);
       assert.equal(freshResponse.status, 200, `${label}: fresh full state response`);
-      const freshState = (await freshResponse.json()).state, diff = (a, b, p = '$', out = []) => { if (JSON.stringify(a) === JSON.stringify(b)) return out; if (a && b && typeof a === 'object' && typeof b === 'object') for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) diff(a[k], b[k], `${p}.${k}`, out); else out.push([p, a, b]); return out; }; assert.deepEqual(current.state, freshState, `${label}: incremental state equals a clean full rebuild; differing paths: ${JSON.stringify(diff(current.state, freshState).slice(0, 20))}`);
+      const freshState = (await freshResponse.json()).state, diff = (a, b, p = '$', out = []) => { if (JSON.stringify(a) === JSON.stringify(b)) return out; if (a && b && typeof a === 'object' && typeof b === 'object') for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) diff(a[k], b[k], `${p}.${k}`, out); else out.push([p, a, b]); return out; }; assert.deepEqual(diff(current.state, freshState).slice(0, 20), [], `${label}: incremental state equals a clean full rebuild`);
       assert.equal(Date.now(), comparisonTime, `${label}: both state projections use the same controlled instant`);
     } finally {
       await fresh.close();
