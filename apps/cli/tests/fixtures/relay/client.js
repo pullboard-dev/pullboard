@@ -193,7 +193,7 @@ async function inProcessResult(root, env, args, observedSnapshotUploads, initial
     elapsedMs: performance.now() - startedAt, stderr: run.stderr, env, detail });
   let document;
   try { document = JSON.parse(run.stdout); }
-  catch (error) { throw new Error(report(`private relay fixture command did not return JSON: ${error.message}`)); }
+  catch (error) { throw new Error(report(`private relay fixture command did not return JSON: ${error.message}; stdout tail: ${JSON.stringify(run.stdout.slice(-400))}`)); }
   work = uploadWork(observedSnapshotUploads?.() ?? initialSnapshotUploads);
   deadlineMs = Math.max(deadlineMs, cliChildDeadlineMs(work.budgetUnits));
   return { code: run.code, document, failure: run.code === 0 ? null : report(), snapshotUploads: work.legacyUploads,
