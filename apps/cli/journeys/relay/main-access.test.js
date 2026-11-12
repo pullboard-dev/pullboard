@@ -121,7 +121,7 @@ test('relay off forgets expired and remotely deleted boards while preserving loc
   for (const cause of ['expired', 'other-client']) await t.test(cause, async (t) => {
     const box = await relayClientFixture(t);
     await box.link();
-    const localBeforeOff = (await box.cli('export')).document.tables;
+    const localBeforeOff = (await box.cliLocal('export')).document.tables;
     const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
     if (cause === 'expired') box.advance(90);
     else {
@@ -132,20 +132,20 @@ test('relay off forgets expired and remotely deleted boards while preserving loc
       assert.equal(deleted.status, 200, 'an explicit person HTTP DELETE removes the remote board');
     }
     const callsBeforeOff = box.calls.length;
-    const off = await box.cli('relay', 'off');
+    const off = await box.cliLocal('relay', 'off');
     assert.equal(off.code, 0);
     assert.equal(off.document.linked, false);
     assert.match(off.document.notice, /Local link removed/u);
     assert.equal(existsSync(box.linkFile), false, 'local link metadata is forgotten');
     assert.equal(existsSync(box.keyFile), false, 'device-only fallback key is forgotten');
-    assertPersonUnlinkHistory((await box.cli('export')).document.tables, localBeforeOff);
+    assertPersonUnlinkHistory((await box.cliLocal('export')).document.tables, localBeforeOff);
     assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root),
       'the local opt-out remains durable after unlink');
     assert.equal(box.calls.slice(callsBeforeOff).some(call => call.method === 'DELETE'), false,
       'relay off never deletes the relay copy without its separate phone approval');
     const count = box.calls.length;
-    assert.equal((await box.cli('relay', 'off')).code, 0);
-    assert.equal((await box.cli('status')).code, 0);
+    assert.equal((await box.cliLocal('relay', 'off')).code, 0);
+    assert.equal((await box.cliLocal('status')).code, 0);
     assert.equal(box.calls.length, count, 'repeated off and local commands make no relay connection');
   });
 });
@@ -153,17 +153,17 @@ test('relay off forgets expired and remotely deleted boards while preserving loc
 test('relay off completes local unlink when the relay is offline [H1,H7,H18]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  const localBeforeOff = (await box.cli('export')).document.tables;
+  const localBeforeOff = (await box.cliLocal('export')).document.tables;
   await box.stopRelay();
   const callsBeforeOff = box.calls.length;
-  const off = await box.cli('relay', 'off');
+  const off = await box.cliLocal('relay', 'off');
   assert.equal(off.code, 0, 'local unlink succeeds without a reachable relay');
   assert.match(off.document.notice, /relay copy stays until you approve deleting it on your phone/u);
   assert.equal(existsSync(box.linkFile), false);
   assert.equal(existsSync(box.keyFile), false);
   assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root),
     'the local opt-out remains durable');
-  assertPersonUnlinkHistory((await box.cli('export')).document.tables, localBeforeOff);
+  assertPersonUnlinkHistory((await box.cliLocal('export')).document.tables, localBeforeOff);
   assert.equal(box.calls.length, callsBeforeOff, 'offline local unlink makes no relay request');
   assert.equal(box.calls.some(call => call.method === 'DELETE'), false, 'offline local unlink cannot delete the remote copy');
 });

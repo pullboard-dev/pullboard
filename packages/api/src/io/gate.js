@@ -10,7 +10,13 @@ import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
+import { offeredRequest } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
+import { withLandingPermit } from './permit.js';
+import { applyMainTestReceipt } from './recheck.js';
+import { MAIN_TEST_KIND } from './recheck.js';
+import { offerMainTests } from './recheck.js';
+import { landingGuardKey } from '../../../git/index.js';
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
@@ -18,6 +24,8 @@ const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 const PART_TEXT = 600;
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
 export const SHARD_JOB_KIND = 'gate-shard';
+/** Budget: a gate request with its ledger hits stays this far under the queue's 60 KiB job-request cap (jobs.js). */
+const LEDGER_REQUEST_BYTES = 56 * 1024;
 // Budget: one gate's proof splits into at most 32 shard jobs, so one receipt never floods the queue.
 const MAX_SHARDS = 32;
 
@@ -31,7 +39,7 @@ function offeredGate(db, job) {
   const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_id = ?`).get(job);
   if (!row) return null;
-  const request = JSON.parse(row.job_step_payload).request ?? null;
+  const request = offeredRequest(db, job);
   return { kind: row.job_kind, item: row.job_item, candidate: row.job_candidate, main: row.job_base, submit: request?.submit ?? null,
     check: typeof request?.input?.data?.check === 'string' ? request.input.data.check : null };
 }
@@ -88,10 +96,10 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   return ids;
 }
 
-/** The request a job was offered with, or null. */
-function offeredRequest(db, job) {
+/** The offer a job was made with, its request read back whole, or null. */
+function offeredStep(db, job) {
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
-  return row ? JSON.parse(row.job_step_payload) : null;
+  return row ? { ...JSON.parse(row.job_step_payload), request: offeredRequest(db, job) } : null;
 }
 
 /** The newest receipt posted for a job, or null. */
@@ -126,7 +134,7 @@ function offerProofShards(board, { job, receipt, offered }) {
   if (receipt?.status === undefined || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || (gate.phases ?? []).some(phase => phase.status !== 0)
     || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores || files.length <= cores
     || files.some(file => typeof file !== 'string' || !PROJECT_FILE.test(file))) return null;
-  const request = offeredRequest(board.db, job);
+  const request = offeredStep(board.db, job);
   const gateRequest = request?.request;
   if (!Array.isArray(gateRequest?.run) || typeof gateRequest.input?.entry !== 'string') return null;
   const count = Math.min(MAX_SHARDS, Math.ceil(files.length / cores));
@@ -134,9 +142,11 @@ function offerProofShards(board, { job, receipt, offered }) {
   files.forEach((file, at) => buckets[at % count].push(file));
   const ids = buckets.map((part, index) => {
     const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
+    // Each shard carries the ledger's proven rows for its own files; its runner runs only the misses [P7,CD2].
+    const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
-        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command } } } } }).id;
+        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }).id;
   });
   store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
     text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls, and the gate result applies when the last one posts.` });
@@ -178,7 +188,7 @@ function combinedReceipt(gateReceipt, shards) {
  * @returns {{ applied: boolean, outcome: string, remaining?: number }}
  */
 export function applyShardReceipt(board, { job }, ports = {}) {
-  const parent = offeredRequest(board.db, job)?.request?.gate;
+  const parent = offeredRequest(board.db, job)?.gate;
   if (typeof parent !== 'string') return { applied: false, outcome: 'not-shard' };
   const shards = shardJobs(board.db, parent);
   const remaining = shards.filter(row => row.job_step !== 'done').length;
@@ -343,19 +353,65 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} options - compareWithMain:
- *   main's receipt lookup for a red gate's cases; the one provided to this process by default.
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null }} options - compareWithMain:
+ *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
+ *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, ...options }) {
-  return jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ...options }) {
+  // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
+  if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
+  const answer = jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+  return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
+}
+
+/**
+ * Write the proof-ledger rows one gate or shard receipt carries: one test_result row per file its phases ran under a
+ * key, pass or fail by file, whatever the job's own outcome or its item's state. Why before the apply: proof is proof,
+ * so a red or stale job's green files still count, and the shard combine never loses a shard's files [P7,CD2].
+ *
+ * @param {any} board
+ * @param {{ job: string, attempt?: number, receipt: Record<string, any> }} posted
+ * @param {'pulled' | 'shard'} origin
+ * @returns {number} rows written
+ */
+export function recordReceiptLedger(board, { job, attempt = 0, receipt }, origin) {
+  const runner = postedReceipt(board.db, job)?.runner ?? 'unknown';
+  const gate = receipt?.gate ?? {};
+  const commit = SHA.test(String(gate.source ?? '')) ? gate.source : null;
+  const rows = [];
+  for (const phase of Array.isArray(gate.phases) ? gate.phases : []) {
+    const { contexts, files } = phase?.ledger ?? {};
+    if (!Array.isArray(contexts) || !Array.isArray(files)) continue;
+    for (const [file, inputKey, context, status] of files.filter(Array.isArray)) {
+      rows.push({ file, inputKey, command: String(phase.role ?? 'proof'), context: contexts[context], status });
+    }
+  }
+  return store.recordTestResults(board.db, { receipt: `${job}#${attempt}`, origin: `${origin}:${runner}`, commit, rows });
+}
+
+/**
+ * Add the board ledger's hits for `files` to a gate job request, within what the request has left under the queue's
+ * cap; the runner's planTestActions reuses a file whose own key a hit matches and runs only the rest [P7,CD2].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ input: { data: Record<string, any> } }} request
+ * @param {string[]} files
+ */
+export function gateLedgerHits(db, request, files) {
+  const budget = Math.min(16_000, LEDGER_REQUEST_BYTES - Buffer.byteLength(JSON.stringify(request)));
+  const hits = budget > 0 ? store.ledgerHits(db, files, { budget }) : null;
+  if (hits) request.input.data.ledger = hits;
+  return request;
 }
 
 /** Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. */
 export function applyJobReceipt(board, posted, ports = {}) {
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
+  if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
+  if (kind === MAIN_TEST_KIND) return applyMainTestReceipt(board, posted);
   return { applied: false, outcome: 'recorded' };
 }
 

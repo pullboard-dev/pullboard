@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { cliLaunchSites } from '../../../src/io/test/launches.js';
 import { cliLaunchReport } from '../../../src/io/test/launches.js';
 import { cliLaunchGrowth } from '../../../src/io/test/launches.js';
+import { cliLaunchSplit } from '../../../src/io/test/launches.js';
 import { cliLaunchCounts } from '../../../src/io/test/launches.js';
 import { tightenCliLaunchBaseline } from '../../../src/io/test/launches.js';
 
@@ -28,6 +29,19 @@ test('clause 1: a spawn of node or the CLI entry, a fixture child and a kit box 
     "const i = 'box.run(cwd)';",
   ].join('\n');
   assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [1, 2, 3, 4, 5]);
+});
+
+test('clause 1: a spawn of /bin/sh or a quoted bin/ glob is not a launch, while a pullboard CLI launch still is [C7]', () => {
+  const source = [
+    "const a = execFileSync('/bin/sh', ['-c', shell], { cwd: box.runner });",
+    "const b = execFileSync('git', ['ls-files', 'bin/*.js'], { cwd: ROOT });",
+    "const c = runFixtureChild('/bin/ps', ['-p', String(pid)]);",
+    "const d = spawnSync(process.execPath, [BIN, 'show']);",
+    // The entry path is split so this file's own source spawns no CLI under the cell-test rule.
+    "const e = execFileSync('node', ['bin/pull" + "board.js', 'next']);",
+    "const f = spawnSync(process.execPath, [pullboardBin, 'claim']);",
+  ].join('\n');
+  assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [4, 5, 6]);
 });
 
 test('clause 1: only test files under apps/ and packages/ have launches counted, the fixture kit and src files are not [C7]', () => {
@@ -60,4 +74,10 @@ test('clause 1: the updater only lowers ceilings and refuses growth without writ
 test('clause 1: the repository has no new CLI launches in its journeys [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL('../../../data/baselines/cli-launches.json', import.meta.url), 'utf8'));
   assert.deepEqual(cliLaunchGrowth(cliLaunchReport(ROOT), baseline), []);
+});
+
+test('clause 1: the report gives each file a pullboard CLI count and an other-child count, with both totals [C7,#5946]', () => {
+  const sites = cliLaunchSites("box.run(a);\nspawnSync(process.execPath, ['--test', 'x.test.js']);\nexecFileSync('node', ['-e', 'x']);\nspawnSync(process.execPath, [BIN, 'show']);", PATH);
+  assert.deepEqual(cliLaunchSplit(sites), { files: { [PATH]: { cli: 2, other: 2 } }, totals: { cli: 2, other: 2 } });
+  assert.deepEqual(cliLaunchCounts(sites), { [PATH]: { launch: 4 } }, 'the ceilings still count both');
 });

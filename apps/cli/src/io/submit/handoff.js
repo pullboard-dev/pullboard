@@ -170,11 +170,34 @@ const TOOLING_PATHS = ['bin', 'apps', 'packages', 'src', 'package.json'];
  * with the same tooling trees need one snapshot, and a merge of main that changed only tests or docs must copy nothing [C7].
  */
 function toolingDigest(toolRoot) {
+  // One ls-tree of the top level reads all five ids; a rev-parse per path cost five Git processes (#5900).
+  const listed = tryGit(toolRoot, ['ls-tree', '-z', 'HEAD', '--', ...TOOLING_PATHS]);
+  const found = new Map();
+  if (listed.status === 0) for (const entry of listed.stdout.split('\0')) {
+    const row = /^\d+ \w+ ([^\t]+)\t(.+)$/u.exec(entry);
+    if (row) found.set(row[2], row[1]);
+  }
   const ids = TOOLING_PATHS.map(path => {
-    const id = tryGit(toolRoot, ['rev-parse', `HEAD:${path}`]);
-    return id.status === 0 && /^[0-9a-f]{40}$/u.test(id.stdout) ? `${path}=${id.stdout}` : `${path}=absent`;
+    const id = found.get(path);
+    return /^[0-9a-f]{40}$/u.test(id ?? '') ? `${path}=${id}` : `${path}=absent`;
   });
   return createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 40);
+}
+
+/**
+ * The shared tools folder and committed HEAD a git checkout of Pullboard snapshots into, without copying anything; null
+ * when the tool root has no resolvable HEAD and needs a private copy.
+ * Why: a caller that can build the snapshot later (the detached comparison worker) records this and returns at once [C7].
+ *
+ * @param {string} toolRoot
+ * @returns {{ tools: string, commit: string } | null}
+ */
+export function sharedToolsTarget(toolRoot) {
+  // One process answers both; it fails when either does, as the two separate reads each refused (#5900).
+  const read = tryGit(toolRoot, ['rev-parse', 'HEAD', '--show-toplevel']);
+  const [head, top, ...rest] = read.status === 0 ? read.stdout.split('\n') : [];
+  if (read.status !== 0 || rest.length || !/^[0-9a-f]{40}$/u.test(head ?? '') || !top || realpathSync(top) !== realpathSync(toolRoot)) return null;
+  return { tools: join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`), commit: head };
 }
 
 /**
@@ -191,11 +214,9 @@ function toolingDigest(toolRoot) {
  */
 export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild, advance = advanceIdleToolTree } = {}) {
   copy ??= copyTools;
-  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
-  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
-  const clean = rebuild !== undefined || head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
-    && realpathSync(top.stdout) === realpathSync(toolRoot);
-  const shared = rebuild?.tools ?? (clean ? join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`) : null);
+  const target = rebuild ?? sharedToolsTarget(toolRoot);
+  const clean = target !== null;
+  const shared = target?.tools ?? null;
   if (shared && existsSync(shared)) {
     touchToolTree(shared);
     // The reuse path is the usual one; it sweeps too, so stale snapshots go on the next submit, not only on the next copy.
@@ -209,7 +230,7 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
     return tools;
   }
   // An idle kept snapshot moved to this commit writes only the files that differ, proved by tree id (#3663).
-  const commit = rebuild?.commit ?? head.stdout;
+  const commit = target.commit;
   // The move runs before the room check: that check's sweep removes idle snapshots, the very ones worth moving.
   const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: tmpdir() });
   if (advanced) sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });

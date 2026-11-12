@@ -114,22 +114,11 @@ const step = async (name, work) => {
 };
 const refuse = (code, message) => Object.assign(new Error(message), { name: 'Refused', code });
 const OBJECT = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
-const present = commit => spawnSync('git', ['--no-replace-objects', 'cat-file', '-e', commit + '^{commit}'], { cwd: root, stdio: 'ignore' }).status === 0;
 /**
- * Fetch each named commit this checkout lacks from the job's trunk remote, by id first, then by the remote's branches;
- * return the ones still missing. Why: a job checkout holds only main and the candidate, while an item claimed on
- * another item's commit has its claim base only on that item's branch, so its lane policy was unreadable here (#5808).
+ * The named commits this checkout still lacks after fetching them from the job's trunk remote (#5808). Main's items
+ * cell owns the fetch, so a runner job fetches a missing trunk commit in one place [C7]; a main without it fetches nothing.
  */
-const fetchMissing = (commits, remote) => {
-  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
-  const fetch = args => spawnSync('git', ['fetch', '-q', '--no-tags', '--no-write-fetch-head', '--', remote, ...args], { cwd: root, env, stdio: 'ignore' });
-  let missing = commits.filter(commit => !present(commit));
-  if (!missing.length || !remote || remote.startsWith('-')) return missing;
-  for (const commit of missing) spawnSync('git', ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--no-write-fetch-head', '--', remote, commit], { cwd: root, env, stdio: 'ignore' });
-  missing = missing.filter(commit => !present(commit));
-  if (missing.length) fetch(['+refs/heads/*:refs/pullboard/trunk-heads/*']);
-  return missing.filter(commit => !present(commit));
-};
+const fetchMissing = (commits, remote) => typeof items.fetchMissingCommits === 'function' ? items.fetchMissingCommits(root, commits, remote) : [];
 const trusted = command => command.split(/(\\s+)/u).map(word => /^[\\w./-]+\\.[cm]?js$/u.test(word) && !isAbsolute(word)
   && existsSync(join(tools, word)) ? JSON.stringify(join(tools, word)) : word).join('');
 try {
@@ -175,8 +164,15 @@ try {
     if (absent.length) throw Object.assign(refuse('NO_POLICY', 'the claim base or frozen policy commit ' + absent.map(commit => commit.slice(0, 12)).join(', ')
       + ' is not on the trunk remote ' + (remote || '(none named)') + ', so lane ownership cannot be checked on the runner'),
       { next: 'push that commit to the trunk remote, or ask the coordinator to refreeze the item so it is claimed on main, then submit again', rerun: false });
+    // The builder's own head, and every dependency's base and commit, must be here to be judged here; else the controller checks at home.
+    const head = input.authorization.commit ?? input.source;
+    const dependencies = input.authorization.dependencies ?? [];
+    const wanted = [head, ...dependencies.flatMap(dependency => [dependency.base, dependency.commit])];
+    fetchMissing([...new Set(wanted.filter(commit => OBJECT.test(commit ?? '')))], remote);
+    const lacking = wanted.filter(commit => !OBJECT.test(commit ?? '') || spawnSync('git', ['cat-file', '-e', commit + '^{commit}'], { cwd: root }).status !== 0);
+    if (lacking.length) { result.authorization = { skipped: 'the runner lacks ' + lacking.map(commit => String(commit).slice(0, 12)).join(', ') }; return; }
     try {
-      const paths = sandbox.submissionPaths(root, input.authorization.item, input.source, { mainCommit: input.main, dependencies: [], onMechanicalPaths: found => { mechanical = found; } });
+      const paths = sandbox.submissionPaths(root, input.authorization.item, head, { mainCommit: input.main, dependencies, onMechanicalPaths: found => { mechanical = found; } });
       result.authorization = { paths, mechanical, ownership: null };
     } catch (error) {
       if (error?.code === 'OUTSIDE_LANE' && Array.isArray(error.paths)) result.authorization = { mechanical, ownership: { message: String(error.message).replace(/^\\[\\w+\\] /u, ''), paths: error.paths, policy: error.policy ?? null } };
@@ -485,10 +481,15 @@ export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [], c
  * @param {boolean} remoteMode
  * @param {Promise<object>|null} selection The runner selection stage's analysis.
  * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
- * @param {(runnerPlan: object) => Promise<any>} runGate
+ * @param {(runnerPlan: object, early?: any) => Promise<any>} runGate
+ * @param {(() => any)|null} [startCriterion] Starts the frozen check on its own runner lease; it needs no test selection (#3325).
  */
-export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate) {
-  return runGate(remoteMode ? acceptRunnerPlan(await selection, pinned) : {});
+export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate, startCriterion = null) {
+  if (!remoteMode) return runGate({});
+  // The criterion run begins now, beside the selection; only the proof waits for the plan.
+  const early = startCriterion?.() ?? null;
+  try { return await runGate(acceptRunnerPlan(await selection, pinned), early); }
+  catch (error) { early?.abort(); throw error; }
 }
 
 /** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */

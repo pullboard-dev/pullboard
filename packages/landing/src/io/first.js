@@ -17,6 +17,12 @@ export function firstContainingCommit(root, source) {
   if (!contains(commits[0])) return undefined;
   let containing = 0;
   let absent = commits.length;
+  // A source this landing just merged is first contained by the tip itself: one probe of the tip's first parent settles
+  // it, where the bisection over a long trunk asked Git about ten times per merged item [C7].
+  if (commits.length > 1) {
+    if (contains(commits[1])) containing = 1;
+    else absent = 1;
+  }
   while (absent - containing > 1) {
     const middle = Math.floor((containing + absent) / 2);
     if (contains(commits[middle])) containing = middle;

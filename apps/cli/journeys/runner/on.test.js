@@ -73,11 +73,13 @@ test('clause 1: pullboard test runs the folder commit on a free runner and print
 test('clause 2: pullboard test on a free runner returns within the file run time plus 10 seconds [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling; the speed bar is the assertion below.
   const { box } = await runnerProject();
   const own = Date.now();
+  // Process-level: a real node --test run is timed against the CLI; wall-clock cannot be in-process.
   const alone = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/timed.test.js'], { cwd: box.web, encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });
   const ownMs = Date.now() - own;
   assert.equal(alone.status, 0, alone.stderr);
   assert.ok(ownMs >= SLEEP_MS, `the fixture file runs its known time (${ownMs} ms)`); // budget: the fixture's own run time is the measured baseline.
   const started = Date.now();
+  // Process-level: wall-clock; the bar times the real CLI process end to end, start-up included.
   const ran = box.run(box.web, 'test', 'test/timed.test.js', '--json');
   const ms = Date.now() - started;
   assert.equal(ran.code, 0, ran.err);

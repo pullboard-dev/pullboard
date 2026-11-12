@@ -18,6 +18,7 @@ import { runFixtureGit } from '../child.js';
 import {
   createFixtureWorktree,
   fileFixtureItem,
+  fixtureMachineSettings,
 } from '../testkit.js';
 export const BIN = join(import.meta.dirname, '../../../pullboard.js');
 
@@ -62,6 +63,9 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'submit-main-red-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
+  // These submits hold their gate and main comparison in the submitting process, so the fixture pins controller dispatch [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);

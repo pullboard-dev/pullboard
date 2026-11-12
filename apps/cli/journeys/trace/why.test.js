@@ -24,14 +24,14 @@ function traceLines(repo) {
   return readdirSync(dir).sort().flatMap(name => readFileSync(join(dir, name), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)));
 }
 
-test('clause 1: --why and PULLBOARD_WHY are ignored for behaviour and stored in the call trace line [C7]', () => {
+test('clause 1: --why and PULLBOARD_WHY are ignored for behaviour and stored in the call trace line [C7]', async () => {
   const box = e2e.project('true');
   // @pullboard-board-file journey: seed the board file the real CLI traces from
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Why me', criterion: 'The file is committed.' });
   store.closeBoard(board);
-  assert.equal(box.run(box.web, 'show', String(id), '--why', 'checking the bar', '--json').code, 0);
-  assert.equal(box.run(box.web, 'show', String(id), '--why=inline intent', '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'show', String(id), '--why', 'checking the bar', '--json')).code, 0);
+  assert.equal((await box.runLocal(box.web, 'show', String(id), '--why=inline intent', '--json')).code, 0);
   const lines = traceLines(box.repo).filter(line => line.command === 'show');
   assert.deepEqual(lines.map(line => line.why), ['checking the bar', 'inline intent']);
   assert.ok(lines.every(line => !line.args.includes('--why') && !line.args.includes('checking the bar')), JSON.stringify(lines));

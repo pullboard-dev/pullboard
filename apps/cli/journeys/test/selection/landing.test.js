@@ -45,7 +45,7 @@ test('an edited tier manifest cannot hide a real failing unit [C7,CS4,V4]', asyn
   assert.equal(json(box, box.repo, 'show', String(entry.id)).item_status, 'claimed');
 });
 
-test('a real T3 batch failure bisects to its item while package units stay out of batch gates [C7,CS4,V4]', async t => {
+test('clause 1: a real T3 batch failure bisects to its item while package units stay out of batch gates [C7,CS4,V4]', async t => {
   const box = fixture(t), good = build(box, 'alpha', 2);
   json(box, good.root, 'submit', String(good.id), '--no-next');
   accept(box, good);
@@ -69,7 +69,7 @@ test('a real T3 batch failure bisects to its item while package units stay out o
 });
 
 
-test('control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', async t => {
+test('clause 1 control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
   assert.deepEqual(submitted.gate.files, ['test/alpha.test.js'], 'the submit proof predates the contract');

@@ -58,7 +58,7 @@ function observations(path) {
 export async function measureFileInflation(t, mode) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-dispatch-p95-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const git = runFixtureChild('git', ['init', '-q'], { cwd: root });
+  const git = runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: root });
   assert.equal(git.status, 0, git.failure);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ testConcurrency: { files: 8, browser: 1 } }));

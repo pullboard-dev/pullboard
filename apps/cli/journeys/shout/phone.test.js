@@ -69,7 +69,7 @@ async function linkedBoard(t) {
   const box = await relayClientFixture(t);
   await box.link();
   const ask = async (text) => {
-    const asked = await box.cli('shout', 'person', text, '--decision');
+    const asked = await box.cliLocal('shout', 'person', text, '--decision');
     assert.equal(asked.code, 0, JSON.stringify(asked.document));
     return asked.document.id;
   };

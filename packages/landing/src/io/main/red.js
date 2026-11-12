@@ -138,7 +138,9 @@ export function readCache(file) {
           const failures = cachedFailureSignatures(outcome, path);
           entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
             ...(outcome.fileIsolation === true && outcome.result === 'red' ? { fileIsolation: true } : {}),
-            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}) };
+            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}),
+            ...(/^[0-9a-f]{40,64}$/u.test(outcome.main ?? '') ? { main: outcome.main } : {}),
+            ...(typeof outcome.at === 'string' && Number.isFinite(Date.parse(outcome.at)) ? { at: outcome.at } : {}) };
         }
       }
     }
@@ -503,8 +505,9 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
         const failures = named?.map(row => row.file === path ? row : { ...row, ran: path }) ?? named;
         const fileIsolation = detailed && !run.isGreen && !failures && completeGate(run, { allowCancelled });
         if (detailed && !run.isGreen && !failures && !fileIsolation) throw new Error('focused main output has no complete named failure account');
+        // Main's commit and the time ride with each result, so the first red after a green names its landing [#5809].
         return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
-          ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}) };
+          ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}), main: main.commit, at: new Date().toISOString() };
       };
       /** The slot options shared by both placements; only browser, gui and remote eligibility differ. */
       const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
@@ -603,6 +606,27 @@ export function cachedMainComparison(root, commit, files) {
     const entries = readCache(cacheFile(root)).entries[commit] ?? {};
     return { main: commit, files: [...new Set(files)].filter(path => entries[path]).map(path => ({ file: path, ...entries[path] })) };
   } catch { return { main: commit, files: [], unavailable: 'the main comparison cache cannot be read' }; }
+}
+
+/**
+ * Record one finished main-test job's verdict in the local comparison cache, so submit, landing and serve find the
+ * receipt at that main commit [C7,P7]. A green is a complete row with no failing cases; a red names the whole file
+ * (fileIsolation), since the job carries case names but no signatures. An existing row for the file is kept.
+ *
+ * @param {string} root - The board host's repository.
+ * @param {{ main: string, file: string, verdict: 'green' | 'red', job: string, at?: number }} receipt
+ * @returns {boolean} whether a row was written
+ */
+export function recordMainTestReceipt(root, { main, file, verdict, job, at = Date.now() }) {
+  if (!/^[0-9a-f]{40,64}$/u.test(main ?? '') || !file || !['green', 'red'].includes(verdict)) return false;
+  // Synchronous on purpose: the receipt applier is; a racing writer only costs a re-measure of one file.
+  const path = cacheFile(root);
+  const cache = readCache(path);
+  if (cache.entries[main]?.[file]) return false;
+  const outcome = verdict === 'green' ? { result: 'green', failures: [], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : { result: 'red', fileIsolation: true };
+  cache.entries[main] = { ...cache.entries[main], [file]: { ...outcome, receiptId: job, main, at: new Date(at).toISOString() } };
+  writeCache(path, cache);
+  return true;
 }
 
 /** The newest commit-keyed generations of the cache, newest first; content-keyed records are not generations. */
