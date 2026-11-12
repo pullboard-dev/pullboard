@@ -114,6 +114,7 @@ export function cellSandbox(t, { model = FIXTURE_MODEL } = {}) {
     PULLBOARD_MACHINE_HOME: join(scratch.root, 'machine-home'),
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
+    PULLBOARD_CLAIM_BEATER: '0',
     PULLBOARD_MODEL: model,
   });
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
