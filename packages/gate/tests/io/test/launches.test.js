@@ -30,6 +30,18 @@ test('clause 1: a spawn of node or the CLI entry, a fixture child and a kit box 
   assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [1, 2, 3, 4, 5]);
 });
 
+test('clause 1: a spawn of /bin/sh or a quoted bin/ glob is not a launch, while a pullboard CLI launch still is [C7]', () => {
+  const source = [
+    "const a = execFileSync('/bin/sh', ['-c', shell], { cwd: box.runner });",
+    "const b = execFileSync('git', ['ls-files', 'bin/*.js'], { cwd: ROOT });",
+    "const c = runFixtureChild('/bin/ps', ['-p', String(pid)]);",
+    "const d = spawnSync(process.execPath, [BIN, 'show']);",
+    "const e = execFileSync('node', ['bin/pullboard.js', 'next']);",
+    "const f = spawnSync(process.execPath, [pullboardBin, 'claim']);",
+  ].join('\n');
+  assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [4, 5, 6]);
+});
+
 test('clause 1: only test files under apps/ and packages/ have launches counted, the fixture kit and src files are not [C7]', () => {
   assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/tests/fixtures/e2e.js'), []);
   assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/src/main.js'), []);
