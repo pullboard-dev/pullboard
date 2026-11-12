@@ -41,8 +41,8 @@ const RENEW_MS = 30_000;
 // Budget: a renewal that could not reach the board tries again every 3 s until the 2-minute lease has really ended, not at the next 30 s tick.
 const RENEW_RETRY_MS = 3_000;
 const LEASE_MS = 120_000;
-// Budget: the first retry after a failed board call waits 1 s, doubling to at most a minute between tries.
-const BACKOFF = { firstMs: 1_000, maxMs: 60_000 };
+// Budget: the first retry after a failed board call waits 1 s, doubling to at most 4 s between tries, so a runner is back within 4 s of a restarted board (#6390).
+const BACKOFF = { firstMs: 1_000, maxMs: 4_000 };
 // Budget: an idle runner asks for work every 2 s, one small POST to the board.
 const IDLE_MS = 2_000;
 // Budget: a receipt carries the last 4 KiB of output; the full output stays on the runner with its digest in the receipt.
