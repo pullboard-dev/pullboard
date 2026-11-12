@@ -1,5 +1,5 @@
 /** jobs front door: the durable job store, one row per gate job or landing batch [C7]. */
-export { atomically, createJob, nameJob, writeStep, jobView, jobsOf, leasedJobs } from "./src/io/store.js";
+export { atomically, createJob, nameJob, writeStep, upsertProgressStep, jobView, jobsOf, leasedJobs } from "./src/io/store.js";
 export { takeJob, renewLease, reclaimLapsed, releaseLease, finishJob } from "./src/io/lease.js";
 export { reserveReview, renewReview, reclaimLapsedReviews, releaseReview, reviewOffer, reviewJobId } from "./src/io/review.js";
 export { LEASE_MS, leaseLapsed } from "./src/logic/rules.js";

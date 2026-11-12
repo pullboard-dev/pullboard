@@ -189,7 +189,7 @@ test('the client shows queued moves while the relay is degraded [H16,H17,C7]', {
     assert.equal(failure.ok, false, 'the real canary observes the stopped relay');
     observeRelayHealth(box.root, failure);
   }
-  const status = await box.cli('status');
+  const status = await box.cliLocal('status');
   assert.equal(status.code, 0, status.failure);
   const moveCount = status.document.relay.outbox.length;
   assert.equal(moveCount, 2, 'status reads both real moves saved in the local outbox');

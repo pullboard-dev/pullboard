@@ -111,6 +111,7 @@ test('clause 1: show and status read a lease-free running shadow gate as running
   assert.match(await showText(box, id), /queued gate: running at /u, 'show: a live worker keeps the lease-free gate running');
   assert.deepEqual(document((await box.runLocal(box.repo, 'status', '--json'))).stalledGates.filter(row => row.id === job.id), [], 'status: not listed stalled');
 
+  // process-level: a worker that has exited.
   const gone = spawnSync(process.execPath, ['-e', '']);
   record(gone.pid);
   assert.match(await showText(box, id), /queued gate: stalled \(reclaimable\)/u, 'show: a dead worker reads stalled');

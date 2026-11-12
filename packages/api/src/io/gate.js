@@ -11,6 +11,8 @@ import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
+import { withLandingPermit } from './permit.js';
+import { landingGuardKey } from '../../../git/index.js';
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
@@ -343,16 +345,44 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} options - compareWithMain:
- *   main's receipt lookup for a red gate's cases; the one provided to this process by default.
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null }} options - compareWithMain:
+ *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
+ *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, ...options }) {
-  return jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ...options }) {
+  const answer = jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+  return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
+}
+
+/**
+ * Write the proof-ledger rows one gate or shard receipt carries: one test_result row per file its phases ran under a
+ * key, pass or fail by file, whatever the job's own outcome or its item's state. Why before the apply: proof is proof,
+ * so a red or stale job's green files still count, and the shard combine never loses a shard's files [P7,CD2].
+ *
+ * @param {any} board
+ * @param {{ job: string, attempt?: number, receipt: Record<string, any> }} posted
+ * @param {'pulled' | 'shard'} origin
+ * @returns {number} rows written
+ */
+export function recordReceiptLedger(board, { job, attempt = 0, receipt }, origin) {
+  const runner = postedReceipt(board.db, job)?.runner ?? 'unknown';
+  const gate = receipt?.gate ?? {};
+  const commit = SHA.test(String(gate.source ?? '')) ? gate.source : null;
+  const rows = [];
+  for (const phase of Array.isArray(gate.phases) ? gate.phases : []) {
+    const { contexts, files } = phase?.ledger ?? {};
+    if (!Array.isArray(contexts) || !Array.isArray(files)) continue;
+    for (const [file, inputKey, context, status] of files.filter(Array.isArray)) {
+      rows.push({ file, inputKey, command: String(phase.role ?? 'proof'), context: contexts[context], status });
+    }
+  }
+  return store.recordTestResults(board.db, { receipt: `${job}#${attempt}`, origin: `${origin}:${runner}`, commit, rows });
 }
 
 /** Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. */
 export function applyJobReceipt(board, posted, ports = {}) {
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
+  if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
