@@ -315,7 +315,7 @@ function nextPick(ctx, board, values, ports) {
   const familyOnly = familyRelaxedOnly(ctx, board, me, found?.item);
   if (found?.mandatory && !ownClaim && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
-  if (ownClaim && found?.urgent !== 'age' && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
+  if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me, ports);
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
