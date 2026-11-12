@@ -271,6 +271,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
+  // A requeued proof reuses the frozen check's own lease and result instead of running the check again.
+  let carriedCriterion = earlyCriterion ?? null;
   const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
   // Each runner-wait poll and a beat while tests run report progress to a driving drive cell (#3829).
   const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
@@ -340,12 +342,13 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     };
     lease.tracker?.mark('runAt');
     // The frozen check runs on its own runner lease beside the proof (#3325); an early start must have the check the plan kept.
-    let separate = earlyCriterion ?? null;
+    let separate = carriedCriterion;
     if (separate && separate.check !== check) { separate.abort(); separate = null; }
     if (!separate && check && lease.runner) {
       separate = startCriterionRun(root, { check, proofContext, onFailure, trunk, signatureCapture, executionServices, outputRoot, outputLog,
         agent, item, kind, timing, signal, runnerAdmission, browser, gui });
     }
+    carriedCriterion = separate;
     separate?.bind({ hasFinalProof, testTiers: Boolean(plan.testTiers), reusePlan });
     // The proof owns the gate's lease at once when the check holds a lease of its own.
     if (separate) releaseGateLane();
