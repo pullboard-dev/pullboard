@@ -10,9 +10,36 @@ import { runTestFiles } from '../../../../../packages/gate/index.js';
 import { knownRedCheck } from './known.js';
 import { recordClauseTicks } from '../commands/submit.js';
 import { withBoardRead } from '../context.js';
+import { withBoard } from '../context.js';
+import { actOn } from '../board/access.js';
+import { resourceAgent } from '../board/access.js';
+import { ordered } from '../claim.js';
+import { headCommit } from '../../../../../packages/git/index.js';
+import { getItem } from '../../../../../packages/store/index.js';
+import { proofRunReceipt } from '../../../../../packages/store/index.js';
+import { storeTestReceipt } from '../../../../../packages/store/index.js';
+import { recordNativeProof } from '../../../../../packages/verify/index.js';
+
+/**
+ * Record a green run as a proof-run on each item the seat proves: the receipt names the item, the checkout's HEAD and the runner.
+ * Why: a test run counts as proof only when pullboard show <id> can name the item and commit it covered [C7].
+ */
+export async function recordTestProofs(io, ctx, { items, files, result }) {
+  const commit = headCommit(ctx.info.root);
+  await actOn(io, async (actCtx, board, me) => {
+    for (const id of items) {
+      const found = getItem(board, id);
+      if (found.item_owner !== me.id) continue;
+      const proofReceiptId = storeTestReceipt(board, { agentId: me.id, itemId: id, commit, files, runner: result.runner ?? null,
+        durationMs: Math.round((result.seconds ?? 0) * 1000), counts: result.counts ?? undefined });
+      if (proofReceiptId) await recordNativeProof(actCtx, found, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt, exitFailures: true }, board);
+    }
+    return 0;
+  });
+}
 
 /** Run the files here and block for the result: the person's, the script's and a queued run's worker path. */
-export async function runHere(io, ctx, { agent, item, files, values }) {
+export async function runHere(io, ctx, { agent, item, items = [], files, values }) {
   const knownRed = knownRedCheck(ctx.info.root, () => withBoardRead(ctx, board => listItems(board, { all: true })));
   // Under pull dispatch, or for an item the pull pilot picks, the run is one runner job row: nothing is packed or sent from here [P7].
   const pulled = await import('./pull.js');
@@ -34,6 +61,7 @@ export async function runHere(io, ctx, { agent, item, files, values }) {
   io.result?.(result);
   if (!values.json && result.output) io.say(result.output.trimEnd());
   if (result.green && item !== undefined) await recordClauseTicks(io, item, files);
+  if (result.green && !values.diagnose && items.length) await recordTestProofs(io, ctx, { items, files: result.files ?? files, result });
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
   if (result.mainSkipped) io.err(`main comparison skipped: ${result.mainSkipped}`);
   if (result.mainUnavailable) io.err(`main comparison unavailable: ${result.mainUnavailable}`);
