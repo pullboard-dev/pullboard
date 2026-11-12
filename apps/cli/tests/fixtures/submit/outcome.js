@@ -79,6 +79,8 @@ async function fixture(t, { candidate = source(), check = 'test -f change.txt', 
     GIT_COMMITTER_NAME: 'Main red fixture', GIT_COMMITTER_EMAIL: 'main-red@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'submit-main-red-fixture', PULLBOARD_MODEL: 'Fixture Model',
+    // A fixture's infrastructure retry does not wait out the real 30 s back-off (#3365).
+    PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0', PULLBOARD_USAGE_CHECKPOINT: 'inline',
   });
   // These submits hold their gate in the submitting process, so the fixture pins controller dispatch [P7].
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
