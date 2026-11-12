@@ -18,7 +18,7 @@ import { HELP_SECTIONS } from '../../src/logic/help/sections.js';
 const ROOT = resolve(import.meta.dirname, '../../../..');
 
 /** Read inspectable local module edges without initializing the module under inspection. */
-function localImports(source) {
+function localImports(source, file = '') {
   const found = new Set();
   // The clause before `from` is an import or export binding list, never free text: a string constant that holds an import
   // statement, as packages/state/src/io/engine/numbers.js does, must not read as an edge.
@@ -26,7 +26,10 @@ function localImports(source) {
   const dynamicImport = /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/gu;
   for (const match of source.matchAll(staticImport)) found.add(match[2]);
   for (const match of source.matchAll(dynamicImport)) found.add(match[2]);
-  assert.equal([...source.matchAll(/\bimport\s*\(/gu)].length, [...source.matchAll(dynamicImport)].length,
+  // Since 0b71d48c6e packages/git/src/io/trunk/install.js writes a pre-receive hook whose generated text holds one
+  // dynamic import of a computed path (the guard's folder is known only at install time); no other file may have one.
+  const computed = file.endsWith('packages/git/src/io/trunk/install.js') ? 1 : 0;
+  assert.equal([...source.matchAll(/\bimport\s*\(/gu)].length - [...source.matchAll(dynamicImport)].length, computed,
     'leaf dependencies use inspectable literal dynamic imports');
   return [...found].filter(specifier => specifier.startsWith('.'));
 }
@@ -52,7 +55,7 @@ function helpGraph() {
     if (visited.has(file)) continue;
     visited.add(file);
     if (file.endsWith('.json')) continue;
-    for (const specifier of localImports(readFileSync(file, 'utf8'))) pending.push([...chain, resolveLocal(file, specifier)]);
+    for (const specifier of localImports(readFileSync(file, 'utf8'), file)) pending.push([...chain, resolveLocal(file, specifier)]);
   }
   return visited;
 }
@@ -204,4 +207,15 @@ test('clause 1: help lists every edit option [C7]', async t => {
   parsed.delete('as'); // the person flag is documented under the person's own commands
   assert.ok(parsed.has('after'), 'the parsed set includes --after');
   for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
+});
+
+test('every flag in pullboard help has a one-line meaning [I11]', () => {
+  const bare = [];
+  for (const [command, declaration] of Object.entries(HELP.commands)) {
+    for (const flag of declaration.flags) {
+      if (flag === '--help') continue;
+      if (!/^--[a-z][a-z-]*(?: \S[^—]*)? — \S/u.test(flag)) bare.push(`${command}: ${flag}`);
+    }
+  }
+  assert.deepEqual(bare, [], `give each flag a meaning in apps/cli/src/logic/help/flag-meanings.js:\n${bare.join('\n')}`);
 });

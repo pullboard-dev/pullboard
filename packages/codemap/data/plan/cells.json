@@ -2182,6 +2182,7 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->search",
     "apps/cli->state",
     "apps/lib->apps/runner",
     "apps/lib->transport",
@@ -2242,6 +2243,7 @@
     "apps/cli->apps/lib/src",
     "landing->resources",
     "landing->runners",
+    "landing->sandbox",
     "link->store",
     "merge->git",
     "outbox->store",

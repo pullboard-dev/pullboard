@@ -142,8 +142,12 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
   const snapshot = mainCommit ?? policy.commit;
   policyAt(root, snapshot); // Authenticate main before using it in ancestry or object comparisons.
   // Include main to catch a foreign reversion after merging it; every crisscross base is conservative.
-  const bases = [...new Set([base, policy.commit, snapshot].flatMap(start =>
-    policyGit(root, ['merge-base', '--all', start, commit]).trim().split('\n').filter(Boolean)))];
+  const baseOf = new Map();
+  const sharedBases = start => {
+    if (!baseOf.has(start)) baseOf.set(start, policyGit(root, ['merge-base', '--all', start, commit]).trim().split('\n').filter(Boolean));
+    return baseOf.get(start);
+  };
+  const bases = [...new Set([base, policy.commit, snapshot].flatMap(sharedBases))];
   const changed = bases.flatMap(start => policyGit(root, ['diff', '--no-renames', '--name-only', '-z', start, commit, '--']).split('\0').filter(Boolean));
   const paths = [...new Set(changed)];
   const ownership = config ?? policy.config;
@@ -152,7 +156,7 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
     paths: new Set(policyGit(root, ['diff', '--no-renames', '--name-only', '-z', dependency.base, dependency.commit, '--']).split('\0').filter(Boolean)),
   }));
   // A path still equal to main at every merge base arrived only through a merge of main, so it is not the item change.
-  const mainBases = policyGit(root, ['merge-base', '--all', snapshot, commit]).trim().split('\n').filter(Boolean);
+  const mainBases = sharedBases(snapshot);
   const denied = foreign.filter(path => {
     const object = pathObject(root, commit, path);
     if (object === pathObject(root, snapshot, path)) return false;

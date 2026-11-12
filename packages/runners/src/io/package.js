@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
 import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import {
   dirname,
@@ -59,7 +60,14 @@ function dependency(file, specifier, manifest) {
     target = posix.normalize(posix.join(dirname(file), target));
   }
   if (target.startsWith('../') || target.startsWith('/') || /[\\\u0000-\u001f\u007f?#]/u.test(target)) unavailable(file, `unsafe import ${specifier}`);
+  // A directory URL (new URL('../..', import.meta.url)) names a folder, not a file to ship or read.
+  if (target === '.' || target.endsWith('/')) return null;
   return target;
+}
+
+/** True for a path under root that is a folder; such a runtime URL is a location, not a module in the closure. */
+function isFolder(root, target) {
+  try { return statSync(join(root, target)).isDirectory(); } catch { return false; }
 }
 
 /** The worker entry a 0.9.3 tree holds; accepted only while that file exists, one release back. */
@@ -138,7 +146,7 @@ function derivePackage(root, entry, previous, parse, step) {
       if (!analyses.has(file)) analyses.set(file, previous.get(file));
       for (const specifier of analyses.get(file).edges) {
         const target = dependency(file, specifier, manifest);
-        if (target !== null) pending.push(target);
+        if (target !== null && !isFolder(root, target)) pending.push(target);
       }
     }
   }
