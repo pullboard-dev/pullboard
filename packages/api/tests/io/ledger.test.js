@@ -52,7 +52,7 @@ async t => {
   assert.equal(posted.recorded, true);
 
   const rows = testResults(board.db, { receipt: `${job}#1` }).sort((a, b) => a.file.localeCompare(b.file));
-  assert.deepEqual(rows.map(row => [row.file, row.inputKey, row.status]), [[GREEN, keys.get(GREEN), 'pass'], [RED, keys.get(RED), 'fail']], 'one row per run file at its inputKey');
+  assert.deepEqual(rows.map(row => [row.file, row.inputKey, row.status]), [[RED, keys.get(RED), 'fail'], [GREEN, keys.get(GREEN), 'pass']], 'one row per run file at its inputKey');
   assert.ok(rows.every(row => /^[0-9a-f]{64}$/u.test(row.context) && row.context === rows[0].context), 'each row names its context class');
   assert.ok(rows.every(row => row.command === 'proof' && row.origin === 'pulled:r-ledger' && row.commit === HEAD), 'with its command class, origin and commit');
   assert.deepEqual(testResults(board.db, { inputKey: keys.get(GREEN) }).map(row => row.status), ['pass'], 'the green row is found by its inputKey');
