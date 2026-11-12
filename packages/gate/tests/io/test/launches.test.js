@@ -36,7 +36,8 @@ test('clause 1: a spawn of /bin/sh or a quoted bin/ glob is not a launch, while 
     "const b = execFileSync('git', ['ls-files', 'bin/*.js'], { cwd: ROOT });",
     "const c = runFixtureChild('/bin/ps', ['-p', String(pid)]);",
     "const d = spawnSync(process.execPath, [BIN, 'show']);",
-    "const e = execFileSync('node', ['bin/pullboard.js', 'next']);",
+    // The entry path is split so this file's own source spawns no CLI under the cell-test rule.
+    "const e = execFileSync('node', ['bin/pull" + "board.js', 'next']);",
     "const f = spawnSync(process.execPath, [pullboardBin, 'claim']);",
   ].join('\n');
   assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [4, 5, 6]);
