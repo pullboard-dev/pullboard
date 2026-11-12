@@ -53,6 +53,7 @@ export {
   setGateRunnerWaitMs,
   browserByLaunchEnabled,
   runnerDispatchMode,
+  jobReserve,
   pullPilot,
   pullGateFor,
   jobQueueMode,
