@@ -51,10 +51,10 @@ async function redProject() {
   return box;
 }
 
-/** File an open Main red item for a file, the way the landing files one. */
-async function fileMainRed(box, file) {
-  await fileFixtureItem(box, box.repo, { lane: 'web', title: `Main red: ${file} 1 failing case on main abc123`, criterion: `${file} passes on main.`, check: `node --test ${file}`,
-    brief: `Files: web/repair.js\nChange: repair the red file\nTest: ${file} passes`, args: ['--specs', 'G1'], run: box.runLocal });
+/** File an open Main red item titled for a file, the way the landing files one; its bar names `bar`, which must exist on main. */
+async function fileMainRed(box, file, bar = file) {
+  await fileFixtureItem(box, box.repo, { lane: 'web', title: `Main red: ${file} 1 failing case on main abc123`, criterion: `${bar} passes on main.`, check: `node --test ${bar}`,
+    brief: `Files: web/repair.js\nChange: repair the red file\nTest: ${bar} passes`, args: ['--specs', 'G1'], run: box.runLocal });
 }
 
 /** Run the red file with --compare-main and parse its result. */
@@ -85,7 +85,8 @@ test('clause 1: an open Main red item under the file\'s pre-move name counts too
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: path map');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  await fileMainRed(box, 'test/old-red.test.js');
+  // The title keeps the pre-move name; the bar names the file where it lives on main now, as add requires.
+  await fileMainRed(box, 'test/old-red.test.js', 'test/red.test.js');
   const result = await compare(box);
   assert.equal(result.main, null, 'no main run started');
   assert.match(result.mainSkipped, /known red/u);
