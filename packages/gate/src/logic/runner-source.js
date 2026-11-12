@@ -1,8 +1,8 @@
 /** Runner source identity and transport-loss types: the part of gate-policy-load the runner worker and runners need without the config package [C7,Q1]. */
-import { isClean } from '../../../git/index.js';
-import { untracked } from '../../../git/index.js';
-import { headCommit } from '../../../git/index.js';
-import { headTree } from '../../../git/index.js';
+import { isClean } from '../../../git/light.js';
+import { untracked } from '../../../git/light.js';
+import { headCommit } from '../../../git/light.js';
+import { headTree } from '../../../git/light.js';
 
 /** Dirty or non-repository commands cannot claim to execute an exact committed source remotely. */
 export function runnerSource(root) {

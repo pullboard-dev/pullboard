@@ -33,8 +33,8 @@ after(async () => {
 });
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function ok(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -47,7 +47,7 @@ function commit(box, cwd, message) {
 
 const CRITERION = '1. web/cases.test.js shows a greeting [test] 2. web/cases.test.js names the visitor by first name [test]';
 
-test('clause 1 and clause 2: the real submit gate records every case name of a plain node --test check in its exact-head receipt, and show --review lists each named case [C7,V4]', { timeout: 240_000 }, () => {
+test('clause 1 and clause 2: the real submit gate records every case name of a plain node --test check in its exact-head receipt, and show --review lists each named case [C7,V4]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -61,7 +61,7 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
   assert.equal(joinFixtureSeat(box, builder, 'web').code, 0);
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Greet the visitor', criterion: CRITERION,
     check: 'node --test web/cases.test.js', args: ['--specs', 'G1'] }).item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
   writeFileSync(join(builder, 'web/cases.test.js'), [
     "import assert from 'node:assert/strict';",
@@ -75,12 +75,12 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
   ].join('\n'));
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
-  for (const n of [1, 2]) ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/cases.test.js case clause ${n}`);
-  const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
+  for (const n of [1, 2]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/cases.test.js case clause ${n}`);
+  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
 
   // The exact-head receipts the gate wrote, read from its own store.
-  const shown = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out);
+  const shown = JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out);
   const receipts = shown.proofReceipts.map(row => JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'gate-receipts', `${row.id}.json`), 'utf8')));
   const criterion = receipts.find(receipt => receipt.proof?.submitPhase === 'criterion') ?? receipts[0];
   assert.equal(criterion.head, head, 'the receipt is for the exact head');
@@ -93,7 +93,7 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
   ].sort(), `every case name with its outcome: ${JSON.stringify(criterion)}`);
 
   // Clause 2 of the bar: show --review lists each [test] clause's named case from that receipt, never a file-level row.
-  const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
+  const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
   const [first, second] = packet.clauses;
   for (const [clause, name] of [[first, 'clause 1: the page shows a greeting [G1]'], [second, 'clause 2: the visitor is named # by first name [G1]']]) {
     assert.ok(clause.runs.length > 0, `clause ${clause.n} has recorded runs`);
@@ -101,12 +101,12 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
     assert.ok(clause.runs.some(run => run.test === name && run.result === 'pass' && run.receipt === criterion.id),
       `clause ${clause.n} names its case from the receipt: ${JSON.stringify(clause.runs)}`);
   }
-  const review = ok(box, box.repo, 'show', String(id), '--review').out;
+  const review = (await ok(box, box.repo, 'show', String(id), '--review')).out;
   assert.match(review, /^ {5}pass web\/cases\.test\.js "clause 1: the page shows a greeting \[G1\]"; receipt [a-f0-9]{8} /mu);
   assert.match(review, /^ {5}pass web\/cases\.test\.js "clause 2: the visitor is named # by first name \[G1\]"; receipt [a-f0-9]{8} /mu);
 });
 
-test('clause 1: a case defined in a shared fixture and run by two test files is kept for each file instead of dropping the run [C7]', () => {
+test('clause 1: a case defined in a shared fixture and run by two test files is kept for each file instead of dropping the run [C7]', async () => {
   const root = '/private/repo';
   const collector = testOutcomeCollector(root);
   const event = (type, file, name) => ({ type, data: { file: `${root}/${file}`, name, details: { type: 'test' } } });
@@ -125,7 +125,7 @@ test('clause 1: a case defined in a shared fixture and run by two test files is 
   assert.equal(unowned.finish(true, 2), null, 'without the running file a duplicate still fails closed');
 });
 
-test('clause 1: the gate reads a plain node --test check only when it runs one file and accounts for every case [C7]', () => {
+test('clause 1: the gate reads a plain node --test check only when it runs one file and accounts for every case [C7]', async () => {
   const tap = [
     'TAP version 13',
     '# Subtest: clause 1: passes \\# hashed',
