@@ -13,8 +13,9 @@ const CALLERS = [
   { file: 'apps/cli/src/io/submit/gate.js', calls: 1, child: '#6368' },
 ];
 
-test('packages/items exports no requirePlannedSource [C7]', () => {
-  assert.equal('requirePlannedSource' in items, false, 'placement has no replacement; do not re-add it');
+test('requirePlannedSource stays exported as a no-op that never refuses until #6370 deletes it [C7]', () => {
+  assert.equal(typeof items.requirePlannedSource, 'function', 'importers keep loading');
+  assert.equal(items.requirePlannedSource('/nonexistent', 'main', 'c'.repeat(40), { deferUnplaced: false }), undefined);
 });
 
 test('submitPreflight on a fixture without the cells plan passes with no CELLS_PLAN_UNPLACED refusal [C7]', () => {

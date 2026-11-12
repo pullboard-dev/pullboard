@@ -92,6 +92,13 @@ export function hasCellsPlan(root, base) {
   return Boolean(readTrunkEntry(root, base, CELLS_PLAN_INDEX).stdout);
 }
 
+/**
+ * Deprecated no-op (#6365): plan placement is dropped, so this never refuses. It stays exported only so its importers
+ * keep loading; #6368 and #6369 remove the callers and #6370 deletes it.
+ * @returns {undefined}
+ */
+export function requirePlannedSource() {}
+
 /** Thrown to roll back a preflight that passed; never escapes this module. */
 const PASSED = Symbol('submit preflight passed');
 
