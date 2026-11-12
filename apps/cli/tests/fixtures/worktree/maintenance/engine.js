@@ -75,7 +75,7 @@ function project(t, { born = BORN, grace = '1s' } = {}) {
   // The archive disk guard reads the host volume; a busy runner disk below its reserve would keep every tree these
   // custody cases expect pruned, failing every concurrent gate at once (#6151). Its refusal is proven in archive tests.
   const archiveVolume = () => ({ freeBytes: 900 * 2 ** 30, totalBytes: 1000 * 2 ** 30 });
-  const ports = { agentId: coordinator, readSnapshot, recordArchive, recordDirty,
+  const ports = { agentId: coordinator, readSnapshot, recordArchive, recordDirty, archiveVolume,
     workingDirectories: () => { censusCount++; return []; } };
   return { box, board, coordinator, factItem, config, ports, archives, readSnapshot, addTree,
     setNow(value) { at = value; }, now() { return at; }, censusCount() { return censusCount; }, common() { return repoInfo(box.repo).commonDir; } };
