@@ -61,3 +61,39 @@ test('#5919 clause 2: with 3 jobs on a 10-core runner the job env carries 3 work
     assert.match(receipts[0].tail, /^WORKERS 3$/mu, 'the job env carries its share of 3 workers');
     assert.match(receipts[0].tail, /^FILES 3$/mu, 'the job\'s test run spreads over 3 files at once, not the runner\'s 10 cores');
   });
+
+test('#6307: a job whose environment folder removal fails with ENOTEMPTY still posts its receipt, and the serve claims the next job [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
+  async t => {
+    const { root: trunk } = privateFixtureFiles('pullboard-cleanup-trunk-');
+    const { root: cache } = privateFixtureFiles('pullboard-cleanup-cache-');
+    t.after(() => { rmSync(trunk, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
+    const sh = (...args) => runFixtureGit(['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', ...args], { cwd: trunk });
+    sh('init', '-q', '-b', 'main');
+    writeFileSync(join(trunk, 'tracked.txt'), 'one\n');
+    sh('add', '.');
+    sh('commit', '-q', '-m', 'one');
+    const commit = sh('rev-parse', 'HEAD');
+    const receipts = [], said = [];
+    let handed = 0;
+    const reply = document => ({ status: 200, json: async () => document });
+    const fetchImpl = async (_url, { body }) => {
+      const call = JSON.parse(body);
+      if (call.action === 'claim') {
+        handed += 1;
+        const claim = handed > 2 ? null : { job: `j${handed}`, attempt: 1, token: `t-j${handed}`, candidate: commit, base: commit, run: ['node', '-e', `console.log('RAN j${handed}')`] };
+        return reply({ trunk, claim });
+      }
+      if (call.action === 'receipt') receipts.push(call);
+      return reply({ ok: true, renewed: true });
+    };
+    // The leftover writer of a test still fills tmp, as on the runners on 12 Nov: every removal refuses.
+    const removeFolder = folder => { throw Object.assign(new Error(`ENOTEMPTY: directory not empty, rmdir '${folder}/tmp'`), { code: 'ENOTEMPTY' }); };
+    const stop = new AbortController();
+    const sleep = ms => new Promise(done => setTimeout(() => { if (receipts.length >= 2) stop.abort(); done(); }, Math.max(ms, 5)));
+    const served = await serveRunner({ board: BOARD, runner: 'r-cleanup', capabilities: [], cache, jobs: 1, cores: 2, signal: stop.signal, fetchImpl, sleep,
+      timing: { idleMs: 1 }, removeFolder, say: line => said.push(line) });
+    assert.deepEqual(receipts.map(call => call.job), ['j1', 'j2'], 'both jobs posted: the failed removal of j1\'s folder never stopped the serve');
+    assert.ok(receipts.every(call => call.receipt.status === 0), JSON.stringify(receipts.map(call => call.receipt.tail)));
+    assert.deepEqual(served.jobs.map(entry => entry.outcome), ['posted', 'posted']);
+    assert.ok(said.some(line => /left .*environment folder to the prune: ENOTEMPTY/u.test(line)), said.join('\n'));
+  });

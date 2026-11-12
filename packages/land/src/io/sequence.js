@@ -115,6 +115,27 @@ async function runStep(name, steps, context, { repo, receipts }) {
 }
 
 /**
+ * End a landing whose proof was not green: write a `failed` step naming the proof and mark the job done, freeing its lease.
+ *
+ * Why: a stopped landing used to leave its lease to lapse with the job never done, so it read as a stalled landing for
+ * ever; a failed step and `done` let a reader tell a stopped landing from a live one.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} owner
+ * @param {() => number} now
+ * @returns {object} The job view after the stop.
+ */
+function endStopped(db, job, owner, now) {
+  const view = jobView(db, job);
+  if (view.step === 'done') return view;
+  const prove = writtenSteps(view).prove;
+  writeStep(db, job, 'failed', { code: 'LAND_PROOF_NOT_GREEN', stopped: 'prove', verdict: prove?.verdict ?? null, proof: prove?.code ?? null }, { now: now() });
+  finishJob(db, job, owner, { now: now() });
+  return jobView(db, job);
+}
+
+/**
  * Finish a landing batch: select → compose → prove (reuse a receipt, or run) → merge → record → publish, each written
  * as a job step before the next starts. A resumed landing skips every step its log holds and hands the later steps
  * the payloads written earlier. A red or infra proof stops before merge; a landing whose live lease another driver
@@ -144,7 +165,10 @@ export async function finishSequence(db, job, { owner, repo, steps, receipts = [
     if (view.step !== 'done' && holdLease(db, view, owner, now())) finishJob(db, job, owner, { now: now() });
     return { done: true, ran, job: view };
   }
-  if (stoppedAt()) return { done: false, ran, job: view, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
+  if (stoppedAt()) {
+    const ended = view.step !== 'done' && holdLease(db, view, owner, now()) ? endStopped(db, job, owner, now) : view;
+    return { done: false, ran, job: ended, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
+  }
   if (!holdLease(db, view, owner, now())) return { done: false, ran, job: jobView(db, job), code: 'JOB_LEASED' };
   for (let name = nextFinishStep(view); name !== null; name = nextFinishStep(view)) {
     if (ran.length && !renewLease(db, job, owner, { now: now() })) return { done: false, ran, job: jobView(db, job), code: 'JOB_LEASED' };
@@ -152,7 +176,7 @@ export async function finishSequence(db, job, { owner, repo, steps, receipts = [
     writeStep(db, job, name, payload, { now: now() });
     ran.push(name);
     view = jobView(db, job);
-    if (stoppedAt()) return { done: false, ran, job: view, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
+    if (stoppedAt()) return { done: false, ran, job: endStopped(db, job, owner, now), stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
   }
   finishJob(db, job, owner, { now: now() });
   return { done: true, ran, job: view };

@@ -1,5 +1,4 @@
 /** Status obligations without loading the dashboard projection [N26,A9]. */
-import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { projectRowDecisions } from '../../../../../packages/spec/index.js';
@@ -19,8 +18,11 @@ import {
 import { relayCanaryNeeds } from '../../../../../packages/link/index.js';
 import { milestoneFocus } from '../../../../../packages/roadmap/index.js';
 
-/** Keep status obligations; reuse its same-call seats and doctrine, otherwise read them freshly. */
-export function personNeedsSummary(root, { board, config, agents, doctrine }) {
+/**
+ * Keep status obligations; reuse its same-call seats and doctrine, otherwise read them freshly.
+ * Why: the passkey decision is injected (`(board, record) => boolean`), so this file never imports the person package [N26].
+ */
+export function personNeedsSummaryWith(root, { board, config, agents, doctrine }, verifiedPasskeyRowDecision) {
   const spec = loadSpec(root, config);
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const rows = projectRowDecisions(store.rowDecisions(board), { root, spec: spec.rows, practice: (doctrine ?? loadDoctrine(root, config)).rows });

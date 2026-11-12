@@ -194,8 +194,10 @@ export { MILESTONE_PERSON_LIMIT_ENGINE } from './src/logic/engines/milestone-per
 export { STRANDED_DEPENDENCY_ENGINE } from './src/logic/engines/stranded-dependency-engine.js';
 export { TWO_TIER_DIAGNOSIS_ENGINE } from './src/logic/engines/two-tier-diagnosis-engine.js';
 export { REJECT_OPEN_ENGINE } from './src/logic/engines/reject-open-engine.js';
+export { REJECTED_FIRST_ENGINE } from './src/logic/engines/rejected-first-engine.js';
 export { CLAUSE_EVIDENCE_ENGINE } from './src/logic/engines/clause-evidence-engine.js';
-export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/logic/evidence.js';
+export { lintBar, MAX_BAR_CLAUSES } from './src/logic/bar-lint.js';
+export { requireCriterionEvidence, clauseEvidenceWarnings, guardBar } from './src/logic/evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
 export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
