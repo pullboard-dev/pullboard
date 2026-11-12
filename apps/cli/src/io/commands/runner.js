@@ -7,6 +7,7 @@ import {
   addRunner,
   loadMachineSettings,
   removeRunner,
+  setRunnerDrain,
 } from '../../../../../packages/config/index.js';
 import {
   recordRunnerGui,
@@ -56,7 +57,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       return { ...row, slots: offered.slots, browser: offered.browser,
         ...(runner.cores !== undefined ? { cores: runner.cores, memoryMB: runner.memoryMB, measuredAt: runner.measuredAt } : {}),
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
-        fixed: runner.fixed === true };
+        fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}) };
     });
     io.result?.({ runners });
     io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
@@ -120,6 +121,14 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const runner = removeRunner(second);
     io.result?.({ runner });
     io.say(`${runner.draining ? 'draining' : 'removed'} runner ${runner.host}`);
+    return 0;
+  }
+  if (first === 'drain' || first === 'undrain') {
+    if (!second || second.trim() !== second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', `pullboard runner ${first} <ssh-host>`);
+    const runner = setRunnerDrain(second, first === 'drain');
+    io.result?.({ runner, draining: first === 'drain' });
+    io.say(first === 'drain' ? `draining runner ${runner.host}: it takes no new job, its running jobs finish; return it with pullboard runner undrain ${runner.host}`
+      : `runner ${runner.host} is back in rotation`);
     return 0;
   }
   if (first === 'measure') {
