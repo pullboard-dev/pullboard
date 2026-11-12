@@ -533,7 +533,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // Dependencies' snapshots, a head moved past the claimed commit and a companion's builder commit travel with the request;
   // a runner that lacks one of those commits reports the check skipped, and only then does this machine run it [C7,#5761].
   let remoteAuthorization = (remoteMode || pullGate) && submitAuthorizationMode() === 'runner';
-  const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen },
+  /** The frozen bar is sent as its policy commit alone, the one thing the lane check reads of it, so the job request stays small. */
+  const frozenPolicyOnly = () => {
+    try { const commit = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit; return commit ? JSON.stringify({ policy: { commit } }) : held.item_frozen; } catch { return held.item_frozen; }
+  };
+  const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly() },
     dependencies, commit: headCommit(root) });
   if (!remoteAuthorization) localSubmissionPaths();
   const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
