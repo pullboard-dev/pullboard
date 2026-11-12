@@ -43,7 +43,10 @@ const STEPS = {
     const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
     if (reserved.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the verify claim ran red before the fault: ${reserved.out}${reserved.err}`);
     // Done: the board freed the reservation or finished the review, so the dead reviewer no longer holds the item.
-    return { holder: reviewer, done: item => item.item_status !== 'submitted' || !item.item_review_by };
+    // A live reviewer under another parent session asks for the review each tick: once the dead holder's reservation counts for nothing, it takes it over.
+    const taker = box.seats.sameFamily;
+    return { holder: reviewer, done: item => item.item_status !== 'submitted' || (Boolean(item.item_review_by) && item.item_review_by !== reviewer.id),
+      recover: () => cli(box, taker.path, ['next', '--verify', String(id)]) };
   },
 };
 
@@ -78,10 +81,12 @@ export async function runLivenessFlow(t, { step, fault = 'kill', seed = 1 } = {}
   if (fault === 'kill') rmSync(victim.path, { recursive: true, force: true });
   const start = box.clock.now().getTime();
   let item = await readItem(box, id);
+  let recovered = null;
   while (!flow.done(item) && box.clock.now().getTime() - start <= 2 * LIVENESS_BOUND_MS) {
     box.advance(TICK_MS);
+    if (flow.recover) recovered = await flow.recover();
     await cli(box, survivor.path, ['shout', 'all', '--kind', 'idea', 'Liveness kit: the surviving seat writes while a holder is gone.']);
     item = await readItem(box, id);
   }
-  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, elapsedMs: box.clock.now().getTime() - start, id };
+  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, elapsedMs: box.clock.now().getTime() - start, id, ...(recovered ? { recovery: `${recovered.code}: ${recovered.out}${recovered.err}`.slice(0, 400) } : {}) };
 }
