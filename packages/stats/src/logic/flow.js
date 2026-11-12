@@ -294,7 +294,7 @@ function inEventOrder(history) {
  * A history in event order keeps a fold of its events up to the earliest window's start: those events charge no
  * window time, so each comparison replays only the events since, onto a copy of that fold [C7].
  */
-export function compareFlowWindows(history, { now, windowMinutes, complete } = {}) {
+export function compareFlowWindows(history, { now, windowMinutes, complete, gone } = {}) {
   const bounds = comparisonBounds(windowMinutes, now);
   if (complete !== true) return { version: 1, available: false, reason: 'complete event history is required for comparison' };
   const start = Math.min(...bounds.map(range => range.start));
@@ -302,7 +302,7 @@ export function compareFlowWindows(history, { now, windowMinutes, complete } = {
     const selected = history.filter(event => Number.isFinite(Date.parse(event.event_at)) && Date.parse(event.event_at) <= now)
       .sort((a, b) => a.event_id - b.event_id);
     const prepared = prepareFlowHistory(selected, { comparisonWindows: bounds });
-    return projectWindowComparison(selected, prepared, bounds, projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds));
+    return projectWindowComparison(selected, prepared, bounds, projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds), gone);
   }
   let entry = keptFold(history, 'compare', () => newFlowFold(false, undefined));
   if (entry.maxAt > start) {
@@ -327,7 +327,7 @@ export function compareFlowWindows(history, { now, windowMinutes, complete } = {
   }
   const prepared = frozenFold(fold);
   // The window projections skip events past each window's end, so the whole history stands for the selected one.
-  return projectWindowComparison(history, prepared, bounds, projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds));
+  return projectWindowComparison(history, prepared, bounds, projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds), gone);
 }
 
 /** Project current queues and time windows from compiled facts without mutating the cached snapshot. */
