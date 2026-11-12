@@ -38,7 +38,7 @@ after(e2e.cleanup);
 const { sandbox, project } = e2e;
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
-test("the README's worktree command works in a fresh repo [I1,I2]", () => {
+test("the README's worktree command works in a fresh repo [I1,I2]", async () => {
   const box = sandbox();
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
@@ -47,12 +47,12 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
 
   box.env.PULLBOARD_MODEL = 'Session Worktree Model';
-  const made = box.run(repo, 'worktree', 'web', '--json');
+  const made = (await box.runLocal(repo, 'worktree', 'web', '--json'));
   assert.equal(made.code, 0, made.err || made.out);
   const madeResult = JSON.parse(made.out);
   assert.equal(madeResult.model, 'Session Worktree Model',
     'worktree takes the model from PULLBOARD_MODEL');
-  const joinedIdentity = box.run(madeResult.path, 'whoami', '--json');
+  const joinedIdentity = (await box.runLocal(madeResult.path, 'whoami', '--json'));
   assert.equal(joinedIdentity.code, 0, joinedIdentity.err || joinedIdentity.out);
   const identity = JSON.parse(joinedIdentity.out);
   assert.equal(identity.lane, 'web');
@@ -66,7 +66,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
   assert.equal(missingWorktreeModel.stderr,
     'pullboard: [MODEL_REQUIRED] this session has not declared its model\nnext: run pullboard worktree api --model "<model name>"\n');
   assert.doesNotMatch(missingWorktreeModel.stderr, /pullboard help/u, 'no generic help footer follows the --model next step');
-  const missingWorktreeJson = box.run(repo, 'worktree', 'api', '--json');
+  const missingWorktreeJson = (await box.runLocal(repo, 'worktree', 'api', '--json'));
   assert.equal(missingWorktreeJson.code, 1);
   assert.equal(JSON.parse(missingWorktreeJson.out).error.next,
     'run pullboard worktree api --model "<model name>"');
@@ -100,7 +100,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
     'run pullboard join api --model "<model name>"');
 });
 
-test('a new worktree is created inside the repository [I1,I2]', () => {
+test('a new worktree is created inside the repository [I1,I2]', async () => {
   for (const mode of ['inside', 'beside', undefined]) {
     const box = sandbox();
     const { repo, web } = project('true', box);
@@ -118,7 +118,7 @@ test('a new worktree is created inside the repository [I1,I2]', () => {
 
     // Leave the sibling on its older config to prove placement follows the current main checkout.
     box.env.PULLBOARD_MODEL = 'Worktree Location Model';
-    const made = box.run(web, 'worktree', 'api', '--json');
+    const made = (await box.runLocal(web, 'worktree', 'api', '--json'));
     assert.equal(made.code, 0, made.err || made.out);
     const result = JSON.parse(made.out);
     const expected = mode === 'inside'
@@ -126,21 +126,21 @@ test('a new worktree is created inside the repository [I1,I2]', () => {
       : join(dirname(repo), `${basename(repo)}-api-1`);
     assert.equal(resolve(result.path), resolve(expected), `${mode ?? 'omitted'} keeps its specified location`);
     assert.equal(box.git(repo, 'status', '--porcelain'), '', 'the nested worktree stays ignored by the main checkout');
-    assert.equal(box.run(web, 'whoami', '--json').code, 0, 'the existing sibling remains usable');
-    const newIdentity = box.run(result.path, 'whoami', '--json');
+    assert.equal((await box.runLocal(web, 'whoami', '--json')).code, 0, 'the existing sibling remains usable');
+    const newIdentity = (await box.runLocal(result.path, 'whoami', '--json'));
     assert.equal(newIdentity.code, 0, newIdentity.err || newIdentity.out);
     assert.equal(JSON.parse(newIdentity.out).lane, 'api');
     assert.ok(existsSync(join(result.path, '.githooks', 'pre-commit')), 'the new worktree has its commit hook');
-    const resumed = box.run(web, 'resume', '--diagnostics');
+    const resumed = (await box.runLocal(web, 'resume', '--diagnostics'));
     assert.equal(resumed.code, 0, resumed.err);
     assert.match(resumed.out, mode === 'inside'
       ? /New agent worktrees: .*\.claude\/worktrees\/<lane>-N/u
       : /New agent worktrees: .*repo-<lane>-N/u);
-    const resumedJson = box.run(web, 'resume', '--diagnostics', '--json');
+    const resumedJson = (await box.runLocal(web, 'resume', '--diagnostics', '--json'));
     assert.equal(JSON.parse(resumedJson.out).newWorktreeLocation, mode === 'inside'
       ? join(repo, '.claude', 'worktrees', '<lane>-N')
       : join(dirname(repo), `${basename(repo)}-<lane>-N`));
-    assert.match(box.run(web, 'help', 'worktree').out, mode === 'inside'
+    assert.match((await box.runLocal(web, 'help', 'worktree')).out, mode === 'inside'
       ? /Active worktree location: .*\.claude\/worktrees\/<lane>-N/u
       : /Active worktree location: .*repo-<lane>-N/u);
   }
@@ -154,7 +154,7 @@ test('a new worktree is created inside the repository [I1,I2]', () => {
   const gitDir = join(box.dir, 'separate-git-dir');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main', '--separate-git-dir', gitDir);
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal((await box.runLocal(repo, 'init')).code, 0);
   const separateConfigPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(separateConfigPath, 'utf8'));
   config.lanes = { web: { owns: ['web/'], specs: [] }, api: { owns: ['api/'], specs: [] } };
@@ -163,57 +163,57 @@ test('a new worktree is created inside the repository [I1,I2]', () => {
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure separate git dir fixture');
   box.env.PULLBOARD_MODEL = 'Separate Git Dir Model';
-  const made = box.run(repo, 'worktree', 'web', '--json');
+  const made = (await box.runLocal(repo, 'worktree', 'web', '--json'));
   assert.equal(made.code, 0, made.err || made.out);
   const linkedPath = JSON.parse(made.out).path;
   assert.equal(resolve(linkedPath), resolve(repo, '.claude', 'worktrees', 'web-1'));
-  const nestedMade = box.run(linkedPath, 'worktree', 'api', '--json');
+  const nestedMade = (await box.runLocal(linkedPath, 'worktree', 'api', '--json'));
   assert.equal(nestedMade.code, 0, nestedMade.err || nestedMade.out);
   assert.equal(resolve(JSON.parse(nestedMade.out).path), resolve(repo, '.claude', 'worktrees', 'api-1'),
     'a linked checkout with a separate git dir resolves its registered main root');
   const registryPath = join(box.env.PULLBOARD_HOME, 'projects.json');
   const registryBytes = readFileSync(registryPath);
-  const linkedResume = box.run(linkedPath, 'resume', '--diagnostics');
+  const linkedResume = (await box.runLocal(linkedPath, 'resume', '--diagnostics'));
   assert.match(linkedResume.out, /New agent worktrees: .*\.claude\/worktrees\/<lane>-N/u);
   assert.deepEqual(readFileSync(registryPath), registryBytes, 'resume reads the registry without refreshing it');
-  const linkedHelp = box.run(linkedPath, 'help', 'worktree');
+  const linkedHelp = (await box.runLocal(linkedPath, 'help', 'worktree'));
   assert.match(linkedHelp.out, /Active worktree location: .*\.claude\/worktrees\/<lane>-N/u);
   assert.deepEqual(readFileSync(registryPath), registryBytes, 'help reads the registry without refreshing it');
 
   rmSync(registryPath);
-  const missingRegistry = box.run(linkedPath, 'worktree', 'api', '--json');
+  const missingRegistry = (await box.runLocal(linkedPath, 'worktree', 'api', '--json'));
   assert.notEqual(missingRegistry.code, 0);
   assert.equal(JSON.parse(missingRegistry.out).error.code, 'NO_POLICY', 'an unprovable primary root fails closed');
   assert.equal(existsSync(join(repo, '.claude', 'worktrees', 'api-2')), false, 'missing registry creates no worktree');
   assert.notEqual(box.tryGit(repo, 'show-ref', '--verify', '--quiet', 'refs/heads/api/2').status, 0,
     'missing registry creates no branch');
-  const missingResume = box.run(linkedPath, 'resume', '--json');
+  const missingResume = (await box.runLocal(linkedPath, 'resume', '--json'));
   assert.equal(missingResume.code, 0, missingResume.err || missingResume.out);
   assert.match(JSON.parse(missingResume.out).newWorktreeLocation, /^unavailable; run pullboard resume from the main checkout/u);
-  assert.match(box.run(linkedPath, 'help', 'worktree').out,
+  assert.match((await box.runLocal(linkedPath, 'help', 'worktree')).out,
     /Active worktree location: unavailable; run pullboard resume from the main checkout/u,
     'help remains usable when the primary root is unprovable');
   assert.equal(existsSync(registryPath), false, 'read-only help and resume do not recreate a missing registry');
 
   writeFileSync(registryPath, registryBytes);
   writeFileSync(registryPath, '{not valid JSON');
-  const malformedRegistry = box.run(linkedPath, 'worktree', 'web', '--json');
+  const malformedRegistry = (await box.runLocal(linkedPath, 'worktree', 'web', '--json'));
   assert.notEqual(malformedRegistry.code, 0);
   assert.equal(JSON.parse(malformedRegistry.out).error.code, 'NO_POLICY', 'a malformed registry cannot authorize a guessed sibling');
   assert.equal(existsSync(join(repo, '.claude', 'worktrees', 'web-2')), false, 'malformed registry creates no worktree');
   assert.notEqual(box.tryGit(repo, 'show-ref', '--verify', '--quiet', 'refs/heads/web/2').status, 0,
     'malformed registry creates no branch');
   const malformedBytes = readFileSync(registryPath);
-  const malformedResume = box.run(linkedPath, 'resume', '--json');
+  const malformedResume = (await box.runLocal(linkedPath, 'resume', '--json'));
   assert.equal(malformedResume.code, 0, malformedResume.err || malformedResume.out);
   assert.match(JSON.parse(malformedResume.out).newWorktreeLocation, /^unavailable; run pullboard resume from the main checkout/u);
-  assert.match(box.run(linkedPath, 'help', 'worktree').out,
+  assert.match((await box.runLocal(linkedPath, 'help', 'worktree')).out,
     /Active worktree location: unavailable; run pullboard resume from the main checkout/u,
     'help remains usable with a malformed registry');
   assert.deepEqual(readFileSync(registryPath), malformedBytes, 'read-only help and resume preserve malformed registry bytes');
 
   writeFileSync(registryPath, `${JSON.stringify({ projects: [] }, null, 2)}\n`);
-  const emptyRegistry = box.run(linkedPath, 'worktree', 'api', '--json');
+  const emptyRegistry = (await box.runLocal(linkedPath, 'worktree', 'api', '--json'));
   assert.notEqual(emptyRegistry.code, 0);
   assert.equal(JSON.parse(emptyRegistry.out).error.code, 'NO_POLICY', 'a valid but unrelated registry is unprovable');
   assert.equal(existsSync(join(repo, '.claude', 'worktrees', 'api-2')), false, 'unrelated registry creates no worktree');
@@ -222,7 +222,7 @@ test('a new worktree is created inside the repository [I1,I2]', () => {
   assert.equal(box.git(repo, 'status', '--porcelain'), '');
 });
 
-test('worktree suggests no install for a zero-dependency project [I1,L3]', () => {
+test('worktree suggests no install for a zero-dependency project [I1,L3]', async () => {
   const box = sandbox();
   // Git selectors inherited from a hook would point the fixture's git at the outer repository.
   for (const key of Object.keys(box.env)) if (key.startsWith('GIT_') && !key.startsWith('GIT_CONFIG_') && !/^GIT_(?:AUTHOR|COMMITTER)_/u.test(key)) delete box.env[key];
@@ -232,30 +232,30 @@ test('worktree suggests no install for a zero-dependency project [I1,L3]', () =>
   const coordinator = fixtureJoin(box.run, repo, 'coordinator');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
   /** Commit files on main as the coordinator, then make a web worktree and return its output. */
-  const worktreeAfter = (files) => {
+  const worktreeAfter = async (files) => {
     for (const [name, text] of Object.entries(files)) writeFileSync(join(repo, name), text);
     box.git(repo, 'add', '-A');
     box.git(repo, 'commit', '-q', '-m', 'chore: change the package');
-    const made = box.run(repo, 'worktree', 'web');
+    const made = (await box.runLocal(repo, 'worktree', 'web'));
     assert.equal(made.code, 0, made.err || made.out);
     return made.out;
   };
 
-  const none = worktreeAfter({ 'package.json': JSON.stringify({ name: 'demo', scripts: { test: 'true' }, dependencies: {}, devDependencies: {} }) });
+  const none = (await worktreeAfter({ 'package.json': JSON.stringify({ name: 'demo', scripts: { test: 'true' }, dependencies: {}, devDependencies: {} }) }));
   assert.doesNotMatch(none, /\bnpm (?:install|ci)\b/u, 'a package.json without dependencies gets no install step');
   assert.match(none, /pullboard inbox\n/u, 'the other next steps still print');
 
-  const locked = worktreeAfter({
+  const locked = (await worktreeAfter({
     'package.json': JSON.stringify({ name: 'demo', devDependencies: { 'left-pad': '1.3.0' } }),
     'package-lock.json': JSON.stringify({ name: 'demo', lockfileVersion: 3, packages: {} }),
-  });
+  }));
   assert.match(locked, /\bnpm (?:install|ci)\b/u, 'devDependencies alone count as dependencies');
   assert.match(locked, /&& npm ci {4}\(its own install from the committed package-lock\.json, so its tests run its own code\)\n/u,
     'a committed lockfile gets npm ci');
   assert.doesNotMatch(locked, /\bnpm install\b/u, 'npm install would rewrite the committed lockfile');
 
   box.git(repo, 'rm', '-q', 'package-lock.json');
-  const unlocked = worktreeAfter({ 'package.json': JSON.stringify({ name: 'demo', dependencies: { 'left-pad': '1.3.0' } }) });
+  const unlocked = (await worktreeAfter({ 'package.json': JSON.stringify({ name: 'demo', dependencies: { 'left-pad': '1.3.0' } }) }));
   assert.match(unlocked, /&& npm install {4}\(its own install; it writes package-lock\.json, so commit that file or the first submit is refused UNTRACKED\)\n/u,
     'without a committed lockfile the step is npm install, with the lockfile it writes named for commit');
   assert.doesNotMatch(unlocked, /\bnpm ci\b/u, 'npm ci fails without a lockfile');
@@ -277,11 +277,11 @@ test('worktree suggests no install for a zero-dependency project [I1,L3]', () =>
     'an npm-shrinkwrap.json in HEAD is a committed lockfile');
 });
 
-test('the worktree and branch names Pullboard makes carry no host part [I1,I2]', () => {
+test('the worktree and branch names Pullboard makes carry no host part [I1,I2]', async () => {
   const box = sandbox();
   const { web } = project('true', box);
   box.env.PULLBOARD_MODEL = 'Name Model';
-  const made = box.run(web, 'worktree', 'api', '--json');
+  const made = (await box.runLocal(web, 'worktree', 'api', '--json'));
   assert.equal(made.code, 0, made.err || made.out);
   const result = JSON.parse(made.out);
   assert.equal(result.branch, 'api/1', 'the branch is <lane>/<n>');
@@ -328,7 +328,7 @@ test('a stand-in host after a field separator in a commit body is still refused 
  * Build a claimed web item whose only commit names this machine in its message, then submit it. The
  * setting is written to the main checkout first, since submit reads the accepted main's policy [C1].
  */
-function submitNamingThisMachine(box, noHostName) {
+async function submitNamingThisMachine(box, noHostName) {
   const { repo, web } = project('true', box);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -337,29 +337,29 @@ function submitNamingThisMachine(box, noHostName) {
   box.git(repo, 'add', 'pullboard.json');
   box.git(repo, 'commit', '-q', '-m', `chore: set the host-name guard to ${noHostName}`);
   box.git(web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(fixtureAdd(box.run, repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading').code, 0);
-  assert.equal(box.run(web, 'claim', '1').code, 0);
+  assert.equal((await fixtureAdd(box.runLocal, repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading')).code, 0);
+  assert.equal((await box.runLocal(web, 'claim', '1')).code, 0);
   mkdirSync(join(web, 'web'), { recursive: true });
   writeFileSync(join(web, 'web', 'a.html'), '<h1>Hi</h1>\n');
   box.git(web, 'add', '-A');
   // The host name comes from the machine at run time; it is never written into a file or a shout.
   box.git(web, 'commit', '-q', '-m', 'feat(web): page [G1]', '-m', `built on ${hostname()}`);
-  return box.run(web, 'submit', '1');
+  return (await box.runLocal(web, 'submit', '1'));
 }
 
-test('a submit naming this machine is refused at HOST_NAME when commits.noHostName is on, and the host name stays out of the output [C1]', () => {
+test('a submit naming this machine is refused at HOST_NAME when commits.noHostName is on, and the host name stays out of the output [C1]', async () => {
   const box = sandbox();
   const host = hostname().toLowerCase();
-  const refused = submitNamingThisMachine(box, true);
+  const refused = (await submitNamingThisMachine(box, true));
   assert.equal(refused.code, 1, 'the submit is refused');
   assert.match(refused.err, /\[HOST_NAME\]/u);
   assert.equal(`${refused.out}\n${refused.err}`.toLowerCase().includes(host), false, 'the output does not name the host');
 });
 
-test('the same submit only warns when commits.noHostName is off, and the submit goes on [C1]', () => {
+test('the same submit only warns when commits.noHostName is off, and the submit goes on [C1]', async () => {
   const box = sandbox();
   const host = hostname().toLowerCase();
-  const submitted = submitNamingThisMachine(box, false);
+  const submitted = (await submitNamingThisMachine(box, false));
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /warning: commit [0-9a-f]{12} names this machine in its message/u, 'the warning line is printed');
   assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}/u, 'the submit continues to its record');

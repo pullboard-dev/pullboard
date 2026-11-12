@@ -77,6 +77,7 @@ test('clause 3: the check runs in the changed-file static list and in the full s
   const root = fixture({ ...BASE, 'packages/b/deep.js': "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n" });
   mkdirSync(join(root, 'packages/gate/data/baselines'), { recursive: true });
   copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(root, 'packages/gate/data/baselines/test-waits-baseline.json'));
+  copyFileSync(join(REPO, 'packages/gate/data/baselines/cli-launches.json'), join(root, 'packages/gate/data/baselines/cli-launches.json'));
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'x']]) {
     runFixtureGit(args, { cwd: root });
   }
@@ -84,7 +85,7 @@ test('clause 3: the check runs in the changed-file static list and in the full s
     join(REPO, 'packages/gate/src/io/changed/scripts/static.js'), 'packages/b/deep.js'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stderr, /packages\/b\/deep\.js:1: deep import into a/u);
-  assert.match(readFileSync(join(REPO, 'packages/gate/src/io/static/registry.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
+  assert.match(readFileSync(join(REPO, 'packages/gate/src/io/static/registry.js'), 'utf8'), /cellsEdgeProblems\(root,/u);
 });
 
 const CHECKS = join(REPO, 'packages/gate/src/io');

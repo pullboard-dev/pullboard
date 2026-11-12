@@ -175,6 +175,7 @@ export function registerMaintenanceEngineTests() {
   test('maintenance archives native facts, ignored leaves and linked Git metadata before pruning [B3,C7]', async t => {
     const fx = project(t, { born: BORN, grace: '1d' });
     const finished = fx.addTree('finished-seat', { seat: true });
+    const incoming = fx.addTree('finished-incoming', { seat: true });
     const orphan = fx.addTree('orphan-tree');
     const scratch = fx.addTree('scratch-tree', { inside: false });
     const item = claimItem(fx, finished.agent, 'Closed work attached to finished seat');
@@ -182,6 +183,8 @@ export function registerMaintenanceEngineTests() {
     const tree = fx.box.git(finished.path, 'rev-parse', 'HEAD^{tree}').trim();
     submitFixture(fx.board, item, { agentId: finished.agent, commit: head, tree });
     store.withdraw(fx.board, item, { agentId: fx.coordinator, reason: 'closed private maintenance lifecycle fixture' });
+    // Only a completed takeover retires a joined seat; a stale heartbeat alone never does (#5969).
+    completeTakeover(fx, finished.agent, incoming.agent);
     fx.setNow(BORN + 3 * DAY);
     const dirty = makeIgnoredOnly(fx.box, finished.path);
     const gitDir = fx.box.git(finished.path, 'rev-parse', '--path-format=absolute', '--git-dir').trim();
@@ -192,11 +195,13 @@ export function registerMaintenanceEngineTests() {
     assert.equal(report.counts.finished, 1);
     assert.equal(report.counts.orphaned, 1);
     assert.equal(report.counts.scratch, 1);
-    assert.equal(report.pruned, 3);
-    assert.equal(report.archived, 3);
-    for (const candidate of [finished, orphan, scratch]) assert.equal(fs.existsSync(candidate.path), false);
-    assert.equal(fx.archives.length, 3);
-    assert.equal(archiveFacts(fx).length, 3);
+    assert.equal(report.pruned, 1);
+    assert.equal(report.archived, 1);
+    assert.equal(fs.existsSync(finished.path), false);
+    // A worktree no seat joined, and one outside the worktree root, are outside maintenance scratch (#5969).
+    for (const kept of [orphan, scratch]) assert.equal(fs.existsSync(kept.path), true);
+    assert.equal(fx.archives.length, 1);
+    assert.equal(archiveFacts(fx).length, 1);
 
     const archived = fx.archives.find(row => row.path === finished.path);
     const manifest = JSON.parse(fs.readFileSync(join(archived.archive, 'manifest.json'), 'utf8'));
@@ -221,7 +226,8 @@ export function registerMaintenanceEngineTests() {
 
   test('maintenance retains source when its archive fact fails or source changes after archival [B3,C7]', async t => {
     const failed = project(t, { born: BORN, grace: '1s' });
-    const failedTree = failed.addTree('fact-failure');
+    failed.addTree('fact-failure', { seat: true });
+    const failedTree = failed.addTree('fact-failure-item-5');
     seedOldTrees(failed, [failedTree.path]);
     fs.writeFileSync(join(failedTree.path, 'untracked.bin'), Buffer.from([0, 11, 12, 255]));
     const original = maintenanceSnapshot(failedTree.path, { includeMetadata: true });
@@ -233,7 +239,8 @@ export function registerMaintenanceEngineTests() {
     assert.equal(first.entries.find(row => row.path === failedTree.path).action, 'kept');
 
     const changed = project(t, { born: BORN, grace: '1s' });
-    const changedTree = changed.addTree('source-change-after-archive');
+    changed.addTree('source-change-after-archive', { seat: true });
+    const changedTree = changed.addTree('source-change-after-archive-item-6');
     seedOldTrees(changed, [changedTree.path]);
     const tracked = join(changedTree.path, 'pullboard.json');
     const initial = fs.readFileSync(tracked);
@@ -252,8 +259,9 @@ export function registerMaintenanceEngineTests() {
 
   test('clause 1: maintenance keeps a worktree with modified, staged or untracked changes and records a fact naming the folder and its dirty paths [C7]', async t => {
     const fx = project(t, { born: BORN, grace: '1d' });
-    const dirty = fx.addTree('dirty-orphan');
-    const clean = fx.addTree('clean-orphan');
+    fx.addTree('orphan-owner', { seat: true });
+    const dirty = fx.addTree('orphan-owner-item-1');
+    const clean = fx.addTree('orphan-owner-item-2');
     seedOldTrees(fx, [dirty.path, clean.path]);
     fx.box.git(dirty.path, 'mv', 'SPEC.md', 'SPEC-moved.md');
     const before = makeDirty(fx.box, dirty.path);
@@ -300,7 +308,7 @@ export function registerMaintenanceEngineTests() {
     fx.setNow(BORN + 2 * HOUR);
     const first = await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() });
     assert.equal(first.pruned, 0);
-    assert.equal(first.entries.find(row => row.path === tree.path).reason, 'seat-recent-or-clock-rollback');
+    assert.equal(first.entries.find(row => row.path === tree.path).reason, 'seat-joined');
     const secondAt = BORN + DAY + 2 * HOUR + 1;
     fx.setNow(secondAt);
     const second = await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: secondAt });
@@ -432,5 +440,46 @@ export function registerMaintenanceEngineTests() {
     assert.equal(changedScans, 2);
     assert.equal(maintenanceSnapshot(changedCase.retired.path, { includeMetadata: true }).signature, changedCase.before);
     assert.equal(archiveFacts(changed).length, 1, 'the archive fact is retained, while the newly occupied source is not reset');
+  });
+}
+
+/** Register the #5969 sweep cases: joined and leased seats and trees outside maintenance scratch all survive [C7]. */
+export function registerMaintenanceProtectionTests() {
+  test('clause 1 [test]: a joined seat with no claim and a seat holding a leased claim survive a sweep days after their last heartbeat [C7,#5969]', async t => {
+    const fx = project(t, { born: BORN, grace: '1d' });
+    // A seat joined days ago and rejoined just now keeps its old row and heartbeat, so its presence reads "gone".
+    const joined = fx.addTree('pool-seat', { seat: true });
+    const leased = fx.addTree('leased-seat', { seat: true });
+    // Control: a clean item folder of a joined seat is maintenance's own scratch, so the sweep does remove it.
+    const spare = fx.addTree('pool-seat-item-77');
+    fx.setNow(BORN + 3 * DAY);
+    const claim = claimItem(fx, leased.agent, 'Leased claim keeps its checkout');
+    seedOldTrees(fx, [joined.path, leased.path, spare.path]);
+    assert.equal((await fx.readSnapshot()).seats.find(seat => seat.agent_id === joined.agent).presence, 'gone',
+      'the fixture reproduces a seat whose heartbeat went stale');
+
+    const report = await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() });
+    assert.equal(fs.existsSync(joined.path), true, 'the joined seat without a claim is kept');
+    assert.equal(fs.existsSync(leased.path), true, 'the seat holding a leased claim is kept');
+    assert.equal(report.entries.find(row => row.path === joined.path).reason, 'seat-joined');
+    assert.equal(report.entries.find(row => row.path === leased.path).reason, 'claim');
+    assert.equal(store.getItem(fx.board, claim).item_status, 'claimed');
+    assert.equal(fs.existsSync(spare.path), false, 'the sweep ran and removed its own idle item folder');
+    assert.equal(report.pruned, 1);
+  });
+
+  test('clause 2 [test]: a sibling checkout and a hand-made worktree in the worktree folder survive a sweep [C7,#5969]', async t => {
+    const fx = project(t, { born: BORN, grace: '1d' });
+    const sibling = fx.addTree(`${relative(fx.box.dir, fx.box.repo)}-census`, { inside: false });
+    const smoke = fx.addTree('smoke-pool-1');
+    const outsideSeat = fx.addTree('outside-seat', { inside: false, seat: true });
+    fx.setNow(BORN + 3 * DAY);
+    seedOldTrees(fx, [sibling.path, smoke.path, outsideSeat.path]);
+
+    const report = await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() });
+    for (const tree of [sibling, smoke, outsideSeat]) assert.equal(fs.existsSync(tree.path), true, `${tree.path} is kept`);
+    assert.equal(report.pruned, 0);
+    assert.equal(report.archived, 0);
+    for (const tree of [sibling, smoke]) assert.equal(report.entries.find(row => row.path === tree.path).reason, 'outside-maintenance-scratch');
   });
 }

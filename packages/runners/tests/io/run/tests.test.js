@@ -1188,7 +1188,8 @@ function trackedSelectionTest(t) {
   const tracked = execFileSync('git', ['ls-files'], { cwd: fixture.root, encoding: 'utf8' }).trim().split(/\r?\n/u);
   assert.ok(tracked.includes('.gitignore') && tracked.includes('tracked.spec.js'), 'the non-default and ignore control files are tracked');
   assert.equal(tracked.length, 9, 'all pattern cases and non-default controls are tracked');
-  const result = runFixtureChild(process.execPath, [fixture.runner], {
+  // A runner call naming no file says --all, since only a stage-marked caller may run the whole suite bare (#5913).
+  const result = runFixtureChild(process.execPath, [fixture.runner, '--all'], {
     cwd: fixture.root,
     encoding: 'utf8',
     env: { ...process.env, PULLBOARD_TRACKED_CAPTURE: fixture.capture },
@@ -1202,7 +1203,7 @@ function trackedSelectionTest(t) {
     'only repository test entry names run exactly once');
 
   writeFileSync(fixture.capture, '');
-  const filtered = runFixtureChild(process.execPath, [fixture.runner, '--test-name-pattern', 'docs-esm'], {
+  const filtered = runFixtureChild(process.execPath, [fixture.runner, '--all', '--test-name-pattern', 'docs-esm'], {
     cwd: fixture.root,
     encoding: 'utf8',
     env: { ...process.env, PULLBOARD_TRACKED_CAPTURE: fixture.capture },
@@ -1263,7 +1264,7 @@ test('perf helpers remain importable [C7]', importedHelpersWork);
   put('test/tree-reader.test.js', "/** @pullboard-test-input test-tree */\nimport { appendFileSync } from 'node:fs';\nappendFileSync(process.env.PULLBOARD_SHARD_CAPTURE, 'tree-reader.test.js\\n');\n");
   put('apps/cli/tests/fixtures/cockpit/perf/README.md', '# Perf harness\n');
   commit();
-  const discovered = runFixtureChild(process.execPath, [fixture.runner], {
+  const discovered = runFixtureChild(process.execPath, [fixture.runner, '--all'], {
     cwd: fixture.root, encoding: 'utf8', env,
   });
   assert.equal(discovered.status, 0, `${discovered.context}\n${discovered.stdout}`);
@@ -1299,7 +1300,7 @@ test('the suite runs only test files, not helpers or the perf harness [C7]', onl
 /** Run the copied production runner and return the test filenames it actually executed. */
 function runShardFixture(fixture, shard) {
   writeFileSync(fixture.capture, '');
-  const args = [fixture.runner, ...(shard ? ['--shard', shard] : [])];
+  const args = [fixture.runner, '--all', ...(shard ? ['--shard', shard] : [])];
   const env = { ...process.env, PULLBOARD_SHARD_CAPTURE: fixture.capture };
   delete env.NODE_TEST_CONTEXT;
   delete env.PULLBOARD_GATE_SLOT_HELD;
@@ -1341,7 +1342,7 @@ function outsideGitDiscoveryTest(t) {
 
   writeFileSync(fixture.capture, '');
   writeFileSync(join(fixture.root, '.git'), 'gitdir: missing-git-directory\n');
-  const broken = runFixtureChild(process.execPath, [fixture.runner], {
+  const broken = runFixtureChild(process.execPath, [fixture.runner, '--all'], {
     cwd: fixture.root,
     encoding: 'utf8',
     env: { ...process.env, PULLBOARD_SHARD_CAPTURE: fixture.capture },
@@ -1358,7 +1359,7 @@ test('the runner keeps native discovery outside a Git work tree [C7]', outsideGi
 function badShardTest() {
   const badValues = ['0/3', '4/3', '2', 'a/b'];
   for (const value of badValues) {
-    const result = runFixtureChild(process.execPath, [runner, '--shard', value], { encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [runner, '--all', '--shard', value], { encoding: 'utf8' });
     assert.equal(result.status, 1, result.context);
     assert.match(result.stderr, new RegExp(`invalid --shard value "${value}"`));
     assert.match(result.stderr, /expected <i>\/<n> with 1 <= i <= n/u);

@@ -149,6 +149,7 @@ import {
   deferredSelectionNote,
   runStaticChecks,
   runSubmitGate,
+  startCriterionRun,
   withGateSlot,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -191,6 +192,7 @@ import {
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
 import {
   submitPreflight,
+  hasCellsPlan,
   requirePlannedSource,
 } from '../../../../../packages/items/index.js';
 import {
@@ -237,6 +239,7 @@ import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
+import { recordedMainComparison } from '../submit/recorded.js';
 import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { proofMainFailures } from '../submit/reds.js';
 import { regressesMain } from '../submit/reds.js';
@@ -435,7 +438,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) })) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
     if (clauseProblem) throw clauseProblem;
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
@@ -642,7 +645,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   // Each cited row's gate test and each test file the bar names run with the proof, whatever seal and tier selection say [V4,C7].
   crossRun.tests = namedProofTests(root, held, commit, { crossRunTests: crossRun.tests });
-  const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
+  const runGate = (check, runnerPlan = {}, signal, earlyCriterion) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal, ...(earlyCriterion ? { earlyCriterion } : {}),
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
@@ -672,7 +675,14 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   await preflightPassed;
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
   let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests, check: frozenCheck(held) },
-    runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
+    (runnerPlan, early) => runGate(frozenCheck(held), runnerPlan, signal, early),
+    // The frozen check needs no test selection: it starts at once on its own lease. A companion source runs in a temporary checkout, so it keeps the in-gate start.
+    () => companion || !frozenCheck(held) ? null : startCriterionRun(root, { check: frozenCheck(held), executionServices, outputRoot: root,
+      outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, trunk: acceptedMain.commit,
+      proofContext: { item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
+      signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined,
+      onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit, privateCheck: false, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
+      timing: frozenCheckTiming(held), agent: me.id, item: String(id), signal }));
   if (signal.aborted) throw signal.reason;
   // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
   const judgeStart = Date.now();
@@ -796,10 +806,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
-      const compareStart = Date.now();
-      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
-        recordedRuns: withBoard(ctx, board => gateRuns(board)),
-        execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
+      const compareStart = Date.now(); // A file with a recorded main result at this main is read from it, never rerun [C7,#5813].
+      comparison = await recordedMainComparison(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)), execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
@@ -866,7 +875,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     { name: 'preflight', run: async signal => {
       try {
         if (remoteAuthorization) recordRemoteAuthorization(await runRemotePart('authorization', signal));
+        // With no cells plan on accepted main, placement checks nothing; its receipt key would cost more than the tests' head start (#5752).
         const placed = remoteMode ? await runRemotePart('preflight', signal)
+          : !hasCellsPlan(root, trunk.commit) ? { reused: false }
           : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
             code: [fileURLToPath(new URL('../../../../../packages/items/src/logic/submit/preflight.js', import.meta.url))] },
           () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
@@ -1087,7 +1098,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
           await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
         }
       }
-      const summary = clauseInspectionSummary(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
+      const summary = clauseInspectionSummary(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held), head: submitted });
       if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: summary }]);
     }
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
@@ -1363,6 +1374,11 @@ export async function run(io, { first, values }) {
   }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait || !submissionResult.queued) return code;
+  // A seat that held the claim it submitted never waits on its gate; the result comes back through next [P7].
+  if (!ctx.info.isMain && ctx.submitAttempt) {
+    io.say(`a seat holding a claim never blocks on its own gate; a red gate comes back through pullboard next, and pullboard show ${id} reads it any time`);
+    return code;
+  }
   return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }

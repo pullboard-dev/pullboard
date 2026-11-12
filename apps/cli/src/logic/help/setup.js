@@ -40,6 +40,7 @@ export const setupHelp = `Set up
   pullboard runner serve <board-url>    pull jobs from a board over HTTPS and fetch code from its trunk remote; no ssh in
   pullboard runner install-serve <ssh-host> --board <board-url> [--key <key>] | --remove
                                         run runner serve on that runner as a login service that restarts on exit
+  pullboard runner local [--off]        this machine's own runner on loopback; a pull submit starts it, --off stops it
   pullboard view [--project] [--port N] [--no-open]  every project on this machine in your browser; default http://127.0.0.1:${DEFAULT_VIEW_PORT}
   pullboard view --lan                  a private link for a phone on the local IPv4 network
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port

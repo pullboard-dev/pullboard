@@ -93,6 +93,7 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
+  if (values.forced !== undefined) return offerForcedLanding(ctx, io, board, [first, second, ...rest], values);
   // A signed person's waiver and the coordinator's named landing stay open while the board owns landing [#3675,#5559].
   const named = values.items !== undefined || values.commit !== undefined ? namedLanding(ctx.info.root, values) : null;
   if (values.waive === undefined && !named) requireManualLanding(mainPolicy(ctx.info.root).config);
@@ -108,9 +109,32 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (values.until !== undefined || values.reason !== undefined || values.max !== undefined && (!/^[1-9][0-9]*$/u.test(values.max) || !Number.isSafeInteger(Number(values.max)))) throw new Refused('USAGE', 'use --max with a positive item count, or --waive with --until and --reason');
+  // A plain hand landing offers the same runner land job that accept offers, when the board lands by pull (#5864).
+  const plain = !named && !values['dry-run'] && !values.adopt && !values.due && values.max === undefined;
+  if (plain && await offerLanding(ctx, ctx.info.root, { board })) return 0;
   const result = await executeBoardLanding(ctx, board, io, values, named);
   return !values['dry-run'] && !result.landed?.length && result.culprits?.length ? 1 : 0;
 });
+}
+
+/** Offer a runner land job from the main checkout (pull.js's offerPulledLanding), loaded only when a landing is offered. */
+async function offerLanding(ctx, root, options = {}) {
+  return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit }, options);
+}
+
+/**
+ * `pullboard land <id>... --forced "<why>"`: offer the named items as the same land job kind as any landing, carrying
+ * the forced reason, so a forced landing goes through the runner's merge, check and receipt-guarded push (#5864).
+ */
+async function offerForcedLanding(ctx, io, board, args, values) {
+  const forced = String(values.forced ?? '').trim();
+  const ids = args.filter(arg => arg !== undefined && arg !== null);
+  if (!forced) throw new Refused('FORCED_REASON', 'a forced landing names why it went around the gate: --forced "<why>"');
+  if (!ids.length || ids.some(id => !/^[1-9][0-9]*$/u.test(String(id)))) throw new Refused('USAGE', 'pullboard land <id> [<id>...] --forced "<why>"');
+  const offered = await offerLanding(ctx, primaryCheckoutRoot(ctx.info), { ids: ids.map(Number), forced, board });
+  if (!offered) throw new Refused('LAND_NO_RUNNER', 'a forced landing is a runner land job, and this board has no trunk remote of record', 'set trunk.remote in pullboard.json to the trunk\'s git URL');
+  io.result?.(offered);
+  return 0;
 }
 
 /**
@@ -194,7 +218,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}, named = n
   }
   const owner = agentSessionDigest() ?? `pid-${process.pid}`;
   if (values.adopt && !values['dry-run']) await rebindAdoptedLanding(board, ctx.info.root);
-  // The repository's landing.stall: how long a batch may make no progress before it ends (10 minutes unset, #3186, #3477).
+  // The repository's landing.stall: how long a batch may make no progress before it ends (2 minutes unset, #3186, #3477, #5816).
   const progress = landingProgress();
   const watch = { stallAfterMs: ctx.config?.landing?.stallMs, lastProgressAt: progress.lastProgressAt, stall: progress.stall };
   /** One landing through the batch engine; a real one runs in this process as a drive-cell job [C7]. */
@@ -236,8 +260,8 @@ export const LANDING_COALESCE_MS = 0;
 export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding, session = agentSessionDigest, now = Date.now } = {}) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
   const root = primaryCheckoutRoot(ctx.info);
-  // Under pull with a trunk remote of record a runner lands: this host offers one land job row and returns [P7].
-  const pulled = (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit });
+  // With a trunk remote of record a runner lands, in any dispatch mode: this host offers one land job row and returns [P7,#5864].
+  const pulled = await offerLanding(ctx, root);
   if (pulled) return pulled;
   if (session()) {
     await schedule(root, new Date(now() + LANDING_COALESCE_MS).toISOString(), new URL('../landing/automatic.js', import.meta.url));

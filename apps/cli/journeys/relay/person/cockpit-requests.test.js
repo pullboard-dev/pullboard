@@ -42,8 +42,8 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
   const requestRows = Array.from({ length: 12 }, (_, index) => `- P${index + 1} [draft, must] Keep the reading position measurable. | gate: test`).join('\n');
   const requestSpec = `# Person request fixture\n\n## G · Goals\n- G1 [approved, must] Existing item remains readable. | gate: test\n${requestRows}\n- G2 [draft, must] The person can approve this row. | gate: test\n`;
   const app = project(box, 'person requests', requestSpec);
-  box.run(app.repo, 'add', 'web', 'Existing private item', '--specs', 'G1', '--criterion', 'remains readable');
-  box.run(app.repo, 'shout', 'person', 'Should this item ship?', '--decision');
+  await box.inProcess(app.repo, 'add', 'web', 'Existing private item', '--specs', 'G1', '--criterion', 'remains readable');
+  await box.inProcess(app.repo, 'shout', 'person', 'Should this item ship?', '--decision');
   const live = await startView(box);
   const intents = [];
   const records = [];

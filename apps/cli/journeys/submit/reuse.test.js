@@ -24,11 +24,11 @@ function fixture() {
       submissionProof: { files: ['test/a.test.js'], full: false, deferred: false } })];
 }
 
-test('exact admission, criterion and proof reuse their sealed run ids [C7,H16]', () => {
+test('exact admission, criterion and proof reuse their sealed run ids [C7,H16]', async () => {
   assert.deepEqual(reusableSubmitProof(fixture(), opts), { ids: ['criterion-id', 'proof-id'], environment: null });
 });
 
-test('changed source, main, criterion or incomplete evidence fails closed [C7,H16]', () => {
+test('changed source, main, criterion or incomplete evidence fails closed [C7,H16]', async () => {
   for (const changed of [{ main: 'e'.repeat(40) }, { tree: 'f'.repeat(40) }, { commit: 'e'.repeat(40) }, { check: 'node different.js' }, { supplement: 'node other.js' }]) {
     assert.ok(reusableSubmitProof(fixture(), { ...opts, ...changed }).reason);
   }
@@ -60,10 +60,10 @@ async function nativeProofScenario(t, moveMain) {
   const check = `test -f web/proof-input.txt && printf x >> '${marker}'`;
   const added = fixtureAdd(box.run, box.repo, 'web', 'Proof reuse', '--specs', 'G1', '--criterion', 'the check is green', '--check', check, '--route', 'strong');
   assert.equal(added.code, 0, added.err || added.out);
-  const claimed = box.run(box.web, 'claim', '1'); assert.equal(claimed.code, 0, claimed.err || claimed.out);
+  const claimed = await box.runLocal(box.web, 'claim', '1'); assert.equal(claimed.code, 0, claimed.err || claimed.out);
   const committed = helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(box.web, 'submit', '1'); assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  const submitted = await box.runLocal(box.web, 'submit', '1'); assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const afterSubmit = readFileSync(marker, 'utf8'); assert.ok(afterSubmit.length > 0);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
@@ -76,7 +76,7 @@ async function nativeProofScenario(t, moveMain) {
     box.git(box.repo, 'commit', '-q', '-m', 'test(web): change proof input [G1]');
     box.env.CODEX_THREAD_ID = 'proof-reuse-reviewer-session';
   }
-  const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Read the submitted change against its frozen bar.');
+  const verdict = await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'Read the submitted change against its frozen bar.');
   assert.equal(verdict.code, 0, verdict.err || verdict.out);
   if (moveMain) {
     assert.match(verdict.out, /submit proof not reused: (composed main changed|commit or tree changed)/);
@@ -128,7 +128,7 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
 });
 
 
-test('a complete tiered unit proof is reusable while journeys stay deferred [C7,H16]', () => {
+test('a complete tiered unit proof is reusable while journeys stay deferred [C7,H16]', async () => {
   const rows = fixture();
   const detail = JSON.parse(rows.at(-1).event_detail);
   detail.submissionProof.deferred = true;

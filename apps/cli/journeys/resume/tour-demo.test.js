@@ -27,6 +27,7 @@ test('the tour registers a labelled demo that view lists and forget removes [N10
   const box = project();
   const tourEnv = { ...box.env, TMPDIR: box.dir, HOME: box.dir };
   delete tourEnv.PULLBOARD_MODEL;
+  // Process-level case kept as a process: the tour demo owns its server child and port.
   const result = spawnSync(process.execPath, [BIN, 'tour'], {
     cwd: box.dir,
     env: tourEnv,
@@ -46,7 +47,7 @@ test('the tour registers a labelled demo that view lists and forget removes [N10
     const listing = await fetchFresh(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
     assert.equal(listing.status, 200);
     assert.deepEqual((await listing.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
-    const forgotten = box.run(box.dir, 'forget', demoRoot);
+    const forgotten = (await box.runLocal(box.dir, 'forget', demoRoot));
     assert.equal(forgotten.code, 0, forgotten.err);
     assert.match(forgotten.out, /forgot/);
     const after = await fetchFresh(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
