@@ -54,7 +54,8 @@ export const receiptsHelp = `Receipts
   pullboard flakes quarantine on|off     coordinator: let a proven flake stop blocking landings until its repair item is verified; off by default
                                         commit pullboard.json to apply; a passing diagnostic never turns the original red green
   pullboard rigor                       failure causes that repeated: on 2 items, or 1 item at 2 commits;
-                                        each with its items and whether it reads as work, product or both
+                                        each with its items and whether it reads as work, product or both;
+                                        merge conflicts never count
   pullboard rigor --draft-splits        coordinator on main: draft review-gated split proposals for files colliding on 2 items in 14 days; only the person approves
   pullboard rigor quality [--base <commit>] [--head <commit>] [--rule <key>] [--budget <lines>]
                                         the person's quality rules broken by this change since main, as path:line: rule: what broke

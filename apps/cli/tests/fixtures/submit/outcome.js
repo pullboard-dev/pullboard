@@ -23,7 +23,7 @@ import { runFixtureGit } from '../child.js';
 import {
   createFixtureWorktree,
   fileFixtureItem,
-  fixtureMachineSettings,
+  fixtureSettledMachine,
 } from '../testkit.js';
 
 const BIN = join(import.meta.dirname, '../../../pullboard.js');
@@ -88,9 +88,8 @@ async function fixture(t, { candidate = source(), check = 'test -f change.txt', 
     // A fixture's infrastructure retry does not wait out the real 30 s back-off (#3365).
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0', PULLBOARD_USAGE_CHECKPOINT: 'inline',
   });
-  // These submits hold their gate in the submitting process, so the fixture pins controller dispatch [P7].
-  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  // These submits settle the same way whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
@@ -198,8 +197,8 @@ async function remote(box) {
   const bin = join(box.directory, 'remote-bin'), worker = join(box.directory, 'worker'), home = join(box.directory, 'worker-home');
   const machineHome = join(home, '.pullboard'), requests = join(box.directory, 'requests.jsonl');
   for (const path of [bin, worker, home, machineHome]) mkdirSync(path, { recursive: true });
-  // The worker side runs the controller too, so its machine home pins controller dispatch [P7].
-  fixtureMachineSettings(machineHome, { gate: { runnerDispatch: 'controller' } });
+  // The worker side settles the same way as the submitting side [P7].
+  fixtureSettledMachine(machineHome);
   box.env.PATH = bin + ':' + box.env.PATH;
   installSshStandIn({ bin, worker, home, machineHome, requests });
   let result = await local(box, box.root, 'runner', 'add', HOST, '--slots', '4', '--browser', '2');
