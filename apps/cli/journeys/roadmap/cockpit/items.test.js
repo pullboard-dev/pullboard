@@ -3,8 +3,10 @@
 /** Cockpit roadmap checks: landed, accepted and blocked rows, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
 import {
+  mkdirSync,
   mkdtempSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,16 +16,53 @@ import {
   SPEC,
   machine,
   project,
-  build,
-  sendBack,
   startView,
   target,
-  accept,
   chromeExecutable,
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
+
+/**
+ * web-1 builds an item as the shared build() does, claiming and submitting through this process: the Git work and its
+ * hooks stay real processes, and the two board commands no longer start a Node each, which this journey's setup
+ * paid for a hundred times.
+ */
+async function build(box, p, id, file) {
+  const key = `${p.baseBranch}:${id}`;
+  let branch = p.itemBranches.get(key);
+  if (!branch) {
+    branch = `${p.baseBranch}-item-${id}`;
+    box.git(p.web, 'switch', '-q', '-c', branch, p.baseBranch);
+    p.itemBranches.set(key, branch);
+  } else {
+    box.git(p.web, 'switch', '-q', branch);
+  }
+  p.branch = branch;
+  await box.inProcess(p.web, 'claim', String(id));
+  mkdirSync(join(p.web, 'web'), { recursive: true });
+  writeFileSync(join(p.web, 'web', file), `${file}\n`);
+  box.git(p.web, 'add', '-A');
+  box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  await box.inProcess(p.web, 'submit', String(id), '--no-next');
+}
+
+/** The coordinator accepts an item from a checkout of its submitted commit, as the shared accept() does. */
+async function accept(box, p, id) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  await box.inProcess(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
+
+/** The coordinator sends an item back from a checkout of its submitted commit, as the shared sendBack() does. */
+async function sendBack(box, p, id, note) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  const item = JSON.parse(await box.inProcess(p.repo, 'show', String(id), '--json'));
+  const clause = JSON.parse(item.item_frozen).criterion;
+  await box.inProcess(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', clause, '--note', note, '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
 
 test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_000 }, async () => {
   const began = performance.now();
@@ -32,30 +71,30 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
   const executable = chromeExecutable(); assert.ok(executable, 'Chrome is required for the roadmap header check.');
   const box=machine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
   const names=['Landed A','Accepted A','Waiting A','Shipped B','Landed C','Accepted C','In review C','Building C','Approve the release','Held C','Withdrawn C','Landed D','Withdrawn D'];
-  names.forEach((name,index)=>box.run(alpha.repo,'add',index===9?'ops':'web',name,'--specs','G1','--criterion','The page renders.'));
+  for(const [index,name] of names.entries()) await box.inProcess(alpha.repo,'add',index===9?'ops':'web',name,'--specs','G1','--criterion','The page renders.');
   /** Land through real Git and the ordinary board receipt; acceptance alone stays unlanded. */
-  function land(id) {
+  async function land(id) {
     box.git(alpha.repo,'merge','--no-ff','--no-edit',alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
-    box.run(alpha.repo,'merged',String(id),box.git(alpha.repo,'rev-parse','HEAD'));
+    await box.inProcess(alpha.repo,'merged',String(id),box.git(alpha.repo,'rev-parse','HEAD'));
   }
-  for(const id of [1,2,4,5,6]) {build(box,alpha,id,`item-${id}.txt`);accept(box,alpha,id);if([1,4,5].includes(id))land(id);}
-  box.run(alpha.repo,'withdraw','11','Removed from this release');
+  for(const id of [1,2,4,5,6]) {await build(box,alpha,id,`item-${id}.txt`);await accept(box,alpha,id);if([1,4,5].includes(id))await land(id);}
+  await box.inProcess(alpha.repo,'withdraw','11','Removed from this release');
   // A release that finished, every item landed or withdrawn, without milestone ship.
-  build(box,alpha,12,'item-12.txt');accept(box,alpha,12);land(12);box.run(alpha.repo,'withdraw','13','Not needed after all');
-  box.run(alpha.repo,'milestone','add','Finished unshipped','--reason', 'Arrange fixture release', '--items','12,13');
-  box.run(alpha.repo,'milestone','add','Empty plan','--note','Nothing filed yet.');
-  build(box,alpha,7,'item-7.txt');box.run(alpha.web,'claim','8');box.run(alpha.repo,'hold','ops','--reason','Waiting for the person');
-  box.run(alpha.repo,'shout','person','#9 Approve the release','--decision');
-  box.run(alpha.repo,'milestone','add','Past target','--reason', 'Arrange fixture release', '--items','1,2,3');
-  box.run(alpha.repo,'milestone','edit','Past target','--target',new Date(Date.now()-86_400_000).toISOString());
-  box.run(alpha.repo,'milestone','add','Shipped release','--reason', 'Arrange fixture release', '--items','4');
+  await build(box,alpha,12,'item-12.txt');await accept(box,alpha,12);await land(12);await box.inProcess(alpha.repo,'withdraw','13','Not needed after all');
+  await box.inProcess(alpha.repo,'milestone','add','Finished unshipped','--reason', 'Arrange fixture release', '--items','12,13');
+  await box.inProcess(alpha.repo,'milestone','add','Empty plan','--note','Nothing filed yet.');
+  await build(box,alpha,7,'item-7.txt');await box.inProcess(alpha.web,'claim','8');await box.inProcess(alpha.repo,'hold','ops','--reason','Waiting for the person');
+  await box.inProcess(alpha.repo,'shout','person','#9 Approve the release','--decision');
+  await box.inProcess(alpha.repo,'milestone','add','Past target','--reason', 'Arrange fixture release', '--items','1,2,3');
+  await box.inProcess(alpha.repo,'milestone','edit','Past target','--target',new Date(Date.now()-86_400_000).toISOString());
+  await box.inProcess(alpha.repo,'milestone','add','Shipped release','--reason', 'Arrange fixture release', '--items','4');
   // Deliberately shuffle the six states; display grouping must not inherit this order.
-  box.run(alpha.repo,'milestone','add','State summary','--reason', 'Arrange fixture release', '--items','10,5,9,8,7,6,11');
-  box.run(alpha.repo,'milestone','ship','Shipped release','--next','State summary');
-  box.run(alpha.repo,'milestone','add','Empty shipped');
-  box.run(alpha.repo,'milestone','ship','Empty shipped','--next','State summary','--as','person','--reason','Arrange fixture release');
+  await box.inProcess(alpha.repo,'milestone','add','State summary','--reason', 'Arrange fixture release', '--items','10,5,9,8,7,6,11');
+  await box.inProcess(alpha.repo,'milestone','ship','Shipped release','--next','State summary');
+  await box.inProcess(alpha.repo,'milestone','add','Empty shipped');
+  await box.inProcess(alpha.repo,'milestone','ship','Empty shipped','--next','State summary','--as','person','--reason','Arrange fixture release');
   const shipped=box.git(alpha.repo,'rev-parse','HEAD');
-  const rawRoadmap=JSON.parse(box.run(alpha.repo,'roadmap','--json'));
+  const rawRoadmap=JSON.parse(await box.inProcess(alpha.repo,'roadmap','--json'));
   assert.equal(rawRoadmap.milestones.find(m=>m.name==='State summary').total,6,'649: the milestone total leaves the withdrawn member out, like the summary');
   assert.deepEqual(rawRoadmap.milestones.find(m=>m.name==='State summary').summary,{total:6,left:5,landed:1,landing:1,review:1,building:1,waiting:1,held:1,needsYou:[9],pace:{last6h:4,last2h:4,last24h:4},estimate:{low:2.5,high:7.5},window:'6h',reason:null},'real roadmap JSON owns every header field');
   stage('setup-end');
@@ -148,29 +187,29 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the roadmap blocker check.');
   const box = machine(), alpha = project(box, 'blocked-roadmap');
-  box.run(alpha.repo, 'add', 'web', 'Base work', '--specs', 'G1', '--criterion', 'Base is ready.');
-  box.run(alpha.repo, 'add', 'web', 'Waits on base', '--specs', 'G1', '--criterion', 'Use #1 and #3 <em>literally</em>. More detail stays in Items.', '--after', '1');
-  box.run(alpha.repo, 'add', 'web', 'Free work', '--specs', 'G1', '--criterion', 'Ready.');
-  box.run(alpha.repo, 'add', 'web', 'Sent back once', '--specs', 'G1', '--criterion', 'Ready.');
-  build(box, alpha, 4, 'sent-back.html'); sendBack(box, alpha, 4, 'The heading is missing.');
-  box.run(alpha.repo, 'edit', '4', '--after', '1', '--reason', 'Waits on the base.');
-  box.run(alpha.repo, 'add', 'web', 'Landed work', '--specs', 'G1', '--criterion', 'The page renders.');
-  build(box, alpha, 5, 'landed.html'); accept(box, alpha, 5);
+  await box.inProcess(alpha.repo, 'add', 'web', 'Base work', '--specs', 'G1', '--criterion', 'Base is ready.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Waits on base', '--specs', 'G1', '--criterion', 'Use #1 and #3 <em>literally</em>. More detail stays in Items.', '--after', '1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Free work', '--specs', 'G1', '--criterion', 'Ready.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Sent back once', '--specs', 'G1', '--criterion', 'Ready.');
+  await build(box, alpha, 4, 'sent-back.html'); await sendBack(box, alpha, 4, 'The heading is missing.');
+  await box.inProcess(alpha.repo, 'edit', '4', '--after', '1', '--reason', 'Waits on the base.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Landed work', '--specs', 'G1', '--criterion', 'The page renders.');
+  await build(box, alpha, 5, 'landed.html'); await accept(box, alpha, 5);
   box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:5`));
-  box.run(alpha.repo, 'merged', '5', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  box.run(alpha.repo, 'add', 'web', 'Building work', '--specs', 'G1', '--criterion', 'The corrected page renders.');
-  build(box, alpha, 6, 'building.html'); sendBack(box, alpha, 6, 'See #1 and #3 before accepting.\nMore detail stays in Items.');
-  box.run(alpha.web, 'claim', '6');
+  await box.inProcess(alpha.repo, 'merged', '5', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  await box.inProcess(alpha.repo, 'add', 'web', 'Building work', '--specs', 'G1', '--criterion', 'The corrected page renders.');
+  await build(box, alpha, 6, 'building.html'); await sendBack(box, alpha, 6, 'See #1 and #3 before accepting.\nMore detail stays in Items.');
+  await box.inProcess(alpha.web, 'claim', '6');
   const second = join(box.dir, 'second-builder');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/second');
-  joinFixtureSeat(box, second, 'web'); box.run(second, 'claim', '1');
+  joinFixtureSeat(box, second, 'web'); await box.inProcess(second, 'claim', '1');
   const other = project(box, 'blocked-roadmap-other');
-  box.run(other.repo, 'add', 'web', 'Remote base', '--specs', 'G1', '--criterion', 'Ready.');
-  box.run(other.repo, 'add', 'web', 'Remote sent-back work', '--specs', 'G1', '--criterion', 'Remote renders.');
-  build(box, other, 2, 'remote.html'); sendBack(box, other, 2, 'Remote latest finding\nMore detail stays in Items');
-  box.run(other.repo, 'edit', '2', '--after', '1', '--reason', 'Waits on remote base.');
-  box.run(other.repo, 'hold', 'web', '--reason', 'Review the remote dependency');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3,4,5,6,blocked-roadmap-other#2');
+  await box.inProcess(other.repo, 'add', 'web', 'Remote base', '--specs', 'G1', '--criterion', 'Ready.');
+  await box.inProcess(other.repo, 'add', 'web', 'Remote sent-back work', '--specs', 'G1', '--criterion', 'Remote renders.');
+  await build(box, other, 2, 'remote.html'); await sendBack(box, other, 2, 'Remote latest finding\nMore detail stays in Items');
+  await box.inProcess(other.repo, 'edit', '2', '--after', '1', '--reason', 'Waits on remote base.');
+  await box.inProcess(other.repo, 'hold', 'web', '--reason', 'Review the remote dependency');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3,4,5,6,blocked-roadmap-other#2');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-blocked-roadmap-chrome-'));
   let chrome;
   const row = id => `[...document.querySelectorAll('#roadmap .milestone-item')].find(x=>x.querySelector('.id')?.textContent===${JSON.stringify(id)})`;
