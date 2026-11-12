@@ -110,7 +110,7 @@ function sandbox({ declareFamilies = false } = {}) {
     declaredFamilies.set(cwd, value);
     return value;
   };
-  /** Apply the fixture's family and route defaults to one command line before it runs. */
+  /** Apply the fixture's join family and default routes to one argv, as every box call does. */
   const prepare = (cwd, args) => {
     if (declareFamilies && args[0] === 'join') {
       const familyFlag = args.findIndex(arg => arg === '--family' || arg.startsWith('--family='));
@@ -128,13 +128,13 @@ function sandbox({ declareFamilies = false } = {}) {
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
-  /** Run the same command through the production dispatch in this process; same result shape as run, awaited [C7]. */
-  const runLocal = async (cwd, ...args) => {
+  /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
+  const inProcess = async (cwd, ...args) => {
     prepare(cwd, args);
     const result = await runCliInProcess(args, { cwd, env });
-    return { code: result.code, out: result.stdout, err: result.stderr, failure: null };
+    return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
-  return { dir, env, git, tryGit, run, runLocal, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -240,7 +240,7 @@ function launch(box, cwd, command, args) {
 async function waitFor(predicate, description, timeoutMs = 8_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const value = predicate();
+    const value = await predicate();
     if (value) return value;
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
   }
