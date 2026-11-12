@@ -17,52 +17,52 @@ const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
 /** Run a real CLI read and parse its one JSON document. */
-function json(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
+async function json(box, cwd, ...args) {
+  const result = await box.inProcess(cwd, ...args, '--json');
   return { code: result.code, document: JSON.parse(result.out) };
 }
 
 /** A real project with a web seat, one item and three shouts, one of them a coordinator question. */
-function board() {
+async function board() {
   const box = helpers.project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Filtered read item', '--specs', 'G1', '--criterion', 'reads are filtered').code, 0);
   for (const args of [[box.repo, 'shout', 'web', 'first note'], [box.web, 'shout', 'coordinator', '--kind', 'question', 'second ask'],
-    [box.repo, 'shout', 'web', 'third note']]) assert.equal(box.run(...args).code, 0, args.join(' '));
+    [box.repo, 'shout', 'web', 'third note']]) assert.equal((await box.inProcess(...args)).code, 0, args.join(' '));
   return box;
 }
 
-test('inbox --history --since returns only newer shouts, filters by recipient and kind, and changes no inbox state [N2,A1]', () => {
-  const box = board();
-  const events = json(box, box.repo, 'log').document.events.length;
-  const all = json(box, box.web, 'inbox', '--history', '--since', '0').document.shouts;
+test('inbox --history --since returns only newer shouts, filters by recipient and kind, and changes no inbox state [N2,A1]', async () => {
+  const box = await board();
+  const events = (await json(box, box.repo, 'log')).document.events.length;
+  const all = (await json(box, box.web, 'inbox', '--history', '--since', '0')).document.shouts;
   const texts = all.map(row => row.shout_text);
   for (const text of ['first note', 'second ask', 'third note']) assert.ok(texts.includes(text), text);
   const first = all.find(row => row.shout_text === 'first note').shout_id;
-  const newer = json(box, box.web, 'inbox', '--history', '--since', String(first)).document;
+  const newer = (await json(box, box.web, 'inbox', '--history', '--since', String(first))).document;
   assert.ok(newer.shouts.length > 0 && newer.shouts.every(row => row.shout_id > first), 'only shouts after the cursor');
   assert.equal(newer.next, newer.shouts.at(-1).shout_id, 'the reply names the id to continue from');
-  assert.deepEqual(json(box, box.web, 'inbox', '--history', '--since', String(first), '--to', 'web').document.shouts.map(row => row.shout_text), ['third note']);
-  assert.deepEqual(json(box, box.web, 'inbox', '--history', '--since', '0', '--kind', 'question').document.shouts.map(row => row.shout_text), ['second ask']);
-  assert.equal(json(box, box.repo, 'log').document.events.length, events, 'a history read records no event');
-  const delivered = json(box, box.web, 'inbox').document.shouts.map(row => row.shout_text);
+  assert.deepEqual((await json(box, box.web, 'inbox', '--history', '--since', String(first), '--to', 'web')).document.shouts.map(row => row.shout_text), ['third note']);
+  assert.deepEqual((await json(box, box.web, 'inbox', '--history', '--since', '0', '--kind', 'question')).document.shouts.map(row => row.shout_text), ['second ask']);
+  assert.equal((await json(box, box.repo, 'log')).document.events.length, events, 'a history read records no event');
+  const delivered = (await json(box, box.web, 'inbox')).document.shouts.map(row => row.shout_text);
   for (const text of ['first note', 'third note']) assert.ok(delivered.includes(text), `history left ${text} undelivered`);
-  const refused = json(box, box.web, 'inbox', '--history', '--since', 'yesterday');
+  const refused = await json(box, box.web, 'inbox', '--history', '--since', 'yesterday');
   assert.notEqual(refused.code, 0);
   assert.equal(refused.document.error.code, 'INBOX_SINCE');
 });
 
-test('--fields trims show, list, queue and inbox to the named keys and leaves refusals whole [N2,A1]', () => {
-  const box = board();
-  const id = json(box, box.repo, 'list', 'web').document.items[0].item_id;
-  assert.deepEqual(Object.keys(json(box, box.repo, 'show', String(id), '--fields', 'item_id,item_status').document), ['version', 'item_id', 'item_status']);
-  const listed = json(box, box.repo, 'list', 'web', '--fields', 'item_id').document;
+test('--fields trims show, list, queue and inbox to the named keys and leaves refusals whole [N2,A1]', async () => {
+  const box = await board();
+  const id = (await json(box, box.repo, 'list', 'web')).document.items[0].item_id;
+  assert.deepEqual(Object.keys((await json(box, box.repo, 'show', String(id), '--fields', 'item_id,item_status')).document), ['version', 'item_id', 'item_status']);
+  const listed = (await json(box, box.repo, 'list', 'web', '--fields', 'item_id')).document;
   assert.deepEqual(Object.keys(listed), ['version', 'items']);
   assert.deepEqual(listed.items, [{ item_id: id }]);
-  const queue = json(box, box.repo, 'queue', '--fields', 'id').document;
+  const queue = (await json(box, box.repo, 'queue', '--fields', 'id')).document;
   assert.ok(queue.unreleased.length > 0 && queue.unreleased.every(row => Object.keys(row).join() === 'id'), 'queue rows carry only id');
-  const inbox = json(box, box.web, 'inbox', '--fields=shout_id').document;
+  const inbox = (await json(box, box.web, 'inbox', '--fields=shout_id')).document;
   assert.ok(inbox.shouts.length > 0 && inbox.shouts.every(row => Object.keys(row).join() === 'shout_id'), 'inbox rows carry only shout_id');
-  const refusal = json(box, box.repo, 'show', '999999', '--fields', 'item_id').document;
+  const refusal = (await json(box, box.repo, 'show', '999999', '--fields', 'item_id')).document;
   assert.equal(refusal.error.code, 'NO_ITEM', 'a refusal keeps its code and next step');
 });
 
@@ -71,7 +71,7 @@ test('selectFields keeps a named cursor beside trimmed rows and drops lists that
   assert.deepEqual(selectFields(document, ['shout_id', 'next']), { version: 1, shouts: [{ shout_id: 4 }], next: 4 });
 });
 
-test('a history row larger than the whole budget is cut to fit and marked, so no reply exceeds the budget [N2,A1]', () => {
+test('a history row larger than the whole budget is cut to fit and marked, so no reply exceeds the budget [N2,A1]', async () => {
   const box = helpers.project('true');
   const configPath = join(box.web, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -80,10 +80,10 @@ test('a history row larger than the whole budget is cut to fit and marked, so no
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { store.shout(board, { from: 'coordinator', to: 'web-1', text: 'historical ' + '界'.repeat(380), lanes: ['web'] }); }
   finally { store.closeBoard(board); }
-  const text = box.run(box.web, 'inbox', '--history', '--since', '0');
+  const text = await box.inProcess(box.web, 'inbox', '--history', '--since', '0');
   assert.equal(text.code, 0, text.err);
   assert.ok(Buffer.byteLength(text.out) <= 1024, `text reply is ${Buffer.byteLength(text.out)} bytes`);
-  const reply = box.run(box.web, 'inbox', '--history', '--since', '0', '--json');
+  const reply = await box.inProcess(box.web, 'inbox', '--history', '--since', '0', '--json');
   assert.ok(Buffer.byteLength(reply.out) <= 1024, `JSON reply is ${Buffer.byteLength(reply.out)} bytes`);
   const row = JSON.parse(reply.out).shouts.find(shout => shout.shout_text.startsWith('historical'));
   assert.equal(row.shout_text_cut, true, 'the oversized row says it was cut');
