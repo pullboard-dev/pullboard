@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { gitSpawnSync } from '../../../git/light.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../kernel/index.js';
-import { CONFIG_FILE } from '../../../config/index.js';
 import { DOCTRINE_FILE } from '../../../config/index.js';
 import { LEGACY_DOCTRINE_FILE } from '../../../config/index.js';
 import { doctrineFromSource } from './main.js';
@@ -35,6 +34,44 @@ function sourceAt(root, commit, name) {
   return result.status === 0 ? result.stdout : null;
 }
 
+/**
+ * Read several committed files with one Git process: the same bytes `sourceAt` returns, null for a missing file.
+ * Why: the claim freeze read the spec and the doctrine with a process each (#6168).
+ * @param {string} root
+ * @param {string} commit
+ * @param {string[]} names
+ * @returns {(string|null)[]} One entry per name, in order.
+ */
+function sourcesAt(root, commit, names) {
+  if (names.some(name => /[\n\0]/u.test(name))) return names.map(name => sourceAt(root, commit, name));
+  const result = gitSpawnSync(['--no-replace-objects', 'cat-file', '--batch'],
+    { cwd: root, env: cleanGitEnvironment(), input: `${names.map(name => `${commit}:${name}`).join('\n')}\n`, maxBuffer: 64 * 1024 * 1024 });
+  if (result.status !== 0 || !Buffer.isBuffer(result.stdout)) return names.map(name => sourceAt(root, commit, name));
+  const bytes = result.stdout;
+  const found = [];
+  let at = 0;
+  for (let index = 0; index < names.length; index += 1) {
+    const end = bytes.indexOf(10, at);
+    if (end < 0) return names.map(name => sourceAt(root, commit, name));
+    const [, type, size] = bytes.toString('utf8', at, end).split(' ');
+    at = end + 1;
+    if (type !== 'blob') { found.push(type === 'missing' ? null : sourceAt(root, commit, names[index])); continue; }
+    found.push(bytes.toString('utf8', at, at + Number(size)));
+    at += Number(size) + 1;
+  }
+  return found;
+}
+
+/** Whether the commit has a readable pullboard.json; a malformed one still counts, so deriving reports it. */
+function hasPolicy(root, commit) {
+  try { policyAt(root, commit); return true; }
+  catch (error) {
+    if (error instanceof Refused && error.code === 'NO_POLICY') return false;
+    if (error instanceof Refused) return true;
+    throw error;
+  }
+}
+
 /** Return accepted-main parsed inputs without advancing HEAD, index or any working file. */
 export function mainCriterionFacts(root, { commit: pinned, cacheEligible } = {}) {
   const primary = mainCheckout(root);
@@ -42,18 +79,17 @@ export function mainCriterionFacts(root, { commit: pinned, cacheEligible } = {})
   const resolved = !pinned && retained ? tryGit(root, ['rev-parse', '--verify', '--quiet', `${retained}^{commit}`],
     { env: cleanGitEnvironment() }) : null;
   const commit = pinned ?? primary?.commit ?? (resolved?.status === 0 ? resolved.stdout : null);
-  if (!commit || sourceAt(root, commit, CONFIG_FILE) === null) return null;
+  // The committed policy is read once per command (policyAt keeps it), so this check starts no process when claim already read it.
+  if (!commit || !hasPolicy(root, commit)) return null;
   /** Parse portable inputs once for this immutable main and executing tool. */
   function derive() {
     const config = policyAt(root, commit).config;
-    const source = sourceAt(root, commit, config.spec);
     let name = config.practice;
-    let doctrineSource = sourceAt(root, commit, name);
-    if (doctrineSource === null && [DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name)) {
-      const alias = name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : DOCTRINE_FILE;
-      const alternate = sourceAt(root, commit, alias);
-      if (alternate !== null) { name = alias; doctrineSource = alternate; }
-    }
+    const alias = [DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name) ? (name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : DOCTRINE_FILE) : null;
+    // The spec, the doctrine and its legacy name come from one Git read (#6168).
+    const [source, firstDoctrine, alternate] = sourcesAt(root, commit, [config.spec, name, ...(alias ? [alias] : [])]);
+    let doctrineSource = firstDoctrine;
+    if (doctrineSource === null && alias && alternate !== null) { name = alias; doctrineSource = alternate; }
     return { version: 1, commit, config, specName: config.spec,
       spec: { ...parseSpec(source ?? ''), source, name: config.spec, exists: source !== null },
       doctrine: doctrineFromSource(doctrineSource, name), standard: standardDoctrine() };

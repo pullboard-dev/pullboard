@@ -673,8 +673,13 @@ let commandMemo = null;
  */
 export function withGitCommandMemo(work) {
   const outer = commandMemo;
+  // A nested scope shares the outer memory, so a whole hook run and its checks ask Git each question once [C7].
+  if (outer !== null) return work();
   commandMemo = new Map();
-  try { return work(); } finally { commandMemo = outer; }
+  let result;
+  try { result = work(); } catch (error) { commandMemo = outer; throw error; }
+  if (typeof result?.then !== 'function') { commandMemo = outer; return result; }
+  return result.finally(() => { commandMemo = outer; });
 }
 
 /** The memo key for a call that is safe to answer from memory, or null when it must run (or must clear the memory). */
@@ -683,7 +688,8 @@ function memoKey(kind, cwd, args, maxBuffer, env) {
   const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
   const [command] = words;
   const reads = ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
-    || (command === 'diff' && args.includes('--cached'))
+    || (command === 'diff' && !args.includes('--output'))
+    || (command === 'symbolic-ref' && args.some(arg => ['--quiet', '-q', '--short'].includes(arg)))
     || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
     || (command === 'config' && args.includes('--get'));
   return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null]) : null;
@@ -801,6 +807,12 @@ function rawGit(cwd, args, env) {
   const memoized = key === null ? undefined : commandMemo.get(key);
   if (memoized) return memoized;
   noteMemoCall(key);
+  const shown = key !== null && args.length === 2 && args[0] === 'show' ? prefetchedShow(cwd, args[1]) : undefined;
+  if (shown !== undefined) {
+    const outcome = shown === null ? { status: 128, stdout: '', stderr: `fatal: path ${args[1]} is not in the revision` } : { status: 0, stdout: shown, stderr: '' };
+    commandMemo.set(key, outcome);
+    return outcome;
+  }
   const objectKey = objectReadKey('raw', cwd, args, env);
   if (objectKey !== null && objectReads.has(objectKey)) return objectReads.get(objectKey);
   const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
@@ -846,6 +858,48 @@ export function gitShowText(cwd, revision, file) {
   if (same !== null) return same;
   const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
   return raw.status === 0 ? raw.stdout : null;
+}
+
+/** The files a commit hook reads at HEAD and in the index, fetched together with the first one asked for. */
+const HOOK_SHOWN_FILES = ['SPEC.md', 'DOCTRINE.md', 'PRACTICE.md'];
+
+/**
+ * One `git cat-file --batch` answer for the hook's usual `HEAD:` and index file reads, kept in the hook's memory.
+ * Why: eight `git show` children for four files cost more than the checks that read them [C7].
+ *
+ * @param {string} cwd
+ * @param {string} spec the `revision:file` the caller asked for
+ * @returns {string | null | undefined} undefined when the batch cannot answer; null when the file is absent.
+ */
+function prefetchedShow(cwd, spec) {
+  if (!/^(?:HEAD)?:[^:\0\n]+$/u.test(spec)) return undefined;
+  const file = spec.slice(spec.indexOf(':') + 1);
+  const files = HOOK_SHOWN_FILES.includes(file) ? HOOK_SHOWN_FILES : [file];
+  // Kept in the command memory itself, so any write that clears the memory also drops these answers.
+  const key = JSON.stringify(['prefetched-shows', cwd, files]);
+  if (!commandMemo.has(key)) {
+    const wanted = [];
+    for (const revision of ['HEAD', '']) for (const name of files) wanted.push(`${revision}:${name}`);
+    const result = gitSpawnSync([...GIT_FLAGS, 'cat-file', '--batch'], { cwd, input: `${wanted.join('\n')}\n`, maxBuffer: 64 * 1024 * 1024 });
+    let answers = null;
+    if (result.status === 0 && Buffer.isBuffer(result.stdout)) {
+      answers = new Map();
+      const out = result.stdout;
+      let at = 0;
+      for (const name of wanted) {
+        const end = out.indexOf(0x0a, at);
+        if (end < 0) { answers = null; break; }
+        const size = /^[0-9a-f]{40,64} blob (\d+)$/u.exec(out.toString('utf8', at, end));
+        if (!size) { answers.set(name, null); at = end + 1; continue; }
+        const length = Number(size[1]);
+        answers.set(name, out.toString('utf8', end + 1, end + 1 + length));
+        at = end + 1 + length + 1;
+      }
+    }
+    commandMemo.set(key, answers);
+  }
+  const answers = commandMemo.get(key);
+  return answers?.has(spec) ? answers.get(spec) : undefined;
 }
 
 /**
