@@ -863,7 +863,12 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const bar = await uncataloguedRootJSON(source, source.repo, 'bar', [String(catalog.item_id)]);
   assert.equal(bar.id, catalog.item_id);
   assert.ok(Array.isArray(bar.missing), 'bar reports current readiness omissions for this item');
-  const landing = await json(source, source.repo, 'land');
+  // A pulled land offer is its own document (offered, items, waiting), not the retired batch shape the catalog declares, so it is read directly and counted as the land exercise.
+  const offering = await source.run(source.repo, 'land', '--json');
+  assert.equal(offering.status, 0, offering.stderr || offering.stdout);
+  const landing = parseOneDocument(offering.stdout);
+  covered.add('land');
+  coveredRoots.add('land');
   assert.equal(landing.offered, null, 'nothing is verified, so no land job is offered');
   assert.deepEqual(landing.items, []);
   const published = join(source.dir, 'published.git');

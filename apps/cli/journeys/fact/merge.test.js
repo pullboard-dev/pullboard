@@ -74,7 +74,7 @@ function item(box, number, text) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
   json(box, path, 'join', 'web', '--model', 'fixture-model');
   const added = json(box, box.repo, 'add', 'web', `Registry addition ${number}`, '--specs', 'G1',
-    '--criterion', 'retain this registry entry', '--check', 'true', '--brief', 'Files: src/registry.js\nTest: the registry keeps this entry');
+    '--criterion', 'retain this registry entry', '--check', 'true', '--accept-green', 'the fixture check is a passing guard', '--brief', 'Files: src/registry.js\nTest: the registry keeps this entry');
   const id = added.item.item_id;
   json(box, path, 'claim', String(id));
   writeFileSync(join(path, FILE), text);
