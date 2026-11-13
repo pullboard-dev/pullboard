@@ -3613,6 +3613,23 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
+    "apps/cli/journeys/doctrine/pulled-counts.test.js": {
+      "cells": [
+        "app:lib",
+        "doctrine",
+        "kernel",
+        "outbox",
+        "person",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
+        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
+      ]
+    },
     "apps/cli/journeys/doctrine/name.test.js": {
       "cells": [
         "app:cli",
