@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e.js';
 import { fixtureAdd } from './testkit.js';
+import { whenRunnerSettles } from './runner/local-start.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { fixtureProjectPolicy } from './testkit.js';
 
@@ -18,7 +19,10 @@ export const policyFixtures = createE2eHelpers();
  */
 export async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+  // The pulled gate settles on the runner and the owner routing follows it, so wait for the hold rather than read once.
+  const read = async () => JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+  const item = await whenRunnerSettles(box.env, async () => { const row = await read(); return row.item_status === 'open' && row.item_hold_reason ? row : null; },
+    { deadlineMs: 120_000, what: `owner routing of #${id} ${label}` });
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
