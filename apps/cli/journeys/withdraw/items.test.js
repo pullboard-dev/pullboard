@@ -45,6 +45,7 @@ import {
   press,
   travel,
   chooseFilter,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 
@@ -1015,6 +1016,7 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // Needs you heads the Items list under Active; the steps below leave other tabs and filters open.
       await chrome.click("document.querySelector('[data-tab=items]')"); await chooseFilter(chrome, 'state:active');
+      await openItemsNeeds(chrome);
       const decision = "document.querySelector('#needs details[data-needs-key^=\"decision:\"]')";
       if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
       // The inline reference stays on its actual question line in the approved Needs disclosure.
