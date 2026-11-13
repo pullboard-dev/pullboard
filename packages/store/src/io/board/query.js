@@ -1,12 +1,12 @@
-import { ENGINE_VERSION } from '../../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { withDerivedFamily } from "../../../../items/light.js";
 import { withDerivedFamilies } from "../../../../items/light.js";
-import { effectiveItemHead } from "../../../../verify/index.js";
-import { agentParent } from "../../../../seats/index.js";
-export { agentParent } from "../../../../seats/index.js";
-import { projectReviewFamily } from "../../../../verify/index.js";
+import { effectiveItemHead } from "../../../../verify/read.js";
+import { agentParent } from "../../../../seats/light.js";
+export { agentParent } from "../../../../seats/light.js";
+import { projectReviewFamily } from "../../../../verify/read.js";
 import { withSeatPresence } from "../presence.js";
-import { projectItemDecisions } from "../../../../items/index.js";
+import { projectItemDecisions } from "../../../../items/light.js";
 import { itemById } from "../../logic/board/item/lookup.js";
 import { itemWorkInFlight } from "../../logic/red/return.js";
 import { itemStage } from "../../logic/item/stage.js";
@@ -20,28 +20,28 @@ import {
   projectAgentActivity,
 } from "../../logic/board/activity/feed.js";
 export { itemById };
-import { outsideSource } from "../../../../items/index.js";
+import { outsideSource } from "../../../../items/light.js";
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
   UNREAD_SHOUT_SQL,
 } from "../../logic/board/audience.js";
-import { shoutItemId } from "../../../../kernel/index.js";
+import { shoutItemId } from "../../../../kernel/light.js";
 import { workerInboxQuery } from "../../logic/board/worker.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
-import { verdictWithdrawals } from "../../../../verify/index.js";
-import { reopenCauseCorrection } from "../../../../items/index.js";
-import { COORDINATOR } from "../../../../config/index.js";
-import { itemFiles } from "../../../../items/index.js";
-import { parseSpec } from "../../../../spec/index.js";
+import { verdictWithdrawals } from "../../../../verify/read.js";
+import { reopenCauseCorrection } from "../../../../items/light.js";
+import { COORDINATOR } from "../../../../config/light.js";
+import { itemFiles } from "../../../../items/light.js";
+import { parseSpec } from "../../../../spec/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
-import { Refused } from "../../../../kernel/index.js";
+import { Refused } from "../../../../kernel/light.js";
 import { boardDataVersion } from "./version.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./read/snapshot.js";
 export { schemaMissing, writeRefused } from "./migrate.js";
 export { stats } from "../../logic/board/stats.js";
 export { submitInvariantEvents } from "./indexes.js";
-export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../verify/index.js";
+export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../verify/read.js";
 
 export const PERSON = 'person';
 
@@ -285,7 +285,7 @@ export function laneHolds(board) {
   return board.db.prepare('SELECT * FROM hold ORDER BY hold_lane').all();
 }
 
-export { rowDecisions } from "../../../../spec/index.js";
+export { rowDecisions } from "../../../../spec/light.js";
 
 import { agentAt } from './read/light.js';
 import { rowDrafts } from './read/light.js';
