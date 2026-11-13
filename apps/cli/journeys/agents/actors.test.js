@@ -23,9 +23,9 @@ import {
 
 test('Rigor drafts and executed sentinels do not create agent rows or increase agent counts [N26]', { timeout: 90_000 }, async () => {
   const box = machine(), alpha = project(box, 'agents-board-actors');
-  box.run(alpha.repo, 'add', 'web', 'Keep the real seat visible', '--specs', 'G1', '--route', 'strong',
+  await box.inProcess(alpha.repo, 'add', 'web', 'Keep the real seat visible', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The real seat stays visible.', '--check', 'true', '--wait');
-  box.run(alpha.web, 'claim', '1');
+  await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box);
   let chrome;
   try {
@@ -41,12 +41,12 @@ test('Rigor drafts and executed sentinels do not create agent rows or increase a
       agentId: 'coordinator', kind: 'root-cause', text: 'Keep board actors separate from seats.',
       cause: 'row:G1', neverAgain: true, asPerson: true, channel: 'terminal',
     }));
-    box.run(alpha.repo, 'sentinel', 'propose', 'agent-count-watch', '--check', 'false', '--every', 'hourly', '--owner', 'coordinator');
+    await box.inProcess(alpha.repo, 'sentinel', 'propose', 'agent-count-watch', '--check', 'false', '--every', 'hourly', '--owner', 'coordinator');
     earlier(alpha.repo, Date.now(), board => {
       const row = sentinels(board).find(entry => entry.name === 'agent-count-watch');
       decideSentinel(board, { agentId: 'person', channel: 'terminal', name: row.name, digest: row.digest, decision: 'approve' });
     });
-    box.run(alpha.repo, 'sentinel', 'run');
+    await box.inProcess(alpha.repo, 'sentinel', 'run');
     const after = await boardOf(view, alpha.repo);
     earlier(alpha.repo, Date.now(), board => {
       const history = store.events(board);

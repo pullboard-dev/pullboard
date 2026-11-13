@@ -29,16 +29,16 @@ after(e2e.cleanup);
  * @param {(box: any, id: string, folder: string) => string} place the path that holds the item branch
  * @returns {{ box: any, prior: string, gitDir: string, claim: any }}
  */
-function claimWithPriorFolder(place) {
+async function claimWithPriorFolder(place) {
   const box = e2e.project();
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Prior folder', check: 'true', args: ['--specs', 'G1'] });
   const id = String(item.item_id);
-  const first = box.run(box.web, 'claim', id);
+  const first = await box.runLocal(box.web, 'claim', id);
   assert.equal(first.code, 0, first.err);
   const folder = /item folder: (.+)/u.exec(first.out)?.[1];
   assert.ok(folder, first.out);
   assert.equal(e2e.commitFile(box, folder, 'web/kept.txt', 'kept work\n', 'feat(web): kept prior work [G1]').status, 0);
-  const released = box.run(box.web, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture');
+  const released = await box.runLocal(box.web, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture');
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
   const prior = place(box, id, folder);
   // The release may already have removed the folder: check the item branch out at the prior path either way.
@@ -54,7 +54,7 @@ function claimWithPriorFolder(place) {
   box.git(box.repo, 'worktree', 'add', '-q', web2, '-b', 'web/two');
   const joined = joinFixtureSeat(box, web2, 'web', { model: FIXTURE_MODEL });
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
-  return { box, prior, gitDir, claim: box.run(web2, 'claim', id) };
+  return { box, prior, gitDir, claim: (await box.runLocal(web2, 'claim', id)) };
 }
 
 /**
@@ -75,10 +75,10 @@ function adopted({ box, prior, gitDir, claim }) {
   assert.equal(readFileSync(join(folder, 'web/kept.txt'), 'utf8'), 'kept work\n');
 }
 
-test('clause 1: claim moves the clean folder at an unregistered seat path to the new seat path with git worktree move, keeping its commits, instead of refusing ITEM_FOLDER_UNREGISTERED [C7]', () => {
-  adopted(claimWithPriorFolder((box, id) => join(box.dir, `nobody-item-${id}`)));
+test('clause 1: claim moves the clean folder at an unregistered seat path to the new seat path with git worktree move, keeping its commits, instead of refusing ITEM_FOLDER_UNREGISTERED [C7]', async () => {
+  adopted((await claimWithPriorFolder((box, id) => join(box.dir, `nobody-item-${id}`))));
 });
 
-test('clause 1: claim moves the clean folder at an ended seat path to the new seat path with git worktree move, keeping its commits, instead of removing and re-adding it [C7]', () => {
-  adopted(claimWithPriorFolder((box, id, folder) => folder));
+test('clause 1: claim moves the clean folder at an ended seat path to the new seat path with git worktree move, keeping its commits, instead of removing and re-adding it [C7]', async () => {
+  adopted((await claimWithPriorFolder((box, id, folder) => folder)));
 });

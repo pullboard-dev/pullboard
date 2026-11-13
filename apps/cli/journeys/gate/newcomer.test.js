@@ -8,6 +8,7 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -26,7 +27,9 @@ import {
   bindLocalSession,
   CHECKOUT_SESSION_TOKEN_ENV,
 } from '../../../../packages/seats/index.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { repoInfo } from '../../../../packages/git/index.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
@@ -38,12 +41,12 @@ function project(t) {
   /** Read a private Git command's result without inheriting the maintainer's configuration. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
   /** Preserve CLI output so guidance is checked exactly as a newcomer receives it. */
-  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+  const run = (...args) => runCliInProcess(args, { cwd: root, env });
   git('init', '-q', '-b', 'main');
-  return { root, env, git, run };
+  return { root, env, git, inProcess: run };
 }
 
-test('verbose init exposes one confirmation command for its own writes [I1,I2,D1,D2]', (t) => {
+test('verbose init exposes one confirmation command for its own writes [I1,I2,D1,D2]', async (t) => {
   const box = project(t);
   box.git('config', 'user.name', 'Newcomer Fixture');
   box.git('config', 'user.email', 'newcomer@example.invalid');
@@ -60,7 +63,7 @@ test('verbose init exposes one confirmation command for its own writes [I1,I2,D1
   writeFileSync(join(box.root, '.claude', 'skills', 'pullboard-run', 'SKILL.md'), '# My existing guide\n');
   writeFileSync(join(box.root, 'CLAUDE.md'), '@AGENTS.md\n');
   writeFileSync(join(box.root, 'AGENTS.md'), '# My instructions\n');
-  const result = box.run('init', '--verbose');
+  const result = await box.inProcess('init', '--verbose');
   assert.equal(result.status, 0, result.stderr);
   const label = "To commit Pullboard's files: ";
   const recipes = result.stdout.split('\n').filter(line => line.startsWith(label));
@@ -79,7 +82,7 @@ test('verbose init exposes one confirmation command for its own writes [I1,I2,D1
   assert.equal(readFileSync(join(box.root, '.env.local'), 'utf8'), 'LOCAL=1\n');
   assert.equal(readFileSync(join(box.root, '.githooks', 'pre-commit'), 'utf8'), '#!/bin/sh\n# My hook\n');
   const head = box.git('rev-parse', 'HEAD');
-  const rerun = box.run('init');
+  const rerun = await box.inProcess('init');
   assert.equal(rerun.status, 0, rerun.stderr);
   const secondStage = rerun.stdout.trimEnd().split('\n').at(-1);
   assert.doesNotMatch(secondStage, /pullboard init --yes/u, 'committed setup needs no second confirmation');
@@ -87,10 +90,10 @@ test('verbose init exposes one confirmation command for its own writes [I1,I2,D1
   assert.equal(box.git('diff', '--cached', '--name-only'), '');
 });
 
-test('an agent that runs init continues setup in the same session [I1,I2]', (t) => {
+test('an agent that runs init continues setup in the same session [I1,I2]', async (t) => {
   const human = project(t);
   for (const marker of AGENT_SHELL_MARKERS) delete human.env[marker];
-  const humanResult = human.run('init');
+  const humanResult = await human.inProcess('init');
   assert.equal(humanResult.status, 0, humanResult.stderr);
   assert.ok(humanResult.stdout.includes('Next: ask your agent to run pullboard resume to finish setup.'));
   assert.doesNotMatch(humanResult.stdout, /run pullboard resume now/u);
@@ -98,19 +101,19 @@ test('an agent that runs init continues setup in the same session [I1,I2]', (t) 
   const agent = project(t);
   for (const marker of AGENT_SHELL_MARKERS) delete agent.env[marker];
   agent.env.CLAUDECODE = '1';
-  const agentResult = agent.run('init');
+  const agentResult = await agent.inProcess('init');
   assert.equal(agentResult.status, 0, agentResult.stderr);
   assert.ok(agentResult.stdout.includes('Next: run pullboard resume to continue setup in this session.'));
   assert.doesNotMatch(agentResult.stdout, /Next: ask your agent/u);
-  const humanDetails = human.run('init', '--verbose');
+  const humanDetails = await human.inProcess('init', '--verbose');
   assert.equal(humanDetails.status, 0, humanDetails.stderr);
   assert.match(humanDetails.stdout, /in Claude Code, start a new session first so it loads the Pullboard skills/u);
-  const agentDetails = agent.run('init', '--verbose');
+  const agentDetails = await agent.inProcess('init', '--verbose');
   assert.equal(agentDetails.status, 0, agentDetails.stderr);
   assert.match(agentDetails.stdout, /new skills load next session, and setup does not need them/u);
 });
 
-test('init detects language gates and gives an example in the same ecosystem [I1,I2]', (t) => {
+test('init detects language gates and gives an example in the same ecosystem [I1,I2]', async (t) => {
   const cases = [
     ['pyproject.toml', '[project]\nname = "example"\n', 'pytest'],
     ['pytest.ini', '', 'pytest'],
@@ -122,7 +125,7 @@ test('init detects language gates and gives an example in the same ecosystem [I1
   for (const [file, text, gate] of cases) {
     const box = project(t);
     writeFileSync(join(box.root, file), text);
-    const result = box.run('init');
+    const result = await box.inProcess('init');
     assert.equal(result.status, 0, `${file}: ${result.stderr}`);
     assert.equal(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate, gate, file);
     assert.ok(readFileSync(join(box.root, 'SPEC.md'), 'utf8').includes(`| gate: ${gate}\n`), file);
@@ -131,25 +134,25 @@ test('init detects language gates and gives an example in the same ecosystem [I1
   const mixed = project(t);
   writeFileSync(join(mixed.root, 'package.json'), JSON.stringify({ scripts: { test: 'echo "Error: no test specified" && exit 1' } }));
   writeFileSync(join(mixed.root, 'go.mod'), 'module example.test/project\n');
-  assert.equal(mixed.run('init').status, 0);
+  assert.equal((await mixed.inProcess('init')).status, 0);
   assert.equal(JSON.parse(readFileSync(join(mixed.root, 'pullboard.json'), 'utf8')).gate, 'go test ./...');
 
   const emptyConfigured = project(t);
   writeFileSync(join(emptyConfigured.root, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
-  assert.equal(emptyConfigured.run('init').status, 0);
+  assert.equal((await emptyConfigured.inProcess('init')).status, 0);
   const configPath = join(emptyConfigured.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.gate = '';
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
-  const rerun = emptyConfigured.run('init', '--verbose');
+  const rerun = await emptyConfigured.inProcess('init', '--verbose');
   assert.equal(rerun.status, 0, rerun.stderr);
   assert.match(rerun.stdout, /no gate yet: record the command that proves the build with pullboard gate set 'npm test'/u);
   assert.doesNotMatch(rerun.stdout, /if this board has no build/u);
 });
 
-test('setup offers a gate to a board with no build [I1,I2]', (t) => {
+test('setup offers a gate to a board with no build [I1,I2]', async (t) => {
   const box = project(t);
-  const initialized = box.run('init', '--verbose');
+  const initialized = await box.inProcess('init', '--verbose');
   assert.equal(initialized.status, 0, initialized.stderr);
   assert.match(initialized.stdout, /if this board has no build.*pullboard spec check.*second agent review checks the actual work/u);
 
@@ -167,7 +170,7 @@ test('setup offers a gate to a board with no build [I1,I2]', (t) => {
   const specPath = join(box.root, 'SPEC.md');
   writeFileSync(specPath, `${readFileSync(specPath, 'utf8')}- G1 [approved, must] The board can check its own requirements. | gate: pullboard spec check\n`);
 
-  const before = JSON.parse(box.run('resume', '--diagnostics', '--json').stdout);
+  const before = JSON.parse((await box.inProcess('resume', '--diagnostics', '--json')).stdout);
   assert.equal(before.setup.step, 3);
   assert.match(before.setup.question, /if this board has no build.*pullboard spec check.*second agent review checks the actual work/u);
   assert.match(before.setup.question, /choose a custom gate command/u);
@@ -175,7 +178,7 @@ test('setup offers a gate to a board with no build [I1,I2]', (t) => {
   const answer = runFixtureChild('sh', ['-c', before.setup.command], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(answer.status, 0, answer.failure ?? answer.stderr);
   assert.equal(JSON.parse(readFileSync(configPath, 'utf8')).gate, 'pullboard spec check');
-  assert.equal(JSON.parse(box.run('resume', '--diagnostics', '--json').stdout).setup.step, 4);
+  assert.equal(JSON.parse((await box.inProcess('resume', '--diagnostics', '--json')).stdout).setup.step, 4);
 
   box.git('add', '-f', '--', 'pullboard.json', 'SPEC.md', 'DOCTRINE.md', 'AGENTS.md', '.gitignore', '.githooks', '.claude');
   const stagedPaths = box.git('diff', '--cached', '--name-only').split('\n');
@@ -186,18 +189,18 @@ test('setup offers a gate to a board with no build [I1,I2]', (t) => {
 
   // The real gate reads committed main policy; commit only the setup paths created above first.
   box.env.PULLBOARD_MACHINE_HOME = join(box.root, '.private-machine-home');
-  const gate = box.run('gate');
+  const gate = await box.inProcess('gate');
   assert.equal(gate.status, 0, gate.failure ?? gate.stderr);
 });
 
-test('bare pullboard starts with the tour and init pointer; explicit help and JSON stay usable [I1,I2]', (t) => {
+test('bare pullboard starts with the tour and init pointer; explicit help and JSON stay usable [I1,I2]', async (t) => {
   const box = project(t);
-  const bare = box.run();
+  const bare = await box.inProcess();
   assert.equal(bare.status, 0, bare.stderr);
   assert.equal(bare.stdout.split('\n')[0], 'New here? pullboard tour, then pullboard init.');
   assert.ok(bare.stdout.includes('pullboard next'));
-  assert.ok(!box.run('help').stdout.startsWith('New here?'));
-  const document = JSON.parse(box.run('--json').stdout);
+  assert.ok(!(await box.inProcess('help')).stdout.startsWith('New here?'));
+  const document = JSON.parse((await box.inProcess('--json')).stdout);
   assert.equal(typeof document.help, 'string');
   assert.ok(document.help.includes('pullboard init'));
 });
@@ -220,6 +223,7 @@ test('init --yes commits its setup and exits in every agent session [I1,I2]', { 
     box.git('config', 'user.email', 'newcomer@example.invalid');
     box.git('commit', '-q', '--allow-empty', '-m', 'initial');
     // 0.9.1 hung here for good: the pre-commit hook of init's own commit waited on init's checkout lease (#906).
+    // process-level: 0.9.1 hung here, so the case is the process finishing.
     const running = runFixtureChildAsync(process.execPath, [BIN, 'init', '--yes', '--model', 'Test Model'], { cwd: box.root, env: box.env, detached: true });
     let timer;
     const result = await Promise.race([running, new Promise((done) => { timer = setTimeout(() => done(null), 60_000); })]); // budget: hang ceiling; init --yes takes about 2 s.
@@ -240,16 +244,23 @@ test('a command started under a held checkout acts under it, and a hook that mus
   const before = process.env[CHECKOUT_SESSION_TOKEN_ENV];
   delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
   const holder = await bindLocalSession(info, { agent: 'holding-agent', digest: 'a'.repeat(64), keepLease: true });
+  let takeover;
   try {
     // A child of the holding command (its env carries the lease) proceeds at once instead of queueing behind it.
     assert.ok(process.env[CHECKOUT_SESSION_TOKEN_ENV], 'the holding command passes its lease to what it starts');
     await bindLocalSession(info, { agent: 'holding-agent', digest: 'a'.repeat(64) });
-    // An unrelated command waits, and a hook gives up after its limit with the holder named.
+    // A takeover holds the exclusive lease while it waits for the existing writer to drain.
     delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
+    takeover = bindLocalSession(info, { agent: 'taking-agent', digest: 'b'.repeat(64), takeover: true, recordTakeover: async () => {} });
+    const intent = join(info.gitDir, 'pullboard-checkout-takeover');
+    await waitForCondition(() => existsSync(intent), 'the takeover acquires its checkout lease', { signal: AbortSignal.timeout(10_000) }); // Budget: runaway ceiling for this fixture's takeover.
+    assert.ok(existsSync(intent), 'the takeover holds the checkout while the writer is active');
+    // A hook waiting behind that real holder gives up after its limit with the holder named.
     await assert.rejects(bindLocalSession(info, { agent: 'holding-agent', digest: 'a'.repeat(64), waitLimitMs: 300 }),
-      (error) => error.code === 'CHECKOUT_BUSY' && /in use by holding-agent \(since /u.test(error.message) && /then commit again/u.test(error.message));
+      (error) => error.code === 'CHECKOUT_BUSY' && /in use by taking-agent \(since /u.test(error.message) && /then commit again/u.test(error.message));
   } finally {
     holder.release();
+    if (takeover) await takeover;
     if (before === undefined) delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
     else process.env[CHECKOUT_SESSION_TOKEN_ENV] = before;
   }

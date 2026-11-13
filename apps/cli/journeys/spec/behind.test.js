@@ -28,8 +28,8 @@ function readSpec(box) {
 }
 
 /** Create a board item whose row is already committed on main. */
-function addRowItem(box, ids = 'G3', lane = 'web') {
-  const added = fixtureAdd(box.run, box.repo, lane, 'Main-only row', '--specs', ids, '--json');
+async function addRowItem(box, ids = 'G3', lane = 'web') {
+  const added = await fixtureAdd(box.runIn, box.repo, lane, 'Main-only row', '--specs', ids, '--json');
   assert.equal(added.code, 0, added.err || added.out);
   return String(JSON.parse(added.out).item.item_id);
 }
@@ -44,7 +44,7 @@ function commitLocalWork(box, id = 'G1') {
 }
 
 /** Main-only cited rows need a merge; a row unknown to Main still needs its historical meaning. */
-test('spec check names merge main when a cited row exists on main [S8,B6]', () => {
+test('spec check names merge main when a cited row exists on main [S8,B6]', async () => {
   for (const [id, onMain] of [['G3', true], ['X9', false]]) {
     const box = project();
     if (onMain) addMainRows(box, [id]);
@@ -55,13 +55,13 @@ test('spec check names merge main when a cited row exists on main [S8,B6]', () =
     commitLocalWork(box, id);
     writeFileSync(path, previous);
     const head = box.git(box.web, 'rev-parse', 'HEAD');
-    const checked = box.run(box.web, 'spec', 'check');
+    const checked = await box.runIn(box.web, 'spec', 'check');
     assert.equal(checked.code, 1, checked.err || checked.out);
     if (onMain) {
       assert.match(checked.out, /G3 error:.*git merge main/u, 'main-only cited row must name git merge main');
       assert.doesNotMatch(checked.out, /G3 error:.*add it as a retired row/u);
       box.git(box.web, 'merge', '--no-edit', 'main');
-      const repaired = box.run(box.web, 'spec', 'check');
+      const repaired = await box.runIn(box.web, 'spec', 'check');
       assert.equal(repaired.code, 0, repaired.err || repaired.out);
     } else {
       assert.match(checked.out, /X9 error:.*never committed.*add it as a retired row/u);
@@ -71,31 +71,31 @@ test('spec check names merge main when a cited row exists on main [S8,B6]', () =
   }
 });
 
-test('claims freeze main-only rows without changing stale, dirty or divergent worktrees [B6,V1]', () => {
+test('claims freeze main-only rows without changing stale, dirty or divergent worktrees [B6,V1]', async () => {
   for (const state of ['clean', 'diverged', 'untracked', 'dirty']) {
     const box = project();
     addMainRows(box, ['G3', 'G4']);
-    const id = addRowItem(box, 'G3,G4');
+    const id = await addRowItem(box, 'G3,G4');
     if (state === 'diverged') commitLocalWork(box);
     if (state === 'untracked') writeFileSync(join(box.web, 'scratch.txt'), 'unfinished\n');
     if (state === 'dirty') writeFileSync(join(box.web, 'AGENTS.md'), 'unfinished instructions\n');
     const head = box.git(box.web, 'rev-parse', 'HEAD');
     const spec = readFileSync(join(box.web, 'SPEC.md'), 'utf8');
     const status = box.git(box.web, 'status', '--porcelain');
-    const claimed = box.run(box.web, 'claim', id);
+    const claimed = await box.runIn(box.web, 'claim', id);
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
     assert.match(claimed.out, new RegExp(`claimed #${id}`));
     assert.doesNotMatch(claimed.out, /merged main/u);
     assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), head);
     assert.equal(box.git(box.web, 'status', '--porcelain'), status);
     assert.equal(readFileSync(join(box.web, 'SPEC.md'), 'utf8'), spec);
-    const item = JSON.parse(box.run(box.web, 'show', id, '--json').out);
+    const item = JSON.parse((await box.runIn(box.web, 'show', id, '--json')).out);
     assert.equal(item.item_claim_head, head);
     assert.deepEqual(JSON.parse(item.item_frozen).rows.map(row => row.id), ['G3', 'G4']);
   }
   const wrongLane = project();
   addMainRows(wrongLane);
-  const wrongItem = addRowItem(wrongLane, 'G3', 'api');
+  const wrongItem = await addRowItem(wrongLane, 'G3', 'api');
   const head = wrongLane.git(wrongLane.web, 'rev-parse', 'HEAD');
   const wrong = wrongLane.run(wrongLane.web, 'claim', wrongItem);
   assert.equal(wrong.code, 1);

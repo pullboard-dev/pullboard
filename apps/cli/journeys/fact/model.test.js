@@ -19,46 +19,46 @@ function strongSeatWithWork() {
 }
 
 /** Run one CLI command with this session declaring the given model through PULLBOARD_MODEL. */
-function declaring(box, model, ...args) {
+async function declaring(box, model, ...args) {
   const before = box.env.PULLBOARD_MODEL;
   box.env.PULLBOARD_MODEL = model;
-  try { return box.run(box.web, ...args); }
+  try { return await box.runLocal(box.web, ...args); }
   finally {
     if (before === undefined) delete box.env.PULLBOARD_MODEL;
     else box.env.PULLBOARD_MODEL = before;
   }
 }
 
-test('clause 1: a strong seat whose session declares a mid model is offered the mid item, never the strong one, through next [B13]', () => {
+test('clause 1: a strong seat whose session declares a mid model is offered the mid item, never the strong one, through next [B13]', async () => {
   const { box, strong, mid } = strongSeatWithWork();
-  const next = declaring(box, 'claude-sonnet-5-5', 'next', '--json');
+  const next = await declaring(box, 'claude-sonnet-5-5', 'next', '--json');
   assert.equal(next.code, 0, next.out + next.err);
   const offered = JSON.parse(next.out);
   assert.equal(offered.item?.item_id ?? offered.id, mid, `next must offer the mid item, not strong #${strong}: ${next.out}`);
-  const whoami = JSON.parse(declaring(box, 'claude-sonnet-5-5', 'whoami', '--json').out);
+  const whoami = JSON.parse((await declaring(box, 'claude-sonnet-5-5', 'whoami', '--json')).out);
   assert.equal(whoami.route, 'mid', 'the caller route is the declared model\'s route');
 });
 
-test('clause 1: a strong seat whose session declares a light model cannot claim the strong or the mid item [B13]', () => {
+test('clause 1: a strong seat whose session declares a light model cannot claim the strong or the mid item [B13]', async () => {
   const { box, strong, mid } = strongSeatWithWork();
   for (const id of [strong, mid]) {
-    const claim = declaring(box, 'claude-haiku-6-0', 'claim', String(id), '--json');
+    const claim = await declaring(box, 'claude-haiku-6-0', 'claim', String(id), '--json');
     assert.notEqual(claim.code, 0, `a light model must not claim #${id}: ${claim.out}`);
     assert.equal(JSON.parse(claim.out).error.code, 'ROUTE', claim.out);
     assert.match(claim.out, /the model this session declared serves the light route/u);
   }
-  const idle = declaring(box, 'claude-haiku-6-0', 'next', '--json');
+  const idle = await declaring(box, 'claude-haiku-6-0', 'next', '--json');
   assert.doesNotMatch(idle.out, new RegExp(`"item_id":\\s*(${strong}|${mid})\\b`, 'u'), 'next offers a light session neither item');
 });
 
-test('clause 2: the same seat with a strong model declared again claims the strong item, with no rejoin [B13]', () => {
+test('clause 2: the same seat with a strong model declared again claims the strong item, with no rejoin [B13]', async () => {
   const { box, strong } = strongSeatWithWork();
-  const refused = declaring(box, 'claude-haiku-6-0', 'claim', String(strong), '--json');
+  const refused = await declaring(box, 'claude-haiku-6-0', 'claim', String(strong), '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'ROUTE', refused.out);
-  const strongAgain = declaring(box, 'claude-opus-5-5', 'next', '--json');
+  const strongAgain = await declaring(box, 'claude-opus-5-5', 'next', '--json');
   assert.equal(strongAgain.code, 0, strongAgain.out + strongAgain.err);
   const offered = JSON.parse(strongAgain.out);
   assert.equal(offered.item?.item_id ?? offered.id, strong, `a strong model is offered the strong item again: ${strongAgain.out}`);
-  const joinedModel = declaring(box, 'fixture-model', 'whoami', '--json');
+  const joinedModel = await declaring(box, 'fixture-model', 'whoami', '--json');
   assert.equal(JSON.parse(joinedModel.out).route, 'strong', 'the joined model keeps the joined route');
 });

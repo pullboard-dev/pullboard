@@ -28,6 +28,7 @@ test('an absent binding is refreshed from the board file and the submit seals on
   writeFileSync(join(root, 'pullboard.json'), '{}\n');
   git('add', '-A'); git('commit', '-qm', 'chore: policy');
   mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
+  // @pullboard-board-file persistence: the binding refresh reads this board by its repository file path
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => closeBoard(board));
   assert.equal(board.gitRoot, undefined, 'the board was opened without its repository');
@@ -41,6 +42,7 @@ test('an absent binding is refreshed from the board file and the submit seals on
 test('a board file outside a repository still refuses with NO_POLICY, naming the next step [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-no-repository-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
+  // @pullboard-board-file persistence: the refusal under test reads a board file outside any repository
   const board = openBoard(join(directory, 'board.sqlite'));
   t.after(() => closeBoard(board));
   assert.equal(repositoryOfBoardFile(join(directory, 'board.sqlite')), null);
@@ -65,6 +67,7 @@ function policyFixture(t) {
   writeFileSync(join(root, 'pullboard.json'), '{}\n');
   git('add', '-A'); git('commit', '-qm', 'chore: policy [C7]');
   mkdirSync(join(root, '.git/pullboard'), { recursive: true });
+  // @pullboard-board-file persistence: the policy refusal reads this repository board by its file path
   const board = openBoard(join(root, '.git/pullboard/board.sqlite'));
   t.after(() => closeBoard(board));
   const reads = [];

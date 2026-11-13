@@ -12,7 +12,7 @@ import {
   historicalPaths,
   mappedPath,
   readPathMap,
-} from "../../../codemap/index.js";
+} from "../../../codemap/light.js";
 
 /**
  * Split `path` or `path:line` into the file and an optional line.

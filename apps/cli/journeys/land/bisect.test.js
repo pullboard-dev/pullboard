@@ -59,7 +59,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   box.git(entries[3].path, 'merge', '--no-ff', hiddenSha, '-m', 'feat(web): include ancestor [G1]');
   submitItem(box, entries[3]);
   for (const entry of entries) acceptItem(box, entry);
-  assert.equal(box.run(hidden.path, 'submit', String(hidden.item), '--no-next').code, 0);
+  assert.equal((await box.runLocal(hidden.path, 'submit', String(hidden.item), '--no-next')).code, 0);
   delete box.env.LAND_SUPPRESS_RED;
   assert.equal(commitFile(box, box.repo, FILES[1], 'different main content\n', 'chore: create a merge conflict').status, 0);
   const base = box.git(box.repo, 'rev-parse', 'main');
@@ -114,7 +114,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   const afterCalls = calls(box).length;
   const beforeEmptyEvents = landingEvents(box);
   const beforeEmptyLease = onBoard(box, board => store.landingLeaseState(board));
-  const again = box.run(box.repo, 'land', '--json');
+  const again = await box.runLocal(box.repo, 'land', '--json');
   assert.ok(!again.out.includes('STALE_VERDICT'), `the stale accept was returned, so no stale refusal remains: ${again.out}`);
   assert.deepEqual(landingEvents(box), beforeEmptyEvents, 'an idle selection with only an unverified stack adds no lease events');
   assert.deepEqual(onBoard(box, board => store.landingLeaseState(board)), beforeEmptyLease, 'an idle selection takes no lease');

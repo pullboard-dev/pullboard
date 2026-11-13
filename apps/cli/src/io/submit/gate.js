@@ -6,6 +6,7 @@ import { throwTrustedRefusal } from './remote.js';
 import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { shellWord } from '../../../../../packages/runners/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { trunkRemote } from '../../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -32,8 +33,11 @@ const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
  * Archive accepted main from the runner checkout's own Git objects, then run one entry from that archive.
  * Why: the runner's checkout is the candidate; its files are data the trusted entry reads, never code it loads.
  */
-const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
+export const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -57,10 +61,17 @@ try {
   const metadata = join(directory, '.objects');
   git('init', '--quiet', '--bare', metadata);
   writeFileSync(join(metadata, 'objects/info/alternates'), objects + '\\n', { flag: 'wx' });
-  mkdirSync(join(metadata, 'info'), { recursive: true });
-  writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
-  const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
-  run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  // A project whose main is not Pullboard's own tree (no packages/items) is judged by the runner's installed Pullboard, never by its own code (#6265).
+  if (spawnSync('git', ['--no-replace-objects', '--git-dir', metadata, 'cat-file', '-e', request.main + ':packages/items/index.js'], { cwd: root, env }).status !== 0) {
+    const installed = env.PULLBOARD_RUNNER_TOOLS;
+    if (!installed || !existsSync(join(installed, 'packages/items/index.js'))) throw new Error('trusted tooling missing: main has no packages/items and this runner names no installed Pullboard');
+    for (const name of readdirSync(installed)) if (!name.startsWith('.')) symlinkSync(join(installed, name), join(directory, name));
+  } else {
+    mkdirSync(join(metadata, 'info'), { recursive: true });
+    writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
+    const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
+    run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  }
   const entry = join(directory, 'pullboard-trusted-entry.mjs');
   writeFileSync(entry, request.entry, { flag: 'wx', mode: 0o600 });
   // The step's stderr is its own pipe, replayed after its result line is whole, so a warning can never land inside a large result.
@@ -75,7 +86,7 @@ process.exitCode = status;
  * The analysis entry, written into main's archive: every step imports main's modules, the candidate is the checked tree.
  * Why namespace imports: an accepted main that predates an optional export still links (the cells inventory transfer included, so this change can bootstrap), and the step says what it lacks.
  */
-const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
+export const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
 import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
 import * as cellsCache from './packages/codemap/src/io/cells/scripts/cache.js';
@@ -96,7 +107,7 @@ const memos = await import('./apps/cli/src/io/memo.js').then(module => module.ru
 const selected = name => !input.parts || input.parts.includes(name);
 const outcomes = {};
 const refusal = error => ({ code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}),
-  ...(typeof error.machineryRule === 'string' ? { machineryRule: error.machineryRule } : {}) });
+  ...(typeof error.machineryRule === 'string' ? { machineryRule: error.machineryRule } : {}), ...(error.rerun === false ? { rerun: false } : {}) });
 /** In per-part mode a Refused ends only its own part and is recorded under it; otherwise it ends the whole analysis as before. */
 const part = async (name, work) => {
   if (!input.perPart) return work();
@@ -112,6 +123,12 @@ const step = async (name, work) => {
   try { return await work(); } finally { result.steps[name] = Math.round(performance.now() - started); }
 };
 const refuse = (code, message) => Object.assign(new Error(message), { name: 'Refused', code });
+const OBJECT = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
+/**
+ * The named commits this checkout still lacks after fetching them from the job's trunk remote (#5808). Main's items
+ * cell owns the fetch, so a runner job fetches a missing trunk commit in one place [C7]; a main without it fetches nothing.
+ */
+const fetchMissing = (commits, remote) => typeof items.fetchMissingCommits === 'function' ? items.fetchMissingCommits(root, commits, remote) : [];
 const trusted = command => command.split(/(\\s+)/u).map(word => /^[\\w./-]+\\.[cm]?js$/u.test(word) && !isAbsolute(word)
   && existsSync(join(tools, word)) ? JSON.stringify(join(tools, word)) : word).join('');
 try {
@@ -119,8 +136,16 @@ try {
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
   for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
+  // The change against main, read once: static and doctrine judge only its paths, and a green part is kept per head [5814].
+  const change = typeof gate.analysisChange === 'function' ? gate.analysisChange(root, input.main, input.source) : null;
+  const scope = change ? gate.analysisScope(change.changes) : { full: true };
+  const keyOf = (kind, definition, raw, mainPaths) => change ? gate.analysisKey(root, { kind, main: input.main, source: input.source, raw, definition, mainPaths }) : null;
+  if (scope.full && scope.reason) result.notes.push('analysis: whole tree, since ' + scope.reason);
+  // Only a narrowed doctrine hold is kept: a whole-tree rule's answer also reads the rest of main, which moves.
+  const doctrineKey = input.doctrine?.options?.fast ? keyOf('doctrine', { ...input.doctrine.options, mainCommit: null, commit: null }, change?.mainRaw, [input.doctrine.options.practice ?? 'DOCTRINE.md']) : null, doctrineKept = doctrineKey ? gate.readAnalysisMemo(doctrineKey) : null;
+  if (doctrineKept) result.notes.push('doctrine: reused the green hold kept for this head');
   // The doctrine hold runs beside the other parts in its own child: it may load the candidate's check scripts, never into this process.
-  const doctrineRun = selected('doctrine') && input.doctrine ? step('doctrine', () => new Promise((resolve, reject) => {
+  const doctrineRun = selected('doctrine') && input.doctrine && doctrineKept ? Promise.resolve({ rules: doctrineKept.result }) : selected('doctrine') && input.doctrine ? step('doctrine', () => new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', input.doctrine.entry], { cwd: root, stdio: ['pipe', 'pipe', 'inherit'] });
     const chunks = [];
     child.stdout.on('data', chunk => chunks.push(chunk));
@@ -132,13 +157,51 @@ try {
     child.stdin.end(JSON.stringify({ module: pathToFileURL(join(tools, 'packages/doctrine/index.js')).href, root, options: input.doctrine.options }));
   })) : null;
   doctrineRun?.catch(() => {});
+  // Authorization and source: the item's lane ownership of every changed path, read from accepted main's sandbox [C7,#5674].
+  // A lane refusal is data the controller routes after proof, as it does locally; anything this main cannot answer
+  // comes back as skipped, so the controller checks it at home rather than refusing the builder for the runner.
+  if (selected('authorization') && input.authorization) await part('authorization', () => step('authorization', async () => {
+    const sandbox = await import('./packages/sandbox/index.js').catch(() => null);
+    if (typeof sandbox?.submissionPaths !== 'function') { result.authorization = { skipped: 'accepted main lacks submissionPaths' }; return; }
+    let mechanical = [];
+    // The claim base and frozen policy commit come from the trunk remote when this checkout lacks them, never from the controller [P7,#5808].
+    const held = input.authorization.item ?? {};
+    let frozenPolicy = null;
+    try { frozenPolicy = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit ?? null; } catch { /* submissionPaths refuses an unreadable bar */ }
+    const remote = process.env.PULLBOARD_TRUNK_REMOTE || input.trunkRemote || '';
+    const absent = fetchMissing([...new Set([held.item_claim_head, frozenPolicy].filter(commit => OBJECT.test(commit ?? '')))], remote);
+    // A commit the trunk remote truly lacks is a real refusal, recorded once: no rerun can make it appear.
+    if (absent.length) throw Object.assign(refuse('NO_POLICY', 'the claim base or frozen policy commit ' + absent.map(commit => commit.slice(0, 12)).join(', ')
+      + ' is not on the trunk remote ' + (remote || '(none named)') + ', so lane ownership cannot be checked on the runner'),
+      { next: 'push that commit to the trunk remote, or ask the coordinator to refreeze the item so it is claimed on main, then submit again', rerun: false });
+    // The builder's own head, and every dependency's base and commit, must be here to be judged here; else the controller checks at home.
+    const head = input.authorization.commit ?? input.source;
+    const dependencies = input.authorization.dependencies ?? [];
+    const wanted = [head, ...dependencies.flatMap(dependency => [dependency.base, dependency.commit])];
+    fetchMissing([...new Set(wanted.filter(commit => OBJECT.test(commit ?? '')))], remote);
+    const lacking = wanted.filter(commit => !OBJECT.test(commit ?? '') || spawnSync('git', ['cat-file', '-e', commit + '^{commit}'], { cwd: root }).status !== 0);
+    if (lacking.length) { result.authorization = { skipped: 'the runner lacks ' + lacking.map(commit => String(commit).slice(0, 12)).join(', ') }; return; }
+    try {
+      const paths = sandbox.submissionPaths(root, input.authorization.item, head, { mainCommit: input.main, dependencies, onMechanicalPaths: found => { mechanical = found; } });
+      result.authorization = { paths, mechanical, ownership: null };
+    } catch (error) {
+      if (error?.code === 'OUTSIDE_LANE' && Array.isArray(error.paths)) result.authorization = { mechanical, ownership: { message: String(error.message).replace(/^\\[\\w+\\] /u, ''), paths: error.paths, policy: error.policy ?? null } };
+      else if (error?.name === 'Refused') throw error;
+      else result.authorization = { skipped: String(error?.message ?? error).slice(0, 2000) };
+    }
+  }));
   if (selected('preflight')) await part('preflight', () => step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true })));
   // Static checks run in their own process; per part they overlap cells and selection, else a red still ends the analysis first (#3916).
-  const staticRun = selected('static') && input.staticChecks ? part('static', () => step('static', () => new Promise(resolve => {
-    const child = spawn('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] }), chunks = [];
+  // They are handed the changed paths when no whole-repo input changed, and a green run is kept for this head [5814].
+  const staticKey = input.staticChecks ? keyOf('static', input.staticChecks, change?.raw) : null, staticKept = staticKey ? gate.readAnalysisMemo(staticKey) : null;
+  if (staticKept) result.notes.push('static checks: reused the green run kept for this head');
+  const staticEnv = scope.full ? process.env : { ...process.env, [gate.STATIC_SCOPE_ENV]: JSON.stringify(scope.files) };
+  const staticRun = selected('static') && input.staticChecks && !staticKept ? part('static', () => step('static', () => new Promise(resolve => {
+    const child = spawn('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, env: staticEnv, stdio: ['ignore', 'pipe', 'pipe'] }), chunks = [];
     child.stdout.on('data', chunk => chunks.push(chunk)); child.stderr.on('data', chunk => chunks.push(chunk));
     child.on('error', error => resolve({ error })); child.on('close', status => resolve({ status, output: Buffer.concat(chunks).toString('utf8') }));
-  }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed')); }))) : null;
+  }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed'));
+    if (staticKey) gate.writeAnalysisMemo(staticKey, { green: true }); }))) : null;
   if (!input.perPart) await staticRun; else staticRun?.catch(() => {});
   if (selected('preflight') && input.composition) await part('preflight', () => step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main)));
   let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
@@ -178,6 +241,7 @@ try {
     if (held.refused) throw Object.assign(refuse(held.refused.code, held.refused.message), held.refused.next ? { next: held.refused.next } : {},
       typeof held.refused.machineryRule === 'string' ? { machineryRule: held.refused.machineryRule } : {});
     if (!Array.isArray(held.rules)) throw new Error('the doctrine hold failed on the runner: ' + String(held.error ?? 'no rules').slice(0, 4000));
+    if (doctrineKey && !doctrineKept) gate.writeAnalysisMemo(doctrineKey, held.rules);
     return held.rules;
   });
   await staticRun;
@@ -187,7 +251,7 @@ try {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
   else if (error?.retryable === true && typeof error.code === 'string') result.refusal = { code: error.code, message: String(error.message), retryable: true };
   else if (error?.name !== 'Refused') throw error;
-  else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
+  else result.refused = refusal(error);
 }
 process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n');
 `;
@@ -196,7 +260,7 @@ process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n')
  * The doctrine hold's child entry: it imports accepted main's doctrine module from the archive and holds the candidate
  * checkout, printing one result line; a Refused keeps its code, message and machinery identity [C7].
  */
-const DOCTRINE_ENTRY = `import { readFileSync } from 'node:fs';
+export const DOCTRINE_ENTRY = `import { readFileSync } from 'node:fs';
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const say = value => process.stdout.write('PULLBOARD_DOCTRINE_RESULT ' + JSON.stringify(value) + '\\n');
 try {
@@ -222,6 +286,29 @@ export function trustedStepCommand({ main, entry, data, node = 'node' }) {
   }
   const encoded = Buffer.from(JSON.stringify({ main, entry, data })).toString('base64');
   return `${shellWord(node)} --input-type=module -e ${shellWord(`const ENCODED = ${JSON.stringify(encoded)};\n${BOOTSTRAP}`)}`;
+}
+
+/**
+ * The Error line and first trusted-main frame of a pinned step that died on an uncaught exception, or null.
+ * Only an authenticated receipt counts: a non-zero exit with no signal or timeout, output matching its hash, no result line, and a stack frame inside the extracted main archive.
+ * Why: the exception is a defect in main's tooling, not machinery; retrying it as infrastructure repeats the same crash [C7].
+ */
+function toolingCrash(result, receipt, phase, { runner, source, tree }) {
+  if (result.executionRunner !== runner || result.executionSource?.commit !== source || result.executionSource?.tree !== tree
+    || receipt?.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0 || typeof phase.code !== 'number' || phase.code === 0
+    || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024) return null;
+  let raw;
+  try { raw = readFileSync(result.rawOutputPath); } catch { return null; }
+  if (raw.length !== phase.length || createHash('sha256').update(raw).digest('hex') !== phase.sha256) return null;
+  const text = `${raw.toString('utf8')}\n${String(result.stderr ?? '')}`;
+  if (text.split(/\r?\n/u).some(line => line.startsWith(RESULT))) return null;
+  const lines = text.split(/\r?\n/u);
+  const at = lines.findIndex(line => /^\s*at .*pullboard-trusted-main-/u.test(line));
+  if (at < 0) return null;
+  const error = lines.slice(0, at).reverse().find(line => /^(?:[A-Za-z]*Error|TypeError|ReferenceError|SyntaxError)\b.*:/u.test(line.trim()) || /^\w*Error\b/u.test(line.trim()));
+  if (!error) return null;
+  const marker = lines[at].match(/pullboard-trusted-main-[^/\\]*[/\\]([^)\s]*)/u);
+  return { error: error.trim().slice(0, 300), frame: (marker ? marker[1] : lines[at].trim()).slice(0, 300) };
 }
 
 /**
@@ -260,6 +347,8 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
     || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
+    const crash = toolingCrash(result, receipt, phase, { runner: lease.runner.host, source, tree: checkedSource.tree });
+    if (crash) throw new Refused('RUNNER_TOOLING_CRASH', `the pinned ${stage} tooling crashed on the runner with ${crash.error}${crash.frame ? ` at ${crash.frame}` : ''}; the same main will crash again, so shout the coordinator with this line; kept in ${directory}${stderrNote(kept)}`);
     throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory}${stderrNote(kept)} and submit again`);
   }
   const bytes = readFileSync(result.rawOutputPath);
@@ -307,6 +396,7 @@ function readAnalysisResult(file, keys, cuts) {
     if (saved?.version !== 1 || saved.main !== main || saved.source !== source || saved.tooling !== tooling || saved.cuts !== cuts
       || !value || value.main !== main || value.source !== source || value.refusal || value.infra || value.refused
       || Object.values(value.outcomes ?? {}).some(outcome => outcome?.refused) || keys.doctrine && !Array.isArray(value.doctrine)
+      || keys.authorization && (!value.authorization || value.authorization.skipped)
       || typeof saved.directory !== 'string' || typeof saved.sha256 !== 'string') return null;
     return saved;
   } catch { return null; }
@@ -335,7 +425,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}) };
+    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization, trunkRemote: request.trunkRemote ?? trunkRemote(root) ?? '' } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
@@ -346,13 +436,14 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
     ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
   fixtureMemos.keepRunnerFixtureMemo(step.value, undefined, lease.runner?.host ?? null); const { value, directory, sha256 } = step;
-  if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
+  if (value.refused) throw Object.assign(new Refused(value.refused.code, value.refused.message, value.refused.next), value.refused.rerun === false ? { rerun: false } : {});
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');
   }
-  const parts = request.parts ?? ['preflight', 'static', 'cells', 'selection', ...(doctrine ? ['doctrine'] : [])];
+  const parts = request.parts ?? ['preflight', 'static', 'cells', 'selection', ...(doctrine ? ['doctrine'] : []), ...(request.authorization ? ['authorization'] : [])];
   const red = name => value.outcomes?.[name]?.refused;
-  if (parts.includes('cells') && !red('cells') && !value.cells || doctrine && parts.includes('doctrine') && !red('doctrine') && !Array.isArray(value.doctrine) || parts.includes('selection') && !red('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))) {
+  if (parts.includes('cells') && !red('cells') && !value.cells || doctrine && parts.includes('doctrine') && !red('doctrine') && !Array.isArray(value.doctrine) || parts.includes('selection') && !red('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))
+    || parts.includes('authorization') && !red('authorization') && !value.authorization) {
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
   }
   // A part that refused is never recorded: its next attempt runs it fresh.
@@ -380,9 +471,17 @@ export function sharedRemoteAnalysis(startJob) {
     const analysis = await (job ??= startJob(signal));
     const refused = analysis.outcomes?.[part]?.refused;
     // The doctrine's machinery identity rides along, so its refusal trial reads the same rule as a local hold.
-    if (refused) throw Object.assign(new Refused(refused.code, refused.message, refused.next), typeof refused.machineryRule === 'string' ? { machineryRule: refused.machineryRule } : {});
+    // A refusal no rerun can change (a commit the trunk remote lacks) says so, so the queued worker records it once [#5808].
+    if (refused) throw Object.assign(new Refused(refused.code, refused.message, refused.next), typeof refused.machineryRule === 'string' ? { machineryRule: refused.machineryRule } : {},
+      refused.rerun === false ? { rerun: false } : {});
     return analysis;
   };
+}
+
+/** True when the check is a plain command naming this file with no flag, filter or shell syntax that could narrow its run. */
+function checkRunsCompletely(check, path) {
+  const words = String(check ?? '').trim().split(/\s+/u);
+  return words.length > 1 && !words.some(word => word.startsWith('-') || /[|&;$`"'<>()*?[\]]/u.test(word)) && words.slice(1).includes(path);
 }
 
 /**
@@ -390,16 +489,17 @@ export function sharedRemoteAnalysis(startJob) {
  * cover the tests this submit must prove; anything else refuses and never runs a smaller selection (#3006).
  *
  * @param {{main?: string, source?: string, plan?: {proofFiles?: string[]}, admission?: object}} analysis
- * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
+ * @param {{main: string, source: string, crossRunTests?: string[], check?: string}} pinned
  * @returns {{plan: object, admission: object|undefined}}
  */
-export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] }) {
+export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [], check = '' }) {
   if (analysis?.main !== main || analysis.source !== source) {
     throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan is not bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; submit again`);
   }
   const files = analysis.plan?.proofFiles;
   if (!Array.isArray(files)) throw new Refused('RUNNER_RESULT_INVALID', 'the runner test plan names no proof files; submit again');
-  const missing = crossRunTests.filter(path => !files.includes(path));
+  // Why: the planner leaves out a file the frozen check already runs completely, so only the rest must be in the plan (#5466).
+  const missing = crossRunTests.filter(path => !files.includes(path) && !checkRunsCompletely(check, path));
   if (missing.length) throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan omits call-adjacent tests ${missing.join(', ')}; submit again`);
   // Why: a missing admission would let runSubmitGate admit browser and GUI files on the Mac, the work this item moves off it.
   const admission = analysis.admission;
@@ -416,10 +516,15 @@ export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] })
  * @param {boolean} remoteMode
  * @param {Promise<object>|null} selection The runner selection stage's analysis.
  * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
- * @param {(runnerPlan: object) => Promise<any>} runGate
+ * @param {(runnerPlan: object, early?: any) => Promise<any>} runGate
+ * @param {(() => any)|null} [startCriterion] Starts the frozen check on its own runner lease; it needs no test selection (#3325).
  */
-export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate) {
-  return runGate(remoteMode ? acceptRunnerPlan(await selection, pinned) : {});
+export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate, startCriterion = null) {
+  if (!remoteMode) return runGate({});
+  // The criterion run begins now, beside the selection; only the proof waits for the plan.
+  const early = startCriterion?.() ?? null;
+  try { return await runGate(acceptRunnerPlan(await selection, pinned), early); }
+  catch (error) { early?.abort(); throw error; }
 }
 
 /** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */

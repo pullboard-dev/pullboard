@@ -5,7 +5,10 @@ import { coordinatorCheck } from '../../../light.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { Refused } from '../../../../kernel/index.js';
 
-const RUNNER = 'node packages/gate/src/io/run/tests.js';
+const RUNNER = 'node apps/cli/src/io/run/tests.js';
+/** Checks frozen before the launcher moved still name the old path, which forwards to the same launcher. */
+const FROZEN_RUNNER = 'node packages/gate/src/io/run/tests.js';
+const isRunner = (part) => [RUNNER, FROZEN_RUNNER].some((runner) => part === runner || part.startsWith(`${runner} `));
 const APPENDED = /^(?: [A-Za-z0-9_./-]+\.test\.js)+$/u;
 const PLAIN_PART = /^[A-Za-z0-9_ ./=-]+$/u;
 const REFUSAL = 'CHECK_WIDEN_REFUSED';
@@ -13,14 +16,14 @@ const REFUSAL = 'CHECK_WIDEN_REFUSED';
 /**
  * The test files a new check adds to the frozen one, or a refusal naming the first position where they differ.
  * The new check must be the frozen one byte for byte, with plain `.test.js` paths appended, single-space separated,
- * at the end of one or more `node packages/gate/src/io/run/tests.js` parts of a ` && ` chain; no parsing of options or quoting is attempted.
+ * at the end of one or more `node apps/cli/src/io/run/tests.js` parts of a ` && ` chain; no parsing of options or quoting is attempted.
  *
  * @param {string} oldCheck the frozen check
  * @param {string} newCheck the proposed check
  * @returns {string[]} the added files, never empty
  */
 export function widenedCheckFiles(oldCheck, newCheck) {
-  const refuse = (why) => new Refused(REFUSAL, `only the coordinator changes a check beyond appending test files to a node packages/gate/src/io/run/tests.js part: ${why}; shout the coordinator with the exact --check`);
+  const refuse = (why) => new Refused(REFUSAL, `only the coordinator changes a check beyond appending test files to a node apps/cli/src/io/run/tests.js part: ${why}; shout the coordinator with the exact --check`);
   if (typeof oldCheck !== 'string' || !oldCheck.trim()) throw refuse('the item has no frozen check to widen');
   const before = oldCheck.split(' && ');
   const after = newCheck.split(' && ');
@@ -36,7 +39,7 @@ export function widenedCheckFiles(oldCheck, newCheck) {
       while (at < was.length && at < now.length && was[at] === now[at]) at += 1;
       const where = `the check differs at character ${offset + at + 1}`;
       if (tail === null || !APPENDED.test(tail)) throw refuse(where);
-      if (!(was === RUNNER || was.startsWith(`${RUNNER} `)) || !PLAIN_PART.test(was)) throw refuse(`${where}, in a part that is not a plain ${RUNNER} part`);
+      if (!isRunner(was) || !PLAIN_PART.test(was)) throw refuse(`${where}, in a part that is not a plain ${RUNNER} part`);
       if (/^-/u.test(was.split(' ').at(-1)) && was.split(' ').at(-1) !== '--test-force-exit') throw refuse(`${where}, after an option that may take the next word as its value`);
       for (const file of tail.slice(1).split(' ')) {
         if (present.has(file) || added.includes(file)) throw refuse(`${file} is already in the check`);

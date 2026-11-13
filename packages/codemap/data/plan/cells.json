@@ -240,28 +240,33 @@
     },
     {
       "order": 45,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/45-app-view.json"
+      "name": "search",
+      "file": "packages/codemap/data/plan/45-search.json"
     },
     {
       "order": 46,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/46-app-runner.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/46-app-view.json"
     },
     {
       "order": 47,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/47-app-cli.json"
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/47-app-runner.json"
     },
     {
       "order": 48,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/48-app-lib.json"
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/48-app-cli.json"
     },
     {
       "order": 49,
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/49-app-lib.json"
+    },
+    {
+      "order": 50,
       "name": "app:relay",
-      "file": "packages/codemap/data/plan/49-app-relay.json"
+      "file": "packages/codemap/data/plan/50-app-relay.json"
     }
   ],
   "stays": [
@@ -1801,6 +1806,14 @@
         "packages/gate/tests/io/check/baseline.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-history-plan.js",
+        "packages/landing/src/io/history.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2177,11 +2190,10 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->search",
     "apps/cli->state",
     "apps/lib->apps/runner",
     "apps/lib->transport",
-    "(root)->gate",
-    "(root)->seats",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
@@ -2190,8 +2202,11 @@
     "resources->git",
     "codemap->git",
     "codemap->kernel",
+    "config->kernel",
     "gate->codemap",
     "runners->config",
+    "items->config",
+    "items->state",
     "runners->verify",
     "landing->verify",
     "verify->kernel",
@@ -2200,10 +2215,6 @@
     "runners->resources",
     "runners->transport",
     "activity->store",
-    "(root)->apps/cli",
-    "(root)->apps/lib",
-    "(root)->apps/view",
-    "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
     "apps/cli->seats",
@@ -2227,20 +2238,26 @@
     "gate->resources",
     "gate->drive",
     "gate->config",
+    "merge->config",
+    "rigor->config",
+    "spec->config",
     "gate->seats",
     "github->store",
     "items->git",
     "items->kernel",
-    "items->store",
     "items->queue",
     "queue->kernel",
+    "api->jobs",
+    "api->kernel",
     "keys->store",
+    "landing->gate",
     "landing->git",
     "landing->pin",
     "landing->store",
-    "landing->store/src",
+    "apps/cli->apps/lib/src",
     "landing->resources",
     "landing->runners",
+    "landing->sandbox",
     "link->store",
     "merge->git",
     "outbox->store",
@@ -2254,15 +2271,17 @@
     "apps/cli->config",
     "apps/cli->resources",
     "state->store",
-    "stats->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
     "apps/cli->queue",
+    "apps/cli->health",
+    "apps/cli->store",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
     "apps/cli->codemap",
+    "apps/cli->api",
     "health->state",
     "moves->state",
     "moves->doctrine",
@@ -2290,21 +2309,20 @@
     "commits->kernel",
     "sandbox->commits",
     "rigor->store",
-    "(root)->store",
     "spec->kernel",
     "gate->spec",
-    "(root)->doctrine",
-    "(root)->codemap",
-    "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine",
     "health->doctrine",
     "rigor->doctrine",
+    "rigor->config",
+    "sentinels->config",
     "runners->doctrine",
     "apps/lib->doctrine",
     "store->items",
     "store->resources",
     "store->git",
+    "store->jobs",
     "github->items",
     "link->kernel",
     "apps/relay->link",
@@ -2312,6 +2330,15 @@
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
-    "apps/relay->seats"
+    "apps/relay->seats",
+    "search->store"
+  ],
+  "upwardEdgesGrandfathered": [
+    "apps/cli->apps/relay",
+    "apps/cli->search",
+    "apps/cli->apps/lib",
+    "apps/cli->apps/lib/src",
+    "state->store",
+    "stats->store"
   ]
 }

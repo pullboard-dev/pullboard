@@ -14,6 +14,12 @@ const WAIT_BUDGET_DEFAULTS = Object.freeze({
   file: true,
   leaseMs: 120_000,
   waiterMs: 120_000,
+  // Audited exception [C7]: a quarantined runner heals on its own pass, measured 147 s, 155 s and 279 s over 12 Nov
+  // (#6777, #6779, #6800); ratchet-only, it may tighten and never loosen. The remainder is filed for 0.9.5.
+  runnerUnavailableMs: 300_000,
+  // Audited exception [C7]: board writes measured p95 4.6 s, p99 9.3 s, edit up to 5.1 s on 13 Nov (#6793); the native
+  // move itself is the cost, so the remainder is filed for 0.9.5. Ratchet-only.
+  boardWriteMs: 10_000,
   gateProgressMs: 300_000,
   runnerJobMs: 1_200_000,
   orphanMs: 300_000,
@@ -27,9 +33,9 @@ const SURFACE_BUDGET = Object.freeze({
   pool: 'leaseMs',
   'checkout-lease': 'leaseMs',
   'checkout-writer': 'leaseMs',
-  'runner-unavailable': 'waiterMs',
+  'runner-unavailable': 'runnerUnavailableMs',
   'handoff-queue': 'waiterMs',
-  'board-write': 'databaseMs',
+  'board-write': 'boardWriteMs',
   'resource-write': 'databaseMs',
   gate: 'gateProgressMs',
   'landing-run': 'landingRunMs',
@@ -101,12 +107,22 @@ export function judgeWaits(rows, budgets) {
   });
 }
 
-/** The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item. */
-export function waitKey(row) {
-  return `${row.surface}:${row.key ?? row.holder}`.replace(/\s+/gu, ' ').slice(0, 200);
+/** An absolute path cut to its repo-relative tail: from its `.git` folder when it has one, else its last two parts. */
+function relativeTail(path) {
+  const parts = path.split('/').filter(Boolean);
+  const git = parts.indexOf('.git');
+  return parts.slice(git >= 0 ? git : Math.max(0, parts.length - 2)).join('/');
 }
 
-/** The code behind each surface: where a Sonnet starts reading when the holder's own source is not known. */
+/**
+ * The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item.
+ * Paths are repo-relative so the key survives a checkout under a folder with a space, which a bar cannot carry [C7,#6763].
+ */
+export function waitKey(row) {
+  return `${row.surface}:${row.key ?? row.holder}`.replace(/(?<![\w.])(?:\/[^/:]+){2,}/gu, relativeTail).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid').replace(/\s+/gu, ' ').slice(0, 200);
+}
+
+/** The code behind each surface: where a builder starts reading when the holder's own source is not known. */
 const SURFACE_FILE = Object.freeze({
   pool: 'packages/resources/src/io/main.js',
   'checkout-lease': 'packages/seats/src/io/agent/session.js',
@@ -133,7 +149,7 @@ function holderSourceFiles(command) {
   const cli = /\bbin\/pullboard\.js\s+([a-z][a-z-]*)/u.exec(text);
   if (cli) files.push(`apps/cli/src/io/commands/${cli[1]}.js`);
   for (const match of text.matchAll(/(?:^|[\s/])((?:bin|apps|packages|src)\/[\w./-]+\.m?js)(?=\s|$)/gu)) {
-    if (match[1] !== 'apps/cli/pullboard.js' && !match[1].includes('/tests/')) files.push(match[1]);
+    if (!['apps/cli/pullboard.js', 'bin/pullboard.js'].includes(match[1]) && !match[1].includes('/tests/')) files.push(match[1]);
   }
   return [...new Set(files)];
 }
@@ -149,7 +165,7 @@ export function waitItemFields(draft, by) {
 }
 
 /**
- * The item a Sonnet fixes the cause from: who held, who waited, how long, and where the evidence lies. It is routed
+ * The item a builder fixes the cause from: who held, who waited, how long, and where the evidence lies. It is routed
  * mid, so it carries what add requires of a cold build: a Files: section, a Test: line, and a check, which is the
  * wait audit itself for this one key, red while the wait is over budget. At most three numbered clauses.
  */
@@ -159,7 +175,7 @@ export function waitItemDraft(row) {
     ? row.waiters.slice(0, 12).map(waiter => `- ${waiter.label}${waiter.pid ? ` (pid ${waiter.pid})` : ''}: waited ${sayAge(waiter.ageMs)}`).join('\n')
     : '- none recorded';
   const files = [...new Set([...holderSourceFiles(row.context), SURFACE_FILE[row.surface]].filter(Boolean))];
-  const title = `waits: ${row.surface} ${row.holder} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
+  const title = `waits: ${row.surface} ${String(row.holder).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid')} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
   const brief = [
     `The wait audit (\`pullboard waits\`) found ${row.surface} over its ${row.budgetName} budget of ${sayAge(row.budgetMs)}.`,
     '',

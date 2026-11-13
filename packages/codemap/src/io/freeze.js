@@ -8,6 +8,7 @@
  * Rows of the table: `old<TAB>new`, `old<TAB>delete<TAB>importers -> <door>`, `old<TAB>merge:<path>`.
  * The run needs a clean tree, changes nothing under --dry-run, and a second run finds every row done and does nothing.
  */
+/** @pullboard-module-loads packages/gate/src/io/edges.js */
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js */
 /** A gate's infrastructure stops rotate to another runner with back-off for up to 30 minutes before the gate gives up [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -69,6 +69,7 @@ console.log(JSON.stringify({ outcome, sleeps, hosts, calls }));`;
  */
 function run(box, drops) {
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
+  // process-level: an inline module scenario, not the CLI.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', scenario(gate, drops)], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   return JSON.parse(result.stdout);

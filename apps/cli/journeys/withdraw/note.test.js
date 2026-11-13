@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** withdraw's refusal names the positional reason form and --note is accepted as the reason [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -15,11 +14,11 @@ test('clause 1: withdraw with no reason shows the positional form and --note is 
     const added = fixtureAdd(box.run, box.repo, 'web', title, '--criterion', 'A marker exists [test]', '--check', 'true');
     assert.equal(added.code, 0, `${added.out}${added.err}`);
   }
-  const bare = box.run(box.repo, 'withdraw', '1');
+  const bare = await box.runLocal(box.repo, 'withdraw', '1');
   assert.notEqual(bare.code, 0, 'no reason refuses');
   const text = `${bare.out}${bare.err}`;
   assert.match(text, /NOTE_REQUIRED/u);
   assert.match(text, /pullboard withdraw 1 "<reason>"/u, 'the hint shows the positional form');
-  const flagged = box.run(box.repo, 'withdraw', '2', '--note', 'Not needed any more');
+  const flagged = await box.runLocal(box.repo, 'withdraw', '2', '--note', 'Not needed any more');
   assert.equal(flagged.code, 0, `${flagged.out}${flagged.err}`);
 });

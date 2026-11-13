@@ -49,7 +49,7 @@ function servedAssets(source) {
 
 /** Choose exact application roots and expose unresolved entry declarations instead of claiming an opaque entry reached. */
 export function cellRoots(files) {
-  const roots = new Set(), unknown = [], apps = [...files.keys()].some(file => file.startsWith('apps/'));
+  const roots = new Set(), unknown = [], apps = [...files.keys()].some(file => /^apps\/[^/]+\/index\.js$/u.test(file));
   /** A literal entry must actually exist as a non-test inventory file. */
   function add(file, path) {
     const target = declaredPath(file, path);

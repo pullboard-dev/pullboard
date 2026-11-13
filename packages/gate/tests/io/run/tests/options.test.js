@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 
-const runner = fileURLToPath(new URL('../../../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 test('an unknown option after the file is refused by name [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-unknown-option-after-')); try {

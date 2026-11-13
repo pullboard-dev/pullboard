@@ -9,6 +9,7 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
+import { onBoard } from '../../tests/fixtures/land/board.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { machineClauseCommands } from '../../../../packages/verify/index.js';
 import { machineProofProblem } from '../../../../packages/verify/index.js';
@@ -21,16 +22,24 @@ import { exportBoard } from '../../../../packages/store/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { MACHINE_VERDICT_ENGINE } from '../../../../packages/state/light.js';
 import { fixtureBoard } from '../../tests/fixtures/board.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 
 /** Keep failures visible without interpreting a nonzero CLI result as a successful board read. */
-function json(box, root, ...args) {
-  const result = box.run(root, ...args, '--json');
+async function json(box, root, ...args) {
+  const result = await box.runLocal(root, ...args, '--json');
   assert.equal(result.code, 0, result.out + result.err);
   return JSON.parse(result.out);
 }
 
+/** An expected refusal, answered by the production dispatcher in this process with the box's environment. */
+async function refusal(box, cwd, ...args) {
+  const result = await runCliInProcess(args, { cwd, env: box.env });
+  return { code: result.status, out: result.stdout, err: result.stderr };
+}
+
 /** Author a coordinator-approved bar before claiming and committing the builder's small change. */
-function fixture(t, { failing = false, sensitive = false, strict = false, advanceMain = false } = {}) {
+async function fixture(t, { failing = false, sensitive = false, strict = false, advanceMain = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }));
@@ -39,16 +48,16 @@ function fixture(t, { failing = false, sensitive = false, strict = false, advanc
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure machine fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = json(box, box.repo, 'add', 'web', 'Machine fixture', '--specs', 'G1',
-    '--brief', 'Files: web/result.txt\nTest: the result file exists and says built\n', '--criterion', '1. the result exists [command]\n2. the result is built [command]', '--check', 'test -f web/result.txt',
-    ...(sensitive ? ['--sensitive'] : [])).item.item_id;
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Machine fixture', criterion: '1. the result exists [command]\n2. the result is built [command]', check: 'test -f web/result.txt',
+    brief: 'Files: web/result.txt\nTest: the result file exists and says built\n', args: ['--specs', 'G1', ...(sensitive ? ['--sensitive'] : [])], diagnose: false, run: box.runLocal });
+  const id = item.item_id;
   const commands = [{ clause: 1, command: 'test -f web/result.txt' },
     { clause: 2, command: failing ? 'test -f web/missing.txt' : 'test "$(cat web/result.txt)" = built' }];
   const path = join(box.dir, 'machine-commands.json');
   writeFileSync(path, JSON.stringify(commands));
-  json(box, box.repo, 'edit', String(id), '--machine-verified', 'on', '--machine-commands-file', path, '--reason', 'Every clause has an executable check', ...(strict ? ['--review-tier', 'strict'] : []));
-  if (sensitive || strict) assert.equal(json(box, box.repo, 'show', String(id)).reviewEligibility.tier, 'strict', 'the negative control is actually strict before building');
-  json(box, box.web, 'claim', String(id));
+  await json(box, box.repo, 'edit', String(id), '--machine-verified', 'on', '--machine-commands-file', path, '--reason', 'Every clause has an executable check', ...(strict ? ['--review-tier', 'strict'] : []));
+  if (sensitive || strict) assert.equal((await json(box, box.repo, 'show', String(id))).reviewEligibility.tier, 'strict', 'the negative control is actually strict before building');
+  await json(box, box.web, 'claim', String(id));
   if (advanceMain) {
     mkdirSync(join(box.repo, 'docs'), { recursive: true });
     writeFileSync(join(box.repo, 'docs/accepted.txt'), 'a disjoint accepted change\n');
@@ -57,22 +66,22 @@ function fixture(t, { failing = false, sensitive = false, strict = false, advanc
   }
   assert.equal(helpers.commitFile(box, box.web, 'web/result.txt', 'built\n', 'feat(web): build result [G1]').status, 0);
   for (const entry of commands) {
-    const ticked = box.run(box.web, 'fact', String(id), 'note', `clause ${entry.clause} [command]: ${entry.command} exits 0`);
+    const ticked = await box.runLocal(box.web, 'fact', String(id), 'note', `clause ${entry.clause} [command]: ${entry.command} exits 0`);
     assert.equal(ticked.code, 0, ticked.out + ticked.err);
   }
   return { box, id, path, commands };
 }
 
 test('machine-verified all-green clauses land with command receipts and no reviewer [V1,V4,H16]', async t => {
-  const { box, id, commands } = fixture(t, { advanceMain: true });
+  const { box, id, commands } = await fixture(t, { advanceMain: true });
   const uncomposed = box.git(box.web, 'rev-parse', 'HEAD');
   const acceptedMain = box.git(box.repo, 'rev-parse', 'main');
-  const submitted = box.run(box.web, 'submit', String(id), '--no-next');
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   // Automatic landing may run in the board's worker after submit returns, so wait for it instead of reading once.
-  await waitForCondition(() => json(box, box.repo, 'show', String(id)).item_merged_commit, 'the board lands the machine-verified item',
+  await waitForCondition(() => onBoard(box, board => Boolean(store.getItem(board, id).item_merged_commit)), 'the board lands the machine-verified item',
     { signal: AbortSignal.timeout(120_000), state: () => ({ submitted: submitted.out + submitted.err }) });
-  const shown = json(box, box.repo, 'show', String(id));
+  const shown = await json(box, box.repo, 'show', String(id));
   assert.equal(shown.item_status, 'verified');
   assert.notEqual(shown.item_commit, uncomposed, 'machine proof is for an actual composed merge, not the old builder head');
   const parents = box.git(box.web, 'rev-list', '--parents', '-n', '1', shown.item_commit).split(' ');
@@ -91,44 +100,45 @@ test('machine-verified all-green clauses land with command receipts and no revie
   assert.equal(readFileSync(join(box.repo, 'web/result.txt'), 'utf8'), 'built\n');
 });
 
-test('machine verification refuses a failing clause by number without publishing a verdict [V1,V4,H16]', t => {
-  const { box, id } = fixture(t, { failing: true });
-  const result = box.run(box.web, 'submit', String(id), '--no-next');
+test('machine verification refuses a failing clause by number without publishing a verdict [V1,V4,H16]', async t => {
+  const { box, id } = await fixture(t, { failing: true });
+  const result = await refusal(box, box.web, 'submit', String(id), '--no-next');
   assert.notEqual(result.code, 0);
   assert.match(result.out + result.err, /MACHINE_CLAUSE_RED.*clause 2/u);
-  const shown = json(box, box.repo, 'show', String(id));
+  const shown = await json(box, box.repo, 'show', String(id));
   assert.equal(shown.item_status, 'claimed');
   assert.equal(shown.verdicts.length, 0);
   assert.equal(shown.item_merged_commit, null);
 });
 
-test('sensitive and strict machine-marked work remains submitted for an independent reviewer [V1,V4,H16]', t => {
+test('sensitive and strict machine-marked work remains submitted for an independent reviewer [V1,V4,H16]', async t => {
   for (const policy of [{ sensitive: true }, { strict: true }]) {
-    const { box, id } = fixture(t, policy);
-    const result = box.run(box.web, 'submit', String(id), '--no-next');
+    const { box, id } = await fixture(t, policy);
+    const result = await box.runLocal(box.web, 'submit', String(id), '--no-next');
     assert.equal(result.code, 0, result.out + result.err);
-    const shown = json(box, box.repo, 'show', String(id));
+    const shown = await json(box, box.repo, 'show', String(id));
     assert.equal(shown.item_status, 'submitted', JSON.stringify(policy));
     assert.equal(shown.verdicts.length, 0);
     assert.equal(shown.item_merged_commit, null);
   }
 });
 
-test('machine authorization is coordinator-only, visible, reversible and off by default [V1,V4,H16]', t => {
+test('machine authorization is coordinator-only, visible, reversible and off by default [V1,V4,H16]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = json(box, box.repo, 'add', 'web', 'Opt-in fixture', '--brief', 'Files: web/result.txt\nTest: the result file exists and says built\n', '--criterion', '1. one [command]\n2. two [command]', '--check', 'true').item.item_id;
-  assert.equal(json(box, box.repo, 'show', String(id)).machineVerification, null);
+  const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Opt-in fixture', criterion: '1. one [command]\n2. two [command]', check: 'true',
+    brief: 'Files: web/result.txt\nTest: the result file exists and says built\n', diagnose: false, run: box.runLocal })).item_id;
+  assert.equal((await json(box, box.repo, 'show', String(id))).machineVerification, null);
   const path = join(box.dir, 'commands.json');
   writeFileSync(path, JSON.stringify([{ clause: 1, command: 'true' }, { clause: 2, command: 'true' }]));
-  const denied = box.run(box.web, 'edit', String(id), '--machine-verified', 'on', '--machine-commands-file', path);
+  const denied = await refusal(box, box.web, 'edit', String(id), '--machine-verified', 'on', '--machine-commands-file', path);
   assert.notEqual(denied.code, 0);
   assert.match(denied.out + denied.err, /COORDINATOR_ONLY/u);
-  json(box, box.repo, 'edit', String(id), '--machine-verified', 'on', '--machine-commands-file', path, '--reason', 'Machine bar');
-  assert.equal(json(box, box.repo, 'show', String(id)).machineVerification.enabled, true);
-  json(box, box.repo, 'edit', String(id), '--machine-verified', 'off', '--reason', 'Restore human judgment');
-  assert.equal(json(box, box.repo, 'show', String(id)).machineVerification, null);
+  await json(box, box.repo, 'edit', String(id), '--machine-verified', 'on', '--machine-commands-file', path, '--reason', 'Machine bar');
+  assert.equal((await json(box, box.repo, 'show', String(id))).machineVerification.enabled, true);
+  await json(box, box.repo, 'edit', String(id), '--machine-verified', 'off', '--reason', 'Restore human judgment');
+  assert.equal((await json(box, box.repo, 'show', String(id))).machineVerification, null);
 });
 
 test('machine clauses reject judgment, missing commands and duplicate coverage [V1,V4,H16]', () => {
@@ -161,7 +171,7 @@ test('machine receipts bind commands, source, main, digest and seat with raw gre
 });
 
 
-test('machine commands alone retain their replay engine floor without changing legacy edits [C7,H16]', t => {
+test('machine commands alone retain their replay engine floor without changing legacy edits [C7,H16]', async t => {
   const board = fixtureBoard(t);
   store.register(board, { lane: 'coordinator', path: '/fixture' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Machine replay fixture' });

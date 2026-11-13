@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { parseSpec } from '../../../../packages/spec/index.js';
 import { readBlueprint } from '../../../../packages/blueprints/index.js';
@@ -26,7 +26,7 @@ const DIRS = [];
 after(() => { for (const dir of DIRS) rmSync(dir, { recursive: true, force: true }); });
 
 /** A freshly initialized repo with a private board, Pullboard home and Git identity. */
-function freshBoard(config = {}) {
+async function freshBoard(config = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-blueprint-'));
   DIRS.push(dir);
   // The hooks init installs call pullboard by name, so this checkout's CLI is the one on PATH.
@@ -46,28 +46,28 @@ function freshBoard(config = {}) {
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
-  const runIn = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-  const run = (...args) => runIn(repo, ...args);
+  const runInLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
+  const runLocal = (...args) => runInLocal(repo, ...args);
   git('init', '-q', '-b', 'main');
-  const init = run('init');
+  const init = await runLocal('init');
   assert.equal(init.status, 0, init.stdout + init.stderr);
   const file = join(repo, 'pullboard.json');
   writeFileSync(file, `${JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), ...config }, null, 2)}\n`);
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: set up blueprint fixture');
-  return { dir, repo, run, runIn, git, env };
+  return { dir, repo, runLocal, runInLocal, git, env };
 }
 
 /** Run one command with --json and return its document, failing with its output. */
-function json(box, ...args) {
-  const result = box.run(...args, '--json');
+async function json(box, ...args) {
+  const result = await box.runLocal(...args, '--json');
   assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
   return JSON.parse(result.stdout);
 }
 
-test('web-app applies four editable defaults without questions or placeholder approvals [S1,I1,C7]', () => {
-  const box = freshBoard();
-  const added = json(box, 'blueprint', 'add', 'web-app');
+test('web-app applies four editable defaults without questions or placeholder approvals [S1,I1,C7]', async () => {
+  const box = await freshBoard();
+  const added = await json(box, 'blueprint', 'add', 'web-app');
   const blueprint = readBlueprint('web-app');
   assert.deepEqual(blueprint.questions, []);
   const source = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
@@ -89,25 +89,25 @@ test('web-app applies four editable defaults without questions or placeholder ap
   assert.doesNotMatch(JSON.stringify(added), /Next\.js|Vercel|Google|Cloudflare|Choices:/u);
   const ids = blueprintRowIds(blueprint, spec, source);
   for (const fact of facts) assert.equal(ids[fact.key], fact.id);
-  const items = json(box, 'list', '--all').items;
+  const items = (await json(box, 'list', '--all')).items;
   const targets = fitTargets(blueprint, spec, items);
   for (const fact of facts) assert.equal(targets.has(fact.id), false, 'facts are not approval proposals');
   assert.ok(targets.has(`#${added.items[2].id}`), 'starter citations still resolve through defaults');
   // A person can edit the selected setting without approving a new requirement.
   const edited = source.replace('Hosting: Free; provider undecided.', 'Hosting: Free; provider chosen later.');
   writeFileSync(join(box.repo, 'SPEC.md'), edited);
-  const repeat = json(box, 'blueprint', 'add', 'web-app');
+  const repeat = await json(box, 'blueprint', 'add', 'web-app');
   assert.deepEqual(repeat.rows, []);
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), edited, 'repeat intake preserves the edited default');
   assert.equal(parseSpec(edited).rows.find((row) => row.id === facts[1].id).status, 'fact');
 });
 
-test('explicit question templates still ask and validate defaults independently [S1,I1]', () => {
-  const box = freshBoard();
+test('explicit question templates still ask and validate defaults independently [S1,I1]', async () => {
+  const box = await freshBoard();
   const custom = { blueprint: 1, name: 'questions', title: 'Questions', version: 1,
     questions: [{ key: 'Q1', ask: 'Its colour is', choices: ['Red', 'Blue'], default: 'Blue' }] };
   writeFileSync(join(box.repo, 'questions.json'), JSON.stringify(custom));
-  const added = json(box, 'blueprint', 'add', 'questions.json');
+  const added = await json(box, 'blueprint', 'add', 'questions.json');
   assert.deepEqual(added.rows.map((row) => [row.status, row.text]), [['pending', 'Its colour is: Blue. Choices: Red, Blue.']]);
   assert.equal(waitingRows(added.rows, { rows: [] }, 'SPEC.md').length, 1);
   assert.throws(() => validateBlueprint({ ...custom, defaults: [{ key: 'Q1', text: 'Duplicate.' }] }), /repeats the key/u);
@@ -115,9 +115,9 @@ test('explicit question templates still ask and validate defaults independently 
 });
 
 
-test('init counts only real obligations and never lists defaults for approval [S1,I1,C7]', () => {
-  const box = freshBoard();
-  const started = json(box, 'init', '--blueprint', 'web-app');
+test('init counts only real obligations and never lists defaults for approval [S1,I1,C7]', async () => {
+  const box = await freshBoard();
+  const started = await json(box, 'init', '--blueprint', 'web-app');
   assert.equal(started.blueprint.waiting, 7);
   assert.ok(started.blueprint.waitingRows.every((row) => ['draft', 'pending'].includes(row.status)));
   assert.ok(started.blueprint.waitingRows.every((row) => !/Runs on:|Hosting:|Sign-in:|Done means:|The first thing the client needs/u.test(row.text)));

@@ -17,6 +17,8 @@ import { runFixtureGit } from './child.js';
 import { serveApi } from '../../../../packages/api/index.js';
 import { apiBoardOpeners } from './board.js';
 import { main } from './native.js';
+import { runCliInProcess } from './process.js';
+import { fixtureSettledMachine } from './testkit.js';
 import { refusalDocument } from '../../index.js';
 import { JSON_SHAPES } from '../../../../packages/config/index.js';
 import { fetchFresh } from './http.js';
@@ -203,14 +205,15 @@ export function apiHttpFixture(t) {
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = apiFixtureEnvironment(dir, bin);
   bindApiFixtureMachine(t, env);
+  // A fixture's submit settles the same way whatever the machine's dispatch default is, so the review it queues is ready [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   mkdirSync(env.HOME);
   /** Run Git only inside the private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
   /** Exercise this worktree's real CLI with a private environment. */
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-  /** Decode one successful versioned CLI invocation without printing session links. */
-  function cli(cwd, ...args) {
-    const result = run(cwd, ...args, '--json');
+  /** Decode one versioned CLI result, failing with its refusal code and message when it did not succeed. */
+  function decodeCli(result) {
     let reason = result.stderr;
     if (result.status !== 0 && result.stdout) {
       try {
@@ -224,6 +227,14 @@ export function apiHttpFixture(t) {
     assert.equal(result.status, 0, reason);
     return JSON.parse(result.stdout);
   }
+  /** Decode one successful versioned CLI invocation without printing session links. */
+  function cli(cwd, ...args) {
+    return decodeCli(run(cwd, ...args, '--json'));
+  }
+  /** The same call answered by the production dispatcher in this process, without a node start-up [C7]. */
+  async function cliLocal(cwd, ...args) {
+    return decodeCli(await runCliInProcess([...args, '--json'], { cwd, env }));
+  }
   git('init', '-q', '-b', 'main');
   cli(root, 'init');
   // HTTP fixtures file "true" checks to move items, so they keep a board with no hold setting.
@@ -233,7 +244,7 @@ export function apiHttpFixture(t) {
   writeFileSync(join(root, 'DOCTRINE.md'), '');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: private HTTP fixture');
-  return { root, dir, env, cli, run, commit: git('rev-parse', 'HEAD').trim() };
+  return { root, dir, env, cli, cliLocal, run, commit: git('rev-parse', 'HEAD').trim() };
 }
 
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */

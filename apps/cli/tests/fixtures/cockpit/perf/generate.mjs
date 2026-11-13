@@ -1,5 +1,7 @@
 /** Deterministically seed a disposable Pullboard board through its public board operations. */
 import { createHash } from 'node:crypto';
+import { deflateSync } from 'node:zlib';
+import { existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -177,12 +179,26 @@ function freezeItem(item, spec, doctrine) {
 }
 
 /**
+ * Write one fixed-date child commit of the fixture head straight into the object store.
+ * Byte-identical to `git commit-tree`, which cost a process per generated item and made up most of the seed time.
+ */
+function writeChildCommit(repo, message) {
+  const stamp = `${Math.floor(FIXED_NOW.getTime() / 1000)} +0000`, who = 'Stress fixture <stress@pullboard.invalid>';
+  const body = Buffer.from(`tree ${repo.tree}\nparent ${repo.head}\nauthor ${who} ${stamp}\ncommitter ${who} ${stamp}\n\n${message}\n`);
+  const object = Buffer.concat([Buffer.from(`commit ${body.length}\0`), body]);
+  const id = createHash('sha1').update(object).digest('hex');
+  const file = join(repo.root, '.git', 'objects', id.slice(0, 2), id.slice(2));
+  if (!existsSync(file)) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, deflateSync(object), { flag: 'wx', mode: 0o444 }); }
+  return id;
+}
+
+/**
  * Move one synthetic item through a committed submission using Pullboard board operations.
  * Since 8078e19a4a submit diffs the claim head against the submitted commit, so both are real objects in the
  * fixture repository: main's commit, and a seeded child commit with fixed dates that stays the same per seed.
  */
 function submitItem(board, id, seed, lane, builder, commitNumber, freezer, repo) {
-  const commit = run('git', ['commit-tree', repo.tree, '-p', repo.head, '-m', `chore: generated ${digest(seed, 'commit', id, commitNumber).slice(0, 40)}`], repo.root, repo.env).trim();
+  const commit = writeChildCommit(repo, `chore: generated ${digest(seed, 'commit', id, commitNumber).slice(0, 40)}`);
   const tree = repo.tree;
   const frozen = claim(board, id, { agentId: builder, lane,
     leaseMs: LEASE_MS, freeze: freezer, head: repo.head });

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/src/io/cell/parser/worker.js packages/codemap/src/io/cell/scripts/lints.js */
 /** A lint run starts one real compile-only parser and retains the original report bytes [C7,P3]. */
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';

@@ -70,7 +70,7 @@ function makeFixture(t) {
   const change = (path, text) => { writeFileSync(join(root, path), text); git('add', '-f', '--', path); git('commit', '-q', '-m', `change ${path}`, '--', path); };
   /** Run both tests through the real runner; return its status, output and parsed cache account. */
   const run = () => {
-    const result = runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', 'test/a.test.js', 'test/b.test.js'], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
+    const result = runFixtureChild(process.execPath, ['apps/cli/src/io/run/tests.js', 'test/a.test.js', 'test/b.test.js'], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
     const output = `${result.stdout}\n${result.stderr}`;
     return { status: result.status, output, account: readCacheRows(output) };
   };

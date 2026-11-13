@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/logic/step/words.js packages/moves/src/io/registry.js packages/state/src/io/engine.js packages/state/src/io/machine.js packages/state/src/logic/engines/train-check-repoint-engine.js */
 /** @pullboard-test-loads packages/state/src/io/machine.js packages/state/src/io/engine.js packages/moves/src/io/registry.js */
 /** A native train landing repairs only live checks for test files it splits [H16]. */
 import assert from 'node:assert/strict';
@@ -25,10 +25,6 @@ import {
   readGateReceipt,
   receiptStore,
 } from '../../../../packages/gate/index.js';
-import {
-  prepareTrainLanding,
-  prepareNativeTrainLanding,
-} from '../../../../packages/landing/index.js';
 import { recordTrainLanding } from '../../../../packages/landing/index.js';
 import { copyCommittedPackageFiles } from '../../tests/fixtures/copy.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
@@ -87,13 +83,13 @@ test('clause 1: a future client replays move floors while refusal guidance loads
 test('clause 2: a split train landing repoints open and claimed checks and reports submitted checks unchanged [C7,H16]',
   { timeout: 120_000 }, async t => { // budget: private project setup, one native gate and owned cleanup.
     const helpers = createE2eHelpers();
-    const box = helpers.project('node packages/gate/src/io/run/tests.js web/legacy-a.test.js web/legacy-b.test.js', undefined, { withWorktree: false });
+    const box = helpers.project('node apps/cli/src/io/run/tests.js web/legacy-a.test.js web/legacy-b.test.js', undefined, { withWorktree: false });
     t.after(async () => helpers.cleanup());
     delete box.env.NODE_TEST_CONTEXT;
     const fixtureHooks = join(box.dir, 'fixture-hooks');
     mkdirSync(fixtureHooks);
     box.git(box.repo, 'config', 'core.hooksPath', fixtureHooks);
-    copyCommittedPackageFiles(box, import.meta.dirname + '/..');
+    copyCommittedPackageFiles(box, join(import.meta.dirname, '../../../..'));
     mkdirSync(join(box.repo, 'web'), { recursive: true });
     writeFileSync(join(box.repo, 'web/legacy.test.js'),
       "import { test } from 'node:test'; test('legacy fixture [H16]',()=>{});\n");
@@ -105,7 +101,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare split landing fixture');
     const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
     const baseTree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
-    const check = 'node packages/gate/src/io/run/tests.js web/legacy.test.js';
+    const check = 'node apps/cli/src/io/run/tests.js web/legacy.test.js';
     const freeze = criterion => {
       const text = JSON.stringify({ criterion, rows: [], policy: { version: 1, commit: base,
         verify: { policy: 'any', family: 'off' } } });
@@ -122,7 +118,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
       const openId = makeItem(board, 'Open check');
       const claimedId = makeItem(board, 'Claimed check');
       const submittedId = makeItem(board, 'Submitted check');
-      const malformedId = makeItem(board, 'Malformed check', "node packages/gate/src/io/run/tests.js 'web/legacy.test.js");
+      const malformedId = makeItem(board, 'Malformed check', "node apps/cli/src/io/run/tests.js 'web/legacy.test.js");
       const trainId = makeItem(board, 'Landing carrier');
       store.claim(board, openId, { agentId: openBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Open check') });
@@ -161,7 +157,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     box.git(box.repo, 'rm', '-q', '--', 'web/legacy.test.js');
     box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'test: split legacy test entry');
     const tip = box.git(box.repo, 'rev-parse', 'HEAD').trim();
-    const gate = box.run(box.repo, 'gate', '--landing', '--receipt', '--json');
+    const gate = (await box.runLocal(box.repo, 'gate', '--landing', '--receipt', '--json'));
     assert.equal(gate.code, 0, `${gate.out}${gate.err}`);
     const receiptId = JSON.parse(gate.out).receiptId;
     assert.ok(receiptId);
@@ -169,7 +165,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     assert.ok(receipt, 'the native gate retained its source-bound receipt');
 
     const landed = onBoard(box, board => {
-      const request = prepareTrainLanding(box.repo, board, [prepared.trainId], tip, receiptId);
+      const request = board.enginePorts.prepareTrainLanding(box.repo, board, [prepared.trainId], tip, receiptId);
       assert.deepEqual(request.checkRepointPlan.entries.map(entry => entry.id).sort((a, b) => a - b),
         [prepared.openId, prepared.claimedId].sort((a, b) => a - b));
       const blocked = request.checkRepointPlan.blocked.toSorted((a, b) => a.id - b.id);
@@ -181,19 +177,19 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
       [prepared.openId, prepared.claimedId].sort((a, b) => a - b));
     assert.deepEqual(landed.checkRepointReport.blocked.map(entry => entry.id).sort((a, b) => a - b),
       [prepared.submittedId, prepared.malformedId].sort((a, b) => a - b));
-    const expected = "node packages/gate/src/io/run/tests.js 'web/legacy-a.test.js' 'web/legacy-b.test.js'";
+    const expected = "node apps/cli/src/io/run/tests.js 'web/legacy-a.test.js' 'web/legacy-b.test.js'";
     onBoard(box, board => {
       assert.equal(store.getItem(board, prepared.openId).item_check, expected);
       assert.equal(store.getItem(board, prepared.openId).item_status, 'open');
       assert.equal(store.getItem(board, prepared.claimedId).item_check, expected);
       assert.equal(store.getItem(board, prepared.claimedId).item_status, 'claimed');
       assert.equal(store.getItem(board, prepared.submittedId).item_check, check);
-      assert.equal(store.getItem(board, prepared.malformedId).item_check, "node packages/gate/src/io/run/tests.js 'web/legacy.test.js");
+      assert.equal(store.getItem(board, prepared.malformedId).item_check, "node apps/cli/src/io/run/tests.js 'web/legacy.test.js");
       for (const id of [prepared.openId, prepared.claimedId]) {
         const edit = store.events(board, { itemId: id }).find(event => event.event_kind === 'edit');
         assert.deepEqual(JSON.parse(edit.event_detail).barCorrection.fields, ['check']);
       }
-      const repeated = prepareNativeTrainLanding(box.repo, board, landed.id, receiptId);
+      const repeated = board.enginePorts.prepareNativeTrainLanding(box.repo, board, landed.id, receiptId);
       assert.deepEqual(recordTrainLanding(board, repeated), landed,
         'the recorded correction report does not break idempotent landed-batch recovery');
     });

@@ -68,6 +68,7 @@ function timed(action) {
 
 test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, submit and verdict and report busy share and p50/p99 per command', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-scale-'));
+  // @pullboard-board-file journey: the board sits where the native CLI keeps it inside a repository
   const board = openBoard(repositoryBoardFile(directory));
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });

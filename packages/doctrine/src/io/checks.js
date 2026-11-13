@@ -271,10 +271,14 @@ function ruleState(rule, count, committed, broken) {
  *
  * @param {string} root
  * @param {{ practice?: string, check?: { timeoutMs?: number } }} config
+ * @param {{ changed?: string[] | null }} [scope] - The paths a change touched; null reports every rule.
  * @returns {{ id: string, text: string, command: string, count: number, committed: number, holds: boolean, state: string, mode: string, runs: string, problems: string[], broken: string }[]}
  */
-export function doctrineReport(root, config) {
-  return checkRulesAt(root, 'HEAD', config.practice).map((rule) => {
+export function doctrineReport(root, config, { changed = null } = {}) {
+  // Given the changed paths, a rule none of them is watched by or feeds its check keeps main's answer and is not run [5814].
+  const touches = (rule) => !changed || changed.some((path) => inScope(rule.files, path))
+    || (checkCommandDefinition(root, [rule.command]) ?? [{ path: '' }]).some((input) => input.path === '' || changed.some((path) => input.path === `project:${path}`));
+  return checkRulesAt(root, 'HEAD', config.practice).filter(touches).map((rule) => {
     const run = runRuleCheck(root, rule.command, config.check?.timeoutMs);
     const count = run.problems.length;
     const state = ruleState(rule, count, rule.count, run.broken);
@@ -366,7 +370,7 @@ function mainMeasureFile(tree, command, timeoutMs) {
  * Main's measured problems for one rule, run once per main tree and cached machine-wide; a broken run is never cached.
  * Why: the ratchet judges an item against what main holds now, never its frozen base or main's declared count (#2575).
  */
-function* measuredMain(root, mainCommit, command, timeoutMs) {
+function* measuredMain(root, mainCommit, command, timeoutMs, scope = undefined) {
   const tree = (gitOut(root, ['rev-parse', `${mainCommit}^{tree}`]) ?? '').trim();
   const file = tree ? mainMeasureFile(tree, command, timeoutMs) : null;
   if (file) {
@@ -375,7 +379,8 @@ function* measuredMain(root, mainCommit, command, timeoutMs) {
       if (Array.isArray(saved.problems) && saved.problems.every(line => typeof line === 'string')) return { problems: saved.problems, broken: '' };
     } catch { /* A missing or damaged entry is a miss. */ }
   }
-  const run = yield { commit: mainCommit, command, timeoutMs, candidate: false, main: true };
+  // A miss on a file-local rule measures only the changed paths at main, so a moved main never costs a whole-tree run [5814].
+  const run = yield { commit: mainCommit, command, timeoutMs, candidate: false, main: true, ...(scope ? { scope } : {}) };
   if (file && !run.broken && !run.partial) {
     try {
       mkdirSync(dirname(file), { recursive: true });
@@ -424,12 +429,16 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
       if (inputs && !changed.some(path => globalInputs.includes(path) || inputs.some(input => input.path === `project:${path}`))) continue;
     }
     // Main's measured total is the baseline, never its declared count; an item that lowers its declaration is held below it.
-    const main = rule.mode === 'watch' ? { problems: [], broken: '' } : yield* measuredMain(root, mainCommit, rule.command, timeoutMs);
     const declared = lowered.get(rule.id) ?? rule.count;
-    const measured = main.broken || rule.mode === 'watch' ? rule.count : main.problems.length;
-    const committed = declared < rule.count ? Math.min(declared, measured) : measured;
     // A clean checkout lets a file-local rule look only at the changed paths (and the moved paths' origins).
     const scope = canFingerprint ? changed.filter((path) => inScope(rule.files, path)) : undefined;
+    // Main is narrowed too unless the item lowers its declaration, which needs main's whole measured total [5814].
+    const mainScope = scope && declared >= rule.count && fastCheckScript(root, rule.command) ? [...new Set([...scope, ...origins.values()])] : undefined;
+    const main = rule.mode === 'watch' ? { problems: [], broken: '' } : yield* measuredMain(root, mainCommit, rule.command, timeoutMs, mainScope);
+    // A narrowed main holds only the changed paths' problems, so main's declared count stands in for its total: the hold is the change's delta.
+    const mainTotal = main.broken || main.partial ? rule.count : main.problems.length;
+    const measured = rule.mode === 'watch' ? rule.count : mainTotal;
+    const committed = declared < rule.count ? Math.min(declared, measured) : measured;
     // A composed candidate exists only as Git objects, so it runs at its commit like main, never in this checkout.
     const run = yield { commit, command: rule.command, timeoutMs, candidate: commit === submitted, scope };
     const name = `${rule.id} ${rule.text}`;
@@ -446,7 +455,7 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
     // A renamed file is compared with its origin: the origin's problems are carried to the new path.
     const before = { ...ran, problems: ran.problems.map((line) => carryRename(line, origins)) };
     // Only changed files can differ from main, so a narrowed count is accepted main's count moved by them; a lowered declaration never lowers the measure.
-    const count = run.partial ? Math.max(0, (main.broken ? rule.count : main.problems.length) + run.problems.length - (before.broken ? 0 : before.problems.length)) : run.problems.length;
+    const count = run.partial ? Math.max(0, mainTotal + run.problems.length - (before.broken ? 0 : before.problems.length)) : run.problems.length;
     const state = ruleState(rule, count, committed, false);
     results.push({ id: rule.id, text: rule.text, command: rule.command, count, committed,
       holds: state === 'holding' || state === 'watching', state, mode: rule.mode, runs: rule.runs, problems: run.problems, broken: '' });

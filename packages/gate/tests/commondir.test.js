@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/current.js apps/cli/src/io/resident/client.js packages/git/src/io/main.js */
 /** GitHub #16: Windows paths that differ only by \ versus / resolve to one commonDir [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

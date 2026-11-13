@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Native ordinary lifecycle returns retain their exact projected counts in Chrome [N26,C7]. */
 import assert from 'node:assert/strict';
@@ -26,7 +25,7 @@ test('native release, escalation, retained and expired refreezes and lapse retai
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required for native return counts');
   const box = machine(), demo = project(box, 'lifecycle-returns');
-  const { kept, expected } = seedNativeOrdinary(box, demo);
+  const { kept, expected } = await seedNativeOrdinary(box, demo);
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-lifecycle-returns-chrome-'));
   let chrome;
   try {

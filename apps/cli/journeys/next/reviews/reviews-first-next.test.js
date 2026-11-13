@@ -1,5 +1,4 @@
 import { addMilestone } from '../../../../../packages/store/index.js';
-/** @pullboard-test-input source-tree */
 /** Native Next reserves aged first reviews, never inventing reviewer eligibility [B26,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -34,8 +33,11 @@ test('native next reserves the oldest eligible first review before any new build
   assert.equal(again.code, 0, again.out + again.err);
   assert.equal(again.document.item.item_id, old, 'ongoing review stays with its caller');
   const explicit = await cli(box, box.seats.outside.path, ['next', '--build']);
-  assert.equal(explicit.code, 0, explicit.out + explicit.err);
-  assert.equal(explicit.document.item.item_id, newer);
+  assert.equal(explicit.document.error.code, 'NOTHING_FREE', 'explicit build intent never reserves a review');
+  assert.equal(store.getItem(box.board, newer).item_review_by, null);
+  const plain = await cli(box, box.seats.outside.path, ['next']);
+  assert.equal(plain.code, 0, plain.out + plain.err);
+  assert.equal(plain.document.item.item_id, newer);
   assert.equal(store.getItem(box.board, newer).item_review_by, box.seats.outside.id);
 });
 
@@ -60,19 +62,19 @@ test('a self-ineligible seat builds normally while an eligible seat cannot escap
   assert.equal(store.getItem(box.board, review).item_review_by, box.seats.actor.id);
 });
 
-test('the fifteen-minute boundary, prior reservation and opt-out do not create mandatory first reviews [B26,V4]', async t => {
+test('the two-minute age boundary makes a waiting review mandatory, and an expired reservation leaves it waiting [B26,V4,C7]', async t => {
   const box = await fixture(t);
   const review = box.add('Boundary review'); box.submit(review);
   const who = { agentId: box.seats.actor.id, lane: box.seats.actor.lane, mandatoryOnly: true, policy: 'any' };
   setting(box, 'reviewsFirst', true);
-  box.advance(15 * 60_000);
+  box.advance(2 * 60_000 - 1);
   assert.equal(store.reviewOffer(box.board, who), null);
   box.advance(1);
   assert.equal(store.reviewOffer(box.board, who).item.item_id, review);
   setting(box, 'reviewsFirst', false);
-  assert.equal(store.reviewOffer(box.board, who), null);
+  assert.equal(store.reviewOffer(box.board, who).item.item_id, review, 'an aged review stays mandatory with reviewsFirst off (#3077)');
   setting(box, 'reviewsFirst', true);
   store.reserveReview(box.board, review, { agentId: box.seats.outside.id, leaseMs: 1000, policy: 'any' });
   box.advance(1001);
-  assert.equal(store.reviewOffer(box.board, who), null, 'a previously reviewed submission is no longer waiting for its first reviewer');
+  assert.equal(store.reviewOffer(box.board, who).item.item_id, review, 'an expired reservation leaves the aged review waiting again');
 });

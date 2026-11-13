@@ -33,6 +33,7 @@ test('clause 1: deferred suite and cross-lane mechanical edit submit both notice
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.submitGate = 'landing';
   config.affectedTests = 'node --test';
+  config.lanes.web.owns.push('test/');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   for (const dir of ['web', 'api', 'test']) mkdirSync(join(box.repo, dir), { recursive: true });

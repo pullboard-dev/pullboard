@@ -1,5 +1,6 @@
 /** Shared wire-proof validation for preparation and ordered replay [C7,V4,H16]. */
 import { Refused } from '../../../../kernel/browser.js';
+import { MAIN_RED_FAILURE_LINES_ENGINE } from '../engines/main-red-failure-lines-engine.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../engines/known-main-failures-engine.js';
 import { KNOWN_MAIN_REWORKS_ENGINE } from '../engines/known-main-reworks-engine.js';
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../engines/known-main-running-file-engine.js';
@@ -11,6 +12,13 @@ function projectFile(value) {
   return typeof value === 'string' && value.length > 0 && value.length <= 4096
     && !/[:\\\p{Cc}\p{Zl}\p{Zp}]/u.test(value)
     && value.split('/').every(part => part && part !== '.' && part !== '..');
+}
+
+/** The failure details a known main failure keeps beside its signature (first error line, stable signature and asserted values), each a bounded single line. */
+function failureDetails({ firstError, stable, stableData }, engine) {
+  if (engine < MAIN_RED_FAILURE_LINES_ENGINE) return {};
+  const keep = (value, limit) => typeof value === 'string' && value.length > 0 && value.length <= limit && !/[\r\n\0]/u.test(value);
+  return { ...(keep(firstError, 1024) ? { firstError } : {}), ...(keep(stable, 1024) ? { stable } : {}), ...(keep(stableData, 64) ? { stableData } : {}) };
 }
 
 /**
@@ -43,7 +51,7 @@ export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   }
   return { version: 1, files: [...new Set(value.files)].sort(), full: value.full,
     deferred: value.deferred, reason: value.reason, ...(value.deferredFiles ? { deferredFiles: [...new Set(value.deferredFiles)].sort() } : {}),
-    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item, ran }) => ({ file, name, signature,
-      ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}) })) } } : {}) };
+    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item, ran, firstError, stable, stableData }) => ({ file, name, signature,
+      ...failureDetails({ firstError, stable, stableData }, engine), ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}) })) } } : {}) };
 }
 

@@ -1,6 +1,5 @@
 /** Accept reverts a named guard in a scratch tree and needs the frozen check red there, green restored [C7,V4]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { safeFixtureDiagnostic } from '../../tests/fixtures/child.js';
 import { chmodSync } from 'node:fs';
@@ -12,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -42,21 +42,21 @@ function sandbox() {
   mkdirSync(env.HOME);
   /** Run isolated Git commands for this fixture. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
-  /** Run the checked-out CLI without invoking any shared board. */
-  const run = (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr };
+  /** Run the checked-out CLI in this process without invoking any shared board. */
+  const runLocal = async (cwd, ...args) => {
+    const result = await runCliInProcess(args, { cwd, env });
+    return { code: result.status, out: result.stdout, err: result.stderr };
   };
-  return { dir, env, git, run };
+  return { dir, env, git, runLocal };
 }
 
 /** Initialize a real board repository and one joined builder worktree. */
-function project(box) {
+async function project(box) {
   const repo = join(box.dir, 'repo');
   const web = join(box.dir, 'web-1');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal((await box.runLocal(repo, 'init')).code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
     gate: 'test ! -f RED', spec: 'SPEC.md', verify: { policy: 'any', family: 'off' },
     lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [],
@@ -66,54 +66,54 @@ function project(box) {
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize fixture');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   box.env.PULLBOARD_MODEL ||= 'Fixture builder';
-  const joined = joinFixtureSeat(box, web, 'web');
+  const joined = await joinFixtureSeat(box, web, 'web', { run: box.runLocal });
   assert.equal(joined.code, 0, joined.out + joined.err);
   assert.match(joined.out, /web-1/);
   return { repo, web };
 }
 
 /** Run a fixture command and fail with its captured diagnostics if it refuses. */
-function succeeds(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function succeeds(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, safeFixtureDiagnostic(`${result.out}\n${result.err}`, box.env));
   return result.out;
 }
 
 /** Add, claim, commit and submit an item whose criterion names a guard, then check out its commit. */
-function submittedWithGuard(box, repo, web, check) {
+async function submittedWithGuard(box, repo, web, check) {
   const criterion = 'The fixture item is complete. guard: web/guard.js:1-1';
-  const added = succeeds(box, repo, 'add', 'web', 'Guarded fix', '--specs', 'G1', '--criterion', criterion, '--check', check, '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check');
+  const added = await succeeds(box, repo, 'add', 'web', 'Guarded fix', '--specs', 'G1', '--criterion', criterion, '--check', check, '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check');
   const id = Number(/#(\d+)/.exec(added)?.[1]);
-  succeeds(box, web, 'claim', String(id));
+  await succeeds(box, web, 'claim', String(id));
   mkdirSync(join(web, 'web'), { recursive: true });
   writeFileSync(join(web, 'web', 'guard.js'), SOURCE);
   box.git(web, 'add', '-A');
   box.git(web, 'commit', '-q', '-m', `fix(web): guarded fix [G1]`);
-  succeeds(box, web, 'submit', String(id));
+  await succeeds(box, web, 'submit', String(id));
   box.git(repo, 'switch', '--detach', 'web/one');
   return id;
 }
 
-test('accept refuses a fix whose guard revert stays green [C7,V4]', () => {
+test('accept refuses a fix whose guard revert stays green [C7,V4]', async () => {
   const box = sandbox();
   try {
-    const { repo, web } = project(box);
-    const id = submittedWithGuard(box, repo, web, 'test -f web/guard.js');
-    const refused = box.run(repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'the check passed');
+    const { repo, web } = await project(box);
+    const id = await submittedWithGuard(box, repo, web, 'test -f web/guard.js');
+    const refused = await box.runLocal(repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'the check passed');
     assert.notEqual(refused.code, 0, refused.out);
     assert.match(`${refused.out}\n${refused.err}`, /GUARD_CANNOT_FAIL/u);
     assert.match(`${refused.out}\n${refused.err}`, /web\/guard\.js:1-1/u, 'the refusal names the guard');
   } finally { rmSync(box.dir, { recursive: true, force: true }); }
 });
 
-test('a named guard that turns the check red is accepted [C7,V4]', () => {
+test('a named guard that turns the check red is accepted [C7,V4]', async () => {
   const box = sandbox();
   try {
-    const { repo, web } = project(box);
-    const id = submittedWithGuard(box, repo, web, 'grep -q "answer = 42" web/guard.js');
-    const accepted = succeeds(box, repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'the check passed');
+    const { repo, web } = await project(box);
+    const id = await submittedWithGuard(box, repo, web, 'grep -q "answer = 42" web/guard.js');
+    const accepted = await succeeds(box, repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'the check passed');
     assert.match(accepted, /verified #/u);
-    const shown = succeeds(box, repo, 'show', String(id));
+    const shown = await succeeds(box, repo, 'show', String(id));
     assert.match(shown, /guard web\/guard\.js:1-1 reverted: check red; restored: check green/u);
   } finally { rmSync(box.dir, { recursive: true, force: true }); }
 });

@@ -15,7 +15,7 @@ const NAMED_CASES = 5;
  * @returns {string[]} Note texts for `pullboard fact`.
  */
 export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head }, { clauseTicks, criterionClauses, gateNamedFile }) {
-  const ticks = clauseTicks(thread, item.item_owner);
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   const notes = [];
   for (const clause of criterionClauses(item.item_criterion)) {
     if (ticks.has(clause.number)) continue;

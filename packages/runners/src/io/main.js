@@ -7,7 +7,8 @@ import { RunnerDropped } from '../../../gate/light.js';
 import { inRunnerGeneration } from './tooling/remote.js';
 import { pinRunnerTooling } from './tooling/remote.js';
 import { runOnRunner as runOnRunnerStep } from './dispatch.js';
-import { runOnRunnerAsync as runOnRunnerAsyncStep } from './dispatch.js';
+import { runOnRunnerAsync as runOnRunnerAsyncStep } from './pull/delegate.js';
+import { servePullController as servePullControllerStep } from './pull/serve.js';
 import { serveRunnerController as serveRunnerControllerStep } from './dispatch.js';
 import { probeRunnerHealth as probeRunnerHealthStep } from './health.js';
 import { probeRunnerJob as probeRunnerJobStep } from './health.js';
@@ -37,6 +38,11 @@ export async function runOnRunnerAsync(root, command, options) {
 /** Serve only a directly launched controller, under the generation this entry loaded. */
 export async function serveRunnerController(ports) {
   return inRunnerGeneration(pinned(), () => serveRunnerControllerStep(ports));
+}
+
+/** Serve one short submit, serve-need or finish mode of a pulled runner job, under this entry's generation. */
+export async function servePullController(mode, ports) {
+  return inRunnerGeneration(pinned(), () => servePullControllerStep(mode, ports));
 }
 
 /** Ask this instance's pinned worker for exact cleanup or an explicit idle and writable proof. */

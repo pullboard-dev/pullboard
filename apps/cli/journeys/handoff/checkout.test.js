@@ -37,10 +37,10 @@ function keptCheckouts(commonDir) {
  * Returns the gate's checkout line and the item's job folder.
  */
 async function driveOneGate(box, board, commonDir, n) {
-  const id = document(fixtureAdd(box.run, box.repo, 'web', `Warm gate ${n}`, '--specs', 'G1',
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', `Warm gate ${n}`, '--specs', 'G1',
     '--criterion', 'The page is ready.', '--check', 'node check.cjs', '--brief',
-    `Files: web/page.txt\nTest: gate ${n} submits the committed page.`, '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+    `Files: web/page.txt\nTest: gate ${n} submits the committed page.`, '--wait', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
   box.git(box.web, 'reset', '-q', '--hard', 'main');
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', `gate-${n}.txt`), `${n}\n`);

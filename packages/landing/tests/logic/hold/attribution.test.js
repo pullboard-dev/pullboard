@@ -21,7 +21,7 @@ function redFrom(runnerRoot) {
 }
 
 test('a red reported from any runner root, dotted or not, keeps its repo file, so the red path can compare and charge it [C7]', () => {
-  for (const root of ['/Users/coreyolson/.pullboard-runner', '/Users/vanillavideo/pullboard-runner']) {
+  for (const root of ['/Users/example/.pullboard-runner', '/Users/person/pullboard-runner']) {
     const failures = landingFailures(redFrom(root), '/elsewhere');
     assert.equal(failures.length, 1, root);
     assert.equal(failures[0].file, 'docs/formats.test.js', `file attributed from ${root}`);

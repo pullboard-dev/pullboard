@@ -1,5 +1,6 @@
-/** @pullboard-test-input source-tree */
-/** @pullboard-test-loads packages/gate/src/io/run/tests.js */
+/** @pullboard-test-input packages/gate/src/io/run/tests.js */
+/** @pullboard-test-input apps/cli/src/io/run/tests.js */
+/** @pullboard-test-loads apps/cli/src/io/run/tests.js */
 /** The real runner waits for an owned late writer before its one sandbox removal [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -18,7 +19,7 @@ import { TEST_CHILD_CLEANUP_FAILED } from '../../../../index.js';
 import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { waitForCondition } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
 
-const RUNNER = resolve(import.meta.dirname, '../../../../src/io/run/tests.js');
+const RUNNER = resolve(import.meta.dirname, '../../../../../../apps/cli/src/io/run/tests.js');
 
 test('a real run drains its late-writing child and removes the sandbox once [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-run-'));

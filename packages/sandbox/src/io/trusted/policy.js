@@ -50,12 +50,30 @@ export function requireTrunkMerge(root, commit, retainedRef = trunkRef(root)) {
   throw new Refused('MERGE_CONFLICT', `the candidate conflicts with the current trunk ${branch} in ${files.map(path => JSON.stringify(path)).join(', ') || 'unresolved files'}; merge the trunk into your branch, resolve these files, commit and resubmit`);
 }
 
-/** Use new claims' frozen policy; legacy claims retain their committed claim-base settings. */
+/**
+ * Use a legacy claim's frozen policy pin; otherwise the trunk's own settings at the claim base.
+ *
+ * Why the merge base: a bar freezes no pullboard.json since B4, and a claim made where the item's work is already
+ * committed records that candidate commit as its base. Reading policy there would let a candidate choose its own
+ * install and deadline; the newest trunk commit it shares is the owner's policy.
+ */
 export function itemPolicy(root, item) {
   let frozen;
   try { frozen = JSON.parse(item.item_frozen ?? 'null'); }
   catch { throw new Refused('NO_POLICY', 'the frozen criterion is invalid; ask the coordinator to refreeze this item'); }
-  return policyAt(root, frozen?.policy?.commit ?? item.item_claim_head);
+  return policyAt(root, frozen?.policy?.commit ?? trustedClaimBase(root, item.item_claim_head));
+}
+
+/** The newest trunk commit a claim base shares, or the base itself when it is on the trunk or no trunk resolves. */
+function trustedClaimBase(root, head) {
+  if (!/^[0-9a-f]{40,64}$/u.test(head ?? '')) return head;
+  let base;
+  try {
+    const trunk = trunkRef(root);
+    if (!trunk) return head;
+    base = policyGit(root, ['merge-base', head, trunk]).trim();
+  } catch { return head; }
+  return /^[0-9a-f]{40,64}$/u.test(base) ? base : head;
 }
 
 /** Compare a path's mode and object, including deletions, against an authenticated main snapshot. */
@@ -124,8 +142,12 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
   const snapshot = mainCommit ?? policy.commit;
   policyAt(root, snapshot); // Authenticate main before using it in ancestry or object comparisons.
   // Include main to catch a foreign reversion after merging it; every crisscross base is conservative.
-  const bases = [...new Set([base, policy.commit, snapshot].flatMap(start =>
-    policyGit(root, ['merge-base', '--all', start, commit]).trim().split('\n').filter(Boolean)))];
+  const baseOf = new Map();
+  const sharedBases = start => {
+    if (!baseOf.has(start)) baseOf.set(start, policyGit(root, ['merge-base', '--all', start, commit]).trim().split('\n').filter(Boolean));
+    return baseOf.get(start);
+  };
+  const bases = [...new Set([base, policy.commit, snapshot].flatMap(sharedBases))];
   const changed = bases.flatMap(start => policyGit(root, ['diff', '--no-renames', '--name-only', '-z', start, commit, '--']).split('\0').filter(Boolean));
   const paths = [...new Set(changed)];
   const ownership = config ?? policy.config;
@@ -134,7 +156,7 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
     paths: new Set(policyGit(root, ['diff', '--no-renames', '--name-only', '-z', dependency.base, dependency.commit, '--']).split('\0').filter(Boolean)),
   }));
   // A path still equal to main at every merge base arrived only through a merge of main, so it is not the item change.
-  const mainBases = policyGit(root, ['merge-base', '--all', snapshot, commit]).trim().split('\n').filter(Boolean);
+  const mainBases = sharedBases(snapshot);
   const denied = foreign.filter(path => {
     const object = pathObject(root, commit, path);
     if (object === pathObject(root, snapshot, path)) return false;

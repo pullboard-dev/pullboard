@@ -26,6 +26,7 @@ function document(result) {
 
 /** Read the real board under an optional injected clock. */
 function read(box, id, clock) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, clock);
   try { return { item: getItem(board, id), job: submitHandoff(board, id) }; }
   finally { board.db.close(); }
@@ -67,7 +68,7 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, api, 'api', '--route', 'strong').code, 0);
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const add = (lane, title) => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
     '--criterion', `${title} passes its gate.`, '--check', 'true', '--json')).item.item_id;
@@ -85,6 +86,7 @@ function fixture(t) {
 /** Capture and apply one maintenance pass at the given clock, as the write path and the sentinel do. */
 function maintain(box, clock) {
   const config = loadConfig(box.repo);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, clock);
   try {
     const snapshot = captureLapsedClaims({ info: { root: box.repo }, clock, config }, board, 'coordinator');
@@ -95,11 +97,11 @@ function maintain(box, clock) {
 
 test('a claim with a running queued gate survives the idle release and the lapsed-lease sweep; one with no gate lapses [B4,C7,H16]', async t => {
   const box = fixture(t);
-  document(box.run(box.api, 'claim', String(box.idle), '--json'));
-  const folder = document(box.run(box.web, 'claim', String(box.gated), '--json')).itemFolder;
+  document((await box.runLocal(box.api, 'claim', String(box.idle), '--json')));
+  const folder = document((await box.runLocal(box.web, 'claim', String(box.gated), '--json'))).itemFolder;
   assert.equal(box.helpers.commitFile(box, folder, 'web/built.js', 'export const built = true;\n', 'feat(web): build it [G1]').status, 0);
   writeFileSync(box.gate.mode, 'hold\n');
-  assert.equal(document(box.run(folder, 'submit', String(box.gated), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(folder, 'submit', String(box.gated), '--no-next', '--json'))).queued, true);
   const running = () => read(box, box.gated).job?.state === 'running' && existsSync(box.gate.started);
   await box.helpers.waitFor(running, 'the queued gate is running', 60000); // budget: hang ceiling for the real detached worker to start its gate; no elapsed-time assertion.
   const claimed = read(box, box.gated).item, other = read(box, box.idle).item;

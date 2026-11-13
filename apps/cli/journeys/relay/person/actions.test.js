@@ -153,8 +153,8 @@ test('real paired person adds, answers a person decision, and holds then release
   const box = await relayClientFixture(t);
   const title = 'PERSON_ACTION_ITEM_FIXTURE';
   const decisionText = 'PERSON_ACTION_DECISION_FIXTURE';
-  assert.equal((await box.cli('add', box.lane, 'PERSON_ACTION_BROWSER_READY')).code, 0);
-  const asked = await box.cli('shout', 'person', decisionText, '--decision');
+  assert.equal((await box.cliLocal('add', box.lane, 'PERSON_ACTION_BROWSER_READY')).code, 0);
+  const asked = await box.cliLocal('shout', 'person', decisionText, '--decision');
   assert.equal(asked.code, 0);
   const decision = asked.document.id;
   assert.ok(Number.isSafeInteger(decision));
@@ -167,9 +167,9 @@ test('real paired person adds, answers a person decision, and holds then release
     verb: 'add', args: { lane: box.lane, title },
   });
   assert.equal(added.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, added.result.request.id, 'done');
-  let exported = (await box.cli('export')).document;
+  let exported = (await box.cliLocal('export')).document;
   const item = exported.tables.item.find(row => row.item_title === title);
   assert.ok(item, 'the actual CLI created the requested item');
   assert.equal(item.item_created_by, 'person');
@@ -180,9 +180,9 @@ test('real paired person adds, answers a person decision, and holds then release
     verb: 'answer', item: decision, args: { text: 'PERSON_ACTION_ANSWER_FIXTURE' },
   });
   assert.equal(answered.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, answered.result.request.id, 'done');
-  exported = (await box.cli('export')).document;
+  exported = (await box.cliLocal('export')).document;
   const answer = exported.tables.event.find(row => row.event_kind === 'answer' && row.event_by === 'person');
   assert.ok(answer);
   assert.equal(JSON.parse(answer.event_detail).channel, 'view');
@@ -191,18 +191,18 @@ test('real paired person adds, answers a person decision, and holds then release
     verb: 'hold', args: { lane: box.lane, reason: 'PERSON_ACTION_HOLD_FIXTURE' },
   });
   assert.equal(held.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, held.result.request.id, 'done');
-  exported = (await box.cli('export')).document;
+  exported = (await box.cliLocal('export')).document;
   assert.deepEqual(exported.tables.hold.map(row => [row.hold_lane, row.hold_by]), [[box.lane, 'person']]);
   const holdEvent = exported.tables.event.find(row => row.event_kind === 'hold' && JSON.parse(row.event_detail).reason === 'PERSON_ACTION_HOLD_FIXTURE');
   assert.equal(holdEvent.event_by, 'person');
 
   const released = await personAction(chrome, link.board, { verb: 'hold', args: { lane: box.lane, off: true } });
   assert.equal(released.result.request.status, 'waiting');
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, released.result.request.id, 'done');
-  exported = (await box.cli('export')).document;
+  exported = (await box.cliLocal('export')).document;
   assert.equal(exported.tables.hold.some(row => row.hold_lane === box.lane), false);
   const unholdEvent = exported.tables.event.find(row => row.event_kind === 'unhold' && JSON.parse(row.event_detail).lane === box.lane);
   assert.equal(unholdEvent.event_by, 'person');
@@ -212,20 +212,20 @@ test('real paired person adds, answers a person decision, and holds then release
   const invalid = await personAction(chrome, link.board, {
     verb: 'hold', args: { lane: 'PERSON_ACTION_NO_SUCH_LANE', reason: 'must refuse' },
   });
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await waitRequest(chrome, link.board, invalid.result.request.id, 'refused');
   const state = await finalState(chrome, link.board);
   const refusal = state.state.personRequests.find(row => row.id === invalid.result.request.id).error;
   assert.equal(refusal.code, 'NO_LANE');
-  exported = (await box.cli('export')).document;
+  exported = (await box.cliLocal('export')).document;
   assert.equal(exported.tables.event.some(row => row.event_kind === 'hold' && JSON.parse(row.event_detail).lane === 'PERSON_ACTION_NO_SUCH_LANE'), false);
   const brief = 'Files:\n- ../foreign.js\nTest:\n- Keep the file in its own lane';
   const foreign = await personAction(chrome, link.board, { verb: 'add', args: { lane: box.lane, title: 'PERSON_ACTION_FOREIGN_BRIEF', brief } });
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const rejected = (await finalState(chrome, link.board)).state.personRequests.find(row => row.id === foreign.result.request.id);
   assert.equal(rejected.status, 'refused');
   assert.equal(rejected.error.code, 'BRIEF_LANE');
-  const terminal = await box.cli('add', box.lane, 'PERSON_ACTION_FOREIGN_BRIEF', '--brief', brief);
+  const terminal = await box.cliLocal('add', box.lane, 'PERSON_ACTION_FOREIGN_BRIEF', '--brief', brief);
   assert.equal(terminal.code, 1);
   assert.deepEqual(rejected.error, terminal.document.error, 'lane preflight retains the ordinary CLI refusal and repair');
 
@@ -240,7 +240,7 @@ test('a person action completes with late native snapshots after 8 seconds [H12,
     // This case measures released API1 whole-checkpoint attempts and exact ciphertext retries.
     const box = await legacyRelayClientFixture(t);
     const title = 'PERSON_ACTION_LATE_SNAPSHOT_READY';
-    assert.equal((await box.cli('add', box.lane, title)).code, 0);
+    assert.equal((await box.cliLocal('add', box.lane, title)).code, 0);
     timing.finish();
     timing.begin('relay link', cliChildDeadlineMs(3));
     await box.link();
@@ -277,7 +277,7 @@ test('a person action completes with late native snapshots after 8 seconds [H12,
     assert.equal(completed.state.personRequests.find(row => row.id === action.result.request.id).status, 'done');
     timing.finish();
     timing.begin('final export', cliChildDeadlineMs(3));
-    const exported = (await box.cli('export')).document;
+    const exported = (await box.cliLocal('export')).document;
     assert.equal(exported.tables.shout.filter(row => row.shout_text === 'PERSON_ACTION_LATE_SNAPSHOT').length, 1);
     timing.finish();
   } catch (error) {
@@ -328,8 +328,8 @@ test('local view attribution is person-only and an agent token cannot seal perso
     });
     assert.equal(response.status, 200, 'the relay stores the opaque agent-authenticated envelope');
   }
-  assert.equal((await box.cli('status')).code, 0, 'native replay records both sender refusals');
-  const exported = (await box.cli('export')).document;
+  assert.equal((await box.cliLocal('status')).code, 0, 'native replay records both sender refusals');
+  const exported = (await box.cliLocal('export')).document;
   const refusals = exported.tables.event.filter(row => row.event_kind === 'relay_refused' && row.event_by === 'person-action-agent');
   assert.deepEqual(refusals.map(row => JSON.parse(row.event_detail).code), ['RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY']);
   assert.equal(exported.tables.event.some(row => ['hold', 'unhold'].includes(row.event_kind)

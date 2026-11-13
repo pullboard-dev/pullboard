@@ -1,5 +1,5 @@
 {
   "name": "stats time",
   "help": "  pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item\n",
-  "required": { "time": "object" }
+  "required": { "time": "object", "checkpoint": "string|null" }
 }

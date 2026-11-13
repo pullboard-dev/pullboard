@@ -16,10 +16,8 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import {
-  runFixtureChild,
-  runFixtureGit,
-} from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   addItem,
   closeBoard,
@@ -112,7 +110,7 @@ for (const state of ['current', 'stale', 'absent']) {
 }
 
 /** Exercise the user-visible cold notice through the actual CLI in an isolated real Git repository. */
-test('resume announces complete proof fallback in text and JSON until a native write repairs counters [N19,R1,R2,C7]', (t) => {
+test('resume announces complete proof fallback in text and JSON until a native write repairs counters [N19,R1,R2,C7]', async (t) => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-resume-cold-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const repo = join(directory, 'repo');
@@ -131,28 +129,28 @@ test('resume announces complete proof fallback in text and JSON until a native w
   /** Run real Git using only the fixture identity and checkout. */
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
   /** Run the production CLI and preserve any actual setup failure. */
-  const run = (...args) => {
-    const result = runFixtureChild(process.execPath, [bin, ...args], { cwd: repo, env, encoding: 'utf8' });
+  const run = async (...args) => {
+    const result = await runCliInProcess(args, { cwd: repo, env });
     assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
     return result.stdout;
   };
   git('init', '-q', '-b', 'main');
-  run('init');
+  await run('init');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }));
   writeFileSync(join(repo, 'SPEC.md'), '# Proof fixture\n\n## G · Goals\n- G1 [approved, must] Proof history stays complete. | gate: test\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: create cold resume fixture');
-  run('resume', '--json'); // Finish any first-resume native bookkeeping before making the cache cold.
+  await run('resume', '--json'); // Finish any first-resume native bookkeeping before making the cache cold.
   const file = join(git('rev-parse', '--path-format=absolute', '--git-common-dir').trim(), 'pullboard', 'board.sqlite');
   const db = new DatabaseSync(file);
   try { clearProofCounters({ db }); } finally { db.close(); }
-  const cold = JSON.parse(run('resume', '--json'));
+  const cold = JSON.parse(await run('resume', '--json'));
   assert.match(cold.proofStatsFallback, /counters are unavailable.*complete event history.*next writable command/iu);
   assert.ok(cold.flow, 'cold resume still returns its complete flow result');
-  const text = run('resume');
+  const text = await run('resume');
   assert.equal(text.split('\n').filter(line => line === cold.proofStatsFallback).length, 1, 'plain resume announces the actual fallback once');
-  run('shout', 'all', 'A normal native write builds the local counters.');
-  const hot = JSON.parse(run('resume', '--json'));
+  await run('shout', 'all', 'A normal native write builds the local counters.');
+  const hot = JSON.parse(await run('resume', '--json'));
   assert.equal(Object.hasOwn(hot, 'proofStatsFallback'), false, 'the next native write ends the cold state');
   assert.ok(hot.flow);
 });

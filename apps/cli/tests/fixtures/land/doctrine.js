@@ -90,7 +90,7 @@ function assertNestedDoctrineLease({ landProject, itemWorktree, submitItem, acce
     `  appendFileSync(${JSON.stringify(receipt)}, JSON.stringify({ probe: true, pool, holderKind: holder.kind }) + '\\n');`,
     '});',
   ].join('\n'));
-  const runner = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js');
+  const runner = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js');
   writeFileSync(join(box.repo, 'quality.cjs'), [
     "const fs = require('node:fs'); const { spawnSync } = require('node:child_process');",
     `if (fs.existsSync(${JSON.stringify(armed)})) {`,

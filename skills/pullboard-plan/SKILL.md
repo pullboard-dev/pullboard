@@ -129,3 +129,5 @@ pullboard add cli "todo help lists commands" --specs G9 --after 2 --route light 
 
 1. Every approved row with tier must is cited by an item, or named in your report with why not.
 2. `pullboard list` shows the order through `after`.
+3. Draft or pending rows: ask the person to approve them:
+   - `pullboard view`

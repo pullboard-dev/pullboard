@@ -103,7 +103,7 @@ function fixture(code, dir) {
   git(repo, 'commit', '-q', '-m', 'chore(repo): set up the budget fixture');
   for (const title of ['First', 'Second']) cli(repo, ['add', 'core', title, '--specs', 'C7', '--criterion', 'it works', '--brief', 'Files: src/a.js\nTest: it works.']);
   git(repo, 'worktree', 'add', '-q', '-b', 'core/one', seat);
-  cli(seat, ['join', 'core', '--model', 'claude-opus-5-5']);
+  cli(seat, ['join', 'core', '--model', 'fixture-strong', '--route', 'strong']);
   return { bin, env, repo, seat };
 }
 
@@ -132,12 +132,15 @@ function sample(box, name, { hook = null, resident = false, code }) {
 
 /** Stop every resident process of the pool the fixture started, found where the measured code's client looks. */
 async function stopResidents(box, code) {
-  const { residentPoolSize, residentSocket } = await import(pathToFileURL(join(code, 'apps/cli/src/io/resident/client.js')).href);
-  const size = typeof residentPoolSize === 'function' ? residentPoolSize(box.env) : 1;
-  for (let slot = 0; slot < size; slot += 1) {
-    const place = residentSocket(box.repo, box.bin, slot);
-    if (!place) continue;
-    try { process.kill(Number(readFileSync(place.pid, 'utf8').trim()), 'SIGKILL'); } catch { /* Never started, or already gone. */ }
+  // The measured code is read in a child: a source file of this package never imports a computed path (P3).
+  const script = [`import { residentPoolSize, residentSocket } from ${JSON.stringify(pathToFileURL(join(code, 'apps/cli/src/io/resident/client.js')).href)};`,
+    "const size = typeof residentPoolSize === 'function' ? residentPoolSize(process.env) : 1;",
+    'const files = [];',
+    'for (let slot = 0; slot < size; slot += 1) { const place = residentSocket(process.argv[1], process.argv[2], slot); if (place) files.push(place.pid); }',
+    'process.stdout.write(JSON.stringify(files));'].join('\n');
+  const files = JSON.parse(run(process.execPath, ['--input-type=module', '-e', script, box.repo, box.bin], { env: box.env }).stdout);
+  for (const file of files) {
+    try { process.kill(Number(readFileSync(file, 'utf8').trim()), 'SIGKILL'); } catch { /* Never started, or already gone. */ }
   }
 }
 

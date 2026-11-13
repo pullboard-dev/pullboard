@@ -83,22 +83,21 @@ export function unblockCounts(unfinished) {
 }
 
 /**
- * How many blockers deep an item sits: 0 when everything it waits on is verified, as next requires. A withdrawn
- * blocker never clears, so it counts as one level. A cycle counts once.
+ * How many blockers deep an item sits: 0 when everything it waits on is verified or withdrawn, as next and
+ * claim require. A foreign blocker counts as one level. A cycle counts once.
  *
  * @param {Map<number, any>} open unfinished items by id
- * @param {Set<number>} withdrawn
  * @returns {(item: any) => number}
  */
-function blockerDepth(board, open, withdrawn, foreignBlockers) {
+function blockerDepth(board, open, foreignBlockers) {
   const depths = new Map();
   const depth = (item, visiting = new Set()) => {
     if (depths.has(item.item_id)) return depths.get(item.item_id);
     if (visiting.has(item.item_id)) return 0;
     visiting.add(item.item_id);
     const blockers = afterIds(item).map((id) => open.get(id)).filter(Boolean);
-    const never = foreignBlockers(board, item).length > 0 || afterIds(item).some((id) => withdrawn.has(id));
-    const value = blockers.length || never ? 1 + Math.max(0, ...blockers.map((blocker) => depth(blocker, visiting))) : 0;
+    const foreign = foreignBlockers(board, item).length > 0;
+    const value = blockers.length || foreign ? 1 + Math.max(0, ...blockers.map((blocker) => depth(blocker, visiting))) : 0;
     depths.set(item.item_id, value);
     return value;
   };
@@ -144,11 +143,10 @@ function whyOf(entry) {
  * @returns {Map<number, { position: number, unblocks: number, effort: number, score: number, why: string }>}
  */
 export function computedOrder(board, { priority, shared = () => 0, tieBreak = () => 0 }, { listItems, foreignBlockers }) {
-  // Only unfinished items and withdrawn ids matter, so a large board's finished history is never read.
+  // Only unfinished items matter, so a large board's finished history is never read.
   const unfinished = listItems(board);
-  const withdrawn = new Set(board.db.prepare("SELECT item_id FROM item WHERE item_status = 'withdrawn'").all().map((row) => row.item_id));
   const counts = unblockCounts(unfinished);
-  const depthOf = blockerDepth(board, new Map(unfinished.map((item) => [item.item_id, item])), withdrawn, foreignBlockers);
+  const depthOf = blockerDepth(board, new Map(unfinished.map((item) => [item.item_id, item])), foreignBlockers);
   const entries = unfinished.map((item) => {
     const unblocks = counts.get(item.item_id) ?? 0;
     const effort = EFFORT[item.item_route] ?? EFFORT.strong;

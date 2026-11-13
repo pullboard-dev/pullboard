@@ -19,6 +19,7 @@ import { withBoardRead } from '../../index.js';
 import { retrySync } from '../../index.js';
 import { waitForSubmissionVerdict } from '../../../../packages/items/index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 /** Read or mutate only this private fixture's actual CLI board, closing before a child runs. */
 function onBoard(box, work) {
@@ -28,7 +29,7 @@ function onBoard(box, work) {
 }
 
 /** Produce one genuinely claimed web checkout with ordinary hooks enabled. */
-function fixture(t, check = 'true', acceptedFiles = {}) {
+async function fixture(t, check = 'true', acceptedFiles = {}) {
   const helpers = createE2eHelpers();
   const children = [];
   t.after(async () => {
@@ -46,11 +47,11 @@ function fixture(t, check = 'true', acceptedFiles = {}) {
     assert.equal(result.status, 0, result.stderr);
   }
   if (Object.keys(acceptedFiles).length) box.git(box.web, 'merge', '--no-edit', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Ship the staged fixture', '--specs', 'G1',
-    '--criterion', 'The fixture passes its native check.', '--check', check, '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Ship the staged fixture', '--specs', 'G1',
+    '--criterion', 'The fixture passes its native check.', '--check', check, '--json'));
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   return { helpers, box, id, children };
 }
@@ -63,11 +64,11 @@ function stage(box, file, body) {
 }
 
 test('ship review wait names its deadline without undoing the completed gate [V4,B3]', async t => {
-  const { box, id } = fixture(t);
+  const { box, id } = (await fixture(t));
   const changed = createE2eHelpers().commitFile(box, box.web, 'web/deadline.txt', 'Completed gate.\n',
     'feat(web): deadline fixture [G1]');
   assert.equal(changed.status, 0, changed.stderr);
-  const submitted = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   const value = JSON.parse(submitted.out);
   const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
@@ -87,6 +88,7 @@ const SHIP_WAIT_MS = 60_000;
 /** A fixture reviewer releases the actual --wait only after observing its durable submit. */
 async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
   const { box, helpers, id } = f;
+  // Process-level case: ship blocks on the verdict while this test records it on the same board, so it stays a real child.
   const pending = runFixtureChildAsync(process.execPath, [helpers.BIN, 'ship', '--note', note, '--json'], { cwd: box.web, env: box.env });
   const child = pending.child;
   f.children.push(pending);
@@ -120,7 +122,7 @@ async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
 }
 
 test('ship commits staged work, merges current main, waits and preserves submission JSON beside its note [V4,B3,C7]', async t => {
-  const f = fixture(t);
+  const f = (await fixture(t));
   const before = f.box.git(f.box.web, 'rev-parse', 'HEAD');
   const main = f.helpers.commitFile(f.box, f.box.repo, 'main-note.txt', 'Accepted main advanced.\n', 'chore: advance the private fixture main');
   assert.equal(main.status, 0, main.stderr);
@@ -136,20 +138,17 @@ test('ship commits staged work, merges current main, waits and preserves submiss
 
 test('ship stops at the real failing frozen case without a submit or note [V4,B3]', async t => {
   const green = "import {test} from 'node:test';\nimport assert from 'node:assert/strict';\ntest('ship names this actual failure',()=>assert.equal(1,1));\n";
-  const f = fixture(t, 'node --test web/broken.test.js', { 'web/broken.test.js': green });
+  const f = (await fixture(t, 'node --test web/broken.test.js', { 'web/broken.test.js': green }));
+  // Process-level case: a plain node --test control run on main, not a CLI call.
   const baseline = runFixtureChild(process.execPath, ['--test', 'web/broken.test.js'], { cwd: f.box.repo, env: f.box.env, encoding: 'utf8' });
   assert.equal(baseline.status, 0, baseline.context);
   assert.match(baseline.stdout, /pass 1/u, 'the identical named case is genuinely green on main');
   stage(f.box, 'web/broken.test.js', green.replace('assert.equal(1,1)', 'assert.equal(1,2)'));
   const before = f.box.git(f.box.web, 'rev-parse', 'HEAD');
-  const pending = runFixtureChildAsync(process.execPath, [f.helpers.BIN, 'ship', '--note', 'Must not be recorded.', '--json'], { cwd: f.box.web, env: f.box.env });
-  f.children.push(pending);
-  await f.helpers.waitFor(() => pending.child.exitCode !== null || onBoard(f.box, board => store.getItem(board, f.id).item_status === 'submitted'), 'the candidate-only failure or its unexpected submit event');
+  const result = await runCliInProcess(['ship', '--note', 'Must not be recorded.', '--json'], { cwd: f.box.web, env: f.box.env });
   const observed = onBoard(f.box, board => ({ item: store.getItem(board, f.id), submissions: store.events(board, { itemId: f.id }).filter(row => row.event_kind === 'submit') }));
-  if (observed.item.item_status === 'submitted') await cleanupFixtureChildren();
-  const result = await pending;
-  assert.equal(observed.item.item_status, 'claimed', JSON.stringify({ observed, context: result.context, stdout: result.stdout }));
-  assert.equal(result.status, 1, result.context + result.stdout);
+  assert.equal(observed.item.item_status, 'claimed', JSON.stringify({ observed, stderr: result.stderr, stdout: result.stdout }));
+  assert.equal(result.status, 1, result.stderr + result.stdout);
   const response = JSON.parse(result.stdout);
   assert.equal(response.error.code, 'GATE_RED');
   assert.match(response.error.message, /ship names this actual failure/u);
@@ -160,7 +159,7 @@ test('ship stops at the real failing frozen case without a submit or note [V4,B3
 });
 
 test('ship never bypasses a commit hook or consumes its staged bytes after refusal [C7,V4]', async t => {
-  const f = fixture(t);
+  const f = (await fixture(t));
   stage(f.box, 'web/hook.txt', 'Keep staged.\n');
   const before = f.box.git(f.box.web, 'rev-parse', 'HEAD');
   const hooks = join(f.box.dir, 'refusal-hooks');
@@ -172,32 +171,24 @@ test('ship never bypasses a commit hook or consumes its staged bytes after refus
   const hookControl = f.box.tryGit(f.box.web, 'hook', 'run', 'pre-commit');
   assert.equal(hookControl.status, 1, hookControl.context);
   assert.match(hookControl.stderr, /intentional-ship-hook-refusal/u);
-  const pending = runFixtureChildAsync(process.execPath, [f.helpers.BIN, 'ship', '--json'], { cwd: f.box.web, env: f.box.env });
-  f.children.push(pending);
-  await f.helpers.waitFor(() => pending.child.exitCode !== null || onBoard(f.box, board => store.getItem(board, f.id).item_status === 'submitted'), 'the real hook refusal or its unexpected submit event');
+  const result = await runCliInProcess(['ship', '--json'], { cwd: f.box.web, env: f.box.env });
   const state = onBoard(f.box, board => store.getItem(board, f.id).item_status);
-  if (state === 'submitted') await cleanupFixtureChildren();
-  const result = await pending;
-  assert.equal(state, 'claimed', result.context + result.stdout);
-  assert.equal(result.status, 1, result.context + result.stdout);
+  assert.equal(state, 'claimed', result.stderr + result.stdout);
+  assert.equal(result.status, 1, result.stderr + result.stdout);
   assert.match(JSON.parse(result.stdout).error.message, /intentional-ship-hook-refusal/u);
   assert.equal(f.box.git(f.box.web, 'rev-parse', 'HEAD'), before);
   assert.equal(f.box.git(f.box.web, 'diff', '--cached', '--name-only'), 'web/hook.txt');
 });
 
 test('ship preserves a real merge conflict and names its next move without submitting [C7,V4]', async t => {
-  const f = fixture(t, 'true', { 'web/conflict.txt': 'accepted base\n' });
+  const f = (await fixture(t, 'true', { 'web/conflict.txt': 'accepted base\n' }));
   const advanced = f.helpers.commitFile(f.box, f.box.repo, 'web/conflict.txt', 'accepted main change\n', 'feat(web): advance conflicting main [G1]');
   assert.equal(advanced.status, 0, advanced.stderr);
   stage(f.box, 'web/conflict.txt', 'staged candidate change\n');
-  const pending = runFixtureChildAsync(process.execPath, [f.helpers.BIN, 'ship', '--json'], { cwd: f.box.web, env: f.box.env });
-  f.children.push(pending);
-  await f.helpers.waitFor(() => pending.child.exitCode !== null || onBoard(f.box, board => store.getItem(board, f.id).item_status === 'submitted'), 'the real merge conflict or its unexpected submit event');
+  const result = await runCliInProcess(['ship', '--json'], { cwd: f.box.web, env: f.box.env });
   const state = onBoard(f.box, board => store.getItem(board, f.id).item_status);
-  if (state === 'submitted') await cleanupFixtureChildren();
-  const result = await pending;
-  assert.equal(state, 'claimed', result.context + result.stdout);
-  assert.equal(result.status, 1, result.context + result.stdout);
+  assert.equal(state, 'claimed', result.stderr + result.stdout);
+  assert.equal(result.status, 1, result.stderr + result.stdout);
   const response = JSON.parse(result.stdout);
   assert.equal(response.error.code, 'MERGE_CONFLICT');
   assert.match(response.error.next, /resolve/u);
@@ -207,18 +198,18 @@ test('ship preserves a real merge conflict and names its next move without submi
   assert.equal(onBoard(f.box, board => store.events(board, { itemId: f.id }).filter(row => row.event_kind === 'submit')).length, 0);
 });
 
-test('ship leaves unstaged and untracked input untouched before any commit [C7,V4]', t => {
-  const f = fixture(t, 'true', { 'web/existing.txt': 'accepted bytes\n' });
+test('ship leaves unstaged and untracked input untouched before any commit [C7,V4]', async t => {
+  const f = (await fixture(t, 'true', { 'web/existing.txt': 'accepted bytes\n' }));
   const before = f.box.git(f.box.web, 'rev-parse', 'HEAD');
   stage(f.box, 'web/staged.txt', 'staged bytes\n');
   writeFileSync(join(f.box.web, 'web/existing.txt'), 'unstaged bytes\n');
-  let result = f.box.run(f.box.web, 'ship', '--json');
+  let result = await f.box.runLocal(f.box.web, 'ship', '--json');
   assert.equal(result.code, 1, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'DIRTY');
   assert.equal(readFileSync(join(f.box.web, 'web/existing.txt'), 'utf8'), 'unstaged bytes\n');
   writeFileSync(join(f.box.web, 'web/existing.txt'), 'accepted bytes\n');
   writeFileSync(join(f.box.web, 'web/untracked.txt'), 'untracked bytes\n');
-  result = f.box.run(f.box.web, 'ship', '--json');
+  result = await f.box.runLocal(f.box.web, 'ship', '--json');
   assert.equal(result.code, 1, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'UNTRACKED');
   assert.equal(readFileSync(join(f.box.web, 'web/untracked.txt'), 'utf8'), 'untracked bytes\n');
@@ -239,11 +230,11 @@ async function expireClaim(f) {
 }
 
 test('ship refuses a lapsed claim without first refusal before touching the staged work [B3,V4]', async t => {
-  const f = fixture(t);
+  const f = (await fixture(t));
   await expireClaim(f);
   stage(f.box, 'web/lapsed.txt', 'Not yet committed.\n');
   const before = f.box.git(f.box.web, 'rev-parse', 'HEAD');
-  const result = f.box.run(f.box.web, 'ship', String(f.id), '--json');
+  const result = await f.box.runLocal(f.box.web, 'ship', String(f.id), '--json');
   assert.equal(result.code, 1, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'NOT_YOURS');
   assert.equal(f.box.git(f.box.web, 'rev-parse', 'HEAD'), before);
@@ -251,17 +242,18 @@ test('ship refuses a lapsed claim without first refusal before touching the stag
 });
 
 test('ship reclaims a lapsed lease only inside this builder first-refusal window [B3,V4]', async t => {
-  const f = fixture(t);
+  const f = (await fixture(t));
   assert.equal(f.helpers.commitFile(f.box, f.box.web, 'web/prior.txt', 'Prior rejected work.\n', 'feat(web): initial fixture [G1]').status, 0);
-  const sent = f.box.run(f.box.web, 'submit', String(f.id), '--no-next', '--json');
+  const sent = await f.box.runLocal(f.box.web, 'submit', String(f.id), '--no-next', '--json');
   assert.equal(sent.code, 0, sent.out + sent.err);
   onBoard(f.box, board => {
     const item = store.getItem(board, f.id);
-    store.verify(board, f.id, { agentId: 'coordinator', decision: 'REJECT', digest: item.item_frozen_digest,
-      head: item.item_commit, reason: 'BEHAVIOR_MISMATCH', clause: 'The fixture passes its native check.',
-      note: 'A fixture return creates the ordinary first-refusal window.', policy: 'any', check: 'green', reopenFirstRefusalMinutes: 30 });
+    store.verify(board, f.id, { agentId: 'coordinator', decision: 'ACCEPT', digest: item.item_frozen_digest,
+      head: item.item_commit, note: 'The fixture passes its native check.', policy: 'any', check: 'green' });
+    store.reopen(board, f.id, { agentId: 'coordinator', withdrawVerdict: true,
+      note: 'A withdrawn verdict creates the ordinary first-refusal window.', reopenFirstRefusalMinutes: 30 });
   });
-  const reclaimed = f.box.run(f.box.web, 'claim', String(f.id), '--json');
+  const reclaimed = await f.box.runLocal(f.box.web, 'claim', String(f.id), '--json');
   assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
   await expireClaim(f);
   stage(f.box, 'web/reworked.txt', 'Actual changed rework.\n');

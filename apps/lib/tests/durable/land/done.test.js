@@ -1,6 +1,5 @@
 /** A landing whose finish sequence wrote publish is marked done and releases its lease [C7]. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../cli/tests/fixtures/child.js';
@@ -30,8 +29,7 @@ function landedRepo() {
 
 test('clause 1: a completed finish sequence ends the job [C7]', async () => {
   const { repo, base, commit } = landedRepo();
-  const files = privateFixtureFiles('pullboard-land-done-board-');
-  const board = openBoard(join(files.root, 'board.sqlite'));
+  const board = openBoard(':memory:');
   try {
     const id = mergedLandingJobId([7], commit);
     const result = await landMerged(board.db, { repo, ids: [7], commit, base, owner: 'merged:coordinator', now: () => 10_000, record: () => ({ recorded: true }) });

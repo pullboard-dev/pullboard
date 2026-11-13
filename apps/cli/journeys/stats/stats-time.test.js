@@ -17,15 +17,15 @@ let id = 0;
 /** One native event at a known minute offset. */
 const ev = (item, minute, kind, detail = {}) => ({ event_id: ++id, item_id: item, event_kind: kind, event_at: new Date(T0 + minute * MIN).toISOString(), event_detail: JSON.stringify(detail) });
 
-test('native measurement facts split tool and thinking from building [R1,R2,C7]', t => {
+test('native measurement facts split tool and thinking from building [R1,R2,C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Measured build', '--specs', 'G1', '--route', 'strong', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Measured build', '--specs', 'G1', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const item = JSON.parse(added.out).item.item_id;
   const text = JSON.stringify({ kind: 'seat-time', toolMs: 4 * MIN, thinkingMs: 2 * MIN });
-  const recorded = box.run(box.repo, 'fact', String(item), 'measurement', text, '--json');
+  const recorded = await box.runLocal(box.repo, 'fact', String(item), 'measurement', text, '--json');
   assert.equal(recorded.code, 0, recorded.err || recorded.out);
   const fact = JSON.parse(recorded.out).fact;
   assert.equal(fact.kind, 'measurement');
@@ -39,21 +39,21 @@ test('native measurement facts split tool and thinking from building [R1,R2,C7]'
   assert.equal(TIME_PHASES.reduce((sum, phase) => sum + row.phases[phase], 0), row.clockMs);
 });
 
-test('coordinator sentinel and milestone ship record their checkpoints [R1,R2,C7]', t => {
+test('coordinator sentinel and milestone ship record their checkpoints [R1,R2,C7]', async t => {
   const previousModel = process.env.PULLBOARD_MODEL;
   process.env.PULLBOARD_MODEL = 'fixture-model';
   t.after(() => { if (previousModel === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = previousModel; });
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const run = (...args) => {
-    const result = box.run(box.repo, ...args);
+  const run = async (...args) => {
+    const result = await box.runLocal(box.repo, ...args);
     assert.equal(result.code, 0, result.err || result.out);
   };
-  run('sentinel', 'run', '--health-only');
-  run('sentinel', 'run', '--health-only');
-  run('milestone', 'add', 'release-test');
-  run('milestone', 'ship', 'release-test');
+  await run('sentinel', 'run', '--health-only');
+  await run('sentinel', 'run', '--health-only');
+  await run('milestone', 'add', 'release-test');
+  await run('milestone', 'ship', 'release-test');
   const file = join(box.repo, '.git', 'pullboard', 'stats-history.jsonl');
   const rows = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.deepEqual(rows.map(row => row.reason), ['weekly', 'release']);

@@ -43,23 +43,23 @@ export function assertMachineWalkMemo(codeWalk) {
     assert.ok(entryScans > scannedOnce);
     assert.equal(reads, 2);
     const caughtSources = new Map([
-      ['../../../../../packages/items/src/logic/cross/repo.js', "import { boardLinkRecord } from '../../../kernel/src/core/registry-guards.js';\n" + caughtEntry + '\n'],
-      ['../../../../../packages/kernel/src/logic/registry.js', "function boardLinkRecord() {\n  throw new Refused('MEMO_CAUGHT', 'fixture');\n}\n"],
+      ['../packages/items/src/logic/cross/repo.js', "import { boardLinkRecord } from '../../../../kernel/src/logic/registry.js';\n" + caughtEntry + '\n'],
+      ['../packages/kernel/src/logic/registry.js', "function boardLinkRecord() {\n  throw new Refused('MEMO_CAUGHT', 'fixture');\n}\n"],
     ]);
     const caughtRead = file => {
       assert.ok(caughtSources.has(file), 'use the real named caught boundary with finite synthetic inputs');
       return caughtSources.get(file);
     };
-    assert.deepEqual([...codeWalk(caughtRead).refusalsOf('../packages/items/src/core/cross-repo-dependencies.js#stateFor')], ['MEMO_CAUGHT']);
+    assert.deepEqual([...codeWalk(caughtRead).refusalsOf('../packages/items/src/logic/cross/repo.js#stateFor')], ['MEMO_CAUGHT']);
     const caughtWalk = codeWalk(caughtRead, { caught: true });
     const beforeCaught = caughtScans;
-    assert.deepEqual([...caughtWalk.refusalsOf('../packages/items/src/core/cross-repo-dependencies.js#stateFor')], [],
+    assert.deepEqual([...caughtWalk.refusalsOf('../packages/items/src/logic/cross/repo.js#stateFor')], [],
       'the real caught boundary excludes the callee refusal without changing its local facts');
     assert.ok(caughtScans > beforeCaught, 'this caught walk reached its actual local-body scanner');
     const caughtOnce = caughtScans;
-    assert.deepEqual([...caughtWalk.refusalsOf('../packages/kernel/src/core/registry-guards.js#boardLinkRecord')], ['MEMO_CAUGHT'],
+    assert.deepEqual([...caughtWalk.refusalsOf('../packages/kernel/src/logic/registry.js#boardLinkRecord')], ['MEMO_CAUGHT'],
       'the callee still raises its refusal when traversed directly');
-    assert.deepEqual([...caughtWalk.refusalsOf('../packages/items/src/core/cross-repo-dependencies.js#stateFor')], []);
+    assert.deepEqual([...caughtWalk.refusalsOf('../packages/items/src/logic/cross/repo.js#stateFor')], []);
     assert.equal(caughtScans, caughtOnce, 'the caught traversal also reuses its actual local-body scan');
 
   } finally {

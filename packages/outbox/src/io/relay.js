@@ -184,6 +184,10 @@ const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBasel
  */
 export const ITEM_SLOTS = Object.freeze({
   setBarReady: [], setLineSetting: [], setLaneLead: [],
+  recordSelectorGap: [[0, 'itemId']], closeLandingTestDefect: [[0, 'item']],
+  createItemSlice: [[0, 'parentId']],
+  completeSubmitHandoff: [[0]], deferOwnership: [[0]], objectItemPatch: [[0]],
+  queueSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
   recordUsageBatch: [[0, 'items', '*', 'item'], [0, 'sharedSessions', '*', 'allocations', '*', 'item']],
   recordExitProgress: [[0, 'item']],
   recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
@@ -331,12 +335,7 @@ async function finishEntry(link, outbox, where, key) {
   saveOutboxSummary(link, outbox);
 }
 
-/** The queued moves and replay refusals pullboard status shows, when there are any. */
-export function outboxFields(state) {
-  return { ...(state?.outbox?.moves?.length ? { outbox: structuredClone(state.outbox.moves) } : {}),
-    ...(state?.outboxRefusals?.length ? { outboxRefusals: structuredClone(state.outboxRefusals) } : {}),
-    ...(state?.outboxRenumbered?.length ? { outboxRenumbered: structuredClone(state.outboxRenumbered) } : {}) };
-}
+export { outboxFields } from '../../light.js';
 
 /** Whether this command may queue a move in the ordered outbox: the board's relay.outbox setting, on unless opted out (#922,H21). */
 function outboxEnabled(io) {

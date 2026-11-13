@@ -19,8 +19,10 @@ import { release } from '../../../store/index.js';
 import { shout } from '../../../store/index.js';
 import { openWaitKey } from '../../index.js';
 import { recordWaits } from '../../index.js';
+import { judgeWaits } from '../../src/logic/budgets.js';
 import { waitBudgets } from '../../index.js';
 import { waitItemFields } from '../../index.js';
+import { waitKey } from '../../index.js';
 import { waitLines } from '../../index.js';
 import { waitsSnapshot } from '../../index.js';
 import { startServeSentinel } from '../../index.js';
@@ -75,10 +77,10 @@ function machine(t) {
 function resourceDatabase(file, holders, waiters) {
   const db = new DatabaseSync(file);
   db.exec(`CREATE TABLE holder (token TEXT PRIMARY KEY, name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT DEFAULT '', kind TEXT DEFAULT '');
-    CREATE TABLE waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT, name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT DEFAULT '', kind TEXT DEFAULT '');
+    CREATE TABLE waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT, name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT DEFAULT '', kind TEXT DEFAULT '', runner_wait_reasons TEXT DEFAULT '[]');
     CREATE TABLE runner_unavailable (host TEXT PRIMARY KEY, since TEXT, detail TEXT DEFAULT '')`);
   for (const [index, row] of holders.entries()) db.prepare('INSERT INTO holder (token, name, pid, agent, since) VALUES (?, ?, ?, ?, ?)').run(`h${index}`, row.name, row.pid, row.agent, row.since);
-  for (const [index, row] of waiters.entries()) db.prepare('INSERT INTO waiter (token, name, pid, agent, since) VALUES (?, ?, ?, ?, ?)').run(`w${index}`, row.name, row.pid, row.agent, row.since);
+  for (const [index, row] of waiters.entries()) db.prepare('INSERT INTO waiter (token, name, pid, agent, since, runner_wait_reasons) VALUES (?, ?, ?, ?, ?, ?)').run(`w${index}`, row.name, row.pid, row.agent, row.since, row.reasons ?? '[]');
   db.close();
 }
 
@@ -111,19 +113,39 @@ test('a checkout lease held past budget while commands wait is filed once, then 
   assert.ok(dead.reclaimed.some(line => /pruned/u.test(line)));
 });
 
-test('a board writer holding past two seconds is a breach and a dead writer marker is removed [C7]', async t => {
+test('clause 1: a gate waiter queued behind busy runners is a queue wait, not a pool hold, so that wait ends within budget [C7,#6857]', async t => {
+  const m = machine(t);
+  const waiter = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  const busy = JSON.stringify([{ host: 'a', reason: 'busy' }, { host: 'b', reason: 'busy' }]);
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: waiter.pid, agent: 'view-1', since: ago(5), reasons: busy }]);
+  assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a gate waiter behind busy runners files nothing');
+});
+
+test('clause 2: the hold reproduced from the evidence: a gate waiter with a free runner and no holder is still over budget [C7,#6857]', async t => {
+  const m = machine(t);
+  const stuck = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: stuck.pid, agent: 'view-2', since: ago(5), reasons: JSON.stringify([{ host: 'a', reason: 'available' }]) }]);
+  const row = (await m.snapshot()).rows.find(entry => entry.surface === 'pool');
+  assert.equal(row.breach, true, 'a gate waiter with a free runner and no holder is still over budget');
+});
+
+test('a board writer holding past ten seconds is a breach and a dead writer marker is removed [C7]', async t => {
   const m = machine(t);
   const directory = `${m.paths.boardFile}.write-holders`;
   mkdirSync(directory, { recursive: true });
   const live = m.sleeper();
   await waitForCondition(() => !gone(live.pid), 'the writer runs');
   writeFileSync(join(directory, `${live.pid}-00000000-0000-0000-0000-000000000001.json`), JSON.stringify({ version: 1, pid: live.pid,
-    started: '', processSha256: 'a'.repeat(64), command: 'merged', seat: 'coordinator', acquiredAt: Date.now() - 5_000, contender: true }));
+    started: '', processSha256: 'a'.repeat(64), command: 'merged', seat: 'coordinator', acquiredAt: Date.now() - 11_000, contender: true }));
   const deadMarker = join(directory, '4194301-00000000-0000-0000-0000-000000000002.json');
   writeFileSync(deadMarker, JSON.stringify({ version: 1, pid: 4194301, started: 'x', processSha256: 'b'.repeat(64), command: 'add', seat: 'core-2', acquiredAt: Date.now() - 60_000 }));
   const snapshot = await m.snapshot();
   const row = snapshot.rows.find(entry => entry.surface === 'board-write' && entry.pid === live.pid);
-  assert.equal(row.breach, true, 'five seconds against a two second database budget');
+  assert.equal(row.breach, true, 'eleven seconds against the ten second audited board-write row');
   assert.equal(row.holder, 'merged by coordinator');
   const recorded = await recordWaits(snapshot, m.ports());
   assert.equal(existsSync(deadMarker), false, 'the dead pid\'s marker is reclaimed at once');
@@ -186,10 +208,10 @@ test('a gate with no span progress past five minutes and a landing run past fift
 
 test('a runner job past twenty minutes is filed with its host, job folder and test [C7]', async t => {
   const m = machine(t);
-  const ps = ['  500   90  11:32:22 /u/bin/node /Users/r/.pullboard-runner/runtime/abc/src/runner-worker.js',
-    '  501  500     11:32:00 /u/bin/node /Users/r/.pullboard-runner/jobs/job-1/checkout/test/relay-client.test.js',
-    '  600    1     03:00 /u/bin/node /Users/r/.pullboard-runner/runtime/abc/src/runner-worker.js'].join('\n');
-  const cwd = 'p501\nfcwd\nn/Users/r/.pullboard-runner/jobs/job-1/checkout\n';
+  const ps = ['  500   90  11:32:22 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js',
+    '  501  500     11:32:00 /u/bin/node /Users/example/.pullboard-runner/jobs/job-1/checkout/test/relay-client.test.js',
+    '  600    1     03:00 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js'].join('\n');
+  const cwd = 'p501\nfcwd\nn/Users/example/.pullboard-runner/jobs/job-1/checkout\n';
   const exec = (command, args, options, done) => done(null, `${ps}\n__CWD__\n${cwd}`);
   const snapshot = await m.snapshot({ hosts: ['runner@10.0.0.53'], readers: { runners: (hosts, now, options) => readRunnerJobs(hosts, now, { ...options, exec }) } });
   const jobs = snapshot.rows.filter(entry => entry.surface === 'runner-job');
@@ -308,9 +330,65 @@ test('waits record files a mid item add accepts: Files: naming the holder\'s sou
   assert.equal(recorded.filed.length, 1, 'the real add validation accepts the item');
   const [item] = m.items();
   assert.equal(item.item_route, 'mid', 'routed so a Sonnet builds it cold');
-  assert.match(item.item_brief, /^Files:\n- apps\/cli\/src\/io\/commands\/merged\.js\n- packages\/seats\/src\/io\/agent-session\.js$/mu, 'the holder\'s source and the surface code');
+  assert.match(item.item_brief, /^Files:\n- apps\/cli\/src\/io\/commands\/merged\.js\n- packages\/seats\/src\/io\/agent\/session\.js$/mu, 'the holder\'s source and the surface code');
   assert.match(item.item_brief, /^Test: /mu);
   assert.equal(item.item_check, "node apps/cli/pullboard.js waits check 'checkout-lease:repo:checkout-session:abc:coordinator'", 'its check is the audit for this one cause');
   const bare = { by: 'coordinator', lane: 'core', title: 'bare', criterion: '1. It holds. [test]', brief: 'no sections', route: 'mid', check: item.item_check };
   assert.throws(() => addItem(m.board, bare), /NO_BRIEF|Files:/u, 'a brief without Files: and Test: is the refusal this guards against');
+});
+
+/** #6121's gate job: claimed by a runner, no step or span for six minutes while its phases ran, lease renewed a moment ago. */
+function runnerHeldGate(m, now) {
+  m.board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run('gate:6121:ae14aa8fd0f8:x', 'gate', 6121, 'claimed', 'auxiliary-53-anvil-50f9f9', now + 110_000, now - 6 * MINUTE, now);
+  m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
+}
+
+test('clause 1: a runner-held gate that renews its lease through a six-minute claim is not over its progress budget [C7]', async t => {
+  const m = machine(t);
+  runnerHeldGate(m, Date.now());
+  const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
+  assert.equal(gate.breach, false, `a live lease is progress: ${gate.ageMs} ms old`);
+});
+
+test('clause 2: the hold read from #6121\'s job ends within budget: its age counts from the last lease renewal [C7]', async t => {
+  const m = machine(t);
+  runnerHeldGate(m, Date.now());
+  const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
+  assert.ok(gate.ageMs < gate.budgetMs, `${gate.ageMs} ms is inside the ${gate.budgetMs} ms gate progress budget`);
+  assert.ok(gate.ageMs < 60_000, 'it is a renewal old, not the six minutes since the claim');
+});
+
+test('clause 1: a runner unavailable for 279 s is inside the audited runnerUnavailableMs row; one past 300 s still breaches [C7]', () => {
+  const budgets = waitBudgets();
+  assert.equal(budgets.runnerUnavailableMs, 300_000);
+  assert.equal(budgets.waiterMs, 120_000, 'the handoff queue keeps its two-minute budget');
+  const row = ageMs => ({ surface: 'runner-unavailable', key: 'h', holder: 'h', pid: null, ageMs, waiters: [] });
+  const [inside, past] = judgeWaits([row(279_000), row(301_000)], budgets);
+  assert.equal(inside.breach, false);
+  assert.equal(inside.budgetName, 'runnerUnavailableMs');
+  assert.equal(past.breach, true);
+});
+
+test('a board write held 5.1 s is inside the audited boardWriteMs row; one past 10 s still breaches, and resource writes keep 2 s [C7]', () => {
+  const budgets = waitBudgets();
+  assert.equal(budgets.boardWriteMs, 10_000);
+  const row = (surface, ageMs) => ({ surface, key: 'k', holder: 'h', pid: null, ageMs, waiters: [] });
+  const [board, slow, resource] = judgeWaits([row('board-write', 5_100), row('board-write', 10_500), row('resource-write', 5_100)], budgets);
+  assert.equal(board.breach, false);
+  assert.equal(slow.breach, true);
+  assert.equal(resource.breach, true, 'the resource write queue keeps databaseMs');
+});
+
+test('clause 2: the 147 s, 155 s and 279 s runner-unavailable episodes read from #6777, #6779 and #6800 each end within the budget [C7]', () => {
+  const budgets = waitBudgets();
+  const rows = [147_000, 155_000, 279_000].map(ageMs => ({ surface: 'runner-unavailable', key: 'h', holder: 'h', pid: null, ageMs, waiters: [] }));
+  assert.deepEqual(judgeWaits(rows, budgets).map(row => row.breach), [false, false, false]);
+});
+
+test('a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {
+  const key = waitKey({ surface: 'board-write', key: '/Users/dev/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
+  assert.equal(key, 'board-write:.git/pullboard/board.sqlite:edit');
+  assert.doesNotMatch(key, /Open Source|\/Users/u, 'no absolute path or space survives');
+  assert.equal(waitKey({ surface: 'gate', key: 'gate:#7:gate' }), 'gate:gate:#7:gate', 'a key without a path is unchanged');
 });

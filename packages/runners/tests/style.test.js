@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/static/checks.js packages/gate/tests/fixtures/budgets.js */
 /** The actual repository preflight keeps source oracles separate from browser behavior [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

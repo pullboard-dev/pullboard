@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js apps/cli/pullboard.js apps/cli/src/io/commands/push-receipts.js apps/cli/src/io/commands/tool-build.js packages/codemap/src/io/layout.js packages/kernel/index.js */
 /** The layout check names every root, cell-entry, test and naming violation and holds the counts to a baseline that only lowers [V32,V33]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -97,7 +97,7 @@ test('a file never repeats its cell name or its folder name [V33]', () => {
 test('moves and commands folders keep the names a registry reads, and engines keep the -engine suffix [V33]', () => {
   assert.deepEqual(found(['packages/kern/src/logic/moves/acceptCheck.js', 'packages/kern/src/logic/moves/moves-all-three.js', 'apps/cli/src/io/commands/push-receipts.js', 'apps/cli/src/io/commands/tool-build.js']), []);
   assert.deepEqual(found(['packages/kern/src/logic/misc/acceptCheck.js']), []);
-  assert.deepEqual(found(['packages/kern/src/logic/engines/coordinator-actions-engine.js', 'packages/kern/src/logic/engines/main-audit-engine.js', 'packages/kern/tests/logic/engines/audit-engine.test.js']), []);
+  assert.deepEqual(found(['packages/kern/src/logic/engines/coordinator-actions-engine.js', 'packages/kern/src/logic/engines/main-audit-engine.js', 'packages/kern/src/logic/engines/audit-engine.js', 'packages/kern/tests/logic/engines/audit-engine.test.js']), []);
   assert.deepEqual(found(['packages/kern/src/logic/engines/kern-engine.js']), ['name-repeat packages/kern/src/logic/engines/kern-engine.js']);
   assert.deepEqual(found(['packages/kern/src/logic/other/quick-engine.js']), ['name-length packages/kern/src/logic/other/quick-engine.js']);
 });

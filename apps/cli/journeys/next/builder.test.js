@@ -24,7 +24,7 @@ function reviewsFirst(box) {
     reason: 'Private mandatory first-review dispatch control', window: { windowMinutes: 30 } });
 }
 
-test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]', t => {
+test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]', async t => {
   const box = crossLaneFixture(t);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -33,32 +33,33 @@ test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: require a different review family');
 
-  const joinFamily = (name, session, family = 'Haiku') => {
+  const joinFamily = async (name, session, family = 'Haiku') => {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    const seat = box.json(box.runAs(session, root, 'join', 'web', '--family', family, '--model', family, '--json'));
+    const seat = box.json((await box.runAsLocal(session, root, 'join', 'web', '--family', family, '--model', family, '--route', 'strong', '--json')));
     return { ...seat, root };
   };
-  const author = joinFamily('haiku-author', 'haiku-author-session');
-  const builder = joinFamily('haiku-builder', 'haiku-builder-session');
-  const peer = joinFamily('haiku-peer', 'haiku-peer-session');
-  const reviewer = joinFamily('openai-reviewer', 'openai-reviewer-session', 'OpenAI');
+  const author = await joinFamily('haiku-author', 'haiku-author-session');
+  const builder = await joinFamily('haiku-builder', 'haiku-builder-session');
+  const peer = await joinFamily('haiku-peer', 'haiku-peer-session');
+  const reviewer = await joinFamily('openai-reviewer', 'openai-reviewer-session', 'OpenAI');
   const review = box.add('web', 'A review this family cannot take');
   const build = box.add('web', 'Buildable work for the Haiku seat');
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     store.claim(board, review, { agentId: author.agent, lane: 'web', leaseMs: HOUR, freeze: FREEZE });
     submitFixture(board, review, { agentId: author.agent, commit, tree });
   } finally { store.closeBoard(board); }
 
-  const first = box.json(box.runAs('haiku-builder-session', builder.root, 'next', '--json'));
+  const first = box.json((await box.runAsLocal('haiku-builder-session', builder.root, 'next', '--json')));
   assert.equal(first.review, false, 'the same-family submission is not returned as a review step');
   assert.equal(first.item.item_id, build, 'next moves on to buildable work');
   assert.notEqual(first.item.item_id, review);
 
-  const second = box.runAs('haiku-peer-session', peer.root, 'next', '--json');
+  const second = (await box.runAsLocal('haiku-peer-session', peer.root, 'next', '--take', '--json'));
   assert.notEqual(second.code, 0, 'a second ineligible seat has no work after the build claim');
   const refusal = JSON.parse(second.out).error;
   assert.equal(refusal.code, 'NOTHING_FREE');
@@ -69,7 +70,7 @@ test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]
       'the refusal does not direct the builder to review the ineligible submission');
   }
 
-  const eligible = box.json(box.runAs('openai-reviewer-session', reviewer.root, 'next', '--verify', '--json'));
+  const eligible = box.json((await box.runAsLocal('openai-reviewer-session', reviewer.root, 'next', '--verify', '--json')));
   assert.equal(eligible.item.item_id, review, 'a different-family reviewer retains its eligible review path');
 });
 

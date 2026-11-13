@@ -27,6 +27,9 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from './child.js';
+import {
+  fixtureSettledMachine,
+} from './testkit.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 const FROZEN = 'node test/runner.js test/frozen.test.js';
@@ -57,10 +60,10 @@ function source(expected) {
 }
 
 /** A claimed item with a green frozen check whose affected test/affected.test.js is red or green on main per `main`. */
-export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
+export function fixture(t, { main = 2, candidate = 2, check = FROZEN, criterion = 'The change works.', cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
   // A background board writer can outlive its command by a moment; retry the ENOTEMPTY it races rather than fail the case [C7].
-  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
@@ -75,6 +78,8 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled 
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'known-main-affected-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
+  // These submits settle their gate in the submitting process (#6249).
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
@@ -101,7 +106,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled 
   for (const [file, text] of Object.entries(extra)) put(root, file, text);
   box.main = commit(box, root);
   result = cli(box, root, 'add', 'core', 'Change behind a red affected case', '--specs', 'G1', '--route', 'mid',
-    '--criterion', 'The change works.', '--check', check, '--brief', 'Files: change.txt, test/\nTest: affected known main');
+    '--criterion', criterion, '--check', check, '--brief', 'Files: change.txt, test/\nTest: affected known main');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   box.item = JSON.parse(result.stdout).item.item_id;
   result = cli(box, root, 'worktree', 'core', '--route', 'mid', '--model', 'Fixture Model');

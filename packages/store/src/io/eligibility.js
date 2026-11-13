@@ -19,7 +19,9 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
-  const held = heldClaim(board, agentId);
+  // A claim whose lease lapsed is not held: selection moves on rather than handing it back as held [C7,#4056].
+  const claimed = heldClaim(board, agentId);
+  const held = claimed && claimed.item_lease_until > board.clock.now().toISOString() ? claimed : null;
   // A claim whose own gate stopped on infrastructure waits on the machine, so the seat reviews meanwhile (#3103).
   const stopped = held && stoppedOnInfrastructure(board, held) ? held : null;
   const claim = stopped ? null : held;

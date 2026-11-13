@@ -20,6 +20,8 @@ export const VERDICT_PATCH_REFUSALS = [{ code: 'ITEM_PATCH', rule: 'native compa
 
 /** Refusals the submit path reaches through landing, relay, device, seal and fact code; each is raised there and names its own cause [M1,C7]. */
 export const SUBMIT_REACHED_REFUSALS = [
+  { code: 'RUNNER_TEST_LEAK', rule: 'tests stop the child processes, servers and handles they start', next: 'make the named tests stop every child process, server and handle they start, commit, and submit again' },
+  { code: 'RUNNER_RUN_TIMEOUT', rule: 'the runner completes the test within its existing deadline', next: 'find the test that hangs from the output the refusal shows, make it finish, commit, and submit again' },
   { code: 'AUTH_REQUIRED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'BAD_BOARD', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'BAD_CAUSE', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'name the cause as test:<file>::<title>, refusal:<CODE>, row:<id> or doctrine:<id>, or leave --cause out' },
@@ -81,6 +83,7 @@ export const SUBMIT_REACHED_REFUSALS = [
   { code: 'LAND_MODULE_PARSE', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_MODULE_RESOLUTION', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_MODULE_SOURCE', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
+  { code: 'LAND_MOVE_UNRECORDED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'add the old path and new path to the packages/codemap/data/plan/path-map shard the message names, commit, then land again' },
   { code: 'LAND_MOVED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_OWNER', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_PARALLEL_NESTED_GATE', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
@@ -94,7 +97,6 @@ export const SUBMIT_REACHED_REFUSALS = [
   { code: 'LAND_STALLED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_STATIC_RED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_STEP_HANDLER', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
-  { code: 'LAND_TEST_DEFECT', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_TRUNK', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_TRUNK_MOVED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
   { code: 'LAND_WAIVER', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the landing diagnostic the message names, repair that cause, then run the command again' },
@@ -164,6 +166,8 @@ export const SUBMIT_REACHED_REFUSALS = [
 
 /** Refusals the verdict moves reach through the timing reservation and main-red classification [M1,C7]. */
 export const VERDICT_REACHED_REFUSALS = [
+  { code: 'RUNNER_TEST_LEAK', rule: 'tests stop the child processes, servers and handles they start', next: 'make the named tests stop every child process, server and handle they start, commit, and submit again' },
+  { code: 'RUNNER_RUN_TIMEOUT', rule: 'the runner completes the test within its existing deadline', next: 'find the test that hangs from the output the refusal shows, make it finish, commit, and submit again' },
   { code: 'MAIN_RED_REDS', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'TIMING_RUNNER_RESTRICTION', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'adjust the runner restriction or gate.timingRunner setting named in the refusal, then retry submit' },
 ];

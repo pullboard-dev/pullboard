@@ -167,7 +167,9 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
     const plan = claimsOnly ? { holdWarnings: [], holdExpiries: [], reviewReleases: [] } : planStaleState(snapshot);
     const result = { warnings: [], holds: [], reviews: [] };
     /** Use the existing sentinel channel and direct recipient; item routing would replace the holder address. */
-    const notice = (to, text, item) => insertShout(board, { from: 'sentinel', to, text, lanes: [], detail: { item } });
+    // The sentinel is no seat, so each notice records the model of the seat whose maintenance sent it.
+    const model = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${agentId}`)?.meta_value ?? 'unknown';
+    const notice = (to, text, item) => insertShout(board, { from: 'sentinel', to, text, lanes: [], detail: { item, model } });
     /** Keep notices bounded while retaining the complete reason in the original hold event. */
     const shortReason = reason => String(reason).split(/[\r\n]/u)[0].slice(0, 180);
     for (const row of plan.holdWarnings) {

@@ -6,13 +6,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --chown=node:node package.json ./package.json
 COPY --chown=node:node CHANGELOG.md ./CHANGELOG.md
-COPY --chown=node:node src/ ./src/
-COPY --chown=node:node bin/ ./bin/
 COPY --chown=node:node apps/ ./apps/
 COPY --chown=node:node packages/ ./packages/
-COPY --chown=node:node apps/ ./apps/
-COPY --chown=node:node packages/gate/tests/fixtures/budgets.js ./test/wall-clock-budgets.js
-COPY --chown=node:node relay/ ./relay/
 RUN mkdir -p /data && chown node:node /data && chmod 700 /data
 
 USER node

@@ -26,7 +26,7 @@ function installPullboardEntry(box) {
 async function joinedCanarySeat(box) {
   const root = join(box.root, '..', 'notice-canary-seat');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/notice-canary', root], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(root, 'join', box.lane, '--model', 'notice-canary-fixture');
+  const joined = await box.cliAtLocal(root, 'join', box.lane, '--model', 'notice-canary-fixture');
   assert.equal(joined.code, 0, joined.failure);
   assert.equal(typeof joined.document.agent, 'string');
   assert.notEqual(joined.document.agent, 'coordinator');
@@ -35,7 +35,7 @@ async function joinedCanarySeat(box) {
 
 /** Read private machine telemetry only through the normal status command. */
 async function status(box, seat) {
-  const result = await box.cliAt(seat.root, 'relay', 'canary', 'status');
+  const result = await box.cliAtLocal(seat.root, 'relay', 'canary', 'status');
   assert.equal(result.code, 0, result.failure);
   assert.equal(result.document.config.agentId, seat.agentId);
   return result.document.health;
@@ -46,21 +46,21 @@ test('the ordinary canary command retains outage notices then records delayed al
   installPullboardEntry(box);
   await box.link();
   const seat = await joinedCanarySeat(box);
-  const enabled = await box.cliAt(seat.root, 'relay', 'canary', 'on', '--timeout', '5000');
+  const enabled = await box.cliAtLocal(seat.root, 'relay', 'canary', 'on', '--timeout', '5000');
   assert.equal(enabled.code, 0, enabled.failure);
   assert.equal(enabled.document.config.agentId, seat.agentId);
-  const baseline = await box.cliAt(seat.root, 'relay', 'canary', 'run');
+  const baseline = await box.cliAtLocal(seat.root, 'relay', 'canary', 'run');
   assert.equal(baseline.code, 0, baseline.failure);
   assert.equal(baseline.document.observation.ok, true);
 
   const origin = box.origin;
   await box.stopRelay();
-  const first = await box.cliAt(seat.root, 'relay', 'canary', 'run');
+  const first = await box.cliAtLocal(seat.root, 'relay', 'canary', 'run');
   assert.equal(first.code, 1, 'a stopped relay cannot complete a sealed round trip');
   const once = await status(box, seat);
   assert.equal(once.consecutiveFailures, 1, 'the normal CLI recorded its own failed round trip');
   assert.equal(once.pendingNotifications, 0, 'one failure has not yet raised the two-failure alert');
-  const second = await box.cliAt(seat.root, 'relay', 'canary', 'run');
+  const second = await box.cliAtLocal(seat.root, 'relay', 'canary', 'run');
   assert.equal(second.code, 1, 'an outage cannot claim successful notification delivery');
   const pending = await status(box, seat);
   assert.equal(pending.consecutiveFailures, 2);
@@ -70,7 +70,7 @@ test('the ordinary canary command retains outage notices then records delayed al
 
   await box.restartRelay();
   assert.equal(box.origin, origin, 'the fixture restarts the same listener and journal, not a replacement linked origin');
-  const recovered = await box.cliAt(seat.root, 'relay', 'canary', 'run');
+  const recovered = await box.cliAtLocal(seat.root, 'relay', 'canary', 'run');
   assert.equal(recovered.code, 0, recovered.failure);
   assert.equal(recovered.document.observation.ok, true);
   assert.equal(recovered.document.health.pendingNotifications, 0, 'only actual recording to every native reader clears the queue');
@@ -78,7 +78,7 @@ test('the ordinary canary command retains outage notices then records delayed al
   assert.equal(final.status, 'healthy');
   assert.equal(final.pendingNotifications, 0);
 
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   assert.equal(exported.code, 0, exported.failure);
   assert.ok(Array.isArray(exported.document.tables.shout), 'export exposes native shout rows with actual sender and recipient');
   const notices = exported.document.tables.shout.filter(row => row.shout_from === seat.agentId && /Relay canary (?:alert|recovery) at/u.test(row.shout_text));
@@ -91,6 +91,6 @@ test('the ordinary canary command retains outage notices then records delayed al
     assert.match(alerts[0].shout_text, /not a phone acknowledgement/u, 'native receipt is not phone delivery evidence');
     assert.equal(recoveries.length, 1, `one actual recovery reaches native ${to}`);
   }
-  const off = await box.cliAt(seat.root, 'relay', 'canary', 'off');
+  const off = await box.cliAtLocal(seat.root, 'relay', 'canary', 'off');
   assert.equal(off.code, 0, off.failure);
 });

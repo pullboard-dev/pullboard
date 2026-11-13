@@ -31,6 +31,7 @@ import {
   findChromeExecutable,
   startChrome,
 } from "../../../tests/fixtures/relay/browser.js";
+import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 
 const CLI = resolve(import.meta.dirname, '../../../pullboard.js');
 
@@ -101,7 +102,7 @@ test('same-user agents never act as their person while the phone approves native
   writeFileSync(join(box.root, 'SPEC.md'), readFileSync(join(box.root, 'SPEC.md'), 'utf8') + '\n- G1 [approved, must] A private security fixture parses. | gate: node --check src/security-fixture.js\n');
   git(box.root, personEnv, 'add', '-A');
   git(box.root, personEnv, 'commit', '-q', '-m', 'test(fixture): prepare native security proof [G1]');
-  const item = await box.cli('add', buildLane, 'native scoped work', '--specs', 'G1', '--criterion', 'the private source parses');
+  const item = await box.cliLocal('add', buildLane, 'native scoped work', '--specs', 'G1', '--criterion', 'the private source parses');
   assert.equal(item.code, 0);
   const itemId = item.document.item.item_id;
 
@@ -109,7 +110,7 @@ test('same-user agents never act as their person while the phone approves native
   t.after(async () => { if (setup.child.exitCode === null) setup.child.kill('SIGTERM'); await setup.done.catch(() => {}); });
   const pending = await waitFor(() => existsSync(machineFile) && JSON.parse(readFileSync(machineFile)).pending,
     'foreground setup publishes the one-use phone enrollment');
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const phone = await box.phoneSession();
   await chrome.send('Network.setCookie', { name: 'pb_session', value: phone.token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
@@ -177,7 +178,8 @@ test('same-user agents never act as their person while the phone approves native
   await t.test('the paired phone still sends person intent through the actual page [H12,H16,B26]', async () => {
     await chrome.navigate(box.origin + '/#board=' + state.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project && !!transport');
-    await chrome.evaluate(`document.querySelector('[data-tab=shouts]').click(); document.querySelector('#shout-to').value='coordinator'; document.querySelector('#shout-text').value='PRIVATE_PHONE_PERSON_ACTION'; document.querySelector('#shout-form').requestSubmit(); true`);
+    await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await chrome.stable("document.querySelector('#shout-to').value='coordinator'; document.querySelector('#shout-text').value='PRIVATE_PHONE_PERSON_ACTION'; document.querySelector('#shout-form').requestSubmit(); true");
     await chrome.waitFor('data.project.personRequests?.some(row => row.move?.args?.text === "PRIVATE_PHONE_PERSON_ACTION")');
     assert.equal((await command(agentRoot, agentEnv, ['status']).done).code, 0, 'the native machine fulfils the ordered phone request while the agent keeps working');
     const exported = await command(box.root, personEnv, ['export']).done;
@@ -192,7 +194,7 @@ test('same-user agents never act as their person while the phone approves native
     await chrome.waitFor("[...document.querySelectorAll('.phone-approval')].some(node => node.textContent.includes(" + JSON.stringify(pa.id) + '))');
     const before = box.calls.filter(call => call.path.endsWith('/authorize')).length;
     assertNoPersonPower(box.root); assertNoPersonPower(box.env.HOME);
-    await chrome.evaluate("[...document.querySelectorAll('.phone-approval')].find(node => node.textContent.includes(" + JSON.stringify(pa.id) + ')).querySelector("button").click()');
+    await chrome.click("[...document.querySelectorAll('.phone-approval')].find(node => node.textContent.includes(" + JSON.stringify(pa.id) + ')).querySelector("button")');
     assert.equal((await revoke.done).code, 0);
     assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, before + 1, 'one tap issues one grant');
     const execution = box.transit.findLast(record => record.path.endsWith('/execute'));
@@ -209,7 +211,7 @@ test('same-user agents never act as their person while the phone approves native
     await chrome.waitFor("[...document.querySelectorAll('.phone-approval')].some(node => node.textContent.includes(" + JSON.stringify(target) + '))');
     const before = box.calls.filter(call => call.path.endsWith('/authorize')).length;
     assertNoPersonPower(box.root); assertNoPersonPower(box.env.HOME);
-    await chrome.evaluate("[...document.querySelectorAll('.phone-approval')].find(node => node.textContent.includes(" + JSON.stringify(target) + ')).querySelector("button").click()');
+    await chrome.click("[...document.querySelectorAll('.phone-approval')].find(node => node.textContent.includes(" + JSON.stringify(target) + ')).querySelector("button")');
     assert.equal((await revoke.done).code, 0);
     assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, before + 1);
     assert.deepEqual(JSON.parse(readFileSync(machineFile)).devices.map(device => device.deviceId), [machine.devices[0].deviceId],

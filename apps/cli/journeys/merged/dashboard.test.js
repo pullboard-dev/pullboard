@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-journey The first-run Dashboard teaches the loop on an empty board and gives way to the usual Dashboard as work lands [N26,N38]. */
 import assert from 'node:assert/strict';

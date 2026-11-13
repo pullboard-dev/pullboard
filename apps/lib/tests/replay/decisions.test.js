@@ -45,14 +45,14 @@ const DECISIONS = [
 /** Open a source board and two native SQLite replicas with divergent ambient clocks. */
 function decisionCopies(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-row-decision-replay-'));
-  const source = openBoard(join(directory, 'source.sqlite'), { now: () => new Date('2026-10-08T12:00:00.000Z') });
+  const source = openBoard(':memory:', { now: () => new Date('2026-10-08T12:00:00.000Z') });
   store.register(source, { lane: 'coordinator', path: '/fixture' });
   store.register(source, { lane: 'web', path: '/fixture/web-1' });
   store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Unchanged fixture item' });
   const initial = exportBoard(source);
   const copies = ['person-shell', 'plain-shell'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-08T${index + 14}:00:00.000Z`) };
-    const board = openBoard(join(directory, `${name}.sqlite`), clock);
+    const board = openBoard(':memory:', clock);
     importBoard(board, initial);
     return board;
   });

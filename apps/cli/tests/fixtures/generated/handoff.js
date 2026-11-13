@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
 import { openBoard } from '../../../../lib/index.js';
 import { events } from '../../../../../packages/store/index.js';
+import { fixtureMachineSettings } from '../testkit.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { fixtureAdd } from '../testkit.js';
 import {
@@ -28,6 +29,8 @@ export async function submitHandoffEventContract(t) {
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture Model';
   sandbox.env.TMPDIR = sandbox.dir; // Keep the worker path canonical on macOS's /var alias.
+  // The queued native handoff worker is the controller-era path this contract observes; pull would offer it to no runner [#6577].
+  fixtureMachineSettings(sandbox.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const box = helpers.project('true', sandbox);
   let id;
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');

@@ -237,13 +237,15 @@ function gapReach(index, gap, to, end) {
 }
 
 /** Preserve the Dashboard's event-observed seat cohort and union overlapping work, with building first. */
-function seatWindow(history, bounds) {
-  const joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
+function seatWindow(history, bounds, gone = new Map()) {
+  const advisors = new Set(), joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
   const index = historyIndex(history);
   for (const { event, at } of index.joins) {
     if (!(at <= bounds.end) || joined.has(event.event_by) || ['coordinator', 'board', 'person', 'clock'].includes(event.event_by)) continue;
     const detail = proofEventDetail(event);
-    if (detail.lane && detail.lane !== 'coordinator') joined.set(event.event_by, at);
+    // An advisor reads and drafts; it is never a builder, so it leaves the idle cohort and is counted on its own.
+    if (detail.lane === 'advisor') advisors.add(event.event_by);
+    else if (detail.lane && detail.lane !== 'coordinator') joined.set(event.event_by, at);
   }
   for (const agent of joined.keys()) {
     let latest = -Infinity;
@@ -344,12 +346,14 @@ function seatWindow(history, bounds) {
   }
   for (const [agent, joinAt] of joined) {
     const start = Math.max(bounds.start, joinAt);
+    // A seat whose session ended stops counting where it went gone: its quiet time afterwards is nobody's idle time.
+    const end = Math.min(bounds.end, gone.get(agent) ?? Infinity);
     const stays = (inWindow.get(agent) ?? []).filter(row => row.end > start);
-    if (!(last.get(agent) > bounds.start) && !stays.length) continue;
-    seats++; budget += Math.max(0, bounds.end - start);
+    if (!(end > start) || !(last.get(agent) > bounds.start) && !stays.length) continue;
+    seats++; budget += Math.max(0, end - start);
     const observed = (observations.get(agent) ?? []).sort((a, b) => a.at - b.at);
-    const points = [...new Set([start, bounds.end, ...stays.flatMap(row => [Math.max(start, row.start), Math.min(bounds.end, row.end)]),
-      ...observed.filter(row => row.at > start && row.at < bounds.end).map(row => row.at)])].sort((a, b) => a - b);
+    const points = [...new Set([start, end, ...stays.flatMap(row => [Math.max(start, row.start), Math.min(end, row.end)]),
+      ...observed.filter(row => row.at > start && row.at < end).map(row => row.at)])].sort((a, b) => a - b);
     let observation = 0, reason = 'unknown';
     for (let index = 1; index < points.length; index++) {
       const a = points[index - 1], b = points[index];
@@ -360,7 +364,7 @@ function seatWindow(history, bounds) {
     }
   }
   const idleMilliseconds = Math.max(0, budget - occupied), measured = unknownSeats.size === 0;
-  return { observedSeats: seats, unmeasuredSeats: unknownSeats.size,
+  return { observedSeats: seats, advisorSeats: advisors.size, unmeasuredSeats: unknownSeats.size,
     agentHours: measured ? budget / HOUR : null, idleHours: measured ? idleMilliseconds / HOUR : null,
     idleShare: measured ? comparisonRatio(idleMilliseconds, budget) : null,
     idleReasonHours: Object.fromEntries(IDLE_REASONS.map(reason => [reason, measured ? reasons[reason] / HOUR : null])),
@@ -368,14 +372,14 @@ function seatWindow(history, bounds) {
 }
 
 /** Project traffic and recorded stage time from the same event prefix, without consulting mutable item rows. */
-function comparisonWindow(history, prepared, bounds, stageReport) {
+function comparisonWindow(history, prepared, bounds, stageReport, gone) {
   const selected = historyIndex(history).counted.filter(({ at }) => at > bounds.start && at <= bounds.end).map(({ event }) => event);
   const submissions = selected.filter(event => event.event_kind === 'submit');
   const submittedItems = new Set(submissions.map(event => event.item_id).filter(id => id !== null && id !== undefined)).size;
   const landed = prepared.items.filter(item => item.mergeAt > bounds.start && item.mergeAt <= bounds.end).length;
   const rejections = selected.filter(event => event.event_kind === 'reject').length;
   const coordinatorShouts = selected.filter(event => event.event_kind === 'shout' && proofEventDetail(event).to === 'coordinator').length;
-  const seats = seatWindow(history, bounds);
+  const seats = seatWindow(history, bounds, gone);
   const stageMilliseconds = Object.fromEntries(Object.entries(COMPARE_STAGES).map(([name, key]) => [name, stageReport.milliseconds[key]]));
   const measuredStageMilliseconds = Object.values(stageMilliseconds).reduce((sum, value) => sum + value, 0);
   return { since: bounds.since, until: bounds.until, landed, ...seats,
@@ -400,8 +404,8 @@ function comparisonChange(current, previous) {
 }
 
 /** One canonical two-window JSON contract is shared by stats, the coordinator line and Dashboard composition. */
-export function projectWindowComparison(history, prepared, bounds, stageReports) {
-  const [previous, current] = bounds.map((rangeBounds, index) => comparisonWindow(history, prepared, rangeBounds, stageReports[index]));
+export function projectWindowComparison(history, prepared, bounds, stageReports, gone) {
+  const [previous, current] = bounds.map((rangeBounds, index) => comparisonWindow(history, prepared, rangeBounds, stageReports[index], gone));
   return { version: 1, available: true, durationMinutes: bounds[1].durationMinutes,
     bounds: '(since,until]', current, previous, change: comparisonChange(current, previous) };
 }

@@ -1,9 +1,9 @@
 import { itemFolderIdentity } from './item/folder/identity.js';
-import { seatFamily } from '../../../../packages/items/index.js';
+import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,
   dependencyLabel,
-} from '../../../../packages/items/index.js';
+} from '../../../../packages/items/light.js';
 /**
  * What every command shares and a read needs: the checkout's context, the board opened around one piece of work,
  * argument parsing and the one-line item format. It loads no gate, relay or landing module, so a read command that
@@ -17,14 +17,14 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { displayAgentName } from '../../../../packages/seats/index.js';
-import * as store from '../../../../packages/store/index.js';
+import { displayAgentName } from '../../../../packages/seats/light.js';
+import * as store from '../../../../packages/store/light.js';
 import {
   CONFIG_FILE,
   COORDINATOR,
   loadConfig,
-} from '../../../../packages/config/index.js';
-import { loadDoctrine } from '../../../../packages/doctrine/index.js';
+} from '../../../../packages/config/light.js';
+import { loadDoctrine } from '../../../../packages/doctrine/light.js';
 import {
   codeIsFromMain,
   differFromHead,
@@ -35,15 +35,15 @@ import {
   repoInfo,
   resolveCommit,
   tryGit,
-} from '../../../../packages/git/index.js';
-import { Refused } from '../../../../packages/kernel/index.js';
+} from '../../../../packages/git/light.js';
+import { Refused } from '../../../../packages/kernel/light.js';
 import {
   mainPolicy,
   policyAt,
   trunkRef,
-} from '../../../../packages/sandbox/index.js';
-import { familyIndex } from '../../../../packages/verify/index.js';
-import { MAIN_MERGE_LABEL } from '../../../../packages/merge/index.js';
+} from '../../../../packages/sandbox/light.js';
+import { familyIndex } from '../../../../packages/verify/read.js';
+import { MAIN_MERGE_LABEL } from '../../../../packages/merge/light.js';
 import { sessionRoute } from './route.js';
 
 /**
@@ -193,7 +193,7 @@ export function itemLine(item, name = (id) => id, mainMerge = false) {
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   const staleVerdict = item.item_verdict_state ? `  ${item.item_verdict_state.code}` : '';
   const hold = item.item_hold_reason ? `  held by ${name(item.item_hold_by)}: ${item.item_hold_reason}` : '';
-  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${item.item_stage})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
+  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${item.item_stage}${item.item_gate_runner === 'none' ? ', no runner' : ''})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
 }
 
 /** Format a stable agent id for human-facing CLI output. */
@@ -289,8 +289,17 @@ function writePolicySignature(ctx, ref) {
   return primary && local && runner ? JSON.stringify([primary, local, runner, exact]) : null;
 }
 
+/**
+ * Commands whose outcome never depends on accepted main's policy: they commit while the lander moves main, reading
+ * quarantine and family aliases lazily once, instead of refusing POLICY_SNAPSHOT_STALE after main's ref moved (#6036).
+ * Every other command, and any caller with no named command, keeps the full accepted-main snapshot.
+ */
+const MAIN_INDEPENDENT_WRITES = new Set(['claim', 'next', 'fact', 'release', 'shout', 'heartbeat', 'inbox', 'join', 'escalate', 'hold']);
+
 /** Scope accepted-source preparation to this CLI board; mutable family and approval facts stay live. */
 function installWritePolicy(ctx, board) {
+  const command = ctx.io?.relayCommand?.cliOperation;
+  const mainIndependent = MAIN_INDEPENDENT_WRITES.has(command);
   const names = ['quarantineEnabled', 'familyAliases', 'prepareWritePolicy'];
   const descriptors = names.map(name => Object.getOwnPropertyDescriptor(board, name));
   let quarantine, aliases, active;
@@ -315,6 +324,20 @@ function installWritePolicy(ctx, board) {
     };
     return frame;
   }
+  /** A main-independent write pins no accepted-main snapshot, so main moving never refuses or retries it [#6036]. */
+  function unpinned() {
+    const frame = {
+      /** Nothing was pinned, so nothing can go stale. */
+      current() { return true; },
+      /** No accepted-main source is judged by this command. */
+      assertCurrent() {},
+      /** Policy inputs stay lazy and are read at most once for this command. */
+      enter() { active = frame; },
+      /** Never retain this frame across writes. */
+      leave() { if (active === frame) active = undefined; },
+    };
+    return frame;
+  }
   /** Preserve lazy read behavior outside a prepared write, including original refusal order. */
   const readQuarantine = () => {
     if (active?.quarantine !== undefined) return active.quarantine;
@@ -328,6 +351,7 @@ function installWritePolicy(ctx, board) {
     return aliases ??= familyIndex(declaredFamilies(ctx.info.root));
   } });
   Object.defineProperty(board, 'prepareWritePolicy', { configurable: true, enumerable: false, value() {
+    if (mainIndependent) return unpinned();
     let preparedContext;
     try { preparedContext = ctx.info.commonDir && ctx.info.gitDir ? ctx : { ...ctx, info: repoInfo(ctx.info.root) }; }
     catch { return fallback(); }
@@ -358,7 +382,7 @@ function installWritePolicy(ctx, board) {
       current,
       /** Refuse a mid-transaction source change without invoking Git or retrying arbitrary work. */
       assertCurrent() {
-        if (!current()) throw new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed during this write; retry the command against current main');
+        if (!current()) throw new Refused('POLICY_SNAPSHOT_STALE', `accepted policy changed during this write (${ref} moved); retry the command against current main`);
       },
       /** Activate only after the pre-work source comparison succeeds under BEGIN. */
       enter() { active = frame; },
@@ -376,6 +400,8 @@ function installWritePolicy(ctx, board) {
 
 /** Run work on an opened board with the same caller, quarantine, event and close lifecycle. */
 export function withOpenedBoard(ctx, work, board) {
+  board.reviewIndependence = ctx.config?.review?.independence ?? 'off'; // review.independence, a connection-local setting read by the verifier identity checks.
+  board.reviewExcludeEarlierHolders = ctx.config?.review?.excludeEarlierHolders === true; // review.excludeEarlierHolders, read by the reservation guards.
   const restorePolicy = installWritePolicy(ctx, board);
   const firstEvent = board.emittedEvents?.length ?? 0;
   /** Forward committed events before releasing either synchronous or asynchronous work. */
@@ -412,7 +438,8 @@ export function withOpenedBoard(ctx, work, board) {
  */
 export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, readers = store) {
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
-  const seat = environmentAgent(ctx.info.root, board);
+  // A seat joined over the served API acts as itself at the board root, which has no worktree of its own [P7].
+  const seat = environmentAgent(ctx.info.root, board) ?? (ctx.io.remoteAgent ? readers.agentById(board, ctx.io.remoteAgent) : null);
   if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);

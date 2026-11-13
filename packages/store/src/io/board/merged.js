@@ -28,6 +28,11 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
   }
   atomic(board, () => {
     const item = itemById(board, id);
+    // A second merge writes nothing for the same commit and refuses for another, so a landing is recorded once.
+    if (item.item_merged_commit) {
+      if (item.item_merged_commit === commit) return;
+      throw new Refused('ALREADY_MERGED', `item #${id} was merged as ${item.item_merged_commit}; it cannot be merged again as ${commit}`);
+    }
     if (!reason && item.item_status !== 'verified') {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }

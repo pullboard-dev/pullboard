@@ -127,6 +127,7 @@ test('next answers within sixty seconds on a generated private SQLite board of c
   assert.ok(counts.item >= 1900 && counts.agent >= 1200 && counts.event >= 92000 && counts.shout >= 44000);
   const bin = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
   const started = performance.now();
+  // Process-level case, kept: the sixty-second wall-clock answer is measured on a real command.
   // Budget: #1811 requires the real command to answer or refuse within sixty seconds, excluding fixture setup.
   const phaseLines = [];
   const result = await runFixtureChildAsync(process.execPath, [bin, 'next', '--build', '--json'], {
@@ -178,6 +179,7 @@ try {
 } finally { progress.stop(); await monitor.close(); db.close(); }
 `);
   const chunks = [], started = performance.now();
+  // Process-level case, kept: a real child blocks synchronously while the parent watches the clock.
   // Budget: the private synchronous phase is twelve seconds; this outer fixture timeout only drains a broken child.
   const child = runFixtureChildAsync(process.execPath, [files.root + '/phase.mjs'], {
     env: process.env, timeout: 30_000,

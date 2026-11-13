@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/baselines/lints/shim-counts.json packages/codemap/src/io/cell/scripts/lints.js packages/kernel/index.js packages/kernel/src/logic/refused.js */
 /** Cell-lint and shim ratchets count main and the candidate at check time; no committed baseline must match source [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

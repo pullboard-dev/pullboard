@@ -6,8 +6,8 @@ export const EVENT_LOG_VERSION = 1;
 /** Signed-person history requires tools that understand its authority stamps [E22]. */
 export const SIGNED_EVENT_LOG_VERSION = 2;
 
-/** Maximum time a board connection waits for another process to release SQLite's lock. */
-export const BOARD_BUSY_TIMEOUT_MS = 10_000;
+/** Maximum time a board connection waits for another process to release SQLite's lock; defined with the read-only opener that uses it. */
+export { BOARD_BUSY_TIMEOUT_MS } from "../read/light.js";
 
 /** The board's PRAGMA user_version once its triggers are in: losing one after that is news. */
 export const SCHEMA_VERSION = 3;

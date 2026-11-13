@@ -11,8 +11,8 @@ import {
   readdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { repoInfo } from '../../../../git/index.js';
-import { Refused } from '../../../../kernel/index.js';
+import { repoInfo } from '../../../../git/light.js';
+import { Refused } from '../../../../kernel/light.js';
 
 /** Keep the shared marker and its recovery evidence beside this repository's board. */
 export function gitSyncFiles(root) {

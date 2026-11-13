@@ -34,7 +34,7 @@ function fixture(t) {
   mkdirSync(repo);
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'root');
-  const board = openBoard(join(directory, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: join(directory, 'main') });
   const me = store.register(board, { lane: 'core', path: repo, route: 'mid' });

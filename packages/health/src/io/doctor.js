@@ -9,6 +9,7 @@ import { tryGit } from '../../../git/index.js';
 import {
   submissionPaths,
   dependencySnapshots,
+  frozenCheck,
 } from '../../../sandbox/index.js';
 import {
   BLANKS,
@@ -235,6 +236,12 @@ function submissionProblems(db, root, checkAtCommit) {
       submissionPaths(root, item, item.item_commit, { mainCommit: proof?.policyCommit, dependencies: dependencySnapshots(db, item) });
     } catch (error) {
       problems.push(finding(error.code ?? 'SUBMISSION_POLICY', 'item #' + item.item_id + ': ' + (error.code === 'OUTSIDE_LANE' ? error.message : 'its committed submission policy or claim base cannot be checked'), 'ask the coordinator to restore the original policy and inspect this submission'));
+    }
+    // A frozen gate naming a test file the commit lacks can never run green: name it now instead of waiting on a worker (#4988).
+    const missing = [...new Set([...frozenCheck(item).matchAll(/(?:^|\s)(['"]?)([\w./-]+\.(?:test|spec)\.[cm]?js)\1(?=\s|$)/gu)].map(match => match[2]))].filter(file => tryGit(root, ['cat-file', '-e', `${item.item_commit}:${file}`]).status !== 0);
+    if (missing.length) {
+      problems.push(finding('GATE_FILE_MISSING', `item #${item.item_id} has a frozen gate naming ${missing.join(', ')}, which does not exist at ${item.item_commit}`, 'ask the coordinator to refreeze the item with a gate naming a file that exists'));
+      continue;
     }
     const check = checkAtCommit(root, item);
     if (check.state === 'unverified') problems.push(finding('CHECK_UNVERIFIED', 'item #' + item.item_id + ' has an unverified frozen ' + check.stage + ' at ' + item.item_commit + '; output digest: ' + check.report, 'restore the install or check environment, then rerun doctor'));

@@ -1,6 +1,5 @@
 /** One repository-owned wake timer; native audit admission remains entirely in the worker [C7]. */
 import {
-  spawn,
   execFileSync,
 } from 'node:child_process';
 import {
@@ -13,8 +12,6 @@ import {
   join,
 } from 'node:path';
 import {
-  closeSync,
-  openSync,
   rmSync,
 } from 'node:fs';
 import {
@@ -26,6 +23,9 @@ import {
 import {
   withFileLock,
 } from '../../../../../outbox/index.js';
+import {
+  spawnReachable,
+} from '../../../../../jobs/index.js';
 import {
   readMainAudit,
   saveMainAudit,
@@ -57,16 +57,12 @@ export async function scheduleMainAudit(root, directory, dueAt, workerUrl) {
     }
     const token = randomUUID(), env = gitChildEnv(root);
     for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[key];
-    // The wake keeps its output, so a worker that dies mid-landing leaves its reason in worker.log [C7,#2913].
-    const log = openSync(wakeLogFile(directory), 'a', 0o600);
-    let child;
-    try {
-      child = spawn(process.execPath, [fileURLToPath(workerUrl), root, token, '--scheduled', '--wake-at', dueAt],
-        { cwd: root, env, detached: true, stdio: ['ignore', log, log] });
-      await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
-    } finally { closeSync(log); }
-    saveMainAudit(file, { version: 1, pid: child.pid, started: started(child.pid), token, dueAt });
-    child.unref();
+    // The wake keeps its output, so a worker that dies mid-landing leaves its reason in worker.log [C7,#2913]. It starts
+    // where it can reach the runners, whichever app ran this command (#5699).
+    const { pid } = await spawnReachable(process.execPath, [fileURLToPath(workerUrl), root, token, '--scheduled', '--wake-at', dueAt],
+      { cwd: root, env, log: wakeLogFile(directory) });
+    if (!pid) throw new Error('the scheduled wake did not start');
+    saveMainAudit(file, { version: 1, pid, started: started(pid), token, dueAt });
   });
 }
 
@@ -74,10 +70,13 @@ export async function scheduleMainAudit(root, directory, dueAt, workerUrl) {
 export async function waitMainAudit(directory, token, dueAt) {
   const due = Date.parse(dueAt);
   if (!Number.isFinite(due)) throw new Error('invalid audit wake time');
-  for (;;) {
-    const remaining = due - Date.now();
-    if (remaining <= 0) break;
-    await pause(Math.min(remaining, 2147483647));
+  // Sleep the span read once, not until a re-read clock says so: a process that inherits a frozen or stepped Date
+  // (a preload that pins it) would otherwise wait forever, a detached timer nobody can end [C7].
+  let remaining = due - Date.now();
+  while (remaining > 0) {
+    const step = Math.min(remaining, 2147483647);
+    await pause(step);
+    remaining -= step;
   }
   return withFileLock(join(directory, 'timer.guard.sqlite'), () => {
     const file = join(directory, 'timer.json'), owner = readMainAudit(file);

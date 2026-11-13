@@ -104,3 +104,6 @@ description: Turn a client's ask into SPEC.md rows together with the person, one
 6. Read it back:
    - `pullboard spec view`
    - `pullboard spec show <id>`
+7. Ask the person to approve the rows:
+   - `pullboard view`
+   - Agents can't approve: `pullboard spec approve` is refused.

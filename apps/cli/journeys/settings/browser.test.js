@@ -17,6 +17,7 @@ import {
   relayClientFixture,
   relayFixtureChild,
 } from '../../tests/fixtures/relay/client.js';
+import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
 test('a passkey on the paired browser confirms a terminal-started person move once [E22,H16]', {
   skip: !findChromeExecutable() && 'Chrome is not installed', timeout: relayWorkBudgetMs(20),
@@ -37,7 +38,7 @@ test('a passkey on the paired browser confirms a terminal-started person move on
   await helpers.waitFor(() => { assert.equal(terminal.exitCode, null, terminal.stderrText); return terminal.stderrText.includes('this terminal is waiting'); },
     'the original SSH terminal waits for a passkey', relayWorkBudgetMs(5));
 
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   // A platform authenticator that reports the person present, as Touch ID does after a touch.
   await chrome.send('WebAuthn.enable', {});
@@ -46,13 +47,15 @@ test('a passkey on the paired browser confirms a terminal-started person move on
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
+  await chrome.waitFor('typeof data === "object" && !!data?.project', relayWorkBudgetMs(), "the paired board loads");
+  await chrome.click("document.querySelector('[data-tab=items]')");
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('PASSKEY_BROWSER_READY')");
 
   await chrome.waitFor("!!document.querySelector('#person-passkey-add')", relayWorkBudgetMs(), 'the page offers to add a passkey');
-  await chrome.evaluate("document.querySelector('#person-passkey-add').click()");
+  await chrome.click("document.querySelector('#person-passkey-add')");
   await chrome.waitFor("!!document.querySelector('[id^=person-confirm-]')", relayWorkBudgetMs(), 'the terminal-started move waits on the page');
-  assert.match(await chrome.evaluate("document.querySelector('#person-passkeys').textContent"), /Answer decision #\d+: Confirmed in the browser/u);
-  await chrome.evaluate("document.querySelector('[id^=person-confirm-]').click()");
+  assert.match(await chrome.stable("document.querySelector('#person-passkeys').textContent"), /Answer decision #\d+: Confirmed in the browser/u);
+  await chrome.click("document.querySelector('[id^=person-confirm-]')");
   await chrome.waitFor("!document.querySelector('[id^=person-confirm-]')", relayWorkBudgetMs(), 'one confirmation sends the move');
 
   const outcome = await terminal.closed;

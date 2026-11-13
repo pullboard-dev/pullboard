@@ -29,8 +29,8 @@ const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 const ROW_GATE = 'web/row-gate.test.js';
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function ok(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -66,7 +66,7 @@ export default async function* report(events) {
  * `gateCases` are the gate file's test lines: a passing case by default. `criterion` and `brief` are the item's bar, and
  * `files(dir)` returns more committed files, keyed by repo path, that the item's change never touches.
  */
-function submittedItem(gateCases = ["test('the row gate holds', () => {});"], { criterion = '1. The page shows a greeting [test].', brief = null, files = () => ({}) } = {}) {
+async function submittedItem(gateCases = ["test('the row gate holds', () => {});"], { criterion = '1. The page shows a greeting [test].', brief = null, files = () => ({}) } = {}) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   box.env.PULLBOARD_MODEL = 'fixture-model';
@@ -93,11 +93,11 @@ function submittedItem(gateCases = ["test('the row gate holds', () => {});"], { 
   commit(box, box.repo, 'chore: seed the spec-row gate fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  ok(box, builder, 'join', 'web');
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--route', 'mid',
-    '--criterion', criterion, ...(brief ? ['--brief', brief] : []), '--check', `${RUN} web/packet.test.js`, '--json').out);
+  await ok(box, builder, 'join', 'web');
+  const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--route', 'mid',
+    '--criterion', criterion, ...(brief ? ['--brief', brief] : []), '--check', `${RUN} web/packet.test.js`, '--json')).out);
   const id = added.item.item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name}`;\n");
   writeFileSync(join(builder, 'web/packet.test.js'), [
     "import assert from 'node:assert/strict';",
@@ -107,16 +107,16 @@ function submittedItem(gateCases = ["test('the row gate holds', () => {});"], { 
     '',
   ].join('\n'));
   commit(box, builder, 'feat(web): greet the visitor [G1]');
-  ok(box, builder, 'fact', String(id), 'note', "clause 1 [test]: web/packet.test.js 'clause 1: the page shows a greeting'");
+  await ok(box, builder, 'fact', String(id), 'note', "clause 1 [test]: web/packet.test.js 'clause 1: the page shows a greeting'");
   rmSync(marker, { force: true });
-  const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
+  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
-  const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
+  const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
   return { packet, ranRowGate: existsSync(marker), dir: box.dir, repo: box.repo, head: box.git(builder, 'rev-parse', 'HEAD').trim() };
 }
 
 test('clause 1: a submit for an item citing a spec row runs that row\'s gate test file in its recorded proof [V4,C7]', { timeout: 240_000 }, async (t) => {
-  const { packet, ranRowGate } = submittedItem();
+  const { packet, ranRowGate } = await submittedItem();
   assert.equal(ranRowGate, true, `submit ran ${ROW_GATE}, the gate of cited row G1`);
   const row = packet.clauses.find(clause => clause.id === 'G1');
   assert.ok(row, 'the packet lists the frozen G1 clause');
@@ -131,8 +131,8 @@ test('clause 1: a submit for an item citing a spec row runs that row\'s gate tes
 
 test('clause 2: a row gate run with only skipped cases, or none, leaves the spec-row clause unproved [V4,C7]', { timeout: 300_000 }, async (t) => {
   for (const [kind, cases] of [['all skipped', ["test('the row gate holds', { skip: true }, () => {});"]], ['zero cases', []]]) {
-    await t.test(`clause 2: ${kind}`, () => {
-      const { packet, ranRowGate } = submittedItem(cases);
+    await t.test(`clause 2: ${kind}`, async () => {
+      const { packet, ranRowGate } = await submittedItem(cases);
       assert.equal(ranRowGate, true, `submit still ran ${ROW_GATE}`);
       const row = packet.clauses.find(clause => clause.id === 'G1');
       assert.deepEqual(row.runs, [], `a ${kind} gate run proves nothing: ${JSON.stringify(row)}`);
@@ -156,7 +156,7 @@ function markedTest(dir, name, caseName) {
 const NAMED_FILE = ['clause names the file', 'case in the file the clause names', 'test cites the clause'];
 
 test('clause 1: submit runs the test file the frozen criterion names and the one the brief Test: list names, though the change never imports them [C7,V4]', { timeout: 240_000 }, async (t) => {
-  const { packet, dir } = submittedItem(undefined, {
+  const { packet, dir } = await submittedItem(undefined, {
     criterion: '1. The page shows a greeting, proved by web/named.test.js [test]. 2. The visitor sees a farewell [test].',
     brief: 'Files: web/greet.js\nTest:\n- web/brief.test.js',
     files: dir => ({ 'web/named.test.js': markedTest(dir, 'named', 'the named file holds'), 'web/brief.test.js': markedTest(dir, 'brief', 'the listed file holds') }),
@@ -200,7 +200,7 @@ function submitReceipts(repo, head) {
 }
 
 test('clause 1: the exact-head submit receipt runs a file the frozen criterion names, outside the affected selection, and names its cases though its worker report is lost [C7,V4]', { timeout: 240_000 }, async (t) => {
-  const { packet, dir, repo, head } = submittedItem(undefined, {
+  const { packet, dir, repo, head } = await submittedItem(undefined, {
     criterion: '1. The job folder stays while its job runs, proved by web/folder-live.test.js [test]. 2. The sweep keeps its floor, proved by web/sweep.test.js [test].',
     files: dir => ({ 'web/folder-live.test.js': unreportedTest(dir, 'a long job mid-run keeps its folder'),
       'web/sweep.test.js': markedTest(dir, 'sweep', 'the sweep keeps its floor') }),

@@ -1,9 +1,13 @@
-import { ensureFactIdentityIndexes } from "../../../../spec/index.js";
-import { missingFactIdentityIndexes } from "../../../../spec/index.js";
+import { ensureFactIdentityIndexes } from "../../../../spec/light.js";
+import { missingFactIdentityIndexes } from "../../../../spec/light.js";
 import { ensureGrantActivationIndex } from "../../../../state/light.js";
 import { missingGrantActivationIndex } from "../../../../state/light.js";
 import { ensureJobTables } from "./jobs.js";
+import { JOB_INDEX_NAMES } from "./jobs.js";
+import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { missingJobTables } from "./jobs.js";
+import { LEDGER_SCHEMA_SQL } from "./ledger.js";
+import { missingLedgerTable } from "./ledger.js";
 
 /**
  * The indexes and bounded reads behind the board's hot queries [C7]. Status, list, show, next, resume,
@@ -49,7 +53,7 @@ function missingSessionPeersIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingJobTables(db);
+  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingJobTables(db) || missingLedgerTable(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -58,6 +62,27 @@ export function ensureAdditiveIndexes(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   ensureJobTables(db);
+  db.exec(LEDGER_SCHEMA_SQL);
+}
+
+/**
+ * True when a hot index, an additive index or a job table is not installed, read without the legacy hand-off check.
+ * Why: a drifted board gains only CREATE IF NOT EXISTS objects, never the hand-off adoption that rewrites rows [A5].
+ */
+export function missingAdditiveSchema(db) {
+  const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
+  return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, 'test_result', 'test_result_key'].every(installed);
+}
+
+/** Create the hot and additive indexes and the job tables, each IF NOT EXISTS, moving and deleting no row [A5]. */
+export function ensureAdditiveSchema(db) {
+  for (const sql of HOT_INDEXES) db.exec(sql);
+  ensureFactIdentityIndexes(db);
+  ensureGrantActivationIndex(db);
+  db.exec(SESSION_PEERS_SQL);
+  db.exec(JOB_SCHEMA_SQL);
+  db.exec(LEDGER_SCHEMA_SQL);
 }
 
 /**
@@ -70,6 +95,49 @@ export function ensureAdditiveIndexes(db) {
 export function eventsOfKinds(board, kinds) {
   if (!kinds.length) return [];
   return board.db.prepare(`SELECT * FROM event WHERE event_kind IN (${kinds.map(() => '?').join(', ')}) ORDER BY event_id`).all(...kinds);
+}
+
+/** Ids of the items merged since `fromAt`, from the kind index. */
+export function costLandedIds(board, fromAt) {
+  return board.db.prepare("SELECT DISTINCT item_id FROM event WHERE event_kind = 'merged' AND event_at >= ? AND item_id IS NOT NULL").all(fromAt).map(row => row.item_id);
+}
+
+/** One page of the usage, shared-usage and model events after `afterId`, oldest first. */
+export function costKindEvents(board, afterId, limit) {
+  return board.db.prepare("SELECT * FROM event WHERE event_kind IN ('usage', 'shared-usage', 'model') AND event_id > ? ORDER BY event_id LIMIT ?").all(afterId, limit);
+}
+
+/** The landing and review moves of these items. */
+export function costItemEvents(board, ids) {
+  if (!ids.length) return [];
+  return board.db.prepare(`SELECT * FROM event WHERE item_id IN (${ids.map(() => '?').join(', ')}) AND event_kind IN ('merged', 'submit', 'accept', 'reject', 'reopen')`).all(...ids);
+}
+
+/** The id and title of these items. */
+export function costItems(board, ids) {
+  if (!ids.length) return [];
+  return board.db.prepare(`SELECT item_id, item_title FROM item WHERE item_id IN (${ids.map(() => '?').join(', ')})`).all(...ids);
+}
+
+/** The newest event id, so an unchanged board can reuse an answer. */
+export function costRevision(board) {
+  return board.db.prepare('SELECT MAX(event_id) AS id FROM event').get().id ?? 0;
+}
+
+/**
+ * The events cost analytics reads for a window opening at `fromAt`: every usage, shared-usage and model event, plus the
+ * landing and review moves of items that landed since then. Indexed by kind and item, never the whole log.
+ *
+ * @param {any} board
+ * @param {string} fromAt ISO time the window opens
+ * @returns {any[]}
+ */
+export function costEvents(board, fromAt) {
+  const events = [];
+  for (let after = 0, page = costKindEvents(board, 0, 5000); page.length; page = costKindEvents(board, after, 5000)) { events.push(...page); after = page.at(-1).event_id; }
+  const ids = costLandedIds(board, fromAt);
+  for (let at = 0; at < ids.length; at += 400) events.push(...costItemEvents(board, ids.slice(at, at + 400)));
+  return events.sort((a, b) => a.event_id - b.event_id);
 }
 
 /**

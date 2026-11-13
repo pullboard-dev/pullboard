@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/test/action/reporter.js */
 /** Exercise cache exchange through real worker capsules in two isolated SSH fixture machines [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -59,7 +59,7 @@ import { stable } from '../lib/stable.js';
 test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE'); assert.equal(stable, 1); });
 `);
   }
-  if (composition) writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node packages/gate/src/io/run/tests.js test/probe.test.js test/stable.test.js' }) + '\n');
+  if (composition) writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js test/probe.test.js test/stable.test.js' }) + '\n');
   const env = { ...process.env, HOME: controller, PULLBOARD_HOME: controller,
     PULLBOARD_MACHINE_HOME: join(controller, '.pullboard'), PATH: `${bin}${delimiter}${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -89,7 +89,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'),
       requests: join(home, 'requests.jsonl'), nodeCommand: process.execPath,
       nodeOptions: differentLanguage ? `--import=${pathToFileURL(languagePreload).href}` : '' });
-    const command = `node packages/gate/src/io/run/tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}${customReporter ? ' --test-reporter=./reporter.mjs' : ''}`;
+    const command = `node apps/cli/src/io/run/tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}${customReporter ? ' --test-reporter=./reporter.mjs' : ''}`;
     const checkedSource = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
     const result = await runOnRunnerAsync(repo, command, {
       runner: { host, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') },

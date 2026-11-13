@@ -51,6 +51,7 @@ const fixture = repo();
 
 /** Open a real board file and hand its SQLite handle to the body. */
 async function withBoard(name, body) {
+  // @pullboard-board-file persistence: a killed driver process and the resumed one share this board file
   const board = openBoard(join(files.root, `${name}.sqlite`));
   try { return await body(board.db); } finally { closeBoard(board); }
 }

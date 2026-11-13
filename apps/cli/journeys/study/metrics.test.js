@@ -221,6 +221,7 @@ test('case study frozen timings require canonical source and exact frozen-comman
 
 test('case study executable regenerates the report from the selected real sources [C7,D3]', t => {
   const { root, boardPath } = fixture(t), output = join(root, '.git', 'cli-report');
+  // Process-level: the case-study executable is a standalone script run as its own process; it is not the pullboard CLI.
   const result = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../../../docs/tools/case-study.js'),
     '--root', root, '--board', boardPath, '--from', START, '--to', END, '--output', output], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
@@ -238,6 +239,7 @@ test('case study reads every SQLite event across collection and multiple bounded
     + `const db=new DatabaseSync(${JSON.stringify(boardPath)},{readOnly:true});let n=0;\n`
     + 'try {for(const event of eventRows(db)){if(event.event_id!==++n)throw new Error("lost event order");if(n%64===0)globalThis.gc();}}finally{db.close();}\n'
     + 'process.stdout.write(JSON.stringify({n}));\n';
+  // Process-level: the node flags --expose-gc and --input-type need a fresh process with a garbage collector it can call.
   const result = runFixtureChild(process.execPath, ['--expose-gc', '--input-type=module', '--eval', program], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   assert.deepEqual(JSON.parse(result.stdout), { n: entries.length });

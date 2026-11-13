@@ -10,7 +10,7 @@ import { landingShardExecution } from '../../../src/io/shards/landing.js';
 import { planWrapper } from '../../../src/io/shards/landing.js';
 import { PROOF_MAX_SHARDS } from '../../../src/io/shards/proof.js';
 
-const RUNNER = 'node packages/gate/src/io/run/tests.js';
+const RUNNER = 'node apps/cli/src/io/run/tests.js';
 const ID = '11111111-2222-4333-8444-555555555555';
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const filesCommand = files => `${RUNNER} ${files.map(file => quote('./' + file)).join(' ')}`;

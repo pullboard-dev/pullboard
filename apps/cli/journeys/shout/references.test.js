@@ -46,7 +46,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const box = machine();
   const alpha = project(box, 'alpha');
   const beta = project(box, 'beta');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
   const first = box.git(alpha.web, 'rev-parse', 'HEAD');
   writeFileSync(join(alpha.web, 'web', 'greeting.html'), '  hello <b>there</b>\n    second line\n');
@@ -64,16 +64,16 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const now = `web/greeting.html:1-2@${second.slice(0, 12)}`;
   const long = `web/long.txt:1-100@${second}`;
   const first_ = `#1 was ${was}, is ${now}; see ${long}.`;
-  box.run(alpha.web, 'shout', 'all', first_);
-  box.run(alpha.web, 'fact', '1', 'note', 'review the committed greeting', '--ref', `web/greeting.html:1-2@${second}`);
-  box.run(alpha.web, 'shout', 'all', 'missing commit: web/greeting.html:1@');
-  box.run(alpha.web, 'shout', 'all', `missing path: :1@${second.slice(0, 7)}`);
+  await box.inProcess(alpha.web, 'shout', 'all', first_);
+  await box.inProcess(alpha.web, 'fact', '1', 'note', 'review the committed greeting', '--ref', `web/greeting.html:1-2@${second}`);
+  await box.inProcess(alpha.web, 'shout', 'all', 'missing commit: web/greeting.html:1@');
+  await box.inProcess(alpha.web, 'shout', 'all', `missing path: :1@${second.slice(0, 7)}`);
   const spaced = `web/note.txt:1@${second.slice(0, 7)}`;
   const odd = `absolute /${was} and spaced web/my ${spaced}`;
-  box.run(alpha.web, 'shout', 'all', odd);
-  box.run(alpha.web, 'shout', 'all', `plus x+${spaced}`);
-  box.run(alpha.web, 'shout', 'all', spaced);
-  box.run(alpha.web, 'shout', 'all', `web/one two three four five ${spaced}`);
+  await box.inProcess(alpha.web, 'shout', 'all', odd);
+  await box.inProcess(alpha.web, 'shout', 'all', `plus x+${spaced}`);
+  await box.inProcess(alpha.web, 'shout', 'all', spaced);
+  await box.inProcess(alpha.web, 'shout', 'all', `web/one two three four five ${spaced}`);
   // A file only the working tree has, which no commit holds.
   writeFileSync(join(alpha.repo, 'draft.txt'), 'not committed\n');
   const view = await startView(box);
@@ -173,7 +173,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.equal((await ask(was, { key: 'wrong' }))[0], 401, 'and nothing without the secret');
 
     // A refused reference says why where its code would be.
-    box.run(alpha.web, 'shout', 'all', `gone: web/greeting.html:7@${sha}`);
+    await box.inProcess(alpha.web, 'shout', 'all', `gone: web/greeting.html:7@${sha}`);
     await page.run('refresh()');
     await page.click({ code: `web/greeting.html:7@${sha}`, before: 'gone: ' });
     assert.ok(page.show('feed').includes(`<span class="code no" role="status">[NO_LINES] web/greeting.html has 1 lines at ${sha}</span>`));
@@ -216,17 +216,17 @@ test('committed shout and fact references stay local, expand safely at phone and
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run code-reference viewport checks.');
   const box = machine();
   const alpha = project(box, 'local-code');
-  box.run(alpha.repo, 'add', 'web', 'Referenced source', '--specs', 'G1');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Referenced source', '--specs', 'G1');
   mkdirSync(join(alpha.web, 'web'), { recursive: true });
   const sourceText = ['const localOnlyFixture = 42;', ...Array.from({ length: 99 }, (_, index) => `export const row${index + 1} = ${index + 1};`)].join('\n') + '\n';
   writeFileSync(join(alpha.web, 'web', 'reference.js'), sourceText);
   build(box, alpha, 1, 'submitted.txt');
   const sha = box.git(alpha.web, 'rev-parse', 'HEAD');
   const ref = `web/reference.js:1-100@${sha}`;
-  box.run(alpha.web, 'fact', '1', 'note', 'review the source block', '--ref', ref);
-  box.run(alpha.web, 'shout', 'all', `source: ${ref}`);
-  box.run(alpha.web, 'shout', 'all', 'missing commit: web/reference.js:1@deadbee');
-  box.run(alpha.web, 'shout', 'all', `missing path: :1@${sha.slice(0, 7)}`);
+  await box.inProcess(alpha.web, 'fact', '1', 'note', 'review the source block', '--ref', ref);
+  await box.inProcess(alpha.web, 'shout', 'all', `source: ${ref}`);
+  await box.inProcess(alpha.web, 'shout', 'all', 'missing commit: web/reference.js:1@deadbee');
+  await box.inProcess(alpha.web, 'shout', 'all', `missing path: :1@${sha.slice(0, 7)}`);
 
   const presentation = JSON.stringify(relayPresentation(alpha.repo, {}, RELAY_PRESENTATION_PORTS));
   assert.ok(presentation.includes('"path":"web/reference.js"') && presentation.includes('"commit":"' + sha + '"'), 'relay projection carries the typed reference');

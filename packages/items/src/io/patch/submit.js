@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto';
 /** Claimed companions bind their original author source to actual native composed proof [C7,V4,H16]. */
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gitSpawnSync } from "../../../../git/index.js";
 import { cleanGitEnvironment } from "../../../../git/index.js";
@@ -15,6 +13,7 @@ import { validateItemPatchInput } from "./review.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
 import { claimedItemRoot } from '../claim.js';
+import { scratchFolder } from '../../../../config/index.js';
 
 /** The claimed item's validated checkout, offered to the engine ports through the items front door [C7]. */
 export { claimedItemRoot };
@@ -139,10 +138,15 @@ export function sealItemPatchSubmit(board, id, options) {
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
     for (const receipt of receipts) board.nativePorts.quarantine.sealQuarantineVerdict(board, receipt);
     const { policyAt, frozenCheck } = board.enginePorts.sandboxPolicyReads;
-    const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
-    const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
-      check: frozenCheck(item), commit: binding.commit });
-    const phases = plan.phases.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
+    // A pulled gate's plan is the one main's tooling made on the runner, read from the receipt the board recorded;
+    // re-planning here with this host's tooling would judge another plan than the one that ran [P7].
+    const pulled = options.pulledPlan ?? null;
+    const plan = pulled ? { check: frozenCheck(item), proofFiles: pulled.proofFiles, selection: { full: false, files: [] }, deferred: false, deferSelection: false }
+      : submitGatePlan(root, submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config),
+        { base: item.item_claim_head, trunk: options.policyCommit, check: frozenCheck(item), commit: binding.commit });
+    const phases = pulled ? pulled.phases.map(({ role, command }) => ({ role, command }))
+      : plan.phases.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
+    if (pulled && Boolean(plan.check) !== (phases[0]?.role === 'criterion')) throw new Error('missing or substituted required phase');
     if (JSON.stringify(binding.phases) !== JSON.stringify(phases)
       || receipts.some((receipt, index) => receipt.proof.submitPhase !== phases[index]?.role || receipt.command !== phases[index]?.command)
       || plan.check && !receiptBlockingGreen(receipts[0])) throw new Error('missing or substituted required phase');
@@ -161,14 +165,17 @@ export function sealItemPatchSubmit(board, id, options) {
   return options;
 }
 
-/** Execute in a native temporary worktree sharing the real receipt store; always remove only this owned scratch. */
+/** Execute in a native temporary worktree sharing the real receipt store; always remove only this owned scratch, after any diagnostics the work left running. */
 export async function withItemPatchSubmit(root, binding, work) {
   if (!binding) return work(root);
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-companion-submit-')));
+  const directory = realpathSync(scratchFolder('pullboard-companion-submit-'));
   const checkout = join(directory, 'repo');
   try {
     git(root, ['worktree', 'add', '--detach', checkout, binding.commit]);
-    return await work(checkout);
+    const result = await work(checkout);
+    // A red gate's flake diagnostics run after its verdict and still ask for a slot and a checkout under this root: keep the scratch until they settle.
+    await result?.diagnosing?.catch?.(() => {});
+    return result;
   } finally {
     // A post-checkout hook may fail after Git registered the worktree: inspect native registration, not exit status.
     const registered = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0').includes(`worktree ${checkout}`);

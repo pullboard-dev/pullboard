@@ -36,7 +36,7 @@ test('clause 1: a static row green on main and red in a file the batch changed r
   const refusal = landingStaticRefusal(root, base, RED, 'node apps/cli/src/io/static/checks.js');
   assert.ok(refusal instanceof Refused);
   assert.equal(refusal.code, 'LAND_STATIC_RED');
-  assert.match(refusal.message, /node bin\/static-style-checks\.js/u);
+  assert.match(refusal.message, /node apps\/cli\/src\/io\/static\/checks\.js/u);
   assert.match(refusal.message, /web\/b\.txt:1: collides with web\/a\.txt/u);
   assert.doesNotMatch(refusal.message, /web\/main\.txt/u, 'a row in a file the batch left alone is main\'s own');
   assert.deepEqual(refusal.files, ['web/b.txt']);

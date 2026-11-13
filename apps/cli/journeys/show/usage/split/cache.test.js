@@ -46,7 +46,7 @@ function document(result) {
   return JSON.parse(result.out ?? result.stdout);
 }
 
-test('Codex differences inclusive input and cached reads independently, preserving absent writes [N2]', t => {
+test('Codex differences inclusive input and cached reads independently, preserving absent writes [N2]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.sandbox();
@@ -88,7 +88,7 @@ test('Codex differences inclusive input and cached reads independently, preservi
   assert.equal(resetDelta.outputTokens, 5);
 });
 
-test('Claude fresh, cache reads and cache writes retain native meanings and deduplicate updates [N2]', () => {
+test('Claude fresh, cache reads and cache writes retain native meanings and deduplicate updates [N2]', async () => {
   const rows = parsed('claude', [claude('one', 100, 60, 20, 10), claude('one', 110, 70, 25, 15)]);
   assert.equal(rows.length, 1);
   assert.deepEqual(split(rows[0]), [110, 70, 25]);
@@ -98,7 +98,7 @@ test('Claude fresh, cache reads and cache writes retain native meanings and dedu
   assert.deepEqual(split(parsed('claude', [claude('legacy', 7, undefined, undefined)])[0]), [7, null, null]);
 });
 
-test('legacy usage retains exact replay shape and new splits require their replay floor [N2,H16]', () => {
+test('legacy usage retains exact replay shape and new splits require their replay floor [N2,H16]', async () => {
   const legacy = { model: 'legacy', inputTokens: 12, outputTokens: 3, wallMs: 4,
     knownInputTokens: 12, knownOutputTokens: 3, unknownReasons: [] };
   assert.equal(JSON.stringify(sanitizedUsage([legacy], COST_ENGINE)[0]), JSON.stringify(legacy));
@@ -114,13 +114,13 @@ test('legacy usage retains exact replay shape and new splits require their repla
   assert.throws(() => sanitizedUsage([{ ...legacy, freshInputTokens: 0 }]), error => error.code === 'USAGE_RECORD');
 });
 
-for (const provider of ['codex', 'claude']) test(`clause 1: synthetic ${provider} usage reaches the item's native show and stats split [N2]`, t => {
+for (const provider of ['codex', 'claude']) test(`clause 1: synthetic ${provider} usage reaches the item's native show and stats split [N2]`, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Usage split fixture', '--criterion', 'Usage split is visible.',
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Usage split fixture', '--criterion', 'Usage split is visible.',
     '--brief', 'Files: web/ready\nTest: synthetic usage is visible in native item and stats reads\nChange: seed a lightweight provider usage fixture.',
-    '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
+    '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json'))).item.item_id;
   const identity = 'input-split-fixture-' + provider;
   const directory = provider === 'codex' ? join(box.dir, 'codex', 'sessions') : join(box.dir, 'claude', 'projects', 'fixture');
   mkdirSync(directory, { recursive: true });
@@ -133,29 +133,29 @@ for (const provider of ['codex', 'claude']) test(`clause 1: synthetic ${provider
   document(runFixtureChild(process.execPath, [helpers.BIN, 'claim', String(id), '--json'], { cwd: box.web, env, encoding: 'utf8' }));
   appendFileSync(file, JSON.stringify(provider === 'codex' ? codex(160, 100, 18) : claude('spent', 20, 40, 5, 8)) + '\n');
   document(runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--reason', 'OTHER', '--note', 'finish synthetic usage fixture', '--no-next', '--json'], { cwd: box.web, env, encoding: 'utf8' }));
-  const shown = document(box.run(box.repo, 'show', String(id), '--json'));
-  const stats = document(box.run(box.repo, 'stats', '--json'));
+  const shown = document((await box.runLocal(box.repo, 'show', String(id), '--json')));
+  const stats = document((await box.runLocal(box.repo, 'stats', '--json')));
   const expected = provider === 'codex' ? [20, 40, null] : [20, 40, 5];
   assert.deepEqual(split(shown.usage), expected);
   assert.deepEqual(split(stats.usage.items.find(row => row.item === id)), expected);
   assert.equal(shown.usage.inputTokens, provider === 'codex' ? 60 : 65);
   assert.equal(shown.usage.outputTokens, 8);
-  assert.match(box.run(box.repo, 'show', String(id), '--detail').out, /fresh 20, cached read 40, cached write (?:unknown|5)/u);
-  assert.match(box.run(box.repo, 'stats').out, /fresh 20, cached read 40, cached write (?:unknown|5)/u);
+  assert.match((await box.runLocal(box.repo, 'show', String(id), '--detail')).out, /fresh 20, cached read 40, cached write (?:unknown|5)/u);
+  assert.match((await box.runLocal(box.repo, 'stats')).out, /fresh 20, cached read 40, cached write (?:unknown|5)/u);
   const publicData = JSON.stringify({ shown, stats });
   assert.equal(publicData.includes(identity), false);
   assert.equal(publicData.includes(file), false);
 });
 
-test('clause 1: a supported historical usage record without splits shows unknown through native item and stats reads [N2,H16]', t => {
+test('clause 1: a supported historical usage record without splits shows unknown through native item and stats reads [N2,H16]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Legacy numeric usage', '--criterion', 'Legacy split remains unknown.',
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Legacy numeric usage', '--criterion', 'Legacy split remains unknown.',
     '--brief', 'Files: web/ready\nTest: historical usage without split counters displays unknown in item and stats reads\nChange: seed a supported historical usage record.',
-    '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
-  const agent = document(box.run(box.web, 'whoami', '--json')).id;
+    '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json'))).item.item_id;
+  document((await box.runLocal(box.web, 'claim', String(id), '--json')));
+  const agent = document((await box.runLocal(box.web, 'whoami', '--json'))).id;
   // @pullboard-board-file journey: this isolated board receives only the supported historical recordUsage operation.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -164,10 +164,10 @@ test('clause 1: a supported historical usage record without splits shows unknown
       { model: 'legacy', inputTokens: 12, outputTokens: 3, wallMs: 4, knownInputTokens: 12, knownOutputTokens: 3, unknownReasons: [] },
     ] });
   } finally { store.closeBoard(board); }
-  const shown = document(box.run(box.repo, 'show', String(id), '--json'));
-  const stats = document(box.run(box.repo, 'stats', '--json'));
+  const shown = document((await box.runLocal(box.repo, 'show', String(id), '--json')));
+  const stats = document((await box.runLocal(box.repo, 'stats', '--json')));
   assert.deepEqual(split(shown.usage), [null, null, null]);
   assert.deepEqual(split(stats.usage.items.find(row => row.item === id)), [null, null, null]);
   assert.equal(shown.usage.inputTokens, 12);
-  assert.match(box.run(box.repo, 'show', String(id), '--detail').out, /fresh unknown, cached read unknown, cached write unknown/u);
+  assert.match((await box.runLocal(box.repo, 'show', String(id), '--detail')).out, /fresh unknown, cached read unknown, cached write unknown/u);
 });

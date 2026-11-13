@@ -139,7 +139,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const box = helpers.project('true');
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  const joined = fixtureJoin(box.run, second, 'web', '--route', 'strong', '--model', 'Fixture');
+  const joined = await fixtureJoin(box.runLocal, second, 'web', '--route', 'strong', '--model', 'Fixture');
   assert.equal(joined.code, 0, joined.err + joined.out);
   // @pullboard-board-file journey: the CLI and these fixture claims share this private board.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -155,7 +155,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   writeFileSync(join(box.web, 'web', 'shared.js'), 'work\n');
   // Maintenance observes the holder's worktree; next routes from that record without running Git there (#2427).
   recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
-  const next = box.run(second, 'next', '--build', '--json');
+  const next = await box.runLocal(second, 'next', '--build', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).item.item_id, free, `#${blocked} must wait while #${changed} edits web/shared.js`);
   const { createServer } = await import('node:http');
@@ -184,6 +184,6 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
   const updated = await (await apiFetch(api, `${path}?since=${initial.state.sequence}`)).json();
   assert.deepEqual(updated.delta.replace.claimOverlaps[changed].overlaps[0].files, ['web/shared.js']);
-  const submit = box.run(box.web, 'submit', String(changed));
+  const submit = await box.runLocal(box.web, 'submit', String(changed));
   assert.match(submit.err, new RegExp(`#${changed} overlaps #${free} .*web/shared\\.js`));
 });

@@ -48,6 +48,7 @@ function largeBoard(t) {
   runFixtureGit(['add', '-A'], { cwd: root, env });
   runFixtureGit(['commit', '-qm', 'Seed join fixture'], { cwd: root, env });
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file persistence: join warms and reopens one real board file, the path the claim measures.
   const board = openBoard(file);
   store.register(board, { lane: 'coordinator', path: root });
   store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Join claim fixture', criterion: 'A joined seat can claim this item.', specIds: ['H24'], check: 'true' });
@@ -66,6 +67,7 @@ function largeBoard(t) {
   for (let n = 0; n < 23_000; n++) shout.run(`core-${1 + n % 800}`, 'all', `Historical activity ${n}`, at);
   db.exec('COMMIT');
   db.close();
+  // @pullboard-board-file persistence: join warms and reopens one real board file, the path the claim measures.
   const warmed = openBoard(file);
   try { ensureProofCounters(warmed); } finally { store.closeBoard(warmed); }
   return { root, env };

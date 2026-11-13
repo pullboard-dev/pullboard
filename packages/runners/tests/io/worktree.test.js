@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { temporaryRepository } from '../../../../apps/cli/tests/fixtures/board/submit.js';
 import { temporaryDirectory } from '../../../../apps/cli/tests/fixtures/board.js';
@@ -15,6 +16,13 @@ import { createHostedItemFolder } from '../../index.js';
 import { hostedItemFolderPath } from '../../index.js';
 import { returnHostedBranch } from '../../index.js';
 import { runInHostedItemFolder } from '../../index.js';
+import { cachedTrunkPack } from '../../src/io/worktree.js';
+import { checkoutCandidate } from '../../../drive/index.js';
+import { boardEndpoint } from '../../../drive/index.js';
+import { boardTrunkPack } from '../../../drive/index.js';
+import { createApiHandler } from '../../../api/index.js';
+import { servedTrunkPack } from '../../index.js';
+import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
 
 const IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
 
@@ -94,4 +102,90 @@ test('a runner-hosted folder refuses an unregistered host, a non-item id and a r
   assert.throws(() => hostedItemFolderPath({ host: 'runner-a' }, '../7'), /item number/u);
   assert.throws(() => hostedItemFolderPath({ host: 'runner-a', builderRoot: '../escape' }, 7), /builder root/u);
   await assert.rejects(createHostedItemFolder({ host: 'runner-a' }, { itemId: 7, origin: '/repo', branch: '../main' }), /refuses ref/u);
+});
+
+test('#5932 clause 1: three pulled jobs fetching one trunk commit at once share one cached pack build on the coordinator [C7]', async t => {
+  const trunk = temporaryRepository(t, 'pullboard-trunk-pack-');
+  const scratch = temporaryDirectory('pullboard-trunk-pack-runners-');
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  await git(trunk, 'tag', '-a', 'v0.0.1', '-m', 'release');
+  const commit = await git(trunk, 'rev-parse', 'main');
+  let builds = 0, asked = 0;
+  const pack = async wanted => {
+    asked += 1;
+    const served = await cachedTrunkPack(trunk, wanted, { dir: join(scratch, 'packs') });
+    if (served.built) builds += 1;
+    return served;
+  };
+  const caches = ['a', 'b', 'c'].map(name => join(scratch, name));
+  const checkouts = await Promise.all(caches.map(cache => checkoutCandidate(cache, trunk, commit, 'job', [], { main: commit, pack })));
+  for (const checkout of checkouts) assert.equal(checkout.ok, true, checkout.reason);
+  assert.equal(asked, 3, 'every cold runner asked for the shared pack');
+  assert.equal(builds, 1, 'three concurrent fetchers of one commit ran pack-objects once');
+  for (const checkout of checkouts) {
+    assert.equal(await git(checkout.folder, 'rev-parse', 'HEAD'), commit);
+    assert.equal(await git(checkout.folder, 'rev-parse', 'v0.0.1^{commit}'), commit, 'release tags still reach the checkout');
+  }
+});
+
+test('#5932 clause 2: a runner that already has the commit fetches nothing new, and a warm runner never downloads a whole-history pack [C7]', async t => {
+  const trunk = temporaryRepository(t, 'pullboard-trunk-warm-');
+  const scratch = temporaryDirectory('pullboard-trunk-warm-runner-');
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const cache = join(scratch, 'cache');
+  const first = await git(trunk, 'rev-parse', 'main');
+  assert.equal((await checkoutCandidate(cache, trunk, first, 'job', [], { main: first })).ok, true);
+  let asked = 0;
+  const pack = async () => { asked += 1; return null; };
+  const store = join(cache, 'git');
+  const refsBefore = await git(store, 'for-each-ref');
+  const again = await checkoutCandidate(cache, join(scratch, 'no-such-trunk'), first, 'job', [], { main: first, pack });
+  assert.equal(again.ok, true, again.reason);
+  assert.equal(await git(store, 'for-each-ref'), refsBefore, 'a commit the runner holds fetches nothing, from a trunk it cannot even reach');
+  writeFileSync(join(trunk, 'next.txt'), 'next\n');
+  await git(trunk, 'add', 'next.txt');
+  await git(trunk, 'commit', '-q', '-m', 'next');
+  const second = await git(trunk, 'rev-parse', 'main');
+  assert.equal((await checkoutCandidate(cache, trunk, second, 'job', [], { main: second, pack })).ok, true);
+  assert.equal(asked, 0, 'a warm store fetches the new commit incrementally and never asks for the shared pack');
+});
+
+test('#5945 clause 1: the board serves GET /trunk/<commit>.pack from one shared build, 404 for an unknown commit, and refuses a non-hex id; cold runners fetch through it [C7]', async t => {
+  const trunk = temporaryRepository(t, 'pullboard-trunk-route-');
+  const scratch = temporaryDirectory('pullboard-trunk-route-runners-');
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  const commit = await git(trunk, 'rev-parse', 'main');
+  let builds = 0, served = 0;
+  // The local adapter's port as pullboard serve wires it: the board's checkout, packs under a scratch folder.
+  const handler = createApiHandler({ refusalDocument: error => ({ error: { code: error.code, message: String(error.message) } }),
+    authenticate: req => { if (req.headers['x-pullboard-key'] !== 'fixture-key') throw Object.assign(new Error('key'), { code: 'AUTH_REQUIRED' }); return { local: true }; },
+    board: id => ({ id, root: trunk }),
+    trunkPack: async (board, wanted) => {
+      const pack = await servedTrunkPack(board.root, wanted, { dir: join(scratch, 'packs') });
+      if (pack?.built) builds += 1;
+      if (pack) served += 1;
+      return pack;
+    } });
+  const server = createServer(handler);
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise(done => { handler.close(); server.close(done); server.closeIdleConnections(); }));
+  const board = `http://127.0.0.1:${server.address().port}/api/v1/boards/fixture`;
+  const endpoint = boardEndpoint(`${board}?k=fixture-key`);
+  const checkouts = await Promise.all(['a', 'b', 'c'].map(name => checkoutCandidate(join(scratch, name), trunk, commit, 'job', [],
+    { main: commit, pack: boardTrunkPack(endpoint, fetchFresh, join(scratch, name, 'packs')) })));
+  for (const checkout of checkouts) {
+    assert.equal(checkout.ok, true, checkout.reason);
+    assert.equal(await git(checkout.folder, 'rev-parse', 'HEAD'), commit);
+    assert.ok(existsSync(join(scratch, checkout.folder.slice(scratch.length + 1).split('/')[0], 'packs', `trunk-${commit}.pack`)), 'each cold runner downloaded the board pack');
+  }
+  assert.equal(served, 3, 'every cold runner was served the pack over GET /trunk/<commit>.pack');
+  assert.equal(builds, 1, 'three concurrent GETs of one commit shared one pack-objects build');
+  const unknown = await fetchFresh(`${board}/trunk/${'0'.repeat(40)}.pack`, { headers: { 'x-pullboard-key': 'fixture-key' } });
+  assert.deepEqual([unknown.status, (await unknown.json()).error.code], [404, 'NO_COMMIT']);
+  assert.equal(await boardTrunkPack(endpoint, fetchFresh, join(scratch, 'd'))('0'.repeat(40)), null, 'a runner reads the 404 as no pack and fetches instead');
+  const bad = await fetchFresh(`${board}/trunk/main.pack`, { headers: { 'x-pullboard-key': 'fixture-key' } });
+  assert.deepEqual([bad.status, (await bad.json()).error.code], [400, 'BAD_REQUEST']);
+  const keyless = await fetchFresh(`${board}/trunk/${commit}.pack`);
+  assert.equal(keyless.status, 401, 'the pack is served only with the board key');
+  await keyless.body?.cancel();
 });

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/resources/src/io/handoff/worker/cap.js */
 /** The submit gate worker pool may shrink as well as grow, so a smaller runner fleet never stops every gate [C7,#2944]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

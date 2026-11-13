@@ -1,6 +1,7 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
+import { sharedToolsTarget } from '../submit/handoff.js';
 import { toolsSnapshot } from '../submit/handoff.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +52,7 @@ import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { committedItemAuthors } from '../../../../../packages/verify/index.js';
+import { earlierHolderProblem } from '../../../../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../../../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../../../../../packages/verify/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -158,14 +160,17 @@ import {
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { retryReviewCommit } from '../../../../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
+import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
+import { mainComparisonMode } from '../../../../../packages/config/index.js';
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
 
 /** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
 export async function knownMainCheck(root, check, { main, item, items, mainRedItems = items, onWait, onMeasuredReceipt, runnerAdmission }) {
+  if (mainComparisonMode() === 'off') return null; // gate.mainComparison off: a red check is red [C7,#5565].
   if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
   const viaMainRedRepairs = failures => {
     // The submit rule: a case an open Main red repair's own check fails on this main never fails a re-run (#2610).
@@ -265,6 +270,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let verificationQuarantine = null;
   let accepted = null;
   let acceptedLandingCommit = null;
+  let landedVerdict = false;
   let approvalRows = [];
   /** Record one verdict on the open board. */
   const decide = async (board) => {
@@ -286,7 +292,15 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
-    itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
+    const earlier = earlierHolderProblem(board, item, me.id);
+    if (earlier) throw earlier;
+    itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
+    // A forced merge landed this item around the gate; a verdict is recorded on the board and the landing stays (V1).
+    if (decision === 'ACCEPT' && item.item_status === 'withdrawn' && item.item_merged_commit) {
+      landedVerdict = true;
+      return await ordered(ctx, board, 'verify', [id, { agentId: me.id, decision, reason: values.reason, note: textArg(ctx.io, values, 'note') ?? '',
+        head: item.item_merged_commit, digest: item.item_frozen_digest ?? '', policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, landed: true }]);
+    }
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
@@ -298,11 +312,11 @@ export async function verifyHere(ctx, id, { second, values }) {
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
-    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
-    if (!commit || !contains(root, commit, head)) {
-      throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
-    }
+    if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
+    // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
+    if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
+    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     let digest = 'missing';
     let check;
     let review;
@@ -505,7 +519,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
-    if (verdict.decision === 'ACCEPT') {
+    if (verdict.decision === 'ACCEPT' && !landedVerdict) {
       accepted = store.getItem(board, id);
       acceptedLandingCommit = store.checkedLandingCommit(board, accepted);
     }
@@ -637,6 +651,9 @@ async function recordComparison(ctx, item, result) {
   });
 }
 
+/** How a comparison gets its tools: a cold shared snapshot is built by the detached worker, so submit returns first (#5752) [C7]. */
+const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../submit/handoff.js', import.meta.url).href };
+
 /** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
 export async function startAutomaticComparison(ctx, id) {
   const item = withBoardRead(ctx, board => store.getItem(board, id));
@@ -647,7 +664,7 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
 }
 
@@ -661,7 +678,7 @@ export async function reviveStalledComparison(ctx, id) {
   } else if (plan.action === 'restart') {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
   }
 }
 

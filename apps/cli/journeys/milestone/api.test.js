@@ -1,4 +1,5 @@
 import { viewApiPorts } from '../../../view/index.js';
+import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../../../lib/index.js';
 import { openBoard } from '../../../lib/index.js';
@@ -26,6 +27,7 @@ import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { main } from '../../tests/fixtures/native.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { main as nativeTestMain } from '../../tests/fixtures/native.js';
 import { createLocalApiHandler } from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../index.js';
@@ -89,7 +91,7 @@ test('[A5] append-only event records expose format version one', () => {
 });
 test('[O8] authenticated API state exposes model labels and configured stable display names', async (t) => {
   const box = project();
-  const created = box.run(box.repo, 'worktree', 'app', '--model', 'Claude Sonnet', '--json');
+  const created = await runLocal(box, box.repo, 'worktree', 'app', '--model', 'Claude Sonnet', '--json');
   assert.equal(created.status, 0, created.stderr || created.stdout);
   const createdAgent = JSON.parse(created.stdout);
   assert.equal(createdAgent.agent, 'app-1');
@@ -164,14 +166,14 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
-test('[A5] board opens upgrade older event logs and refuse future event logs before migration', () => {
+test('[A5] board opens upgrade older event logs and refuse future event logs before migration', async () => {
   const box = project();
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION));
 
   const future = READABLE_EVENT_LOG + 1;
   setEventLogVersion(file, future);
-  const refused = box.run(box.repo, 'status', '--json');
+  const refused = await runLocal(box, box.repo, 'status', '--json');
   assert.equal(refused.status, 1, refused.stderr);
   const refusal = JSON.parse(refused.stdout).error;
   assert.equal(refusal.code, 'EVENT_LOG_VERSION');
@@ -201,9 +203,11 @@ test('[A5] board opens upgrade older event logs and refuse future event logs bef
   assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION), 'an installed release opens an older event log and upgrades its marker in place');
 });
 
+/** Run the CLI in this process with the box's environment; same result shape as box.run, awaited [C7]. */
+const runLocal = (box, cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
 /** Run a named CLI JSON step and retain its stdout, exit code and timing for assertions. */
-function fixtureJsonStep(box, step, cwd, command, args = [], expectedStatus = 0, onEvidence) {
-  const result = box.run(cwd, command, ...args, '--json');
+async function fixtureJsonStep(box, step, cwd, command, args = [], expectedStatus = 0, onEvidence) {
+  const result = await runLocal(box, cwd, command, ...args, '--json');
   const evidence = fixtureCommandEvidence(step, result, box.env);
   onEvidence?.(evidence);
   assert.equal(result.status, expectedStatus, evidence);
@@ -241,8 +245,8 @@ async function apiStep(step, request, env, expectedStatus = 200) {
 }
 
 /** Check one refusal document, including the exact public code, message and next step. */
-function jsonError(box, cwd, command, args, { status, code, message, next }, subcommand) {
-  const result = box.run(cwd, command, ...args, '--json');
+async function jsonError(box, cwd, command, args, { status, code, message, next }, subcommand) {
+  const result = await runLocal(box, cwd, command, ...args, '--json');
   assert.equal(result.status, status, `${command}: ${result.stdout}${result.stderr}`);
   assert.equal(result.stderr, '', `${command} refusal must be JSON-only`);
   const document = JSON.parse(result.stdout);
@@ -531,16 +535,16 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
   json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--reason', 'Arrange fixture release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
   json(box, box.repo, 'milestone', ['add', 'Aftercare'], 'add');
   json(box, box.repo, 'milestone', ['move', 'Aftercare', '--before', 'Delivery'], 'move');
-  jsonError(box, worktree.path, 'milestone', ['add', 'Forbidden'], {
+  await jsonError(box, worktree.path, 'milestone', ['add', 'Forbidden'], {
     status: 1,
     code: 'COORDINATOR_ONLY',
     message: 'only the coordinator changes milestones; ask your coordinator to update the roadmap',
     next: 'ask your coordinator to update the roadmap',
   }, 'add');
-  const claim = box.run(worktree.path, 'claim', String(localItem.item_id), '--json');
+  const claim = await runLocal(box, worktree.path, 'claim', String(localItem.item_id), '--json');
   assert.equal(claim.status, 0, claim.stderr || claim.stdout);
 
-  const textRoadmap = box.run(box.repo, 'roadmap');
+  const textRoadmap = await runLocal(box, box.repo, 'roadmap');
   assert.equal(textRoadmap.status, 0, textRoadmap.stderr);
   assert.ok(textRoadmap.stdout.includes('Aftercare: 0/0 landed') && textRoadmap.stdout.indexOf('Aftercare: 0/0 landed') < textRoadmap.stdout.indexOf('Delivery: 0/2 landed'),
     'the roadmap counts landed items, in milestone order');
@@ -845,8 +849,8 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
     return result;
   }
   /** Retain CLI step evidence before downstream JSON inspection. */
-  function observedFixtureStep(box, step, cwd, command, args = [], expectedStatus = 0) {
-    return fixtureJsonStep(box, step, cwd, command, args, expectedStatus,
+  async function observedFixtureStep(box, step, cwd, command, args = [], expectedStatus = 0) {
+    return await fixtureJsonStep(box, step, cwd, command, args, expectedStatus,
       (evidence) => { lastStepEvidence = evidence; });
   }
   try {
@@ -889,20 +893,20 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
     const unknownArgumentStep = await observedApiStep('reject an unknown move argument', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'add', args: { lane: 'app', title: 'Ignored', extra: true } }) }), box.env, 400);
     assert.equal(errorDocument(unknownArgumentStep).code, 'BAD_REQUEST', unknownArgumentStep.evidence);
 
-    const cliClaimStep = observedFixtureStep(box, 'claim an unknown item through the CLI', box.repo, 'claim', ['999'], 1);
+    const cliClaimStep = await observedFixtureStep(box, 'claim an unknown item through the CLI', box.repo, 'claim', ['999'], 1);
     const cliRefusal = cliClaimStep.document.error;
     assertRequiredShape(cliRefusal, JSON_SHAPES.errorFields, `CLI claim refusal\n${cliClaimStep.evidence}`);
     const httpClaimStep = await observedApiStep('claim an unknown item through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'claim', item: 999, args: {} }) }), box.env, 409);
     assert.deepEqual(errorDocument(httpClaimStep), cliRefusal, `${httpClaimStep.evidence}\nCLI evidence:\n${cliClaimStep.evidence}`);
 
-    const cliNextRun = box.run(box.repo, 'next', '--json');
+    const cliNextRun = await runLocal(box, box.repo, 'next', '--json');
     const cliNextStep = { evidence: fixtureCommandEvidence('request available work through the CLI', cliNextRun, box.env) };
     const noWork = JSON.parse(cliNextRun.stdout);
     assert.deepEqual([cliNextRun.status, cliNextRun.stderr, noWork.version, noWork.item, noWork.next, Array.isArray(noWork.reasons)], [0, '', 1, null, 'nothing for this seat: end your turn', true], cliNextStep.evidence);
     const httpNextStep = await observedApiStep('request available work through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {} }) }), box.env);
     assert.deepEqual(httpNextStep.document, { version: 1, event: null, result: noWork }, `${httpNextStep.evidence}\nCLI evidence:\n${cliNextStep.evidence}`);
 
-    const cliVerifyStep = observedFixtureStep(box, 'verify an unknown item through the CLI', box.repo, 'verify', ['999', 'accept', '--as', 'coordinator', '--note', 'checked the API'], 1);
+    const cliVerifyStep = await observedFixtureStep(box, 'verify an unknown item through the CLI', box.repo, 'verify', ['999', 'accept', '--as', 'coordinator', '--note', 'checked the API'], 1);
     const verifierRefusal = cliVerifyStep.document.error;
     assertRequiredShape(verifierRefusal, JSON_SHAPES.errorFields, `CLI verify refusal\n${cliVerifyStep.evidence}`);
     const httpVerifyStep = await observedApiStep('verify an unknown item through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'verify', item: 999, args: { decision: 'accept', as: 'coordinator', note: 'checked the API' } }) }), box.env, 409);
@@ -933,15 +937,15 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
     return result;
   }
   /** Retain CLI step evidence before downstream response fields are inspected. */
-  function observedFixtureStep(...args) {
-    const result = fixtureJsonStep(...args);
+  async function observedFixtureStep(...args) {
+    const result = await fixtureJsonStep(...args);
     lastStepEvidence = result.evidence;
     return result;
   }
   try {
     const app = join(box.dir, 'app-1');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-    const joined = fixtureJoin(box.run, app, 'app', '--model', 'fixture-agent', '--route', 'strong');
+    const joined = await fixtureJoin((...a) => runLocal(box, ...a), app, 'app', '--model', 'fixture-agent', '--route', 'strong');
     lastStepEvidence = fixtureCommandEvidence('join worktree agent', joined, box.env);
     assert.equal(joined.status, 0, lastStepEvidence);
     const api = await startApi(t, box);
@@ -1004,10 +1008,10 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
     const state = stateStep.document.state;
     assert.deepEqual(state.requests.map((entry) => entry.shout_id), [requestId], stateStep.evidence);
     assert.ok(!state.decisions.some((entry) => entry.shout_id === requestId), `person requests are not open decisions\n${stateStep.evidence}`);
-    const inboxStep = observedFixtureStep(box, 'read coordinator inbox', box.repo, 'inbox');
+    const inboxStep = await observedFixtureStep(box, 'read coordinator inbox', box.repo, 'inbox');
     const inbox = inboxStep.document;
     assert.equal(inbox.shouts[0].shout_id, requestId, inboxStep.evidence);
-    const resumeStep = observedFixtureStep(box, 'read coordinator resume', box.repo, 'resume');
+    const resumeStep = await observedFixtureStep(box, 'read coordinator resume', box.repo, 'resume');
     const resumed = resumeStep.document;
     assert.equal(resumed.requests[0].shout_id, requestId, resumeStep.evidence);
 
@@ -1027,7 +1031,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
   const box = project();
   const app = join(box.dir, 'app-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-  assert.equal(fixtureJoin(box.run, app, 'app').status, 0);
+  assert.equal((await fixtureJoin((...a) => runLocal(box, ...a), app, 'app')).status, 0);
   const api = await startApi(t, box);
   const boards = await (await apiFetch(api, '/api/v1/boards')).json();
   const board = boards.boards.find((candidate) => candidate.root === box.repo);
@@ -1046,7 +1050,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
   assert.equal(ask.event.event_by, 'app-1');
   assert.equal(JSON.parse(ask.event.event_detail).to, 'coordinator');
 
-  const notCoordinator = JSON.parse(box.run(app, 'pass', String(ask.result.id), 'Needs the person', '--json').stdout).error;
+  const notCoordinator = JSON.parse((await runLocal(box, app, 'pass', String(ask.result.id), 'Needs the person', '--json')).stdout).error;
   assert.deepEqual(await apiError(await move('pass', { note: 'Needs the person' }, ask.result.id, 'app-1'), 409), notCoordinator);
 
   const passResponse = await move('pass', { note: 'Needs the person' }, ask.result.id);
@@ -1056,7 +1060,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
   assert.equal(passed.event.event_kind, 'pass');
   assert.equal(JSON.parse(passed.event.event_detail).to, 'person');
 
-  const personRequired = JSON.parse(box.run(box.repo, 'answer', String(passed.result.id), 'Approved', '--json').stdout).error;
+  const personRequired = JSON.parse((await runLocal(box, box.repo, 'answer', String(passed.result.id), 'Approved', '--json')).stdout).error;
   assert.equal(personRequired.code, 'B26_PERSON_ANSWER');
   assert.deepEqual(await apiError(await move('answer', { text: 'Approved' }, passed.result.id), 409), personRequired);
   // A serve key is not the person: an explicit person answer through the standalone API records nothing [P6].
@@ -1134,14 +1138,14 @@ test('[A2] SSE delivers a live move and resumes after Last-Event-ID without repl
   }
 });
 
-test('[A5,A6] doctor diagnoses future event logs read-only and accepts the current marker', () => {
+test('[A5,A6] doctor diagnoses future event logs read-only and accepts the current marker', async () => {
   const box = project();
   const added = json(box, box.repo, 'add', ['app', 'Version fixture', '--specs', 'G1']);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   assert.ok(added.item.item_id);
   assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION));
   const beforeCurrent = readFileSync(file);
-  const current = box.run(box.repo, 'doctor', '--json');
+  const current = await runLocal(box, box.repo, 'doctor', '--json');
   assert.equal(current.status, 0, current.stderr || current.stdout);
   assert.equal(current.stderr, '');
   assert.deepEqual(JSON.parse(current.stdout).problems, [], 'the current event-log version is healthy');
@@ -1154,7 +1158,7 @@ test('[A5,A6] doctor diagnoses future event logs read-only and accepts the curre
   finally { eventsDb.close(); }
   assert.ok(events > 0, 'the fixture has real events before modeling the future version');
   const futureBytes = readFileSync(file);
-  const refused = box.run(box.repo, 'doctor', '--json');
+  const refused = await runLocal(box, box.repo, 'doctor', '--json');
   assert.equal(refused.status, 1, refused.stderr || refused.stdout);
   assert.equal(refused.stderr, '', 'doctor returns a JSON finding');
   const problems = JSON.parse(refused.stdout).problems;
@@ -1166,7 +1170,7 @@ test('[A5,A6] doctor diagnoses future event logs read-only and accepts the curre
   assert.equal(readEventLogVersion(file), String(READABLE_EVENT_LOG + 1), 'doctor does not silently upgrade the marker');
 });
 
-test('[A5] view export preserves the typed future-version refusal without creating output', () => {
+test('[A5] view export preserves the typed future-version refusal without creating output', async () => {
   const box = project();
   const added = json(box, box.repo, 'add', ['app', 'Export version fixture', '--specs', 'G1']);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -1181,7 +1185,7 @@ test('[A5] view export preserves the typed future-version refusal without creati
   const output = join(box.dir, 'future-version-export');
   assert.equal(existsSync(output), false);
 
-  const refused = box.run(box.repo, 'view', '--export', output, '--json');
+  const refused = await runLocal(box, box.repo, 'view', '--export', output, '--json');
   assert.equal(refused.status, 1, refused.stderr || refused.stdout);
   assert.equal(refused.stderr, '', 'view export returns a JSON refusal');
   const error = JSON.parse(refused.stdout).error;
@@ -1267,23 +1271,22 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     return document;
   }
 
-  /** Compare the live cached handler's full state with a newly constructed full projection. */
+  /** Name each JSON path where two state projections differ, so a drift reads as fields rather than two dumped boards. */
+  const stateDiffs = (a, b, at = '$', out = []) => { if (JSON.stringify(a) !== JSON.stringify(b)) { if (a && b && typeof a === 'object' && typeof b === 'object') for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) stateDiffs(a[key], b[key], `${at}.${key}`, out); else out.push([at, a, b]); } return out; };
+  /** Read one handler's full state at the controlled instant. */
+  async function fullState(handler, label) { const response = await apiFetch(handler, `${path}/state?detail=full`); assert.equal(response.status, 200, `${label}: full state response`); return (await response.json()).state; }
+  /** Compare the live cached full state with a fresh full projection; seats may append itemless usage events after a command returns, so only a board still across the fresh build compares. */
   async function assertFreshFullState(label) {
-    setTestClock();
-    const comparisonTime = Date.now();
-    const currentResponse = await apiFetch(api, `${path}/state?detail=full`);
-    assert.equal(currentResponse.status, 200, `${label}: live state response`);
-    const current = await currentResponse.json();
-    const fresh = await startLocalHandler(t, box, { personChannel: 'api', stateDetail: 'full' });
-    try {
-      const freshResponse = await apiFetch(fresh, `${path}/state?detail=full`);
-      assert.equal(freshResponse.status, 200, `${label}: fresh full state response`);
-      assert.deepEqual(current.state, (await freshResponse.json()).state, `${label}: incremental state equals a clean full rebuild`);
+    for (let attempt = 1; ; attempt += 1) {
+      setTestClock();
+      const comparisonTime = Date.now(), before = await fullState(api, `${label}: live`);
+      const fresh = await startLocalHandler(t, box, { personChannel: 'api', stateDetail: 'full' });
+      const rebuilt = await fullState(fresh, `${label}: fresh`).finally(() => fresh.close()), after = await fullState(api, `${label}: live again`);
       assert.equal(Date.now(), comparisonTime, `${label}: both state projections use the same controlled instant`);
-    } finally {
-      await fresh.close();
+      if (attempt < 20 && stateDiffs(before, after).length) continue; // Each fresh build is the wait: the board moved during it, so build again.
+      assert.deepEqual(stateDiffs(after, rebuilt).slice(0, 20), [], `${label}: incremental state equals a clean full rebuild`);
+      return after;
     }
-    return current.state;
   }
 
   /** Read one item's current lease from the fixture board without changing its event cursor. */
@@ -1322,7 +1325,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     for (const extra of dependencyState.items.filter((item) => [ids[1], ids[3]].includes(item.id) && item.claim)) {
       assert.ok([builder.agent, verifier.agent].includes(extra.claim.by), 'the extra claim belongs to a fixture seat');
       const owner = extra.claim.by === builder.agent ? builder : verifier;
-      const released = box.run(owner.path, 'release', String(extra.id), '--reason', 'OTHER', '--note', 'isolate the later lease expiry', '--no-next');
+      const released = await runLocal(box, owner.path, 'release', String(extra.id), '--reason', 'OTHER', '--note', 'isolate the later lease expiry', '--no-next');
       assert.equal(released.status, 0, released.stderr || released.stdout);
     }
     await assertFreshFullState('release the extra claims');
@@ -1363,7 +1366,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     await assertFreshFullState('pullboard.json change');
 
     builds.length = 0;
-    const milestone = box.run(box.repo, 'milestone', 'add', 'Incremental milestone', '--reason', 'Arrange fixture release', '--items', String(ids[4]));
+    const milestone = await runLocal(box, box.repo, 'milestone', 'add', 'Incremental milestone', '--reason', 'Arrange fixture release', '--items', String(ids[4]));
     assert.equal(milestone.status, 0, milestone.stderr || milestone.stdout);
     const milestoneState = await assertFreshFullState('milestone change');
     assert.deepEqual(builds, [ids[4]], 'changing one milestone membership recomputes only the affected item');

@@ -7,6 +7,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from "../../tests/fixtures/child.js";
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { performance } from 'node:perf_hooks';
 import {
   chmodSync,
@@ -80,20 +81,18 @@ function sandbox() {
   });
   /** Run real Git commands under isolated author and configuration settings. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
-  /** Run the real Pullboard CLI in its own process with optional environment markers. */
-  const run = (cwd, args, extraEnv = {}) => runFixtureChild(process.execPath, [BIN, ...args], {
-    cwd, env: { ...env, ...extraEnv }, encoding: 'utf8',
-  });
-  return { dir, env, git, run };
+  /** Run the real Pullboard CLI in this process with optional environment markers. */
+  const go = (cwd, args, extraEnv = {}) => runCliInProcess(args, { cwd, env: { ...env, ...extraEnv } });
+  return { dir, env, git, go };
 }
 
 /** Initialize a real repository, configure its lane, and join a real worktree. */
-function project() {
+async function project() {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = box.run(repo, ['init']);
+  const initialized = await box.go(repo, ['init']);
   assert.equal(initialized.status, 0, fixtureChildMessage(initialized));
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -109,7 +108,7 @@ function project() {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up person channel fixture');
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const joined = box.run(web, ['join', 'web']);
+  const joined = await box.go(web, ['join', 'web']);
   assert.equal(joined.status, 0, joined.stderr);
   return { ...box, repo, web };
 }
@@ -139,16 +138,16 @@ function lastAnswerDetail(file) {
   }
 }
 
-test('[B26] person answers refuse agent environments without writes and record terminal channel', (t) => {
+test('[B26] person answers refuse agent environments without writes and record terminal channel', async (t) => {
   t.after(() => {
     for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
   });
-  const box = project();
-  const asked = box.run(box.web, ['shout', 'coordinator', 'Ship the patch?', '--kind', 'question', '--decision']);
+  const box = await project();
+  const asked = await box.go(box.web, ['shout', 'coordinator', 'Ship the patch?', '--kind', 'question', '--decision']);
   assert.equal(asked.status, 0, asked.stderr);
   const askedId = /as #(\d+)/u.exec(asked.stdout)?.[1];
   assert.ok(askedId, asked.stdout);
-  const passed = box.run(box.repo, ['pass', askedId, 'The person should decide.']);
+  const passed = await box.go(box.repo, ['pass', askedId, 'The person should decide.']);
   assert.equal(passed.status, 0, passed.stderr);
   const personId = /as #(\d+)/u.exec(passed.stdout)?.[1];
   assert.ok(personId, passed.stdout);
@@ -156,7 +155,7 @@ test('[B26] person answers refuse agent environments without writes and record t
   const database = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const beforeRefusals = boardCounts(database);
   for (const [marker, value] of Object.entries(MARKERS)) {
-    const refused = box.run(box.repo, ['answer', personId, 'Ship it.', '--as', 'person', '--json'], { [marker]: value });
+    const refused = await box.go(box.repo, ['answer', personId, 'Ship it.', '--as', 'person', '--json'], { [marker]: value });
     assert.equal(refused.status, 1, `${marker}: ${refused.stdout}${refused.stderr}`);
     assert.equal(refused.stderr, '', `${marker} refusal should be a single JSON document`);
     const document = JSON.parse(refused.stdout);
@@ -166,7 +165,7 @@ test('[B26] person answers refuse agent environments without writes and record t
     assert.deepEqual(boardCounts(database), beforeRefusals, `${marker} must not append an answer or event`);
   }
 
-  const terminal = box.run(box.repo, ['answer', personId, 'Ship it.', '--as', 'person', '--json'], cleanEnvironment(box.env));
+  const terminal = await box.go(box.repo, ['answer', personId, 'Ship it.', '--as', 'person', '--json'], cleanEnvironment(box.env));
   assert.equal(terminal.status, 0, terminal.stderr);
   const answer = JSON.parse(terminal.stdout);
   assert.equal(answer.version, 1);
@@ -235,25 +234,25 @@ async function startView(t, box, extraEnv = {}) {
 }
 
 test('[B26,B3] person actions over SSH refuse terminals while the authenticated view remains available', async (t) => {
-  const box = project();
+  const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   /** Create a real person decision by passing a worktree agent's request. */
-  const createPersonDecision = (text) => {
-    const asked = box.run(box.web, ['shout', 'coordinator', text, '--kind', 'question', '--decision', '--json']);
+  const createPersonDecision = async (text) => {
+    const asked = await box.go(box.web, ['shout', 'coordinator', text, '--kind', 'question', '--decision', '--json']);
     assert.equal(asked.status, 0, asked.stderr);
-    const passed = box.run(box.repo, ['pass', String(JSON.parse(asked.stdout).id), 'The person should decide.', '--json']);
+    const passed = await box.go(box.repo, ['pass', String(JSON.parse(asked.stdout).id), 'The person should decide.', '--json']);
     assert.equal(passed.status, 0, passed.stderr);
     return JSON.parse(passed.stdout).id;
   };
-  const terminalPerson = createPersonDecision('Answer from a local terminal?');
-  const viewPerson = createPersonDecision('Answer from the view over SSH?');
+  const terminalPerson = await createPersonDecision('Answer from a local terminal?');
+  const viewPerson = await createPersonDecision('Answer from the view over SSH?');
   const database = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = boardCounts(database);
   for (const remote of [
     { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22' },
     { SSH_TTY: '/dev/pts/7' },
   ]) {
-    const refused = box.run(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], remote);
+    const refused = await box.go(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], remote);
     assert.equal(refused.status, 1, refused.stdout + refused.stderr);
     const error = JSON.parse(refused.stdout).error;
     assert.equal(error.code, 'B26_PERSON_CHANNEL');
@@ -261,7 +260,7 @@ test('[B26,B3] person actions over SSH refuse terminals while the authenticated 
     assert.match(error.next, /pullboard view/iu);
     assert.deepEqual(boardCounts(database), before, 'SSH refusals append no answer or event');
   }
-  const local = box.run(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], cleanEnvironment(box.env));
+  const local = await box.go(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], cleanEnvironment(box.env));
   assert.equal(local.status, 0, local.stderr);
   assert.equal(lastAnswerDetail(database).channel, 'terminal');
 
@@ -280,12 +279,12 @@ test('[B26,B3] person actions over SSH refuse terminals while the authenticated 
 });
 
 test('[B26,B27] a view launched by an agent records view on both person answer receipts', async (t) => {
-  const box = project();
+  const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-  const asked = box.run(box.web, ['shout', 'coordinator', 'Ship from the view?', '--kind', 'question', '--decision', '--json']);
+  const asked = await box.go(box.web, ['shout', 'coordinator', 'Ship from the view?', '--kind', 'question', '--decision', '--json']);
   assert.equal(asked.status, 0, asked.stderr);
   const original = JSON.parse(asked.stdout).id;
-  const passed = box.run(box.repo, ['pass', String(original), 'The person should decide.', '--json']);
+  const passed = await box.go(box.repo, ['pass', String(original), 'The person should decide.', '--json']);
   assert.equal(passed.status, 0, passed.stderr);
   const person = JSON.parse(passed.stdout).id;
   const request = await startView(t, box);
@@ -319,32 +318,32 @@ test('[B26,B27] a view launched by an agent records view on both person answer r
 });
 
 
-test('[B26,S5] an agent shell cannot append a person sign-off but a plain shell can', (t) => {
-  const box = project();
+test('[B26,S5] an agent shell cannot append a person sign-off but a plain shell can', async (t) => {
+  const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test/proof.test.js'), '/** Local board preservation evidence [G1]. */\n');
   box.git(box.repo, 'add', 'test/proof.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test: cite board preservation [G1]');
   const file = join(box.repo, '.pullboard/signoffs.jsonl');
-  const plain = box.run(box.repo, ['spec', 'signoff', 'G1', '--by', 'CO', '--json']);
+  const plain = await box.go(box.repo, ['spec', 'signoff', 'G1', '--by', 'CO', '--json']);
   assert.equal(plain.status, 0, plain.stdout + plain.stderr);
   assert.equal(JSON.parse(plain.stdout).count, 1);
   const original = readFileSync(file, 'utf8');
   for (const [name, value] of Object.entries(MARKERS)) {
-    const refused = box.run(box.repo, ['spec', 'signoff', 'G1', '--by', 'CO', '--json'], { [name]: value });
+    const refused = await box.go(box.repo, ['spec', 'signoff', 'G1', '--by', 'CO', '--json'], { [name]: value });
     assert.equal(refused.status, 1, name + ': ' + refused.stdout + refused.stderr);
     const error = JSON.parse(refused.stdout).error;
     assert.equal(error.code, 'B26_PERSON_CHANNEL', name);
-    const inspected = box.run(box.repo, ['decisions', '--as', 'person', '--json'], { [name]: value });
+    const inspected = await box.go(box.repo, ['decisions', '--as', 'person', '--json'], { [name]: value });
     assert.equal(inspected.status, 0, 'read-only inspection does not approve a person call');
     assert.match(error.next, /pullboard view/iu, name);
     assert.equal(readFileSync(file, 'utf8'), original, name + ' preserves every existing sign-off byte');
   }
 });
 
-test('[B26,S18] signer enrollment refuses agent shells without creating or changing trust files', (t) => {
-  const box = project();
+test('[B26,S18] signer enrollment refuses agent shells without creating or changing trust files', async (t) => {
+  const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   const key = join(box.dir, 'fixture-signing-key');
   const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { env: box.env, stdio: 'ignore' });
@@ -354,17 +353,17 @@ test('[B26,S18] signer enrollment refuses agent shells without creating or chang
   const trustBytes = () => files.map(file => existsSync(file) ? readFileSync(file).toString('base64') : null);
   const absent = trustBytes();
   for (const [name, value] of Object.entries(MARKERS)) {
-    const refused = box.run(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person', '--json'], { [name]: value });
+    const refused = await box.go(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person', '--json'], { [name]: value });
     assert.equal(refused.status, 1, name);
     assert.equal(JSON.parse(refused.stdout).error.code, 'B26_PERSON_CHANNEL', name);
     assert.equal(JSON.stringify(trustBytes()) === JSON.stringify(absent), true, 'refused enrollment creates no trust files');
   }
-  const plain = box.run(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person', '--json']);
+  const plain = await box.go(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person', '--json']);
   assert.equal(plain.status, 0);
   assert.equal(JSON.parse(plain.stdout).added, true);
   const enrolled = trustBytes();
   for (const [name, value] of Object.entries(MARKERS)) {
-    const refused = box.run(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'another-person', '--json'], { [name]: value });
+    const refused = await box.go(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'another-person', '--json'], { [name]: value });
     assert.equal(refused.status, 1, name);
     assert.equal(JSON.stringify(trustBytes()) === JSON.stringify(enrolled), true, 'refused enrollment preserves every trust byte');
   }
@@ -372,7 +371,7 @@ test('[B26,S18] signer enrollment refuses agent shells without creating or chang
 
 
 test('[B26,S19] row approvals and declines refuse agent shells and preserve terminal or view channels', async (t) => {
-  const box = project();
+  const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   const file = join(box.repo, 'SPEC.md');
   const rows = ['G2', 'G3', 'G4', 'G5'].map((id) => `- ${id} [draft, aim] The person decides ${id}. | gate: review`).join('\n');
@@ -386,7 +385,7 @@ test('[B26,S19] row approvals and declines refuse agent shells and preserve term
     for (const decision of ['approve', 'decline']) {
       const args = ['spec', decision, 'G2', '--json'];
       if (decision === 'decline') args.push('--reason', 'The person declines this draft.');
-      const refused = box.run(box.repo, args, { [marker]: value });
+      const refused = await box.go(box.repo, args, { [marker]: value });
       assert.equal(refused.status, 1, `${marker} ${decision}: ${refused.stdout}${refused.stderr}`);
       const error = JSON.parse(refused.stdout).error;
       assert.equal(error.code, 'B26_PERSON_CHANNEL');
@@ -398,7 +397,7 @@ test('[B26,S19] row approvals and declines refuse agent shells and preserve term
   for (const [decision, id] of [['approve', 'G2'], ['decline', 'G3']]) {
     const args = ['spec', decision, id, '--json'];
     if (decision === 'decline') args.push('--reason', 'The person declines this draft.');
-    const result = box.run(box.repo, args);
+    const result = await box.go(box.repo, args);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     const receipt = JSON.parse(result.stdout).decisions[0];
     assert.equal(receipt.id, id);

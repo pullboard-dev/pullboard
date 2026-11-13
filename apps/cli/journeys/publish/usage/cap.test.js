@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A bounded stopgap leaves every unsent native usage revision available for later lifecycle moves [N2,C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -51,20 +50,16 @@ function publishedItems(file, agent, prior) {
   } finally { store.closeBoard(board); }
 }
 
-test('ten missed revisions drain four, four, two across native claims without loss or duplication [N2,C7]', () => {
+test('ten missed revisions drain in one native claim under the 1000-revision bound without loss or duplication [N2,C7]', () => {
   const box = helpers.project('true');
   const { file, agent, prior, target } = seedClosedClaims(box);
   const first = box.run(box.web, 'claim', String(target));
   assert.equal(first.code, 0, first.err);
-  assert.match(first.err, /USAGE_PENDING.*published 4 of 10.*6 remain/);
-  assert.deepEqual(publishedItems(file, agent, prior), prior.slice(0, 4));
+  assert.doesNotMatch(first.err, /USAGE_PENDING/, 'ten revisions sit far below USAGE_BATCH_LIMIT, so nothing remains pending');
+  assert.deepEqual(publishedItems(file, agent, prior), prior);
   const second = box.run(box.web, 'claim', String(target));
   assert.equal(second.code, 0, second.err);
-  assert.match(second.err, /USAGE_PENDING.*published 4 of 6.*2 remain/);
-  assert.deepEqual(publishedItems(file, agent, prior), prior.slice(0, 8));
-  const third = box.run(box.web, 'claim', String(target));
-  assert.equal(third.code, 0, third.err);
-  assert.doesNotMatch(third.err, /USAGE_PENDING/);
+  assert.doesNotMatch(second.err, /USAGE_PENDING/);
   assert.deepEqual(publishedItems(file, agent, prior), prior);
   const fourth = box.run(box.web, 'claim', String(target));
   assert.equal(fourth.code, 0, fourth.err);

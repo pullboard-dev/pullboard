@@ -9,6 +9,7 @@ import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.j
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { START_BOUND_MS } from '../../index.js';
+import { endLostTestRuns } from '../../index.js';
 import { queueTestRun } from '../../index.js';
 import { readTestRun } from '../../index.js';
 import { testRunLines } from '../../index.js';
@@ -55,4 +56,28 @@ test('a run no worker took within the start bound reports TEST_RUN_NOT_STARTED [
   assert.match(testRunLines(found)[0], /refused: \[TEST_RUN_NOT_STARTED\]/u);
   const fresh = queued(t, Date.now());
   assert.equal(readTestRun(fresh.board, fresh.run.id).status, 'queued');
+});
+
+test('a test run whose lease lapsed and whose worker is gone is marked lost and frees its slot [C7]: within 2 minutes', (t) => {
+  const now = Date.now();
+  const { board, run } = queued(t, now - 3 * 3_600_000);
+  takeJob(board.db, run.id, 'test-run:424242', { now: now - 3 * 3_600_000, leaseMs: 120_000 });
+  writeStep(board.db, run.id, 'running', { pid: 424242 }, { now: now - 3 * 3_600_000 });
+  assert.equal(readTestRun(board, run.id).status, 'lost', 'a lapsed lease reads lost before the sweep');
+  assert.deepEqual(endLostTestRuns(board.db, { now, alive: () => true }), [], 'a live worker keeps its run');
+  const ended = endLostTestRuns(board.db, { now, alive: () => false });
+  assert.equal(ended.length, 1);
+  assert.equal(ended[0].id, run.id);
+  assert.equal(board.db.prepare('SELECT job_lease_owner AS owner FROM job WHERE job_id = ?').get(run.id).owner, null, 'the lease is freed');
+  assert.equal(readTestRun(board, run.id).status, 'lost');
+  assert.deepEqual(endLostTestRuns(board.db, { now, alive: () => false }), [], 'a run is ended once');
+});
+
+test('a run with a live lease or a recorded result is never marked lost [C7]', async (t) => {
+  const { board, run } = queued(t, Date.now());
+  takeJob(board.db, run.id, `test-run:${process.pid}`);
+  assert.deepEqual(endLostTestRuns(board.db, { alive: () => false }), []);
+  const done = queued(t, Date.now());
+  await workTestRun(work => work(done.board), done.run.id, async () => ({ green: true, files: [] }));
+  assert.deepEqual(endLostTestRuns(done.board.db, { now: Date.now() + 3_600_000, alive: () => false }), []);
 });

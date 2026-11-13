@@ -9,10 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
@@ -21,12 +18,10 @@ import {
   frozenCriterion,
   loadSpec,
 } from '../../../../packages/spec/index.js';
-import {
-  runFixtureExecFile,
-  runFixtureChild,
-} from '../../tests/fixtures/child.js';
+import { runFixtureExecFile } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
-test('show prints a frozen check exactly as stored, with no added escaping [N30,A1]', () => {
+test('show prints a frozen check exactly as stored, with no added escaping [N30,A1]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-show-check-')));
   const repo = join(dir, 'repo');
   mkdirSync(repo);
@@ -55,11 +50,10 @@ test('show prints a frozen check exactly as stored, with no added escaping [N30,
       digest = item.item_frozen_digest;
       assert.equal(JSON.parse(item.item_frozen).check, check, 'the fixture really freezes these exact bytes');
     } finally { store.closeBoard(board); }
-    const bin = resolve(import.meta.dirname, '../../pullboard.js');
-    const plain = runFixtureChild(process.execPath, [bin, 'show', '1'], { cwd: repo, env, encoding: 'utf8' });
+    const plain = await runCliInProcess(['show', '1'], { cwd: repo, env });
     assert.equal(plain.status, 0, plain.stderr);
     assert.ok(plain.stdout.includes(`check: ${check}\n`), 'plain display contains the stored multiline command verbatim');
-    const json = runFixtureChild(process.execPath, [bin, 'show', '1', '--json'], { cwd: repo, env, encoding: 'utf8' });
+    const json = await runCliInProcess(['show', '1', '--json'], { cwd: repo, env });
     assert.equal(json.status, 0, json.stderr);
     const result = JSON.parse(json.stdout);
     assert.equal(result.item_check, check, 'the existing JSON check field remains intact');

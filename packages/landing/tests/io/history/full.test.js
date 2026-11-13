@@ -26,7 +26,7 @@ test('clause 1: a submit admitted on main-owned reds is a proof, so its files pl
   assert.equal(submitProved({ commit }), false);
   const entries = [{ id: 3489, commit }];
   const files = submittedSelections(entries, () => [submitRow(knownMainSubmit(commit))], () => []);
-  assert.deepEqual(files, ['apps/cli/journeys/relay/snapshot/size.test.js', 'apps/cli/journeys/relay/main.test.js'], 'the plan is the submit proof, not null (which fell back to the full plan)');
+  assert.deepEqual(files, ['apps/cli/journeys/relay/main.test.js', 'apps/cli/journeys/relay/snapshot/size.test.js'], 'the plan is the submit proof, not null (which fell back to the full plan)');
   assert.equal(submittedSelections(entries, () => [submitRow({ ...knownMainSubmit(commit), gateGreen: undefined })], () => []), null);
   assert.equal(submittedSelections([{ id: 3489, commit: 'd'.repeat(40) }], () => [submitRow(knownMainSubmit(commit))], () => []), null, 'another commit\'s submit is not this proof');
 });

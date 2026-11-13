@@ -43,7 +43,7 @@ function document(result) {
  * @param {import('node:test').TestContext} t
  * @returns {{ box: any, board: any, id: number, commit: string, directory: string, request: string, owner: string, job: string, boardFile: string }}
  */
-function admittedGate(t) {
+async function admittedGate(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
@@ -56,14 +56,15 @@ function admittedGate(t) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'test: queued worker fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Real worker process', '--specs', 'G1',
+  const id = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Real worker process', '--specs', 'G1',
     '--criterion', 'The page is ready.', '--check', 'node check.cjs', '--brief',
     'Files: web/page.txt\nTest: the queued worker submits the committed page.', '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  document(await box.runLocal(box.web, 'claim', String(id), '--json'));
   const built = helpers.commitFile(box, box.web, 'web/page.txt', 'ready\n', 'feat(web): ready page [G1]');
   assert.equal(built.status, 0, built.stderr);
   const commonDir = join(box.repo, '.git');
   const boardFile = join(commonDir, 'pullboard/board.sqlite');
+  // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
   const board = openBoard(boardFile, undefined, { gitRoot: box.web });
   t.after(() => board.db.close());
   const item = getItem(board, id);
@@ -105,7 +106,7 @@ function stepLog(view) {
  * @param {{ leak?: boolean }} [options]
  */
 async function launchQueuedGate(t, { leak = false } = {}) {
-  const { box, board, id, commit, directory, request, owner } = admittedGate(t);
+  const { box, board, id, commit, directory, request, owner } = await admittedGate(t);
   const env = { ...box.env };
   if (leak) {
     const leakModule = join(directory, 'leaked-handle.mjs');
@@ -114,6 +115,7 @@ async function launchQueuedGate(t, { leak = false } = {}) {
     env.NODE_OPTIONS = `--import=${pathToFileURL(leakModule).href}`;
   }
   // budget: the existing owned-worker hang ceiling; assertions concern exit and native results, not elapsed time.
+  // Process-level: the real detached gate driver, run as its own process.
   const result = await runFixtureChildAsync(process.execPath, [gateDriveWorkerEntry(), request, owner],
     { cwd: box.web, env, encoding: 'utf8', timeout: 120_000 });
   return { result, exitedAt: Date.now(), board, id, commit, directory };
@@ -161,12 +163,13 @@ process.stdout.write(JSON.stringify({ seen }));
 `;
 
 test('clause 1: a drive run through driveSubmitHandoff holds no board handle: with the board file unreadable to the drive, its step, ticket and verdict rows reach the board through the coordinator-side recorder [C7]', async t => {
-  const { box, board, id, request, owner, job, boardFile } = admittedGate(t);
+  const { box, board, id, request, owner, job, boardFile } = await admittedGate(t);
   const env = { ...box.env, GATE_ROWS_TEST: JSON.stringify({ request, owner, board: boardFile, stages: SUBMIT_STAGES,
     native: new URL('../../../../lib/src/logic/native.js', import.meta.url).href,
     worker: new URL('../../../src/io/submit/handoff/worker.js', import.meta.url).href,
     kernel: new URL('../../../../../packages/kernel/index.js', import.meta.url).href }) };
   // budget: the existing owned-worker hang ceiling; assertions concern the recorded rows, not elapsed time.
+  // Process-level: the drive child proves an unreadable board file in a separate process.
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', UNREADABLE_DRIVE],
     { cwd: box.web, env, encoding: 'utf8', timeout: 120_000 });
   assert.equal(result.status, 0, result.context);
@@ -187,8 +190,9 @@ test('clause 1: a drive run through driveSubmitHandoff holds no board handle: wi
 });
 
 test('clause 2: a real queued gate on a fixture board records its job steps and verdict in order [C7]', async t => {
-  const { box, board, id, request, owner, job } = admittedGate(t);
+  const { box, board, id, request, owner, job } = await admittedGate(t);
   // budget: the existing owned-worker hang ceiling; assertions concern the recorded steps, not elapsed time.
+  // Process-level: the real detached gate driver, run as its own process.
   const result = await runFixtureChildAsync(process.execPath, [gateDriveWorkerEntry(), request, owner],
     { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 120_000 });
   assert.equal(result.status, 0, result.context);
@@ -213,7 +217,7 @@ test('clause 2: a real queued gate on a fixture board records its job steps and 
 });
 
 test('clause 2: a gate driven over rows to the recorder writes the same job steps and verdict, in order, as a gate driven on the board handle [C7]', async t => {
-  const { box, board, commit } = admittedGate(t);
+  const { box, board, commit } = await admittedGate(t);
   /** A stand-in for canonical Submit whose stages run in Submit's order and whose tests stage is red. */
   const submit = async ctx => {
     await ctx.runGateStages(SUBMIT_STAGES.map(name => ({ name, run: async () => {
@@ -265,12 +269,13 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'test: orphaned queued worker fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Orphaned worker recovery', '--route', 'strong', '--specs', 'G1',
+  const id = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Orphaned worker recovery', '--route', 'strong', '--specs', 'G1',
     '--criterion', 'The fresh worker submits the committed page.', '--check', 'node check.cjs',
     '--brief', 'Files: web/page.txt\nTest: a resubmit replaces a queue that has no worker.', '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  document(await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/page.txt', 'ready\n', 'feat(web): ready orphaned worker fixture [G1]').status, 0);
   const boardPath = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
   const board = openBoard(boardPath, undefined, { gitRoot: box.web });
   let orphan;
   try {
@@ -286,8 +291,9 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   const orphanDirectory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', orphan.id);
   mkdirSync(orphanDirectory, { recursive: true });
 
-  const retried = document(box.run(box.web, 'submit', String(id), '--no-next', '--json'));
+  const retried = document(await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(retried.queued, true);
+  // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
   const currentBoard = openBoard(boardPath, undefined, { gitRoot: box.web });
   let current;
   try { current = submitHandoff(currentBoard, id); }
@@ -308,6 +314,7 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   // The original whole-file gate took 124.6 s while its isolated diagnostic took 100.5 s; allow
   // normal queue variation so this checks eventual completion rather than the runner's speed.
   const completed = await helpers.waitFor(() => { // budget: real worker completion ceiling, not an elapsed-time assertion.
+    // @pullboard-board-file journey: observe the persisted queue and job rows of the real detached worker
     const observed = openBoard(boardPath, undefined, { gitRoot: box.web });
     try {
       const job = submitHandoff(observed, id);
@@ -321,12 +328,13 @@ test('launched hook worker inspects committed work without unsettled await [I6,C
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Hook process work',
+  const id = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Hook process work',
     '--criterion', 'The committed work is named.', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
+  document(await box.runLocal(box.web, 'claim', String(id), '--json'));
   const built = helpers.commitFile(box, box.web, 'web/page.txt', 'ready\n', 'feat(web): ready page [G1]');
   assert.equal(built.status, 0, built.stderr);
   // budget: existing owned-child hang ceiling; successful inspection and native exit are the assertions.
+  // Process-level: a real hook worker child, run as the hook runs it.
   const result = await runFixtureChildAsync(process.execPath, [HOOK_WORKER, 'Stop'],
     { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 120_000 });
   assert.notEqual(result.status, 13, result.context);

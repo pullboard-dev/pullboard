@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/src/io/cells/scripts/plan.js packages/gate/src/io/edges.js */
 /** The usage-checkpoint cut keeps the cells plan and edges check green [N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Preserve authenticated source preparation in both public profiling paths before optimizing a measured phase [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

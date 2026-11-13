@@ -1,8 +1,9 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/controller.js apps/runner/src/io/scripts/worker.js packages/resources/src/io/controller/custody.js packages/resources/src/io/main.js packages/runners/src/io/module/parser/worker.js packages/state/src/logic/engines/check-timing-engine.js */
 /** @pullboard-test-loads packages/runners/src/io/tooling/snapshot.js packages/runners/src/io/module/parser.js packages/runners/src/io/module/parser/worker.js packages/runners/index.js */
 /** Private shipped-source fixtures; these tests do not claim execution on a physical runner [C7,P3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -236,6 +237,15 @@ test('package files honor a later exclusion and name any entry they cannot parse
   assert.throws(() => packageFiles(f.root), /needs at least one inclusion entry/u, 'an exclusion-only list cannot silently ship nothing');
   f.write('package.json', JSON.stringify({ files: ['src', '!!src/entry.js'] }));
   assert.throws(() => packageFiles(f.root), /unsupported package files entry: "!!src\/entry.js"/u, 'a double negation is refused by name');
+});
+
+test('5642 clause 1: a root-wide exclusion never walks folders no inclusion reaches, such as agent worktrees [C7,P3]', t => {
+  const f = fixture(t, ['src', 'packages', '!*/*/tests/**']);
+  // An unreadable folder outside every inclusion stands in for hundreds of worktrees, or one removed mid-walk.
+  f.write('.claude/worktrees/seat/src/entry.js', 'export {};\n');
+  chmodSync(join(f.root, '.claude/worktrees'), 0o000);
+  try { assert.deepEqual(packageFiles(f.root), ['package.json', 'packages/leaf/src/value.js', 'src/entry.js']); }
+  finally { chmodSync(join(f.root, '.claude/worktrees'), 0o755); }
 });
 
 test('a computed runner copy follows a new packages import without a hand-kept list [C7,P3]', t => {

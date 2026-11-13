@@ -41,7 +41,7 @@ async function submitToGate(t, options) {
   await helpers.waitFor(() => child.exitCode !== null || child.signalCode !== null, // budget: hang ceiling for observed actual CLI exit.
     'the final gate outcome to end submit without a reviewer', 30_000); // budget: fail only a hung CLI; no elapsed-time performance assertion.
   await child.closed;
-  return { box, child, document: JSON.parse(child.stdoutText) };
+  return { box, child, document: options?.handoff ? null : JSON.parse(child.stdoutText) };
 }
 
 /** Inspect native job completion and its owned source checkout without granting proof authority. */
@@ -82,21 +82,23 @@ test('submit --wait exits with the actual candidate-only gate refusal [V4,B3]', 
   assert.equal(submittedProof(box), null);
 });
 
-test('queued submit --wait waits for the exact known-main outcome instead of returning its acknowledgment [V4,B3]', async t => {
-  const { box, child, document } = await submitToGate(t, { handoff: true });
+test('a claim-holding seat gets the queued acknowledgment at once and still reaches the exact known-main outcome through show [V4,B3,P7]', async t => {
+  const { box, child } = await submitToGate(t, { handoff: true });
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
-  assert.notEqual(document.queued, true, 'a queue acknowledgment is not the final gate outcome');
-  assert.equal(document.gate.green, false);
-  assert.equal(document.gate.knownMainFailures.main, box.main);
-  assert.equal(document.verdict, undefined);
+  assert.equal(JSON.parse(child.stdoutText).queued, true, 'a claim-holding seat gets the queued acknowledgment, not the final outcome');
+  await helpers.waitFor(() => handoffFinished(box), 'the actual queued gate to finish', 120_000); // budget: hang ceiling for the actual queued gate to finish.
+  const shown = cli(box, box.root, 'show', String(box.item), '--history');
+  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
+  const document = JSON.parse(shown.stdout);
   assertUnreviewed(box);
 });
 
-test('a queued wait names an actually lost worker before any gate admission [V4,B3]', async t => {
+test('a lost queued worker is recovered by the follow-up submit, never fabricated into an outcome [V4,B3,P7]', async t => {
   let child;
   let barrier;
   let worker;
   let release;
+  let resubmitted = false;
   t.after(async () => {
     if (release) writeFileSync(release, 'release\n');
     if (worker?.started && exactStart(worker.pid) === worker.started) process.kill(worker.pid, 'SIGKILL');
@@ -106,6 +108,7 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
     }
     if (barrier) await helpers.waitFor(() => exactStart(barrier.git) !== barrier.gitStart, // budget: hang ceiling for the owned Git child cleanup.
       'the owned checkout Git child to actually exit', 30_000); // budget: owned-child cleanup ceiling before fixture removal.
+    if (resubmitted) await helpers.waitFor(() => handoffFinished(box), 'the recovered queued worker cleanup', 120_000); // budget: hang ceiling for the recovered owned worker before fixture removal.
   });
   const box = fixture(t, { handoff: true });
   release = join(box.directory, 'checkout-release');
@@ -142,12 +145,13 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   assert.ok(worker.started);
   assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
   process.kill(worker.pid, 'SIGKILL');
-  await helpers.waitFor(() => child.exitCode !== null, 'the lost-job named refusal', 30_000); // budget: hang ceiling for a lost-job CLI; no performance threshold.
-  await child.closed;
-  assert.equal(child.exitCode, 1, child.stdoutText + child.stderrText);
-  const refusal = JSON.parse(child.stdoutText);
-  assert.equal(refusal.error.code, 'SUBMIT_HANDOFF_CHANGED');
-  assert.match(refusal.error.message, /lost its worker/u);
-  assert.match(refusal.error.message, /cleanup remains unknown/u);
+  // A claim-holding seat's wait no longer blocks; the follow-up command recovers the lost job instead of fabricating a result.
+  const lost = `refs/pullboard/submit-handoffs/${job.id}`;
+  const again = cli(box, box.builder, 'submit', String(box.item), '--wait', '--no-next', '--json');
+  resubmitted = again.status === 0;
+  assert.equal(again.status, 0, again.stdout + again.stderr);
+  const acknowledgment = JSON.parse(again.stdout);
+  assert.equal(acknowledgment.queued, true, 'the recovered submit queues a fresh gate');
+  assert.notEqual(acknowledgment.pin, lost, 'the lost worker\'s job is replaced, not resumed');
   assert.equal(submittedProof(box), null, 'a lost worker cannot fabricate a gate outcome');
 });

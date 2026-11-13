@@ -20,7 +20,7 @@ import { takeResource } from ${JSON.stringify(new URL('../../../../index.js', im
 import { runnerWaitLine } from ${JSON.stringify(new URL('../../../../src/io/runner/reasons.js', import.meta.url).href)};
 import { runnerWaitReasons } from ${JSON.stringify(new URL('../../../../src/io/runner/reasons.js', import.meta.url).href)};
 const root = process.cwd();
-// The 7 Nov pool in small: two 10-core runners with stale load readings and the 12-core Studio, which auto keeps for most cores.
+// The 7 Nov pool in small: two 10-core runners with stale load readings and the 12-core big runner, which auto keeps for most cores.
 const stale = { at: '2026-11-06T17:40:52.285Z', busyPercent: 1, average: [3, 3, 3] };
 const runners = [
   { host: 'mini-a', slots: 2, browser: 1, gui: true, cores: 10, cpuLoad: stale },

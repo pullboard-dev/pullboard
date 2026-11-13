@@ -50,16 +50,16 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   commitFixtureFiles(box, ['pullboard.json', 'SPEC.md']);
   box.web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', box.web, '-b', 'web/one');
-  const joined = fixtureJoin(box.run, box.web, 'web');
+  const joined = await fixtureJoin(box.runIn, box.web, 'web', '--route', 'strong');
   assert.match(joined.out, /joined as web-1/u);
 
   const oldId = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Old frozen citation', route: 'strong',
     criterion: 'Keep prior G2 evidence while correcting G3.', diagnose: false,
     brief: 'Files: web/old-frozen-citation.js\nChange: keep the old citation\nTest: the check proves it',
     args: ['--specs', 'G2,G3'] }).item_id;
-  const oldClaim = box.run(box.web, 'claim', String(oldId), '--json');
+  const oldClaim = await box.runIn(box.web, 'claim', String(oldId), '--json');
   assert.equal(oldClaim.code, 0, oldClaim.err || oldClaim.out);
-  const priorItem = JSON.parse(box.run(box.web, 'show', String(oldId), '--json').out);
+  const priorItem = JSON.parse((await box.runIn(box.web, 'show', String(oldId), '--json')).out);
   const priorFrozen = JSON.parse(priorItem.item_frozen);
   assert.equal(priorFrozen.rows.find(row => row.id === 'G2').text, 'The API answers.');
   assert.equal(priorFrozen.rows.find(row => row.id === 'G3').text, 'Original G3 promise.');
@@ -70,7 +70,7 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
     args: ['--specs', 'G3'] }).item_id;
   const ids = Array.from({ length: 7 }, (_, index) => `G${index + 3}`);
   for (const id of ids) {
-    const approved = box.run(box.repo, 'spec', 'approve', id, '--text', 'Updated promise text.', '--json');
+    const approved = await box.runIn(box.repo, 'spec', 'approve', id, '--text', 'Updated promise text.', '--json');
     assert.equal(approved.code, 0, `approving ${id}: ${approved.err || approved.out}`);
   }
 
@@ -176,6 +176,7 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   const peerResult = JSON.parse(readFileSync(peerResultPath, 'utf8'));
   assert.equal(peerResult.status, 0, peerResult.stderr || peerResult.stdout);
 
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const events = store.events(board);
@@ -188,9 +189,9 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
     assert.ok(shouts.some(event => event.event_id > appliedEvent.event_id), 'peer writer committed after the batch');
   } finally { closeBoard(board); }
 
-  const peerItem = JSON.parse(box.run(box.web, 'show', String(peerId), '--json').out);
+  const peerItem = JSON.parse((await box.runIn(box.web, 'show', String(peerId), '--json')).out);
   assert.equal(peerItem.item_status, 'claimed');
-  const oldAfter = JSON.parse(box.run(box.web, 'show', String(oldId), '--json').out);
+  const oldAfter = JSON.parse((await box.runIn(box.web, 'show', String(oldId), '--json')).out);
   const frozen = JSON.parse(oldAfter.item_frozen);
   assert.equal(oldAfter.item_status, 'claimed');
   assert.equal(frozen.rows.find(row => row.id === 'G2').text, 'The API answers.');

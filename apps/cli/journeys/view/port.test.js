@@ -1,5 +1,5 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/resume/flow.test.js apps/cli/pullboard.js apps/view/index.js packages/gate/src/io/run/tests.js */
 /** Keep the view's exact named-port refusal covered in a core-owned file [N26]. */
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';
@@ -44,6 +44,7 @@ import {
 } from '../../../../packages/config/index.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fetchPrintedViewLink } from '../../tests/fixtures/view/link.js';
 import { startChrome } from '../../tests/fixtures/chrome.js';
 
@@ -88,6 +89,7 @@ try {
   syncBuiltinESMExports();
 }
 `;
+  // Process-level: the script patches fs and child_process globals, so it needs its own process.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script,
     pathToFileURL(resolve(import.meta.dirname, '../../../view/index.js')).href], {
     cwd: dir, encoding: 'utf8',
@@ -131,9 +133,10 @@ test('the suite runs while a view holds the default port [N26,C7]', async (t) =>
     'pullboard view uses its fixed default port and reuses its authenticated listener',
     'a reused authenticated view completes setup for its new board',
   ];
+  // Process-level: a nested node:test run of other journeys cannot share this process.
   const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [
-    resolve(import.meta.dirname, '../../../../packages/gate/src/io/run/tests.js'), '--test-name-pattern', names.join('|'),
-    resolve(import.meta.dirname, 'port.test.js'), resolve(import.meta.dirname, '../resume/flow.test.js'),
+    resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js'), '--test-name-pattern', names.join('|'),
+    resolve(import.meta.dirname, 'port.test.js'), resolve(import.meta.dirname, '../resume/flow/setup.test.js'),
   ], { cwd: resolve(import.meta.dirname, '../../../..'), env: { ...process.env } }));
   if (result.status !== 0) t.diagnostic(safeErrorSummary(result.stdout));
   assert.equal(result.status, 0, result.failure ?? result.stderr);
@@ -203,13 +206,9 @@ test("a named port that is busy is refused with the way out, not a stack trace [
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
   };
-  const result = runFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--port', String(port)], {
-    cwd: dir, env, encoding: 'utf8',
-  });
+  const result = await runCliInProcess(['view', '--no-open', '--port', String(port)], { cwd: dir, env });
   assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
-  const json = runFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--port', String(port), '--json'], {
-    cwd: dir, env, encoding: 'utf8', timeout: 20000,
-  });
+  const json = await runCliInProcess(['view', '--no-open', '--port', String(port), '--json'], { cwd: dir, env });
   assert.equal(json.status, 1, json.stderr);
   const refusal = JSON.parse(json.stdout).error;
   assert.equal(refusal.code, 'PORT_BUSY');
@@ -254,14 +253,15 @@ test('a busy view port names a fix the hosted page can still find [N26,I1]', asy
   delete env.AI_AGENT;
   delete env.PULLBOARD_VIEW_FOREGROUND;
   // A stale view record whose pid is alive in an unrelated process must never be named as the holder.
+  // Process-level: an unrelated live pid, not a CLI call.
   const unrelated = startFixtureChild(process.execPath, ['-e', 'setTimeout(() => {}, 60_000)'], { stdio: 'ignore' }); // budget: idle lifetime for the unrelated pid; killed when the test ends.
   t.after(() => { unrelated.kill('SIGKILL'); });
   mkdirSync(env.PULLBOARD_HOME, { recursive: true });
   writeFileSync(join(env.PULLBOARD_HOME, `view-${port}.json`),
     `${JSON.stringify({ port, secret: randomUUID(), pid: unrelated.pid, boundAt: new Date().toISOString() })}\n`, { mode: 0o600 });
-  const plain = runFixtureChild(process.execPath, [BIN, 'view', '--no-open'], { cwd: dir, env, encoding: 'utf8', timeout: 40_000 });
+  const plain = await runCliInProcess(['view', '--no-open'], { cwd: dir, env });
   assert.equal(plain.status, 1, plain.failure ?? plain.stderr);
-  const json = runFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--json'], { cwd: dir, env, encoding: 'utf8', timeout: 40_000 });
+  const json = await runCliInProcess(['view', '--no-open', '--json'], { cwd: dir, env });
   assert.equal(json.status, 1, json.failure ?? json.stderr);
   const refusal = JSON.parse(json.stdout).error;
   assert.equal(refusal.code, 'PORT_BUSY');
@@ -279,7 +279,7 @@ test('a busy view port names a fix the hosted page can still find [N26,I1]', asy
   assert.equal(refusal.next, 'stop the other view on that port, then run pullboard view again');
   assert.equal(plain.stderr.trim(), `pullboard: [PORT_BUSY] ${refusal.message}\nnext: ${refusal.next}`);
   rmSync(join(env.PULLBOARD_HOME, `view-${port}.json`), { force: true });
-  const free = runFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'], { cwd: dir, env, encoding: 'utf8', timeout: 40_000 });
+  const free = await runCliInProcess(['view', '--no-open', '--port', '0', '--json'], { cwd: dir, env });
   assert.equal(free.status, 0, free.failure ?? free.stderr);
   const freeView = JSON.parse(free.stdout);
   freePort = freeView.port;
@@ -348,6 +348,7 @@ function portLeaseWorker(directory, port) {
       lease.release();
     }
   `;
+  // Process-level: a view serving in the foreground until the pipe breaks.
   const child = startFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: directory, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'private-machine') },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -643,6 +644,7 @@ test('pullboard view uses its fixed default port and reuses its authenticated li
         unrelated.once('error', fail);
         unrelated.listen(port, '127.0.0.1', ready);
       });
+      // Process-level: these view launches run under umask 022, a process attribute that cannot be set in-process.
       const busy = runFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--json'], {
         cwd: dir, env, encoding: 'utf8', timeout: 40_000, umask: 0o022,
       });
@@ -774,6 +776,7 @@ try {
   syncBuiltinESMExports();
 }
 `;
+  // Process-level: the script patches fs and child_process globals, so it needs its own process.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script,
     new URL('../../../view/index.js', import.meta.url).href], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);

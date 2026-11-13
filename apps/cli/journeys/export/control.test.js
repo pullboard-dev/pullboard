@@ -20,8 +20,8 @@ async function exportReplayControlJourney(t) {
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the static replay control proof.');
   const box = machine();
   const board = project(box, 'export replay control');
-  box.run(board.repo, 'add', 'web', 'Replay event one');
-  box.run(board.repo, 'add', 'web', 'Replay event two');
+  await box.inProcess(board.repo, 'add', 'web', 'Replay event one');
+  await box.inProcess(board.repo, 'add', 'web', 'Replay event two');
   const exported = box.exportSnapshot(board.repo, 'export-replay-control');
   const host = await serveFolder(exported.root, '/demo/');
   const profile = join(box.dir, 'export-replay-control-chrome');

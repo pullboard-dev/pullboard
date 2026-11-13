@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
 /** Gate stages start together; the gate lasts as long as its slowest stage, and a red stage stops the rest [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

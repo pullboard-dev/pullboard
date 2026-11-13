@@ -8,6 +8,7 @@ import {
 } from '../../../store/index.js';
 import { LANDING_LEASE_MS } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { startGuardian } from './worker.js';
 import { LANDING_BACKOFF_MAX_MS } from '../logic/retry.js';
 import { coordinatorHolder } from '../../../seats/index.js';
 import { localLandingEntry } from '../../../store/index.js';
@@ -48,16 +49,20 @@ export function reclaimReason(holder, local, { now = Date.now(), machine = null 
   return sameMachine && Date.parse(holder.until) <= now ? 'holder process gone and heartbeat older than the lease' : null;
 }
 
+/** Refusals a renewal outlives: momentary write faults, never a lost lease. */
+const RENEW_RETRY = new Set(['BOARD_BUSY', 'POLICY_SNAPSHOT_STALE']);
+
 /**
- * Run one renewal, retrying BOARD_BUSY with doubling backoff until the lease period ends; any other refusal, and the
- * last BOARD_BUSY, propagates. Why: a busy board is a momentary landing fault, and one refusal killed the worker (#3068).
+ * Run one renewal, retrying BOARD_BUSY and POLICY_SNAPSHOT_STALE with doubling backoff until the lease period ends; any
+ * other refusal, and the last retried one, propagates. Why: both are momentary landing faults, and one refusal killed the
+ * worker (#3068, #5672); each attempt opens a fresh write that re-reads current main's policy.
  */
 export async function renewWithBackoff(renew, { now = Date.now, pausing = pause, until = () => now() + LANDING_LEASE_MS, firstMs = 100, marginMs = 1000 } = {}) {
   for (let wait = firstMs; ; wait = Math.min(wait * 2, 2000)) {
     try { return renew(); }
     catch (error) {
       // Stop at the acknowledged lease deadline, re-read after every pause, so a busy board never outlives the lease.
-      if (error?.code !== 'BOARD_BUSY' || now() + wait >= until() - marginMs) throw error;
+      if (!RENEW_RETRY.has(error?.code) || now() + wait >= until() - marginMs) throw error;
       await pausing(wait);
       if (now() >= until() - marginMs) throw error;
     }
@@ -78,17 +83,25 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
   const deadlineListeners = new Set();
   let pending = Promise.resolve();
   let lost = null;
+  let guardian = null;
+  let stopWatching = null;
   /** Send only acknowledged deadlines to the independent guardian. */
   const confirmedUntil = until => {
     deadline = Date.parse(until);
     for (const listener of deadlineListeners) listener(deadline);
+  };
+  /** The lease's deadline, the board's when its guardian renewed it later than this command saw (#5770). */
+  const leaseUntil = () => {
+    try { const holder = landingLeaseState(board).holder; if (holder?.token === token) return Math.max(deadline, Date.parse(holder.until) || 0); }
+    catch { /* The acknowledged deadline stands. */ }
+    return deadline || Date.now() + LANDING_LEASE_MS;
   };
   /** Serialize heartbeats and explicit checks, retaining a failure until the command stops. */
   const assertHeld = () => {
     const task = pending.then(async () => {
       if (lost) throw lost;
       try {
-        const result = await renewWithBackoff(() => renewLocalLanding(board, { ...parameters, generation }), { until: () => deadline || Date.now() + LANDING_LEASE_MS });
+        const result = await renewWithBackoff(() => renewLocalLanding(board, { ...parameters, generation }), { until: leaseUntil });
         if (lost) throw lost;
         const holder = assertLandingLease(board, { token, branch, generation }); // A delayed recovered receipt is not a fresh grant.
         confirmedUntil(holder.until);
@@ -137,6 +150,8 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
     timer.unref();
     watchdog = setInterval(() => {
       if (!lost && Date.now() >= deadline - 1000) {
+        // The guardian renews the heartbeat while this loop is blocked, so the board's own deadline is read before the loss (#5770).
+        try { confirmedUntil(assertLandingLease(board, { token, branch, generation }).until); if (Date.now() < deadline - 1000) return; } catch { /* Lost below. */ }
         lost = new Refused('LAND_LEASE_LOST', 'the landing lease could not renew before its deadline; inspect pullboard resume after its owned worker stops');
         onLost?.(lost);
       }
@@ -151,6 +166,15 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         if (lost) throw lost;
         confirmedUntil(assertLandingLease(board, { token, branch, generation }).until);
       },
+      /**
+       * Start this landing's guardian before any gate runs and record it on the lease. Dead-command recovery waits for its
+       * drain; a guardian that dies first stops the gate and ends the landing with LAND_WORKER, leaving its batch to adoption.
+       */
+      async guard(controller) {
+        guardian = startGuardian({ boardFile: board.db.prepare('PRAGMA database_list').get()?.file || null, leaseToken: token, onDeath: () => { if (lost) return; try { assertLandingLease(board, { token, branch, generation }); } catch (error) { if (error?.code === 'LAND_LEASE_LOST') { lost = error; onLost?.(error); controller.abort(error); return; } } controller.abort(new Refused('LAND_WORKER', 'the landing guardian stopped; its gate was stopped and the batch stays for pullboard land --adopt')); } });
+        stopWatching = this.watchDeadline(at => guardian?.deadline(at));
+        await this.bindWorker(guardian.pid);
+      },
       /** Keep the guardian's own deadline current even if this parent later stops responding. */
       watchDeadline(listener) { deadlineListeners.add(listener); listener(deadline); return () => deadlineListeners.delete(listener); },
       /** Check the current wall-time fence without adding an await before a physical action. */
@@ -159,6 +183,9 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
       async release() {
         clearInterval(timer);
         clearInterval(watchdog);
+        stopWatching?.();
+        guardian?.end();
+        await guardian?.settle();
         await pending;
         await write('landingLeaseMove', [{ ...parameters, action: 'release', generation }]);
         forgetLocalLanding(board, token);

@@ -26,6 +26,13 @@ import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 
+/** Preserve the runner's preload declaration for nested cache eligibility checks. */
+function cacheFixture() {
+  const box = e2e.project();
+  if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
+  return box;
+}
+
 /** Bind the same canonical runtime classifier as the actual higher write orchestrator. */
 const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
 
@@ -62,8 +69,8 @@ function worktreeBytes(root) {
   return entries;
 }
 
-test('two real claims derive main inputs once and preserve HEAD, index and working bytes [B6,V1]', () => {
-  const box = e2e.project();
+test('two real claims derive main inputs once and preserve HEAD, index and working bytes [B6,V1]', async () => {
+  const box = cacheFixture();
   const first = item(box, 'First cached claim');
   const second = item(box, 'Second cached claim');
   mainCriterionFacts(box.web, { cacheEligible });
@@ -81,25 +88,25 @@ test('two real claims derive main inputs once and preserve HEAD, index and worki
   writeFileSync(scratch, 'untracked claim input\n');
   const bytes = worktreeBytes(box.web);
   for (const id of [first, second]) {
-    const claimed = box.run(box.web, 'claim', id);
+    const claimed = (await box.inProcess(box.web, 'claim', id));
     assert.equal(claimed.code, 0, claimed.err || claimed.out);
     assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), head);
     assert.equal(box.git(box.web, 'write-tree'), index);
     assert.deepEqual(readFileSync(join(box.web, 'SPEC.md')), spec);
     assert.equal(readFileSync(scratch, 'utf8'), 'untracked claim input\n');
     assert.deepEqual(worktreeBytes(box.web), bytes);
-    const released = box.run(box.web, 'release', id, '--no-next', '--reason', 'OTHER', '--note', 'Exercise the next independent claim');
+    const released = (await box.inProcess(box.web, 'release', id, '--no-next', '--reason', 'OTHER', '--note', 'Exercise the next independent claim'));
     assert.equal(released.code, 0, released.err || released.out);
   }
   assert.equal(db.prepare('SELECT n FROM observed_derivations').get().n, 1);
   db.close();
 });
 
-test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion provider [B2,B5,C7]', () => {
-  const box = e2e.project();
+test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion provider [B2,B5,C7]', async () => {
+  const box = cacheFixture();
   const first = item(box, 'Held claim');
   const second = item(box, 'Refused claim');
-  const agent = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
+  const agent = JSON.parse((await box.inProcess(box.web, 'whoami', '--json')).out).id;
   // @pullboard-board-file journey: the real CLI subprocess persisted this project board, so the claim guards read that file
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -114,7 +121,7 @@ test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion 
     assert.equal(existsSync(join(box.repo, '.git', 'pullboard-main-facts')), false);
     assert.deepEqual(store.events(board), before);
   } finally { store.closeBoard(board); }
-  assert.equal(box.run(box.web, 'claim', first).code, 0);
+  assert.equal((await box.inProcess(box.web, 'claim', first)).code, 0);
   const db = cache(box); db.exec('DELETE FROM facts'); db.close();
   // @pullboard-board-file journey: the real CLI subprocess persisted this project board, so the claim guards read that file
   const held = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -147,24 +154,24 @@ test('a busy cache falls back to an uncached derivation [B2,C7]', { timeout: 20_
   } finally { db.exec('ROLLBACK'); db.close(); }
 });
 
-test('next and submit reuse immutable facts while an exact applied approval stays fresh [B6,V3,S18]', () => {
+test('next and submit reuse immutable facts while an exact applied approval stays fresh [B6,V3,S18]', async () => {
   const box = e2e.project('true');
   const id = item(box, 'Fresh applied approval');
   const original = mainCriterionFacts(box.web, { cacheEligible });
-  const next = box.run(box.web, 'next', '--build');
+  const next = (await box.inProcess(box.web, 'next', '--build'));
   assert.equal(next.code, 0, next.err || next.out);
   assert.match(next.out, new RegExp(`claimed #${id}`));
-  const approved = box.run(box.repo, 'spec', 'approve', 'G1', '--text', 'The page renders a heading.');
+  const approved = (await box.inProcess(box.repo, 'spec', 'approve', 'G1', '--text', 'The page renders a heading.'));
   assert.equal(approved.code, 0, approved.err || approved.out);
-  const applied = box.run(box.repo, 'spec', 'apply');
+  const applied = (await box.inProcess(box.repo, 'spec', 'apply'));
   assert.equal(applied.code, 0, applied.err || applied.out);
-  const shown = JSON.parse(box.run(box.repo, 'show', id, '--json').out);
+  const shown = JSON.parse((await box.inProcess(box.repo, 'show', id, '--json')).out);
   assert.equal(JSON.parse(shown.item_frozen).rows.find(row => row.id === 'G1').text, 'The page renders a heading.');
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'fresh.html'), '<h1>Fresh</h1>\n');
   box.git(box.web, 'add', 'web/fresh.html');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): fresh page [G1]');
-  const submitted = box.run(box.web, 'submit', id, '--no-next');
+  const submitted = (await box.inProcess(box.web, 'submit', id, '--no-next'));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const stillImmutable = mainCriterionFacts(box.web, { cacheEligible });
   assert.equal(stillImmutable.commit, original.commit);

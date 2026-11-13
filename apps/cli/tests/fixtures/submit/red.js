@@ -18,6 +18,7 @@ import { runFixtureGit } from '../child.js';
 import {
   createFixtureWorktree,
   fileFixtureItem,
+  fixtureMachineSettings,
 } from '../testkit.js';
 export const BIN = join(import.meta.dirname, '../../../pullboard.js');
 
@@ -62,6 +63,9 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'submit-main-red-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
+  // These submits hold their gate and main comparison in the submitting process, so the fixture pins controller dispatch [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
@@ -80,7 +84,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
     "const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], { encoding: 'utf8', env: process.env });",
     "process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');",
     'process.exitCode = run.status ?? 1;',
-    // With `phases`, the runner ends like packages/gate/src/io/run/tests.js: its phase line on stderr after TAP's final count (#3794).
+    // With `phases`, the runner ends like apps/cli/src/io/run/tests.js: its phase line on stderr after TAP's final count (#3794).
     ...(phases ? ["process.stdout.write('', () => process.stderr.write('run-tests: phases selection 0.1s, admission 0.0s, tests 0.4s, cleanup 0.0s, total 0.5s\\n'));"] : []),
   ].join('\n') + '\n');
   box.main = commit(box, root);

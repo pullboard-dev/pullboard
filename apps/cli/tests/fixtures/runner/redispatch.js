@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/resources/index.js */
 /** @pullboard-test-loads packages/resources/index.js */
 /** @pullboard-test-loads packages/resources/index.js */
 /** A runner quarantined before READY releases its lease for one healthy dispatch [C7,H16]. */
@@ -51,7 +51,7 @@ function fixture(t) {
   const settings = join(localMachineHome, 'settings.json');
   mkdirSync(localMachineHome, { recursive: true });
   writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0,
-    gate: { runnersFirst: true }, runners: [first] }));
+    gate: { runnersFirst: true, runnerDispatch: 'controller' }, runners: [first] }));
   return { ...box, first, second, requests, starts, settings };
 }
 

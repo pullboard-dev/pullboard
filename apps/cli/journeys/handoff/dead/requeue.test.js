@@ -8,6 +8,8 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { driverRecord } from '../../../tests/fixtures/gate/driver.js';
+import { spendDriverRelaunches } from '../../../tests/fixtures/gate/driver.js';
+import { RUNNING_RELAUNCH_LIMIT } from '../../../src/io/submit/handoff.js';
 import {
   document,
   fixture,
@@ -25,11 +27,13 @@ async function killWorker(box, job) {
   const owner = driverRecord(box.boardFile, job.id);
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
+  // Relaunching a dead running gate comes first (#3995); a worker that keeps dying has spent that budget before recovery requeues.
+  spendDriverRelaunches(box.boardFile, job.id, RUNNING_RELAUNCH_LIMIT);
 }
 
 /** Run one health sweep as the coordinator from the main checkout: the real dispatcher path; no command by the item's seat runs. */
-function sweep(box) {
-  const run = box.run(box.repo, 'sentinel', 'run', '--health-only');
+async function sweep(box) {
+  const run = await box.runLocal(box.repo, 'sentinel', 'run', '--health-only');
   assert.equal(run.code, 0, `${run.err}\n${run.out}`);
 }
 
@@ -47,11 +51,11 @@ async function runningJob(box) {
 
 test('clause 1: a worker killed mid-gate is requeued from its exact candidate and finishes with no builder command [C7,V4]', async t => {
   const box = fixture(t);
-  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   await box.helpers.waitFor(() => existsSync(box.started), 'the gate started', 120000); // budget: observed gate start ceiling, no timing assertion.
   const job = await runningJob(box);
   await killWorker(box, job);
-  sweep(box);
+  await sweep(box);
   const after = state(box, box.id, job.id);
   assert.equal(after.ended.state, 'infrastructure');
   assert.equal(after.ended.error.code, 'SUBMIT_HANDOFF_DEAD');
@@ -67,13 +71,13 @@ test('clause 1: a worker killed mid-gate is requeued from its exact candidate an
 test('clause 2: a candidate whose workers die three times stops and the sentinel shouts once, naming it [C7,V4]', async t => {
   assert.equal(INFRASTRUCTURE_RETRY_LIMIT, 3);
   const box = fixture(t);
-  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   let job = await runningJob(box);
   const commit = job.commit;
   const killed = [job.id];
   for (let requeue = 1; requeue <= INFRASTRUCTURE_RETRY_LIMIT; requeue++) {
     await killWorker(box, job);
-    sweep(box);
+    await sweep(box);
     const next = state(box, box.id, job.id);
     assert.notEqual(next.job.id, job.id, `requeue ${requeue} derives a successor`);
     assert.equal(next.job.infrastructureRetries, requeue);
@@ -82,8 +86,8 @@ test('clause 2: a candidate whose workers die three times stops and the sentinel
     killed.push(job.id);
   }
   await killWorker(box, job);
-  sweep(box);
-  sweep(box);
+  await sweep(box);
+  await sweep(box);
   // A killed worker never removes its disposable checkout; the fixture's cleanup waits for that, so this test removes what it killed.
   for (const id of killed) rmSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', id, 'source'), { recursive: true, force: true });
   const after = state(box, box.id, job.id);
@@ -97,12 +101,12 @@ test('clause 2: a candidate whose workers die three times stops and the sentinel
 
 test('clause 3 reproduction: a stall that kills the worker and its first two requeues leaves no gate needing a builder resubmit [C7,V4]', async t => {
   const box = fixture(t);
-  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
+  assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   let job = await runningJob(box);
   // The stall: the worker and its first two requeues die; the machine is healthy again for the next requeue.
   for (let death = 1; death <= 3; death++) {
     await killWorker(box, job);
-    sweep(box);
+    await sweep(box);
     if (death < 3) job = await runningJob(box);
   }
   writeFileSync(box.release, 'release\n');

@@ -39,7 +39,7 @@ console.log(JSON.stringify({ atImport, afterUse: seen }));
 `;
 
 /** Is this a closure entry only a tooling capture reads? The parser pins its own two files at load by design. */
-const toolingFile = file => /(?:bin\/runner-controller\.js|src\/runner-worker\.js)$/u.test(file);
+const toolingFile = file => /(?:apps\/runner\/src\/io\/controller\.js|apps\/runner\/src\/io\/scripts\/worker\.js)$/u.test(file);
 
 test('clause 1: importing packages/runners parses no source and captures no tooling until first use [C7,#3070]', t => {
   const dir = cellSandbox(t).dir;

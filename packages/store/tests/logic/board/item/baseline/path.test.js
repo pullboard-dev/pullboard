@@ -5,9 +5,9 @@ import * as store from '../../../../../index.js';
 import { fixtureBoard } from '../../../../../../../apps/cli/tests/fixtures/board.js';
 
 for (const [label, check] of [
-  ['single-quoted', "node packages/gate/src/io/run/tests.js 'test/x.test.js'"],
-  ['double-quoted', 'node packages/gate/src/io/run/tests.js "test/x.test.js"'],
-  ['bare', 'node packages/gate/src/io/run/tests.js test/x.test.js'],
+  ['single-quoted', "node apps/cli/src/io/run/tests.js 'test/x.test.js'"],
+  ['double-quoted', 'node apps/cli/src/io/run/tests.js "test/x.test.js"'],
+  ['bare', 'node apps/cli/src/io/run/tests.js test/x.test.js'],
 ]) {
   test(`add with a ${label} test path in --check and no brief infers a brief naming it [B14,C7,#3120]`, t => {
     const board = fixtureBoard(t);
@@ -21,5 +21,5 @@ for (const [label, check] of [
 test('a quote that does not close around the path infers nothing and still refuses NO_BRIEF [B14,C7,#3120]', t => {
   const board = fixtureBoard(t);
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'unbalanced', route: 'mid', criterion: 'x passes',
-    check: "node packages/gate/src/io/run/tests.js 'test/x.test.js\"" }), { code: 'NO_BRIEF' });
+    check: "node apps/cli/src/io/run/tests.js 'test/x.test.js\"" }), { code: 'NO_BRIEF' });
 });

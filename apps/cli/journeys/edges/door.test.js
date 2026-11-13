@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/data/ceilings/cells-edges.json apps/cli/light.js apps/runner/light.js apps/view/light.js packages/gate/light.js packages/kernel/light.js */
 /** @pullboard-world-pin: the last clause reads the committed packages/gate/data/ceilings/cells-edges.json, where each real light door's cold load is recorded. */
 /* Declared pure entries preserve the moved-cell boundary without importing shell code; a light front door may re-export shell modules within its cold-load budget [C7,D3]. */
 import assert from 'node:assert/strict';
@@ -31,7 +31,7 @@ import { commonJsIn } from '../../../../packages/gate/index.js';
 const BIN = fileURLToPath(new URL('../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 const REPO = fileURLToPath(new URL('../../../..', import.meta.url));
 const CORE = 'packages/kernel/light.js';
-const SHELL = 'packages/kernel/src/shell/process.js';
+const SHELL = 'packages/kernel/src/io/process.js';
 const BODY = 'packages/kernel/src/logic/refused.js';
 
 /** Move the fixture's real kernel behind both public entries and retain a production index consumer. */
@@ -41,10 +41,10 @@ function movedPure(t) {
   const plan = computePlan(root), cell = plan.cells.find(row => row.name === 'kernel');
   cell.pureFrontDoor = CORE;
   put(BODY, 'export class Refused extends Error {}\n');
-  put(CORE, "export { Refused } from './src/core/refused.js';\n");
-  put('packages/kernel/index.js', "export * from './core.js';\n");
-  put('src/refused.js', "export { Refused } from '../../../../kernel/light.js';\n");
-  put('bin/tool.js', "import '../../../../kernel/index.js';\nimport '../src/cli.js';\n");
+  put(CORE, "export { Refused } from './src/logic/refused.js';\n");
+  put('packages/kernel/index.js', "export * from './light.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/light.js';\n");
+  put('bin/tool.js', "import '../packages/kernel/index.js';\nimport '../src/cli.js';\n");
   writePlan(root, plan);
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture moved kernel with pure public entry');
@@ -57,29 +57,29 @@ test('a declared pure front door passes the real moved check while both public e
   assert.deepEqual(problems(), []);
   const result = runFixtureChild(process.execPath, [BIN, '--moved', 'kernel'], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr + result.stdout);
-  put('src/board.js', "import { Refused } from '../../../../kernel/light.js';\nexport const board = () => Refused;\n");
+  put('src/board.js', "import { Refused } from '../packages/kernel/light.js';\nexport const board = () => Refused;\n");
   assert.deepEqual(checkMoved(root, plan, 'kernel'), [], 'ordinary pure importers may use the declared entry');
-  put('src/refused.js', "export { Refused } from '../../../../kernel/index.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   assert.deepEqual(problems(), [], 'the original front door remains valid');
 });
 
 test('pure metadata never permits a moved leaf bypass or an undeclared second entry [C7,D3]', t => {
   const { put, cell, problems } = movedPure(t);
-  put('src/refused.js', "export { Refused } from '../../../../kernel/light.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/src/logic/refused.js';\n");
   assert.ok(problems().some(problem => problem.includes('src/refused.js bypasses front door')), problems().join('\n'));
-  put('src/refused.js', "export { Refused } from '../../../../kernel/light.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/light.js';\n");
   delete cell.pureFrontDoor;
   assert.ok(problems().some(problem => problem.includes('src/refused.js bypasses front door')));
 });
 
 test('a pure entry refuses direct and transitive shell or builtin imports naming their source [C7,D3]', t => {
   const { put, problems } = movedPure(t);
-  put('packages/kernel/src/shell/process.js', 'export const launch = true;\n');
-  put(CORE, "export * from './src/shell/process.js';\n");
-  assert.ok(problems().some(problem => problem.includes(CORE) && problem.includes('src/shell/process.js')));
-  put(CORE, "export * from './src/core/refused.js';\n");
-  put(BODY, "export { launch } from '../shell/process.js';\n");
-  assert.ok(problems().some(problem => problem.includes(BODY) && problem.includes('src/shell/process.js')));
+  put('packages/kernel/src/io/process.js', 'export const launch = true;\n');
+  put(CORE, "export * from './src/io/process.js';\n");
+  assert.ok(problems().some(problem => problem.includes(CORE) && problem.includes('src/io/process.js')));
+  put(CORE, "export * from './src/logic/refused.js';\n");
+  put(BODY, "export { launch } from '../io/process.js';\n");
+  assert.ok(problems().some(problem => problem.includes(BODY) && problem.includes('src/io/process.js')));
   put(BODY, "import { spawn } from 'node:child_process';\nexport const Refused = spawn;\n");
   assert.ok(problems().some(problem => problem.includes(BODY) && problem.includes('node:child_process')));
   put(CORE, "export { spawn } from 'node:child_process';\n");
@@ -88,9 +88,9 @@ test('a pure entry refuses direct and transitive shell or builtin imports naming
 
 test('the index must actually re-export core and opaque loading cannot certify a pure closure [C7,D3]', t => {
   const { put, problems } = movedPure(t);
-  put('packages/kernel/index.js', "import './core.js';\n// export * from './core.js';\nexport const text = \"export * from './core.js';\";\n");
+  put('packages/kernel/index.js', "import './light.js';\n// export * from './light.js';\nexport const text = \"export * from './light.js';\";\n");
   assert.ok(problems().some(problem => problem.includes('must re-export pure front door')));
-  put('packages/kernel/index.js', "export * from './core.js';\n");
+  put('packages/kernel/index.js', "export * from './light.js';\n");
   put(BODY, 'export const Refused = () => import(globalThis.target);\n');
   assert.ok(problems().some(problem => problem.includes(BODY) && problem.includes('(computed)')));
   put(BODY, "export const Refused = () => require('child_process');\n");
@@ -102,9 +102,9 @@ test('pure front-door validation refuses alternate paths, executable entry code 
   cell.pureFrontDoor = 'packages/kernel/src/logic/refused.js';
   assert.ok(problems().some(problem => problem.includes('pureFrontDoor must be packages/kernel/light.js')));
   cell.pureFrontDoor = CORE;
-  put(CORE, "import './src/core/refused.js';\nexport const impure = 1;\n");
+  put(CORE, "import './src/logic/refused.js';\nexport const impure = 1;\n");
   assert.ok(problems().some(problem => problem.includes('must only re-export modules')));
-  put(CORE, "export * from './src/core/refused.js';\n");
+  put(CORE, "export * from './src/logic/refused.js';\n");
   rmSync(join(root, BODY));
   put('outside.js', 'export const Refused = Error;\n');
   symlinkSync('../../../../outside.js', join(root, BODY));
@@ -142,10 +142,10 @@ function movedLight(t) {
   cell.lightFrontDoor = CORE;
   put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
   put(SHELL, "import { join } from 'node:path';\nexport const launch = join('a', 'b');\n");
-  put(CORE, "export { Refused } from './src/core/refused.js';\nexport { launch } from './src/shell/process.js';\n");
-  put('packages/kernel/index.js', "export * from './core.js';\n");
-  put('src/refused.js', "export { Refused } from '../../../../kernel/light.js';\n");
-  put('bin/tool.js', "import '../../../../kernel/index.js';\nimport '../src/cli.js';\n");
+  put(CORE, "export { Refused } from './src/logic/refused.js';\nexport { launch } from './src/io/process.js';\n");
+  put('packages/kernel/index.js', "export * from './light.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/light.js';\n");
+  put('bin/tool.js', "import '../packages/kernel/index.js';\nimport '../src/cli.js';\n");
   writePlan(root, plan);
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture moved kernel with light public entry');
@@ -172,7 +172,7 @@ test('a light door is never pure, has one canonical path and re-exports through 
   cell.lightFrontDoor = 'packages/kernel/src/logic/refused.js';
   assert.ok(problems().some(problem => problem.includes('lightFrontDoor must be packages/kernel/light.js')));
   cell.lightFrontDoor = CORE;
-  put('packages/kernel/index.js', "import './core.js';\nexport const text = \"export * from './core.js';\";\n");
+  put('packages/kernel/index.js', "import './light.js';\nexport const text = \"export * from './light.js';\";\n");
   assert.ok(problems().some(problem => problem.includes('must re-export light front door')));
 });
 
@@ -221,5 +221,15 @@ test('every real light door is recorded in the edge ceilings within its budget [
   assert.deepEqual(Object.keys(recorded).sort(), lightDoorsOf(REPO).sort());
   for (const [door, ms] of Object.entries(recorded)) assert.ok(Number.isInteger(ms) && ms > 0 && ms <= LIGHT_DOOR_BUDGET_MS, `${door} recorded at ${ms} ms`);
   assert.ok(lightDoorsOf(REPO).includes('packages/gate/light.js'));
-  assert.ok(!lightDoorsOf(REPO).some(door => door.includes('/kernel/')), 'a pure door stays off the light list');
+  const pureDoors = readPlan(REPO).cells.flatMap(cell => [cell.pureDoor, cell.pureFrontDoor].filter(Boolean));
+  assert.ok(pureDoors.length > 0, 'the real plan declares pure doors');
+  for (const door of pureDoors) assert.ok(!lightDoorsOf(REPO).includes(door), `${door} is pure and stays off the light list`);
+});
+
+test('declared app light doors load within the existing cold budget [C7]', async t => {
+  for (const door of ['apps/cli/light.js', 'apps/runner/light.js', 'apps/view/light.js']) {
+    const ms = await coldLoadMs(REPO, door);
+    t.diagnostic(`${door} ${ms}ms`);
+    assert.ok(ms <= LIGHT_DOOR_BUDGET_MS, `${door} cold load ${ms}ms exceeds the existing budget`);
+  }
 });

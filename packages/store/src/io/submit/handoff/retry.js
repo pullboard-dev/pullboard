@@ -83,7 +83,9 @@ export function handoffServes(board, itemId, handoffId) {
  * submitted the item at the head that hand-off submitted and only the stored result remains.
  * Why: the gate's own submit move marks the item submitted while the hand-off still reads running, until
  * completeSubmitHandoff stores the result, so a driver that asked only handoffServes would end its finished gate
- * stale and never record it. Only a driver already running its gate asks this; admitting or resuming a driver still
+ * stale and never record it. The same holds for a gate that went green on paths another lane owns: its submit move
+ * releases the claim into an ownership wait for this source, so that wait also keeps the driver recording (#5524).
+ * Only a driver already running its gate asks this; admitting or resuming a driver still
  * needs handoffServes, since startSubmitHandoff refuses a running hand-off whose item is no longer claimed (#4073).
  *
  * @param {any} board - An open board.
@@ -96,8 +98,11 @@ export function handoffGateCurrent(board, itemId, handoffId) {
   const handoff = submitHandoff(board, itemId);
   if (!handoff || handoff.id !== handoffId || !['queued', 'running'].includes(handoff.state) || !handoff.commit) return false;
   const item = board.db.prepare('SELECT item_status, item_built_by, item_frozen_digest, item_commit FROM item WHERE item_id = ?').get(itemId);
-  return item?.item_status === 'submitted' && item.item_built_by === handoff.agentId
-    && item.item_frozen_digest === handoff.digest && item.item_commit === handoff.commit;
+  if (item?.item_status === 'submitted' && item.item_built_by === handoff.agentId
+    && item.item_frozen_digest === handoff.digest && item.item_commit === handoff.commit) return true;
+  // A gate that went green on foreign paths released the claim into an owner wait for this very source; only its result remains.
+  const wait = ownershipWaitForJob(board, handoffId);
+  return Boolean(wait && wait.agentId === handoff.agentId && wait.commit === handoff.commit && wait.digest === handoff.digest);
 }
 
 /**
@@ -235,6 +240,28 @@ export function endWithdrawnHandoff(board, id) {
   return record(board, id, { ...job, state: 'ended', reason: 'withdrawn', completedAt: now(board) });
 }
 
+/**
+ * Record an item's queued or running gate as withdrawn, at the request of the seat that holds the item or the coordinator.
+ * Why: a gate that sat in the line for hours had no command to stop it (#2828); the record ends at once, a later result
+ * from its worker is ignored because completeSubmitHandoff stores nothing on a finished record, and a fresh submit
+ * queues a new gate because only a queued or running record counts as pending [C7].
+ *
+ * @param {object} board
+ * @param {number} id
+ * @param {{ agentId: string }} who - The seat asking, bound to the move's sender.
+ * @returns {Record<string, any>} The withdrawn record.
+ */
+function withdrawGate(board, id, { agentId }) {
+  const job = submitHandoff(board, id);
+  if (!job || !['queued', 'running'].includes(job.state)) {
+    throw new Refused('GATE_NOT_WAITING', `item #${id} has no queued or running gate to withdraw; pullboard show ${id} prints its gate state`);
+  }
+  if (agentId !== job.agentId && agentId !== 'coordinator') {
+    throw new Refused('NOT_YOURS', `only the seat that submitted #${id} or the coordinator can withdraw its gate; ask ${job.agentId} or the coordinator`);
+  }
+  return record(board, id, { ...job, state: 'withdrawn', reason: 'gate withdrawn', withdrawnBy: agentId, completedAt: now(board) });
+}
+
 /** Exactly one detached worker enters the existing canonical submit path. */
 export function startSubmitHandoff(board, id, options) {
   return atomic(board, () => {
@@ -263,6 +290,7 @@ export function startSubmitHandoff(board, id, options) {
 /** Store the canonical result without performing any submission transition or accepting new proof. */
 export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMinutes, ...options }) {
   return atomic(board, () => {
+    if (options.withdrawn === true) return withdrawGate(board, id, options);
     const saved = matching(board, id, options);
     if (!['queued', 'running'].includes(saved.state)) return saved;
     const job = { ...saved, ...lockWaitRecord(result?.lockWaits) };

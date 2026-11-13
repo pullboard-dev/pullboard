@@ -1,16 +1,10 @@
 import { requireLandingCompanions } from '../guards.js';
 import { requireLandingModuleResolution } from '../guards.js';
+import { requireLandingSecretFree } from '../guards.js';
+import { requireRecordedMoves } from '../guards.js';
 import { repointLandingGates } from '../../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
-import { assignEngineNumbers } from '../../../../state/index.js';
-import { placeLandingNewFiles } from '../history.js';
-import { placeLandingHistory } from '../history.js';
-import { GENERATED_DOC_PATHS } from '../../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../../merge/index.js';
-import { writeFormatTable } from '../../../../state/index.js';
-import { refreshLandingDocs } from '../docs.js';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
@@ -21,6 +15,13 @@ import { Refused } from '../../../../kernel/index.js';
 import { checkLandingMessages } from '../../logic/message.js';
 import { landingContext } from '../../logic/message.js';
 import { tightenLandingDoctrine } from '../doctrine.js';
+import { scanRidesRunner } from '../scan.js';
+import { amendLandingEngines } from '../derive.js';
+import { firstContainingCommit } from '../first.js';
+import { composeOnRunner } from './compose.js';
+import { deriveOnRunner } from './derive.js';
+import { commitDerived } from './derive.js';
+import { deriveRidesRunner } from './derive.js';
 import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
 import { landingHooks } from './selection.js';
@@ -32,28 +33,6 @@ export async function save(state, patch) {
     .map(entry => [JSON.stringify(entry), entry])).values()];
   state.batch = await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...state.batch, ...patch, conflicts, resolutions }, revision: state.batch.revision ?? 0 }]);
   return state.batch;
-}
-
-/** Find the earliest first-parent commit containing a source using the monotone ancestry predicate. */
-export function firstContainingCommit(root, source) {
-  const commits = git(root, ['rev-list', '--first-parent', 'HEAD']).split('\n').filter(Boolean);
-  if (!commits.length) return undefined;
-  /** Test one point in the first-parent chain; ancestry is false before the first containing point and true after it. */
-  const contains = (commit) => {
-    const result = tryGit(root, ['merge-base', '--is-ancestor', source, commit]);
-    if (result.status === 0) return true;
-    if (result.status === 1) return false;
-    throw new Refused('LAND_GIT', `could not locate the first landing containing ${source}: ${result.stderr || result.stdout}`);
-  };
-  if (!contains(commits[0])) return undefined;
-  let containing = 0;
-  let absent = commits.length;
-  while (absent - containing > 1) {
-    const middle = Math.floor((containing + absent) / 2);
-    if (contains(commits[middle])) containing = middle;
-    else absent = middle;
-  }
-  return commits[containing];
 }
 
 /**
@@ -72,6 +51,18 @@ async function resetDirtyOnce(state) {
   throw new Refused('LAND_DIRTY', `landing batch ${state.batch.id} left its worktree dirty again after one reset; it is blocked and will not retry; inspect ${state.batch.root}`);
 }
 
+/**
+ * The verdict projector for one batch base, shared by every merge group of the batch.
+ * Why: its Git answers (ancestry, first-parent history, changed files) are fixed by the immutable base, so a bisection's
+ * ten merge groups asked Git the same questions for every item again; item state is still read from the board each time [C7].
+ */
+function baseVerdicts(state, base) {
+  state.baseVerdicts ??= new Map();
+  if (!state.baseVerdicts.has(base)) state.baseVerdicts.set(base, verdictProjector(state.root, state.board, { main: base },
+    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }));
+  return state.baseVerdicts.get(base);
+}
+
 /** Merge one ordered group from the immutable batch base, preserving each first-containing commit. */
 export async function mergeGroup(state, items) {
   await state.checkLease();
@@ -79,22 +70,46 @@ export async function mergeGroup(state, items) {
   if (!isClean(batch.root) || untracked(batch.root).length) await resetDirtyOnce(state);
   git(state.batch.root, ['checkout', '--detach', state.batch.base]);
   // Every message is built and checked before the first merge, so a bad one cannot land half a batch.
+  // A named landing carries the coordinator's proven commits; those are the commits it merges and checks [C7,#5559].
+  const proven = batch.external ? new Map((batch.candidates ?? batch.items).map(entry => [entry.id, entry.commit])) : null;
+  const landedCommit = (item) => proven?.get(item.item_id) ?? store.checkedLandingCommit(state.board, item);
   const messages = checkLandingMessages(items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)),
-    landingContext(batch.root, batch.base, state.config, (item) => store.checkedLandingCommit(state.board, item)));
+    landingContext(batch.root, batch.base, state.config, landedCommit));
   const merged = [];
   const conflicts = [];
   const resolutions = [];
   // A per-item landing merges the reviewed commit with repository hooks off: they ran when the item was built [C7,#2901].
   const hooks = landingHooks(state.config);
+  const onRunner = deriveRidesRunner(state);
+  // A named batch's merges, gate repoints and derived files are built by one runner job; this checkout only takes its commit [C7,#5585].
+  const composed = onRunner && items.length ? await composeOnRunner(state, items.map(entry => {
+    const item = store.getItem(state.board, entry.id ?? entry.item_id);
+    const message = messages.get(item.item_id);
+    return { id: item.item_id, commit: landedCommit(item), header: message.header, trailers: message.trailers };
+  })) : null;
+  if (onRunner && !composed) state.say('the runner could not compose this batch; its items were merged on the coordinator');
+  if (composed) {
+    for (const engine of composed.assigned) state.say(`engine ${engine.name}: ${engine.number}`);
+    for (const entry of composed.renames) {
+      resolutions.push({ id: entry.id, files: [state.config.spec], entries: entry.changes.map(change => ({ kind: 'spec-gate-rename', ...change })) });
+      for (const change of entry.changes) state.say(`spec ${change.row}: gate ${change.from} -> ${change.to}`);
+    }
+  }
   for (const entry of items) {
     await state.checkLease();
     const item = store.getItem(state.board, entry.id ?? entry.item_id);
-    if (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
-    const checked = store.checkedLandingCommit(state.board, item);
-    if (checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
+    if (!proven && (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit))) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
+    if (proven && item.item_merged_commit) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} is already merged; name only unmerged items`);
+    const checked = landedCommit(item);
+    if (!proven && checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
     requireLandingCompanions(batch.root, state.board, [item], checked);
-    const stale = verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
+    requireRecordedMoves(batch.root, headCommit(batch.root), checked);
+    const stale = proven ? null : baseVerdicts(state, batch.base).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
+    if (composed) {
+      merged.push({ id: item.item_id, commit: proven ? checked : item.item_commit, ...(checked !== (proven ? checked : item.item_commit) ? { reviewedCommit: checked } : {}), merge: composed.merges.get(item.item_id) });
+      continue;
+    }
     // The body is the trailer paragraph alone: the header carries the title, and no lane branch is named [B3,R3].
     // merge.log is switched off on this call, so a local Git config cannot append a shortlog to the body.
     const trunk = headCommit(batch.root);
@@ -129,15 +144,18 @@ export async function mergeGroup(state, items) {
       for (const change of gateRenames) state.say(`spec ${change.row}: gate ${change.from} -> ${change.to}`);
     }
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
-    const engines = amendLandingEngines(batch.root, hooks);
-    for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
+    // A named batch derives once after its last merge, on a runner (below), so the coordinator spends no CPU on it [C7,#5568].
+    if (!onRunner) for (const engine of amendLandingEngines(batch.root, hooks).assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
     const first = firstContainingCommit(batch.root, checked);
-    merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
+    const commit = proven ? checked : item.item_commit;
+    merged.push({ id: item.item_id, commit, ...(checked !== commit ? { reviewedCommit: checked } : {}), merge: first });
   }
   // The paths the landing itself writes after the item merges (badge counts, lowered doctrine counts): data the board
   // derives, never an item's change, so a submit receipt still answers for a tree that differs only there [C7,#3685].
   const landingWrites = new Set();
-  if (merged.length) {
+  if (merged.length && onRunner) for (const file of composed ? composed.writes : await commitDerived(state, merged, hooks)) landingWrites.add(file);
+  // A named batch writes its badge documents inside the runner job (above); only the local path writes them here [C7,#5583].
+  if (merged.length && !onRunner) {
     const changed = state.landingPorts.writeBadges(batch.root, state.landingPorts.badgeCounts(state.board));
     for (const file of changed) landingWrites.add(file);
     if (changed.length) {
@@ -158,7 +176,7 @@ export async function mergeGroup(state, items) {
   let doctrineCounts = [];
   const beforeDoctrine = headCommit(batch.root);
   try {
-    if (merged.length) doctrineCounts = await tightenLandingDoctrine(batch.root, state.config, { onWait: state.onWait });
+    if (merged.length) doctrineCounts = await tightenLandingDoctrine(batch.root, state.config, { onWait: state.onWait, measured: onRunner ? state.measuredRules : undefined });
   } catch (error) {
     await save(state, { state: 'blocked', items: merged, conflicts, tip: headCommit(batch.root), doctrineCounts: [] });
     throw error;
@@ -168,35 +186,20 @@ export async function mergeGroup(state, items) {
   if (tip !== beforeDoctrine) for (const file of git(batch.root, ['diff', '--name-only', '-z', beforeDoctrine, tip]).split('\0').filter(Boolean)) landingWrites.add(file);
   state.landingWrites = [...landingWrites].sort();
   requireLandingCompanions(batch.root, state.board, merged, tip);
-  await requireLandingModuleResolution(batch.root, batch.base, tip);
+  // A named batch is scanned by the runner job beside its static checks (step/trunk.js), not on the coordinator [C7,#5559].
+  // The secret scan stays on the coordinator either way: the runner runs the candidate's own scan.js [#5968].
+  if (scanRidesRunner(state)) requireLandingSecretFree(batch.root, batch.base, tip); else await requireLandingModuleResolution(batch.root, batch.base, tip);
   return { items: merged, conflicts, resolutions, tip, doctrineCounts };
 }
 
-/** Allocate and stage engine history, then place it before amending that same item merge; hooks are extra Git flags. */
-export function amendLandingEngines(root, hooks = []) {
-  const engines = assignEngineNumbers(root);
-  if (existsSync(join(root, 'packages/state/src/io/formats')) && existsSync(join(root, 'docs', 'formats.md'))
-    && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
-  refreshLandingDocs(root);
-  const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
-  for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
-  if (engines.files.length) {
-    // Canonical rule placement accepts only staged regular files, including this just-generated history.
-    git(root, ['add', '--', ...engines.files]);
-    const placed = placeLandingHistory(root, engines.files);
-    if (placed.length) git(root, ['add', '--', ...placed]);
-  }
-  // Any other new file the plan lacks is placed by rule in this same merge, so main's cells-plan check never goes red (#3443).
-  const newFiles = placeLandingNewFiles(root);
-  if (newFiles.length) git(root, ['add', '--', ...newFiles]);
-  if (engines.files.length || newFiles.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
-  return engines;
-}
+export { amendLandingEngines };
+export { firstContainingCommit };
 
 /** Validate and snapshot process-local providers before any landing admission or worker action. */
 export function landingOperations(ports) {
   const names = ['badgeCounts', 'writeBadges', 'flakeLedger', 'flakeSource', 'observeNativeFailure', 'quarantineWaivers', 'parseProcessCensus',
     'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns', 'landingFlakeRatchet'];
   if (!names.every(name => typeof ports?.[name] === 'function')) throw new TypeError('landing needs explicit canonical operation ports');
-  return Object.freeze(Object.fromEntries(names.map(name => [name, ports[name]])));
+  // badgeDocuments is optional: without it the runner job is handed no badge documents and the coordinator writes them itself [C7,#5583].
+  return Object.freeze(Object.fromEntries([...names, ...(typeof ports.badgeDocuments === 'function' ? ['badgeDocuments'] : [])].map(name => [name, ports[name]])));
 }

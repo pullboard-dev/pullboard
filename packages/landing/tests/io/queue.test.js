@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/landing/src/io/queue.js */
 /** release-queue.js is a plain ES module, so a test that imports it is cacheable and its rank capture is unchanged [C7,#3802]. */
 /** @pullboard-world-pin: clauses 1 and 2 read the module's own source to prove it holds no CommonJS loader. */
 import assert from 'node:assert/strict';

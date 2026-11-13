@@ -41,7 +41,7 @@ function insertClaimWatchdogNudge(board, message) {
  * Send one durable nudge for a live idle claim during the scheduled sentinel sweep.
  * The same sweep's native stale-state pass returns an unchanged claim at the 40-minute boundary, ten minutes after this nudge.
  */
-export function runScheduledClaimWatchdog(ctx, board, snapshot, ports = {}) {
+export function runScheduledClaimWatchdog(ctx, board, snapshot, ports = {}, model = 'unknown') {
   if (!snapshot || !Array.isArray(snapshot.claims)) return { nudge: [], release: [], keep: [], cleared: [] };
   const seats = ports.seats?.() ?? withLocalSeatPresence(board, listAgents(board));
   const seatById = new Map(seats.map(seat => [seat.agent_id, seat]));
@@ -81,7 +81,7 @@ export function runScheduledClaimWatchdog(ctx, board, snapshot, ports = {}) {
     const graceMinutes = WATCHDOG_GRACE_MS / 60_000;
     shout({ from: 'sentinel', to: row.owner,
       text: `Your live claim on #${row.item} has had no commit, submit, or gate for 30 minutes. Please make progress; if it remains idle, the scheduled watchdog returns it to next after a ${graceMinutes}-minute grace period.`,
-      lanes: [], detail: { item: row.item, cause: current.marker } });
+      lanes: [], detail: { item: row.item, cause: current.marker, model } });
   }
   return plan;
 }
@@ -97,7 +97,7 @@ function captureClaimWatchdogSnapshot(ctx, board, ports = {}) {
  * Tell the coordinator once per five-minute window that claims were kept because most seats went quiet together.
  * Why once: the sweep runs every ten minutes and a stalled machine is one event, not one per sweep.
  */
-function announceMachineStall(board, stall, shout = message => insertShout(board, message)) {
+function announceMachineStall(board, stall, shout = message => insertShout(board, message), model = 'unknown') {
   const window = String(Math.floor(Date.parse(stall.observedAt) / 300_000));
   const sent = atomic(board, () => {
     const key = 'machine_stall_window';
@@ -107,7 +107,7 @@ function announceMachineStall(board, stall, shout = message => insertShout(board
   });
   if (sent) shout({ from: 'sentinel', to: 'coordinator', text: stall.lateByMs
       ? `Machine stall: the sentinel tick ran ${Math.round(stall.lateByMs / 60_000)} minutes late with ${stall.quiet} of ${stall.claimed} claimed seats quiet, so no claim was released for no heartbeat in this window.`
-      : `Machine stall: ${stall.quiet} of ${stall.claimed} claimed seats missed their heartbeats together, so no claim was released for no heartbeat in this window.`, lanes: [], detail: { cause: 'MACHINE_STALL', ...stall } });
+      : `Machine stall: ${stall.quiet} of ${stall.claimed} claimed seats missed their heartbeats together, so no claim was released for no heartbeat in this window.`, lanes: [], detail: { cause: 'MACHINE_STALL', model, ...stall } });
 }
 
 /**
@@ -134,7 +134,9 @@ export async function sweepClaims(ctx, board, actor, ordered, ports = {}) {
   (ports.recordClaimWorktrees ?? recordClaimWorktrees)(board, items, agents, { now: ctx.clock.now() });
   ctx.sweepGapMs = noteSweepTick(board, ctx.clock.now().getTime());
   const snapshot = (ports.captureLapsedClaims ?? captureLapsedClaims)(ctx, board, actor);
-  if (ctx.machineStall) announceMachineStall(board, ctx.machineStall, ports.shout);
+  // The sentinel posts as itself, so each shout records the model of the seat whose sweep sent it [I13].
+  const model = agents.find(agent => agent.agent_id === actor)?.agent_model ?? 'unknown';
+  if (ctx.machineStall) announceMachineStall(board, ctx.machineStall, ports.shout, model);
   if (snapshot) {
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
     try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
@@ -145,6 +147,6 @@ export async function sweepClaims(ctx, board, actor, ordered, ports = {}) {
   }
   // The View's ten-minute sentinel cadence calls this sweep outside builder seats; its stale-state move above owns the 40-minute release.
   const watchdogSnapshot = (ports.captureClaimWatchdogSnapshot ?? captureClaimWatchdogSnapshot)(ctx, board, ports);
-  (ports.runScheduledClaimWatchdog ?? runScheduledClaimWatchdog)(ctx, board, watchdogSnapshot, ports.watchdogPorts);
+  (ports.runScheduledClaimWatchdog ?? runScheduledClaimWatchdog)(ctx, board, watchdogSnapshot, ports.watchdogPorts, model);
   return snapshot;
 }

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Submit, review and companion composition retain original completed per-file proof [C7,V4]. */
 import assert from 'node:assert/strict';
 import { completedTestResult } from '../../gate/index.js';

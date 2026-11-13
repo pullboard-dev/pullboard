@@ -31,6 +31,7 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { relaySnapshot } from '../../../../packages/pages/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
+import { MACHINE } from '../../../../packages/state/index.js';
 import { openPagedSnapshot } from '../../../../packages/pages/index.js';
 import {
   addItem,
@@ -42,7 +43,7 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import {
   findChromeExecutable,
   relayWorkBudgetMs,
-  startChrome,
+  startChrome as startRelayChrome,
 } from '../../tests/fixtures/relay/browser.js';
 import {
   pairStudioPhone,
@@ -51,6 +52,16 @@ import {
   studioCommand,
   studioProject,
 } from '../../tests/fixtures/relay/studio.js';
+
+/**
+ * Start relay Chrome as a person who last chose Items on this device: pages land on the Dashboard since #2289, and
+ * these cases read the item list (#2556). A saved tab keeps the address clean, unlike a click that writes #items.
+ */
+async function startChrome(options) {
+  const chrome = await startRelayChrome(options);
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "localStorage.setItem('pb.tab', 'items');" });
+  return chrome;
+}
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -178,6 +189,41 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   assert.equal(document.presentation.state.spec.some(rule => rule.text === 'SPEC_PRESENTATION_ONLY_108'), true);
 });
 
+
+/** Rethrow a stalled pairing wait with the page and relay-call state that explain it, masking every board key. */
+async function pairingFailure(chrome, box, error, { boards, keys, since }) {
+  const capture = { calls: box.calls.slice(since).map(call => `${call.method} ${call.path}`).slice(-40) };
+  try {
+    Object.assign(capture, await chrome.evaluate(`(() => {
+      let stored = [];
+      try { stored = Object.keys(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1') ?? '{}')); } catch { /* Report ids only. */ }
+      return {
+        relayNotice: document.querySelector('#relay-notice')?.textContent ?? null,
+        chainFirst200: (document.querySelector('#chain')?.textContent ?? '').slice(0, 200),
+        projects: [...document.querySelectorAll('#proj-list .proj')].map(node => node.dataset.root ?? node.textContent.slice(0, 40)),
+        hashPresent: location.hash !== '',
+        storedBoards: stored.map(id => ${JSON.stringify(boards)}.indexOf(id)),
+        pageErrors: window.__relayPageErrors ?? null,
+        live: document.querySelector('#live')?.textContent ?? null,
+        screen: { ...document.documentElement.dataset },
+        bodyClass: document.body.className,
+        view: typeof view === 'object' ? { root: view.root, tab: view.tab } : null,
+        data: typeof data === 'object' && data ? {
+          root: data.root ?? null, project: Boolean(data.project), group: Boolean(data.group),
+          items: data.project?.items?.length ?? null,
+          projects: (data.projects ?? []).map(entry => ({ id: entry.id, root: entry.root, ok: entry.ok, error: entry.error ?? null })),
+        } : null,
+      };
+    })()`, 'capture pairing page state', 5000));
+  } catch (captureError) { capture.captureError = captureError.message; }
+  let text = JSON.stringify(capture);
+  for (const key of keys) text = text.replaceAll(key, '[MASKED]');
+  boards.forEach((id, index) => { text = text.replaceAll(id, `[board ${index}]`); });
+  const failure = new AssertionError({ message: `${error.message}\nPairing page capture: ${text}`, actual: false, expected: true, operator: 'waitFor' });
+  failure.cause = error;
+  throw failure;
+}
+
 test('real Chrome pairs, retains its device key, declares its engine on every relay request and shows inactivity [H5,H15,H18,H16,H3]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
@@ -185,7 +231,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   const firstTitle = 'SEALED_BROWSER_INITIAL_108';
   const liveTitle = 'SEALED_BROWSER_LIVE_108';
   const secondTitle = 'SECOND_LINKED_BOARD_108';
-  assert.equal((await box.cli('add', box.lane, firstTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, firstTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -199,7 +245,10 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: 'window.setInterval = () => 0;',
+    source: 'window.setInterval = () => 0;'
+      + ' window.__relayPageErrors = [];'
+      + " addEventListener('error', event => window.__relayPageErrors.push(String(event.error?.stack ?? event.message).slice(0, 400)));"
+      + " addEventListener('unhandledrejection', event => window.__relayPageErrors.push(String(event.reason?.stack ?? event.reason).slice(0, 400)));",
   });
   await signIn(chrome, box);
   const firstBrowserCall = box.calls.length;
@@ -210,8 +259,10 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   assert.equal(box.calls.slice(beforeUnpaired).some(call => /\/(state|events)(?:\?|$)/.test(call.path)), false,
     'a browser without the key sees only authorized board names and pairing guidance');
 
+  const beforePairing = box.calls.length;
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
-  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')');
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')')
+    .catch(error => pairingFailure(chrome, box, error, { boards: [link.board, second.id], keys: [encoded, second.encoded], since: beforePairing }));
   assert.equal(await chrome.evaluate('location.hash === ""'), true, 'the pairing key is removed from browser history');
   assert.equal(await chrome.evaluate("JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))[" + JSON.stringify(link.board) + '].length === 43'), true);
   assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display !== 'none' && readOnly && requests"), true, 'the relay page exposes person request controls while keeping direct moves read-only');
@@ -220,7 +271,10 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   assert.ok(browserApiCalls.length > 0, 'the browser made authenticated relay API requests');
   assert.ok(browserApiCalls.every(call => call.engine === String(ENGINE_VERSION)), 'every browser API request, including catch-up and the live stream, declares the current engine');
   const browserEngine = await fetch(box.origin + '/relay/engine.js');
-  assert.equal(await browserEngine.text(), 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\n', 'the served browser engine matches the current relay engine');
+  // Since #2029 (withdrawnFrom, N26) the browser model derives an item's prior stage from the machine, so the engine file carries it.
+  const servedMachine = JSON.stringify({ initial: MACHINE.initial, moves: MACHINE.moves.map(({ verb, from, to, by }) => ({ verb, from, to, by })) });
+  assert.equal(await browserEngine.text(), 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\nexport const MACHINE = ' + servedMachine + ';\n',
+    'the served browser engine matches the current relay engine and machine');
   await chrome.navigate(box.origin + '/#board=' + second.id + '&key=' + second.encoded);
   await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 2");
   assert.equal(await chrome.evaluate("Object.keys(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))).length === 2"), true,
@@ -230,7 +284,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')');
 
 
-  assert.equal((await box.cli('add', box.lane, liveTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, liveTitle)).code, 0);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(liveTitle) + ')');
   assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
     'ordinary native moves do not create a person request or claim that this device has one waiting');
@@ -349,7 +403,7 @@ test('a board without a snapshot waits without reloading the page [H5,H16]', {
   const healthyUpdate = 'NO_BOARD_HEALTHY_BOARD_UPDATE_339';
   const missingTitle = 'NO_BOARD_WAITING_BOARD_339';
   const missingEventsTitle = 'NO_BOARD_WAITING_EVENTS_339';
-  assert.equal((await box.cli('add', box.lane, healthyTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, healthyTitle)).code, 0);
   await box.link();
   const healthy = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const healthyKey = readFileSync(box.keyFile, 'utf8').trim();
@@ -382,7 +436,7 @@ test('a board without a snapshot waits without reloading the page [H5,H16]', {
   assert.equal(box.calls.some(call => call.method === 'GET' && call.path.startsWith('/api/v1/boards/' + waitingEvents.id + '/events')), true,
     'the real browser requests the other listed board event stream over HTTP');
 
-  assert.equal((await box.cli('add', box.lane, healthyUpdate)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, healthyUpdate)).code, 0);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyUpdate) + ')');
 
   const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
@@ -417,7 +471,7 @@ test('real Chrome refuses a newer engine in the initial replay without exposing 
 }, async t => {
   const box = await relayClientFixture(t);
   const privateTitle = 'ENGINE_TWO_PRIVATE_108';
-  assert.equal((await box.cli('add', box.lane, privateTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, privateTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
@@ -440,7 +494,7 @@ test('real Chrome refuses a newer engine delivered over the live stream [H5,H15]
   const box = await relayClientFixture(t);
   const initialTitle = 'ENGINE_ONE_INITIAL_108';
   const privateTitle = 'ENGINE_TWO_LIVE_PRIVATE_108';
-  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, initialTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
@@ -465,7 +519,7 @@ test('real Chrome waits for and installs the late snapshot that compacts a legac
   box.legacySnapshotApi(); // The stand-in deliberately publishes a historical API1 checkpoint below.
   const initialTitle = 'LATE_SNAPSHOT_INITIAL_108';
   const finalTitle = 'LATE_SNAPSHOT_REPAIRED_108';
-  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, initialTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
@@ -503,7 +557,7 @@ test('an unauthenticated pairing link stays device-only through sign-in and a wr
 }, async t => {
   const box = await relayClientFixture(t);
   const marker = 'PRIVATE_BOARD_WITH_PAIRING_108';
-  assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -575,7 +629,7 @@ test('a phone not signed in sees one GitHub button and nothing about this comput
 }, async t => {
   const box = await relayClientFixture(t);
   const marker = 'PHONE_FIRST_SCREEN_BOARD_757';
-  assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -640,7 +694,7 @@ test('signed in with nothing shared shows one command and waits [H5,H17]', {
   for (const device of ['a phone', 'another computer']) {
     // Each device starts with no linked boards; the preceding phone iteration really shares its board.
     const box = await relayClientFixture(t);
-    assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+    assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
     const chrome = await startChrome();
     t.after(() => chrome.close());
     if (device === 'a phone') await asPhone(chrome);
@@ -680,7 +734,7 @@ test('a signed-in phone waits for its first listing before prescribing a command
 }, async t => {
   const box = await relayClientFixture(t);
   const marker = 'SHARED_AFTER_SLOW_LISTING_757';
-  assert.equal((await box.cli('add', box.lane, marker)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, marker)).code, 0);
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await asPhone(chrome);
@@ -738,8 +792,9 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   assert.equal(status.code, 0);
   assert.equal((status.document.diagnostics ?? []).some(line => line.includes('[RELAY_UNAVAILABLE]')), true,
     'a refused snapshot keeps the final projection pending for retry');
-  assert.equal(box.calls.filter(call => call.method === 'POST' && /\/moves$/.test(call.path)).length, 2, 'both queued moves reached the real stand-in route');
-  assert.equal(box.moveAcks.length, 2, 'both encrypted move acknowledgements were captured before snapshot compaction');
+  // Since #2235 (B35) each add also records milestone_placed, so two adds queue four moves.
+  assert.equal(box.calls.filter(call => call.method === 'POST' && /\/moves$/.test(call.path)).length, 4, 'both adds and their milestone placements reached the real stand-in route');
+  assert.equal(box.moveAcks.length, 4, 'all four encrypted move acknowledgements were captured before snapshot compaction');
   const pendingLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(pendingLink.needsPresentation, true);
   assert.equal(Boolean(pendingLink.snapshot), true);
@@ -750,19 +805,19 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   const retried = await box.cli('status');
   assert.equal(retried.code, 0);
   assert.equal(retried.document.diagnostics?.length ?? 0, 0, 'the saved checkpoint retries without re-sending acknowledged moves');
-  assert.equal(box.moveAcks.length, 2);
+  assert.equal(box.moveAcks.length, 4);
   const completedLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(completedLink.needsPresentation, false, 'only a matching snapshot acknowledgement clears the pending presentation');
   assert.equal(Boolean(completedLink.snapshot), false);
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   const moves = await Promise.all(box.moveAcks.map(async row => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: row.kind, sequence: row.event_id })))));
   assert.equal(moves[0].presentation, undefined, 'the earlier record cannot attest the already-advanced whole board');
-  assert.equal(moves[1].presentation.state.events[0].event_id, moves[1].event.event_id);
-  assert.equal(moves[1].presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
+  assert.equal(moves[3].presentation.state.events[0].event_id, moves[3].event.event_id);
+  assert.equal(moves[3].presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
   const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   assert.equal(response.status, 200);
   const checkpoint = (await response.json()).state;
-  assert.equal(checkpoint.sequence, box.moveAcks[1].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
+  assert.equal(checkpoint.sequence, box.moveAcks[3].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
   const document = snapshotDocument(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence }));
   assert.equal(document.presentation.state.items.some(item => item.title === 'FIRST_QUEUED_108'), true);
   assert.equal(document.presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);

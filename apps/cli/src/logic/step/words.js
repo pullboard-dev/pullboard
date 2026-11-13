@@ -1,10 +1,10 @@
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
 import { commandOutput as collectCommandOutput } from '../../../../../packages/config/index.js';
 import { versionedRefusal } from '../../../../../packages/config/index.js';
-import { withMoveNextSteps } from '../../../../../packages/moves/index.js';
-import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/index.js';
+import { withMoveNextSteps } from '../../../../../packages/moves/light.js';
+import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/light.js';
 /** Pure refusal guidance shared by JSON and CLI output without loading ledger or Git [P4,W4,C7]. */
-import { RECORDED_GENERIC_NEXT } from '../../../../../packages/state/index.js';
+import { RECORDED_GENERIC_NEXT } from '../../../../../packages/state/light.js';
 
 import {
   COORDINATOR_PERSON_REQUEST,
@@ -45,12 +45,12 @@ function stepInMessage(message) {
  * @returns {string}
  */
 export function nextStepFor(error, message, options = {}) {
-  if (personRequestGuidance(String(message), options) !== String(message)) return COORDINATOR_PERSON_REQUEST;
+  if (options.caller !== 'person' && personRequestGuidance(String(message), options) !== String(message)) return COORDINATOR_PERSON_REQUEST;
   const code = typeof error?.code === 'string' ? error.code : '';
   const finalStep = /(?:^|\r?\n)next:[ \t]*([^\r\n]*\S)[ \t]*(?:\r?\n)*$/u.exec(String(message))?.[1];
   if (finalStep) return personRequestStep(finalStep.trim(), options);
   if (typeof error?.next === 'string' && error.next.trim() && error.next.trim() !== RECORDED_GENERIC_NEXT) return personRequestStep(error.next.trim(), options);
-  if (code === 'SPEC_BEHIND_MAIN') return NEXT_STEPS.SPEC_BEHIND_MAIN;
+  if (code === 'SPEC_BEHIND_MAIN') return personRequestStep(NEXT_STEPS.SPEC_BEHIND_MAIN, options);
   return personRequestStep(stepInMessage(message) ?? NEXT_STEPS[code]
     ?? `ask the service owner about refusal code ${code || '(unknown)'}, including the displayed refusal`, options);
 }

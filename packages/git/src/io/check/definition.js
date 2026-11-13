@@ -1,7 +1,10 @@
 /** Fingerprint literal checker programs and their local module dependencies without executing them [V4,C7]. */
 import { createHash } from 'node:crypto';
 import { accessSync } from 'node:fs';
+import { closeSync } from 'node:fs';
 import { constants } from 'node:fs';
+import { openSync } from 'node:fs';
+import { readSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -14,6 +17,8 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { lex } from '../../../../kernel/light.js';
 import { literalShellWords } from '../../../../kernel/light.js';
+import { blobOid } from './project-files.js';
+import { indexedFiles } from './project-files.js';
 
 const binaries = new Map();
 
@@ -44,66 +49,150 @@ function localModule(file, specifier) {
   return found;
 }
 
+/** Longest stretch before a string literal that any context regex below needs to see. */
+const contextWindow = 160;
+
+/** The code just before a literal; scanning the whole prefix per literal is quadratic in file length. */
+function literalContext(code, start) {
+  const window = code.slice(Math.max(0, start - contextWindow), start);
+  // A cut can leave half an identifier whose word boundary is false; the real match is never that long.
+  return start > contextWindow ? window.replace(/^[\w$]+/u, '') : window;
+}
+
+/** What a JavaScript source loads: null when it loads opaquely, else the local specifiers to follow in order. */
+function scanImports(source, strict) {
+  const { code, strings } = lex(source);
+  const bindings = new Map();
+  for (const value of strings) {
+    const binding = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*$/u.exec(literalContext(code, value.start));
+    if (binding && !value.text.includes('\\') && !value.text.includes('${')) bindings.set(binding[1], value.text);
+  }
+  const local = [];
+  let calls = 0;
+  let requires = 0;
+  for (const value of strings) {
+    const prefix = literalContext(code, value.start);
+    const call = /\b(?:require|import)\s*\(\s*$/u.test(prefix);
+    if (!call && !/\b(?:from|import)\s*$/u.test(prefix)) continue;
+    if (call) { calls++; if (/\brequire\s*\(\s*$/u.test(prefix)) requires++; }
+    if (value.text.includes('\\') || value.text.includes('${')) return null;
+    if (isBuiltin(value.text)) {
+      if (strict && /^(?:node:)?(?:module|vm|child_process)$/u.test(value.text)) return null;
+      continue;
+    }
+    if (!value.text.startsWith('.') && !isAbsolute(value.text)) return null;
+    local.push(value.text);
+  }
+  for (const match of (strict ? code : '').matchAll(/\b(require|import)\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/gu)) {
+    const specifier = bindings.get(match[2]);
+    // Only an immutable literal binding with no shadowing can describe a computed loader.
+    if (!specifier || [...code.matchAll(new RegExp(`\\b${match[2]}\\b`, 'gu'))].length !== 2) return null;
+    calls++;
+    if (match[1] === 'require') requires++;
+    if (!isBuiltin(specifier)) local.push(specifier);
+    else if (/^(?:node:)?(?:module|vm|child_process)$/u.test(specifier)) return null;
+  }
+  if (strict && ([...code.matchAll(/\b(?:require|import)\s*\(/gu)].length !== calls || [...code.matchAll(/\brequire\b/gu)].length !== requires || /\b(?:eval|Function|getBuiltinModule|createRequire)\s*\(/u.test(code))) return null;
+  return local;
+}
+
+/** The first line of a file, read without loading the rest: executables and binaries are never read whole. */
+function firstLine(file) {
+  const descriptor = openSync(file, 'r');
+  try {
+    const head = Buffer.alloc(65536);
+    return head.toString('utf8', 0, readSync(descriptor, head, 0, head.length, 0)).split('\n', 1)[0];
+  } finally { closeSync(descriptor); }
+}
+
+// Import edges by blob id: what a file loads depends only on its bytes, its name and how it is read, never on the checkout.
+// Kept for this process only, so the several checks one command fingerprints share one scan of each file.
+const edges = new Map();
+
+// For each result, the entries read from disk rather than the git index: the only ones a clean tree cannot vouch for.
+const unvouched = new WeakMap();
+
+/** The digest of one file the way the fingerprint takes it: project files by git blob id, others by content. */
+function entryDigest(file, stat, inside, length) {
+  return inside ? `git:${blobOid(readFileSync(file), length)}` : fileDigest(file, stat);
+}
+
+/**
+ * Whether a definition computed earlier still describes the files on disk. Files git vouched for are covered by the
+ * caller's clean-tree check; only the rest are read again. A result this module did not return is computed afresh.
+ */
+export function definitionUnchanged(root, previous, commands, code) {
+  const rest = unvouched.get(previous);
+  if (!rest) {
+    const fresh = checkCommandDefinition(root, commands, code);
+    return Boolean(fresh) && JSON.stringify(fresh) === JSON.stringify(previous);
+  }
+  try {
+    return rest.every(({ file, inside, length, digest }) => entryDigest(file, statSync(file, { bigint: true }), inside, length) === digest);
+  } catch { return false; }
+}
+
 /** Collect tracked project code plus literal external dependencies; opaque external loading misses the cache. */
 export function checkCommandDefinition(root, commands, codeFiles = []) {
   const files = new Map();
-  const project = realpathSync(root);
+  const rest = [];
+  const project = realpathSync.native(root);
+  let index;
+  /** The git index answer, asked once and only when a project file needs it. */
+  function tracked() {
+    if (index === undefined) index = indexedFiles(project);
+    return index;
+  }
   /** Include actual bytes even for symlinks or files outside the checked Git tree. */
   function visit(input, strict = true, language = '') {
-    const file = realpathSync(input);
+    const given = relative(project, resolve(input));
+    // A clean tracked regular file has no symlink above it, so its name is already its real path.
+    const file = !given.startsWith('..') && !isAbsolute(given) && tracked()?.clean.has(given) ? resolve(project, given) : realpathSync.native(input);
     if (files.has(file)) return;
     if (files.size >= 8192) throw new Error('checker dependency closure is unbounded');
     const stat = statSync(file, { bigint: true });
     if (!stat.isFile()) throw new Error('checker input is not a regular file');
     const path = relative(project, file);
-    files.set(file, { path: path.startsWith('..') || isAbsolute(path) ? file : `project:${path}`, mode: String(stat.mode), digest: fileDigest(file, stat) });
-    const source = readFileSync(file, 'utf8');
-    if (language === 'sh' || /\.sh$/u.test(file) || /^#![^\n]*\b(?:ba|da|z)?sh\b/u.test(source)) {
-      for (const line of source.split(/\r?\n/u)) {
-        const text = line.trim();
-        if (!text || text.startsWith('#')) continue;
-        const words = literalShellWords(text);
+    const inside = !(path.startsWith('..') || isAbsolute(path));
+    const known = inside ? tracked()?.clean.get(path) : undefined;
+    const length = index?.length ?? 40;
+    let bytes;
+    let digest;
+    if (known) digest = `git:${known.oid}`;
+    else {
+      if (inside) { bytes = readFileSync(file); digest = `git:${blobOid(bytes, length)}`; }
+      else digest = fileDigest(file, stat);
+      rest.push({ file, inside, length, digest });
+    }
+    files.set(file, { path: inside ? `project:${path}` : file, mode: String(stat.mode), digest });
+    let text;
+    const source = () => text ??= bytes ? bytes.toString('utf8') : readFileSync(file, 'utf8');
+    const flags = [/\.sh$/u.test(file), /\.[cm]?js$/u.test(file), /\.(?:py|rb|pl|php|ts|mjscript)$/u.test(file)].map(Number).join('');
+    const key = inside ? `${digest}:${strict ? 1 : 0}:${language}:${flags}` : null;
+    let record = key ? edges.get(key) : undefined;
+    if (!record) {
+      const line = text === undefined && !bytes ? firstLine(file) : source().split('\n', 1)[0];
+      if (language === 'sh' || flags[0] === '1' || /^#![^\n]*\b(?:ba|da|z)?sh\b/u.test(line)) record = { k: 'sh' };
+      else if (language !== 'js' && flags[1] !== '1' && !/^#![^\n]*\bnode\b/u.test(line)) record = /^#!/u.test(line) || flags[2] === '1' ? { k: 'bad' } : { k: 'none' };
+      else {
+        const local = scanImports(source(), strict);
+        record = local ? { k: 'js', local } : { k: 'bad' };
+      }
+      if (key) edges.set(key, record);
+    }
+    if (record.k === 'bad') throw new Error('checker uses an opaque or unsupported loader');
+    if (record.k === 'sh') {
+      for (const line of source().split(/\r?\n/u)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const words = literalShellWords(trimmed);
         if (!words) throw new Error('opaque shell wrapper');
         if (['exit', 'printf', 'echo', ':', 'true', 'false'].includes(words[0])) continue;
         commandFiles(words[0] === 'exec' ? words.slice(1) : words);
       }
       return;
     }
-    if (language !== 'js' && !/\.[cm]?js$/u.test(file) && !/^#![^\n]*\bnode\b/u.test(source)) {
-      if (/^#!/u.test(source) || /\.(?:py|rb|pl|php|ts|mjscript)$/u.test(file)) throw new Error('unsupported checker loader');
-      return;
-    }
-    const { code, strings } = lex(source);
-    const constants = new Map();
-    for (const value of strings) {
-      const binding = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*$/u.exec(code.slice(0, value.start));
-      if (binding && !value.text.includes('\\') && !value.text.includes('${')) constants.set(binding[1], value.text);
-    }
-    let calls = 0;
-    let requires = 0;
-    for (const value of strings) {
-      const prefix = code.slice(0, value.start);
-      const call = /\b(?:require|import)\s*\(\s*$/u.test(prefix);
-      if (!call && !/\b(?:from|import)\s*$/u.test(prefix)) continue;
-      if (call) { calls++; if (/\brequire\s*\(\s*$/u.test(prefix)) requires++; }
-      if (value.text.includes('\\') || value.text.includes('${')) throw new Error('computed checker import');
-      if (isBuiltin(value.text)) {
-        if (strict && /^(?:node:)?(?:module|vm|child_process)$/u.test(value.text)) throw new Error('opaque checker loader');
-        continue;
-      }
-      if (!value.text.startsWith('.') && !isAbsolute(value.text)) throw new Error('conditional package resolution is not pinned');
-      visit(localModule(file, value.text), strict, 'js');
-    }
-    for (const match of (strict ? code : '').matchAll(/\b(require|import)\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/gu)) {
-      const specifier = constants.get(match[2]);
-      // Only an immutable literal binding with no shadowing can describe a computed loader.
-      if (!specifier || [...code.matchAll(new RegExp(`\\b${match[2]}\\b`, 'gu'))].length !== 2) throw new Error('opaque checker loading');
-      calls++;
-      if (match[1] === 'require') requires++;
-      if (!isBuiltin(specifier)) visit(localModule(file, specifier), strict, 'js');
-      else if (/^(?:node:)?(?:module|vm|child_process)$/u.test(specifier)) throw new Error('opaque checker loader');
-    }
-    if (strict && ([...code.matchAll(/\b(?:require|import)\s*\(/gu)].length !== calls || [...code.matchAll(/\brequire\b/gu)].length !== requires || /\b(?:eval|Function|getBuiltinModule|createRequire)\s*\(/u.test(code))) throw new Error('opaque checker loading');
+    if (record.k === 'js') for (const specifier of record.local) visit(localModule(file, specifier), strict, 'js');
   }
   /** Follow the program, its interpreter, and every literal file operand of a wrapper command. */
   function commandFiles(words) {
@@ -126,6 +215,8 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
     visit(process.platform === 'win32' ? process.env.ComSpec : '/bin/sh');
     for (const command of commands) commandFiles(literalShellWords(command));
     for (const file of codeFiles) visit(file, false);
-    return [...files.values()].sort((left, right) => left.path.localeCompare(right.path));
+    const result = [...files.values()].sort((left, right) => left.path.localeCompare(right.path));
+    unvouched.set(result, rest);
+    return result;
   } catch { return null; }
 }

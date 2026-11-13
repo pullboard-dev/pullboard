@@ -1,0 +1,5 @@
+{
+  "name": "red",
+  "help": "  pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame\n",
+  "required": { "file": "string" }
+}

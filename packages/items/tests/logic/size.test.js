@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Criterion size counts files, clauses and named cells [B35,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -27,8 +26,8 @@ test('real one-cell criteria do not turn surrounding prose into extra cells [B35
     'src/line-capacity-board.js', 'src/seat-checkout.js', 'src/seats.js'] }, { name: 'link', root: 'packages/link' }];
   const criteria = [
     // #2266 and #2278 are real board criteria that the old prose scan falsely refused.
-    'Found by core-942 on #1680 (importer and reason facts on #1680; code ready at a55953f61). After this item: the wrong-way edge from seats core into its shell is cut while keeping each binding surface its importers use; the shims src/agent-hook.js, src/github-origin.js, src/line-capacity-board.js, src/seat-checkout.js and src/seats.js are deleted and every importer uses packages/seats/index.js; node packages/codemap/src/io/cells/scripts/plan.js --check and the cell lints pass, and no behaviour changes. #2226 covers the other seven seats shims.',
-    'Found by core-942 on #1695 (each alias, caller and reason in its facts). After this item namespace callers use explicit bindings or narrow ports, github core\'s relayMachineOwner and relayMachineContext read pure ports, view-lane callers are repointed under #2174\'s allowance (only to the module each deleted shim re-exported), the fourteen link shims are deleted, node packages/codemap/src/io/cells/scripts/plan.js --check and the cell lints pass, no move closure grows, and no behaviour changes.',
+    'Found by core-942 on #1680 (importer and reason facts on #1680; code ready at a55953f61). After this item: the wrong-way edge from seats core into its shell is cut while keeping each binding surface its importers use; the shims src/agent-hook.js, src/github-origin.js, src/line-capacity-board.js, src/seat-checkout.js and src/seats.js are deleted and every importer uses packages/seats/index.js; node bin/cells-plan.js --check and the cell lints pass, and no behaviour changes. #2226 covers the other seven seats shims.',
+    'Found by core-942 on #1695 (each alias, caller and reason in its facts). After this item namespace callers use explicit bindings or narrow ports, github core\'s relayMachineOwner and relayMachineContext read pure ports, view-lane callers are repointed under #2174\'s allowance (only to the module each deleted shim re-exported), the fourteen link shims are deleted, node bin/cells-plan.js --check and the cell lints pass, no move closure grows, and no behaviour changes.',
   ];
   for (const criterion of criteria) {
     const size = criterionSize(criterion, catalog);

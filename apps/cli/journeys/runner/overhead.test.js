@@ -34,7 +34,7 @@ import {
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('per-check worker phases conserve time and print separately from controller phases [C7]', () => {
+test('per-check worker phases conserve time and print separately from controller phases [C7]', async () => {
   let now = 0;
   const tracker = startRunnerPhases(() => now);
   for (const [at, name] of [[5, 'capacityWaitMs'], [20, 'sourceMs'], [45, 'dependenciesMs'], [55, 'commandMs'], [120, 'cleanupMs']]) {
@@ -54,7 +54,7 @@ test('per-check worker phases conserve time and print separately from controller
   assert.equal(runnerPhaseLine({ ...phases, commandMs: -1 }), '');
 });
 
-test('batched tip inventory retains exact object order and refuses missing or non-commit objects [C7]', () => {
+test('batched tip inventory retains exact object order and refuses missing or non-commit objects [C7]', async () => {
   const a = 'a'.repeat(40), b = 'b'.repeat(40);
   assert.doesNotThrow(() => validateCacheTips([a, b], `${a} commit 123\n${b} commit 456\n`));
   assert.doesNotThrow(() => validateCacheTips([], ''));
@@ -70,7 +70,7 @@ function interval(runner, start, end, occupiedSlots = 1) {
     runner, occupiedSlots, inherited: false, timing: false, waitMs: 0, runMs: end - start, slot: { kind: 'runner' } };
 }
 
-test('five-minute peak over 70 percent warns with observed capacity and incomplete evidence stays unknown [C7]', () => {
+test('five-minute peak over 70 percent warns with observed capacity and incomplete evidence stays unknown [C7]', async () => {
   const runner = { ...localRunnerDescriptor(2, true), active: 0 };
   const end = Date.parse('2026-10-27T12:00:00Z');
   const window = { from: new Date(end - 300_000).toISOString(), to: new Date(end).toISOString() };
@@ -88,11 +88,11 @@ test('five-minute peak over 70 percent warns with observed capacity and incomple
   }
 });
 
-test('status exposes the measured over-70-percent warning from real Git and SQLite state [C7]', () => {
+test('status exposes the measured over-70-percent warning from real Git and SQLite state [C7]', async () => {
   const box = e2e.project('true', undefined, { withWorktree: false });
   const end = Date.now() - 1000;
   recordReceipt(box.repo, interval({ ...localRunnerDescriptor(2, true), active: 0 }, end - 240_000, end, 2));
-  const output = box.run(box.repo, 'status', '--json');
+  const output = await box.runLocal(box.repo, 'status', '--json');
   assert.equal(output.code, 0, output.err);
   const result = JSON.parse(output.out);
   assert.equal(result.runnerUtilization.available, true);
@@ -143,7 +143,7 @@ console.log(JSON.stringify({green:result.isGreen,phases:result.executionPhases,o
   assert.equal(inventory.filter(args => args.includes('--batch-check')).length, 2, 'retained cache tips and the received candidate each take one bounded validation batch');
   assert.ok(inventory.filter(args => args[1] === '-t').length < 10, 'there is no per-retained-ref type-check loop');
 });
-test('doctrine phases sum complete sequential observations and reject gaps [C7]', () => {
+test('doctrine phases sum complete sequential observations and reject gaps [C7]', async () => {
   const phase = { version: 1, prepareMs: 1, capacityWaitMs: 2, sourceMs: 3, dependenciesMs: 4, commandMs: 5, cleanupMs: 6, totalMs: 21 };
   assert.deepEqual(doctrineExecutionPhases([{ executionPhases: phase }, { executionPhases: phase }], 2),
     { version: 1, prepareMs: 2, capacityWaitMs: 4, sourceMs: 6, dependenciesMs: 8, commandMs: 10, cleanupMs: 12, totalMs: 42 });

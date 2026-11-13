@@ -20,8 +20,8 @@ const BRANCH = 'refs/heads/main';
 const REVIEWER_MODEL = 'Landing reviewer';
 
 /** Require an actual successful JSON command. */
-function json(box, root, ...args) {
-  const result = box.run(root, ...args, '--json');
+async function json(box, root, ...args) {
+  const result = await box.runIn(root, ...args, '--json');
   assert.equal(result.code, 0, result.out + result.err);
   return JSON.parse(result.out);
 }
@@ -34,7 +34,7 @@ function commit(box, root, message) {
 }
 
 /** A board that lands accepted items itself, a committed green test on its trunk, and a reviewer seat; no runners, so the held file runs locally. */
-function fixture(t) {
+async function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -45,38 +45,38 @@ function fixture(t) {
   commit(box, box.repo, 'chore: the board lands accepted items and a held test is committed');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api', '--model', REVIEWER_MODEL, '--route', 'strong');
+  await json(box, reviewer, 'join', 'api', '--model', REVIEWER_MODEL, '--route', 'strong');
   return { box, reviewer };
 }
 
 /** Build one web item and submit it, leaving it for the reviewer. */
-function submitted(box, name) {
+async function submitted(box, name) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const file = `web/${name}.txt`;
-  const id = json(box, box.repo, 'add', 'web', `Build ${name}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`).item.item_id;
-  json(box, box.web, 'claim', String(id));
+  const id = (await json(box, box.repo, 'add', 'web', `Build ${name}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`)).item.item_id;
+  await json(box, box.web, 'claim', String(id));
   writeFileSync(join(box.web, file), `${name}\n`);
   const head = commit(box, box.web, `feat(web): build ${name} [G1]`);
-  json(box, box.web, 'submit', String(id));
+  await json(box, box.web, 'submit', String(id));
   return { id, head };
 }
 
 /** File the defect the automatic lander files for a no-culprit red of the held test. */
-function fileDefect(box, batchId) {
+async function fileDefect(box, batchId) {
   return onBoard(box, board => store.recordLandingTestDefect(board, { agentId: 'coordinator', test: HELD,
     hash: createHash('sha256').update(readFileSync(join(box.repo, HELD))).digest('hex'),
     blob: box.git(box.repo, 'rev-parse', `HEAD:${HELD}`), trunkBlob: null, names: [CASE], lane: 'web', batchId, branch: BRANCH }));
 }
 
-test('clause 1: with no recorded run, the automatic lander runs the held green file at the trunk, closes the defect and lands the batch [C7]', { timeout: 300_000 }, t => { // budget: one real accept-to-merged landing plus one local run of a one-case file in a private repo; hang ceiling, not speed.
-  const { box, reviewer } = fixture(t);
-  const item = submitted(box, 'first');
-  const defect = fileDefect(box, '44444444-4444-4444-8444-444444444444');
+test('clause 1: with no recorded run, the automatic lander runs the held green file at the trunk, closes the defect and lands the batch [C7]', { timeout: 300_000 }, async t => { // budget: one real accept-to-merged landing plus one local run of a one-case file in a private repo; hang ceiling, not speed.
+  const { box, reviewer } = await fixture(t);
+  const item = await submitted(box, 'first');
+  const defect = await fileDefect(box, '44444444-4444-4444-8444-444444444444');
   box.git(reviewer, 'checkout', '-q', '--detach', item.head);
-  const accepted = box.run(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
+  const accepted = await box.runIn(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   assert.doesNotMatch(accepted.out + accepted.err, /LAND_TEST_DEFECT/u);
-  assert.ok(json(box, box.repo, 'show', String(item.id)).item_merged_commit, `the batch lands behind a green hold: ${accepted.out}${accepted.err}`);
+  assert.ok((await json(box, box.repo, 'show', String(item.id))).item_merged_commit, `the batch lands behind a green hold: ${accepted.out}${accepted.err}`);
   const closed = onBoard(box, board => store.events(board).filter(event => event.event_kind === 'landing-test-defect-closed').map(event => JSON.parse(event.event_detail).closed));
   assert.equal(closed.length, 1);
   assert.equal(closed[0].item, defect.item);

@@ -108,18 +108,18 @@ test('[B29,B30,B31,H16] renewals keep the current note and a new claim starts a 
   assert.match(barCheckWarning(board, store.getItem(board, id)), /has no builder note/u);
 });
 
-test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once and records the warning', () => {
+test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once and records the warning', async () => {
   const box = e2e.project();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Bar check submit', '--route', 'mid', '--criterion', 'the page renders', '--check', 'true',
-    '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Bar check submit', '--route', 'mid', '--criterion', 'the page renders', '--check', 'true',
+    '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders'));
   assert.equal(added.code, 0, added.err);
-  const enabled = box.run(box.repo, 'settings', 'line', 'bar.check', 'on', '--reason', 'check the criterion before building',
-    '--window', '{"windowMinutes":60,"activeReviewers":2}');
+  const enabled = (await box.runLocal(box.repo, 'settings', 'line', 'bar.check', 'on', '--reason', 'check the criterion before building',
+    '--window', '{"windowMinutes":60,"activeReviewers":2}'));
   assert.equal(enabled.code, 0, enabled.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', '<h1>Page</h1>\n', 'feat(web): add page [G1]').status, 0);
 
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /^bar\.check warning: bar\.check for claim \d+ has no builder note$/mu);
   assert.equal((submitted.out.match(/^bar\.check warning:/gmu) ?? []).length, 1, 'submit emits one warning line');
@@ -135,22 +135,22 @@ test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once 
   } finally { store.closeBoard(board); }
 });
 
-test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when it is reclaimed', () => {
+test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when it is reclaimed', async () => {
   const box = e2e.project();
   // A light route needs a recorded diagnosis, so the item is filed mid, diagnosed, then lowered.
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Light bar check', '--route', 'mid', '--criterion', 'the page renders', '--check', 'true',
-    '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Light bar check', '--route', 'mid', '--criterion', 'the page renders', '--check', 'true',
+    '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders'));
   assert.equal(added.code, 0, added.err);
-  const diagnosed = box.run(box.repo, 'fact', '1', 'diagnosis', 'Files: web/page.html\nChange: render the page heading\nTest case: the page renders');
+  const diagnosed = (await box.runLocal(box.repo, 'fact', '1', 'diagnosis', 'Files: web/page.html\nChange: render the page heading\nTest case: the page renders'));
   assert.equal(diagnosed.code, 0, diagnosed.err);
-  const lowered = box.run(box.repo, 'edit', '1', '--route', 'light');
+  const lowered = (await box.runLocal(box.repo, 'edit', '1', '--route', 'light'));
   assert.equal(lowered.code, 0, lowered.err);
-  const enabled = box.run(box.repo, 'settings', 'line', 'bar.check', 'on', '--reason', 'check the criterion before building',
-    '--window', '{"windowMinutes":60,"activeReviewers":2}');
+  const enabled = (await box.runLocal(box.repo, 'settings', 'line', 'bar.check', 'on', '--reason', 'check the criterion before building',
+    '--window', '{"windowMinutes":60,"activeReviewers":2}'));
   assert.equal(enabled.code, 0, enabled.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', '<h1>Page</h1>\n', 'feat(web): add page [G1]').status, 0);
-  const firstSubmit = box.run(box.web, 'submit', '1');
+  const firstSubmit = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(firstSubmit.code, 0, firstSubmit.err);
   assert.doesNotMatch(firstSubmit.out, /^bar\.check warning:/mu, 'a first light claim is optional');
   const reviewer = join(box.dir, 'web-reviewer');
@@ -158,9 +158,9 @@ test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when i
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submittedCommit);
   const reviewerJoin = fixtureJoin(box.run, reviewer, 'web');
   assert.equal(reviewerJoin.code, 0, reviewerJoin.err);
-  const rejected = box.run(reviewer, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'the page renders', '--note', 'the heading is not specified');
+  const rejected = (await box.runLocal(reviewer, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'the page renders', '--note', 'the heading is not specified'));
   assert.equal(rejected.code, 0, rejected.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
 
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {

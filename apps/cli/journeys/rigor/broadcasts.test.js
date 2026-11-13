@@ -19,6 +19,7 @@ function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-instructions-'));
   const file = join(directory, 'board.sqlite');
   const now = new Date('2026-11-02T12:00:00Z');
+  // @pullboard-board-file persistence: drafts must survive a reopen of the same file
   const board = openBoard(file, { now: () => new Date(now) });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.board_ensureCoordinator(board, directory);
@@ -49,6 +50,7 @@ test('a repeated coordinator instruction drafts the mechanism that replaces it [
   box.send('all', 'Merge main again.');
   assert.equal(store.rowDrafts(box.board).length, 1, 'one durable draft per instruction kind');
   assert.deepEqual(store.rowDecisions(box.board), [], 'drafting grants no approval');
+  // @pullboard-board-file persistence: reopening the file proves the drafts are durable
   const reopened = openBoard(box.file, { now: () => new Date(box.now) });
   try {
     const needs = store.automaticRigorNeeds({ spec: [], practice: [] }, store.rowDrafts(reopened));
@@ -96,19 +98,19 @@ test('old shout engines do not draft; new coordinator moves declare their side-e
   assert.ok(shoutMove.minimumEngine([{ from: 'core-1' }]) < state.RIGOR_INSTRUCTIONS_ENGINE);
 });
 
-test('the person can decline a materialized instruction proposal through the existing spec path [C7,D1,S1]', t => {
+test('the person can decline a materialized instruction proposal through the existing spec path [C7,D1,S1]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   /** Require real native command success before reading its result. */
-  const json = (...args) => { const ran = box.run(box.repo, ...args, '--json'); assert.equal(ran.code, 0, ran.out + ran.err); return JSON.parse(ran.out); };
-  for (let index = 0; index < 3; index++) json('shout', 'all', 'Merge main before submit.');
-  const report = json('rigor');
+  const json = async (...args) => { const ran = await box.runLocal(box.repo, ...args, '--json'); assert.equal(ran.code, 0, ran.out + ran.err); return JSON.parse(ran.out); };
+  for (let index = 0; index < 3; index++) await json('shout', 'all', 'Merge main before submit.');
+  const report = await json('rigor');
   assert.equal(report.instructions.kinds.find(entry => entry.kind === 'merge-main').count, 3);
-  json('spec', 'apply');
-  const row = json('spec').rows.find(row => row.text.includes('Source: rigor-auto:') && row.text.includes('coordinator merge-main'));
+  await json('spec', 'apply');
+  const row = (await json('spec')).rows.find(row => row.text.includes('Source: rigor-auto:') && row.text.includes('coordinator merge-main'));
   assert.ok(row);
   assert.equal(row.status, 'draft');
-  json('spec', 'decline', row.id, '--reason', 'Use a different mechanism.');
-  assert.ok(json('log').events.some(event => event.event_kind === 'row_decision'));
+  await json('spec', 'decline', row.id, '--reason', 'Use a different mechanism.');
+  assert.ok((await json('log')).events.some(event => event.event_kind === 'row_decision'));
 });

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/config/index.js packages/gate/index.js packages/kernel/index.js packages/resources/index.js */
 /** Quarantined execution is re-admitted across the compatible fleet with a fresh deadline [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

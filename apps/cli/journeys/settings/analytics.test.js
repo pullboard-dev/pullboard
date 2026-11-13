@@ -14,11 +14,15 @@ import { openBoard } from '../../../lib/index.js';
 import { logEvent } from '../../../../packages/store/index.js';
 import { createLocalApiHandler } from '../../../../packages/api/index.js';
 import { main } from '../../tests/fixtures/native.js';
+import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
+import { openKitBoard } from '../../tests/fixtures/testkit.js';
 import { refusalDocument } from '../../index.js';
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { apiHttpFixture } from '../../tests/fixtures/api.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
+import { performance } from 'node:perf_hooks';
 import { costAnalytics } from '../../../../packages/stats/index.js';
+import { costWindowStart } from '../../../../packages/stats/index.js';
 import { wilson } from '../../../../packages/stats/index.js';
 
 const presentation = model => ({ key: model.toLowerCase(), name: model, vendor: 'Fixture' });
@@ -141,4 +145,69 @@ test('a seeded native board yields actual cohorts, Wilson bounds and verdicts [N
   const betaRow = result.builders.rows.find(row => row.model === 'beta');
   assert.deepEqual({ low: betaRow.low, high: betaRow.high }, wilson(10, 30));
   assert.equal(result.verifiers.rows[0].accepts, 60);
+});
+
+// fixture-subject: addItem (cost analytics over items seeded through the kit board)
+test('cost analytics reads only its window and groups by item once [N26]', t => {
+  const board = openKitBoard(':memory:');
+  t.after(() => store.closeBoard(board));
+  const coordinator = store.register(board, { lane: 'coordinator', path: '/repo' });
+  const builder = store.register(board, { lane: 'core', path: '/builder', model: FIXTURE_MODEL });
+  const old = new Date('2026-09-01T12:00:00Z'), recent = new Date('2026-10-30T12:00:00Z');
+  const land = (index, at) => {
+    const id = store.addItem(board, { by: coordinator, lane: 'core', title: `Landed ${index}` });
+    logEvent(board, builder, 'submit', id, {}, at);
+    logEvent(board, builder, 'accept', id, {}, at);
+    logEvent(board, builder, 'usage', null, { item: id, revision: 1, records: [{ model: FIXTURE_MODEL, wallMs: 1000, inputTokens: 10 }] }, at);
+    for (let claim = 0; claim < 5; claim++) logEvent(board, builder, 'claim', id, {}, at);
+    logEvent(board, coordinator, 'merged', id, {}, at);
+    return id;
+  };
+  const oldIds = [land(1, old), land(2, old)], recentIds = [land(3, recent), land(4, recent)];
+  const from = costWindowStart('today', new Date('2026-10-30T14:00:00Z'), 'UTC');
+  const read = store.costEvents(board, from.toISOString());
+  assert.deepEqual([...new Set(read.map(event => event.event_kind))].sort(), ['accept', 'merged', 'submit', 'usage'], 'no claim noise');
+  assert.deepEqual([...new Set(read.filter(event => event.item_id !== null).map(event => event.item_id))].sort(), recentIds.sort(), 'only items landed in the window');
+  assert.ok(oldIds.every(id => !read.some(event => event.item_id === id)), 'items landed before the window are not read');
+  const input = { items: store.listItems(board), agents: store.listAgents(board), window: 'today', now: new Date('2026-10-30T14:00:00Z'), timeZone: 'UTC', modelPresentation: presentation };
+  assert.deepEqual(costAnalytics({ ...input, events: read }), costAnalytics({ ...input, events: store.events(board) }), 'the narrowed read answers what the whole log answered');
+  const many = seeded([['Alpha', 300, 0]]), counter = { reads: 0 };
+  costAnalytics({ ...many, events: many.events.map(event => Object.defineProperty({ ...event }, 'event_kind', { get() { counter.reads++; return event.event_kind; } })) });
+  assert.ok(counter.reads < 40 * many.events.length, `reads ${counter.reads} events ${many.events.length}: linear in the log, not per item`);
+});
+
+test('a shout or item read answers fast while cost analytics runs on a big log [N26]', async t => {
+  const box = apiHttpFixture(t);
+  let port;
+  const handler = createLocalApiHandler({ viewPorts: viewApiPorts, runCommand: main, secret: 'fixture-secret', getPort: () => port, projects: () => [{ root: box.root, name: 'fixture' }], boardOpeners: apiBoardOpeners, refusalDocument, costModelPresentation: presentation });
+  const server = createServer(handler);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  port = server.address().port;
+  t.after(() => new Promise(resolve => { handler.close(); server.close(resolve); server.closeIdleConnections(); }));
+  const board = openKitBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  let itemId;
+  try {
+    const coordinator = store.register(board, { lane: 'coordinator', path: box.root });
+    itemId = store.addItem(board, { by: coordinator, lane: 'app', title: 'Read while cost runs' });
+    const insert = board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
+    board.db.exec('BEGIN');
+    for (let index = 0; index < 60000; index++) insert.run('2026-09-01T12:00:00.000Z', coordinator, index % 3 ? 'renew' : 'claim', itemId, '{}');
+    const at = new Date().toISOString();
+    for (let index = 0; index < 6000; index++) {
+      insert.run(at, coordinator, 'usage', null, JSON.stringify({ item: 100000 + index, revision: 1, records: [{ model: FIXTURE_MODEL, wallMs: 1000, inputTokens: 10 }] }));
+      insert.run(at, coordinator, 'merged', 100000 + index, '{}');
+    }
+    board.db.exec('COMMIT');
+  } finally { store.closeBoard(board); }
+  const base = `http://127.0.0.1:${port}`, headers = { 'x-pullboard-key': 'fixture-secret' };
+  const boards = await (await fetchFresh(base + '/api/v1/boards', { headers })).json();
+  const root = base + '/api/v1/boards/' + boards.boards[0].id;
+  await fetchFresh(root + '/items/' + itemId, { headers });
+  const cost = fetchFresh(root + '/cost-analytics?window=30d', { headers });
+  const started = performance.now();
+  const item = await fetchFresh(root + '/items/' + itemId, { headers });
+  const waited = performance.now() - started;
+  assert.equal(item.status, 200);
+  assert.equal((await cost).status, 200);
+  assert.ok(waited < 100, `the item read waited ${Math.round(waited)} ms behind cost analytics`); // budget: declared by #6663 clause 2, under 100 ms
 });

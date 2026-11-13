@@ -34,6 +34,7 @@ import {
   baselineReceiptDirectory,
 } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
+import { mainPolicy } from '../../../../../sandbox/index.js';
 
 const WORKER = resolve(import.meta.dirname, '../../../../../../apps/lib/src/io/check/baseline.js');
 
@@ -51,9 +52,15 @@ function withBoard(root, work, services) {
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
+/** Whether accepted main sets checks.provesNothing to "hold"; an unreadable policy holds nothing. */
+function holdsProvesNothing(root) {
+  try { return mainPolicy(root).config?.checks?.provesNothing === 'hold'; } catch { return false; }
+}
+
 /** Apply captured data through the same local or linked engine as the original add/edit. */
 async function complete(root, receipt, io, services) {
-  const args = [receipt.id, { agentId: 'coordinator', expected: receipt.expected, baseline: receipt.baseline }];
+  const args = [receipt.id, { agentId: 'coordinator', expected: receipt.expected, baseline: receipt.baseline,
+    ...(receipt.baseline?.result === 'green' && holdsProvesNothing(root) ? { holdProvesNothing: true } : {}) }];
   return relayLinked(root) ? relayOperation(root, 'completeCheckBaseline', args, io)
     : withBoard(root, (board) => store.completeCheckBaseline(board, ...args), services);
 }
@@ -84,6 +91,20 @@ export async function retryCheckBaselines(root, io, services) {
       io.err(`pullboard: baseline completion pending; retry with pullboard show (${error instanceof Refused ? error.code : 'BASELINE_RECEIPT'})`);
     }
   }
+}
+
+/**
+ * Record a pulled check-baseline job's result on its item, as the detached worker records a push runner's: the same
+ * baseline shape, the same stale-request guard and, when main's policy says so, the same hold on a green check [#6560].
+ *
+ * @param {{ gitRoot?: string, db: object }} board - The open board the job came from.
+ * @param {{ item: number, expected: { command: string, main: string, request: string }, run: { exitCode: number, output: string }, seconds: number }} result
+ * @returns {boolean} False when the item's request has moved on, so nothing was recorded.
+ */
+export function recordPulledBaseline(board, { item, expected, run, seconds }) {
+  const baseline = runnerBaseline(expected, run, seconds);
+  return store.completeCheckBaseline(board, item, { agentId: 'coordinator', expected, baseline,
+    ...(baseline.result === 'green' && board.gitRoot && holdsProvesNothing(board.gitRoot) ? { holdProvesNothing: true } : {}) });
 }
 
 /**
@@ -139,13 +160,30 @@ export async function measureBaseline(root, id, expected, services) {
     agent: 'coordinator', item: String(id), kind: 'check-baseline', pinnedSource: source });
 }
 
+/**
+ * The unavailable baseline for a measurement that threw, keeping the refusal code and the first line of its message.
+ * Why: a bare "could not run" hid the cause, so each one needed a debug commit to diagnose (#6232, #6105, #6187) [C7].
+ *
+ * @param {{ command: string, main: string }} expected
+ * @param {unknown} error
+ * @returns {{ command: string, main: string, result: 'unavailable', reason: string }}
+ */
+export function unavailableBaseline(expected, error) {
+  const code = typeof error?.code === 'string' && error.code ? error.code : '';
+  const raw = String(error?.message ?? error ?? '').split('\n')[0].trim();
+  const line = (code ? raw.replace(`[${code}] `, '') : raw).slice(0, 300);
+  const cause = [code, line].filter(Boolean).join(': ') || 'unknown error';
+  return { command: expected.command, main: expected.main, result: 'unavailable',
+    reason: `background check could not run: ${cause}; set --check again from the coordinator` };
+}
+
 /** Measure the captured main once, then seal its terminal result without overwriting a newer check. */
 export async function runCheckBaselineWorker(root, id, request, services) {
   const expected = withBoard(root, (board) => store.getItem(board, id).item_check_baseline, services);
   if (expected?.result !== 'pending' || expected.request !== request) return;
   let baseline;
   try { baseline = await measureBaseline(root, id, expected, services); }
-  catch { baseline = { command: expected.command, main: expected.main, result: 'unavailable', reason: 'background check could not run; set --check again from the coordinator' }; }
+  catch (error) { baseline = unavailableBaseline(expected, error); }
   // No runner took it: the baseline stays pending on the item; it is never run on this machine.
   if (baseline === null) return;
   const receipt = { id, expected, baseline };

@@ -31,9 +31,9 @@ async function refusedCoordinatorAdd(device, lane, title) {
 test('linked computers use person-given names in coordinator holds and devices [E19,H16]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: real two-device CLI sign-in, pairing, takeover and cleanup; no speed target.
   const box = await relayClientFixture(t);
   await box.link('Writing desk');
-  const pairing = await box.cli('relay', 'pair');
+  const pairing = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code, 'Travel laptop');
-  assert.equal((await box.cli('add', box.lane, 'First named coordinator')).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, 'First named coordinator')).code, 0);
   const denied = await refusedCoordinatorAdd(other, box.lane, 'Other coordinator is refused');
   assert.match(denied.message, /Writing desk/u);
   const taken = await other.cli('takeover');
@@ -56,13 +56,13 @@ test('linked computers use person-given names in coordinator holds and devices [
 test('linked computers without names use the machine tail in real refusals and devices [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: real unnamed two-device pairing and refusal, not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
-  const pairing = await box.cli('relay', 'pair');
+  const pairing = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code);
-  assert.equal((await box.cli('add', box.lane, 'Unnamed coordinator')).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, 'Unnamed coordinator')).code, 0);
   const refused = await refusedCoordinatorAdd(other, box.lane, 'Other unnamed coordinator');
   const machine = JSON.parse(readFileSync(box.linkFile, 'utf8')).machine;
   assert.ok(refused.message.includes(`computer ${machine.slice(-8)}`));
-  const roster = await box.cli('relay', 'devices');
+  const roster = await box.cliLocal('relay', 'devices');
   assert.equal(roster.code, 0);
   assert.equal(roster.document.computers[0].name, null);
   assert.equal(JSON.stringify(roster.document).includes(hostname()), false);

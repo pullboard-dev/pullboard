@@ -30,7 +30,7 @@ function fixture(t) {
   writeFileSync(join(root, 'work.txt'), 'base\n');
   git(root, 'add', '.');
   git(root, 'commit', '-q', '-m', 'fixture');
-  const board = openBoard(join(dir, 'board.sqlite'), { now: () => new Date(now) });
+  const board = openBoard(':memory:', { now: () => new Date(now) });
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: join(dir, 'coordinator') });
   const holder = store.register(board, { lane: 'core', path: root, route: 'strong' });

@@ -98,7 +98,7 @@ test('#4633 clause 2: a sealed-cell change with only its own listing rows stays 
   const { root, base } = fixture(t);
   const head = alphaChange(root);
   const plan = selectTestTiers(root, { base, commit: head });
-  assert.deepEqual(plan.changed.filter(file => /^(?:bin|packages\/gate)\//u.test(file)).sort(),
+  assert.deepEqual(plan.changed.filter(file => /^(?:bin|packages\/(?:gate|codemap))\//u.test(file)).sort(),
     ['packages/codemap/data/plan/01-alpha.json', 'packages/gate/data/ceilings/cells-edges.json', 'packages/gate/data/tests/test-cells.json', TIERS], 'every listing file rides with the change');
   assert.deepEqual(plan.units, [ALPHA_TEST, 'packages/alpha/tests/a2.test.js'], 'the cell\'s tests, new one included');
   assert.ok(!plan.journeys.includes('test/journey.test.js'), 'no unrelated root journey');
@@ -143,4 +143,20 @@ test('#4633 clause 3: a change touching an unsealed cell or shared code is not c
   assert.ok(selectTestTiers(root, { base, commit: open }).journeys.includes('test/journey.test.js'), 'beta is not sealed');
   const shared = commit(root, { 'packages/alpha/src/core/a.js': 'export const a = 3;\n', 'lib/shared.js': 'export const shared = 2;\n' });
   assert.ok(selectTestTiers(root, { base: open, commit: shared }).journeys.includes('test/journey.test.js'), 'shared code is not a cell');
+});
+
+test('#5671 clause 1: a unit narrowed to a sealed cell passes the guard [C7]', t => {
+  const { root, base } = fixture(t);
+  const moved = 'apps/gamma/tests/moved.test.js';
+  const head = commit(root, { [moved]: 'import { g } from "../index.js";\nvoid g;\n', 'apps/gamma/src/shell/g.js': 'export const g = 2;\n' });
+  const plan = selectTestTiers(root, { base, commit: head });
+  assert.deepEqual(plan.units, [GAMMA_TEST, moved], 'selection narrows to the sealed cell\'s own tests');
+  assert.doesNotThrow(() => requireSealedSkips(root, plan), 'the narrowing to the sealed cell is accepted');
+});
+
+test('#5671 clause 1: an unsealed package still has to select its unit tests [C7]', t => {
+  const { root, base } = fixture(t, ['alpha']);
+  const head = commit(root, { 'packages/beta/src/core/b.js': 'export const b = 2;\n' });
+  const plan = selectTestTiers(root, { base, commit: head });
+  assert.throws(() => requireSealedSkips(root, { ...plan, units: [] }), /TEST_SELECTION_INCOMPLETE|neither selected nor skipped/u);
 });

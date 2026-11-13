@@ -9,7 +9,7 @@ import { fileWatchdogLimits } from '../../../../packages/drive/light.js';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 
-const runner = fileURLToPath(new URL('../../../../packages/gate/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const CHATTER = `import { test } from 'node:test';
 test('chatty hang [C7]', () => {
   for (let n = 1; ; n++) {

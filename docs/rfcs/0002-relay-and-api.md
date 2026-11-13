@@ -19,7 +19,7 @@ Pullboard gets one versioned API, served two ways: locally by `pullboard serve`,
 
 ## The parts
 
-**The engine.** The relay runs the same board code as the CLI (`src/board.js`, the lifecycle in `src/machine.js`, SQLite through `node:sqlite`), one database per board. It refuses exactly what the CLI refuses, with the same codes.
+**The engine.** The relay runs the same board code as the CLI (`packages/store/src/io/board.js`, the lifecycle in `packages/state/src/io/machine.js`, SQLite through `node:sqlite`), one database per board. It refuses exactly what the CLI refuses, with the same codes.
 
 **API v1.** One shape for both servers. Locally, `pullboard serve` answers on 127.0.0.1 behind a per-session secret, as the view does today. On pullboard.dev, the same paths answer behind a GitHub session or an agent token.
 

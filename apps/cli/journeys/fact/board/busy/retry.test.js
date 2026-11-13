@@ -1,5 +1,5 @@
 /** Native lock admission and submit preparation keep slow repository work outside SQLite [C7]. */
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js packages/resources/index.js packages/store/index.js */
 /** @pullboard-test-loads packages/store/index.js packages/resources/index.js */
 import {
   openBoard,
@@ -73,6 +73,7 @@ async function proveRetry(t, directory, kind) {
     if (!busy) throw new Error('the fixture did not encounter a real locked database');
     process.disconnect();
   `;
+  // Process-level: a separate node process contends for the real SQLite lock over IPC.
   const child = startFixtureChild(process.execPath, ['--input-type=module', '-e', source, file, kind,
     new URL('../../../../../../packages/store/index.js', import.meta.url).href,
     new URL('../../../../../../packages/resources/index.js', import.meta.url).href,
@@ -127,6 +128,7 @@ test('submit dry-run prepares repository evidence before locking and records a h
     '--criterion', 'The dry-run leaves no submission. [test]', '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
+  // @pullboard-board-file locking: the retry case needs a second connection contending on the same board file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined,
     { gitRoot: box.repo, writeContext: { command: 'submit-preflight' } });
   t.after(() => closeBoard(board));
@@ -180,6 +182,7 @@ test('submit dry-run prepares again when another seat commits after preparation,
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const file = join(box.repo, '.git/pullboard/board.sqlite');
+  // @pullboard-board-file locking: the retry case needs a second connection contending on the same board file.
   const board = openBoard(file, undefined, { gitRoot: box.repo, writeContext: { command: 'submit-preflight' } });
   t.after(() => closeBoard(board));
   const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder'), model: 'fixture', family: 'openai' });

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/cells.json packages/codemap/src/io/cells/scripts/plan.js packages/kernel/browser.js packages/kernel/index.js packages/kernel/src/logic/refused.js */
 /** A cell may declare a browser-safe pure door, pure.js, beside its index.js: src/core files only, no node: built-in, no shell [C7,D3]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

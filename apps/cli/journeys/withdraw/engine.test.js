@@ -30,29 +30,29 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Obtain an accepted snapshot through actual joined Git checkouts and native submission/review. */
-function acceptedSnapshot(context = false) {
+async function acceptedSnapshot(context = false) {
   const box = e2e.project();
   if (context) {
     assert.equal(e2e.commitFile(box, box.repo, 'web/page.html', '<header>Old</header>\n' + '\n'.repeat(8) + '<h1>Start</h1>\n', 'test(web): establish a private review base [G1]').status, 0);
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   }
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Withdrawal engine fixture', '--specs', 'G1', '--criterion', 'The page renders.').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', context ? '<header>Old</header>\n' + '\n'.repeat(8) + '<h1>Page</h1>\n' : '<h1>Page</h1>', 'feat(web): page [G1]').status, 0);
-  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/reviewer');
   assert.equal(fixtureJoin(box.run, reviewer, context ? 'web' : 'api').code, 0);
-  assert.equal(box.run(reviewer, 'next', '--verify', '1').code, 0);
+  assert.equal((await box.runLocal(reviewer, 'next', '--verify', '1')).code, 0);
   box.git(reviewer, 'switch', '-q', '--detach', box.git(box.web, 'rev-parse', 'HEAD'));
-  const accepted = box.run(reviewer, 'verify', '1', 'accept', '--note', 'native private check passed', '--json');
+  const accepted = await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'native private check passed', '--json');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return context ? { box, reviewer, snapshot: exportBoard(board) } : exportBoard(board); } finally { store.closeBoard(board); }
 }
 
-test('withdrawal true is engine-fenced while false retains historical reopen meaning [V2,V6,H16]', t => {
-  const snapshot = acceptedSnapshot(), directory = mkdtempSync(join(tmpdir(), 'pullboard-withdraw-engine-'));
+test('withdrawal true is engine-fenced while false retains historical reopen meaning [V2,V6,H16]', async t => {
+  const snapshot = await acceptedSnapshot(), directory = mkdtempSync(join(tmpdir(), 'pullboard-withdraw-engine-'));
   const boards = ['false', 'old-true', 'current'].map(name => {
     const board = openBoard(join(directory, name + '.sqlite'));
     importBoard(board, snapshot);
@@ -92,30 +92,31 @@ test('the API carries withdrawal as a boolean without changing note boundaries [
 });
 
 
-test('withdrawing the latest accept never revives an earlier accept of the same commit [V2,V6,H16]', t => {
-  const { box, reviewer } = acceptedSnapshot(true);
-  const trunk = e2e.commitFile(box, box.repo, 'web/page.html', '<header>New</header>\n' + '\n'.repeat(8) + '<h1>Start</h1>\n', 'fix(web): move the private review trunk [G1]');
+test('withdrawing the latest accept never revives an earlier accept of the same commit [V2,V6,H16]', async t => {
+  const { box, reviewer } = await acceptedSnapshot(true);
+  const trunk = e2e.commitFile(box, box.repo, 'web/page.html', '<header>Old</header>\n' + '\n'.repeat(8) + '<h1>Trunk</h1>\n', 'fix(web): move the private review trunk [G1]');
   assert.equal(trunk.status, 0, trunk.stderr);
-  box.git(reviewer, 'merge', '-q', '--no-edit', 'main');
-  const reviewed = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the actual new trunk composition passes', '--json');
+  // The trunk rewrites the line the item changed, so the old verdict is stale; the reviewer seals a resolved head.
+  box.git(reviewer, 'merge', '-q', '--no-edit', '-X', 'ours', 'main');
+  const reviewed = await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'the actual new trunk composition passes', '--json');
   assert.equal(reviewed.code, 0, reviewed.err + reviewed.out);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const rows = board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(1);
   assert.equal(rows.length, 2, 'two genuine native reviews bind the same submitted commit to successive trunks');
   assert.equal(rows[0].verdict_commit, rows[1].verdict_commit);
-  const withdrawn = box.run(reviewer, 'reopen', '1', '--withdraw-verdict', '--note', 'withdraw the latest interpretation', '--json');
+  const withdrawn = await box.runLocal(reviewer, 'reopen', '1', '--withdraw-verdict', '--note', 'withdraw the latest interpretation', '--json');
   assert.equal(withdrawn.code, 0, withdrawn.err + withdrawn.out);
   assert.equal(store.acceptedVerdict(board, store.getItem(board, 1)), undefined,
     'withdrawal of the latest current acceptance must not resurrect the older one');
   assert.deepEqual(board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(1), rows);
-  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  box.git(box.web, 'merge', '-q', '--no-edit', '-X', 'ours', 'main');
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', '<h1>Corrected</h1>', 'fix(web): honor the clarified interpretation [G1]').status, 0);
-  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
   box.git(reviewer, 'switch', '-q', '--detach', box.git(box.web, 'rev-parse', 'HEAD'));
-  assert.equal(box.run(reviewer, 'next', '--verify', '1').code, 0);
-  const fresh = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the corrected new submission passes', '--json');
+  assert.equal((await box.runLocal(reviewer, 'next', '--verify', '1')).code, 0);
+  const fresh = await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'the corrected new submission passes', '--json');
   assert.equal(fresh.code, 0, fresh.err + fresh.out);
   const current = store.acceptedVerdict(board, store.getItem(board, 1));
   assert.ok(current.verdict_id > rows[1].verdict_id);

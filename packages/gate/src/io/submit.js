@@ -76,6 +76,10 @@ import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
 import { proveBatches } from './shards/proof.js';
+import { reusedShardFiles } from './shards/proof.js';
+import { shardPassStore } from './shards/proof.js';
+import { plainCheckRun } from './shards/green.js';
+import { reusableProof } from './shards/green.js';
 import { readFileTimes } from './test/value/timing.js';
 import { progressingWait } from './progress.js';
 import { whileGateRuns } from './progress.js';
@@ -110,7 +114,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
-  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests });
+  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly });
   const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
@@ -140,13 +144,34 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
     proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner };
 }
 
+/**
+ * The proof files whose green shard is already recorded for this tree, so the gate need not lease a slot for them.
+ * Why: a fully reused proof took a browser slot it never used; #3400 held about 8 (8 Nov) [C7].
+ *
+ * @param {string} root
+ * @param {{ proofFiles: string[], testRunner?: string, selection?: {full?: boolean} }} plan
+ * @param {string} [runner] - The test runner prefix the proof command uses.
+ * @returns {string[]}
+ */
+export function reusedProofFiles(root, plan, runner = plan.testRunner) {
+  if (!plan.proofFiles.length || plan.selection?.full || !runner?.trim()) return [];
+  let tree = null;
+  try { tree = git(root, ['rev-parse', 'HEAD^{tree}']).trim(); } catch { return []; }
+  const passes = shardPassStore(tree, `${runner.trimEnd()} `);
+  return passes ? reusedShardFiles(passes, plan.proofFiles) : [];
+}
+
 /** Decide whether a planned submit needs a browser or GUI slot; a remote analysis runs this beside its plan. */
-export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback }) {
-  const { check, selection, deferFullFallback, deferSelection, proofFiles } = plan;
+export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [] }) {
+  const { check, selection, deferFullFallback, deferSelection } = plan;
+  // Files whose recorded pass is reused run nowhere, so they ask for no browser or GUI slot [C7].
+  const reused = new Set(reusedFiles);
+  const proofFiles = plan.proofFiles.filter(file => !reused.has(file));
+  const allReused = plan.proofFiles.length > 0 && !proofFiles.length;
   const checkUsesBrowser = check ? (!allowBrowserFreeChecks || await checkNeedsBrowser(root, check, { onFallback: onBrowserFallback })) : false;
   const proofUsesBrowser = deferFullFallback || deferSelection
     ? (proofFiles.length > 0 && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })))
-    : (selection.full || !allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback }));
+    : (selection.full || !allReused && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })));
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
   return { browser: checkUsesBrowser || proofUsesBrowser, gui };
@@ -169,6 +194,106 @@ function submitTestOutcomes(profiles) {
   return testOutcomeFields([...combined.values()]);
 }
 
+/** The runner tooling sha256 this controller sends, or null when it cannot be read: no reuse without it. */
+function runnerTooling(executionServices) {
+  try { return executionServices?.runners?.trustedTooling?.()?.tooling?.sha256 ?? null; } catch { return null; }
+}
+
+/**
+ * The recorded green run of exactly the check's files at the runner source's tree with this controller's tooling, as a
+ * plan executor, or null so the check runs as before. Only a runner lease with a known source tree qualifies; if the
+ * record is gone by the time the plan runs, the plan runs on the runner [C7].
+ *
+ * @returns {((plan: object) => Promise<object>) | null}
+ */
+function reusableCheckRun(root, check, lease, executionServices) {
+  const plain = plainCheckRun(check);
+  const source = lease?.runner ? lease.source : null;
+  if (!plain || !source?.tree || !source.commit) return null;
+  const wanted = { tree: source.tree, head: source.commit, runner: plain.runner, files: plain.files, tooling: runnerTooling(executionServices) };
+  if (!reusableProof(root, wanted)) return null;
+  return async plan => reusableProof(root, { ...wanted, timingRunId: plan.remoteOptions?.metadata?.timingRunId ?? null })
+    ?? plan.gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions);
+}
+
+/**
+ * Give a gate lease the submit proof context, signature capture and main pin every phase needs.
+ * Why: the main lease and the frozen check's own lease must stamp their runs the same way.
+ *
+ * @param {any} lease
+ * @param {{signatureCapture?: any, proofContext?: any, hasFinalProof: boolean, testTiers: boolean, onFailure?: any, trunk?: string|null}} context
+ */
+function armGateLease(lease, { signatureCapture, proofContext, hasFinalProof, testTiers, onFailure, trunk }) {
+  if (signatureCapture) lease.signatureCapture = signatureCapture;
+  lease.testTiers = testTiers;
+  lease.quarantines = proofContext?.quarantines ?? [];
+  if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
+    ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
+    ...(!hasFinalProof && proofContext.admission?.id ? { submitAdmission: proofContext.admission.id } : {}),
+    ...(proofContext.admission?.id ? { diagnosticAdmission: proofContext.admission.id } : {}) };
+  pinRunMain(lease, onFailure);
+  lease.pinnedMain = trunk ?? null;
+}
+
+/** Where a submit writes its combined log; the frozen check's log and profile sit beside it. */
+export function submitLogPath(outputRoot, outputLog) {
+  return outputLog ?? gitPath(outputRoot, 'pullboard-submit.log');
+}
+
+/**
+ * Start the frozen item check on its own runner lease now, before the test selection is known, so it overlaps the
+ * analysis and the proof (#3325). The plan-bound reuse stamps arrive later through bind; a run that ends before bind
+ * leaves a receipt without them, which review simply proves again.
+ *
+ * @param {string} root
+ * @param {{check: string, proofContext?: any, onFailure?: any, trunk?: string|null, signatureCapture?: any, executionServices: any, outputRoot?: string, outputLog?: string, agent?: string, item?: string|number, kind?: string, timing?: boolean, signal?: AbortSignal, runnerAdmission?: object, browser?: boolean, gui?: boolean}} options
+ * @returns {{check: string, promise: Promise<{run: any, lease: any}>, bind: (plan: {hasFinalProof: boolean, testTiers: boolean, reusePlan: string}) => void, abort: () => void}}
+ */
+export function startCriterionRun(root, { check, proofContext, onFailure, trunk, signatureCapture, executionServices, outputRoot = root, outputLog,
+  agent, item = '', kind = 'submit', timing = false, signal, runnerAdmission = {}, browser = false, gui = false }) {
+  const controller = new AbortController();
+  if (signal?.aborted) controller.abort(signal.reason);
+  else signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  const checkLog = `${submitLogPath(outputRoot, outputLog)}.check.log`;
+  let armed = null;
+  let bound = null;
+  /** Stamp the check's receipts with the plan the proof will run, once that plan exists. */
+  const stamp = () => {
+    if (!armed || !bound) return;
+    armed.testTiers = bound.testTiers;
+    const admission = proofContext?.admission?.id;
+    if (armed.proof && admission) armed.proof = { ...armed.proof, submitPhase: 'criterion', submitAdmission: admission,
+      diagnosticAdmission: admission, submitReuse: true, submitReusePlan: bound.reusePlan };
+  };
+  const promise = withGateSlot(root, async lease => {
+    armGateLease(lease, { signatureCapture, proofContext, hasFinalProof: true, testTiers: false, onFailure, trunk });
+    lease.proofReceiptIds = [];
+    armed = lease;
+    stamp();
+    const run = await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true, signal: controller.signal }, executionServices);
+    // A timed-out check is the check's red and is never retried on another runner.
+    return { run, lease };
+  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, signal: controller.signal, ...runnerAdmission });
+  // An abandoned early run must not surface as an unhandled rejection; the gate that awaits it still sees the error.
+  promise.catch(() => {});
+  return { check, promise, abort: () => controller.abort(new Error('the early criterion run was replaced')),
+    bind: plan => { bound = plan; stamp(); } };
+}
+
+/**
+ * Run the frozen item check under `options.gateLease`: a builder's recorded green pullboard test of exactly the check's
+ * files at this tree stands in for the runner trip, and its receipt is recorded as usual; otherwise the check runs [C7].
+ */
+async function runItemCheck(root, check, options, executionServices) {
+  const reused = reusableCheckRun(root, check, options.gateLease, executionServices);
+  return reused ? runProfiledShardsAsync(root, check, options, reused) : runProfiledShellAsync(root, check, options);
+}
+
+/** The machinery note for an item check that took a builder's green run. */
+function reusedCheckNote(lease) {
+  return `item check reused a green pullboard test run at tree ${String(lease?.source?.tree ?? '').slice(0, 12)}; no runner trip`;
+}
+
 /**
  * Prove the frozen item check and selected imports under one lease. Subsets neither read nor write
  * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason. A given plan and
@@ -179,7 +304,7 @@ function submitTestOutcomes(profiles) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
   planners = { plan: submitGatePlan, admission: submitGateAdmission }, signal }) {
 
   if (!config.gate.trim()) throw missingGate(root);
@@ -207,7 +332,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
-  const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
+  // A requeued proof reuses the frozen check's own lease and result instead of running the check again.
+  let carriedCriterion = earlyCriterion ?? null;
+  const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback,
+    reusedFiles: reusedProofFiles(root, plan, config.affectedTests) });
   // Each runner-wait poll and a beat while tests run report progress to a driving drive cell (#3829).
   const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
   /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
@@ -218,24 +346,16 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     await onStart?.();
     // Immediate admission may have no queue poll; retain the existing quarantine callback when no witness exists yet.
     if (proofContext?.admission && !proofContext.admission.id) await onWait?.({ admitted: true });
-    if (signatureCapture) lease.signatureCapture = signatureCapture;
-    lease.testTiers = Boolean(plan.testTiers);
-    lease.quarantines = proofContext?.quarantines ?? [];
-    if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
-      ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
-      ...(!hasFinalProof && proofContext.admission?.id ? { submitAdmission: proofContext.admission.id } : {}),
-      ...(proofContext.admission?.id ? { diagnosticAdmission: proofContext.admission.id } : {}) };
-    pinRunMain(lease, onFailure);
-    lease.pinnedMain = trunk ?? null;
+    armGateLease(lease, { signatureCapture, proofContext, hasFinalProof, testTiers: Boolean(plan.testTiers), onFailure, trunk });
     const startedAt = Date.now();
-    const log = outputLog ?? gitPath(outputRoot, 'pullboard-submit.log');
+    const log = submitLogPath(outputRoot, outputLog);
     const checkLog = `${log}.check.log`;
     const proofLog = `${log}.proof.log`;
     /** Isolate each concurrently executing phase's source context, tracker and receipt list. */
     const phaseLease = role => ({ ...lease, executionServices: lease.executionServices, tracker: startReceipt(),
       proofReceiptIds: [], ...(lease.proof ? { proof: { ...lease.proof,
         ...(proofContext?.admission?.id ? { submitPhase: role, submitAdmission: proofContext.admission.id, submitReuse: true, submitReusePlan: reusePlan } : {}) } } : {}) });
-    const criterionLease = phaseLease('criterion');
+    let criterionLease = phaseLease('criterion');
     const proofLease = phaseLease('proof');
     const proofWait = check ? 0 : lease.waitMs;
     /**
@@ -280,14 +400,34 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         shardSlotOptions(slotOptions, { closed }));
       // A browser proof opens only as many requests as runners have browser slots free, so none waits on its siblings [C7].
       const freeSlots = !lease.runner ? 0 : planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
-      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote, gateLaneFree });
+      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote, gateLaneFree,
+        passes: shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([]), { tooling: runnerTooling(executionServices) }) });
     };
     lease.tracker?.mark('runAt');
+    // The frozen check runs on its own runner lease beside the proof (#3325); an early start must have the check the plan kept.
+    let separate = carriedCriterion;
+    if (separate && separate.check !== check) { separate.abort(); separate = null; }
+    if (!separate && check && lease.runner) {
+      separate = startCriterionRun(root, { check, proofContext, onFailure, trunk, signatureCapture, executionServices, outputRoot, outputLog,
+        agent, item, kind, timing, signal, runnerAdmission, browser, gui });
+    }
+    carriedCriterion = separate;
+    separate?.bind({ hasFinalProof, testTiers: Boolean(plan.testTiers), reusePlan });
+    // The proof owns the gate's lease at once when the check holds a lease of its own.
+    if (separate) releaseGateLane();
     /** Retain completed check evidence even when the later proof refuses its runner. */
     const criterionRun = async () => {
+      if (separate) {
+        const done = await separate.promise;
+        criterionLease = done.lease;
+        if (done.run.reusedGreen) onMachineryNote(reusedCheckNote(done.lease));
+        writeFileSync(checkLog, safeLog(done.run.output), { mode: 0o600 });
+        return done.run;
+      }
       const run = check
-        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal })
+        ? await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal }, executionServices)
         : { isGreen: true, output: '', seconds: 0 };
+      if (run.reusedGreen) onMachineryNote(reusedCheckNote(criterionLease));
       if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
       return run;
     };

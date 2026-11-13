@@ -28,7 +28,7 @@ test('clause 1: a phone reaches the board on the local network [H19]', { timeout
   const box = machine();
   const alpha = project(box, 'private-lan-fixture');
   const title = 'LAN fixture obligation';
-  box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'remains visible to its paired person');
+  await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'remains visible to its paired person');
   const view = await startLanView(t, box);
   const assigned = Object.values(networkInterfaces()).flat().filter(row => row && row.family === 'IPv4' && !row.internal)
     .map(row => row.address);
@@ -68,7 +68,7 @@ test('clause 1: a phone reaches the board on the local network [H19]', { timeout
   await chrome.stable(`document.querySelector('#shout-text').value = ${JSON.stringify(message)}`);
   await chrome.click("document.querySelector('#shout-send')");
   await chrome.waitFor(`document.querySelector('#shout-text').value === '' && document.body.innerText.includes(${JSON.stringify(message)})`);
-  const native = JSON.parse(box.run(alpha.repo, 'export', '--json'));
+  const native = JSON.parse(await box.inProcess(alpha.repo, 'export', '--json'));
   const recorded = native.tables.shout.filter(row => row.shout_text === message)
     .map(({ shout_from, shout_to, shout_request }) => ({ shout_from, shout_to, shout_request }));
   assert.deepEqual(recorded, [{ shout_from: 'person', shout_to: 'coordinator', shout_request: 1 }],

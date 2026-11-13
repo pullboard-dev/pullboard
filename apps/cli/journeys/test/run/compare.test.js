@@ -21,7 +21,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** A project whose one test file is red on a stand-in runner, committed so main has the same red file. */
-function redProject() {
+async function redProject() {
   const box = e2e.project('true');
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
@@ -30,9 +30,9 @@ function redProject() {
   for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1').code, 0);
+  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
-    const set = box.run(box.repo, 'settings', key, value);
+    const set = await box.runLocal(box.repo, 'settings', key, value);
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
   const configFile = join(box.repo, 'pullboard.json');
@@ -47,23 +47,23 @@ function redProject() {
   return box;
 }
 
-test('clause 1: pullboard test <one file> reports its red cases without re-running the file on main [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
-  const box = redProject();
-  const json = box.run(box.web, 'test', 'test/red.test.js', '--json');
+test('clause 1: pullboard test <one file> reports its red cases without re-running the file on main [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+  const box = await redProject();
+  const json = await box.runLocal(box.web, 'test', 'test/red.test.js', '--json');
   assert.equal(json.code, 1);
   const result = JSON.parse(json.out);
   assert.equal(result.main, null, 'no main comparison ran');
   assert.deepEqual(result.known, []);
   assert.match(result.mainSkipped, /--compare-main/u);
-  const text = box.run(box.web, 'test', 'test/red.test.js');
+  const text = await box.runLocal(box.web, 'test', 'test/red.test.js');
   assert.equal(text.code, 1);
   assert.match(text.err, /main comparison skipped/u);
   assert.doesNotMatch(text.out, /also fails on main/u, 'the red file is not re-run on main');
 });
 
-test('clause 2: pullboard test <file> --compare-main still runs the main comparison and prints that it is waiting on it [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one run plus its main comparison.
-  const box = redProject();
-  const ran = box.run(box.web, 'test', 'test/red.test.js', '--compare-main');
+test('clause 2: pullboard test <file> --compare-main still runs the main comparison and prints that it is waiting on it [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one run plus its main comparison.
+  const box = await redProject();
+  const ran = await box.runLocal(box.web, 'test', 'test/red.test.js', '--compare-main');
   assert.equal(ran.code, 1);
   assert.match(ran.err, /waiting on the main comparison/u);
   assert.match(ran.out, /also fails on main at [a-f0-9]+: test\/red\.test\.js/u, 'main was compared');

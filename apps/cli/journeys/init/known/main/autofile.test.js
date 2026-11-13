@@ -148,7 +148,7 @@ test('opt-in does not match changed assertion diagnostics merely because the cas
   const box = fixture(t, { main: 2, candidate: 3, autoFileMainReds: true });
   const result = submit(box);
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'SUBMISSION_PROOF');
+  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0);
 });
 

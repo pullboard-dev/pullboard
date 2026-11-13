@@ -23,7 +23,7 @@ const FILE = 'test/control.test.js';
 function quarantineProject(t, { legacy = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project(`node packages/gate/src/io/run/tests.js ${FILE}`, helpers.sandbox(), { withWorktree: false });
+  const box = helpers.project(`node apps/cli/src/io/run/tests.js ${FILE}`, helpers.sandbox(), { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const copied = copyPackageFiles(join(import.meta.dirname, '../../../../..'), box.repo);
@@ -77,7 +77,7 @@ async function run(mode){
  process.env.PULLBOARD_QUARANTINE_CASE_MODE=mode;
  const value=await runGate(root,config,{trustStamp:false,agent:agentId,onFailure:observer,executionServices});
  const receipt=readGateReceipt(receiptStore(root),value.receiptId);
- if(config.gate.includes('packages/gate/src/io/run/tests.js'))assert.ok(receipt?.testOutcomes,'actual native outcomes must survive reporters, receipt normalization and recording');
+ if(config.gate.includes('apps/cli/src/io/run/tests.js'))assert.ok(receipt?.testOutcomes,'actual native outcomes must survive reporters, receipt normalization and recording');
  else assert.ok(receipt && !receipt.testOutcomes,'the initial legacy path carries genuine native v1 receipts without per-test passes');
  assert.equal(value.isGreen,mode!=='red');
  assert.equal(receipt.green,mode!=='red','the canonical receipt preserves the actual red');
@@ -89,7 +89,7 @@ async function legacyCase(){
  const before=snapshot(),entry=before.quarantines[0];
  assert.equal(entry.nativeCore,undefined);
  assert.equal(before.waivers.length,1,'real prior receipts grant the existing legacy waiver');
- config.gate='node packages/gate/src/io/run/tests.js test/control.test.js';
+ config.gate='node apps/cli/src/io/run/tests.js test/control.test.js';
  writeFileSync('pullboard.json',JSON.stringify(config)+'\\n');
  git(root,['add','--','pullboard.json']);
  git(root,['commit','-q','-m','test: enable native outcomes in legacy fixture']);

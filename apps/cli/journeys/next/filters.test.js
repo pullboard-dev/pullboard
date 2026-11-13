@@ -6,7 +6,7 @@ import {
   cli,
 } from '../../tests/fixtures/next/take.js';
 import * as store from '../../../../packages/store/index.js';
-import { recordNextIdle } from '../../../../packages/store/index.js';
+import { board_recordNextIdle as recordNextIdle } from '../../../../packages/store/index.js';
 const { nextIdleChanged } = store;
 import { idleSkipMinutes } from '../../../../packages/stats/index.js';
 

@@ -88,7 +88,7 @@ function runnerLease(box) {
 /** The analysis request a queued submit sends, with or without per-part outcomes. */
 function request(box, perPart) {
   return { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'c',
-    staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node packages/gate/src/io/run/tests.js' }, browserFreeChecks: true,
+    staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node apps/cli/src/io/run/tests.js' }, browserFreeChecks: true,
     readCutItems: () => [], ...(perPart ? { perPart: true } : {}) };
 }
 

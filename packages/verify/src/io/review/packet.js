@@ -248,9 +248,21 @@ function mainStatus(failure, { known, baseline }) {
   return { alsoRedOnMain: false, main: known?.main ?? baseline?.main ?? null };
 }
 
+/** Files under apps and packages at one commit, listed by one Git process however many readers ask (a commit's tree never changes) [#6153]. */
+const listings = new Map();
+function filesAt(root, commit) {
+  const key = `${root}\0${commit}`;
+  if (!listings.has(key)) {
+    if (listings.size >= 64) listings.clear();
+    listings.set(key, gitRead(root, ['ls-tree', '-r', '--name-only', commit, '--', 'apps', 'packages']).split('\n').filter(Boolean));
+  }
+  return listings.get(key);
+}
+
 /** Sum each committed cell-lint baseline's allowances by metric at one commit. */
 function lintCounts(root, commit) {
-  const listing = gitRead(root, ['ls-tree', '--name-only', commit, 'packages/codemap/data/baselines/lints/']).split('\n').filter(path => path.endsWith('.json'));
+  const lints = 'packages/codemap/data/baselines/lints/';
+  const listing = filesAt(root, commit).filter(path => path.startsWith(lints) && !path.slice(lints.length).includes('/') && path.endsWith('.json'));
   const blobs = readBlobs(root, listing.map(path => `${commit}:${path}`));
   const counts = {};
   for (const text of blobs.values()) {
@@ -265,7 +277,7 @@ function lintCounts(root, commit) {
 
 /** The cells (apps/* and packages/* folders) present at one commit. */
 function cellsAt(root, commit) {
-  const files = gitRead(root, ['ls-tree', '-r', '--name-only', commit, '--', 'apps', 'packages']).split('\n').filter(Boolean);
+  const files = filesAt(root, commit);
   return new Set(files.map(file => /^(?:apps|packages)\/[^/]+/u.exec(file)?.[0]).filter(Boolean));
 }
 
@@ -342,9 +354,10 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
       evidence = executed.filter(run => checkFiles.includes(run.file) && run.test.replace(/^\.\//u, '') !== run.file)
         .map(run => ({ ...run, why: "the item's check ran" }));
     }
-    // When no named check outcome exists, retain the brief's file-level proof for a clause with no case of its own.
-    if (!evidence.length && clause.kind === 'test' && !ownCaseDeclared && !namedTestFiles(clause.text).length) {
-      evidence = runs.filter(run => briefFiles.includes(run.file)).map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" }));
+    // Include the brief's file-level proof alongside generic check cases, without covering a skipped own case.
+    if (evidence.every(run => run.why === "the item's check ran") && clause.kind === 'test' && !ownCaseDeclared && !namedTestFiles(clause.text).length) {
+      evidence.push(...runs.filter(run => briefFiles.includes(run.file) && !checkFiles.includes(run.file))
+        .map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" })));
     }
     let gap = evidence.length ? null : 'no recorded run';
     if (!evidence.length && SUITE.test(clause.text)) {

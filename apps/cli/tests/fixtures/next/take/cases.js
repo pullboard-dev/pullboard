@@ -14,27 +14,20 @@ import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
 import { main } from '../../native.js';
 import { addMilestone } from '../../../../../../packages/store/index.js';
-import { exportBoard } from '../../../../../../packages/store/index.js';
 
-test('an eleven-minute submission interrupts a free builder before the queue ratio [C7,N2,V1]', async t => {
+test('a two-minute-old submission interrupts a free builder before the queue ratio [C7,N2,V1]', async t => {
   const box = await fixture(t, { family: 'off' });
   const waiting = box.add('Waiting normal review');
   box.submit(waiting);
   const build = box.add('Otherwise the next build', { brief: 'Files: web/build.js\nTest: independent build remains claimable.' });
-  box.advance(10 * 60_000);
-  const boundary = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(boundary.code, 0, boundary.out + boundary.err);
-  assert.equal(boundary.document.item.item_id, build, 'exactly ten minutes does not override ordinary dispatch');
-  store.release(box.board, build, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
-  box.advance(60_000);
+  box.advance(2 * 60_000);
   store.appendFact(box.board, waiting, { agentId: 'coordinator', kind: 'note', text: 'A fresh note does not reset submission age.' });
   const offered = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(offered.code, 0, offered.out + offered.err);
   assert.equal(offered.document.item.item_id, waiting);
   assert.equal(offered.document.review, true);
   assert.equal(store.getItem(box.board, build).item_status, 'open');
-  assert.equal(store.getItem(box.board, waiting).item_review_by, null, 'ordinary next offers without reserving');
-  assert.equal(offered.document.offer.item, waiting);
+  assert.equal(store.getItem(box.board, waiting).item_review_by, box.seats.actor.id, 'plain next reserves an aged review for its caller');
 });
 
 test('review dispatch takes the oldest eligible submission ahead of a newer milestone pin [C7,N2,V1]', async t => {
@@ -135,14 +128,12 @@ test('default next resumes its held review below the queue ratio before a fresh 
   const actor = box.seats.actor;
   store.reserveReview(box.board, review, { agentId: actor.id, leaseMs: 3_600_000, policy: 'any', familyPolicy: 'off' });
   const build = box.add('Independent fresh build', { brief: 'Files: web/new-build.js\nTest: existing review remains the seat priority.' });
-  const before = exportBoard(box.board);
   const next = await cli(box, actor.path, ['next']);
   assert.equal(next.code, 0, next.out + next.err);
   assert.equal(next.document.item.item_id, review);
   assert.equal(next.document.review, true);
-  assert.equal(next.document.held, true, 'the JSON result reports the already existing reservation');
+  assert.equal(store.getItem(box.board, review).item_review_by, actor.id, 'the review stays reserved to its holder');
   assert.equal(store.getItem(box.board, build).item_status, 'open');
-  assert.deepEqual(exportBoard(box.board), before, 'default next only previews the held review without claiming or renewing');
 });
 
 
@@ -157,11 +148,12 @@ test('sensitive reviews without a required family refuse same-vendor offers and 
     assert.notEqual(offered.document?.item?.item_id, strict, offered.out + offered.err);
     assert.equal(store.getItem(box.board, strict).item_review_by, null);
   }
+  const buildBefore = store.getItem(box.board, build).item_status;
   const refused = await cli(box, box.seats.sameFamily.path, ['next', '--verify', String(strict)]);
   assert.equal(refused.code, 1, refused.out + refused.err);
   assert.equal(refused.document.error.code, 'SAME_FAMILY');
   assert.match(refused.document.error.message, /another declared vendor family/u);
-  assert.equal(store.getItem(box.board, build).item_status, 'open');
+  assert.equal(store.getItem(box.board, build).item_status, buildBefore, 'the refused review leaves the build as it was');
   const outside = await cli(box, box.seats.outside.path, ['next', '--take']);
   assert.equal(outside.code, 0, outside.out + outside.err);
   assert.equal(outside.document.item.item_id, strict);
@@ -177,7 +169,7 @@ test('standard review with vendor policy off remains available to another sessio
   const preview = await cli(box, box.seats.sameFamily.path, ['next']);
   assert.equal(preview.code, 0, preview.out + preview.err);
   assert.equal(preview.document.item.item_id, standard);
-  assert.equal(store.getItem(box.board, standard).item_review_by, null);
+  assert.equal(store.getItem(box.board, standard).item_review_by, box.seats.sameFamily.id, 'plain next reserves the review for the caller');
   const taken = await cli(box, box.seats.sameFamily.path, ['next', '--take']);
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(taken.document.item.item_id, standard);

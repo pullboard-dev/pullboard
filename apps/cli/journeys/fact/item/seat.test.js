@@ -32,6 +32,7 @@ function fixture(t) {
 
 test('claimed and submit-pending item folders retain exact marker bytes during maintenance [C7]', async t => {
   const { box, id, path, marker } = fixture(t);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => closeBoard(board));
   const bytes = readFileSync(marker);

@@ -13,7 +13,7 @@ import { cleanGitEnvironment } from '../../../git/index.js';
 import { gitPath } from '../../../git/index.js';
 import { invalidateGitFacts } from '../../../git/index.js';
 import { recordedToolCommits } from '../../../git/index.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/index.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/light.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Execute a bounded fixed executable, keeping complete diagnostics in the caller's private log. */
@@ -27,11 +27,11 @@ function execute(root, executable, args, log, { input, env = {} } = {}) {
 
 /** Re-run only canonical installed tools; custody is newly allocated outside the generated checkout. */
 function replay(root, command, custody, log) {
-  const script = command.tool === 'remove-shims' ? 'cells-plan.js' : 'cells-move.js';
+  const script = command.tool === 'remove-shims' ? 'cells/scripts/plan.js' : 'cells/move.js';
   const args = command.tool === 'remove-shims' ? ['--remove-shims', command.cell, '--lane', command.lane]
     : ['--apply', command.from, command.to, command.frontDoor, command.purpose, custody,
       ...(command.keepExports === null ? [] : [`--keep-exports=${command.keepExports.join(',')}`])];
-  execute(root, process.execPath, [fileURLToPath(new URL(`../../../../bin/${script}`, import.meta.url)), ...args], log);
+  execute(root, process.execPath, [fileURLToPath(new URL(`../../../codemap/src/io/${script}`, import.meta.url)), ...args], log);
 }
 
 /** Regenerate before submit's ordinary stages; null preserves the exact handwritten-conflict path. */
@@ -63,8 +63,8 @@ export function regenerateToolChange(root, source, main, { item }) {
       });
       git(checkout, ['reset', '--quiet', '--mixed', commit]);
     }
-    for (const script of ['cells-plan.js', ...(existsSync(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? ['cell-lints.js'] : [])]) {
-      execute(checkout, process.execPath, [fileURLToPath(new URL(`../../../../bin/${script}`, import.meta.url)), '--check'], log);
+    for (const script of ['cells/scripts/plan.js', ...(existsSync(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? ['cell/scripts/lints.js'] : [])]) {
+      execute(checkout, process.execPath, [fileURLToPath(new URL(`../../../codemap/src/io/${script}`, import.meta.url)), '--check'], log);
     }
     if (git(checkout, ['status', '--porcelain=v1']).length) throw new Error('cell checks changed their source');
     if (git(root, ['rev-parse', 'HEAD']) !== source || git(root, ['status', '--porcelain=v1']).length) {

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { roadmapSummary } from '../../../../src/logic/summary/roadmap.js';
 
 const DIR = new URL('../../../../src/io/', import.meta.url);
-const FILES = ['view.css', 'view/stage.css', 'view/item-rows.css', 'view/dashboard.css', 'view/cost.css'];
+const FILES = ['main.css', 'stage.css', 'item/rows.css', 'dashboard.css', 'cost.css'];
 const css = Object.fromEntries(FILES.map((f) => [f, readFileSync(new URL(f, DIR), 'utf8')]));
 const all = Object.values(css).join('\n');
 
@@ -47,7 +47,7 @@ test('the stage tokens live in one place with the approved light and dark values
     assert.deepEqual([matches[0][1], matches[0][2]], [light, dark], `--${name} holds the approved values`);
     for (const hex of [light, dark]) assert.equal(all.split(hex).length - 1, 1, `${hex} is written only in --${name}`);
   }
-  assert.match(css['view.css'], /--mark-held:/, '--mark-held is defined with the stage tokens');
+  assert.match(css['main.css'], /--mark-held:/, '--mark-held is defined with the stage tokens');
 });
 
 test('every stage color in the view resolves to its token, never a literal or a screen-own color (clause 1) [N26]', () => {
@@ -86,7 +86,7 @@ test('every stage color in the view resolves to its token, never a literal or a 
   assert.match(all, /\.roadmap-summary-swatch\.held\b[^}]*dashed var\(--mark-held\)/, 'the Roadmap legend draws Held as a dashed ring');
   assert.ok(!/\.roadmap-(stage-swatch|summary)[^{]*\.held\b[^}]*var\(--warn\)/.test(all), 'Held is no longer brown');
   assert.match(all, /\.stage-mark\.gate \{[^}]*background: none;[^}]*dashed/, 'the Held mark is dashed, with no fill');
-  assert.match(all, /\.roadmap-summary-needs \{[^}]*color: var\(--ink\)/, 'Needs you is ink, not a color');
+  assert.match(all, /\.roadmap-summary-needs \{[^}]*color: var\(--ink\)/, 'Rulings is ink, not a color');
 });
 
 test('stage chip text on its tint is at least 4.5:1 in light and dark (clause 3) [N26]', () => {

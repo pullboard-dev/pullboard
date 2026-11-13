@@ -9,7 +9,7 @@ import { proveBatches } from '../../../src/io/shards/proof.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
-const COMMAND = 'node packages/gate/src/io/run/tests.js ';
+const COMMAND = 'node apps/cli/src/io/run/tests.js ';
 const TREE = 'c'.repeat(40);
 const COMMIT = 'd'.repeat(40);
 const filesCommand = files => COMMAND + files.map(file => './' + file).join(' ');

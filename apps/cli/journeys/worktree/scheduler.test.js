@@ -1,11 +1,11 @@
 /** @pullboard-test-loads apps/cli/pullboard.js */
-/** @pullboard-test-input source-tree */
 /** Timer diagnostics preserve native scheduling and report actual failures [B3,C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -35,16 +35,17 @@ function enabledProject(t) {
   return { box, common, directory };
 }
 
-test('actual CLI registration failure prints stage and cause without changing its successful result [B3,C7,N26]', t => {
+test('actual CLI registration failure prints stage and cause without changing its successful result [B3,C7,N26]', async t => {
   const { box, directory } = enabledProject(t);
   writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o644 });
-  const result = box.run(box.repo, 'status');
+  chmodSync(join(directory, 'timer.guard.sqlite'), 0o644); // the executing host's umask would otherwise narrow the mode written above
+  const result = (await box.runLocal(box.repo, 'status'));
   assert.equal(result.code, 0, result.err || result.out);
   assert.match(result.err, /maintenance timer could not be registered; stage=register; Error: maintenance timer lock is not private/u);
   assert.equal(readFileSync(join(directory, 'timer.guard.sqlite'), 'utf8'), '', 'diagnostics never repair or retry the failed registration');
 });
 
-test('actual CLI keeps a live timer silently and health names its exact key pid and recorded last run [B3,C7,N26]', t => {
+test('actual CLI keeps a live timer silently and health names its exact key pid and recorded last run [B3,C7,N26]', async t => {
   const { box, common, directory } = enabledProject(t);
   writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
   const started = execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
@@ -55,9 +56,9 @@ test('actual CLI keeps a live timer silently and health names its exact key pid 
   const bytes = JSON.stringify(owner) + '\n';
   writeFileSync(join(directory, 'timer.json'), bytes, { mode: 0o600 });
   assert.equal(maintenanceTimerHealth(common).lastRun, null, 'absence of a recorded run is unknown, not a fabricated completion');
-  const completed = box.run(box.repo, 'maintenance');
+  const completed = (await box.runLocal(box.repo, 'maintenance'));
   assert.equal(completed.code, 0, completed.err || completed.out);
-  const result = box.run(box.repo, 'status');
+  const result = (await box.runLocal(box.repo, 'status'));
   assert.equal(result.code, 0, result.err || result.out);
   assert.doesNotMatch(result.err, /maintenance timer/u);
   assert.equal(readFileSync(join(directory, 'timer.json'), 'utf8'), bytes);
@@ -66,7 +67,7 @@ test('actual CLI keeps a live timer silently and health names its exact key pid 
   assert.equal(observed.key, key);
   assert.equal(observed.pid, process.pid);
   assert.ok(Number.isFinite(Date.parse(observed.lastRun.completedAt)));
-  const health = box.run(box.repo, 'health', '--json');
+  const health = (await box.runLocal(box.repo, 'health', '--json'));
   const document = JSON.parse(health.out);
   assert.equal(document.maintenanceTimer.key, key);
   assert.ok(!health.out.includes(owner.token), 'the private watch token never appears in health output');

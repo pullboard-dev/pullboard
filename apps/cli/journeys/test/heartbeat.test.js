@@ -33,7 +33,7 @@ function fixture(t) {
   const seatRoot = join(files.root, 'seat');
   mkdirSync(seatRoot);
   const clock = manualClock();
-  const board = openBoard(join(files.root, 'board.sqlite'), clock);
+  const board = openBoard(':memory:', clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: join(files.root, 'main') });
   const seat = store.register(board, { lane: 'core', path: seatRoot, route: 'mid' });

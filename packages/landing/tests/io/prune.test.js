@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/landing/src/io/prune.js */
 /** Local landing cleanup preserves dirty, active and unrelated worktrees [R3,C7]. */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';

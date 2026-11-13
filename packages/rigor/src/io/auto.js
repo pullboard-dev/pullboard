@@ -4,7 +4,6 @@ import {
   events,
   logEvent,
   PERSON,
-  rowDecisions,
 } from '../../../store/index.js';
 import { recordRowDraft } from '../../../spec/index.js';
 import { rowDrafts } from '../../../store/index.js';
@@ -21,11 +20,9 @@ import {
 } from './conflicts.js';
 import { NATIVE_FLAKE_ENGINE } from '../../../state/light.js';
 import {
-  automaticDecisionSource,
   automaticRigorSource,
   automaticSourceFromText,
   readAutomaticRigorSource,
-  rigorDecisionKey,
 } from '../../../store/index.js';
 import { RIGOR_AUTO_ENGINE } from '../../../state/light.js';
 import { REOPEN_CAUSE_ENGINE } from '../../../state/light.js';
@@ -55,24 +52,10 @@ export function deriveRigorCause(board, item, { cause, reason, conflict, landing
   return { cause: `refusal:${reason ?? 'REOPENED'}`, causeDerivation: { kind: reason ? 'verdict-reason' : 'reopen-category', coarse: true } };
 }
 
-/** A decline covers every item seen by the actual decision, including repeats that preceded that decision. */
-function proposalSuppressed(board, history, draft, cause) {
-  const source = automaticSourceFromText(draft.text);
-  if (readAutomaticRigorSource(source)?.key !== cause.key) return false;
-  const decision = rowDecisions(board).findLast(record => record.kind === draft.target
-    && (record.id === draft.id && automaticDecisionSource(record) === source
-      || record.event > draft.event && rigorDecisionKey(record) === cause.key));
-  if (!decision || decision.decision === 'approve') return true;
-  const seen = new Set(history.filter(event => event.event_id <= decision.event).flatMap(event => {
-    const detail = JSON.parse(event.event_detail);
-    const matches = cause.key.startsWith('conflict:')
-      ? event.event_kind === 'reopen' && detail.conflict?.files?.includes(cause.split.file)
-        || event.event_kind === 'hold_item' && conflictNoteFiles(detail.reason)?.includes(cause.split.file)
-      : eventCauses(event).includes(cause.key)
-        || event.event_kind === 'fact' && event.event_by === PERSON && detail.neverAgain === true && detail.cause === cause.key;
-    return matches && event.item_id !== null ? [event.item_id] : [];
-  }));
-  return !cause.items.some(item => !seen.has(item.id));
+/** Any draft of this key for this target suppresses another: pending, approved or declined. A person's decline is final
+ * for its key, so a later occurrence never re-drafts it under a new id (GitHub #26). */
+function proposalSuppressed(draft, cause) {
+  return readAutomaticRigorSource(automaticSourceFromText(draft.text))?.key === cause.key;
 }
 
 /** Draft the existing threshold's ordinary advice inside its triggering board transaction, never proving it. */
@@ -81,6 +64,8 @@ export function recordAutomaticRigorDrafts(board, trigger, shout) {
   const detail = JSON.parse(trigger.event_detail);
   const keys = new Set(eventCauses(trigger));
   if (trigger.event_kind === 'fact' && trigger.event_by === PERSON && detail.neverAgain) keys.add(detail.cause);
+  // A coordinator reopen that only corrects a bar carries the coarse reopen category, not a failure (GitHub #26).
+  if (trigger.event_kind === 'reopen' && detail.causeDerivation?.kind === 'reopen-category') keys.delete(detail.cause);
   // A move that names no cause and no conflicting file can draft nothing. Why return before reading history: the
   // whole event log is read inside the move's write transaction, and on a 380,000-event board a plain hold kept the
   // write lock for seconds doing it [C7].
@@ -101,7 +86,7 @@ export function recordAutomaticRigorDrafts(board, trigger, shout) {
     const targets = cause.reads === 'both' ? ['doctrine', 'spec'] : [cause.reads === 'product' ? 'spec' : 'doctrine'];
     const created = [];
     for (const target of targets) {
-      if (rowDrafts(board).some(draft => draft.target === target && proposalSuppressed(board, history, draft, cause))) continue;
+      if (rowDrafts(board).some(draft => draft.target === target && proposalSuppressed(draft, cause))) continue;
       const source = automaticRigorSource(cause, eventIds);
       const advice = cause.split ? splitProposal(cause.split).text
         : `Review how to prevent repeated ${JSON.stringify(cause.key).replaceAll('|', '\\u007c')} (${cause.items.map(item => `#${item.id}`).join(', ') || 'person-marked never again'}). No remedy or red/green proof has been established.`;

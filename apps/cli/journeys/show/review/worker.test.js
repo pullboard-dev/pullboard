@@ -44,6 +44,7 @@ function job(commonDir, name, pid, overrides = {}) {
 
 test('clause 1: a comparison whose worker was killed mid-run restarts from its recorded request [C7]', async t => {
   const commonDir = commonDirectory(t);
+  // Process-level: a real live pid, then SIGKILL, is what the restart plan reads; no in-process stand-in has a pid to kill.
   const worker = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
   await once(worker, 'spawn');
   job(commonDir, 'one', worker.pid);
@@ -77,14 +78,15 @@ test('clause 1: next --verify starts a new worker for a killed comparison and sh
   const box = fixtures.project('true');
   const reviewer = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'web/two');
-  assert.equal(joinFixtureSeat(box, reviewer, 'web', { model: 'fixture-reviewer' }).code, 0);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Greet', '--specs', 'G1', '--criterion', 'It greets.');
+  assert.equal((await joinFixtureSeat(box, reviewer, 'web', { model: 'fixture-reviewer', run: box.runLocal })).code, 0);
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Greet', '--specs', 'G1', '--criterion', 'It greets.');
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'greet.txt'), 'hello\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): greet [G1]');
+  // Process-level: the submit starts the detached comparison worker whose pid and life this case reads; in-process it is not a separate process.
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
 
@@ -99,7 +101,8 @@ test('clause 1: next --verify starts a new worker for a killed comparison and sh
   while ((!started().length || started().some(name => alive(pidOf(name)))) && Date.now() < deadline) pause(200);
   assert.ok(started().length, 'submit started a comparison worker');
   assert.ok(!started().some(name => alive(pidOf(name))), 'the submit-started worker has ended');
-  const known = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  const known = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
+  // Process-level: a real process killed with SIGKILL leaves the dead pid the restart plan must see.
   const stand = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
   await once(stand, 'spawn');
   stand.kill('SIGKILL');
@@ -109,17 +112,18 @@ test('clause 1: next --verify starts a new worker for a killed comparison and sh
   mkdirSync(killed, { recursive: true });
   writeFileSync(join(killed, 'request.json'), JSON.stringify(request));
   writeFileSync(join(killed, 'worker.json'), JSON.stringify({ pid: stand.pid }));
-  assert.equal(box.run(box.repo, 'fact', '1', 'measurement', VERIFICATION_COMPARISON_PREFIX + JSON.stringify({ ...request, status: 'pending' })).code, 0);
+  assert.equal((await box.runLocal(box.repo, 'fact', '1', 'measurement', VERIFICATION_COMPARISON_PREFIX + JSON.stringify({ ...request, status: 'pending' }))).code, 0);
   const firstPids = started().map(pidOf);
-  assert.ok(box.run(box.repo, 'show', '1').out.includes('comparison pending'), 'the killed comparison is pending: nothing restarted it yet');
+  assert.ok((await box.runLocal(box.repo, 'show', '1')).out.includes('comparison pending'), 'the killed comparison is pending: nothing restarted it yet');
 
+  // Process-level: next --verify starts a detached comparison worker with its own pid.
   const offered = box.run(reviewer, 'next', '--verify');
   assert.equal(offered.code, 0, offered.err);
   const fresh = started().map(pidOf).filter(pid => !firstPids.includes(pid));
   assert.ok(fresh.length >= 1, 'next --verify started a new comparison worker with its own pid');
 
   const settle = Date.now() + 150_000;
-  let shown = box.run(box.repo, 'show', '1').out;
-  while (shown.includes('comparison pending') && Date.now() < settle) { pause(1000); shown = box.run(box.repo, 'show', '1').out; }
+  let shown = (await box.runLocal(box.repo, 'show', '1')).out;
+  while (shown.includes('comparison pending') && Date.now() < settle) { pause(1000); shown = (await box.runLocal(box.repo, 'show', '1')).out; }
   assert.ok(!shown.includes('comparison pending'), 'show stops saying comparison pending once the restarted worker answers');
 });

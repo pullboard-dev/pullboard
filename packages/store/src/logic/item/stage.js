@@ -1,5 +1,6 @@
 /** The pipeline stage an item is in, derived once for show, list, the board read and status [C7]. */
 import { handoffRecords } from "../../io/submit/handoff/records.js";
+import { pulledGateRecords } from "../../io/submit/handoff/records.js";
 
 /** Stage names in pipeline order; status counts print them in this order. */
 export const ITEM_STAGES = ['open', 'building', 'in the gate', 'back with builder', 'in review', 'accepted', 'landed', 'withdrawn'];
@@ -44,9 +45,10 @@ export function stageCounts(board) {
   const counts = Object.fromEntries(ITEM_STAGES.map(stage => [stage, 0]));
   const at = board.clock.now().toISOString();
   const records = handoffRecords(board.db);
+  const pulled = pulledGateRecords(board.db);
   const rows = board.db.prepare(`SELECT item.*,
       EXISTS (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event.event_kind='merged') AS landed
     FROM item WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)`).all();
-  for (const row of rows) counts[itemStage(row, records.get(row.item_id) ?? null, Boolean(row.landed), at)]++;
+  for (const row of rows) counts[itemStage(row, pulled.get(row.item_id) ?? records.get(row.item_id) ?? null, Boolean(row.landed), at)]++;
   return counts;
 }

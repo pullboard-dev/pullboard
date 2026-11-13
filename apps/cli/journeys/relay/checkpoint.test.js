@@ -67,14 +67,14 @@ test('a move on a large board sends only its event and never the checkpoint [H5]
 
   // One move, then let its checkpoint go out, so the burst below starts from a covered board.
   const warm = box.calls.length;
-  assert.equal((await box.cli('shout', 'all', 'warm up')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'warm up')).code, 0);
   await publisherDone(box, warm, 1);
 
   const before = box.calls.length;
   for (let index = 1; index <= 10; index += 1) {
     const from = box.calls.length;
     const started = performance.now();
-    const moved = await box.cli('shout', 'all', `burst ${index}`);
+    const moved = await box.cliLocal('shout', 'all', `burst ${index}`);
     const elapsed = performance.now() - started;
     assert.equal(moved.code, 0, JSON.stringify(moved.document));
     const sent = box.calls.slice(from);
@@ -95,19 +95,19 @@ test('a move during a held checkpoint upload returns before the upload ends [H5]
   const box = await relayClientFixture(t);
   await box.link();
   const warm = box.calls.length;
-  assert.equal((await box.cli('shout', 'all', 'warm up')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'warm up')).code, 0);
   await publisherDone(box, warm, 1);
 
   // The relay holds the next checkpoint upload; a move meanwhile must not wait for it.
   box.holdPublishes(true);
   t.after(() => box.holdPublishes(false));
   const from = box.calls.length;
-  assert.equal((await box.cli('shout', 'all', 'starts the held upload')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'starts the held upload')).code, 0);
   const deadline = Date.now() + 15_000;
   while (box.heldPublishes() === 0 && Date.now() < deadline) await new Promise(next => setTimeout(next, 50));
   assert.equal(box.heldPublishes(), 1, 'the publisher\'s upload is in flight and held');
   const started = performance.now();
-  const moved = await box.cli('shout', 'all', 'moves during the held upload');
+  const moved = await box.cliLocal('shout', 'all', 'moves during the held upload');
   const elapsed = performance.now() - started;
   assert.equal(moved.code, 0, JSON.stringify(moved.document));
   assert.equal(box.heldPublishes(), 1, 'the move returned while the upload was still held');
@@ -122,7 +122,7 @@ test('publishers that find a dead holder\'s claim together upload one checkpoint
   t.after(() => { if (inline === undefined) delete process.env[CHECKPOINT_BACKGROUND_ENV]; else process.env[CHECKPOINT_BACKGROUND_ENV] = inline; });
   const box = await relayClientFixture(t);
   await box.link();
-  assert.equal((await box.cli('shout', 'all', 'a move whose checkpoint is due')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'a move whose checkpoint is due')).code, 0);
   const directory = dirname(box.linkFile);
   // A claim left by a publisher that died, and a move older than the quiet period.
   writeFileSync(join(directory, 'relay-checkpoint.pid'), '999999\n');
@@ -144,12 +144,12 @@ test('a spec edit with no move reaches the next checkpoint, and an idle command 
   const box = await relayClientFixture(t);
   await box.link();
   const warm = box.calls.length;
-  assert.equal((await box.cli('shout', 'all', 'warm up')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'warm up')).code, 0);
   await publisherDone(box, warm, 1);
 
   // Nothing changed: the publisher reads the board, finds the page the relay already has, and uploads nothing.
   const idle = box.calls.length;
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await new Promise(next => setTimeout(next, 4_000)); // budget: declared quiet period plus a read, so an upload would show.
   assert.equal(box.calls.slice(idle).filter(checkpointUpload).length, 0, 'an idle command re-sent no unchanged page');
 
@@ -157,7 +157,7 @@ test('a spec edit with no move reaches the next checkpoint, and an idle command 
   writeFileSync(join(box.root, 'SPEC.md'), '# Checkpoint fixture spec\n\n## G · Goals\n\n- G1 [draft, must] SPEC_ONLY_CHECKPOINT_1014 | gate: review\n');
   const edited = box.calls.length;
   const started = Date.now();
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   await publisherDone(box, edited, 1);
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 5_000, `the spec edit reached a checkpoint in ${elapsed} ms`); // budget: ceiling from the review: a presentation-only change goes out within five seconds.
@@ -170,7 +170,7 @@ test('a move returns while the publisher asks whether an upload pause is over [H
   const box = await relayClientFixture(t);
   await box.link();
   const warm = box.calls.length;
-  assert.equal((await box.cli('shout', 'all', 'warm up')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'warm up')).code, 0);
   await publisherDone(box, warm, 1);
 
   // A size pause from an earlier refused upload; the publisher's next pass first asks the relay if it is over.
@@ -181,12 +181,12 @@ test('a move returns while the publisher asks whether an upload pause is over [H
   const release = setTimeout(() => box.holdProbes(false), 10_000); // budget: ceiling: a held probe ends well after the move's limit.
   t.after(() => { clearTimeout(release); box.holdProbes(false); });
   const from = box.calls.length;
-  assert.equal((await box.cli('status')).code, 0);
+  assert.equal((await box.cliLocal('status')).code, 0);
   const deadline = Date.now() + 15_000;
   while (box.heldProbes() === 0 && Date.now() < deadline) await new Promise(next => setTimeout(next, 50));
   assert.equal(box.heldProbes(), 1, 'the publisher\'s pause probe is in flight and held');
   const started = performance.now();
-  const moved = await box.cli('shout', 'all', 'moves during the held probe');
+  const moved = await box.cliLocal('shout', 'all', 'moves during the held probe');
   const elapsed = performance.now() - started;
   assert.equal(moved.code, 0, JSON.stringify(moved.document));
   assert.equal(box.heldProbes(), 1, 'the move returned while the probe was still held');

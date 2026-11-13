@@ -30,7 +30,7 @@ function fixture(t, { historical = false, storage = 'memory' } = {}) {
       model: 'Explicit fixture model', family, parentDigest: parent.repeat(64) });
   }
   const add = () => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Explicit review default fixture',
-    check: 'node packages/gate/src/io/run/tests.js apps/cli/journeys/init/review/default.test.js' });
+    check: 'node apps/cli/src/io/run/tests.js apps/cli/journeys/init/review/default.test.js' });
   const submit = (id, { files = ['src/quarantine.js'] } = {}) => {
     store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
       freeze: () => ({ text: JSON.stringify({ policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } }), digest: 'synthetic-default-bar' }) });

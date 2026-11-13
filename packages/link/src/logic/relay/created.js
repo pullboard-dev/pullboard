@@ -1,5 +1,5 @@
 /** Explicit result bindings for item-creating moves; input item fields never become created-item identities [B26,H16]. */
-const SINGLE = Object.freeze({ addItem: [], requestCompanion: ['item'], createItemSlice: ['item'], intakeOutside: [], openHandoff: ['item'],
+const SINGLE = Object.freeze({ recordSelectorGap: ['item'], addItem: [], requestCompanion: ['item'], createItemSlice: ['item'], intakeOutside: [], openHandoff: ['item'],
   recordLandingFlake: ['item'], recordLandingTestDefect: ['item'], recordFlakeObservation: ['item'],
   recordPublishFinding: ['repair'] });
 
@@ -17,6 +17,7 @@ export function createdItemAt(result, path) {
 
 /** Project only declared created results; publication's original item is deliberately not its repair. */
 export function createdItems(operation, result) {
+  if (operation === 'recordSelectorGap' && result?.filed !== true) return [];
   const paths = Object.hasOwn(SINGLE, operation) ? [SINGLE[operation]] : operation === 'recordGateRun'
     ? (result?.quarantined ?? []).map(row => ['quarantined', { file: row.file, name: row.name }, 'item'])
     : operation === 'submit' ? (result?.mainRedRepairs ?? []).map(row => ['mainRedRepairs', { file: row.file, name: null }, 'item']) : [];

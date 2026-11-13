@@ -24,8 +24,8 @@ after(helpers.cleanup);
 const HELD = 'web/held.test.js';
 
 /** Run a board command and parse its JSON document. */
-function command(box, ...args) {
-  const ran = box.run(box.repo, ...args, '--json');
+async function command(box, ...args) {
+  const ran = await box.runLocal(box.repo, ...args, '--json');
   let document;
   try { document = JSON.parse(ran.out); } catch { document = null; }
   return { ...ran, document };
@@ -64,22 +64,22 @@ function fileDefect(box) {
   } finally { store.closeBoard(board); }
 }
 
-test('clause 1: land --waive records the signed person waiver while the board owns landing, and plain land still refuses BOARD_LANDS_ACCEPTED [C7]', () => {
+test('clause 1: land --waive records the signed person waiver while the board owns landing, and plain land still refuses BOARD_LANDS_ACCEPTED [C7]', async () => {
   const box = heldProject();
-  const plain = command(box, 'land');
+  const plain = await command(box, 'land');
   assert.equal(plain.document?.error?.code, 'BOARD_LANDS_ACCEPTED', plain.out + plain.err);
-  const waived = command(box, 'land', '--waive', HELD, '--until', '2099-01-01', '--reason', 'Fixture hold is repaired on trunk.');
+  const waived = await command(box, 'land', '--waive', HELD, '--until', '2099-01-01', '--reason', 'Fixture hold is repaired on trunk.');
   assert.equal(waived.code, 0, waived.out + waived.err);
   assert.equal(waived.document.waiver.test, HELD);
   assert.equal(waived.document.waiver.by, 'person');
-  assert.equal(command(box, 'land').document?.error?.code, 'BOARD_LANDS_ACCEPTED', 'a waiver does not open plain landing');
+  assert.equal((await command(box, 'land')).document?.error?.code, 'BOARD_LANDS_ACCEPTED', 'a waiver does not open plain landing');
 });
 
-test('clause 2: after the waiver the held defect no longer holds the trunk in the landing step [C7]', () => {
+test('clause 2: after the waiver the held defect no longer holds the trunk in the landing step [C7]', async () => {
   const box = heldProject();
   fileDefect(box);
   assert.deepEqual(held(box).map(defect => defect.test), [HELD], 'the unwaived defect holds the trunk');
-  const waived = command(box, 'land', '--waive', HELD, '--until', '2099-01-01', '--reason', 'Fixture hold is repaired on trunk.');
+  const waived = await command(box, 'land', '--waive', HELD, '--until', '2099-01-01', '--reason', 'Fixture hold is repaired on trunk.');
   assert.equal(waived.code, 0, waived.out + waived.err);
   assert.deepEqual(held(box), [], 'the live person waiver covers every failing name');
 });

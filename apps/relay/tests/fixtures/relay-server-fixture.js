@@ -172,7 +172,13 @@ export async function relayServerFixture(t, { accountStorageBytes, pollMs = 200,
       if (loseThisReply && res.statusCode === 200) {
         // The real service stored the snapshot; only its acknowledgement is lost on the wire (#919).
         lostSnapshotReplies.push(snapshotRecord.ciphertext);
-        if (loseThisReply.thenStateReads) rejectedStateReads = { ...loseThisReply.thenStateReads };
+        if (loseThisReply.thenStateReads) {
+          rejectedStateReads = { ...loseThisReply.thenStateReads };
+          const outage = rejectedStateReads;
+          if (loseThisReply.recoverAfterMs !== undefined) {
+            setTimeout(() => { if (rejectedStateReads === outage) rejectedStateReads = null; }, loseThisReply.recoverAfterMs).unref(); // budget: the outage the uncertain upload waits out.
+          }
+        }
         req.socket.destroy();
         return res;
       }
@@ -412,7 +418,7 @@ export async function relayServerFixture(t, { accountStorageBytes, pollMs = 200,
      * Let the real relay accept the next API1 snapshot PUT, then drop its reply by closing the socket,
      * optionally answering later state reads with a chosen refusal, as the #919 lost-ACK review did.
      */
-    loseNextSnapshotReply(options = {}) { loseSnapshotReply = { thenStateReads: options.thenStateReads ?? null }; },
+    loseNextSnapshotReply(options = {}) { loseSnapshotReply = { thenStateReads: options.thenStateReads ?? null, recoverAfterMs: options.recoverAfterMs }; },
     /** SHA-256 digests of the snapshots the relay accepted while their replies were lost. */
     lostSnapshotReplies() { return [...lostSnapshotReplies]; },
     /** Restart only the private service with a changed operator quota, retaining real journals and credentials. */

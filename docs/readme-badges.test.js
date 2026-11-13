@@ -9,6 +9,7 @@ import { createE2eHelpers } from '../apps/cli/tests/fixtures/e2e.js';
 import { runFixtureGit } from '../apps/cli/tests/fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
+const FIXTURE_MODEL = 'Badge fixture';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
@@ -36,11 +37,16 @@ test('README board-count badges read tracked main endpoint documents [I10,B3,V1]
 
 test('landing rewrites stale tracked board badge counts inside the containing merge [B3,V1]', () => {
   const check = 'node --test --test-reporter=tap web/badge.test.cjs';
-  const box = e2e.project(check);
+  const box = e2e.project(check, e2e.sandbox({ declareFamilies: true }), { withWorktree: false });
   // These are fresh fixture CLIs; retain native admission while avoiding nested Node worker suppression.
   delete box.env.NODE_TEST_CONTEXT;
-  assert.equal(box.run(box.web, 'join', 'web', '--model', 'Badge fixture', '--parent', 'readme-badge-builder').code, 0);
-  assert.equal(box.run(box.repo, 'join', 'coordinator', '--model', 'Badge fixture', '--parent', 'readme-badge-reviewer').code, 0);
+  // Each seat joins with its own parent session and declared vendor, so the accept counts as independent.
+  const web = join(box.dir, 'web-1');
+  box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+  const builder = box.run(web, 'join', 'web', '--model', FIXTURE_MODEL, '--parent', 'readme-badge-builder');
+  assert.equal(builder.code, 0, builder.err || builder.out);
+  const reviewer = box.run(box.repo, 'join', 'coordinator', '--model', FIXTURE_MODEL, '--parent', 'readme-badge-reviewer');
+  assert.equal(reviewer.code, 0, reviewer.err || reviewer.out);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, landing: { publish: 'separate', manualOverride: true } }, null, 2));
@@ -52,20 +58,20 @@ test('landing rewrites stale tracked board badge counts inside the containing me
   for (const [name, document] of stale) writeFileSync(join(box.repo, `docs/badges/${name}.json`), JSON.stringify(document, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json', ...stale.map(([name]) => `docs/badges/${name}.json`));
   box.git(box.repo, 'commit', '-q', '-m', 'test: seed stale tracked badge endpoints');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  box.git(web, 'merge', '-q', '--ff-only', 'main');
   const added = box.run(box.repo, 'add', 'web', 'Refresh tracked badges', '--criterion', 'The native probe passes.',
     '--check', check, '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
-  const committed = e2e.commitFile(box, box.web, 'web/badge.test.cjs',
+  assert.equal(box.run(web, 'claim', String(id)).code, 0);
+  const committed = e2e.commitFile(box, web, 'web/badge.test.cjs',
     "const { test } = require('node:test'); test('the badge probe passes [G1]', () => {});\n", 'test(web): badge probe [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  const submitted = box.run(box.web, 'submit', String(id));
+  const commit = box.git(web, 'rev-parse', 'HEAD');
+  const submitted = box.run(web, 'submit', String(id));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const checkLog = box.git(box.web, 'rev-parse', '--git-path', 'pullboard-submit.log.check.log');
-  const proof = readFileSync(resolve(box.web, checkLog), 'utf8');
+  const checkLog = box.git(web, 'rev-parse', '--git-path', 'pullboard-submit.log.check.log');
+  const proof = readFileSync(resolve(web, checkLog), 'utf8');
   assert.match(proof, /ok 1 - the badge probe passes \[G1\]/u, 'submit executes the real probe body');
   assert.match(proof, /# tests 1\b/u);
   assert.match(proof, /# fail 0\b/u);

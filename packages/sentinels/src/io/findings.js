@@ -11,6 +11,8 @@ import { healthSentinelEnabled } from "../../../config/index.js";
 import { loadMachineSettings } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { agentCpuFindings } from "./cpu.js";
+import { hostname } from "node:os";
+import { scratchMemoryFindings } from "../logic/memory.js";
 import {
   healthFindingIdentity,
   normalizedHealthFindings,
@@ -20,8 +22,9 @@ import {
  * A missing board or an explicitly disabled sentinel has no observation to publish. `gateDrives(db, now)` adds the
  * findings for gate drives that renew their lease with no step (the drive cell's own detector, which this cell may
  * not import); the CLI's sentinel command passes it, so the production loop shouts each one as Stuck [C7].
+ * `memory()` reads process sizes and swap for the scratch-memory warning; it is off unless the sentinel command passes it [C7].
  */
-export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, tooling = observeDirtyRunnerTooling, gateDrives = () => [], returnRejected = false }) {
+export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, tooling = observeDirtyRunnerTooling, gateDrives = () => [], memory = () => null, returnRejected = false }) {
   if (!healthSentinelEnabled(config) || !existsSync(file)) return null;
   const db = openBoardReadOnly(file);
   try {
@@ -33,6 +36,8 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     report.stuck.push(...tooling(now, last ? JSON.parse(last.event_detail).active : []));
     report.stuck.push(...gateDrives(db, now));
     report.stuck.push(...unaccountedRedFindings(db, now));
+    const priorActive = last ? JSON.parse(last.event_detail).active : [];
+    report.stuck.push(...scratchMemoryFindings({ ...(memory() ?? {}), host: hostname(), now, since: key => priorActive.find(finding => finding.key === key)?.since ?? null }));
     const processes = cpu(db);
     report.stuck.push(...(processes ?? (last ? JSON.parse(last.event_detail).active : []).filter(finding => finding.cause === 'AGENT_CPU').map(finding => ({ ...finding, owner: { who: finding.owner } }))));
     const before = (last ? JSON.parse(last.event_detail).active : []).map(healthFindingIdentity).sort();

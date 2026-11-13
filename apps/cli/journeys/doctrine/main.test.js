@@ -153,8 +153,8 @@ test('the doctrine detail keeps its citing items after a tab round trip [N26,C7]
   writeFileSync(join(repo.repo, 'DOCTRINE.md'), '# Team rules\n\n## Team\n'
     + '- R1 [approved, must] Keep local notes accurate. | gate: web test\n'
     + '- G1 [approved, must] Keep the page useful. | gate: web test\n');
-  box.run(repo.repo, 'add', 'web', 'First citation', '--specs', 'G1', '--criterion', 'The first item cites G1.');
-  box.run(repo.repo, 'add', 'web', 'Second citation', '--specs', 'G1', '--criterion', 'The second item cites G1.');
+  await box.inProcess(repo.repo, 'add', 'web', 'First citation', '--specs', 'G1', '--criterion', 'The first item cites G1.');
+  await box.inProcess(repo.repo, 'add', 'web', 'Second citation', '--specs', 'G1', '--criterion', 'The second item cites G1.');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-doctrine-tab-round-trip-chrome-'));
   let chrome;
@@ -191,7 +191,7 @@ test('the doctrine detail keeps its citing items after a tab round trip [N26,C7]
       await press(chrome, "document.querySelector('[data-tab=items]')");
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && !document.querySelector('[data-pane=items]').hidden");
       const refreshMarkerTitle = `Refresh marker ${width}px`;
-      box.run(repo.repo, 'add', 'web', refreshMarkerTitle, '--specs', 'G1', '--criterion', 'The refresh marker is visible from a real board read.');
+      await box.inProcess(repo.repo, 'add', 'web', refreshMarkerTitle, '--specs', 'G1', '--criterion', 'The refresh marker is visible from a real board read.');
       await chrome.waitFor(`data?.project?.items?.some(item => item.title === ${JSON.stringify(refreshMarkerTitle)})`);
       await press(chrome, "document.querySelector('[data-tab=doctrine]')");
       await chrome.waitFor("document.querySelector('[data-tab=doctrine].on') && !document.querySelector('[data-pane=doctrine]').hidden");

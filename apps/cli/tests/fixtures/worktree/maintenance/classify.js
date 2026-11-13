@@ -46,7 +46,7 @@ export function registerMaintenanceClassificationTests() {
 
     const recentUnknown = classifyMaintenanceTree(root.tree, { ...root, seats: [{ agent_id: 'core-1', path: root.tree.path, presence: null, heartbeatAt: NOW - HOUR }] });
     assert.equal(recentUnknown.kind, 'active');
-    assert.equal(recentUnknown.reason, 'seat-recent-or-clock-rollback');
+    assert.equal(recentUnknown.reason, 'seat-joined');
     assert.equal(classifyMaintenanceTree(root.tree, { ...root, workingDirectories: null }).protected, true);
     assert.equal(classifyMaintenanceTree(root.tree, { ...root, workingDirectories: [{ cwd: null }] }).protected, true);
     assert.equal(classifyMaintenanceTree(root.tree, { ...root, workingDirectories: [{ cwd: root.tree.path + '/child' }] }).reason, 'process-working-directory');
@@ -76,7 +76,7 @@ export function registerMaintenanceClassificationTests() {
     const insideCandidate = input({ previous: { firstSeenAt: NOW - DAY } });
     const inside = classifyMaintenanceTree(insideCandidate.tree, insideCandidate);
     assert.equal(inside.kind, 'orphaned');
-    assert.equal(inside.protected, false);
+    assert.equal(inside.protected, true, 'a worktree no seat ever joined is outside maintenance scratch (#5969)');
     assert.equal(inside.oldEnough, true);
   });
 
@@ -98,7 +98,7 @@ export function registerMaintenanceClassificationTests() {
     const tree = base.tree;
     const closed = [{ item_id: 1, item_built_by: 'core-1', item_status: 'verified', item_merged_commit: 'def' },
       { item_id: 2, item_built_by: 'core-1', item_status: 'withdrawn', item_withdrawn_reason: 'declined' }];
-    const oldGone = { agent_id: 'core-1', path: tree.path, presence: 'gone', heartbeatAt: NOW - DAY };
+    const oldGone = { agent_id: 'core-1', path: tree.path, presence: 'gone', heartbeatAt: NOW - DAY, completedTakeoverAt: NOW - DAY };
     const exact = classifyMaintenanceTree(tree, { ...base, seats: [oldGone], items: closed });
     assert.equal(exact.kind, 'finished');
     assert.equal(exact.oldEnough, true);
@@ -109,7 +109,7 @@ export function registerMaintenanceClassificationTests() {
     assert.equal(rollback.kind, 'active');
     const noTimestamp = classifyMaintenanceTree(tree, { ...base, seats: [{ agent_id: 'core-1', path: tree.path, presence: 'gone', mtime: NOW - 10 * DAY }], items: closed });
     assert.equal(noTimestamp.kind, 'active');
-    assert.equal(noTimestamp.reason, 'seat-age-unknown');
+    assert.equal(noTimestamp.reason, 'seat-joined');
   });
 
   test('maintenance classification ages missing-seat trees only from the prior observation and distinguishes finished, orphaned and scratch [B3,I4,I16]', () => {
@@ -121,10 +121,10 @@ export function registerMaintenanceClassificationTests() {
     const old = classifyMaintenanceTree(base.tree, { ...base, previous: { firstSeenAt: NOW - DAY } });
     assert.equal(old.kind, 'orphaned');
     assert.equal(old.oldEnough, true);
-    const finished = classifyMaintenanceTree(base.tree, { ...base, seats: [{ agent_id: 'core-1', path: base.tree.path, presence: 'gone', createdAt: NOW - 2 * DAY }],
+    const finished = classifyMaintenanceTree(base.tree, { ...base, seats: [{ agent_id: 'core-1', path: base.tree.path, presence: 'gone', createdAt: NOW - 2 * DAY, completedTakeoverAt: NOW - 2 * DAY }],
       items: [{ item_id: 9, item_built_by: 'core-1', item_status: 'withdrawn' }] });
     assert.equal(finished.kind, 'finished');
-    const canonicalSeat = { agent_id: 'core-1', path: base.tree.path, presence: 'gone', agent_created_at: NOW - 1_000 };
+    const canonicalSeat = { agent_id: 'core-1', path: base.tree.path, presence: 'gone', agent_created_at: NOW - 1_000, completedTakeoverAt: NOW - 1_000 };
     const secondsGrace = { ...base, config: { ...base.config, worktreeMaintenance: { ...base.config.worktreeMaintenance, grace: '1s' } },
       seats: [canonicalSeat], items: [{ item_id: 10, item_built_by: 'core-1', item_status: 'withdrawn' }] };
     assert.equal(classifyMaintenanceTree(base.tree, secondsGrace).kind, 'finished');

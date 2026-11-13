@@ -73,3 +73,18 @@ test('the queued job records its lock waits with their total wait time [C7,#3087
   assert.equal(recorded.state, 'red');
   assert.deepEqual(recorded.lockWaits, { count: 2, totalMs: 3000, codes: { BOARD_BUSY: 1, SLOT_DB_LOCKED: 1 } });
 });
+
+test('the hand-off worker gives the submit an in-place lock retry, so a lock stop does not restart its stages [C7,#3370]', async () => {
+  const { handoffGate } = await import('../../src/io/submit/handoff/worker.js');
+  const ctx = {};
+  let runs = 0, calls = 0;
+  const submit = async () => {
+    runs += 1;
+    assert.equal(typeof ctx.lockRetry, 'function', 'withBoard finds the retry on the context');
+    await ctx.lockRetry(async () => { if (++calls <= 2) throw new Refused('BOARD_BUSY', 'fixture busy'); });
+  };
+  const out = await handoffGate(ctx, { item: 1 }, { waitInventory: async () => {}, submit, healthy: async () => true, wait: async () => {} });
+  assert.equal(runs, 1, 'the submit ran once');
+  assert.equal(out.code, 0);
+  assert.equal(out.lockWaits.count, 2);
+});

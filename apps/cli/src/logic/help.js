@@ -3,6 +3,8 @@ import { VERSION } from '../../../../packages/config/index.js';
 import { ALL_HELP } from './help/sections.js';
 import { WHY_EXPLANATION } from './why.js';
 import { WHY_FLAG } from './why.js';
+import { cleanFlag } from './help/flag-meanings.js';
+import { describeFlag } from './help/flag-meanings.js';
 export { VERSION };
 
 
@@ -184,7 +186,7 @@ function commandHelpRows(fullHelp, commandNames) {
     }
     const flags = [...flagMap.values()].map((flag) => {
       const explanation = HELP_FLAG_EXPLANATIONS[flag.split(/\s/u, 1)[0]];
-      return explanation ? `${flag} — ${explanation}` : flag;
+      return explanation ? `${cleanFlag(flag)} — ${explanation}` : describeFlag(name, flag);
     });
     const example = exampleFor(name, usages[0]);
     return [name, Object.freeze({ usages, flags, example, notes: HELP_NOTES[name] ?? [] })];

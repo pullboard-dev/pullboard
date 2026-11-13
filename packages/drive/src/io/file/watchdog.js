@@ -1,4 +1,8 @@
-/** Install whole-file supervision without depending on a responsive test event loop [C7,V10]. */
+/** @pullboard-module-loads packages/drive/src/io/file/watchdog/worker.js */
+/**
+ * Install whole-file supervision without depending on a responsive test event loop [C7,V10]. Why the header: the
+ * worker starts from a URL, not an import, so package and fixture copies follow the declared load instead.
+ */
 import { Worker } from 'node:worker_threads';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';

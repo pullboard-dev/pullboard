@@ -1,6 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** Dashboard keeps the rules and capacity cards while the Home tab is retired [N26,U91]. */
+/** Settings keeps the rules and capacity cards while the Home tab is retired [N26,U91]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -45,7 +45,7 @@ function count(html, key) {
   return Number(new RegExp(`data-home-count="${key}"><dt>[^<]+</dt><dd>(\\d+)</dd>`).exec(html)?.[1]);
 }
 
-test('Dashboard is the landing page, carries the rules, and migrates saved Home state [N26]', async () => {
+test('Dashboard is the landing page, Settings carries the rules, and migrates saved Home state [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC);
   const view = await startView(box);
@@ -53,18 +53,23 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
     const html = await (await fetchPage(view)).text();
     const navigation = /<nav class="tabs"[^>]*>([\s\S]*?)<\/nav>/u.exec(html)?.[1] ?? '';
     const tabs = [...navigation.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>/gu)].map(([, tab]) => tab);
-    assert.equal(tabs[0], 'dashboard', 'Dashboard is the first tab');
+    assert.ok(tabs.includes('dashboard') && !tabs.includes('progress'), 'Dashboard is a tab and Progress is not');
     assert.doesNotMatch(html, /data-tab="home"|data-pane="home"/u, 'the retired Home tab and pane are absent');
 
     // A new board opens on Dashboard, which retains the rules and the calls waiting on the person.
     const fresh = await openPage(view, { store: storage() });
     assert.equal(fresh.run('view.tab'), 'dashboard', 'a board with no items yet opens on Dashboard');
-    const rules = fresh.show('dashboard');
+    assert.match(fresh.show('dashboard'), /data-first-run-tour/, 'a new board first presents the setup tour');
+    fresh.run("keep('pb.firstrun.' + view.root, 'hidden'); render();");
+    fresh.run("view.tab = 'settings'; render();");
+    const rules = fresh.show('settings-reference');
     assert.deepEqual(['approved', 'gated', 'ungated'].map((key) => count(rules, key)), [3, 2, 1], 'approved rows, those naming a gate, and those with none');
     assert.match(rules, /data-go="tab:spec"/, 'the rules card opens the Spec');
+    fresh.run("view.tab = 'dashboard'; render();");
     const dashboard = fresh.show('dashboard');
-    assert.match(dashboard, /aria-label="Needs you"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
-    assert.doesNotMatch(dashboard, /Nothing needs you/u, 'a visible call suppresses the calm state');
+    assert.match(dashboard, /aria-label="Rulings"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
+    assert.doesNotMatch(dashboard, /Nothing to rule on/u, 'a visible call suppresses the calm state');
+    assert.doesNotMatch(dashboard, /dashboard-rules|dashboard-capacity|Your rules|Useful agents/u, 'the rules and capacity cards are on Settings, not the Dashboard');
 
     // Existing work also opens on Dashboard; the person's explicit Items choice is remembered.
     box.run(alpha.repo, 'add', 'web', 'Render the page', '--specs', 'G1');
@@ -74,6 +79,12 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
     const savedHome = storage();
     savedHome.setItem('pb.tab', 'home');
     assert.equal((await openPage(view, { store: savedHome })).run('view.tab'), 'dashboard', 'a saved Home tab opens on Dashboard');
+    const savedProgress = storage();
+    savedProgress.setItem('pb.tab', 'progress');
+    const retired = await openPage(view, { store: savedProgress });
+    assert.equal(retired.run('view.tab'), 'dashboard', 'a saved Progress tab opens on Dashboard');
+    assert.equal(retired.run("location.pathname = '/progress'; location.hash = '#progress'; addressTab()"), 'dashboard', 'the old Progress address goes to Dashboard');
+    assert.doesNotMatch(html, /data-tab="progress"|data-pane="progress"/u, 'the Progress tab and page are gone');
     await working.click({ tab: 'items' });
     assert.equal((await openPage(view, { store })).run('view.tab'), 'items', 'Items is one click back, and kept too');
   } finally {
@@ -97,19 +108,20 @@ test('home renders the projected useful agents range lever and curve and refresh
   project(box, 'capacity home', SPEC);
   const view = await startView(box);
   try {
-    const page = await openPage(view);
-    assert.match(page.html, /id="dashboard-capacity"/, 'the served page mounts the capacity card on Dashboard');
+    const page = await openPage(view, { store: storage() });
+    assert.match(page.html, /id="settings-reference"/, 'the served page mounts the rules and capacity cards on Settings');
+    page.run("keep('pb.firstrun.' + view.root, 'hidden'); view.tab = 'settings'; render();");
     page.run(`data.project.capacityForecast = ${JSON.stringify(CAPACITY)}; render();`);
-    const html = page.show('dashboard');
+    const html = page.show('settings-reference');
     assert.match(html, /Max useful agents now: <strong>24<\/strong> \(16–32\)/);
     assert.match(html, /Finish in about 18–22 h/);
     assert.match(html, /Binding: rework/);
     assert.match(html, /Lever: Halve rejects/);
     assert.match(html, /2 items lack recorded approval evidence/);
     assert.match(html, /<polyline/);
-    assert.match(page.show('dashboard'), /Your rules/, 'existing rules remain visible');
+    assert.match(page.show('settings-reference'), /Your rules/, 'existing rules remain visible');
     page.run('data.project.capacityForecast = { available: false, stale: true, unknown: ["Missing measured history"] }; render();');
-    const unavailable = page.show('dashboard');
+    const unavailable = page.show('settings-reference');
     assert.match(unavailable, /Capacity estimate is unavailable/);
     assert.match(unavailable, /Estimates are stale/);
     assert.match(unavailable, /Missing measured history/);
@@ -121,7 +133,7 @@ test('home renders the projected useful agents range lever and curve and refresh
 
 
 // budget: hang ceiling for one private Chrome session and two viewport observations, not a speed target.
-test('Dashboard capacity stays readable at phone and desktop widths in real Chrome [N26,R1,R2]', { timeout: 60_000 }, async t => {
+test('Settings capacity stays readable at phone and desktop widths in real Chrome [N26,R1,R2]', { timeout: 60_000 }, async t => {
   const executable = chromeExecutable();
   assert.ok(executable, 'this browser-marked check needs an installed Chrome');
   const box = machine();
@@ -134,8 +146,10 @@ test('Dashboard capacity stays readable at phone and desktop widths in real Chro
     await allowLiveHold(chrome);
     await chrome.send('Page.navigate', { url: view.link.href });
     await holdLive(chrome, "data?.project?.spec.some(row => row.id === 'G1')");
-    await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=dashboard]').hidden");
-    assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true, 'the real served Dashboard mounts the capacity card');
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
+    await chrome.stable("(() => { view.tab = 'settings'; render(); return true; })()"); // the tab strip folds away at phone width
+    await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=settings]').hidden");
+    assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true, 'the real served Settings mounts the capacity card');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
@@ -224,7 +238,7 @@ function freezeCapacityItem(item) {
 
 // budget: one owned Chrome session and two viewport observations; this is a hang ceiling, not a speed target.
 /** Render server-measured capacity from the real local API at narrow and desktop viewport sizes. */
-test('Dashboard renders the real board capacity at phone and desktop widths [N26,R1,R2]', { timeout: 60_000 }, async t => {
+test('Settings renders the real board capacity at phone and desktop widths [N26,R1,R2]', { timeout: 60_000 }, async t => {
   const executable = chromeExecutable();
   assert.ok(executable, 'this browser-marked check needs an installed Chrome');
   const box = machine();
@@ -248,9 +262,10 @@ test('Dashboard renders the real board capacity at phone and desktop widths [N26
     let fetchedBoardState = false;
     for (const request of chrome.requests) if (isBoardStateRequest(request, board)) fetchedBoardState = true;
     assert.ok(fetchedBoardState, 'Chrome fetched board state over the real view HTTP route');
-    await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=dashboard]').hidden");
+    await chrome.stable("(() => { view.tab = 'settings'; render(); return true; })()"); // the tab strip folds away at phone width
+    await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=settings]').hidden");
     assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true,
-      'the real Dashboard card is mounted without setting data.project.capacityForecast in the page');
+      'the real Settings card is mounted without setting data.project.capacityForecast in the page');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 900 });
       await chrome.waitFor(`innerWidth === ${width}`);

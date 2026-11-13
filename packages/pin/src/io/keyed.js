@@ -10,6 +10,7 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -74,4 +75,20 @@ export function savedKeyedResults(folder) {
     try { results.push(readFileSync(join(folder, name))); } catch { /* Swept between the listing and the read. */ }
   }
   return results;
+}
+
+/**
+ * Keep only the newest saved results in a folder, by modification time; a result swept meanwhile is already gone.
+ *
+ * @param {string} folder
+ * @param {number} keep - How many results stay.
+ */
+export function pruneKeyedResults(folder, keep) {
+  let names;
+  try { names = readdirSync(folder).filter((name) => name.endsWith(SUFFIX)); } catch { return; }
+  const dated = [];
+  for (const name of names) {
+    try { dated.push({ name, at: statSync(join(folder, name)).mtimeMs }); } catch { /* Swept between the listing and the stat. */ }
+  }
+  for (const old of dated.sort((a, b) => b.at - a.at).slice(keep)) rmSync(join(folder, old.name), { force: true });
 }

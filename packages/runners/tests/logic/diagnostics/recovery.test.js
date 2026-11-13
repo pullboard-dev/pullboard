@@ -1,5 +1,5 @@
 /** @pullboard-test-loads packages/resources/index.js */
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/resources/index.js packages/runners/index.js */
 /** Cleanup holds need a fresh pinned idle worker, not a successful SSH connection alone [C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';

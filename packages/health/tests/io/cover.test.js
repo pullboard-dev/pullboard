@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../../../state/light.js';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';

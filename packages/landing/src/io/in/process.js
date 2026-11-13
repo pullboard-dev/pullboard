@@ -13,7 +13,7 @@ import { landingStallDescription } from '../progress.js';
  * dropped that stop, so a hung child could hold landing forever (#3477).
  *
  * @param {{ now?: () => number }} [options]
- * @returns {{ moved: () => void, said: (line: string) => void, record: (batch: any) => void, lastProgressAt: () => number, stall: () => void,
+ * @returns {{ moved: () => void, said: (line: string) => void, record: (batch: any) => void, lastProgressAt: () => number, stall: (limitMs?: number) => void,
  *   stalled: Promise<{ batch: any, step: string }> }}
  */
 export function landingProgress({ now = Date.now, gateCeilingMs = LANDING_GATE_CEILING_MS } = {}) {
@@ -24,6 +24,7 @@ export function landingProgress({ now = Date.now, gateCeilingMs = LANDING_GATE_C
   let bytes = 0;
   let stall;
   const stalled = new Promise(resolve => { stall = resolve; });
+  let limitMs;
   return {
     moved() { lastAt = now(); },
     /** Read a said line: a gate's "selected; running" opens a running gate and its "run finished" closes it. */
@@ -47,7 +48,7 @@ export function landingProgress({ now = Date.now, gateCeilingMs = LANDING_GATE_C
       if (gateSince !== null && now() - gateSince < gateCeilingMs) lastAt = now();
       return lastAt;
     },
-    stall() { stall({ batch, step }); },
+    stall(limit) { limitMs = limit; stall({ batch, step, limitMs }); },
     stalled,
   };
 }
@@ -104,7 +105,7 @@ const BATCH_WRITES = new Set(['recordTrainLanding', 'recordLandingBatch', 'finis
  * same twelve the worker composed, and never the command's post-land suite port, which the worker never had.
  *
  * The batch reports its progress to `progress` (landingProgress). When the drive cell's landing job calls its
- * stall() (no progress for the stall limit, the repository's landing.stall, 10 minutes when unset, as #3186), the
+ * stall() (no progress for the stall limit, the repository's landing.stall, 2 minutes when unset, #3186, #5816), the
  * batch ends: its later board calls are refused, `onStall` records the batch blocked, and the runner returns that
  * stalled result, so the landing-run job is marked failed with its lease freed and the next landing can start.
  *
@@ -144,9 +145,15 @@ export function inProcessLandingBatch({ checkAtCommit, candidateWorkerFile, prog
     if (!outcome.stalled) return outcome.value;
     // The hung batch is abandoned: its next board call is refused, and nothing it does later is recorded.
     batch.catch(() => {});
-    const description = landingStallDescription(outcome.stalled.batch ?? { id: 'unrecorded', state: 'starting' }, outcome.stalled.step);
+    const description = landingStallDescription(outcome.stalled.batch ?? { id: 'unrecorded', state: 'starting' }, outcome.stalled.step, outcome.stalled.limitMs);
     stop.abort(new Refused('LAND_STALLED', description));
-    if (!outcome.stalled.batch || typeof onStall !== 'function') throw new Refused('LAND_STALLED', `${description}; the batch is ended and the next landing can start`);
+    if (typeof onStall !== 'function') throw new Refused('LAND_STALLED', `${description}; the batch is ended and the next landing can start`);
+    // A stall before any batch record left nothing to block: the items never left verified, and a stalled result (not a
+    // refusal) lets the lander's wake start the next batch at once instead of waiting for the next accept [C7,#5816].
+    if (!outcome.stalled.batch) {
+      say(`landing stopped: ${description}; items remain verified and the next batch can start`);
+      return { batch: null, landed: [], conflicts: [], blocked: [], culprits: [], flakes: [], stalled: true, stallDescription: description };
+    }
     return await onStall({ batch: outcome.stalled.batch, step: outcome.stalled.step, description });
   };
 }

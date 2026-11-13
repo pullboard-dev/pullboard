@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** The receipt cell judges collected results purely and records the verdict before bookkeeping [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -9,9 +9,9 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { repoInfo } from "../../../git/index.js";
-import { Refused } from "../../../kernel/index.js";
-import { gitSyncMarkerLinked } from "../../../config/index.js";
+import { repoInfo } from "../../../git/light.js";
+import { Refused } from "../../../kernel/light.js";
+import { gitSyncMarkerLinked } from "../../../config/light.js";
 
 /** A pending baseline result's file name: one per request id. */
 export const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;
@@ -79,6 +79,11 @@ export function syncMayAct(cwd) {
     return !(error instanceof Refused && ['NOT_A_REPO', 'CORE_BARE'].includes(error.code));
   }
   if (existsSync(relayLinkFile(info.commonDir)) || existsSync(join(info.commonDir, 'pullboard', 'git-sync.json'))) return true;
-  const receipts = baselineReceiptDirectory(info.commonDir);
+  return baselineReceiptsPending(info.commonDir);
+}
+
+/** Whether a finished baseline result waits in this repository's shared Git directory for delivery. */
+export function baselineReceiptsPending(commonDir) {
+  const receipts = baselineReceiptDirectory(commonDir);
   return existsSync(receipts) && readdirSync(receipts).some((name) => BASELINE_RECEIPT.test(name));
 }

@@ -17,7 +17,7 @@ import { runFixtureChild } from '../../../../tests/fixtures/child.js';
 /** Quote a private fixture path for the supervisor's shell command. */
 function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
-test('clause 1: run --scale with a fake agent launches exactly one seat in its own worktree and reports no error [C7]', { timeout: 120_000 }, t => { // budget: one native scaler cycle and private Git registration, not a throughput assertion.
+test('clause 1: run --scale with a fake agent launches exactly one seat in its own worktree and reports no error [C7]', { timeout: 120_000 }, async t => { // budget: one native scaler cycle and private Git registration, not a throughput assertion.
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
@@ -31,7 +31,7 @@ test('clause 1: run --scale with a fake agent launches exactly one seat in its o
     store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Only open task', route: 'strong',
       criterion: 'the named fix works', check: 'true' });
   });
-  const settings = box.run(box.repo, 'settings', 'workers.budget', '96/day');
+  const settings = await box.runLocal(box.repo, 'settings', 'workers.budget', '96/day');
   assert.equal(settings.code, 0, settings.err);
   const result = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../../../pullboard.js'), 'run', '--scale', '--lane', 'web',
     '--model', 'Scaler fixture', '--route', 'strong', '--family', 'Scaler fixture vendor', '--agent', `${quote(process.execPath)} ${quote(script)}`,

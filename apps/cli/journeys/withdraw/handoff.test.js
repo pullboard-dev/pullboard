@@ -19,9 +19,9 @@ import { fixtureOpenBoard } from '../../tests/fixtures/testkit.js';
  * Build a project with a claimed item and one committed candidate, ready to queue.
  *
  * @param {import('node:test').TestContext} t
- * @returns {{ box: object, id: number, commit: string }}
+ * @returns {Promise<{ box: object, id: number, commit: string }>}
  */
-function claimed(t) {
+async function claimed(t) {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true', helpers.sandbox());
@@ -30,7 +30,7 @@ function claimed(t) {
     '--criterion', 'The candidate passes.', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/record.txt', 'x\n', 'feat(web): record candidate [G1]').status, 0);
   return { box, id, commit: box.git(box.web, 'rev-parse', 'HEAD') };
 }
@@ -56,7 +56,7 @@ function queue(box, board, id, commit) {
 
 for (const running of [false, true]) {
   test(`clause 1: withdrawing an item with a ${running ? 'running' : 'queued'} hand-off ends it as withdrawn and removes its queue ticket [C7]`, async t => {
-    const { box, id, commit } = claimed(t);
+    const { box, id, commit } = await claimed(t);
     const previous = process.env.PULLBOARD_MACHINE_HOME;
     process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
     t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; });
@@ -70,7 +70,7 @@ for (const running of [false, true]) {
       assert.equal(handoffTicketWaiting(options.job), true, 'the hand-off holds a place in line');
       assert.equal(submitHandoff(board, id).state, running ? 'running' : 'queued');
     } finally { board.db.close(); }
-    const withdrawn = box.run(box.repo, 'withdraw', String(id), 'obsolete');
+    const withdrawn = await box.runLocal(box.repo, 'withdraw', String(id), 'obsolete');
     assert.equal(withdrawn.code, 0, `${withdrawn.err}\n${withdrawn.out}`);
     board = fixtureOpenBoard(box);
     try {

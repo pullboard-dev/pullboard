@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input .github/workflows/cla.yml packages/blueprints/data/blueprints/pullboard.json packages/codemap/index.js packages/git/index.js packages/git/src/io/main.js */
 /** The fixture source analyzer reports source-path reads and names board or data file reads as excluded [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -74,9 +74,9 @@ test('clause 1: accept reuses the receipt after an unrelated landing moved main 
   const box = helpers.project('true', sandbox);
   const added = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fast accept', criterion: 'the check passes', check: `printf x >> '${count}'`, brief: 'Files:\n- web/proof.js\nTest:\n- the check passes\n', args: ['--specs', 'G1'], diagnose: false });
   const id = String(added.item_id);
-  assert.equal(box.run(box.web, 'claim', id).code, 0);
+  assert.equal((await box.runIn(box.web, 'claim', id)).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]').status, 0);
-  const submitted = box.run(box.web, 'submit', id);
+  const submitted = await box.runIn(box.web, 'submit', id);
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const before = readFileSync(count, 'utf8');
   const landed = helpers.commitFile(box, box.repo, 'unrelated.txt', 'landed elsewhere\n', 'chore: unrelated landing');
@@ -86,7 +86,7 @@ test('clause 1: accept reuses the receipt after an unrelated landing moved main 
   sandbox.env.CODEX_THREAD_ID = 'fast-reviewer-session';
   assert.equal(joinFixtureSeat(box, reviewer, 'web', { model: FIXTURE_MODEL_EARLIER }).code, 0);
   const started = performance.now();
-  const verdict = box.run(reviewer, 'verify', id, 'accept', '--note', 'The sealed receipt covers the check.');
+  const verdict = await box.runIn(reviewer, 'verify', id, 'accept', '--note', 'The sealed receipt covers the check.');
   const elapsed = performance.now() - started;
   assert.equal(verdict.code, 0, verdict.err || verdict.out);
   assert.match(verdict.out, /reused submit proof/);
@@ -103,9 +103,9 @@ test('clause 2: accept says why the receipt could not be reused before it reruns
   const box = helpers.project('true', sandbox);
   const added = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fast accept', criterion: 'the check passes', check: `test -n web/dep.js && printf x >> '${count}'`, brief: 'Files:\n- web/proof.js\nTest:\n- the check passes\n', args: ['--specs', 'G1'], diagnose: false });
   const id = String(added.item_id);
-  assert.equal(box.run(box.web, 'claim', id).code, 0);
+  assert.equal((await box.runIn(box.web, 'claim', id)).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]').status, 0);
-  const submitted = box.run(box.web, 'submit', id);
+  const submitted = await box.runIn(box.web, 'submit', id);
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const landed = helpers.commitFile(box, box.repo, 'web/dep.js', 'export const dep = 1;\n', 'feat(web): main adds a file the check names [G1]');
   assert.equal(landed.status, 0, landed.stderr || landed.stdout);
@@ -113,7 +113,7 @@ test('clause 2: accept says why the receipt could not be reused before it reruns
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   sandbox.env.CODEX_THREAD_ID = 'fast-reviewer-session';
   assert.equal(joinFixtureSeat(box, reviewer, 'web', { model: FIXTURE_MODEL_EARLIER }).code, 0);
-  const verdict = box.run(reviewer, 'verify', id, 'accept', '--note', 'The sealed receipt covers the check.');
+  const verdict = await box.runIn(reviewer, 'verify', id, 'accept', '--note', 'The sealed receipt covers the check.');
   const said = `${verdict.out}${verdict.err}`;
   assert.match(said, /submit proof not reused: .*main moved since submit and reaches web\/dep\.js, a file the check names/u, said);
 });

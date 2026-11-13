@@ -176,24 +176,24 @@ test('[Q1,V15,O2,B13] policy, family and route rules still decide which reviewer
  * A real board where web-1 submits #1, then main changes the same file (#807). A second seat in the api lane
  * reviews, so the builder never verifies its own work. Returns the box and helpers.
  */
-function staleHeadFixture(t) {
+async function staleHeadFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   /** Demand real command success and its versioned result. */
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
   /** Add, claim, build and submit one web item from a web seat's worktree. */
-  const build = (title, path, text, seat = box.web) => {
-    const id = json(fixtureAdd(box.run, box.repo, 'web', title, '--criterion', `${path} exists`, '--json')).item.item_id;
-    json(box.run(seat, 'claim', String(id), '--json'));
+  const build = async (title, path, text, seat = box.web) => {
+    const id = json((await fixtureAdd(box.runLocal, box.repo, 'web', title, '--criterion', `${path} exists`, '--json'))).item.item_id;
+    json((await box.runLocal(seat, 'claim', String(id), '--json')));
     mkdirSync(join(seat, 'web'), { recursive: true });
     writeFileSync(join(seat, path), text);
     box.git(seat, 'add', path);
     box.git(seat, 'commit', '-q', '-m', `feat(web): ${title.toLowerCase()} [G1]`);
-    json(box.run(seat, 'submit', String(id), '--json'));
+    json((await box.runLocal(seat, 'submit', String(id), '--json')));
     return id;
   };
-  const conflicted = build('Show the list', 'web/list.html', '<ul>from the branch</ul>\n');
+  const conflicted = await build('Show the list', 'web/list.html', '<ul>from the branch</ul>\n');
   // The trunk moves: the same file lands on main with other lines.
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/list.html'), '<ol>from main</ol>\n');
@@ -206,50 +206,50 @@ function staleHeadFixture(t) {
   return { box, json, build, conflicted, reviewer };
 }
 
-test('a submitted head that no longer merges is returned to its builder [C7,V4]', (t) => {
-  const { box, json, conflicted, reviewer } = staleHeadFixture(t);
-  assert.equal(json(box.run(box.repo, 'show', String(conflicted), '--json')).item_status, 'submitted', 'the head waits for review before the trunk check');
-  const next = box.run(reviewer, 'next', '--verify', '--json');
+test('a submitted head that no longer merges is returned to its builder [C7,V4]', async (t) => {
+  const { box, json, conflicted, reviewer } = await staleHeadFixture(t);
+  assert.equal(json((await box.runLocal(box.repo, 'show', String(conflicted), '--json'))).item_status, 'submitted', 'the head waits for review before the trunk check');
+  const next = await box.runLocal(reviewer, 'next', '--verify', '--json');
   assert.match(next.err, new RegExp(`returned #${conflicted} to its builder unreviewed: it no longer merges onto the trunk \\(web/list\\.html\\)`, 'u'), next.out + next.err);
-  const item = json(box.run(box.repo, 'show', String(conflicted), '--json'));
+  const item = json((await box.runLocal(box.repo, 'show', String(conflicted), '--json')));
   assert.equal(item.item_status, 'open', 'the head that no longer merges goes back, unreviewed');
   assert.equal(item.item_review_by, null, 'no reviewer holds it');
   assert.equal(item.item_verdict, null, 'returning it is not a reject');
   const reopen = item.thread.findLast((entry) => entry.type === 'move' && entry.kind === 'reopen');
   assert.ok(reopen, 'the return is a recorded reopen');
-  const inbox = box.run(box.web, 'inbox').out;
+  const inbox = (await box.runLocal(box.web, 'inbox')).out;
   assert.match(inbox, new RegExp(`#${conflicted} went back to you unreviewed: .* no longer merges onto the trunk at [0-9a-f]{12} \\(web/list\\.html\\)\\. Claim it, merge main, resolve that file and submit again: pullboard claim ${conflicted}`, 'u'),
     'the builder is told the conflicting file and the one step back');
-  json(box.run(box.web, 'claim', String(conflicted), '--json'));
+  json((await box.runLocal(box.web, 'claim', String(conflicted), '--json')));
 });
 
-test('next --verify skips a head that does not merge [C7,V4]', (t) => {
-  const { box, json, build, conflicted, reviewer } = staleHeadFixture(t);
+test('next --verify skips a head that does not merge [C7,V4]', async (t) => {
+  const { box, json, build, conflicted, reviewer } = await staleHeadFixture(t);
   // A second web seat on a fresh branch from main builds work that merges cleanly.
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
   json(joinFixtureSeat(box, second, 'web'));
-  const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
-  const next = json(box.run(reviewer, 'next', '--verify', '--json'));
+  const clean = await build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
+  const next = json((await box.runLocal(reviewer, 'next', '--verify', '--json')));
   assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
-  assert.equal(json(box.run(box.repo, 'show', String(conflicted), '--json')).item_status, 'open');
-  assert.equal(json(box.run(box.repo, 'show', String(clean), '--json')).item_review_by !== null, true, 'the clean head is reserved for review');
+  assert.equal(json((await box.runLocal(box.repo, 'show', String(conflicted), '--json'))).item_status, 'open');
+  assert.equal(json((await box.runLocal(box.repo, 'show', String(clean), '--json'))).item_review_by !== null, true, 'the clean head is reserved for review');
 });
 
 /** Clause 1 of #2745: the review queue skips a submitted head that no longer merges and hands the reviewer the clean one. */
-test('clause 1: next --verify skips a head that does not merge and returns it unreviewed [C7,V4]', (t) => {
-  const { box, json, build, conflicted, reviewer } = staleHeadFixture(t);
+test('clause 1: next --verify skips a head that does not merge and returns it unreviewed [C7,V4]', async (t) => {
+  const { box, json, build, conflicted, reviewer } = await staleHeadFixture(t);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
   json(joinFixtureSeat(box, second, 'web'));
-  const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
-  const next = json(box.run(reviewer, 'next', '--verify', '--json'));
+  const clean = await build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
+  const next = json((await box.runLocal(reviewer, 'next', '--verify', '--json')));
   assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
-  const returned = json(box.run(box.repo, 'show', String(conflicted), '--json'));
+  const returned = json((await box.runLocal(box.repo, 'show', String(conflicted), '--json')));
   assert.equal(returned.item_status, 'open', 'the head that does not merge goes back to its builder');
   assert.equal(returned.item_review_by, null, 'no reviewer holds the head that does not merge');
   assert.equal(returned.item_verdict, null, 'returning it is not a reject');
-  assert.notEqual(json(box.run(box.repo, 'show', String(clean), '--json')).item_review_by, null, 'the clean head is reserved for review');
+  assert.notEqual(json((await box.runLocal(box.repo, 'show', String(clean), '--json'))).item_review_by, null, 'the clean head is reserved for review');
 });
 
 /** Drive nextReview over a board with one submitted head that conflicts, recording each ordered operation. */
@@ -287,13 +287,13 @@ test('a return refused because the head already left review is a race, not a sto
 });
 
 /** Real Git conflicts and independent private SQLite copies distinguish review administration from agent authority. */
-test('a fresh same-lane seat cannot reopen submitted conflicts under its grant [E21,V2,H16]', t => {
+test('a fresh same-lane seat cannot reopen submitted conflicts under its grant [E21,V2,H16]', async t => {
   const copies = [];
   t.after(() => copies.forEach(board => store.closeBoard(board)));
-  const { box, json, conflicted } = staleHeadFixture(t);
+  const { box, json, conflicted } = await staleHeadFixture(t);
   const fresh = join(box.dir, 'fresh-web-conflict-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', fresh, 'main');
-  const actor = json(fixtureJoin(box.run, fresh, 'web', '--json')).agent;
+  const actor = json((await fixtureJoin(box.runLocal, fresh, 'web', '--json'))).agent;
   const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let snapshot;
   try { snapshot = exportBoard(source); } finally { store.closeBoard(source); }
@@ -362,10 +362,10 @@ test('recorded pre-grant submitted-conflict moves retain joined-seat authority [
 });
 
 
-test('automatic conflict returns bind native evidence and replay without caller assertions [V4,H16]', t => {
+test('automatic conflict returns bind native evidence and replay without caller assertions [V4,H16]', async t => {
   const copies = [];
   t.after(() => copies.forEach(board => store.closeBoard(board)));
-  const { box, json, conflicted, reviewer, build } = staleHeadFixture(t);
+  const { box, json, conflicted, reviewer, build } = await staleHeadFixture(t);
   const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   copies.push(source);
   const actor = store.agentAt(source, reviewer).agent_id;
@@ -441,7 +441,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
   const second = join(box.dir, 'clean-computed-return');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/clean-return', 'main');
   json(joinFixtureSeat(box, second, 'web'));
-  const clean = build('Keep a clean footer', 'web/footer.html', '<footer>clean</footer>\n', second);
+  const clean = await build('Keep a clean footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   assert.throws(() => prepareEngineMove(source, 'reopen', [clean, { agentId: actor, automaticConflict: true }]),
     error => error.code === 'NOT_CONFLICTING', 'a clean submitted head cannot acquire computed conflict evidence');
   assert.equal(store.getItem(source, clean).item_status, 'submitted');
@@ -449,8 +449,8 @@ test('automatic conflict returns bind native evidence and replay without caller 
 
 
 /** Fresh requests cannot borrow an earlier conflict after the native trunk has made the submission clean. */
-test('fresh conflict requests refuse an older trunk after main advances [V4,H16]', t => {
-  const { box, conflicted, reviewer } = staleHeadFixture(t);
+test('fresh conflict requests refuse an older trunk after main advances [V4,H16]', async t => {
+  const { box, conflicted, reviewer } = await staleHeadFixture(t);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const actor = store.agentAt(board, reviewer).agent_id;
@@ -482,8 +482,8 @@ test('fresh conflict requests refuse an older trunk after main advances [V4,H16]
 
 
 /** A cached immutable merge is not permission to replay through a locally overridden object graph. */
-test('automatic conflict returns reject local history overrides before replay [V4,H16]', t => {
-  const { box, conflicted, reviewer } = staleHeadFixture(t);
+test('automatic conflict returns reject local history overrides before replay [V4,H16]', async t => {
+  const { box, conflicted, reviewer } = await staleHeadFixture(t);
   const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const copies = [source];
   t.after(() => copies.forEach(board => store.closeBoard(board)));
@@ -517,27 +517,27 @@ test('automatic conflict returns reject local history overrides before replay [V
   assert.deepEqual(results[0], results[1], 'cleaned replicas apply the same actual recorded conflict');
 });
 
-test('a recorded automatic conflict return first replays after the replica trunk advances [V4,H16]', t => {
-  const { box, json, conflicted, reviewer } = staleHeadFixture(t);
+test('a recorded automatic conflict return first replays after the replica trunk advances [V4,H16]', async t => {
+  const { box, json, conflicted, reviewer } = await staleHeadFixture(t);
   const remote = join(box.dir, 'recorded-return.git');
   box.git(box.dir, 'clone', '--bare', box.repo, remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
-  json(box.run(box.repo, 'sync', '--json'));
+  json((await box.runLocal(box.repo, 'sync', '--json')));
   const replica = join(box.dir, 'behind-return-replica');
   box.git(box.dir, 'clone', remote, replica);
   const inheritedModel = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
-  try { assert.equal(box.run(replica, 'init').code, 0, 'initialize only the replica-local board'); }
+  try { assert.equal((await box.runLocal(replica, 'init')).code, 0, 'initialize only the replica-local board'); }
   finally { if (inheritedModel !== undefined) box.env.PULLBOARD_MODEL = inheritedModel; }
-  json(box.run(replica, 'sync', '--json'));
-  const before = json(box.run(replica, 'export'));
+  json((await box.runLocal(replica, 'sync', '--json')));
+  const before = json((await box.runLocal(replica, 'export')));
   assert.equal(before.tables.item.find(item => item.item_id === conflicted).item_status, 'submitted');
   const origin = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(origin));
   const head = store.getItem(origin, conflicted).item_commit;
-  const offered = box.run(reviewer, 'next', '--verify', '--json');
+  const offered = await box.runLocal(reviewer, 'next', '--verify', '--json');
   assert.match(offered.err, /returned .*unreviewed/, 'the origin records its real current-trunk automatic return');
-  const sealed = json(box.run(box.repo, 'export'));
+  const sealed = json((await box.runLocal(box.repo, 'export')));
   const record = sealed.tables.board_meta.filter(row => row.meta_key.startsWith('relay_receipt_'))
     .map(row => JSON.parse(row.meta_value)).find(receipt => JSON.parse(receipt.move).operation === 'reopen');
   assert.ok(record, 'the origin has an acknowledged exact move in its board log');
@@ -563,8 +563,8 @@ test('a recorded automatic conflict return first replays after the replica trunk
     assert.equal(forged.error?.code, 'COORDINATOR_ONLY', 'caller-shaped context and generic engine replay grant no authority');
     assert.equal(store.getItem(fresh, conflicted).item_status, 'submitted');
   } finally { store.closeBoard(fresh); }
-  json(box.run(replica, 'sync', '--json'));
-  const replayed = json(box.run(replica, 'export'));
+  json((await box.runLocal(replica, 'sync', '--json')));
+  const replayed = json((await box.runLocal(replica, 'export')));
   assert.equal(replayed.tables.item.find(item => item.item_id === conflicted).item_status, 'open',
     'first delivery of the validated Git-log record uses its immutable recorded trunk, not current local main');
   const acknowledged = replayed.tables.board_meta.find(row => row.meta_key === 'relay_receipt_' + JSON.parse(record.move).id);

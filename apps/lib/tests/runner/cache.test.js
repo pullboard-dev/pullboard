@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A runner dispatch reuses a clean commit's source and tag scans; a refusal is never kept [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

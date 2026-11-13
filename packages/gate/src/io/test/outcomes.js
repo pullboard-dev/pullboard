@@ -76,6 +76,22 @@ export function readTestOutcomes(output, id) {
   return found ? testOutcomeFields(rows) : null;
 }
 
+/**
+ * Every outcome row in a merged log, whatever run id framed it, skipping malformed frames. A census reads many shards'
+ * output at once, each framed by its own run id, and wants a per-file verdict rather than one run's proof.
+ */
+export function allTestOutcomes(output) {
+  const rows = [];
+  for (const line of String(output ?? '').split('\n')) {
+    if (!line.startsWith(PREFIX)) continue;
+    let frame;
+    try { frame = JSON.parse(line.slice(PREFIX.length)); } catch { continue; }
+    const tests = testOutcomeFields(frame?.tests);
+    if (frame?.version === 1 && tests) rows.push(...tests);
+  }
+  return rows;
+}
+
 /** Bind every observed source path to one immutable regular-file inventory, without one Git child per test. */
 export function committedTestOutcomes(root, head, value, readTree) {
   const rows = testOutcomeFields(value);

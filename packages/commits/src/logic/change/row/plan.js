@@ -53,7 +53,7 @@ export function planRowChange(path, { before, after, ownNewFile }) {
         && !source.split('/').some(piece => !piece || piece === '.' || piece === '..') && !/[\0\r\n\\]/u.test(source);
       const suffix = safe ? source.slice(source.indexOf('/') + 1) : '';
       if (!safe || placement.length !== 3 || via !== 'rule'
-        || !['core', 'shell'].some(part => target === `${old.root}/src/${part}/${suffix}`)
+        || !['core', 'shell', 'logic', 'io'].some(part => target === `${old.root}/src/${part}/${suffix}`)
         || occupied.has(source) || occupied.has(target) || !ownNewFile(source)
         || finalRows.filter(row => row[0] === source || row[1] === source).length !== 1
         || finalRows.filter(row => row[0] === target || row[1] === target).length !== 1) {

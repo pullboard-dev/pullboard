@@ -316,9 +316,9 @@ test('[H15,H17] production CLI pairs a real second clone and reads the same boar
   const box = await relayClientFixture(t);
   await box.link();
   await box.requireEngineThree();
-  const linkedSource = await box.cli('export');
+  const linkedSource = await box.cliLocal('export');
   assert.equal(linkedSource.code, 0, 'the linked source exports its current checkpoint');
-  const printed = await box.cli('relay', 'pair');
+  const printed = await box.cliLocal('relay', 'pair');
   assert.equal(printed.code, 0, 'the linked CLI publishes a one-use pairing envelope');
   assert.match(printed.document.code, /^[0-9a-f]{32}\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/);
   assert.equal(printed.document.expiresIn, 600);
@@ -339,7 +339,7 @@ test('[H15,H17] production CLI pairs a real second clone and reads the same boar
 test('[H15,H17] a paired clone synchronizes without a key file from PULLBOARD_RELAY_KEY', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  const printed = await box.cli('relay', 'pair');
+  const printed = await box.cliLocal('relay', 'pair');
   const paired = await box.otherDeviceJoin(printed.document.code);
   const beforeSyncCalls = box.calls.length;
   const synchronized = await paired.syncWithEnvironmentKey('export');
@@ -373,21 +373,21 @@ test('[H15,H17] a paired clone synchronizes without a key file from PULLBOARD_RE
 test('pairing again after a device joined and a move was added succeeds [H15,H17,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const first = await box.cli('relay', 'pair');
+  const first = await box.cliLocal('relay', 'pair');
   assert.equal(first.code, 0, 'the unchanged linked board can issue a pairing package');
   const joined = await box.otherDeviceJoin(first.document.code);
   assert.equal(joined.joined.board, box.before.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value,
     'the baseline one-use package is consumed by a genuine second private native device');
-  const added = await box.cli('add', box.lane, 'An acknowledged move before pairing', '--criterion', 'The next device can join');
+  const added = await box.cliLocal('add', box.lane, 'An acknowledged move before pairing', '--criterion', 'The next device can join');
   assert.equal(added.code, 0, JSON.stringify(added.document));
-  const snapshot = await box.cli('export');
+  const snapshot = await box.cliLocal('export');
   assert.equal(snapshot.code, 0);
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const meta = new Map(snapshot.document.tables.board_meta.map(row => [row.meta_key, row.meta_value]));
   assert.equal(state.mode, 'ordered');
   assert.equal(state.sequence, Number(meta.get('relay_applied_sequence')), 'the real sync has acknowledged this native prefix');
   const nativeCursor = snapshot.document.tables.event.at(-1)?.event_id ?? 0;
-  const second = await box.cli('relay', 'pair');
+  const second = await box.cliLocal('relay', 'pair');
   assert.equal(second.code, 0, 'an acknowledged board must pair after ordinary moves: ' + JSON.stringify({
     error: second.document.error, savedNativeCursor: state.cursor, actualNativeCursor: nativeCursor,
     relaySequence: state.sequence, appliedSequence: Number(meta.get('relay_applied_sequence')),
@@ -397,11 +397,11 @@ test('pairing again after a device joined and a move was added succeeds [H15,H17
 test('a newly paired device imports the acknowledged moved board [H15,H17,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const added = await box.cli('add', box.lane, 'The next computer sees this acknowledged move', '--criterion', 'The native checkpoint and move agree');
+  const added = await box.cliLocal('add', box.lane, 'The next computer sees this acknowledged move', '--criterion', 'The native checkpoint and move agree');
   assert.equal(added.code, 0);
-  const current = await box.cli('export');
+  const current = await box.cliLocal('export');
   assert.equal(current.code, 0);
-  const printed = await box.cli('relay', 'pair');
+  const printed = await box.cliLocal('relay', 'pair');
   assert.equal(printed.code, 0, JSON.stringify(printed.document.error));
   const paired = await box.otherDeviceJoin(printed.document.code);
   assert.deepEqual(paired.exported, current.document, 'a real independent native join imports the complete moved checkpoint');
@@ -505,7 +505,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
   `);
   assert.equal(result.code,0,result.stderr);
   assert.deepEqual(result.document,{code:'PAIR_BUSY',issued:false,discarded:'PAIR_CODE_USED'},'the stale, unprinted package has already been consumed');
-  const retried=await box.cli('relay', 'pair');
+  const retried=await box.cliLocal('relay', 'pair');
   assert.equal(retried.code,0,JSON.stringify(retried.document.error));
   const joined=await box.otherDeviceJoin(retried.document.code);
   assert.ok(joined.exported.tables.item.some(row=>row.item_title==='Late private local move'),'the next fresh pairing imports the current native board');

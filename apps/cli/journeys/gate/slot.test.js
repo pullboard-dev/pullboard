@@ -19,18 +19,18 @@ after(e2e.cleanup);
 
 const { BIN, sandbox, project, holdingGate, launch, waitFor, gateEvents, commitFile } = e2e;
 
-test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', () => {
+test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', async () => {
   const box = project();
   fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
-  assert.match(box.run(box.web, 'claim', '1').out, /claimed #1/);
+  assert.match((await box.runLocal(box.web, 'claim', '1')).out, /claimed #1/);
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   writeFileSync(join(box.web, 'web', 'a.html'), 'edited');
-  assert.match(box.run(box.web, 'submit', '1').err, /DIRTY/);
+  assert.match((await box.runLocal(box.web, 'submit', '1')).err, /DIRTY/);
   box.git(box.web, 'checkout', '--', 'web/a.html');
   writeFileSync(join(box.web, 'web', 'stray.txt'), 'x');
-  assert.match(box.run(box.web, 'submit', '1').err, /UNTRACKED/);
+  assert.match((await box.runLocal(box.web, 'submit', '1')).err, /UNTRACKED/);
   rmSync(join(box.web, 'web', 'stray.txt'));
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project/u);
   assert.match(submitted.out, /test counts unavailable/u, 'a shell gate does not report test-case counts');

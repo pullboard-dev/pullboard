@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import { ENFORCED_FILE } from '../../src/io/static/view.js';
 import { viewPureGate } from '../../src/io/static/view.js';
 
-const TEST = 'test/cockpit/example-pure.test.js', OLD = 'src/view/example-render.js', NEW = 'apps/view/src/core/view/example-render.js';
+const TEST = 'apps/cli/journeys/view/example-pure.test.js', OLD = 'src/view/example-render.js', NEW = 'apps/view/src/logic/example/render.js';
 const ROLES = { [TEST]: { kind: 'logic', reason: 'Seeded data through the actual renderer' } };
 const COVERAGE = [{ module: OLD, names: ['exampleHtml'], tests: [TEST] }];
 
@@ -26,10 +26,10 @@ function movedTree(t, { mapped = true, imported = true } = {}) {
   const put = (path, text) => { const file = join(root, path); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); };
   put(ENFORCED_FILE, JSON.stringify({ roots: [TEST] }));
   put(NEW, 'export function exampleHtml(input) { return input.title; }\n');
-  put(OLD, "export { exampleHtml } from '../../apps/view/src/core/view/example-render.js';\n");
-  if (mapped) put('bin/cells-plan/path-map/view.json', JSON.stringify({ [OLD]: NEW }));
+  put(OLD, "export { exampleHtml } from '../../apps/view/src/logic/example/render.js';\n");
+  if (mapped) put('packages/codemap/data/plan/path-map/view.json', JSON.stringify({ [OLD]: NEW }));
   put(TEST, imported
-    ? "import { exampleHtml } from '../../apps/view/src/core/view/example-render.js';\nexampleHtml({ title: 'hi' });\n"
+    ? "import { exampleHtml } from '../../../../apps/view/src/logic/example/render.js';\nexampleHtml({ title: 'hi' });\n"
     : "export const unrelated = 1;\n");
   return root;
 }

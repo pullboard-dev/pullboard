@@ -27,6 +27,9 @@ import {
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { captureCommandInProcess } from '../../tests/fixtures/process.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { updateRelayMachine } from '../../../../packages/link/index.js';
 
 const CLI = resolve(import.meta.dirname, '../../pullboard.js');
 const QUESTION = RELAY_OFFER_QUESTION.trim();
@@ -45,6 +48,7 @@ function safeTail(output, env) {
   return safeFixtureDiagnostic(output.replace(/#device=[^\s\x1b]+/gu, '#device=[redacted]'), env).slice(-1500);
 }
 
+// Process-level: init under a real pseudo-terminal (script(1)) needs a real tty, SIGINT and a child process, so initInTerminal stays a process.
 /**
  * Run pullboard init under a real pseudo-terminal, as a person at a terminal would.
  *
@@ -99,9 +103,9 @@ function initInTerminal(t, cwd, env, keys = [], setupAnswer = 'n\n', verbose = f
   });
 }
 
-/** Run pullboard init with no terminal at all: stdin is empty and stdout is a pipe. */
-function initWithoutTerminal(cwd, env) {
-  const result = runFixtureChild(process.execPath, [CLI, 'init'], { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+/** Run pullboard init with no terminal at all: stdin is empty and neither output is a terminal. */
+async function initWithoutTerminal(cwd, env) {
+  const result = await runCliInProcess(['init'], { cwd, env });
   return { code: result.status, output: `${result.stdout}${result.stderr}`, asked: `${result.stdout}${result.stderr}`.includes(QUESTION) };
 }
 
@@ -129,11 +133,13 @@ function personEnvironment(box) {
  * sign-in goes to the machine's saved relay, so the fixture saves the loopback one there first;
  * nothing in these tests reaches the real relay or GitHub.
  */
-function useLoopbackRelay(box) {
-  const machine = resolve(import.meta.dirname, '../../../../packages/link/src/io/relay/machine.js');
-  const source = `import { updateRelayMachine } from ${JSON.stringify(machine)};
-updateRelayMachine((state) => { state.owner = { account: 'fixture-owner', url: ${JSON.stringify(box.origin)} }; });`;
-  assert.equal(runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.root, env: box.env, encoding: 'utf8' }).status, 0);
+async function useLoopbackRelay(box) {
+  // The machine state is read through the environment, so the write runs under the fixture's own environment in this process.
+  const saved = await captureCommandInProcess(() => {
+    updateRelayMachine((state) => { state.owner = { account: 'fixture-owner', url: box.origin }; });
+    return 0;
+  }, [], { cwd: box.root, env: box.env });
+  assert.equal(saved.status, 0, saved.stderr);
 }
 
 /** Count the sign-ins the loopback relay has started. */
@@ -150,7 +156,7 @@ const linked = (root) => existsSync(join(root, '.git', 'pullboard', 'relay.json'
 
 test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }, async (t) => {
   const box = await relayClientFixture(t);
-  useLoopbackRelay(box);
+  await useLoopbackRelay(box);
   const person = personEnvironment(box);
 
   await t.test('with relay.offerAtInit false a person is never asked [H5]', async () => {
@@ -158,7 +164,7 @@ test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }
     mkdirSync(dirname(settings), { recursive: true });
     writeFileSync(settings, `${JSON.stringify({ relay: { offerAtInit: false } })}\n`);
     try {
-      const shown = runFixtureChild(process.execPath, [CLI, 'settings'], { cwd: box.root, env: person, encoding: 'utf8' });
+      const shown = await runCliInProcess(['settings'], { cwd: box.root, env: person });
       assert.match(shown.stdout, /^relay\.offerAtInit: false/mu, 'pullboard settings shows the setting');
       const run = await initInTerminal(t, freshRepository(box, 'setting-off'), person);
       assert.equal(run.code, 0, `init finishes: ${safeTail(run.output, person)}`);
@@ -167,7 +173,7 @@ test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }
     } finally {
       writeFileSync(settings, '{}\n');
     }
-    const shown = runFixtureChild(process.execPath, [CLI, 'settings'], { cwd: box.root, env: person, encoding: 'utf8' });
+    const shown = await runCliInProcess(['settings'], { cwd: box.root, env: person });
     assert.match(shown.stdout, /^relay\.offerAtInit: true/mu, 'the setting is on unless set to false');
   });
 
@@ -196,9 +202,8 @@ test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }
     assert.equal(run.output.split(SETUP_COMMIT_QUESTION.trim()).length - 1, 1, 'the setup question appears once');
     assert.match(run.output, /Committed Pullboard setup at [a-f0-9]+/u);
     assert.equal(signIns(box), before, 'setup consent never starts sharing');
-    const joined = runFixtureChild(process.execPath, [CLI, 'worktree', 'review', '--model', 'Enter fixture', '--json'],
-      { cwd: root, env: terminal, encoding: 'utf8' });
-    assert.equal(joined.status, 0, joined.context);
+    const joined = await runCliInProcess(['worktree', 'review', '--model', 'Enter fixture', '--json'], { cwd: root, env: terminal });
+    assert.equal(joined.status, 0, joined.stderr);
     assert.equal(JSON.parse(joined.stdout).lane, 'review', 'a worktree can join immediately after the one Enter');
   });
 
@@ -226,7 +231,7 @@ test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }
 
 test('an agent or CI init stays noninteractive and shows one next step [H5,B26]', { timeout: 240_000 }, async (t) => {
   const box = await relayClientFixture(t);
-  useLoopbackRelay(box);
+  await useLoopbackRelay(box);
   const person = personEnvironment(box);
   const before = signIns(box);
   const runs = [
@@ -247,7 +252,7 @@ test('an agent or CI init stays noninteractive and shows one next step [H5,B26]'
 
 test('verbose init retains sharing and setup recipes without starting either [I1,I2,H5,B26]', { timeout: 240_000 }, async (t) => {
   const box = await relayClientFixture(t);
-  useLoopbackRelay(box);
+  await useLoopbackRelay(box);
   const person = personEnvironment(box);
   const before = signIns(box);
   const root = freshRepository(box, 'verbose-recipes');

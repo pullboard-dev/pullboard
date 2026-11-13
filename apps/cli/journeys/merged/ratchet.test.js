@@ -216,7 +216,7 @@ test('historical structured quarantine requires twenty clean runs before the bou
 });
 
 /** Exercise the actual landing route against a private board and remote. */
-test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t => {
+test('a real landing refuses a newly observed unquarantined flake [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -224,6 +224,7 @@ test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t =
   const item = fixtures.itemWorktree(box, 1);
   fixtures.submitItem(box, item);
   fixtures.acceptItem(box, item);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const outcome = passed => [{ file: 'test/unstable.test.js', name: 'unstable case', passed, skipped: false }];
@@ -232,7 +233,7 @@ test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t =
     }
   } finally { closeBoard(board); }
   const before = box.git(box.repo, 'rev-parse', 'main');
-  const result = box.run(box.repo, 'land', '--json');
+  const result = await box.runLocal(box.repo, 'land', '--json');
   assert.notEqual(result.code, 0, result.out);
   assert.match(result.err + result.out, /FLAKE_RATCHET|unquarantined flaky test/);
   assert.match(result.err + result.out, /test\/unstable\.test\.js/);
@@ -241,12 +242,13 @@ test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t =
 });
 
 /** Two actual landings retain a falling, named quarantine count in their batch receipts. */
-test('real landings record the quarantine baseline and lower it after repair [C7,T12]', t => {
+test('real landings record the quarantine baseline and lower it after repair [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
   const box = fixtures.landProject();
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(boardFile, undefined, { gitRoot: box.repo });
   let repair;
   try {
@@ -256,22 +258,23 @@ test('real landings record the quarantine baseline and lower it after repair [C7
   const first = fixtures.itemWorktree(box, 1);
   fixtures.submitItem(box, first);
   fixtures.acceptItem(box, first);
-  const landed = box.run(box.repo, 'land', '--json');
+  const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err + landed.out);
   assert.equal(JSON.parse(landed.out).batch.flakeRatchet.count, 1);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const laterBoard = openBoard(boardFile, undefined, { gitRoot: box.repo });
   try { withdraw(laterBoard, repair, { agentId: 'coordinator', reason: 'The synthetic flake was repaired.' }); }
   finally { closeBoard(laterBoard); }
   const second = fixtures.itemWorktree(box, 2);
   fixtures.submitItem(box, second);
   fixtures.acceptItem(box, second);
-  const next = box.run(box.repo, 'land', '--json');
+  const next = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).batch.flakeRatchet.count, 0);
 });
 
 /** A manual merged receipt records the count even if a current flake would block a fresh publication. */
-test('manual merged records quarantine count without refusing historical publication [C7,T12]', t => {
+test('manual merged records quarantine count without refusing historical publication [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -280,6 +283,7 @@ test('manual merged records quarantine count without refusing historical publica
   fixtures.submitItem(box, item);
   fixtures.acceptItem(box, item);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(boardFile, undefined, { gitRoot: box.repo });
   try {
     const repair = addItem(board, { by: 'coordinator', lane: 'web', title: 'Repair fixture flake', route: 'strong' });
@@ -289,8 +293,9 @@ test('manual merged records quarantine count without refusing historical publica
         testOutcomes: [{ file: 'test/new.test.js', name: 'new case', passed, skipped: false }] } });
     }
   } finally { closeBoard(board); }
-  const result = box.run(box.repo, 'merged', String(item.item), item.commit, '--note', 'already published fixture');
+  const result = await box.runLocal(box.repo, 'merged', String(item.item), item.commit, '--note', 'already published fixture');
   assert.equal(result.code, 0, result.err + result.out);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const after = openBoard(boardFile, undefined, { gitRoot: box.repo });
   try {
     const receipt = events(after).filter(event => event.event_kind === 'merged' && event.item_id === item.item).at(-1);

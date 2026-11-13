@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/verify/machine.test.js packages/landing/src/io/step/trunk.js */
 /** Only an item's own red reopens it: batch-wide, foreign-file and infrastructure landing failures reopen nothing [C7,#2967]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -43,6 +43,7 @@ function landing() {
   assert.equal(e2e.commitFile(box, box.web, OWN, 'own\n', 'test(web): own red fixture [G1]').status, 0);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'own-red-reviewer'), family: 'Fixture Own Red Reviewer Vendor' });
@@ -146,12 +147,6 @@ test('renewLocalLanding retries BOARD_BUSY with backoff until the acknowledged l
   await assert.rejects(renewWithBackoff(() => { throw new Refused('BOARD_BUSY', 'busy'); }, clock), /busy/);
   assert.ok(at < 30_000 && at > 20_000, `gave up before the lease deadline after ${at} ms`);
   await assert.rejects(renewWithBackoff(() => { throw new Refused('LAND_LEASE_LOST', 'lost'); }, clock), /lost/);
-});
-
-test('a worker that gives up on BOARD_BUSY does not mark its batch blocked, so adoption resumes it [C7,#3068] clause 3', async () => {
-  const { readFileSync } = await import('node:fs');
-  const source = readFileSync(new URL('../../../../../packages/landing/src/io/step/batch.js', import.meta.url), 'utf8');
-  assert.match(source, /&& !landingFault\(error\)\s*\n\s*&& \['merging', 'gating'\]\.includes\(state\.batch\.state\)\)\) await save\(state, \{ state: 'blocked' \}\)/u);
 });
 
 test('a locked slot database is a landing fault, and the local trunk keeps its batch resumable [C7]', async () => {

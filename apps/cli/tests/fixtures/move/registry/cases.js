@@ -13,6 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../child.js';
 import { runFixtureChild } from '../../child.js';
 import { unpackRelease } from '../../release/archive.js';
 import { historyProblems } from './history.js';
@@ -91,6 +92,23 @@ export function installRegistryMergeCase() {
     assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'GAMMA_ENGINE', number: 151 }], 'resolving the collision permits an ordinary retry');
 
     assert.equal(readFileSync(join(root, 'packages/state/data/history/149.json'), 'utf8'), frozen, 'allocation never rewrites the preceding frozen record');
+  });
+
+  test('a 0.9.3 board with its record only under src/move-history is read there and numbered into the new folder [C7,V4]', t => {
+    const root = privateFixtureFiles('pullboard-registry-old-folder-').root;
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    mkdirSync(join(root, 'src/moves'), { recursive: true });
+    mkdirSync(join(root, 'src/move-history'), { recursive: true });
+    writeFileSync(join(root, 'src/move-history/legacy.json'), '{}');
+    const engines = join(root, 'packages/state/src/logic/engines');
+    mkdirSync(engines, { recursive: true });
+    writeFileSync(join(engines, 'base-engine.js'), 'export const BASE_ENGINE = 10;\n');
+    writeFileSync(join(engines, 'alpha-engine.js'), "import { unassignedEngine } from './engine-next.js';\nexport const ALPHA_ENGINE = unassignedEngine();\n");
+    writeFileSync(join(root, 'src/moves/sample.js'), 'export const sample = 1;\n');
+    const result = assignEngineNumbers(root);
+    assert.deepEqual(result.assigned, [{ name: 'ALPHA_ENGINE', number: 11 }]);
+    assert.ok(result.files.includes('packages/state/data/history/11.json'), 'new snapshots go to the new folder only');
+    assert.equal(existsSync(join(root, 'src/move-history/11.json')), false, 'the old folder is never written');
   });
 
   test('two move items from one main merge without a snapshot conflict [C7,V4]', t => {

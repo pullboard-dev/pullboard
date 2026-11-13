@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/cli-main/run.js */
 /** next, show and claim start no relay link read through git and no maintenance timer after they run [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

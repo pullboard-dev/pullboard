@@ -13,6 +13,7 @@ import { createDeviceKeys } from '../../../../packages/keys/index.js';
 import { signDeviceEnrollment } from '../../../../packages/keys/index.js';
 import { registerProject } from '../../../../packages/seats/index.js';
 import { startChrome } from '../../../cli/tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../../cli/tests/fixtures/cockpit/stable.js';
 
 /** Poll an actual fixture state transition without retrying the operation under test. */
 export async function waitFor(read, message, timeoutMs = 20_000) {
@@ -56,12 +57,12 @@ export async function pairChromePhone(box, t) {
   });
   const pairing = await within(Promise.race([offered, running.then(() => assert.fail('foreground setup publishes a real one-use phone enrollment'))]),
     60_000, 'the foreground setup offering its pairing'); // budget: hang ceiling for sign-in and linking; no throughput claim.
-  chrome = await startChrome();
+  chrome = await stableChrome(await startChrome());
   const session = await within(box.server.phoneSession(), 30_000, 'the independent phone sign-in'); // budget: hang ceiling for one OAuth round trip; no throughput claim.
   assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: session.token, url: box.origin,
     httpOnly: true, sameSite: 'Lax' })).success, true);
   await within(chrome.navigate(pairing.url), 60_000, 'the phone page loading its pairing link'); // budget: hang ceiling for one page load; no throughput claim.
-  const setup = await within(running, 60_000, 'the real phone enrollment', () => chrome.evaluate( // budget: hang ceiling for the enrollment handshake; no throughput claim.
+  const setup = await within(running, 60_000, 'the real phone enrollment', () => chrome.stable( // budget: hang ceiling for the enrollment handshake; no throughput claim.
     '[location.href, document.readyState, document.body.innerText.slice(0, 400)].join(" | ")'));
   assert.equal(setup.paired, true, 'the real phone enrollment completes native setup');
   assert.equal(setup.failed.length, 0, 'the setup links every registered board');

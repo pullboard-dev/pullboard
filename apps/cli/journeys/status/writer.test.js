@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input SPEC.md */
 /** @pullboard-test-loads packages/store/src/io/board.js apps/cli/src/io/entry.js packages/store/src/io/board/event/log.js */
 /** Criterion preparation must not occupy the actual SQLite writer lease [B2,C7,V2]. */
 import assert from 'node:assert/strict';
@@ -21,7 +21,7 @@ function setup(t) {
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   const agentId = store.register(board, { lane: 'core', path: '/builder', route: 'strong' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Prepared outside the writer',
-    criterion: 'The actual fixture check passes', check: 'node packages/gate/src/io/run/tests.js apps/cli/journeys/status/writer.test.js',
+    criterion: 'The actual fixture check passes', check: 'node apps/cli/src/io/run/tests.js apps/cli/journeys/status/writer.test.js',
     brief: 'Files: src/board.js\nTest: observes the actual private SQLite writer', route: 'strong' });
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
   const peer = new DatabaseSync(file);
@@ -161,42 +161,42 @@ function guardSources(source, extra = []) {
 
 test('the write guard follows named, aliased and reexported I/O without running source [C7,CD39]', () => {
   const cases = [
-    "import {atomic} from '../../../../../packages/store/index.js'; import {readFileSync as load} from 'node:fs'; atomic(board, () => load('private'));",
-    "import {atomic as tx} from '../../../../../packages/store/index.js'; import fs from 'node:fs'; const io=fs; const write=() => io.readFileSync('private'); tx(board, () => write());",
-    "import {atomic} from '../../../../../packages/store/index.js'; import * as fs from 'node:fs'; atomic(board, () => fs['readFileSync']('private'));",
-    "import {atomic} from '../../../../../packages/store/index.js'; import * as fs from 'node:fs'; atomic(board, () => fs[method]('private'));",
-    "import {atomic} from '../../../../../packages/store/index.js'; import {read} from './facade.js'; atomic(board, () => read());",
-    "import {atomic} from '../../../../../packages/store/index.js'; import {execFileSync} from 'node:child_process'; const run=execFileSync; const tx=atomic; tx(board, () => run('git'));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {readFileSync as load} from 'node:fs'; atomic(board, () => load('private'));",
+    "import {atomic as tx} from '../packages/store/src/io/board/event/log.js'; import fs from 'node:fs'; const io=fs; const write=() => io.readFileSync('private'); tx(board, () => write());",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import * as fs from 'node:fs'; atomic(board, () => fs['readFileSync']('private'));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import * as fs from 'node:fs'; atomic(board, () => fs[method]('private'));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {read} from './facade.js'; atomic(board, () => read());",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {execFileSync} from 'node:child_process'; const run=execFileSync; const tx=atomic; tx(board, () => run('git'));",
   ];
   const extra = [{ file: 'src/facade.js', source: "export {read} from './provider.js';" },
     { file: 'src/provider.js', source: "import {readFileSync} from 'node:fs'; export function read() { return readFileSync('private'); }" }];
   for (const source of cases) assert.ok(boardWriteIoProblems(guardSources(source, extra), { pending: {} }).length > 0, source);
-  const pure = "import {atomic} from '../../../../../packages/store/index.js'; import {join} from 'node:path'; atomic(board, () => { const text=\"readFileSync('not executed')\"; return join('a', 'b'); });";
+  const pure = "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {join} from 'node:path'; atomic(board, () => { const text=\"readFileSync('not executed')\"; return join('a', 'b'); });";
   assert.deepEqual(boardWriteIoProblems(guardSources(pure), { pending: {} }), []);
 });
 
 test('network imports and global requests cannot run inside a board writer [B2,C7,CD39]', () => {
   const cases = [
-    "import {atomic} from '../../../../../packages/store/index.js'; import {request as send} from 'node:https'; atomic(board, () => send('https://invalid.test'));",
-    "import {atomic} from '../../../../../packages/store/index.js'; import * as net from 'node:net'; atomic(board, () => net.connect(1234));",
-    "import {atomic} from '../../../../../packages/store/index.js'; atomic(board, () => fetch('https://invalid.test'));",
-    "import {atomic} from '../../../../../packages/store/index.js'; const send = globalThis.fetch; atomic(board, () => send('https://invalid.test'));",
-    "import {atomic} from '../../../../../packages/store/index.js'; atomic(board, () => new WebSocket('wss://invalid.test'));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {request as send} from 'node:https'; atomic(board, () => send('https://invalid.test'));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import * as net from 'node:net'; atomic(board, () => net.connect(1234));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; atomic(board, () => fetch('https://invalid.test'));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; const send = globalThis.fetch; atomic(board, () => send('https://invalid.test'));",
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; atomic(board, () => new WebSocket('wss://invalid.test'));",
   ];
   for (const source of cases) assert.ok(boardWriteIoProblems(guardSources(source), { pending: {} }).length > 0, source);
-  const local = "import {atomic} from '../../../../../packages/store/index.js'; function fetch() { return 'local'; } atomic(board, () => fetch());";
+  const local = "import {atomic} from '../packages/store/src/io/board/event/log.js'; function fetch() { return 'local'; } atomic(board, () => fetch());";
   assert.deepEqual(boardWriteIoProblems(guardSources(local), { pending: {} }), [], 'a known local function is not a network global');
-  const address = "import {atomic} from '../../../../../packages/store/index.js'; import {isIP} from 'node:net'; atomic(board, () => isIP('127.0.0.1'));";
+  const address = "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {isIP} from 'node:net'; atomic(board, () => isIP('127.0.0.1'));";
   assert.deepEqual(boardWriteIoProblems(guardSources(address), { pending: {} }), [], 'pure address validation performs no network I/O');
 });
 
 test('opaque atomic callbacks are refused rather than silently certified [C7,CD39]', () => {
-  const source = "import {atomic} from '../../../../../packages/store/index.js'; atomic(board, callbacks[name]);";
+  const source = "import {atomic} from '../packages/store/src/io/board/event/log.js'; atomic(board, callbacks[name]);";
   assert.ok(boardWriteIoProblems(guardSources(source), { pending: {} }).some(row => row.call === 'unresolved atomic callback'));
 });
 
 test('the native write publication admits no filesystem or process call [C7,CD39]', () => {
-  const source = "import {atomic} from '../../../../../packages/store/index.js'; import {beginBoardWrite} from './board-write-lock.js'; atomic(board, () => beginBoardWrite());";
+  const source = "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {beginBoardWrite} from './board-write-lock.js'; atomic(board, () => beginBoardWrite());";
   const writer = "import {writeFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function beginBoardWrite() { writeFileSync('marker', 'owned'); execFileSync('git'); }";
   const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-write-lock.js', source: writer }]), { pending: {} });
   assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
@@ -212,7 +212,7 @@ test('the named policy witness cannot hide unrelated reads or a child process [C
 });
 
 test('calling the hold append inside a writer exempts no I/O [C7,CD39]', () => {
-  const source = "import {atomic} from '../../../../../packages/store/index.js'; import {recordBoardHold} from './board-hold-log.js'; atomic(board, () => recordBoardHold());";
+  const source = "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {recordBoardHold} from './board-hold-log.js'; atomic(board, () => recordBoardHold());";
   const writer = "import {writeSync, readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function recordBoardHold() { writeSync(1, 'line'); readFileSync('unrelated'); execFileSync('git'); }";
   const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-hold-log.js', source: writer }]), { pending: {} });
   assert.ok(problems.some(row => row.call === 'node:fs#writeSync'));
@@ -224,8 +224,8 @@ test('receipt reads are refused in every writer, including the train writer [C7,
   const receipt = { file: 'src/gate-run-receipt.js', source:
     "import {readFileSync} from 'node:fs'; export function readGateReceipt() { return readFileSync('receipt'); }" };
   const train = { file: 'src/record-train-landing.js', source:
-    "import {atomic} from '../../../../../packages/store/index.js'; import {readGateReceipt} from './gate-run-receipt.js'; export function recordTrainLanding(board) { return atomic(board, () => readGateReceipt()); }" };
-  const other = "import {atomic} from '../../../../../packages/store/index.js'; import {readGateReceipt} from './gate-run-receipt.js'; atomic(board, () => readGateReceipt());";
+    "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {readGateReceipt} from './gate-run-receipt.js'; export function recordTrainLanding(board) { return atomic(board, () => readGateReceipt()); }" };
+  const other = "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {readGateReceipt} from './gate-run-receipt.js'; atomic(board, () => readGateReceipt());";
   const assigned = guardSources('', [receipt, train]);
   assert.ok(boardWriteIoProblems(assigned).some(row => row.call === 'node:fs#readFileSync'));
   assert.ok(boardWriteIoProblems(guardSources(other, [receipt, train])).some(row => row.call === 'node:fs#readFileSync'),
@@ -254,12 +254,12 @@ test('exact moved store writer identities preserve guard coverage and reject adj
   }
   for (const name of ['finishBoardWrite', 'finishBoardWriteAdjacent']) {
     const writer = { file: 'packages/store/src/io/board/write/lock.js', source: `import {writeSync} from 'node:fs'; export function ${name}() { writeSync(2, 'message'); }` };
-    const caller = { file: 'src/fixture-writer.js', source: `import {atomic} from '../../../../../packages/store/index.js'; import {${name}} from '../../../../../packages/store/src/io/board/write/lock.js'; export function write(board) { return atomic(board, () => ${name}()); }` };
+    const caller = { file: 'src/fixture-writer.js', source: `import {atomic} from '../packages/store/src/io/board/event/log.js'; import {${name}} from '../packages/store/src/io/board/write/lock.js'; export function write(board) { return atomic(board, () => ${name}()); }` };
     const problems = boardWriteIoProblems(guardSources('', [writer, caller]), { pending: {} });
     assert.ok(problems.some(row => row.call === 'node:fs#writeSync'), name);
   }
   const receipt = { file: 'packages/store/src/io/receipts.js', source: "import {readFileSync} from 'node:fs'; export function proofRunReceipt() { return readFileSync('receipt'); }" };
-  const caller = { file: 'src/fixture-writer.js', source: "import {atomic} from '../../../../../packages/store/index.js'; import {proofRunReceipt} from '../../../../../packages/store/index.js'; export function write(board) { return atomic(board, () => proofRunReceipt()); }" };
+  const caller = { file: 'src/fixture-writer.js', source: "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {proofRunReceipt} from '../packages/store/src/io/receipts.js'; export function write(board) { return atomic(board, () => proofRunReceipt()); }" };
   assert.ok(boardWriteIoProblems(guardSources('', [receipt, caller])).some(row => row.call === 'node:fs#readFileSync'), 'relocation cannot exempt the receipt read');
   assert.ok(boardWriteIoProblems(guardSources('', [receipt, caller]), { pending: {} }).some(row => row.call === 'node:fs#readFileSync'), 'no pending permission means the same mapped I/O is refused');
 });

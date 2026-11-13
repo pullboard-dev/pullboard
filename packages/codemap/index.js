@@ -42,7 +42,7 @@ export { moveDeclarationFiles, runnerWorkerFiles } from './src/io/cells/move/clo
 export { withParseScope, importsIn, commonJsIn, compileModules, moduleCompiles, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/io/module/imports.js';
 export { importParseScopes } from './src/io/module/cache.js';
 export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/logic/layout.js';
-export { layoutCheck, layoutReport, layoutWrite } from './src/io/layout.js';
+export { LAYOUT_BASELINE, layoutCheck, layoutReport, layoutWrite } from './src/io/layout.js';
 export { cachedMainFact, mainFactDigest, mainFactToolIdentity } from './src/io/main-facts-cache.js';
 export { narrowedTo, readText, TEST_FILE, walk } from './src/io/check-walk.js';
 export { assumptionCounts, assumptionProblems, assumptionsIn, writeAssumptionBaseline } from './src/io/no-runtime-assumptions.js';

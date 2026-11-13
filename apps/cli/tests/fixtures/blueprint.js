@@ -16,9 +16,10 @@ import { test } from 'node:test';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
 import { createE2eHelpers } from './e2e.js';
+import { runCliInProcess } from './process.js';
 import { writeLegacyWebQuestions } from './blueprint/question.js';
 
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/blueprints/data/blueprints/web-app.json */
 /** pullboard blueprint add: a blueprint lands on a board as drafts, once [S1,I1]. */
 
 export const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -31,7 +32,7 @@ after(() => { for (const dir of DIRS) rmSync(dir, { recursive: true, force: true
 
 /** A freshly initialized repo with a private board, Pullboard home and Git identity. */
 export function freshBoard(config = {}) {
-  const { dir, repo, run, runIn, env } = emptyRepo();
+  const { dir, repo, run, runIn, runLocal, runInLocal, env } = emptyRepo();
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
   const init = run('init');
   assert.equal(init.status, 0, init.stdout + init.stderr);
@@ -39,7 +40,7 @@ export function freshBoard(config = {}) {
   writeFileSync(file, `${JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), ...config }, null, 2)}\n`);
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: set up blueprint fixture');
-  return { dir, repo, run, runIn, git, env };
+  return { dir, repo, run, runIn, runLocal, runInLocal, git, env };
 }
 
 /** Run one command with --json and return its document, failing with its output. */
@@ -99,8 +100,11 @@ export function emptyRepo() {
   mkdirSync(repo);
   const runIn = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   const run = (...args) => runIn(repo, ...args);
+  /** The same command through the production dispatch in this process; same result shape as runIn, awaited [C7]. */
+  const runInLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
+  const runLocal = (...args) => runInLocal(repo, ...args);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, env });
-  return { dir, repo, run, runIn, env };
+  return { dir, repo, run, runIn, runLocal, runInLocal, env };
 }
 
 export const RUNNERS = 'Choices: node:test, Vitest, Jest, Mocha, pytest, Something else.';

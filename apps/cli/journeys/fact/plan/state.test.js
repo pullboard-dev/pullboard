@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** The view state gets recent events and last moves through indexed queries [C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';

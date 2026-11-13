@@ -22,6 +22,8 @@ import {
   takeResource,
 } from '../../../../resources/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { checkoutSessionFile } from './binding.js';
+export { checkoutSessionFile } from './binding.js';
 
 /**
  * A command that holds this checkout passes its lease to the processes it starts, its Git hooks among them, so they act
@@ -164,10 +166,6 @@ async function checkoutLease(info, name, agent, waitLimitMs) {
   return takeResource({ name, capacity: 1, scope: 'repo', root: info.root, agent, ...(onWait ? { onWait } : {}) });
 }
 
-/** Keep each worktree's binding in its own Git directory rather than the shared common directory. */
-export function checkoutSessionFile(info) {
-  return join(info.gitDir, 'pullboard-checkout-session.json');
-}
 
 /** Read only a digest and local agent identity; damaged bindings need an explicit takeover. */
 function readBinding(file, takeover) {

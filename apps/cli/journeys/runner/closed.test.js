@@ -1,6 +1,6 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/scripts/worker.js apps/runner/src/io/worker/health.js packages/runners/index.js */
 /** Faulted restart custody never signals a private worker; genuine idle/busy recovery remains registered [C7]. */
-import './runner-worker-restart.test.js';
+import '../../../runner/tests/io/private/check/worker/restart.test.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';

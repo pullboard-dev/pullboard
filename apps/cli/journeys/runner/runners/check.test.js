@@ -9,4 +9,4 @@ import {
 
 test('a review check runs on a runner at the exact commit with trusted policy and full artifacts [C7,V4]', (t) => privateReviewRunnerCase(t, e2e));
 
-test('private runner install, deadline and guard edges preserve public review behavior [C7,V4]', (t) => privateReviewRunnerEdges(t, e2e));
+test('private runner install, deadline and guard edges preserve public review behavior [C7,V4]', (t) => privateReviewRunnerEdges(t, e2e, 0, 4));

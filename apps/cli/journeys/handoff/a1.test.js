@@ -19,7 +19,7 @@ import { jobView } from '../../../../packages/jobs/index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 /** Build a project with a claimed item and one committed candidate, ready to queue. */
-function claimed(t) {
+async function claimed(t) {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true', helpers.sandbox());
@@ -30,11 +30,11 @@ function claimed(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Hand-off record source', '--specs', 'G1',
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Hand-off record source', '--specs', 'G1',
     '--criterion', 'The candidate passes.', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/record.txt', 'x\n', 'feat(web): record candidate [G1]').status, 0);
   return { box, id, commit: box.git(box.web, 'rev-parse', 'HEAD') };
 }
@@ -62,8 +62,9 @@ function metaHandoffs(board) {
   return board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'submit_handoff:*' OR meta_key GLOB 'submit_handoff_ended:*'").get().n;
 }
 
-test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
-  const { box, id, commit } = claimed(t);
+test('clause 1: submitHandoff reads the record from the job [C7]', async (t) => {
+  const { box, id, commit } = await claimed(t);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const options = queue(box, board, id, commit);
@@ -87,8 +88,9 @@ test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
   } finally { board.db.close(); }
 });
 
-test('clause 1: a retried job is the record submitHandoff reads, not the job it replaced [C7]', (t) => {
-  const { box, id, commit } = claimed(t);
+test('clause 1: a retried job is the record submitHandoff reads, not the job it replaced [C7]', async (t) => {
+  const { box, id, commit } = await claimed(t);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const first = queue(box, board, id, commit);
@@ -109,8 +111,9 @@ test('clause 1: a retried job is the record submitHandoff reads, not the job it 
   } finally { board.db.close(); }
 });
 
-test('clause 1: a hand-off record an older release left in board_meta moves onto its gate job [C7]', (t) => {
-  const { box, id } = claimed(t);
+test('clause 1: a hand-off record an older release left in board_meta moves onto its gate job [C7]', async (t) => {
+  const { box, id } = await claimed(t);
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
     const older = { id: randomUUID(), commit: 'a'.repeat(40), agentId: getItem(board, id).item_owner, state: 'green' };

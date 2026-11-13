@@ -78,6 +78,10 @@ export async function fixture(t, { machineCredentials = true, legacySnapshots = 
   chmodSync(pullboardPath, 0o755);
   env.PATH = [privateBin, env.PATH].filter(Boolean).join(delimiter);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
+  // The coordinator checkout needs a commit on main before any claim can read its committed policy.
+  writeFileSync(join(root, 'README.md'), 'private sealed relay fixture project\n');
+  runFixtureGit(['add', 'README.md'], { cwd: root, env, encoding: 'utf8' });
+  runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture base'], { cwd: root, env, encoding: 'utf8' });
   /** Run the current CLI only in the fixture's private home and Git repository. */
   function cli(...args) {
     const result = runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
@@ -85,6 +89,8 @@ export async function fixture(t, { machineCredentials = true, legacySnapshots = 
     return result.stdout;
   }
   cli('init');
+  runFixtureGit(['add', 'pullboard.json'], { cwd: root, env, encoding: 'utf8' });
+  runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'fixture policy'], { cwd: root, env, encoding: 'utf8' });
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   const marker = 'PRIVATE_BOARD_CRITERION_DO_NOT_RELAY_IN_CLEAR';
   cli('add', Object.keys(config.lanes)[0], 'A sealed board item', '--criterion', marker);

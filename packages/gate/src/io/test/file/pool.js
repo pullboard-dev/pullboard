@@ -420,18 +420,98 @@ async function rawChildResult(observed, child) {
  * If cleanup cannot prove the token is safe to resume, this test process exits rather than returning a live loan.
  */
 export async function awaitNestedRun(handle) {
+  return await nestedRunWait(handle, null);
+}
+
+/** Lend while coordinating only this child's marker and barrier, then await its complete drain. */
+export async function awaitNestedPhase(handle, coordinate) {
+  if (typeof coordinate !== 'function') throw new TypeError('an interactive nested wait needs its coordination function');
+  return await nestedRunWait(handle, coordinate);
+}
+
+/** Coordinate only this group of nested children while lending the caller's one shared place. */
+export async function withNestedGroup(coordinate) {
+  if (typeof coordinate !== 'function') throw new TypeError('a nested group needs its coordination function');
+  if (activeAsyncWait) throw new Refused('NESTED_RUN_WAIT_ACTIVE', 'Finish the active nested wait before opening a group.');
+  const records = [];
+  let accepting = true;
+  activeAsyncWait = 'group';
+  /** Admit a newly spawned exact child to this group before waiting for any of its markers. */
+  function add(handle) {
+    if (!accepting) throw new Refused('NESTED_RUN_WAIT_REUSED', 'The nested group is already closing.');
+    const child = handle?.child ?? handle;
+    if (!child || typeof child.once !== 'function' || typeof child.kill !== 'function') {
+      throw new Refused('NESTED_RUN_HANDLE_REQUIRED', 'Pass each original child or fixture promise to the nested group.');
+    }
+    const offer = asyncOffers.get(child);
+    let observed = offer ?? independentChildren.get(child);
+    if (!observed && !ownsFileToken && child.exitCode === null && child.signalCode === null) observed = observeAsyncChild(child);
+    if (!observed) throw new Refused('NESTED_RUN_OFFER_REQUIRED', 'Start each child through the current spawn export before adding it.');
+    if (offer?.used || records.some(record => record.child === child)) throw new Refused('NESTED_RUN_WAIT_REUSED', 'A child can belong to only one nested wait.');
+    const onError = () => {};
+    child.once('error', onError);
+    if (offer) {
+      try { immediate(offer.db, () => offer.db.prepare('INSERT INTO file_call(call, lender, path) VALUES (?, ?, ?)').run(offer.call, process.pid, offer.path)); }
+      catch (error) { child.removeListener('error', onError); throw error; }
+      offer.used = true;
+    }
+    if (typeof handle?.then === 'function') Promise.resolve(handle).catch(() => {});
+    records.push({ child, offer, observed, onError });
+    return handle;
+  }
+  let value, failure;
+  try { value = await coordinate(add); }
+  catch (error) {
+    failure = error;
+    for (const { child } of records) if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+  } finally {
+    accepting = false;
+    try {
+      for (const { offer } of records) if (offer) offer.db.prepare('UPDATE file_call SET closing = 1 WHERE call = ?').run(offer.call);
+      await Promise.all(records.map(({ observed }) => observed.closed));
+      for (const { offer } of records) if (offer) await closeAsyncCall(offer.db, offer.call, offer.path, offer.closed);
+    } catch (error) {
+      process.stderr.write(`test-file-pool: cannot close the nested group safely (${error.code ?? 'UNKNOWN'}); exiting this test process.\n`);
+      process.exit(1);
+    } finally {
+      for (const { child, onError } of records) child.removeListener('error', onError);
+      activeAsyncWait = null;
+    }
+  }
+  if (failure) throw failure;
+  return value;
+}
+
+/** Keep an early child failure observed while the declared coordination phase is pending. */
+async function coordinatedResult(handle, child, observed, coordinate) {
+  if (!coordinate) return typeof handle?.then === 'function' ? await handle : await rawChildResult(observed, child);
+  const completion = (typeof handle?.then === 'function' ? Promise.resolve(handle) : rawChildResult(observed, child))
+    .then(value => ({ value }), error => ({ error }));
+  try { await coordinate(); }
+  catch (error) {
+    if (child && child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+    if (child) await completion;
+    throw error;
+  }
+  const result = await completion;
+  if (Object.hasOwn(result, 'error')) throw result.error;
+  return result.value;
+}
+
+/** Share the terminal loan's admission, error and drain rules with the interactive phase. */
+async function nestedRunWait(handle, coordinate) {
   const child = handle?.child ?? handle;
   const isChild = child && typeof child.once === 'function' && typeof child.kill === 'function';
   if (!isChild && ownsFileToken) throw new Refused('NESTED_RUN_HANDLE_REQUIRED', 'Pass the original child or fixture promise with .child to awaitNestedRun.');
-  if (!ownsFileToken && typeof handle?.then === 'function') return await handle;
+  if (!ownsFileToken && typeof handle?.then === 'function') return await coordinatedResult(handle, isChild ? child : null, null, coordinate);
   const offer = isChild ? asyncOffers.get(child) : null;
   if (!offer && isChild && !independentChildren.has(child)) throw new Refused('NESTED_RUN_OFFER_REQUIRED', 'Start this child with the current spawn export after token admission, then pass its original handle.');
   if (!offer) {
     if (isChild && typeof handle?.then !== 'function') {
       const observed = independentChildren.get(child);
-      return rawChildResult(observed, child);
+      return coordinatedResult(handle, child, observed, coordinate);
     }
-    return await handle;
+    return await coordinatedResult(handle, null, null, coordinate);
   }
   if (offer.used) throw new Refused('NESTED_RUN_WAIT_REUSED', 'This child was already awaited through its loan. Await the original returned wait instead.');
   if (activeAsyncWait) throw new Refused('NESTED_RUN_WAIT_ACTIVE', 'This file already lends its token. Finish that wait before lending to another child.');
@@ -445,7 +525,7 @@ export async function awaitNestedRun(handle) {
   try {
     immediate(db, () => db.prepare('INSERT INTO file_call(call, lender, path) VALUES (?, ?, ?)').run(call, process.pid, path));
     opened = true;
-    return typeof handle?.then === 'function' ? await handle : await rawChildResult(offer, child);
+    return await coordinatedResult(handle, child, offer, coordinate);
   } finally {
     try { if (opened) await closeAsyncCall(db, call, path, offer.closed); }
     catch (error) {

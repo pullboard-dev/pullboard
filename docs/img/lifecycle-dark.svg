@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 392" width="840" height="392" role="img" aria-labelledby="title desc">
-<title id="title">An item's life</title><desc id="desc">Drawn from src/machine.js. An item starts open and ends withdrawn. verified to submitted: patch. open to verified: rehomeImport. open to submitted: intake. open to claimed: claim. claimed to open: release, lapse (clock), escalate, refreeze. claimed to submitted: submit. claimed to verified: submit-merge. submitted to verified: accept. submitted to open: reject, reopen, refreeze. verified to open: reject, reopen, refreeze. open to withdrawn: withdraw. claimed to withdrawn: withdraw. submitted to withdrawn: withdraw.</desc>
+<title id="title">An item's life</title><desc id="desc">Drawn from src/machine.js. An item starts open and ends withdrawn. claimed to open: patch-objected, release, lapse (clock), escalate, refreeze. submitted to open: patch-objected, reject, reopen, refreeze. verified to submitted: patch. open to verified: rehomeImport. open to submitted: intake. open to claimed: claim. claimed to submitted: submit. claimed to verified: submit-merge. submitted to verified: accept. verified to open: reject, reopen, refreeze. open to withdrawn: withdraw. claimed to withdrawn: withdraw. submitted to withdrawn: withdraw.</desc>
 <style>
 text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; fill: #1f2328; }
 .mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
@@ -58,6 +58,11 @@ text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 
 <g class="plain"><rect x="445" y="150" width="160" height="58" rx="8"/><text class="t1" x="525" y="175" text-anchor="middle">submitted</text><text class="t2" x="525" y="193" text-anchor="middle">↻ patch · reserve</text></g>
 <g class="done"><rect x="655" y="150" width="160" height="58" rx="8"/><text class="t1" x="735" y="175" text-anchor="middle">verified</text><text class="t2" x="735" y="193" text-anchor="middle">↻ accept</text></g>
 <g class="plain" data-final="withdrawn"><rect x="445" y="284" width="160" height="58" rx="8"/><rect x="449" y="288" width="152" height="50" rx="5" fill="none"/><text class="t1" x="525" y="318" text-anchor="middle">withdrawn</text></g>
+<path class="edge back" d="M 335 150 L 335 120 L 145 120 L 145 146" marker-end="url(#tip-back)"/>
+<text class="label back" x="240" y="94" text-anchor="middle">patch-objected · release · lapse (clock)</text>
+<text class="label back" x="240" y="109" text-anchor="middle">escalate · refreeze</text>
+<path class="edge back" d="M 545 150 L 545 66 L 115 66 L 115 146" marker-end="url(#tip-back)"/>
+<text class="label back" x="330" y="58" text-anchor="middle">patch-objected · reject · reopen · refreeze</text>
 <path class="edge" d="M 695 208 L 695 230 L 575 230 L 575 208" marker-end="url(#tip)"/>
 <text class="label" x="635" y="223" text-anchor="middle">patch</text>
 <path class="edge" d="M 185 198 L 205 198 L 205 268 L 735 268 L 735 212" marker-end="url(#tip)"/>
@@ -66,17 +71,12 @@ text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 
 <text class="label" x="405" y="241" text-anchor="middle">intake</text>
 <path class="edge" d="M 185 179 L 231 179" marker-end="url(#tip)"/>
 <text class="label" x="208" y="171" text-anchor="middle">claim</text>
-<path class="edge back" d="M 335 150 L 335 120 L 145 120 L 145 146" marker-end="url(#tip-back)"/>
-<text class="label back" x="240" y="94" text-anchor="middle">release · lapse (clock)</text>
-<text class="label back" x="240" y="109" text-anchor="middle">escalate · refreeze</text>
 <path class="edge" d="M 395 179 L 441 179" marker-end="url(#tip)"/>
 <text class="label" x="418" y="171" text-anchor="middle">submit</text>
 <path class="edge" d="M 375 150 L 375 134 L 695 134 L 695 146" marker-end="url(#tip)"/>
 <text class="label" x="490" y="126" text-anchor="middle">submit-merge</text>
 <path class="edge" d="M 605 179 L 651 179" marker-end="url(#tip)"/>
 <text class="label" x="628" y="171" text-anchor="middle">accept</text>
-<path class="edge back" d="M 545 150 L 545 66 L 115 66 L 115 146" marker-end="url(#tip-back)"/>
-<text class="label back" x="330" y="58" text-anchor="middle">reject · reopen · refreeze</text>
 <path class="edge back" d="M 815 179 L 830 179 L 830 8 L 15 8 L 15 179 L 25 179" marker-end="url(#tip-back)"/>
 <text class="label back" x="425" y="30" text-anchor="middle">reject · reopen · refreeze</text>
 <path class="edge" d="M 105 208 L 105 313 L 441 313" marker-end="url(#tip)"/>

@@ -17,6 +17,7 @@ import { pathToFileURL } from 'node:url';
 import { quote } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
 import { fixture } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
 import { probeSuite } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
+import { withNestedGroup } from '../../../index.js';
 import { launchTestRunner } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
 import { gateRepo } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
 import { waitFor } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
@@ -295,50 +296,52 @@ test('a raw full-suite run takes a machine gate slot [Q4]', async () => {
     ['--disable-warning', 'ExperimentalWarning', '--title', 'pullboard-slot-probe', '--max-http-header-size', '16384'],
   ];
   for (const args of modes) {
-    const box = fixture();
-    const release = join(box.dir, 'release-full-suite-holder');
-    const releaseProbe = join(box.dir, 'release-running-probe');
-    const holderRoot = gateRepo(box, 'full-suite-holder', 0.1, release);
-    const nextRoot = gateRepo(box, 'after-full-suite');
-    const suiteRoot = probeSuite(box, 'raw-full-suite');
-    const marker = join(box.dir, 'raw-full-suite.started');
-    setOneGateSlot(box, holderRoot);
-    const holder = launch(box, holderRoot);
-    let fullRun;
-    let followingGate;
-    try {
-      await waitFor(() => events(box).includes('full-suite-holder start'), 'the fixture gate to hold its only machine slot');
-      fullRun = launchTestRunner(box, suiteRoot, args, marker, releaseProbe);
-      const outcome = await waitFor(() => { // budget: hang ceiling for the raw runner to announce its actual queue state; no throughput claim.
-        if (fullRun.stderrText.includes('waiting for a gate slot:')) return 'waiting';
-        if (existsSync(marker)) return 'ran';
-        return false;
-      }, 'the raw full runner to announce its queued slot', 15_000);
-      assert.equal(outcome, 'waiting', 'both bare and option-only discovery must queue without a test file');
-      assert.match(fullRun.stderrText, /waiting for a gate slot: 1 of 1 in use/u);
-      assert.equal(existsSync(marker), false, 'the probe has not run while the other process owns the slot');
-      writeFileSync(release, 'release\n');
-      assert.equal((await holder.closed).code, 0, holder.stderrText);
-      await waitFor(() => existsSync(marker), 'the admitted full-suite probe to start');
-      assert.equal(readFileSync(marker, 'utf8'), '1', 'the runner marks its child only after acquiring its machine slot');
-      followingGate = launch(box, nextRoot);
-      const holding = await waitFor(() => {
-        if (followingGate.stdoutText.includes('gate waiting:')) return 'waiting';
-        if (events(box).includes('after-full-suite start')) return 'ran';
-        return false;
-      }, 'the following gate to wait for the full test process');
-      assert.equal(holding, 'waiting', 'the full runner holds its slot until its test process exits');
-      assert.equal(events(box).includes('after-full-suite start'), false);
-      writeFileSync(releaseProbe, 'release\n');
-      const [fullResult, followingResult] = await Promise.all([fullRun.closed, followingGate.closed]);
-      assert.equal(fullResult.code, 0, `${fullRun.stderrText}${fullRun.stdoutText}`);
-      assert.equal(followingResult.code, 0, `${followingGate.stderrText}${followingGate.stdoutText}`);
-      assert.equal((fullRun.stderrText.match(/waiting for a gate slot:/g) ?? []).length, 1, 'one wait line per full run');
-    } finally {
-      writeFileSync(release, 'release\n');
-      writeFileSync(releaseProbe, 'release\n');
-      await Promise.all([holder, fullRun, followingGate].filter(Boolean).map(child => child.closed));
-    }
+    await withNestedGroup(async add => {
+      const box = fixture();
+      const release = join(box.dir, 'release-full-suite-holder');
+      const releaseProbe = join(box.dir, 'release-running-probe');
+      const holderRoot = gateRepo(box, 'full-suite-holder', 0.1, release);
+      const nextRoot = gateRepo(box, 'after-full-suite');
+      const suiteRoot = probeSuite(box, 'raw-full-suite');
+      const marker = join(box.dir, 'raw-full-suite.started');
+      setOneGateSlot(box, holderRoot);
+      const holder = launch(box, holderRoot);
+      let fullRun;
+      let followingGate;
+      try {
+        await waitFor(() => events(box).includes('full-suite-holder start'), 'the fixture gate to hold its only machine slot');
+        fullRun = add(launchTestRunner(box, suiteRoot, args, marker, releaseProbe));
+        const outcome = await waitFor(() => { // budget: hang ceiling for the raw runner to announce its actual queue state; no throughput claim.
+          if (fullRun.stderrText.includes('waiting for a gate slot:')) return 'waiting';
+          if (existsSync(marker)) return 'ran';
+          return false;
+        }, 'the raw full runner to announce its queued slot', 15_000);
+        assert.equal(outcome, 'waiting', 'both bare and option-only discovery must queue without a test file');
+        assert.match(fullRun.stderrText, /waiting for a gate slot: 1 of 1 in use/u);
+        assert.equal(existsSync(marker), false, 'the probe has not run while the other process owns the slot');
+        writeFileSync(release, 'release\n');
+        assert.equal((await holder.closed).code, 0, holder.stderrText);
+        await waitFor(() => existsSync(marker), 'the admitted full-suite probe to start');
+        assert.equal(readFileSync(marker, 'utf8'), '1', 'the runner marks its child only after acquiring its machine slot');
+        followingGate = launch(box, nextRoot);
+        const holding = await waitFor(() => {
+          if (followingGate.stdoutText.includes('gate waiting:')) return 'waiting';
+          if (events(box).includes('after-full-suite start')) return 'ran';
+          return false;
+        }, 'the following gate to wait for the full test process');
+        assert.equal(holding, 'waiting', 'the full runner holds its slot until its test process exits');
+        assert.equal(events(box).includes('after-full-suite start'), false);
+        writeFileSync(releaseProbe, 'release\n');
+        const [fullResult, followingResult] = await Promise.all([fullRun.closed, followingGate.closed]);
+        assert.equal(fullResult.code, 0, `${fullRun.stderrText}${fullRun.stdoutText}`);
+        assert.equal(followingResult.code, 0, `${followingGate.stderrText}${followingGate.stdoutText}`);
+        assert.equal((fullRun.stderrText.match(/waiting for a gate slot:/g) ?? []).length, 1, 'one wait line per full run');
+      } finally {
+        writeFileSync(release, 'release\n');
+        writeFileSync(releaseProbe, 'release\n');
+        await Promise.all([holder, fullRun, followingGate].filter(Boolean).map(child => child.closed));
+      }
+    });
   }
 });
 
@@ -400,16 +403,16 @@ syncBuiltinESMExports();
 test('a short slot is offered only to a literal runner call over regular test files [C7]', async () => {
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
-  const named = `${quote(process.execPath)} packages/gate/src/io/run/tests.js packages/gate/tests/io/main/resource.test.js`;
+  const named = `${quote(process.execPath)} apps/cli/src/io/run/tests.js packages/gate/tests/io/main/resource.test.js`;
   assert.deepEqual(await explicitCheckFiles(root, named), ['packages/gate/tests/io/main/resource.test.js']);
   assert.deepEqual(await explicitCheckFiles(root, `out=$(${named} 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - .*probe' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`), ['packages/gate/tests/io/main/resource.test.js'], 'the frozen-check capture form names its files');
-  assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} packages/gate/src/io/run/tests.js`), null, 'a whole suite is not short');
-  assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} packages/gate/src/io/run/tests.js test/`), null, 'a directory is not short');
+  assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} apps/cli/src/io/run/tests.js`), null, 'a whole suite is not short');
+  assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} apps/cli/src/io/run/tests.js test/`), null, 'a directory is not short');
   assert.equal(await explicitCheckFiles(root, 'npm test packages/gate/tests/io/main/resource.test.js'), null, 'an opaque runner is not short');
-  assert.equal(await explicitCheckFiles(root, 'node packages/gate/src/io/run/tests.js packages/gate/tests/../../../test/cells.test.js'), null, 'path traversal is not a package test');
-  assert.equal(await explicitCheckFiles(root, 'node packages/gate/src/io/run/tests.js $(printf packages/gate/tests/io/main/resource.test.js)'), null, 'shell expansion is not short');
-  assert.equal(await explicitCheckFiles(root, 'node packages/gate/src/io/run/tests.js --unknown packages/gate/tests/io/main/resource.test.js'), null, 'an unknown option is not short');
-  assert.equal(await explicitCheckFiles(root, 'node packages/gate/src/io/run/tests.js test/short-missing.test.js'), null, 'a missing file is not short');
+  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js packages/gate/tests/../../../test/cells.test.js'), null, 'path traversal is not a package test');
+  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js $(printf packages/gate/tests/io/main/resource.test.js)'), null, 'shell expansion is not short');
+  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js --unknown packages/gate/tests/io/main/resource.test.js'), null, 'an unknown option is not short');
+  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js test/short-missing.test.js'), null, 'a missing file is not short');
   assert.equal(await explicitCheckFiles(root, named, { env: { ...process.env, NODE_OPTIONS: '--trace-warnings' } }), null, 'NODE_OPTIONS is not short');
   const head = runFixtureChild('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
   assert.equal(head.status, 0, head.stderr);
@@ -422,7 +425,7 @@ test('short slots behave the same with gate.browserByLaunch on [C7]', async () =
   // runner gives its children for that setting, and both name the file. A foreign NODE_OPTIONS still refuses.
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
-  const named = `${quote(process.execPath)} packages/gate/src/io/run/tests.js packages/gate/tests/io/main/resource.test.js`;
+  const named = `${quote(process.execPath)} apps/cli/src/io/run/tests.js packages/gate/tests/io/main/resource.test.js`;
   const guard = pathToFileURL(resolve(root, 'packages/gate/src/io/browser/guard.js')).href;
   const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'NODE_OPTIONS'));
   assert.deepEqual(await explicitCheckFiles(root, named, { env: base }), ['packages/gate/tests/io/main/resource.test.js'], 'with gate.browserByLaunch off');
@@ -439,31 +442,33 @@ test('a focused run queues behind a held gate slot [Q4,C7]', async () => {
   const marker = join(box.dir, 'focused-suite.started');
   setOneGateSlot(box, holderRoot);
   const holder = launch(box, holderRoot);
-  let focusedRun;
-  try {
-    await waitFor(() => events(box).includes('focused-holder start'), 'the fixture gate to hold its only machine slot');
-    focusedRun = launchTestRunner(box, suiteRoot, [
-      '--test-name-pattern', PROBE_PATTERN,
-      '--disable-warning', 'ExperimentalWarning', '--title', 'focused-slot-probe',
-      'test/probe.test.js',
-    ], marker);
-    const outcome = await waitFor(() => { // budget: hang ceiling for the focused runner to announce its actual start state; no throughput claim.
-      if (focusedRun.stderrText.includes('waiting for a gate slot:')) return 'waiting';
-      if (existsSync(marker)) return 'ran';
-      return false;
-    }, 'the focused test to queue behind the held machine gate slot', 15_000);
-    assert.equal(outcome, 'waiting', 'a named test file is queued even when test options have separate values');
-    assert.equal(existsSync(marker), false, 'the focused test does not execute while the original holder owns the only slot');
-    assert.deepEqual(events(box), ['focused-holder start'], 'the original gate still owns its slot while the focused run waits');
-    writeFileSync(release, 'release\n');
-    const focusedResult = await focusedRun.closed;
-    assert.equal(focusedResult.code, 0, `${focusedRun.stderrText}${focusedRun.stdoutText}`);
-    assert.equal(readFileSync(marker, 'utf8'), '1', 'the focused run propagates its public held-slot marker to the test process');
-    assert.deepEqual(events(box), ['focused-holder start', 'focused-holder end'], 'the original holder releases before the focused run proceeds');
-  } finally {
-    writeFileSync(release, 'release\n');
-    await Promise.all([holder, focusedRun].filter(Boolean).map(child => child.closed));
-  }
+  await withNestedGroup(async add => {
+    let focusedRun;
+    try {
+      await waitFor(() => events(box).includes('focused-holder start'), 'the fixture gate to hold its only machine slot');
+      focusedRun = add(launchTestRunner(box, suiteRoot, [
+        '--test-name-pattern', PROBE_PATTERN,
+        '--disable-warning', 'ExperimentalWarning', '--title', 'focused-slot-probe',
+        'test/probe.test.js',
+      ], marker));
+      const outcome = await waitFor(() => { // budget: hang ceiling for the focused runner to announce its actual start state; no throughput claim.
+        if (focusedRun.stderrText.includes('waiting for a gate slot:')) return 'waiting';
+        if (existsSync(marker)) return 'ran';
+        return false;
+      }, 'the focused test to queue behind the held machine gate slot', 15_000);
+      assert.equal(outcome, 'waiting', 'a named test file is queued even when test options have separate values');
+      assert.equal(existsSync(marker), false, 'the focused test does not execute while the original holder owns the only slot');
+      assert.deepEqual(events(box), ['focused-holder start'], 'the original gate still owns its slot while the focused run waits');
+      writeFileSync(release, 'release\n');
+      const focusedResult = await focusedRun.closed;
+      assert.equal(focusedResult.code, 0, `${focusedRun.stderrText}${focusedRun.stdoutText}`);
+      assert.equal(readFileSync(marker, 'utf8'), '1', 'the focused run propagates its public held-slot marker to the test process');
+      assert.deepEqual(events(box), ['focused-holder start', 'focused-holder end'], 'the original holder releases before the focused run proceeds');
+    } finally {
+      writeFileSync(release, 'release\n');
+      await Promise.all([holder, focusedRun].filter(Boolean).map(child => child.closed));
+    }
+  });
 });
 
 test('a full run nested under a held gate does not take a second slot [Q4]', async () => {

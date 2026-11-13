@@ -1,5 +1,6 @@
 /** Approved row edits identify every affected frozen item without rewriting receipts [S19,V3]. */
 import assert from 'node:assert/strict';
+import { runCliInProcess } from "../../tests/fixtures/process.js";
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild as spawnSync,
@@ -53,7 +54,7 @@ function shellWord(value) {
 }
 
 /** Build a private real-Git project with an initialized board, active hooks and a web worktree. */
-function project(t) {
+async function project(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-stale-frozen-'));
   TEMP_DIRS.push(dir);
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -76,7 +77,7 @@ function project(t) {
   });
   /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
   function pullboard(cwd, ...args) {
-    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return runCliInProcess(args, { cwd, env });
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
   function git(cwd, ...args) {
@@ -85,7 +86,7 @@ function project(t) {
   git(root, 'init', '-q', '-b', 'main');
   git(root, 'config', 'user.name', 'Stale-frozen fixture');
   git(root, 'config', 'user.email', 'stale-frozen@example.invalid');
-  const initialized = pullboard(root, 'init');
+  const initialized = await pullboard(root, 'init');
   assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.context}`);
   writeFileSync(join(root, 'pullboard.json'), `${JSON.stringify({
     gate: 'true', spec: 'SPEC.md', verify: 'coordinator', lease: '2h',
@@ -97,14 +98,14 @@ function project(t) {
   const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize stale-frozen fixture'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(initial.status, 0, `${initial.stdout}${initial.context}`);
   git(root, 'worktree', 'add', '-q', web, '-b', 'web/stale-frozen');
-  const joined = pullboard(web, 'join', 'web', '--route', 'strong');
+  const joined = await pullboard(web, 'join', 'web', '--route', 'strong');
   assert.equal(joined.status, 0, `${joined.stdout}${joined.context}`);
   return { dir, root, web, env, git, pullboard };
 }
 
 /** Create a real item that cites one frozen row and return its persisted id. */
-function addItem(box, title, specId = 'G1') {
-  const result = box.pullboard(box.root, 'add', 'web', title, '--criterion', `Check ${title}.`, '--specs', specId, '--json');
+async function addItem(box, title, specId = 'G1') {
+  const result = await box.pullboard(box.root, 'add', 'web', title, '--criterion', `Check ${title}.`, '--specs', specId, '--json');
   assert.equal(result.status, 0, `${result.stdout}${result.context}`);
   return jsonOf(result).item.item_id;
 }
@@ -132,19 +133,19 @@ function jsonOf(result) {
 }
 
 /** Run a CLI command and require its successful result. */
-function succeeds(box, cwd, ...args) {
-  return requireSuccess(box.pullboard(cwd, ...args));
+async function succeeds(box, cwd, ...args) {
+  return requireSuccess((await box.pullboard(cwd, ...args)));
 }
 
 /** Freeze an item's cited text and return its assigned worktree, preserving claim identity across concurrent items. */
-function claim(box, id) {
-  return jsonOf(succeeds(box, box.web, 'claim', String(id), '--json')).itemFolder ?? box.web;
+async function claim(box, id) {
+  return jsonOf((await succeeds(box, box.web, 'claim', String(id), '--json'))).itemFolder ?? box.web;
 }
 
 /** Submit independent lane history so the lifecycle fixture never stacks unverified items. */
-function submit(box, id, name) {
+async function submit(box, id, name) {
   box.git(box.web, 'reset', '--hard', 'main');
-  const folder = claim(box, id);
+  const folder = await claim(box, id);
   box.git(folder, 'reset', '--hard', 'main');
   const relative = `web/${name}.txt`;
   mkdirSync(join(folder, 'web'), { recursive: true });
@@ -153,14 +154,14 @@ function submit(box, id, name) {
   const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: folder, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
   const head = box.git(folder, 'rev-parse', 'HEAD');
-  succeeds(box, folder, 'submit', String(id), '--no-next');
+  await succeeds(box, folder, 'submit', String(id), '--no-next');
   return head;
 }
 
 /** Verify a submitted private fixture commit as the coordinator without touching any real board. */
-function accept(box, id, commit) {
+async function accept(box, id, commit) {
   box.git(box.root, 'switch', '--detach', commit);
-  succeeds(box, box.root, 'verify', String(id), 'accept', '--no-next', '--as', 'coordinator', '--note', 'checked the private fixture commit');
+  await succeeds(box, box.root, 'verify', String(id), 'accept', '--no-next', '--as', 'coordinator', '--note', 'checked the private fixture commit');
   box.git(box.root, 'switch', 'main');
 }
 
@@ -183,40 +184,40 @@ function boardBytes(box) {
   return readFileSync(join(common, 'pullboard', 'board.sqlite'));
 }
 
-test('[S19,V3] doctor and resume list stale frozen items in every lifecycle state without rewriting evidence', { timeout: 120_000 }, (t) => {
-  const box = project(t);
+test('[S19,V3] doctor and resume list stale frozen items in every lifecycle state without rewriting evidence', { timeout: 120_000 }, async (t) => {
+  const box = await project(t);
   const ids = {};
 
-  ids.open = addItem(box, 'Open stale item');
-  claim(box, ids.open);
-  succeeds(box, box.web, 'release', String(ids.open), '--reason', 'BLOCKED', '--no-next');
+  ids.open = (await addItem(box, 'Open stale item'));
+  await claim(box, ids.open);
+  await succeeds(box, box.web, 'release', String(ids.open), '--reason', 'BLOCKED', '--no-next');
 
-  ids.submitted = addItem(box, 'Submitted stale item');
-  submit(box, ids.submitted, 'submitted');
+  ids.submitted = (await addItem(box, 'Submitted stale item'));
+  await submit(box, ids.submitted, 'submitted');
 
-  ids.verified = addItem(box, 'Verified stale item');
-  const verifiedCommit = submit(box, ids.verified, 'verified');
-  accept(box, ids.verified, verifiedCommit);
+  ids.verified = (await addItem(box, 'Verified stale item'));
+  const verifiedCommit = await submit(box, ids.verified, 'verified');
+  await accept(box, ids.verified, verifiedCommit);
 
-  ids.merged = addItem(box, 'Merged stale item');
-  const mergedCommit = submit(box, ids.merged, 'merged');
-  accept(box, ids.merged, mergedCommit);
+  ids.merged = (await addItem(box, 'Merged stale item'));
+  const mergedCommit = await submit(box, ids.merged, 'merged');
+  await accept(box, ids.merged, mergedCommit);
   box.git(box.root, 'merge', '--no-edit', mergedCommit);
-  succeeds(box, box.root, 'merged', String(ids.merged), box.git(box.root, 'rev-parse', 'HEAD'));
+  await succeeds(box, box.root, 'merged', String(ids.merged), box.git(box.root, 'rev-parse', 'HEAD'));
 
-  ids.withdrawn = addItem(box, 'Withdrawn stale item');
-  claim(box, ids.withdrawn);
-  succeeds(box, box.web, 'release', String(ids.withdrawn), '--reason', 'BLOCKED', '--no-next');
-  succeeds(box, box.root, 'withdraw', String(ids.withdrawn), 'no longer needed');
+  ids.withdrawn = (await addItem(box, 'Withdrawn stale item'));
+  await claim(box, ids.withdrawn);
+  await succeeds(box, box.web, 'release', String(ids.withdrawn), '--reason', 'BLOCKED', '--no-next');
+  await succeeds(box, box.root, 'withdraw', String(ids.withdrawn), 'no longer needed');
 
-  ids.unaffected = addItem(box, 'Unaffected G3 item', 'G3');
-  claim(box, ids.unaffected);
-  succeeds(box, box.web, 'release', String(ids.unaffected), '--reason', 'BLOCKED', '--no-next');
+  ids.unaffected = (await addItem(box, 'Unaffected G3 item', 'G3'));
+  await claim(box, ids.unaffected);
+  await succeeds(box, box.web, 'release', String(ids.unaffected), '--reason', 'BLOCKED', '--no-next');
 
-  ids.claimed = addItem(box, 'Claimed stale item');
-  claim(box, ids.claimed);
+  ids.claimed = (await addItem(box, 'Claimed stale item'));
+  await claim(box, ids.claimed);
 
-  const decision = box.pullboard(box.root, 'spec', 'approve', 'G1', '--text', NEW_TEXT, '--json');
+  const decision = await box.pullboard(box.root, 'spec', 'approve', 'G1', '--text', NEW_TEXT, '--json');
   assert.equal(decision.status, 0, `${decision.stdout}${decision.context}`);
   // A person-approved edit can arrive through Git without native spec apply. That is the stale
   // state diagnostics must still explain: native apply now refreezes unlanded citations atomically.
@@ -236,7 +237,7 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   const before = receiptSnapshot(box);
   const bytesBeforeDoctor = boardBytes(box);
 
-  const doctorJson = box.pullboard(box.root, 'doctor', '--json');
+  const doctorJson = await box.pullboard(box.root, 'doctor', '--json');
   requireExit(doctorJson, 'refused');
   const doctorDocument = jsonOf(doctorJson);
   const findings = doctorDocument.problems.filter((problem) => problem.code === 'STALE_ITEM');
@@ -251,11 +252,11 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   }
   assert.deepEqual(boardBytes(box), bytesBeforeDoctor, 'doctor did not write or migrate any board bytes');
 
-  const doctorText = box.pullboard(box.root, 'doctor');
+  const doctorText = await box.pullboard(box.root, 'doctor');
   requireExit(doctorText, 1);
   for (const id of expected) assert.match(doctorText.stdout, new RegExp(`item #${id}\\b`));
   const afterResumeBaseline = receiptSnapshot(box);
-  const resumeJson = succeeds(box, box.root, 'resume', '--diagnostics', '--json');
+  const resumeJson = await succeeds(box, box.root, 'resume', '--diagnostics', '--json');
   const resumeDocument = jsonOf(resumeJson);
   assert.deepEqual(resumeDocument.stale.map((item) => item.id).sort((a, b) => a - b), expected);
   for (const item of resumeDocument.stale) {
@@ -265,7 +266,7 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
       assert.match(item.next, /pullboard add web .*--specs G1/u);
     }
   }
-  const resumeText = succeeds(box, box.root, 'resume', '--diagnostics');
+  const resumeText = await succeeds(box, box.root, 'resume', '--diagnostics');
   assert.match(resumeText.stdout, new RegExp(`${expected.length} stale follow-ups; list them with pullboard resume --diagnostics --json`));
   assert.equal((resumeText.stdout.match(/^stale:/gmu) ?? []).length, 0, 'the coordinator sees one counted line, with details in JSON');
   assert.equal(resumeDocument.staleFollowUps.count, expected.length);
@@ -275,8 +276,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   assert.deepEqual(receiptSnapshot(box), afterResumeBaseline, 'resume leaves frozen fields, merge receipts and accepted verdicts unchanged');
   assert.deepEqual(receiptSnapshot(box), before, 'diagnostics do not alter accepted receipts or frozen bars');
   assert.ok(!findings.some((finding) => finding.message.includes(`item #${ids.unaffected} `)), 'the item frozen on G3 remains unaffected');
-  succeeds(box, box.root, 'refreeze', String(ids.open));
-  const afterRefreeze = jsonOf(succeeds(box, box.root, 'resume', '--diagnostics', '--json'));
+  await succeeds(box, box.root, 'refreeze', String(ids.open));
+  const afterRefreeze = jsonOf((await succeeds(box, box.root, 'resume', '--diagnostics', '--json')));
   assert.deepEqual(afterRefreeze.stale.map((item) => item.id).sort((a, b) => a - b), expected.filter((id) => id !== ids.open), 'explicit refreeze clears only the active item repaired against new text');
   const historical = (snapshot) => snapshot.items.filter((item) => item.item_status === 'verified');
   assert.deepEqual(historical(receiptSnapshot(box)), historical(before), 'refreezing active work preserves every accepted historical receipt');
@@ -287,24 +288,24 @@ test('[V2,V3,S19] native row approval refreezes every unlanded citation', { time
 });
 
 
-test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations from changed doctrine text', (t) => {
-  const box = project(t);
-  const doctrineItem = addItem(box, 'Doctrine citation', 'doctrine:PB1');
-  claim(box, doctrineItem);
-  succeeds(box, box.web, 'release', String(doctrineItem), '--reason', 'BLOCKED', '--no-next');
-  const specItem = addItem(box, 'Unchanged spec citation', 'G3');
-  claim(box, specItem);
-  succeeds(box, box.web, 'release', String(specItem), '--reason', 'BLOCKED', '--no-next');
+test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations from changed doctrine text', async (t) => {
+  const box = await project(t);
+  const doctrineItem = await addItem(box, 'Doctrine citation', 'doctrine:PB1');
+  await claim(box, doctrineItem);
+  await succeeds(box, box.web, 'release', String(doctrineItem), '--reason', 'BLOCKED', '--no-next');
+  const specItem = await addItem(box, 'Unchanged spec citation', 'G3');
+  await claim(box, specItem);
+  await succeeds(box, box.web, 'release', String(specItem), '--reason', 'BLOCKED', '--no-next');
   const baseline = receiptSnapshot(box);
-  const before = jsonOf(succeeds(box, box.root, 'resume', '--diagnostics', '--json'));
+  const before = jsonOf((await succeeds(box, box.root, 'resume', '--diagnostics', '--json')));
   assert.deepEqual(before.stale, [], 'a namespaced citation with unchanged inherited text is current');
-  const doctorBefore = jsonOf(box.pullboard(box.root, 'doctor', '--json'));
+  const doctorBefore = jsonOf((await box.pullboard(box.root, 'doctor', '--json')));
   assert.deepEqual(doctorBefore.problems.filter(problem => problem.code === 'STALE_ITEM'), []);
   const path = join(box.root, 'DOCTRINE.md');
   writeFileSync(path, readFileSync(path, 'utf8') + '\n## Local override\n- PB1 [approved, must] Updated inherited rule. | gate: true\n');
-  const after = jsonOf(succeeds(box, box.root, 'resume', '--diagnostics', '--json'));
+  const after = jsonOf((await succeeds(box, box.root, 'resume', '--diagnostics', '--json')));
   assert.deepEqual(after.stale.map(item => [item.id, item.rows]), [[doctrineItem, ['doctrine:PB1']]]);
-  const doctorAfter = jsonOf(box.pullboard(box.root, 'doctor', '--json'));
+  const doctorAfter = jsonOf((await box.pullboard(box.root, 'doctor', '--json')));
   const findings = doctorAfter.problems.filter(problem => problem.code === 'STALE_ITEM');
   assert.equal(findings.length, 1);
   assert.match(findings[0].message, /old text of doctrine:PB1/);

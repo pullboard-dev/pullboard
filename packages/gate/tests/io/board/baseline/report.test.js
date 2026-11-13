@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 
-const runner = fileURLToPath(new URL('../../../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 /** Run one fixture file under configured wall and idle limits, returning status and combined output. */
 function run(t, name, source, { wallMs = 2000, idleMs = 4000, caseMs = 20000 } = {}) {

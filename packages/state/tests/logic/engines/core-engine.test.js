@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/items/src/logic/edit/bar.js packages/items/src/logic/list.js packages/items/src/logic/order/work.js packages/roadmap/src/logic/milestone.js */
 /** State core files read the lifecycle, engine checks and corrected bars from the pure state core [C7,H16]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

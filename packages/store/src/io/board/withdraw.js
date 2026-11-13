@@ -5,6 +5,7 @@ import { Refused } from "../../../../kernel/index.js";
 import { moveItem } from "../board.js";
 import { onlyCoordinator } from "../board.js";
 import { endWithdrawnHandoff } from "../submit/handoff/retry.js";
+import { endReviewLease } from "./review/lease.js";
 import { createHash } from 'node:crypto';
 
 /** Bind an audit-triggered withdrawal to the exact open frozen Main red observed by its writer. */
@@ -50,6 +51,7 @@ export function withdraw(board, id, { agentId, reason, expected = null }) {
       set: () => ({ item_withdrawn_reason: reason.trim(), item_owner: null, item_lease_until: null }),
     });
     endWithdrawnHandoff(board, id);
+    endReviewLease(board, id);
     logEvent(board, agentId, 'withdraw', id, { reason: reason.trim() });
     if (expected) recordMainRedFix(board, id, agentId, expected);
   });

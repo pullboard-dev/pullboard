@@ -234,7 +234,9 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
     'proofless legacy submissions stay unknown in targeted history reads'));
 
   const fallbackItem = json(box, box.repo, 'add', 'web', 'change a non-module input', '--specs', 'G1',
-    '--criterion', 'Non-module selection is recorded.', '--check', 'node --test web/page.test.js', '--wait').item.item_id;
+    '--criterion', 'Non-module selection is recorded.', '--check', 'node --test web/other.test.js',
+    // The brief names page.test.js; the item check runs a different file, so the gate's dedup of files the check already runs leaves the named file to run.
+    '--brief', 'Files: web/style.css\nTest: web/page.test.js', '--wait').item.item_id;
   const fallbackTree = join(box.dir, 'web-fallback');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/fallback', fallbackTree, 'main');
   json(box, fallbackTree, 'join', 'web');

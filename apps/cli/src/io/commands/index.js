@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/commands/*.js */
+/** @pullboard-module-loads apps/cli/src/io/commands/*.js */
 /**
  * Every command, discovered: each src/commands/<name>.js is the pullboard <name> command and exports run. An item
  * adding a command adds its own new file and no line of any shared one, so two items adding different commands never
@@ -8,7 +8,7 @@ import {
   COMMAND_CANDIDATE,
   COMMAND_FILE,
   discovered,
-} from '../../../../../packages/kernel/index.js';
+} from '../../../../../packages/kernel/light.js';
 import { readdirSync } from 'node:fs';
 
 const FOLDER = new URL('./', import.meta.url);

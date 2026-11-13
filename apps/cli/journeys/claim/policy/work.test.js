@@ -1,4 +1,4 @@
-/** Accepted policy changes re-freeze a real claim only when its lane and gate inputs stay fixed [#2471]. */
+/** Accepted policy changes never touch a real claim's frozen bar; policy is read live per move [#2471,B4]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
@@ -15,6 +15,7 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
 /** Open the fixture's real SQLite board and close it with the test. */
 function boardFor(t, repo) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: repo });
   t.after(() => store.closeBoard(board));
   return board;
@@ -36,31 +37,28 @@ function addPolicyItem(board, title) {
     check: 'true', brief: 'Files: web/feature.js\nTest: the frozen check passes.' });
 }
 
-test('an unrelated accepted policy change refreshes a real claim and queued submit with both policy digests [B4,V2,V4]', t => {
+test('an unrelated accepted policy change keeps a real re-claim\'s bar digest, so a queued submit matches it [B4,V2,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const board = boardFor(t, box.repo);
   const id = addPolicyItem(board, 'Unrelated policy refresh');
-  const firstClaim = box.run(box.web, 'claim', String(id), '--json');
+  const firstClaim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(firstClaim.code, 0, firstClaim.out + firstClaim.err);
   const before = store.getItem(board, id);
-  const priorPolicy = JSON.parse(before.item_frozen).policy;
+  assert.equal(JSON.parse(before.item_frozen).policy, undefined, 'a new freeze holds the bar alone');
   store.release(board, id, 'web-1', 'fixture release', undefined, 'OTHER');
 
   commitPolicy(box, box.repo, config => {
     config.landing.manualOverride = !config.landing.manualOverride;
   });
-  const nextClaim = box.run(box.web, 'claim', String(id), '--json');
+  const nextClaim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(nextClaim.code, 0, nextClaim.out + nextClaim.err);
 
   const after = store.getItem(board, id);
   assert.equal(after.item_status, 'claimed');
-  assert.notEqual(after.item_frozen_digest, before.item_frozen_digest);
-  assert.notEqual(JSON.parse(after.item_frozen).policy.commit, priorPolicy.commit);
-  assert.ok(store.itemThread(board, id).some(entry => entry.type === 'fact'
-    && entry.text.includes('policy re-frozen automatically') && entry.text.includes(' -> ')
-    && entry.text.includes('landing.manualOverride')));
+  assert.equal(after.item_frozen_digest, before.item_frozen_digest, 'a policy commit is not a bar change');
+  assert.equal(after.item_frozen, before.item_frozen);
 
   const folder = JSON.parse(nextClaim.out).itemFolder;
   assert.ok(folder, 'the real claim returned its machine-created item folder');
@@ -76,29 +74,31 @@ test('an unrelated accepted policy change refreshes a real claim and queued subm
   assert.equal(queued.job.digest, after.item_frozen_digest);
 });
 
-test('a change to this item lane policy refuses its real re-claim with the changed key [B4,V2,V4]', t => {
+test('a change to this item lane policy re-claims with the same bar digest, never NO_POLICY [B4,V2,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const board = boardFor(t, box.repo);
   const id = addPolicyItem(board, 'Lane policy change');
-  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id), '--json')).code, 0);
+  const before = store.getItem(board, id);
   store.release(board, id, 'web-1', 'fixture release', undefined, 'OTHER');
   commitPolicy(box, box.repo, config => { config.lanes.web.owns = ['web/', 'test/']; });
 
-  const result = box.run(box.web, 'claim', String(id), '--json');
-  assert.notEqual(result.code, 0);
-  assert.match(result.out + result.err, /lanes\.web\.owns/u);
-  assert.equal(store.getItem(board, id).item_status, 'open');
+  const result = await box.runLocal(box.web, 'claim', String(id), '--json');
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.doesNotMatch(result.out + result.err, /NO_POLICY/u);
+  assert.equal(store.getItem(board, id).item_status, 'claimed');
+  assert.equal(store.getItem(board, id).item_frozen_digest, before.item_frozen_digest);
 });
 
-test('clause 2: a submit already queued survives an unrelated accepted policy change and a lane change still refuses with its key [B4,V2,V4]', t => {
+test('clause 2: a submit already queued survives an unrelated accepted policy change and a lane change still refuses with its key [B4,V2,V4]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const board = boardFor(t, box.repo);
   const id = addPolicyItem(board, 'Queued before policy change');
-  const claim = box.run(box.web, 'claim', String(id), '--json');
+  const claim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claim.code, 0, claim.out + claim.err);
   const folder = JSON.parse(claim.out).itemFolder;
   const committed = helpers.commitFile(box, folder, 'web/feature.js', 'export const ready = true;\n', 'feat(web): queued before policy change [G1]');

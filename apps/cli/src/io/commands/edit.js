@@ -1,4 +1,6 @@
+import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireOwnLaneCheck } from '../lane.js';
+import { guardBar } from '../../../../../packages/state/index.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
@@ -20,6 +22,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -65,6 +68,7 @@ export async function run(io, args) {
     agentId: me.id,
     ...(values['machine-verified'] === undefined ? {} : { machineVerified: values['machine-verified'] === 'on' }),
     ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(readFileSync(values['machine-commands-file'], 'utf8')) }),
+    ...(values.title === undefined ? {} : { title: values.title }),
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
@@ -90,6 +94,14 @@ export async function run(io, args) {
     if (authors.length) change.referenceAuthors = authors;
   }
   requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
+  const barWarnings = sealed ? [] : guardBar(change.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
+  // A changed bar may not name a path missing from main, refused before any other bar rule; an edit that leaves the
+  // criterion and check alone never refuses on it (#5709).
+  if (change.criterion !== undefined || change.check !== undefined) {
+    const before = store.getItem(board, id);
+    if (change.check) refuseCheckPullboardTest(change.check);
+    await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
+  }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;
@@ -97,6 +109,7 @@ export async function run(io, args) {
   }
   if (command && command !== item.item_check) refuseCheckSyntax(command);
   if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command && command !== item.item_check && !sealed) store.guardGreenCheck(board, change.checkBaseline, values['accept-green']);
   change.barActor = barActorForCommand(ctx, board, { asPerson });
   await ordered(ctx, board, 'editItem', [id, change]);
   if (change.checkBaseline?.result === 'pending') {
@@ -115,8 +128,9 @@ export async function run(io, args) {
       while (measuring()) await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
-  io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
-  for (const warning of evidenceWarnings) io.err(warning.message);
+  const warnings = [...evidenceWarnings, ...barWarnings];
+  io.result?.({ item: store.getItem(board, id), ...(warnings.length ? { warnings } : {}) });
+  for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`edited #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
   return 0;

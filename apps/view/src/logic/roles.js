@@ -19,12 +19,12 @@ export const VIEW_TEST_ROLES = Object.freeze({
   'apps/cli/journeys/shout/words.test.js': { kind: 'journey', reason: 'Genuine legacy model-less seat, ordered native health/review/fact events, authenticated HTTP and Chrome scan of person-visible names, words and chart hover text; pure label assertions retain explicit timestamp inputs.' },
   'apps/cli/journeys/verify/item/timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
   'apps/cli/journeys/verify/item/panel.test.js': { kind: 'journey', reason: 'A private native item with real sent-back and accepted verdicts, recorded red/green check baselines, brief files and lifecycle events is inspected through authenticated Chrome tabs, disclosures and measured desktop/phone layout.' },
-  'apps/cli/journeys/submit/notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Needs you and item details, including full-hash copy.' },
+  'apps/cli/journeys/submit/notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Rulings and item details, including full-hash copy.' },
   "apps/view/tests/logic/needs/actions.test.js": {
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."
   },
-  "apps/view/tests/logic/summary/state/codegen.test.js": {
+  "apps/view/tests/cockpit/state-reader-codegen.test.js": {
     "kind": "adapter",
     "reason": "Generated local state-reader source is executed with explicit transport replies in a VM; this is a reader adapter contract, not a pure-render witness."
   },
@@ -161,8 +161,8 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "reason": "dashboard-model.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },
   "apps/view/tests/logic/render/dashboard.test.js": {
-    "kind": "logic",
-    "reason": "dashboard-render.test.js: seeded data invokes actual pure render/model exports without native fixtures"
+    "kind": "adapter",
+    "reason": "dashboard-render.test.js: seeded data renders Dashboard HTML, but the model it builds from reaches node:fs, crypto and process, so it is not a pure root"
   },
   "apps/cli/journeys/milestone/dashboard/visibility.test.js": {
     "kind": "journey",
@@ -215,10 +215,6 @@ export const VIEW_TEST_ROLES = Object.freeze({
   "apps/cli/journeys/init/empty.test.js": {
     "kind": "journey",
     "reason": "items-empty: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
-  },
-  "apps/cli/journeys/withdraw/items.test.js": {
-    "kind": "journey",
-    "reason": "items: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
   "apps/cli/journeys/milestone/routes.test.js": {
     "kind": "adapter",

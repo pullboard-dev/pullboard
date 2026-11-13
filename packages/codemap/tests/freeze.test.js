@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/src/io/freeze.js */
 /** The freeze script applies the rename table to a fixture repository: every import resolves, it is idempotent and refuses a dirty tree [V32,V33]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

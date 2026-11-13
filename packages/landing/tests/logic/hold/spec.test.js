@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/scripts/worker.js packages/gate/index.js packages/resources/index.js packages/runners/index.js */
 /** Real private worker/controller custody: refused input must not retain an open pipe or gate lease [C7]. */
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';
@@ -21,6 +21,7 @@ import {
   runFixtureChildAsync,
   runFixtureGit,
 } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureSettledMachine } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 import {
   HOST,
   installSshStandIn,
@@ -93,7 +94,7 @@ async function controllerCase(t, { invalidSpec, browser }) {
   writeFileSync(join(f.repo, 'tracked.txt'), 'private source\n');
   runFixtureGit(['add', '-A'], { cwd: f.repo, env: f.env });
   runFixtureGit(['commit', '-qm', 'test: private runner source'], { cwd: f.repo, env: f.env });
-  writeFileSync(join(f.machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+  fixtureSettledMachine(f.machine, { gateSlots: 1, browserSlots: 1 }); // a pulled dispatch would wait for an agent this fixture never starts
   const requests = join(f.directory, 'requests.jsonl');
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine,
     requests, invalidSpec });

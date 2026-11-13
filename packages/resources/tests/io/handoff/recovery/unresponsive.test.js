@@ -25,7 +25,7 @@ function observe(t, live) {
   const ssh = join(bin, 'ssh'), failure = 'record({ healthProbeFailed: true, stdinBytes }); process.exit(255);';
   writeFileSync(ssh, readFileSync(ssh, 'utf8').replaceAll(failure,
     `process.stderr.write(${JSON.stringify('fixture worker start refused\n')}); ${failure}`));
-  const url = name => pathToFileURL(join(import.meta.dirname, '../../../src', name)).href;
+  const url = name => pathToFileURL(join(import.meta.dirname, '../../../../..', name)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';
@@ -33,8 +33,8 @@ function observe(t, live) {
     import { once } from 'node:events';
     import { existsSync, mkdirSync } from 'node:fs';
     import { join } from 'node:path';
-    import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
+    import { probeRunnerHealth } from ${JSON.stringify(url('runners/index.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('resources/src/io/recovery.js'))};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root: ${JSON.stringify(root)}, slots: 1, browser: 0 };
     const db = new DatabaseSync(':memory:');
     db.exec('CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)');

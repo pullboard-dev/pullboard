@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Bounded compile-only binding proof never executes candidate source or weakens shadow uncertainty [C7,CD62]. */
 import assert from 'node:assert/strict';
@@ -550,6 +549,7 @@ test('all original git-move fixture groups retain their actual source input obli
     'apps/cli/journeys/queue/team/policy.test.js',
     'apps/cli/journeys/queue/team/freshness.test.js',
     'apps/cli/journeys/fact/team/owner/death.test.js',
+    'apps/cli/journeys/fact/team/owner/death-guardian.test.js',
     'apps/cli/journeys/fact/team/owner/fence.test.js',
     'apps/cli/journeys/export/team/board.test.js',
     'apps/cli/journeys/verify/team/verdict.test.js',

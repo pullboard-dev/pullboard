@@ -6,6 +6,14 @@ import { classifyTestFiles } from '../../../../packages/codemap/src/io/cells/pla
 import { placeTests } from '../../../../packages/codemap/src/io/cells/placement.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { join as joinPath } from 'node:path';
+
+/** Run one moved fixture test in this process by importing it: its imports must resolve and its asserts must hold. */
+async function runMoved(root, file) {
+  try { await import(pathToFileURL(joinPath(root, file)).href); } catch (error) { return { failure: error, context: String(error?.stack ?? error) }; }
+  return { failure: null, context: '' };
+}
 
 const plan = { cells: [
   { name: 'kernel', root: 'packages/kernel', paths: [['src/a.js', 'packages/kernel/a.js']] },
@@ -68,6 +76,7 @@ test('clause 3: the fixture report shows a cell, a journey and an unknown reason
 test('clause 1: node packages/codemap/src/io/cells/scripts/plan.js --place-tests prints every tracked test file and docs check with its home; clause 2: a repeated run prints identical output [C7,CD64]', async () => {
   const { fileURLToPath } = await import('node:url');
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
+  // Process-level: the plan script is a standalone entry (argv guard, stdout, exit code), so it stays a child process.
   const run = () => runFixtureChild(process.execPath, ['packages/codemap/src/io/cells/scripts/plan.js', '--place-tests'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const first = run();
   assert.equal(first.failure, null, first.context);
@@ -104,6 +113,7 @@ async function moverFixture(t, { located = false } = {}) {
   if (located) put('test/located.test.js', "import { a } from '../packages/kernel/a.js';\nexport const where = [a, import.meta.dirname];\n");
   git(root, 'add', '-A');
   /** Run the real cells-plan CLI in the fixture. */
+  // Process-level: the real cells-plan script entry, run as its own process.
   const cli = (...args) => runFixtureChild(process.execPath, [moverCli(), ...args], { cwd: root, encoding: 'utf8' });
   /** The fixture's index and working tree state, for no-change proofs. */
   const state = () => git(root, 'status', '--porcelain', '--untracked-files=all') + '\n' + git(root, 'ls-files', '-s');
@@ -147,7 +157,7 @@ test('clause 1: --move-tests git-mvs a cell\'s tests into packages/<cell>/tests/
   assert.equal(read('test/journey.test.js'), moverSources.journey.replace("'./helper.js'", "'../packages/kernel/tests/helper.js'"));
   assert.equal(read('apps/cli/tests/cli.test.js'), "import assert from 'node:assert/strict';\nimport { run } from '../run.js';\nassert.equal(run(), 'cli');\n");
   for (const file of ['packages/kernel/tests/one.test.js', 'test/journey.test.js', 'apps/cli/tests/cli.test.js']) {
-    const ran = runFixtureChild(process.execPath, [file], { cwd: root, encoding: 'utf8' });
+    const ran = await runMoved(root, file);
     assert.equal(ran.failure, null, `${file} still runs after the move\n${ran.context}`);
   }
 });
@@ -221,7 +231,7 @@ test('clause 1: --move-tests moves a test that reads its location only through l
   assert.equal(text, where.replace("'../packages/kernel/a.js'", "'../a.js'").replace("new URL('../packages/kernel/a.js'", "new URL('../a.js'")
     .replace("import.meta.dirname, 'data'", "import.meta.dirname, '../../../test/data'").replace("import.meta.dirname, '..'", "import.meta.dirname, '../../..'")
     .replace('`data/${name}.txt`', '`../../../test/data/${name}.txt`'), 'only path literals changed, each naming the same file');
-  const ran = runFixtureChild(process.execPath, ['packages/kernel/tests/where.test.js'], { cwd: root, encoding: 'utf8' });
+  const ran = await runMoved(root, 'packages/kernel/tests/where.test.js');
   assert.equal(ran.failure, null, `the moved test still runs\n${ran.context}`);
 });
 
@@ -279,7 +289,7 @@ test('clause 1: --place-tests --batches plans helpers separately and cell moves 
   assert.ok(existsSync(join(root, 'packages/kernel/tests/fixtures/helper.js')), 'the shared helper gets its own fixture home');
   for (const file of ['packages/kernel/tests/one.test.js', 'packages/store/tests/journey.test.js', 'apps/cli/tests/cli.test.js']) {
     assert.ok(existsSync(join(root, file)), `${file} is home`);
-    const ran = runFixtureChild(process.execPath, [file], { cwd: root, encoding: 'utf8' });
+    const ran = await runMoved(root, file);
     assert.equal(ran.failure, null, `${file} still runs after its batch\n${ran.context}`);
   }
 });
@@ -301,7 +311,7 @@ test('clause 1: --helpers moves one shared helper and repoints importers in two 
   assert.match(moved.stdout, /moved test\/helper\.js -> packages\/kernel\/tests\/fixtures\/helper\.js/u);
   for (const file of ['test/one.test.js', 'test/journey.test.js']) {
     assert.match(readFileSync(join(root, file), 'utf8'), /packages\/kernel\/tests\/fixtures\/helper\.js/u);
-    const run = runFixtureChild(process.execPath, [file], { cwd: root, encoding: 'utf8' });
+    const run = await runMoved(root, file);
     assert.equal(run.failure, null, run.context);
   }
 });

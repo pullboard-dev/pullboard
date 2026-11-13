@@ -5,6 +5,7 @@
  * Why its own module: the end-to-end harness and the repro harnesses all need the same queued-gate project, and none
  * may touch the main checkout, so the project is built once here inside an e2e sandbox the kit watches.
  */
+/** @pullboard-module-loads apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/testkit.js packages/store/index.js packages/drive/index.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';

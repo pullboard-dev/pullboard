@@ -1,6 +1,6 @@
 /** Derive scheduler conflicts from one exact-main map; unknown source retains file-level custody [N2,N20,C7]. */
 import { compareItemFunctions } from '../../../codemap/light.js';
-import { readCodeMap } from '../../../codemap/index.js';
+import { readCodeMap } from '../../../codemap/light.js';
 import { git } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';

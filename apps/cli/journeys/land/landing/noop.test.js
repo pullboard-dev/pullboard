@@ -20,18 +20,18 @@ function onBoard(box, work) {
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
-test('an idle empty land takes no lease and writes no event [E25,E26,B3]', () => {
+test('an idle empty land takes no lease and writes no event [E25,E26,B3]', async () => {
   const box = helpers.project('true');
   const before = onBoard(box, board => ({ events: store.events(board), lease: store.landingLeaseState(board) }));
   const head = box.git(box.repo, 'rev-parse', 'HEAD');
-  const result = box.run(box.repo, 'land', '--json');
+  const result = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(result.code, 0, result.err);
   assert.deepEqual(JSON.parse(result.out).landed, []);
   assert.deepEqual(onBoard(box, board => ({ events: store.events(board), lease: store.landingLeaseState(board) })), before,
     'neither an admission generation nor any board event changes');
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), head);
   assert.equal(onBoard(box, board => store.landingBatches(board).length), 0);
-  const adopted = box.run(box.repo, 'land', '--adopt', '--json');
+  const adopted = await box.runLocal(box.repo, 'land', '--adopt', '--json');
   assert.equal(adopted.code, 1, 'an explicit adoption is not a successful empty landing');
   assert.equal(JSON.parse(adopted.out).error.code, 'LAND_ADOPT');
 });

@@ -2,6 +2,26 @@
 /** The coordinator carries every seat's request for a person decision [B26]. */
 export const COORDINATOR_PERSON_REQUEST = 'ask the coordinator to bring it to the person: pullboard shout coordinator --kind question "<what is needed>" --decision';
 
+/** What the person reads when a refusal's own words carry a command, code, token or relay term. */
+export const PERSON_PLAIN_STEP = 'your coordinator will sort this out; nothing needs you right now';
+
+/** Internals the person never sees (H23): a shell command line, a token or key, a relay term. */
+const PERSON_LEAK = /(?:^|[\s`$])(?:\$ ?)?(?:pullboard|node|git|npm|npx|sh|bash)\s+[-\w./<]|\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._~+/=-]{16,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{32,}={0,2})\b|\b(?:checkpoints?|outbox(?:es)?|digests?|leases?)\b/iu;
+
+/**
+ * Keep the person's refusal line free of codes, commands, tokens and relay terms; seats and the coordinator keep full text.
+ * Why: the person never needs to know how Pullboard works, so a leaking line becomes one plain sentence (H23).
+ *
+ * @param {string} text
+ * @param {{ caller?: 'seat'|'coordinator'|'person'|'unknown' }} [options]
+ * @returns {string}
+ */
+export function personPlainText(text, { caller } = {}) {
+  if (caller !== 'person') return text;
+  const plain = String(text).split('\n').map(line => line.replace(/\[[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\]\s*/gu, '')).filter(line => !PERSON_LEAK.test(line)).join('\n').trim();
+  return plain || PERSON_PLAIN_STEP;
+}
+
 /**
  * Route presentation-only person requests for a known seat; unknown callers retain existing text.
  * This does not change a refusal receipt, actor identity or permission to make the person's move.
@@ -11,6 +31,7 @@ export const COORDINATOR_PERSON_REQUEST = 'ask the coordinator to bring it to th
  * @returns {string}
  */
 export function personRequestStep(step, { caller } = {}) {
+  if (caller === 'person') return personPlainText(step, { caller });
   return caller === 'seat' && /\bask the person\b/iu.test(step) ? COORDINATOR_PERSON_REQUEST : step;
 }
 
@@ -36,6 +57,7 @@ function quotedAt(text, at) {
  * @returns {string}
  */
 export function personRequestGuidance(message, { caller, leading = false } = {}) {
+  if (caller === 'person') return personPlainText(message, { caller });
   if (caller !== 'seat') return message;
   const lines = String(message).split('\n');
   /** Route only an unquoted imperative, preserving clauses that explain the refusal. */
@@ -74,11 +96,11 @@ export function commandName(argv) {
   return flags.find(arg => !arg.startsWith('-')) ?? null;
 }
 
-/** Preserve diagnostic reports, byte-oriented exports and long-running protocols; interactive commands own one final action. */
+/** Preserve diagnostic reports, byte-oriented exports, search results and long-running protocols; interactive commands own one final action. */
 export function interactiveNext(command, argv = []) {
   // Rigor's plain diagnostic report owns its body; drafting and quality commands still guide an action.
   if (command === 'rigor' && !argv.some(arg => ['draft', 'quality', '--draft-splits', '--draft-quality'].includes(arg.split('=')[0]))) return false;
-  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health', 'maintenance'].includes(command);
+  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay', 'health', 'maintenance', 'search'].includes(command);
 }
 
 /** Choose one immediate action from acknowledged output, without reserving work or guessing a verdict. */
@@ -186,6 +208,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   let caller = 'unknown';
   let callerRoot;
   let written = false;
+  // Set when a command streamed its own document to stdout in --json mode (export), so no envelope follows it.
+  let streamed = false;
   const messages = [];
   const diagnostics = [];
   const emit = (target, lines, line) => {
@@ -242,6 +266,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     }
     if (!enabled || written) return;
     written = true;
+    // A command that wrote its whole document itself owns stdout: a second, empty envelope would break parsers.
+    if (streamed && !refusal && !code && result === undefined && !messages.length && !diagnostics.length && !remote) return;
     let document;
     if (refusal || (code && result === undefined)) {
       const text = refusal?.message ?? [...diagnostics, ...messages].join('\n');
@@ -282,7 +308,7 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     ...streams,
     recordedMove: false,
     physicalStdoutIsTTY: Boolean(streams.stdout.isTTY),
-    stdout: { get isTTY() { return enabled ? false : streams.stdout.isTTY; }, write: (text) => streams.stdout.write(text) },
+    stdout: { get isTTY() { return enabled ? false : streams.stdout.isTTY; }, write: (text) => { if (enabled) streamed = true; return streams.stdout.write(text); } },
     say,
     err: (line) => emit(streams.stderr, diagnostics, line),
     result: (value) => { result = value; },

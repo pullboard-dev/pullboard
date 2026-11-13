@@ -33,7 +33,7 @@ import { PARENT_PIPE_FD } from './controller/watch.js';
 // Budget: 64 MiB bounds worst-case JSON bridge escaping below Node string limits.
 // Budget: after the receipt, wait this long for the last output bytes before ending the transport; the worker finishes cleanup on its own.
 const RECEIPT_GRACE_MS = 500;
-const MAX_OUTPUT_BYTES = 64 * 1024 ** 2;
+export const MAX_OUTPUT_BYTES = 64 * 1024 ** 2;
 
 /** Bound stopping only this owned child and its pipes; local settlement never proves remote cleanup. */
 export function ownedTransportCompletion(child, { termMs = 1_000, drainMs = 1_000 } = {}) {
@@ -62,7 +62,7 @@ export function ownedTransportCompletion(child, { termMs = 1_000, drainMs = 1_00
 }
 
 /** Reconstruct the native transport outcome across a fresh controller process. */
-function bridgeResult(request, result, phase) {
+export function bridgeResult(request, result, phase) {
   let reply;
   try { reply = JSON.parse(result.stdout); }
   catch { throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-json'); }

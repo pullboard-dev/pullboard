@@ -29,7 +29,7 @@ function fakeSsh(box, runnerHome, log) {
   chmodSync(path, 0o755);
 }
 
-test('clause 1: with a seat set to runner-hosted, pullboard claim calls the runner-hosted worktree module instead of openItemFolder locally, and the item folder exists only on the runner [C7]', t => {
+test('clause 1: with a seat set to runner-hosted, pullboard claim calls the runner-hosted worktree module instead of openItemFolder locally, and the item folder exists only on the runner [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
@@ -37,14 +37,14 @@ test('clause 1: with a seat set to runner-hosted, pullboard claim calls the runn
   mkdirSync(runnerHome);
   const log = join(box.dir, 'ssh.log');
   fakeSsh(box, runnerHome, log);
-  const registered = box.run(box.repo, 'runner', 'add', 'runner-a', '--slots', '1', '--browser', '0', '--node', process.execPath, '--json');
+  const registered = await box.runLocal(box.repo, 'runner', 'add', 'runner-a', '--slots', '1', '--browser', '0', '--node', process.execPath, '--json');
   assert.equal(registered.code, 0, registered.err || registered.out);
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Runner-hosted claim fixture' }).item_id;
   const worktreesBefore = box.git(box.repo, 'worktree', 'list', '--porcelain');
   writeFileSync(log, '');
 
   box.env.PULLBOARD_ITEM_FOLDER_RUNNER = 'runner-a';
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   assert.equal(JSON.parse(claimed.out).itemFolder, `runner-a:.pullboard-runner/builders/item-${id}`, 'claim names the folder on the runner');
 
@@ -58,13 +58,13 @@ test('clause 1: with a seat set to runner-hosted, pullboard claim calls the runn
   assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), worktreesBefore, 'the coordinator repository gained no item worktree');
 });
 
-test('a runner-hosted seat naming an unregistered runner is refused before any folder is made [C7]', t => {
+test('a runner-hosted seat naming an unregistered runner is refused before any folder is made [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Unregistered runner fixture' }).item_id;
   box.env.PULLBOARD_ITEM_FOLDER_RUNNER = 'runner-missing';
-  const claimed = box.run(box.web, 'claim', String(id));
+  const claimed = await box.runLocal(box.web, 'claim', String(id));
   assert.notEqual(claimed.code, 0);
   assert.match(claimed.err + claimed.out, /item folder runner runner-missing is not registered/u);
   assert.equal(existsSync(join(dirname(box.web), `${basename(box.web)}-item-${id}`)), false);

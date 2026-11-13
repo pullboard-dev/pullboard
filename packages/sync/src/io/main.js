@@ -16,6 +16,7 @@ import * as store from "../../../store/index.js";
 import {
   exportBoard,
   importBoard,
+  jsonChunks,
   semanticBoardDigest,
 } from "../../../store/index.js";
 import {
@@ -80,7 +81,12 @@ function git(root, args, input = '') {
       catch (error) { reject(error); }
     });
     child.stdin.on('error', () => {});
-    child.stdin.end(input);
+    if (typeof input === 'string') { child.stdin.end(input); return; }
+    // Input given in pieces (a large board's baseline) is written as the pipe drains, never joined into one string.
+    (async () => {
+      for (const piece of input) if (!child.stdin.write(piece)) await new Promise(drained => child.stdin.once('drain', drained).once('close', drained));
+      child.stdin.end();
+    })().catch(() => child.stdin.destroy());
   });
 }
 
@@ -146,9 +152,16 @@ async function fetchTip(root) {
   return required(root, ['rev-parse', CACHE]);
 }
 
+/** A payload's compact JSON in pieces of one row at most, then its final newline. */
+function* pieces(payload) {
+  yield* jsonChunks(payload, 0, 4);
+  yield '\n';
+}
+
 /** Write a data-only Git commit without touching the worktree, index or code refs. */
 async function commit(root, payload, parent) {
-  const blob = await required(root, ['hash-object', '-w', '--stdin'], JSON.stringify(payload) + '\n');
+  // The baseline carries the whole board, so it is written in pieces: its events can exceed one string.
+  const blob = await required(root, ['hash-object', '-w', '--stdin'], pieces(payload));
   const tree = await required(root, ['mktree'], '100644 blob ' + blob + '\tpayload.json\n');
   return required(root, ['commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', 'pullboard: ordered board data']);
 }

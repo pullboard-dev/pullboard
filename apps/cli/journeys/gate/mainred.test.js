@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/commands/submit.js apps/cli/src/io/submit/receipt.js */
 /** Durable gate 22: main-red status is a receipt lookup keyed by main tree, test file and command [C7]. */
 /** @pullboard-world-pin: clauses 1 and 2 read the shipped submit gate and its lookup to prove the production caller is switched. */
 import assert from 'node:assert/strict';
@@ -49,13 +49,13 @@ after(() => rmSync(files.root, { recursive: true, force: true }));
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
 /** Open a fresh real board file for an async body, closing it once the body settles. */
 async function withBoardAsync(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 
@@ -181,7 +181,7 @@ test('clause 1: the submit gate reads main-red status from the keyed receipt [C7
   assert.match(block, /criterionMainReceipts\(\{ root, db: board\.db, main: mainFailureBase, cases: criterionCases \}\)/u, 'submit classifies criterion reds through the receipt lookup');
   assert.doesNotMatch(block, /compareMainFailures/u, 'submit no longer runs the refresh comparison for criterion reds');
   const helper = readFileSync(join(import.meta.dirname, '../../src/io/submit/receipt.js'), 'utf8');
-  assert.match(helper, /import \{ classifyGateRed \} from '..\/..\/..\/..\/packages\/drive\/index.js'/u, 'the lookup is the drive cell\'s classifyGateRed');
+  assert.match(helper, /import \{ classifyGateRed \} from '..\/..\/..\/..\/..\/packages\/drive\/index.js'/u, 'the lookup is the drive cell\'s classifyGateRed');
   assert.deepEqual([...helper.matchAll(/^import \{ (\w+) \}/gmu)].map((match) => match[1]), ['classifyGateRed', 'mainReceipts'], 'the lookup imports no measuring or process code');
 
   const box = mainRepo('submit-lookup', { [at.file]: { result: 'red', failures: [failing('case one')], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: 'mr-9' } });

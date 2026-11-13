@@ -13,14 +13,15 @@ import {
   press,
   project,
   startView,
+  openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
 test('Needs you shares grouped, expandable rows and exact person confirmation across Items and Dashboard [N26,B26]', { timeout: 120_000 }, async () => { // budget: native board/Git setup, two viewports and a real person confirmation.
   const box = machine();
   const spec = '# Needs review\n\n## G · Goals\n' + Array.from({ length: 4 }, (_, i) => '- G' + (i + 1) + ' [approved, must] The actual approved requirement ' + (i + 1) + ' keeps its full final words. | gate: browser gate ' + (i + 1)).join('\n') + '\n- G5 [draft, should] A draft remains for review. | gate: draft gate\n';
   const alpha = project(box, 'needs-panel', spec, {}, { agentApproved: true });
-  box.run(alpha.repo, 'shout', 'person', 'Choose the wording for this release. The full question stays available when expanded.', '--decision');
-  box.run(alpha.repo, 'sentinel', 'propose', 'hourly-size', '--check', 'node packages/gate/src/io/file/size.js', '--directory', '.', '--every', 'hourly', '--owner', 'coordinator');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Choose the wording for this release. The full question stays available when expanded.', '--decision');
+  await box.inProcess(alpha.repo, 'sentinel', 'propose', 'hourly-size', '--check', 'node packages/gate/src/io/file/size.js', '--directory', '.', '--every', 'hourly', '--owner', 'coordinator');
   const view = await startView(box);
   let chrome;
   try {
@@ -51,6 +52,7 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       await capture('dashboard', width);
       await press(chrome, 'document.querySelector("#dashboard [data-needs-list]")');
       await chrome.waitFor('view.tab === "items" && view.state === "active"');
+      await openItemsNeeds(chrome);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Questions and sentinels · 2/u);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Rows approved in Git, waiting for you · 4/u);
       assert.equal(await chrome.stable('document.querySelector("#needs [data-needs-confirm]").dataset.needsConfirm'), 'G1 G2 G3 G4', 'Confirm all captures every eligible row, including rows beyond the summary');

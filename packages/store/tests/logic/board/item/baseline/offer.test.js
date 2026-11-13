@@ -28,6 +28,7 @@ test('an accepted offer makes at most one child and a receipt carries no text [B
     const env = { ...process.env };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
     execFileSync('git', ['init', '-q', '-b', 'main', root], { env });
+    // @pullboard-board-file persistence: the board is reopened to check the saved child is returned
     const file = join(root, '.git', 'board.sqlite'), board = openBoard(file);
     store.board_ensureCoordinator(board, root);
     boards.push({ board, file, id: store.boardId(board) });
@@ -48,6 +49,7 @@ test('an accepted offer makes at most one child and a receipt carries no text [B
   assert.equal(store.listItems(destination.board, { all: true }).length, 1);
   assert.equal(store.getItem(destination.board, accepted.childRef.item).item_parent_id, null, 'foreign parent id never becomes a local parent');
   store.closeBoard(destination.board);
+  // @pullboard-board-file persistence: the board is reopened to check the saved child is returned
   destination.board = openBoard(destination.file);
   assert.deepEqual(api.acceptItemOffer(destination.board, offer, ports), accepted, 'retry after reopen returns the saved child');
   assert.equal(store.listItems(destination.board, { all: true }).length, 1);

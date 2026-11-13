@@ -23,11 +23,29 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 /** Demand real command success and its versioned result. */
 function ok(result) { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); }
 
+/**
+ * Run one in-process call while tapping the process's real stderr, where check citations are written.
+ *
+ * Why: a spawned CLI showed those lines in its own stderr; in this process they go to the real stream.
+ *
+ * @param {() => Promise<{ out: string, err: string }>} call - The in-process CLI call.
+ * @returns {Promise<object>} The call's result with the tapped lines appended to its err.
+ */
+async function withStderrTap(call) {
+  const lines = [];
+  const previous = process.stderr.write;
+  process.stderr.write = value => { lines.push(String(value)); return true; };
+  try {
+    const result = await call();
+    return { ...result, err: `${result.err}${lines.join('')}` };
+  } finally { process.stderr.write = previous; }
+}
+
 /** How many times a logged check ran: each run appends one four-byte line. */
 function runs(file) { return existsSync(file) ? statSync(file).size / 4 : 0; }
 
 /** A web item whose static check and doctrine rule log every run, and whose item check is red until armed. */
-function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand = 'node doctrine.cjs' } = {}) {
+async function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand = 'node doctrine.cjs' } = {}) {
   const box = helpers.project('true');
   const logs = { static: join(box.dir, 'static-runs.log'), doctrine: join(box.dir, 'doctrine-runs.log') };
   const armed = join(box.dir, 'item-check-green');
@@ -39,8 +57,8 @@ function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand =
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: logged static and doctrine checks [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  ok(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--brief', 'Files: web/page.txt\nTest: the check passes once the page file exists', '--route', 'mid', '--check', 'node check.cjs', '--json'));
-  ok(box.run(box.web, 'claim', '1', '--json'));
+  ok(await fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--brief', 'Files: web/page.txt\nTest: the check passes once the page file exists', '--route', 'mid', '--check', 'node check.cjs', '--json'));
+  ok(await box.runLocal(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'built\n');
   box.git(box.web, 'add', '-A');
@@ -48,18 +66,18 @@ function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand =
   return { box, logs, armed };
 }
 
-test('a second submit of an unchanged tree runs no static or doctrine check and cites the receipts [V4,C7]', { timeout: 240_000 }, (t) => {
+test('a second submit of an unchanged tree runs no static or doctrine check and cites the receipts [V4,C7]', { timeout: 240_000 }, async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const { box, logs, armed } = project(helpers);
+  const { box, logs, armed } = await project(helpers);
   rmSync(armed, { force: true });
-  const red = box.run(box.web, 'submit', '1', '--json');
+  const red = (await box.runLocal(box.web, 'submit', '1', '--json'));
   assert.notEqual(red.code, 0, 'the item check is red on the first submit');
   assert.equal(runs(logs.static), 1, 'the static check ran once');
   // The doctrine hold measures main's problems once (since #2575) and the candidate once: two runs, then none.
   assert.equal(runs(logs.doctrine), 2, 'the doctrine check ran once at main and once at the candidate');
   writeFileSync(armed, 'green\n');
-  const second = box.run(box.web, 'submit', '1');
+  const second = await withStderrTap(() => box.runLocal(box.web, 'submit', '1'));
   assert.equal(second.code, 0, second.out + second.err);
   assert.equal(runs(logs.static), 1, 'the unchanged tree runs no static check again');
   assert.equal(runs(logs.doctrine), 2, 'the unchanged tree runs no doctrine check again');
@@ -69,17 +87,17 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  ok(fixtureJoin(box.run, review, 'api', '--model', 'Fixture reviewer', '--json'));
-  const checked = box.run(review, 'check', '1', '--yes');
+  ok(await fixtureJoin(box.runLocal, review, 'api', '--model', 'Fixture reviewer', '--json'));
+  const checked = await withStderrTap(() => box.runLocal(review, 'check', '1', '--yes'));
   assert.equal(checked.code, 0, checked.out + checked.err);
   assert.equal(runs(logs.static), 1, 'review on the same tree runs no static check');
   assert.match(checked.out + checked.err, /static check reused receipt/u, 'review cites the receipt');
 });
 
-test('a changed file, check code or config re-runs the check; the same tree in another worktree reuses it [V4,C7]', { timeout: 240_000 }, (t) => {
+test('a changed file, check code or config re-runs the check; the same tree in another worktree reuses it [V4,C7]', { timeout: 240_000 }, async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const { box, logs } = project(helpers);
+  const { box, logs } = await project(helpers);
   const config = { staticChecks: 'node static.cjs', gate: 'true' };
   const spec = (root, extra = {}) => checkReceiptKey(root, { kind: 'static', definition: config.staticChecks, config, ...extra });
   const first = spec(box.web);
@@ -115,10 +133,10 @@ test('a changed file, check code or config re-runs the check; the same tree in a
 });
 
 
-test('a configured external checker changing its real implementation invalidates the doctrine receipt [V4,C7]', t => {
+test('a configured external checker changing its real implementation invalidates the doctrine receipt [V4,C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const { box } = project(helpers);
+  const { box } = await project(helpers);
   const outside = mkdtempSync(join(tmpdir(), 'pullboard-check-code-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   const script = join(outside, 'check.cjs');
@@ -129,13 +147,14 @@ test('a configured external checker changing its real implementation invalidates
   assert.deepEqual(runRuleCheck(box.web, command).problems, []);
   assert.equal(runs(counter), 1, 'an unchanged external checker runs only once');
   writeFileSync(script, "process.stdout.write('new refusal\\n'); process.exit(1);\n");
+  // Process-level case: runs the checker script itself, not the CLI, to prove its real output.
   const actual = runFixtureChild(process.execPath, [script], { cwd: box.web, encoding: 'utf8' });
   assert.equal(actual.status, 1);
   assert.equal(actual.stdout, 'new refusal\n');
   assert.deepEqual(runRuleCheck(box.web, command).problems, ['new refusal']);
 });
 
-test('unchanged-tree submits invalidate static and aggregate doctrine receipts when external checker code changes [V4,C7]', t => {
+test('unchanged-tree submits invalidate static and aggregate doctrine receipts when external checker code changes [V4,C7]', async t => {
   for (const stage of ['static', 'doctrine']) {
     const helpers = createE2eHelpers();
     t.after(helpers.cleanup);
@@ -145,14 +164,14 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
     const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
     const counter = join(outside, 'runs.log');
     writeFileSync(script, `require('node:fs').appendFileSync(${JSON.stringify(counter)}, 'ran\\n');\n`);
-    const { box, armed } = project(helpers, { [`${stage}Command`]: command });
-    assert.notEqual(box.run(box.web, 'submit', '1').code, 0, 'the first item check is red after the guards pass');
-    assert.notEqual(box.run(box.web, 'submit', '1').code, 0, 'an unchanged submit still proves its red item check');
+    const { box, armed } = await project(helpers, { [`${stage}Command`]: command });
+    assert.notEqual((await box.runLocal(box.web, 'submit', '1')).code, 0, 'the first item check is red after the guards pass');
+    assert.notEqual((await box.runLocal(box.web, 'submit', '1')).code, 0, 'an unchanged submit still proves its red item check');
     // The doctrine hold also measures main once, so its guard runs twice on the first submit and never again.
     assert.equal(runs(counter), stage === 'doctrine' ? 2 : 1, 'the unchanged external guard is reused');
     writeFileSync(script, "process.stdout.write('changed checker\\n'); process.exit(1);\n");
     writeFileSync(armed, 'green\n');
-    const second = box.run(box.web, 'submit', '1');
+    const second = await withStderrTap(() => box.runLocal(box.web, 'submit', '1'));
     // A rising doctrine count is a report-only trial refusal (13532c41d): it prints "would refuse" and lets the submit go on.
     if (stage === 'static') assert.notEqual(second.code, 0, 'changed checker bytes cannot reuse a successful guard');
     assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /would refuse RATCHET_ROSE/u);
@@ -160,10 +179,10 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
   }
 });
 
-test('external literal module dependencies are part of a checker definition [V4,C7]', t => {
+test('external literal module dependencies are part of a checker definition [V4,C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const { box } = project(helpers);
+  const { box } = await project(helpers);
   const outside = mkdtempSync(join(tmpdir(), 'pullboard-check-dependency-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   const script = join(outside, 'check.cjs');
@@ -189,10 +208,10 @@ test('external literal module dependencies are part of a checker definition [V4,
 });
 
 
-test('POSIX PATH checker definitions follow the executable the shell actually selects [V4,C7]', { skip: process.platform === 'win32' }, t => {
+test('POSIX PATH checker definitions follow the executable the shell actually selects [V4,C7]', { skip: process.platform === 'win32' }, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const { box } = project(helpers);
+  const { box } = await project(helpers);
   const outside = mkdtempSync(join(tmpdir(), 'pullboard-check-path-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   const skipped = join(outside, 'skipped');
@@ -213,11 +232,11 @@ test('POSIX PATH checker definitions follow the executable the shell actually se
 });
 
 
-test('shell wrappers and tracked constant loaders include changed external helpers [V4,C7]', t => {
+test('shell wrappers and tracked constant loaders include changed external helpers [V4,C7]', async t => {
   for (const wrapper of ['shell', 'shell-without-extension', 'tracked-loader']) {
     const helpers = createE2eHelpers();
     t.after(helpers.cleanup);
-    const { box } = project(helpers);
+    const { box } = await project(helpers);
     const script = join(box.dir, 'wrapped-rule.cjs');
     const counter = join(box.dir, 'wrapped-runs.log');
     writeFileSync(script, `require('node:fs').appendFileSync(${JSON.stringify(counter)}, 'ran\\n');\n`);
@@ -240,10 +259,10 @@ test('shell wrappers and tracked constant loaders include changed external helpe
   }
 });
 
-test('configuration receipts cover both files and report changed parts [V4,C7]', t => {
+test('configuration receipts cover both files and report changed parts [V4,C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const { box } = project(helpers);
+  const { box } = await project(helpers);
   const spec = () => checkReceiptKey(box.repo, { kind: 'config-proof', definition: 'node static.cjs', config: {} });
   const first = spec();
   writeCheckReceipt(box.repo, first);

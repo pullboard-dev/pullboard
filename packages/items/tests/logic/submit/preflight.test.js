@@ -48,7 +48,7 @@ test('a runner clone lacking the newest main commit reads it after one fetch, wi
   assert.throws(() => runFixtureGit(['cat-file', '-e', newest], { cwd: job }), 'the clone starts without the newest commit');
   const entry = readTrunkEntry(job, newest, PLAN);
   assert.equal(entry.status, 0);
-  assert.match(entry.stdout, /^100644 blob [0-9a-f]+\tbin\/cells-plan\.json\0$/u);
+  assert.match(entry.stdout, /^100644 blob [0-9a-f]+\tpackages\/codemap\/data\/plan\/cells\.json\0$/u);
   assert.doesNotThrow(() => requirePlannedSource(job, newest, older, { deferUnplaced: true }), 'placement reads the fetched trunk');
 });
 

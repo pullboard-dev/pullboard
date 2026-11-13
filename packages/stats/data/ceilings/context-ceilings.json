@@ -1,0 +1,6 @@
+{
+  "default": 200000,
+  "families": [
+    { "contains": "haiku", "ceiling": 100000 }
+  ]
+}

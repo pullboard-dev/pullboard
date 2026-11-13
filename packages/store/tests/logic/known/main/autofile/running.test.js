@@ -20,7 +20,7 @@ const failure = { file: 'apps/cli/tests/fixtures/move/registry/cases.js', ran: '
 /** Build the exact frozen repair path used by owner matching. */
 function repair(id, file) {
   return { item_id: id, item_status: 'open', item_title: 'Main red: helper case',
-    item_frozen: JSON.stringify({ check: `node packages/gate/src/io/run/tests.js ${file}`, criterion: 'Repair the helper-defined move case.' }) };
+    item_frozen: JSON.stringify({ check: `node apps/cli/src/io/run/tests.js ${file}`, criterion: 'Repair the helper-defined move case.' }) };
 }
 
 test('a running-file-only owner matches a helper-defined failure on the new engine [V4,B3,H16]', () => {
@@ -53,7 +53,7 @@ test('the higher-engine submit replay records the running path and rejects old-e
   const agentId = store.register(board, { lane: 'web', path: '/fixture/web' });
   const item = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Helper failure submit' });
   const owner = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Main red: helper case',
-    check: `node packages/gate/src/io/run/tests.js ${failure.ran}` });
+    check: `node apps/cli/src/io/run/tests.js ${failure.ran}` });
   store.claim(board, item, { agentId, lane: 'web', leaseMs: 3600000,
     freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }) });
   const known = { main: 'd'.repeat(40), failures: [{ ...failure, item: owner }] };

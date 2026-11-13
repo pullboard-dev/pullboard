@@ -1,6 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** The Dashboard and Roadmap share the approved release headline in real Chrome [N26]. */
+/** The Dashboard's Shipping now card and the Roadmap's release header, each as approved, in real Chrome [N26]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -18,20 +18,20 @@ import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { pickProject } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
 
-/** Seed one release and compare its shared headline in real Chrome across both view surfaces. */
-test('Dashboard and Roadmap share the approved release headline at desktop and phone widths [N26]', { timeout: 180_000 }, async () => {
+/** Seed one release and read it on both view surfaces in real Chrome. */
+test('Dashboard Shipping now and the Roadmap release header read the same release at desktop and phone widths [N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the release header journey.');
   const box = machine(), alpha = project(box, 'release-header');
   for (let id = 1; id <= 5; id++) {
-    box.run(alpha.repo, 'add', 'web', 'Release header item ' + id, '--specs', 'G1', '--criterion', 'The shared release header remains readable.');
+    await box.inProcess(alpha.repo, 'add', 'web', 'Release header item ' + id, '--specs', 'G1', '--criterion', 'The shared release header remains readable.');
     if (id > 3) continue;
     build(box, alpha, id, `release-${id}.txt`);
     accept(box, alpha, id);
     box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
-    box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
+    await box.inProcess(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
-  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--items', '1,2,3,4,5', '--reason', 'the fixture places its own items');
+  await box.inProcess(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--items', '1,2,3,4,5', '--reason', 'the fixture places its own items');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-release-header-'));
   let chrome;
   try {
@@ -41,34 +41,39 @@ test('Dashboard and Roadmap share the approved release headline at desktop and p
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && data.project.milestones?.some(m => m.name === '0.9.4: Restructure for Speed and Cost')`);
     for (const width of [1280, 320]) {
       await press(chrome, "document.querySelector('[data-tab=dashboard]')");
-      await chrome.waitFor("document.querySelector('#dashboard .dash-release-card .release-header')");
+      await chrome.waitFor("document.querySelector('#dashboard .dash-release-card .dash-release-name')");
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      const dashboard = JSON.parse(await chrome.stable("JSON.stringify((()=>{const h=document.querySelector('#dashboard .release-header'),top=h.querySelector('.release-header-top'),title=top.querySelector('.release-name'),left=top.querySelector('.roadmap-left'),line=top.querySelector('.roadmap-forecast'),bar=h.querySelector('.roadmap-summary-bar'),legend=h.querySelector('.roadmap-summary-legend'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}},br=bar.getBoundingClientRect(),lr=legend.getBoundingClientRect();return {title:title.textContent,line:line.textContent.replace(/\\s+/g,' ').trim(),left:left.textContent.replace(/\\s+/g,' ').trim(),leftLabel:left.querySelector('[aria-label]').getAttribute('aria-label'),font:getComputedStyle(title).fontSize,header:box(h),top:box(top),lineBox:box(line),bar:box(bar),legend:box(legend),rowAligned:bar.closest('.roadmap-summary-row')===legend.closest('.roadmap-summary-row')&&br.right<=lr.left&&br.bottom>lr.top&&lr.bottom>br.top,carets:h.querySelectorAll('.caret').length,visibleLabel:document.querySelector('#dashboard .dash-release-card > h2')?.textContent||'',oldStats:document.querySelector('#dashboard .dash-stats')!==null,overflow:document.documentElement.scrollWidth>innerWidth};})())"));
-      assert.equal(dashboard.title, '0.9.4: Restructure for Speed and Cost');
-      assert.match(dashboard.line, /^0\.5 items an hour · 3 landed in the last 6 h, 3 in the last 2 h · done in about 3 hours, /u);
+      // The Dashboard draws the approved Shipping now card (#6646); the Roadmap keeps its own release header.
+      const dashboard = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-release-card'),name=c.querySelector('.dash-release-name'),bar=c.querySelector('.dash-release-bar'),keys=c.querySelector('.dash-release-keys'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}};return {eyebrow:c.querySelector('h2').textContent,eyebrowShown:getComputedStyle(c.querySelector('h2')).textTransform,name:name.textContent,nameFont:getComputedStyle(name).fontFamily,nameSize:getComputedStyle(name).fontSize,nameCase:getComputedStyle(name).textTransform,left:c.querySelector('.dash-release-left').textContent,bars:c.querySelectorAll('.dash-release-bar').length,bar:box(bar),keys:box(keys),keysBelow:keys.getBoundingClientRect().top>=bar.getBoundingClientRect().bottom,tiles:[...c.querySelectorAll('[data-dashboard-tile] .dash-tile-key')].map(n=>n.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})())"));
+      assert.equal(dashboard.eyebrow, 'Shipping now');
+      assert.equal(dashboard.eyebrowShown, 'uppercase', 'the eyebrow reads SHIPPING NOW');
+      assert.equal(dashboard.name, '0.9.4Restructure for Speed and Cost', 'the version, then the release name');
+      assert.doesNotMatch(dashboard.nameFont, /mono/iu, 'the release name is in the body face');
+      assert.equal(dashboard.nameCase, 'none', 'the release name is never set in capitals');
+      assert.equal(dashboard.nameSize, '17px');
       assert.equal(dashboard.left, '2 to go3 of 5 landed');
-      assert.equal(dashboard.leftLabel, '3/5 landed');
-      assert.equal(dashboard.font, '17px');
-      assert.equal(dashboard.carets, 0, 'Dashboard has no Roadmap disclosure caret');
-      assert.equal(dashboard.visibleLabel, '', 'Dashboard has no separate Shipping now label');
-      assert.equal(dashboard.oldStats, false, 'the old pace boxes are removed');
+      assert.equal(dashboard.bars, 1, 'one stage bar');
+      assert.ok(dashboard.bar.width > 0 && dashboard.keys.width > 0 && dashboard.keysBelow, `${width}px the legend sits under the bar`);
+      assert.deepEqual(dashboard.tiles, ['Today’s pace', 'Right now', 'Done at this pace']);
       assert.equal(dashboard.overflow, false, `${width}px Dashboard has no horizontal overflow`);
-      assert.ok(dashboard.bar.width > 0 && dashboard.legend.width > 0, `${width}px header retains both progress bar and state key`);
+      // The bar and its legend paint in the formal stage colours: each segment and its swatch resolve to the same stage token.
+      const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-release-card'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','stage-ready']]){out[key]={token:token(name),fill:getComputedStyle(c.querySelector('rect.dash-release-'+key)).fill,swatch:getComputedStyle(c.querySelector('i.dash-release-'+key)).backgroundColor};}probe.remove();return out;})())"));
+      for (const [key, seen] of Object.entries(colours)) {
+        assert.equal(seen.fill, seen.token, `${width}px the ${key} segment is its stage colour`);
+        assert.equal(seen.swatch, seen.token, `${width}px the ${key} legend swatch is its stage colour`);
+      }
 
       await press(chrome, "document.querySelector('[data-tab=roadmap]')");
       await chrome.waitFor("document.querySelector('#roadmap .release-header .release-name')");
       const roadmap = JSON.parse(await chrome.stable("JSON.stringify((()=>{const h=document.querySelector('#roadmap .release-header'),top=h.querySelector('.release-header-top'),title=top.querySelector('.release-name'),left=top.querySelector('.roadmap-left'),line=top.querySelector('.roadmap-forecast'),bar=h.querySelector('.roadmap-summary-bar'),legend=h.querySelector('.roadmap-summary-legend'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}},br=bar.getBoundingClientRect(),lr=legend.getBoundingClientRect();return {title:title.textContent,line:line.textContent.replace(/\\s+/g,' ').trim(),left:left.textContent.replace(/\\s+/g,' ').trim(),leftLabel:left.querySelector('[aria-label]').getAttribute('aria-label'),font:getComputedStyle(title).fontSize,header:box(h),top:box(top),lineBox:box(line),bar:box(bar),legend:box(legend),rowAligned:bar.closest('.roadmap-summary-row')===legend.closest('.roadmap-summary-row')&&br.right<=lr.left&&br.bottom>lr.top&&lr.bottom>br.top,carets:h.querySelectorAll('.release-header-toggle > .caret').length,limit:h.querySelector('.milestone-limit')?.textContent||'',overflow:document.documentElement.scrollWidth>innerWidth};})())"));
-      assert.deepEqual([roadmap.title, roadmap.line, roadmap.left, roadmap.leftLabel, roadmap.font],
-        [dashboard.title, dashboard.line, dashboard.left, dashboard.leftLabel, dashboard.font], `${width}px both surfaces show the same native release facts`);
+      assert.equal(roadmap.title, '0.9.4: Restructure for Speed and Cost');
+      assert.match(roadmap.line, /^0\.5 items an hour · 3 landed in the last 6 h, 3 in the last 2 h · done in about 3 hours, /u);
+      assert.equal(roadmap.left, '2 to go3 of 5 landed');
+      assert.equal(roadmap.leftLabel, '3/5 landed');
       assert.equal(roadmap.carets, 1, 'Roadmap keeps its release disclosure caret');
       assert.equal(roadmap.limit, '', 'Roadmap removes the extra total-items label');
       assert.equal(roadmap.overflow, false, `${width}px Roadmap has no horizontal overflow`);
-      assert.equal(roadmap.bar.height, dashboard.bar.height, `${width}px progress bars share their geometry`);
-      assert.ok(dashboard.rowAligned && roadmap.rowAligned, `${width}px each state key shares its aligned row with the progress bar`);
-      assert.ok(
-        Math.abs(roadmap.bar.width / (roadmap.bar.width + roadmap.legend.width)
-          - dashboard.bar.width / (dashboard.bar.width + dashboard.legend.width)) < 0.01,
-        `${width}px the bar and key keep the same relative widths in their natural containers`);
+      assert.ok(roadmap.rowAligned, `${width}px the Roadmap state key shares its aligned row with the progress bar`);
     }
     assert.deepEqual(chrome.exceptions, []);
   } finally {

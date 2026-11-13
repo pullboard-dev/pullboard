@@ -90,7 +90,7 @@ export function incrementalAudit(keys, previous = null) {
 /** Only a literal named-file Node command can be considered for the Main red sweep. */
 export function mainRedCheckFiles(check) {
   if (typeof check !== 'string') return null;
-  const command = check.startsWith('node packages/gate/src/io/run/tests.js ') ? 'node packages/gate/src/io/run/tests.js '
+  const command = check.startsWith('node apps/cli/src/io/run/tests.js ') ? 'node apps/cli/src/io/run/tests.js '
     : check.startsWith('node --test ') ? 'node --test ' : null;
   if (!command) return null;
   const files = check.slice(command.length).split(' ');

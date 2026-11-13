@@ -1,6 +1,30 @@
 /** Post-landing observations share the exact adopted tip [N2,B3]. */
+import { spawnReachable } from '../../../../jobs/index.js';
 import * as store from '../../../../store/index.js';
 import { warnMainMoved } from '../../../../merge/index.js';
+
+/**
+ * The node arguments that refresh the code map for the checkout, run by the detached process.
+ *
+ * @param {string} root - The primary checkout.
+ * @returns {string[]}
+ */
+export function codeMapRefreshArgs(root) {
+  const index = new URL('../../../../codemap/index.js', import.meta.url).href;
+  return ['--input-type=module', '-e', `const { refreshLandedCodeMap } = await import(${JSON.stringify(index)}); refreshLandedCodeMap(${JSON.stringify(root)});`];
+}
+
+/**
+ * Start the code map refresh as a detached process and return at once.
+ *
+ * Why: the refresh takes about 11 s and the next batch must not wait for it; the process still finishes on its own [C7].
+ *
+ * @param {string} root - The primary checkout.
+ * @returns {Promise<{ pid: number | null }>}
+ */
+export function startCodeMapRefresh(root) {
+  return spawnReachable(process.execPath, codeMapRefreshArgs(root), { cwd: root, launchd: false });
+}
 
 /**
  * Refresh the derived source map after the landing receipt and main fast-forward have completed.
@@ -18,9 +42,8 @@ export async function refreshLandedCodeMap(state) {
     deferred.push({ kind: 'main-moved', main: state.batch.tip });
   }
   try {
-    const { refreshLandedCodeMap: refresh } = await import('../../../../codemap/index.js');
-    const map = refresh(state.root);
-    if (map) state.say('code map refreshed for main ' + map.mainCommit.slice(0, 12));
+    await (state.startCodeMapRefresh ?? startCodeMapRefresh)(state.root);
+    state.say('code map refresh started in the background');
   } catch (error) {
     state.say('code map refresh deferred: ' + error.message);
   }

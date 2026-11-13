@@ -14,7 +14,6 @@ const ROOT_SEGMENTS = new Set(['bin', 'src', 'test', 'relay']);
 /** Files allowed to pass a root segment followed by more segments, each with the reason. */
 const EXCEPTIONS = new Map([
   ['packages/doctrine/tests/hooks.test.js', 'spawns the CLI; naming apps/cli/pullboard.js as one string makes the cell-test ratchet count it as a new finding, so the coordinator moves it to the journeys'],
-  ['packages/gate/tests/io/receipts.test.js', 'spawns the CLI; naming apps/cli/pullboard.js as one string makes the cell-test ratchet count it as a new finding, so the coordinator moves it to the journeys'],
   ['docs/shots/demo.mjs', 'docs lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
   ['docs/shots/video.mjs', 'docs lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
   ['apps/cli/journeys/verify/item/panel.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],

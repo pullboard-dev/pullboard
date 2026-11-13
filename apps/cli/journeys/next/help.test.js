@@ -253,8 +253,8 @@ test('clause 1: help add example runs on a fresh board and its help adds no next
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM'].includes(key)) delete env[key];
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
-  const initialized = runFixtureChild(process.execPath, [BIN, 'init'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(initialized.status, 0, initialized.failure ?? `${initialized.stdout}${initialized.stderr}`);
+  const initialized = await runCliInProcess(['init'], { cwd: root, env });
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
 
   const help = runFixtureChild(process.execPath, [BIN, 'help', 'add'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(help.status, 0, help.failure ?? help.stderr);
@@ -297,7 +297,7 @@ test('the settings forms the CLI dispatches have help and reach their own refusa
     const help = (await run('help', 'settings', form));
     assert.equal(help.status, 0, `help settings ${form} exits 0: ${help.stderr}`);
     assert.match(help.stdout, new RegExp(`^Usage: pullboard settings ${form.replace('.', '\\.')} `, 'u'), `help settings ${form} names its usage`);
-    const refused = runFixtureChild(process.execPath, [BIN, 'settings', form, 'abc'], { cwd: folder, encoding: 'utf8' });
+    const refused = await runCliInProcess(['settings', form, 'abc'], { cwd: folder });
     assert.equal(refused.status, 1, `settings ${form} abc is refused: ${refused.stdout}`);
     assert.ok(refused.stderr.includes(code), `settings ${form} reaches its own check ${code}: ${refused.stderr}`);
   }

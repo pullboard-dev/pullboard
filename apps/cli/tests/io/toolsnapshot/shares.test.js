@@ -14,7 +14,10 @@ import { temporaryDirectory } from '../../fixtures/board.js';
 import { temporaryRepository } from '../../fixtures/board/submit.js';
 import { copyTools } from '../../../src/io/submit/handoff.js';
 import { toolsSnapshot } from '../../../src/io/submit/handoff.js';
+import { existsSync } from 'node:fs';
+import { sharedToolsTarget } from '../../../src/io/submit/handoff.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
+import { prepareComparison } from '../../../../../packages/verify/index.js';
 
 /**
  * Run git in a folder with no user config.
@@ -86,4 +89,30 @@ test('clause 1: two comparisons at the same tooling share one tools folder and t
   assert.equal(toolsOf(first.job), join(temp, folders[0]), 'the first request names the shared folder');
   assert.equal(toolsOf(second.job), toolsOf(first.job), 'both requests name the same tools folder');
   assert.equal(readdirSync(join(temp, folders[0])).includes('bin'), true, 'the folder is not removed at launch');
+});
+
+test('clause 1: a cold comparison snapshot is built by the detached worker from the pinned commit, so launch copies nothing [C7]', async t => {
+  const { temp, repo, common } = sandbox(t);
+  let copies = 0;
+  const snapshot = (root, job, dir) => toolsSnapshot(root, job, dir, { copy: (from, to) => { copies += 1; copyTools(from, to); } });
+  const launched = [];
+  const request = { origin: repo, commonDir: common, toolRoot: repo, entry: 'apps/cli/pullboard.js', item: 1, source: 'abc', digest: 'def' };
+  const snapshotModule = new URL('../../../src/io/submit/handoff.js', import.meta.url).href;
+  const { job } = await launchComparisonWorker(request, { snapshot, plan: sharedToolsTarget, snapshotModule, spawnWorker: fakeSpawn(launched) });
+  assert.equal(copies, 0, 'launch returns before any copy');
+  const target = sharedToolsTarget(repo);
+  assert.equal(existsSync(target.tools), false, 'the shared folder is not built at launch');
+  const requestFile = join(common, 'pullboard', 'review-comparisons', job, 'request.json');
+  const recorded = JSON.parse(readFileSync(requestFile, 'utf8'));
+  assert.equal(recorded.tools, target.tools, 'the request names the shared folder');
+  assert.equal(recorded.toolsCommit, git(repo, 'rev-parse', 'HEAD'), 'the request pins the commit taken at launch');
+  writeFileSync(join(repo, 'bin', 'a.js'), 'export const changed = 1;\n');
+  git(repo, 'commit', '-qam', 'branch moved after launch');
+  const runs = [];
+  await prepareComparison(requestFile, { runTools: async args => { runs.push(args); return { status: 0 }; } });
+  assert.equal(readFileSync(join(target.tools, 'bin', 'a.js'), 'utf8'), 'export const bin = 1;\n', 'the worker builds the pinned commit, not the moved checkout');
+  assert.equal(runs.length, 1, 'the comparison then runs once');
+  assert.match(runs[0][0], /comparison\.js$/u, 'the run is the comparison worker, named under the built shared folder');
+  assert.equal(runs[0][1], requestFile);
+  assert.equal(readdirSync(temp).filter(name => /^pullboard-handoff-tools-[0-9a-f]{40}$/u.test(name)).length, 1, 'one shared folder');
 });

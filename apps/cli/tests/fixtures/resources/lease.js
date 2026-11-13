@@ -65,7 +65,7 @@ try {
 import { runSubmitGate } from ${JSON.stringify(GATE_MODULE)};
 ${executionServicesSource(GATE_MODULE)}
 const [root, base, check] = process.argv.slice(1);
-const result = await runSubmitGate(root, { gate: 'true', affectedTests: 'node packages/gate/src/io/run/tests.js test/cpu-check.test.js' }, { executionServices,
+const result = await runSubmitGate(root, { gate: 'true', affectedTests: 'node apps/cli/src/io/run/tests.js test/cpu-check.test.js' }, { executionServices,
   base, changed: ['test/cpu-check.test.js'], check, agent: 'submit-check', item: '636',
 });
 process.stdout.write(JSON.stringify({ green: result.isGreen, full: result.full, reason: result.reason, files: result.files, checkGreen: result.check.green }) + '\\n');

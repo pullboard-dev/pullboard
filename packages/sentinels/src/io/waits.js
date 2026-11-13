@@ -87,7 +87,7 @@ function removeDead(file) {
  * Ports keep this testable on a real board: openKey(key) says whether an open item carries the key, fileItem(draft)
  * files one, shout(text) records, prunePools(scope) runs the queue's own prune, release(heartbeat) frees a claim.
  */
-export async function recordWaits(snapshot, { openKey, fileItem, shout, prunePools = () => {}, release = async () => false, terminate = terminateOrphan, remove = removeDead }) {
+export async function recordWaits(snapshot, { openKey, repeat = async () => {}, fileItem, shout, prunePools = () => {}, release = async () => false, terminate = terminateOrphan, remove = removeDead }) {
   const { budgets } = snapshot;
   const reclaimed = [], filed = [], deduplicated = [], notes = [];
   const handled = new Set();
@@ -128,7 +128,13 @@ export async function recordWaits(snapshot, { openKey, fileItem, shout, prunePoo
   for (const row of snapshot.rows) {
     if (!row.breach || handled.has(row) || !budgets.file) continue;
     const key = waitKey(row);
-    if (openKey(key)) { deduplicated.push(key); continue; }
+    const open = openKey(key);
+    if (open) {
+      deduplicated.push(key);
+      // A repeat with a new holder adds a fact to the open item; the port skips a pid it already recorded [C7].
+      if (Number.isSafeInteger(open)) await repeat(open, `Again over budget: ${row.holder}${row.pid ? ` (pid ${row.pid})` : ''}, ${sayAge(row.ageMs)} held`, row.pid ?? null);
+      continue;
+    }
     const draft = waitItemDraft(row);
     filed.push({ id: await fileItem(draft), key, title: draft.title });
   }
@@ -153,7 +159,14 @@ function waitShout(over, ids, reclaimed) {
   return line(shown);
 }
 
-/** Whether an open, claimed or submitted item's brief already carries this wait key. */
+/** The id of the open, claimed or submitted item whose brief carries this wait key, or 0. */
 export function openWaitKey(db, key) {
-  return Boolean(db.prepare("SELECT 1 FROM item WHERE item_status IN ('open', 'claimed', 'submitted') AND instr(item_brief, ?) > 0 LIMIT 1").get(`Wait key: ${key}`));
+  return db.prepare("SELECT item_id FROM item WHERE item_status IN ('open', 'claimed', 'submitted') AND instr(item_brief, ?) > 0 ORDER BY item_id LIMIT 1").get(`Wait key: ${key}`)?.item_id ?? 0;
+}
+
+/** Whether an item's brief or thread already names this holder pid, so a repeat of the same holder adds no second fact. */
+export function waitPidRecorded(db, id, pid) {
+  const mark = `(pid ${pid})`;
+  return Boolean(db.prepare("SELECT 1 FROM item WHERE item_id = ? AND instr(item_brief, ?) > 0").get(id, mark)
+    || db.prepare("SELECT 1 FROM event WHERE item_id = ? AND instr(event_detail, ?) > 0 LIMIT 1").get(id, mark));
 }

@@ -23,7 +23,7 @@ import {
 
 /** Clause 1 proof: the four view-lane tests take their bindings from the cli front door, not the shims. */
 test('clause 1: the four view-lane tests import nothing from a top-level src file, so no shim [N26]', () => {
-  for (const file of ['dashboard-clock.test.js', 'relay-signin.test.js', 'lifecycle-ordinary-seed.js', 'prose.test.js']) {
+  for (const file of ['clock.test.js', '../relay/signin.test.js', '../../tests/fixtures/cockpit/lifecycle/seed/ordinary.js', '../shout/prose.test.js']) {
     const source = readFileSync(new URL(file, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /(?:\.\.\/)+src\/[\w-]+\.js['"]/, `${file} still imports a top-level src file`);
   }

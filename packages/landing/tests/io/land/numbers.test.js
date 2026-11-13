@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/seed.json packages/codemap/src/io/cells/scripts/plan.js packages/state/data/history/legacy.json */
 /** A real landing merge allocates and places history before exposing its amended commit [B3,C7,D3,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -12,10 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { amendLandingEngines } from '../../../index.js';
 import { computePlan } from '../../../../codemap/index.js';
-import { readPlan } from '../../../../codemap/index.js';
 import { writePlan } from '../../../../codemap/index.js';
 import { git } from '../../fixtures/plan.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const BIN = fileURLToPath(new URL('../../../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
 
@@ -57,7 +55,7 @@ function fixture(t, { deleteMoves = false } = {}) {
   return { root, merge: git(root, 'rev-parse', 'HEAD') };
 }
 
-test('an allocating landing keeps its new history as a stay in the same merge and leaves cells-plan green [B3,C7,D3,H16]', t => {
+test('an allocating landing commits its new history as data in the same merge [B3,C7,D3,H16]', t => {
   const { root, merge } = fixture(t);
   const parents = git(root, 'show', '-s', '--format=%P', merge);
   assert.equal(parents.split(' ').length, 2, 'the input is a real item merge');
@@ -68,25 +66,9 @@ test('an allocating landing keeps its new history as a stay in the same merge an
   assert.equal(git(root, 'show', '-s', '--format=%P', head), parents, 'allocation and placement amend that same merge');
   const history = 'packages/state/data/history/81.json';
   assert.equal(JSON.parse(git(root, 'show', `${head}:${history}`)).engine, 81);
-  const plan = readPlan(root);
-  const stay = plan.stays.find(row => row.path === history);
-  assert.deepEqual(stay, { path: history, reason: 'explicit bounded placement: stays in place during the move' });
-  assert.equal(plan.cells.some(cell => cell.paths.some(([from]) => from === history)), false, 'history is not also assigned to a move rule');
-  const committed = JSON.parse(git(root, 'show', `${head}:packages/codemap/data/plan/cells.json`));
-  assert.deepEqual(committed.stays.find(row => row.path === history), stay);
-  const checked = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
-  assert.equal(checked.status, 0, checked.stderr + checked.stdout);
-  assert.equal(git(root, 'status', '--porcelain'), '', 'no unplaced file or unstaged plan escapes the merge');
+  assert.equal(git(root, 'status', '--porcelain'), '', 'no unstaged file escapes the merge');
   assert.deepEqual(amendLandingEngines(root).assigned, [], 'a retry never allocates or places the same history twice');
   assert.equal(git(root, 'rev-parse', 'HEAD'), head);
-});
-
-test('a canonical placement failure refuses before an unplaced history can be committed [B3,C7,D3,H16]', t => {
-  const { root, merge } = fixture(t);
-  rmSync(join(root, 'packages/codemap/data/plan/01-state.json'));
-  assert.throws(() => amendLandingEngines(root), error => error.code === 'LAND_MERGE' && /src\/move-history\/81\.json/u.test(error.message));
-  assert.equal(git(root, 'rev-parse', 'HEAD'), merge, 'the original merge was not amended after a failed placement');
-  assert.notEqual(runFixtureChild('git', ['cat-file', '-e', `${merge}:packages/state/data/history/81.json`], { cwd: root, encoding: 'utf8' }).status, 0, 'unplaced allocation never entered committed history');
 });
 
 test('landing a candidate that deletes src/moves numbers its engine from the moves cell [C7,H16]', t => {

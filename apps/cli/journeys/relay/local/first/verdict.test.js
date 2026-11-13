@@ -51,7 +51,7 @@ function submittedBoard(t) {
   handles.push(board);
   const item = store.getItem(board, 1);
   const frozen = JSON.parse(item.item_frozen);
-  assert.equal(frozen.policy.verify.policy, 'any');
+  assert.equal(frozen.policy, undefined, 'the native freeze holds the bar alone; the verdict carries its policy [B4]');
   // Synthetic replay actors use native registration, not forged credentials or a production board.
   const reviewer = store.register(board, { lane: 'web', path: join(box.dir, 'offline-reviewer') });
   const peer = store.register(board, { lane: 'web', path: join(box.dir, 'peer-reviewer') });
@@ -62,7 +62,7 @@ function submittedBoard(t) {
 function verdict(item, actor, decision, trunk) {
   return { agentId: actor, decision, ...(decision === 'REJECT' ? { reason: 'OTHER', clause: 'The page renders.' } : {}),
     note: 'Replay semantics fixture; this verdict is not proof of a product gate.',
-    head: item.item_commit, digest: item.item_frozen_digest, policy: 'any',
+    head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'off',
     review: { commit: item.item_commit, head: item.item_commit, trunk, paths: ['web/page.html'] } };
 }
 

@@ -41,7 +41,7 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   // Each Git process names the process that started it, so the wait can be checked for observation by polling.
   const realGit = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-  writeFileSync(join(gitBin, 'git'), `#!/bin/sh\necho "$PPID" >> ${JSON.stringify(gitCalls)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
+  writeFileSync(join(gitBin, 'git'), `#!/bin/sh\necho "$PPID $*" >> ${JSON.stringify(gitCalls)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
   chmodSync(join(gitBin, 'git'), 0o755);
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
   // The parent samples the controller's CPU each second from outside it; the controller itself has no timer to wake.
@@ -53,9 +53,9 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
     ${executionServicesSource(gate)}
     const cpuSeconds = ${cpuSeconds.toString()};
     const root = ${JSON.stringify(box.repo)}, requests = ${JSON.stringify(requests)}, samples = ${JSON.stringify(samples)}, gitCalls = ${JSON.stringify(gitCalls)};
-    const gitBy = pids => existsSync(gitCalls) ? readFileSync(gitCalls, 'utf8').split(String.fromCharCode(10)).filter(line => pids.includes(Number(line))).length : 0;
+    const gitBy = pids => existsSync(gitCalls) ? readFileSync(gitCalls, 'utf8').split(String.fromCharCode(10)).filter(line => pids.includes(Number(line.split(' ')[0]))).length : 0;
     writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
-      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000 },
+      gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnersOnly: true, runnerWaitMs: 30000, runnerDispatch: 'controller' },
       runners: [{ host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 1 }]
     }));
     let done = false;
@@ -86,7 +86,7 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     const result = await running;
-    console.log(JSON.stringify({ controllers, gitDuring, waitedMs: Date.now() - started, result: { exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), refused: result.refused, message: result.message } }));`;
+    console.log(JSON.stringify({ controllers, gitDuring, gitLines: existsSync(gitCalls) ? readFileSync(gitCalls, 'utf8').split(String.fromCharCode(10)).filter(line => controllers.includes(Number(line.split(' ')[0]))).slice(-12) : [], waitedMs: Date.now() - started, result: { exitCode: result.exitCode, isGreen: result.isGreen, output: String(result.output ?? ''), refused: result.refused, message: result.message } }));`;
   const env = { ...box.env, PATH: `${gitBin}:${bin}:${box.env.PATH}` };
   delete env.NODE_TEST_CONTEXT;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script],
@@ -103,6 +103,6 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
   const waited = rows.at(-1).at - rows[0].at, used = rows.at(-1).cpu - rows[0].cpu;
   t.diagnostic(`controller CPU while waiting: ${used.toFixed(2)} s over ${waited} ms`);
   assert.ok(waited >= 25_000, `the controller was watched for ${waited} ms of the 30 s job`);
-  assert.equal(actual.gitDuring, 0, 'the waiting controller wakes on events, so it starts no Git process to observe its item or source');
+  assert.equal(actual.gitDuring, 0, JSON.stringify(actual.gitLines) + 'the waiting controller wakes on events, so it starts no Git process to observe its item or source');
   assert.ok(used < 0.3, `a controller waiting ${waited} ms on its remote job used ${used.toFixed(2)} s of CPU`);
 });

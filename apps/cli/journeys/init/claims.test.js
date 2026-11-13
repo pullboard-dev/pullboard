@@ -42,12 +42,17 @@ test('a claim is reopened after its seat has missed heartbeats for two minutes a
   assert.equal(releaseFor(box.board, id)?.reclaim?.seat, box.seats.builder.id);
 });
 
-test('a missing seat worktree reopens its claim before the lease expires [C7]', async t => {
+test('a missing seat worktree alone keeps a heartbeating claim, and reopens it once the heartbeat lapses [C7]', async t => {
   const box = await fixture(t);
   const id = claimedWork(box, 'Missing process worktree claim');
   rmSync(box.seats.builder.path, { recursive: true, force: true });
 
-  await writeFromActor(box, 'Observe a missing seat worktree.');
+  await writeFromActor(box, 'Observe a missing seat worktree with a live heartbeat.');
+
+  assert.equal(store.getItem(box.board, id).item_status, 'claimed');
+  box.advance(QUIET_MS + 1);
+
+  await writeFromActor(box, 'Observe a missing seat worktree with a lapsed heartbeat.');
 
   assert.equal(store.getItem(box.board, id).item_status, 'open');
   assert.equal(releaseFor(box.board, id)?.reclaim?.seat, box.seats.builder.id);

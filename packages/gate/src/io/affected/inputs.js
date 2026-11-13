@@ -4,6 +4,34 @@ import { posix } from 'node:path';
 /** A scanner declares this header when it reads the whole documentation tree. */
 export const DOCS_TREE_INPUT = '/** @pullboard-test-input docs-tree */';
 
+const SOURCE_CELL_LINE = /^\/\*\* @pullboard-test-input source-cell((?:\s+[\w.-]+(?:\/[\w.-]+)?)+)\s*\*\/$/u;
+const TEST_SIDE = /^(?:packages\/[^/]+\/tests|apps\/[^/]+\/(?:tests|journeys))\//u;
+
+/**
+ * The cells a header line names, `/** @pullboard-test-input source-cell gate *\/`, as path prefixes; null when the line is
+ * not a source-cell line. A cell is `packages/<name>`, `apps/<name>` or a bare name that means either. A test that names
+ * cells reads only those cells' source, so a change elsewhere leaves it alone [C7].
+ */
+export function sourceCellPrefixes(line) {
+  const match = SOURCE_CELL_LINE.exec(line.trim());
+  if (!match) return null;
+  return match[1].trim().split(/\s+/u).flatMap(cell => (cell.includes('/') ? [cell] : [`packages/${cell}`, `apps/${cell}`])).map(cell => `${cell}/`);
+}
+
+/** True when a header line starts a source-cell declaration, well formed or not. */
+export function isSourceCellLine(line) {
+  return /^\/\*\* @pullboard-test-input source-cell(?:\s|\*)/u.test(line.trim());
+}
+
+/** True when a test's cell-scoped header lines name a cell holding a changed source file. */
+export function readsChangedCell(headers, changed) {
+  for (const line of headers) {
+    const prefixes = sourceCellPrefixes(line);
+    if (prefixes && changed.some(path => !TEST_SIDE.test(path) && prefixes.some(prefix => path.startsWith(prefix)))) return true;
+  }
+  return false;
+}
+
 /**
  * Find literal documentation inputs without executing repository code. File references are resolved
  * both from the repository and from the reader; directory references deliberately overselect their

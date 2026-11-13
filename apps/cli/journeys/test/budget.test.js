@@ -94,7 +94,7 @@ test('canonical phase replay partitions the whole operation without adding worke
   assert.equal(report.submit.p50Ms, 1000, 'child phases and repeated profile copies are not additive');
 });
 
-test('stats replays private receipt storage in JSON and text with uncertainty intact [C7]', { timeout: 30000 }, t => {
+test('stats replays private receipt storage in JSON and text with uncertainty intact [C7]', { timeout: 30000 }, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node --test');
@@ -103,13 +103,13 @@ test('stats replays private receipt storage in JSON and text with uncertainty in
   writeFileSync(file, rows().map(row => JSON.stringify({ ...row, at: '2026-01-01T00:00:00Z' })).join('\n') + '\n');
   const before = readFileSync(file, 'utf8');
   // budget: timeout above is only a hang ceiling for the real CLI fixture.
-  const json = box.run(box.repo, 'stats', '--json');
+  const json = await box.runLocal(box.repo, 'stats', '--json');
   assert.equal(json.code, 0, json.err);
   const document = JSON.parse(json.out);
   assert.equal(document.testWallBudgets.submit.receipts, 50);
   assert.equal(document.testWallBudgets.submit.p50Ms, 26000);
   assert.equal(document.testWallBudgets.dayOfRealLandings, 'not-asserted');
-  const text = box.run(box.repo, 'stats');
+  const text = await box.runLocal(box.repo, 'stats');
   assert.equal(text.code, 0, text.err);
   assert.match(text.out, /test wall budgets, last 50 receipts each \(waits included\)/);
   assert.match(text.out, /landing-gate: 50\/50 receipts/);

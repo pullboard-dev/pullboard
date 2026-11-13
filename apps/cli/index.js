@@ -11,7 +11,8 @@ export { CHECKOUT_LEASES as cli$CHECKOUT_LEASES, HELP as cli$HELP, MainSpecMerge
 export { cockpitPage as cockpit$cockpitPage } from "./src/io/cockpit.js";
 export { COMMANDS, UNLISTED_COMMANDS } from "./src/io/commands/index.js";
 export { nativeBoardRequired, run as commandsStatus$run } from "./src/io/commands/status.js";
-export { claimedItemRoot, itemFolderIdentity, itemFolderPath, seatAt, seatRoot, writeItemMarker } from "./src/io/item/folder/identity.js";
+export { claimedItemRoot } from "../../packages/items/index.js";
+export { itemFolderIdentity, itemFolderPath, seatAt, seatRoot, writeItemMarker } from "./src/io/item/folder/identity.js";
 export { run as commandsWorktree$run, worktreeFor } from "./src/io/commands/worktree.js";
 export { HELP as help$HELP, SETTING_FORMS, VERSION as help$VERSION, buildHelp, commandPhrases } from "./src/logic/help.js";
 export { ALL_HELP, HELP_SECTIONS } from "./src/logic/help/sections.js";

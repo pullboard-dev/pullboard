@@ -21,10 +21,10 @@ function document(result) {
 }
 
 /** Invoke a native command under an explicit independent fixture session. */
-function asSession(box, session, cwd, ...args) {
+async function asSession(box, session, cwd, ...args) {
   const previous = box.env.CODEX_THREAD_ID;
   box.env.CODEX_THREAD_ID = session;
-  try { return box.run(cwd, ...args, '--json'); }
+  try { return await box.runLocal(cwd, ...args, '--json'); }
   finally {
     if (previous === undefined) delete box.env.CODEX_THREAD_ID;
     else box.env.CODEX_THREAD_ID = previous;
@@ -32,10 +32,10 @@ function asSession(box, session, cwd, ...args) {
 }
 
 /** Join an independent real detached worktree without changing the candidate checkout. */
-function seat(box, name, lane, commit) {
+async function seat(box, name, lane, commit) {
   const path = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, commit);
-  const joined = document(asSession(box, name, path, 'join', lane));
+  const joined = document((await asSession(box, name, path, 'join', lane)));
   return { path, id: joined.agent, session: name };
 }
 
@@ -47,7 +47,7 @@ function liveSource(box, root) {
     companion: existsSync(join(root, 'api/companion.txt')) };
 }
 
-test('a native companion patch is independently checked and lands the exact accepted composition [V1,V4,H16,B3]', t => {
+test('a native companion patch is independently checked and lands the exact accepted composition [V1,V4,H16,B3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -91,12 +91,12 @@ test('a native companion patch is independently checked and lands the exact acce
     "}",
     "process.exitCode = pass ? 0 : 1;",
   ].join('\n'));
-  const added = document(fixtureAdd(box.run, box.repo, 'web', 'A feature requiring a native companion',
+  const added = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'A feature requiring a native companion',
     '--criterion', 'The companion contains exactly the required bytes.', '--specs', 'G1',
-    '--check', `node ${JSON.stringify(script)}`, '--json'));
+    '--check', `node ${JSON.stringify(script)}`, '--json')));
   const id = added.item.item_id;
-  const builder = document(asSession(box, 'patch-journey-builder', box.web, 'whoami')).id;
-  document(asSession(box, 'patch-journey-builder', box.web, 'claim', String(id)));
+  const builder = document((await asSession(box, 'patch-journey-builder', box.web, 'whoami'))).id;
+  document((await asSession(box, 'patch-journey-builder', box.web, 'claim', String(id))));
   const previousSession = box.env.CODEX_THREAD_ID;
   box.env.CODEX_THREAD_ID = 'patch-journey-builder';
   let committed;
@@ -106,10 +106,10 @@ test('a native companion patch is independently checked and lands the exact acce
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   // State-only setup: this deliberately does not claim the missing companion passed a Submit gate.
   submitFixture(board, id, { agentId: builder, commit: submitted, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') });
-  const author = seat(box, 'patch-journey-author', 'api', submitted);
-  const reviewer = seat(box, 'patch-journey-reviewer', 'api', submitted);
+  const author = await seat(box, 'patch-journey-author', 'api', submitted);
+  const reviewer = await seat(box, 'patch-journey-reviewer', 'api', submitted);
   const before = liveSource(box, reviewer.path);
-  const red = asSession(box, reviewer.session, reviewer.path, 'verify', String(id), 'accept', '--note', 'The real frozen check must refuse missing bytes.');
+  const red = await asSession(box, reviewer.session, reviewer.path, 'verify', String(id), 'accept', '--note', 'The real frozen check must refuse missing bytes.');
   assert.equal(red.code, 1, red.err || red.out);
   assert.equal(JSON.parse(red.out).error.code, 'CHECK_RED');
   assert.equal(store.getItem(board, id).item_status, 'submitted');
@@ -120,16 +120,16 @@ test('a native companion patch is independently checked and lands the exact acce
   const patch = box.git(author.path, 'diff', '--cached', '--binary') + '\n';
   const patchFile = join(box.dir, 'companion.patch');
   writeFileSync(patchFile, patch);
-  document(box.run(box.repo, 'patch', 'attach', String(id), patchFile, '--key', 'companion-v1', '--author', author.id, '--source', submitted, '--json'));
-  const authorRefused = asSession(box, author.session, author.path, 'next', '--verify', String(id));
+  document((await box.runLocal(box.repo, 'patch', 'attach', String(id), patchFile, '--key', 'companion-v1', '--author', author.id, '--source', submitted, '--json')));
+  const authorRefused = await asSession(box, author.session, author.path, 'next', '--verify', String(id));
   assert.equal(authorRefused.code, 1, authorRefused.err || authorRefused.out);
   assert.match(JSON.parse(authorRefused.out).error.code, /^SELF_(?:SESSION_)?VERIFY$/);
-  const offer = document(asSession(box, reviewer.session, reviewer.path, 'next', '--verify', String(id)));
+  const offer = document((await asSession(box, reviewer.session, reviewer.path, 'next', '--verify', String(id))));
   assert.deepEqual(offer.companions.keys, ['companion-v1']);
   assert.equal(readFileSync(join(reviewer.path, 'api/companion.txt'), 'utf8'), 'required companion\n', 'reservation hands over the actual composed checkout');
   assert.equal(box.git(reviewer.path, 'rev-parse', 'HEAD'), offer.companions.commit);
   const beforePatchedReview = liveSource(box, reviewer.path);
-  document(asSession(box, reviewer.session, reviewer.path, 'verify', String(id), 'accept', '--note', 'Observed exact companion bytes through the real frozen check.'));
+  document((await asSession(box, reviewer.session, reviewer.path, 'verify', String(id), 'accept', '--note', 'Observed exact companion bytes through the real frozen check.')));
   const accepted = store.getItem(board, id);
   const reviewed = store.verdictsFor(board, id).at(-1).review.head;
   assert.equal(accepted.item_status, 'verified');
@@ -146,18 +146,18 @@ test('a native companion patch is independently checked and lands the exact acce
   assert.equal(reviewed, patchedRuns[0].head, 'the accepted verdict binds to the first patched check');
   assert.equal(box.git(box.repo, 'rev-list', '--count', `${submitted}..main`), '1', 'the fixture advances main exactly once');
   assert.equal(box.git(box.repo, 'ls-tree', '--name-only', reviewed, 'docs/'), '', 'the retained composition excludes the unrelated main move');
-  document(box.run(box.repo, 'patch', 'remove', String(id), 'companion-v1', '--json'));
+  document((await box.runLocal(box.repo, 'patch', 'remove', String(id), 'companion-v1', '--json')));
   assert.equal(store.getItem(board, id).item_status, 'submitted', 'a changed active set invalidates acceptance');
   assert.equal(store.getItem(board, id).item_verified_by, null);
-  document(box.run(box.repo, 'patch', 'attach', String(id), patchFile, '--key', 'companion-v2', '--author', author.id, '--source', submitted, '--json'));
-  const renewed = document(asSession(box, reviewer.session, reviewer.path, 'next', '--verify', String(id)));
+  document((await box.runLocal(box.repo, 'patch', 'attach', String(id), patchFile, '--key', 'companion-v2', '--author', author.id, '--source', submitted, '--json')));
+  const renewed = document((await asSession(box, reviewer.session, reviewer.path, 'next', '--verify', String(id))));
   assert.deepEqual(renewed.companions.keys, ['companion-v2']);
   assert.equal(readFileSync(join(reviewer.path, 'api/companion.txt'), 'utf8'), 'required companion\n');
   const beforeRenewedReview = liveSource(box, reviewer.path);
-  document(asSession(box, reviewer.session, reviewer.path, 'verify', String(id), 'accept', '--note', 'Rechecked the newly bound patch set.'));
+  document((await asSession(box, reviewer.session, reviewer.path, 'verify', String(id), 'accept', '--note', 'Rechecked the newly bound patch set.')));
   assert.deepEqual(liveSource(box, reviewer.path), beforeRenewedReview, 'the second verification also preserves its composed reservation');
   const finalReviewed = store.verdictsFor(board, id).at(-1).review.head;
-  const landed = document(box.run(box.repo, 'land', '--json'));
+  const landed = document((await box.runLocal(box.repo, 'land', '--json')));
   assert.deepEqual(landed.landed, [id]);
   assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', finalReviewed, 'main'), '');
   assert.equal(readFileSync(join(box.repo, 'api/companion.txt'), 'utf8'), 'required companion\n');

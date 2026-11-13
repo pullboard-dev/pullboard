@@ -106,7 +106,7 @@ test("Pullboard's doctrine carries its four checks [D1,D3]", () => {
   const report = box.run(checkout, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
   const lines = report.out.trim().split(/\r?\n/u);
-  assert.equal(lines.pop(), 'next: pullboard next --wait 1', 'the finite report ends with one immediate action');
+  assert.equal(lines.pop(), 'next: pullboard next', 'the finite report ends with one immediate action');
   assert.equal(lines.length, 4, 'doctrine check prints exactly four Rigor rules');
   assert.deepEqual(lines.map((line) => line.slice(0, line.indexOf(' '))), ['C9', 'C8', 'T5', 'T6']);
   for (const line of lines) {
@@ -536,4 +536,11 @@ test('every command has its usage in pullboard help, the one reference [I11]', (
   const usages = Object.values(HELP.commands).flatMap((declaration) => declaration.usages);
   const missing = [...phrases].filter((phrase) => !usages.some((usage) => usage.replace(/^pullboard\s+/u, '').startsWith(phrase)));
   assert.deepEqual(missing, [], `give each command a usage line in pullboard help:\n${missing.join('\n')}`);
+});
+
+test('DOCTRINE.md carries F1, approved and gated by review, in an F section after G [F1]', () => {
+  const doctrine = readFileSync(join(ROOT, 'DOCTRINE.md'), 'utf8');
+  const heads = [...doctrine.matchAll(/^## (\S+) · /gmu)].map((match) => match[1]);
+  assert.equal(heads[heads.indexOf('G') + 1], 'F', 'the F section follows G');
+  assert.match(doctrine, /^- F1 \[approved, must\] No bottlenecks except the person's intent\. .* \| gate: review$/mu);
 });

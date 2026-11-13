@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/cells.json packages/codemap/data/plan/seed.json */
 /** Shared real placement fixtures retain native CLI ownership and normal Git hooks [L3,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

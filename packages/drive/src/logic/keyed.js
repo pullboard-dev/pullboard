@@ -34,7 +34,8 @@ export function keyedJobId(kind, key) {
  */
 export function storedResult(view) {
   const step = view.steps.find(row => row.name === RESULT_STEP);
-  return step ? { result: step.payload.result, owner: step.payload.owner ?? null } : undefined;
+  // A pruned result (only its hash and size remain) is no result: the next driver produces it again.
+  return step && !step.payload.pruned ? { result: step.payload.result, owner: step.payload.owner ?? null } : undefined;
 }
 
 /**

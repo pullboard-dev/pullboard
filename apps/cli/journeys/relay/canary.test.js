@@ -87,7 +87,7 @@ test('a failed round trip alerts within two minutes and names the failed step [H
   commitConfiguration(box);
   await box.link();
   const root = canarySeat(box);
-  const joined = await box.cliAt(root, 'join', box.lane, '--model', 'canary-fixture');
+  const joined = await box.cliAtLocal(root, 'join', box.lane, '--model', 'canary-fixture');
   assert.equal(joined.code, 0, joined.failure);
   const agentId = joined.document.agent;
   assert.equal(typeof agentId, 'string', 'the probe uses a real registered machine seat');
@@ -176,12 +176,12 @@ test('the client shows queued moves while the relay is degraded [H16,H17,C7]', {
   commitConfiguration(box, { outbox: true });
   await box.link();
   const root = canarySeat(box);
-  const joined = await box.cliAt(root, 'join', box.lane, '--model', 'canary-outbox-fixture');
+  const joined = await box.cliAtLocal(root, 'join', box.lane, '--model', 'canary-outbox-fixture');
   assert.equal(joined.code, 0, joined.failure);
   await box.stopRelay();
 
   for (const text of ['First move waits while the relay canary is degraded', 'Second move waits while the relay canary is degraded']) {
-    const queued = await box.cli('shout', 'all', text);
+    const queued = await box.cliLocal('shout', 'all', text);
     assert.equal(queued.code, 0, queued.failure);
   }
   for (let index = 0; index < 2; index += 1) {
@@ -189,7 +189,7 @@ test('the client shows queued moves while the relay is degraded [H16,H17,C7]', {
     assert.equal(failure.ok, false, 'the real canary observes the stopped relay');
     observeRelayHealth(box.root, failure);
   }
-  const status = await box.cli('status');
+  const status = await box.cliLocal('status');
   assert.equal(status.code, 0, status.failure);
   const moveCount = status.document.relay.outbox.length;
   assert.equal(moveCount, 2, 'status reads both real moves saved in the local outbox');
@@ -236,7 +236,7 @@ test('two paired host configurations independently alert and recover through rea
     const box = await relayClientFixture(t);
     commitConfiguration(box);
     await box.link();
-    const printed = await box.cli('relay', 'pair');
+    const printed = await box.cliLocal('relay', 'pair');
     assert.equal(printed.code, 0, printed.failure);
     const paired = await box.otherDeviceJoin(printed.document.code, 'canary-host-b');
     const left = await independentCanaryHost(box, box.lane, 'canary-host-a-seat');

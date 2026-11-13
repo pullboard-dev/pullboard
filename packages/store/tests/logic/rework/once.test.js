@@ -32,7 +32,7 @@ const BUDGET_MS = 20;
 /** A board with 40 seats in ten sessions of four: each session's first seat declares the family, its peers name none. */
 function fortySeats(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-family-once-')));
-  const board = openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   const seats = [];
   for (let session = 0; session < 10; session++) {
@@ -94,6 +94,7 @@ test('claim and renew on a 40-seat board spend under 20 ms reading families [H24
 test('existing and rebuilt boards backfill old seats once without changing their family [H24]', t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-family-old-')));
   const sourceFile = join(dir, 'source.sqlite'), copyFile = join(dir, 'copy.sqlite');
+  // @pullboard-board-file persistence: the source board is reopened to check the family record rebuilds
   let source = openBoard(sourceFile), copy;
   t.after(() => { if (source) closeBoard(source); if (copy) closeBoard(copy); rmSync(dir, { recursive: true, force: true }); });
   const first = register(source, { lane: 'core', path: join(dir, 'first'), family: 'openai', session: 'old-session' });
@@ -101,15 +102,17 @@ test('existing and rebuilt boards backfill old seats once without changing their
   const expected = [first, peer].map(id => derivedFamily(source, id));
   // Simulate a board made before the local projection existed, including its missing version marker.
   source.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(FAMILY_RECORD_PREFIX + '*');
+  // @pullboard-board-file persistence: the source board is reopened to check the family record rebuilds
   closeBoard(source); source = openBoard(sourceFile);
   for (const [index, id] of [first, peer].entries()) assert.equal(record(source, id)?.family, expected[index]);
   const snapshot = exportBoard(source);
   assert.ok(snapshot.tables.board_meta.every(row => !row.meta_key.startsWith(FAMILY_RECORD_PREFIX)));
-  copy = openBoard(copyFile); importBoard(copy, snapshot);
+  copy = openBoard(':memory:'); importBoard(copy, snapshot);
   for (const [index, id] of [first, peer].entries()) assert.equal(record(copy, id)?.family, expected[index]);
   // A second open must leave the already recorded value in place, rather than derive it again.
   const path = source.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(first).agent_path;
   source.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify({ family: 'recorded-only', path }), FAMILY_RECORD_PREFIX + first);
+  // @pullboard-board-file persistence: the source board is reopened to check the family record rebuilds
   closeBoard(source); source = openBoard(sourceFile);
   assert.equal(seatFamily(source, first), 'recorded-only');
 });

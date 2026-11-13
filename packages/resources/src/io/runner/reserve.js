@@ -97,7 +97,7 @@ export function timingReserveAllows(reserved, waiter, runner, lendingTo = null) 
 
 /**
  * Whether the kept runner may lend a free slot to this ordinary run once no other runner fits it. Why: with no timed
- * check waiting, a kept runner that refuses ordinary work sits idle while the queue waits (7 Nov: the 12-core Studio
+ * check waiting, a kept runner that refuses ordinary work sits idle while the queue waits (7 Nov: the 12-core big runner
  * was kept for most cores and took no run for hours). A waiting timed check stops the lending, so the kept runner
  * drains to it as its lent runs finish.
  */

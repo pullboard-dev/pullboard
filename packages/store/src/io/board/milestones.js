@@ -1,4 +1,4 @@
-import { coordinatorMilestoneRelease } from '../../../../stats/index.js';
+import { coordinatorMilestoneRelease } from '../../../../stats/light.js';
 /** Canonical store composition for roadmap operations; the public board facade retains historical signatures [N26,H16]. */
 import * as roadmapMoves from "../../../../roadmap/index.js";
 import { atomic } from "./event/log.js";

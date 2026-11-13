@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/controller.js */
 /** @pullboard-test-loads packages/runners/src/io/module/parser.js packages/runners/src/io/module/parser/worker.js */
 /** The runner module parser keeps a process-lifetime cache [C7]. */
 import assert from 'node:assert/strict';

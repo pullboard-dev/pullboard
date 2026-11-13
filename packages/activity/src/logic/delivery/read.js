@@ -23,17 +23,21 @@ export function readActivityDeliveryWith(agentActivity, board, agentId, options 
   board.db.exec('SAVEPOINT activity_delivery_read');
   try {
     const state = activityDeliveryState(board, agentId);
-    const activity = agentActivity(board, agentId, { ...options,
+    // A seat that never recorded a delivery starts at the board head, not event zero: it owes nothing from before it
+    // joined, and projecting 100k events made every new worker's first inbox take seconds (#6152). Its own addressed
+    // shouts still arrive, through the unread-shout read.
+    const activity = agentActivity(board, agentId, { ...options, fromHead: !state.started,
       after: Math.min(state.through, state.digestThrough), newsAfter: state.digestThrough, sessionStart: true });
+    const through = state.started ? state.through : activity.cursor;
     const entries = new Map(activity.entries.map(entry => [entry.eventId, entry]));
     const rejected = board.db.prepare(`SELECT * FROM event WHERE event_kind='reject' AND event_id>? AND event_id<=? ORDER BY event_id`)
-      .all(state.through, activity.cursor);
+      .all(through, activity.cursor);
     for (const event of rejected) {
       const detail = activityEventDetail(event);
       if (detail && rejectionRecipient(board, event, detail) === agentId) entries.set(event.event_id, rejectionEntry(event, agentId));
     }
     const notices = board.db.prepare(`SELECT * FROM event WHERE event_kind IN ('claim_stalled','work_notice') AND event_id>? AND event_id<=? ORDER BY event_id`)
-      .all(state.through, activity.cursor);
+      .all(through, activity.cursor);
     for (const event of notices) {
       const detail = activityEventDetail(event);
       if (detail?.holder !== agentId) continue;

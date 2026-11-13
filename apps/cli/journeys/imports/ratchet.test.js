@@ -70,7 +70,7 @@ test('the staged reader ignores unstaged fixes and retains imports already accep
   assert.deepEqual(stagedShimImportProblems({ paths: ['src/use.js'], read, accepted: 'accepted', parseImports: importsIn }), []);
 });
 
-test('the actual native pre-commit refuses staged shim imports and accepts the front door [C7,CD64]', t => {
+test('the actual native pre-commit refuses staged shim imports and accepts the front door [C7,CD64]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -92,11 +92,11 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   box.git(box.repo, 'add', 'src/new.js');
   // A worktree-only correction must never hide the bad staged dependency.
   writeFileSync(join(box.repo, 'src/new.js'), "import { git } from '../packages/git/index.js';\n");
-  const refused = box.run(box.repo, 'hook', 'pre-commit');
+  const refused = (await box.runLocal(box.repo, 'hook', 'pre-commit'));
   assert.notEqual(refused.code, 0, refused.out + refused.err);
   assert.match(refused.out + refused.err, /src\/new.js:1:.*src\/git.js.*packages\/git\/index.js/u);
   box.git(box.repo, 'add', 'src/new.js');
-  const accepted = box.run(box.repo, 'hook', 'pre-commit');
+  const accepted = (await box.runLocal(box.repo, 'hook', 'pre-commit'));
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/codemap/data/plan/temporary-edges.json'), JSON.stringify({ version: 1,
@@ -110,10 +110,10 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   const folders = [];
   for (const [title, criterion] of [['Allowed edge', 'Temporary edge web/new.js -> src/git.js until contract #123 lands.'],
     ['No edge exception', 'Use the canonical front door.']]) {
-    const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--wait', '--json');
+    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--wait', '--json'));
     assert.equal(added.code, 0, added.out + added.err);
     const id = JSON.parse(added.out).item.item_id;
-    const claimed = box.run(box.web, 'claim', String(id), '--json');
+    const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
     assert.equal(claimed.code, 0, claimed.out + claimed.err);
     folders.push(JSON.parse(claimed.out).itemFolder);
   }
@@ -122,9 +122,9 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
     writeFileSync(join(folder, 'web/new.js'), "import { git } from '../src/git.js';\n");
     box.git(folder, 'add', 'web/new.js');
   }
-  const ownBar = box.run(folders[0], 'hook', 'pre-commit');
+  const ownBar = (await box.runLocal(folders[0], 'hook', 'pre-commit'));
   assert.equal(ownBar.code, 0, ownBar.out + ownBar.err);
-  const siblingBar = box.run(folders[1], 'hook', 'pre-commit');
+  const siblingBar = (await box.runLocal(folders[1], 'hook', 'pre-commit'));
   assert.notEqual(siblingBar.code, 0, 'a sibling claim never lends its exception to this folder');
   assert.match(siblingBar.out + siblingBar.err, /web\/new\.js:1:.*src\/git\.js.*packages\/git\/index\.js/u);
 });

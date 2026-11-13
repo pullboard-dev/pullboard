@@ -62,13 +62,14 @@ test('clause 1: a new cross-cell import and a deep import beyond the ceiling are
   assert.doesNotMatch(text, /clean\.js/u);
 });
 
-test('clause 2: the same new edge passes once the plan declares it and the refusal names the declaration [C7]', () => {
+test('clause 2: the same new edge passes once the plan declares it and the refusal names the lower front door or the coordinator [C7]', () => {
   const files = { ...BASE, 'packages/b/deep.js': "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n" };
   const before = fixture({ ...BASE });
   const ceilings = ceilingsOf(cellsEdgeReport(before));
   const refused = fixture(files);
   const problems = cellsEdgeProblems(refused, { ceilings });
-  assert.ok(problems.some(row => row.text.includes('add "b->a/src" to allowedEdges in packages/codemap/data/plan/cells.json')), JSON.stringify(problems));
+  assert.ok(problems.some(row => row.text.includes('import through a lower cell front door, or ask the coordinator')), JSON.stringify(problems));
+  assert.ok(problems.every(row => !/add "[^"]*" to allowedEdges/u.test(row.text)), 'the refusal no longer suggests adding the edge');
   const declared = fixture(files, ['b->a/src']);
   assert.deepEqual(cellsEdgeProblems(declared, { ceilings }), []);
 });
@@ -77,6 +78,7 @@ test('clause 3: the check runs in the changed-file static list and in the full s
   const root = fixture({ ...BASE, 'packages/b/deep.js': "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n" });
   mkdirSync(join(root, 'packages/gate/data/baselines'), { recursive: true });
   copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(root, 'packages/gate/data/baselines/test-waits-baseline.json'));
+  copyFileSync(join(REPO, 'packages/gate/data/baselines/cli-launches.json'), join(root, 'packages/gate/data/baselines/cli-launches.json'));
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'x']]) {
     runFixtureGit(args, { cwd: root });
   }
@@ -84,7 +86,7 @@ test('clause 3: the check runs in the changed-file static list and in the full s
     join(REPO, 'packages/gate/src/io/changed/scripts/static.js'), 'packages/b/deep.js'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stderr, /packages\/b\/deep\.js:1: deep import into a/u);
-  assert.match(readFileSync(join(REPO, 'packages/gate/src/io/static/registry.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
+  assert.match(readFileSync(join(REPO, 'packages/gate/src/io/static/registry.js'), 'utf8'), /cellsEdgeProblems\(root,/u);
 });
 
 const CHECKS = join(REPO, 'packages/gate/src/io');

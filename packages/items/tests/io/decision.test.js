@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/items/src/io/decision.js */
 /** Durable namespaced decision delivery, with actual SQLite and a signed authority port [B21,H16]. */
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';

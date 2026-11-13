@@ -72,7 +72,7 @@ test('a milestone with a limit refuses an add past it and accepts a swap [N26,H1
   assert.equal(box.plan('release').count, 2);
   assert.throws(() => box.members('release', { add: [String(first)], swap: ['999999'] }));
   assert.deepEqual(store.milestones(box.board)[0].items, [incoming, building], 'an invalid swap makes neither half of its change');
-  box.edit('release', { limit: 'none' });
+  box.edit('release', { limit: 'none', asPerson: true });
   box.members('release', { add: [String(first)] });
   assert.equal(box.plan('release').limit, null);
   assert.equal(box.plan('release').count, 3);
@@ -94,7 +94,7 @@ test('[N26,H16] caps validate edits, shipment carry and historical replay withou
   const ship = (name, next) => store.shipMilestone(box.board, name, { agentId: 'coordinator', coordinatorActions: true, commit: box.project.git(box.project.repo, 'rev-parse', 'main'), next });
   assert.throws(() => ship('source', 'target'));
   assert.deepEqual(store.milestones(box.board), before, 'a capped carry does not ship or move anything');
-  box.edit('target', { limit: '1' });
+  box.edit('target', { limit: '1', asPerson: true });
   ship('source', 'target');
   assert.deepEqual(store.milestones(box.board)[1].items, [first]);
   assert.throws(() => box.edit('target', { newName: 'renamed', limit: '0' }));

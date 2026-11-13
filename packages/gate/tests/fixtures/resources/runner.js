@@ -184,6 +184,21 @@ for(const attempt of [1,2]) {
       'the actual private SSH stand-in executed the worker; this is no physical-fleet assurance');
   });
 
+  test('native verify reuses its sealed submit proof under either runner policy [C7,V4]', async t => {
+    for (const runnersOnly of [true, false]) await t.test(`runner-only ${runnersOnly} [C7,V4]`, child => {
+      const { project, item, reviewer, marker } = verificationProject(child, { checked: true });
+      assert.equal(readFileSync(marker, 'utf8'), 'check-ran', 'submit executed the real frozen check');
+      rmSync(marker, { force: true });
+      policy(project, runnersOnly);
+      const verified = succeeded(project.run(reviewer, 'verify', String(item), 'accept', '--no-next', '--json'));
+      assert.equal(JSON.parse(verified.out).check, 'green');
+      assert.equal(existsSync(marker), false, 'the sealed proof requires no new local or remote body');
+    });
+  });
+}
+
+/** Install the doctrine case alone: its probe item and three submits need a file of their own to stay inside the time budget. */
+export function installRunnerOnlyDoctrineCase() {
   test('runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', () => {
     const box = helpers.project('true');
     const marker = join(box.dir, 'doctrine-bodies.jsonl');
@@ -215,7 +230,22 @@ process.exit(lines.length?1:0);
     const id = added.item.item_id;
     succeeded(box.run(box.web, 'claim', String(id)));
     succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
+    // The probe below measures main's count once, machine-wide, so its baseline run is kept among the observations.
     rmSync(marker, { force: true });
+    // A doctrine rise refuses only once its machinery trial has passed (#2611): a probe item records the rule's identity
+    // in report mode, the fixture ledger is aged past twenty clean gates, and the item under test is then refused.
+    const probe = JSON.parse(succeeded(fixtureAdd(box.run, box.repo, 'web', 'Doctrine trial probe', '--specs', 'G1',
+      '--criterion', 'The probe records the doctrine trial.', '--check', 'true', '--wait', '--json')).out).item.item_id;
+    const folder = JSON.parse(succeeded(box.run(box.web, 'claim', String(probe), '--json')).out).itemFolder;
+    assert.equal(helpers.commitFile(box, folder, 'web/a.txt', 'TODO old\nTODO probe\n', 'feat(web): probe rising count [G1]').status, 0);
+    succeeded(box.run(folder, 'submit', String(probe), '--wait', '--no-next', '--json'));
+    const ledgerFile = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
+    const ledger = JSON.parse(readFileSync(ledgerFile, 'utf8'));
+    const trials = Object.values(ledger.codes).filter(row => row.code === 'RATCHET_ROSE');
+    assert.ok(trials.length, 'the probe recorded the doctrine trial');
+    ledger.gates = 20;
+    for (const row of trials) row.start = 0;
+    writeFileSync(ledgerFile, JSON.stringify(ledger) + '\n');
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
     const rose = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
@@ -234,27 +264,18 @@ process.exit(lines.length?1:0);
     succeeded(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
     const observations = readFileSync(marker, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.ok(observations.some(row => row.commit === commit), 'candidate command really ran');
-    assert.ok(observations.some(row => row.commit === base), 'touched existing problem really exercised the baseline command');
+    assert.ok(observations.some(row => row.commit === base), `touched existing problem really exercised the baseline command: base ${base}, saw ${JSON.stringify(observations)}`);
     assert.ok(observations.every(row => row.cwd.startsWith(paths.remoteHome + '/')), 'no current or baseline doctrine shell ran on the controller');
-    const output = resolve(box.web, box.git(box.web, 'rev-parse', '--git-path', 'pullboard-doctrine-output'));
-    const receipts = readdirSync(output).map(name => join(output, name, 'observation.json')).filter(existsSync)
-      .map(file => JSON.parse(readFileSync(file, 'utf8')));
+    // The probe's folder holds the baseline's receipt: main's count is measured once, machine-wide, by whichever submit comes first.
+    const receipts = [box.web, folder].flatMap(seat => {
+      const output = resolve(seat, box.git(seat, 'rev-parse', '--git-path', 'pullboard-doctrine-output'));
+      return readdirSync(output).map(name => join(output, name, 'observation.json')).filter(existsSync)
+        .map(file => JSON.parse(readFileSync(file, 'utf8')));
+    });
     assert.ok(receipts.some(row => row.checkedSource.commit === commit && row.privateCheck.phases.check.code === 1), 'exit one remains a counted current result');
     assert.ok(receipts.some(row => row.checkedSource.commit === base && row.privateCheck.phases.check.code === 1), 'the baseline has its own actual source-bound receipt');
     assert.ok(receipts.some(row => row.privateCheck.phases.check.code === 3), 'the uncountable exit is retained rather than a passing empty count');
     assert.ok(receipts.every(row => row.runner === HOST && row.checkedSource.commit === row.executionSource.commit
       && row.checkedSource.tree === row.executionSource.tree && row.privateCheck.sourceUnchanged), 'all counted observations bind actual unchanged source');
-  });
-
-  test('native verify reuses its sealed submit proof under either runner policy [C7,V4]', async t => {
-    for (const runnersOnly of [true, false]) await t.test(`runner-only ${runnersOnly} [C7,V4]`, child => {
-      const { project, item, reviewer, marker } = verificationProject(child, { checked: true });
-      assert.equal(readFileSync(marker, 'utf8'), 'check-ran', 'submit executed the real frozen check');
-      rmSync(marker, { force: true });
-      policy(project, runnersOnly);
-      const verified = succeeded(project.run(reviewer, 'verify', String(item), 'accept', '--no-next', '--json'));
-      assert.equal(JSON.parse(verified.out).check, 'green');
-      assert.equal(existsSync(marker), false, 'the sealed proof requires no new local or remote body');
-    });
   });
 }

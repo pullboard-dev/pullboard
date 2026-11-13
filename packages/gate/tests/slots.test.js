@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/resources/index.js packages/gate/index.js packages/resources/src/io/liveness.js packages/resources/src/io/runner/pick.js */
 /** A gate slot held by a live but hung process is terminated, freed and its captured request re-run once [C7]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -169,7 +170,7 @@ test('the out-of-loop heartbeat stops once the run returns and once its holder d
 function holderDb(t, row) {
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
-  db.exec(`CREATE TABLE holder(token TEXT PRIMARY KEY, name TEXT, pid INTEGER, started TEXT, item TEXT, heartbeat INTEGER, terminating INTEGER DEFAULT 0, request TEXT DEFAULT '', relaunched INTEGER DEFAULT 0);
+  db.exec(`CREATE TABLE holder(token TEXT PRIMARY KEY, name TEXT, pid INTEGER, started TEXT, item TEXT, heartbeat INTEGER, terminating INTEGER DEFAULT 0, request TEXT DEFAULT '', relaunched INTEGER DEFAULT 0, agent TEXT DEFAULT '', repo TEXT DEFAULT '', kind TEXT DEFAULT '');
     CREATE TABLE liveness_event(at TEXT, kind TEXT, name TEXT, item TEXT, pid INTEGER, detail TEXT)`);
   db.prepare('INSERT INTO holder(token, name, pid, started, item, heartbeat) VALUES (?, ?, ?, ?, ?, ?)').run('t', 'gate', row.pid, row.started, '', row.heartbeat);
   return db;

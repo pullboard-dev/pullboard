@@ -1,6 +1,5 @@
 /** Durable gate 23: flake diagnostics are a job that runs after the verdict, off the critical path [C7]. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
@@ -38,8 +37,7 @@ function candidateRepo() {
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 async function withBoard(body) {
-  const files = privateFixtureFiles('pullboard-flake23-board-');
-  const board = openBoard(join(files.root, 'board.sqlite'));
+  const board = openBoard(':memory:');
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 

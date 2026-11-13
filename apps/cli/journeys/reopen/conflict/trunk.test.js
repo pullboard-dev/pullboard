@@ -52,26 +52,26 @@ test('clause 1: a content conflict git reports is a conflict [C7]', () => {
   assert.equal(found.trunk, merge.commit);
 });
 
-test('clause 1: reopen --conflict returns an accepted item whose merge git reports as a content conflict [C7]', () => {
+test('clause 1: reopen --conflict returns an accepted item whose merge git reports as a content conflict [C7]', async () => {
   const box = project();
   commit(box, box.repo, 'web/feature.js', "import a from './a.js';\n\nexport const x = 1;\n", 'feat(web): base imports [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Imports item', '--specs', 'G1', '--criterion', 'The imports item stays valid', '--check', 'node --check web/feature.js', '--json');
+  const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Imports item', '--specs', 'G1', '--criterion', 'The imports item stays valid', '--check', 'node --check web/feature.js', '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', String(id))).code, 0);
   const itemCommit = commit(box, box.web, 'web/feature.js', "import a from './a.js';\nimport b from './b.js';\n\nexport const x = 1;\n", 'feat(web): item adds b [G1]');
-  const submitted = box.run(box.web, 'submit', String(id));
+  const submitted = (await box.runLocal(box.web, 'submit', String(id)));
   assert.equal(submitted.code, 0, submitted.err);
   box.git(box.repo, 'switch', '-q', '--detach', itemCommit);
   try {
-    const accepted = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'ran the frozen check at the submitted commit');
+    const accepted = (await box.runLocal(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'ran the frozen check at the submitted commit'));
     assert.equal(accepted.code, 0, accepted.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
   const trunk = commit(box, box.repo, 'web/feature.js', "import a from './a.js';\nimport c from './c.js';\n\nexport const x = 1;\n", 'feat(web): trunk adds c [G1]');
-  const reopened = box.run(box.repo, 'reopen', String(id), '--conflict', 'web/feature.js', '--json');
+  const reopened = (await box.runLocal(box.repo, 'reopen', String(id), '--conflict', 'web/feature.js', '--json'));
   assert.equal(reopened.code, 0, [reopened.out, reopened.err].join('\n'));
   assert.deepEqual(JSON.parse(reopened.out).conflict, { files: ['web/feature.js'], trunk }, 'the command names the file git reports and the trunk commit');
-  const shown = box.run(box.repo, 'show', String(id));
+  const shown = (await box.runLocal(box.repo, 'show', String(id)));
   assert.match(shown.out, new RegExp(`^#${id}  open \\(needs main merge\\)`, 'mu'), 'the item is returned to its builder, not refused NOT_CONFLICTING');
 });

@@ -24,7 +24,7 @@ test('relay devices names phones and joined computers with paired date and board
   assert.ok(!/[0-9a-f]{64}/u.test(lines.join('\n')) && !lines.join('\n').includes(phone.deviceId), 'ids and fingerprints stay out of the default view');
   const verbose = await devicesText(box, ['--verbose']);
   assert.ok(verbose.lines.some(line => line.includes(phone.deviceId) && /fingerprint [0-9a-f]{64}$/u.test(line)), '--verbose adds the phone id and fingerprint');
-  const json = await box.cli('relay', 'devices');
+  const json = await box.cliLocal('relay', 'devices');
   assert.equal(json.code, 0, 'relay devices --json succeeds');
   const [phoneJson] = json.document.devices;
   assert.equal(json.document.devices.length, 1, 'the linked computer lists its one paired phone');
@@ -32,7 +32,7 @@ test('relay devices names phones and joined computers with paired date and board
     [phone.deviceId, 'Kitchen phone', true, phone.createdAt, false, [board]], 'JSON names the phone with its paired date, status and board');
   assert.ok(Number.isSafeInteger(phoneJson.seen), 'JSON carries the relay last seen time');
   assert.ok(!('fingerprint' in phoneJson) && !/[0-9a-f]{64}/u.test(JSON.stringify(json.document)), 'default JSON leaves the fingerprint out');
-  const verboseJson = await box.cli('relay', 'devices', '--verbose');
+  const verboseJson = await box.cliLocal('relay', 'devices', '--verbose');
   assert.match(verboseJson.document.devices[0].fingerprint, /^[0-9a-f]{64}$/u, 'JSON adds the fingerprint only with --verbose');
   // The joined computer never paired the phone: it lists it by short id from the relay, with its status and board.
   const there = await joined.cli('relay', 'devices');
@@ -59,7 +59,7 @@ test('relay devices names phones and joined computers with paired date and board
   const phoneGrant = await fetch(box.origin + '/api/v1/devices/' + phone.deviceId + '/boards', { headers });
   assert.equal(phoneGrant.status, 403, 'the revoked phone cannot read its board grants');
   assert.equal((await phoneGrant.json()).error.code, 'DEVICE_REVOKED', 'the relay fails closed for the revoked phone');
-  const afterRevoke = await box.cli('relay', 'devices');
+  const afterRevoke = await box.cliLocal('relay', 'devices');
   assert.equal(afterRevoke.code, 0, 'the local roster remains available after the remote revoke');
   assert.equal(afterRevoke.document.devices.length, 1, 'the paired phone remains in local pairing history');
   const [stillPaired] = afterRevoke.document.devices;
@@ -73,7 +73,7 @@ test('relay devices names phones and joined computers with paired date and board
 
 test('relay off names joined computers by the person-given name [H17]', async (t) => {
   const { box, joined } = await phoneAndJoinedComputer(t);
-  const off = await box.cli('relay', 'off');
+  const off = await box.cliLocal('relay', 'off');
   assert.equal(off.code, 0, 'relay off unlinks this computer');
   assert.deepEqual(off.document.joined, ['Study computer'], 'the joined computer is named by the person');
   assert.deepEqual(off.document.affectedMachines, [joined.machine], 'the stable machine id stays beside the name');

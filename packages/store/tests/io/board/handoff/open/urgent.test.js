@@ -67,7 +67,7 @@ test('an urgent or pinned item\'s queued gate starts before every routine queued
   assert.deepEqual(readdirSync(handoffQueueDirectory()).filter(name => /\.(json|reserved)$/u.test(name) && /^\d/u.test(name)), [], 'the queue drained');
 });
 
-test('a live routine reservation holds routine gates behind it but never an urgent one [C7,#3062]', async t => {
+test('a live routine reservation never holds back a later gate, urgent or routine [C7,#3062,#5727]', async t => {
   const box = machine(t);
   const held = await reserveHandoffTicket('job-slow-routine', { startOf: () => 'same' });
   const queue = (job, urgent) => reserveHandoffTicket(job, { urgent }).then(place => {
@@ -84,9 +84,13 @@ test('a live routine reservation holds routine gates behind it but never an urge
     urgentFirst = await waitForCondition(() => !readdirSync(handoffQueueDirectory()).some(name => name.includes('job-later-urgent')), 'the urgent gate starts',
       { signal: AbortSignal.any([t.signal, AbortSignal.timeout(5_000)]) }).then(() => true, () => false);
     assert.ok(readdirSync(handoffQueueDirectory()).includes(held), 'the live routine reservation still holds its place');
-    assert.ok(readdirSync(handoffQueueDirectory()).some(name => name.includes('job-later-routine')), 'the routine gate waits behind the live reservation');
+    // Since #5727 a live reservation keeps its place number but never holds back a later ticket while workers run below the cap.
+    const routineStarted = await waitForCondition(() => !readdirSync(handoffQueueDirectory()).some(name => name.includes('job-later-routine')), 'the routine gate starts',
+      { signal: AbortSignal.any([t.signal, AbortSignal.timeout(5_000)]) }).then(() => true, () => false);
+    assert.ok(routineStarted, 'the routine gate starts below the cap without waiting for the live reservation');
+    assert.ok(readdirSync(handoffQueueDirectory()).includes(held), 'the live routine reservation still holds its place after the later gates started');
   } finally { writeFileSync(join(handoffQueueDirectory(), held), JSON.stringify({ pid: 2 ** 22 + 12345, started: 'gone' }) + '\n'); }
   const { started } = await draining;
   assert.ok(urgentFirst, 'the urgent gate started while the routine reservation was live');
-  assert.deepEqual(started, ['job-later-urgent', 'job-later-routine'], 'the urgent gate passes the live reservation; the routine one waits its turn');
+  assert.deepEqual(started, ['job-later-urgent', 'job-later-routine'], 'both later gates pass the live reservation, the urgent one first');
 });

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree package.json */
+/** @pullboard-test-input package.json apps/runner/src/io/scripts/worker.js package.json packages/config/index.js packages/config/src/io/declaration.js packages/config/src/io/main.js packages/config/src/logic/json.js */
 /** Validate the explicit opt-in to speculative landing without changing serial defaults [B3,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

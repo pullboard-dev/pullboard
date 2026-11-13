@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/data/plan/path-map/stats.json packages/codemap/data/plan/transition.json packages/stats/index.js packages/stats/src/logic/flow.js */
 /** @pullboard-test-loads packages/runners/index.js packages/landing/index.js */
 /** Landing aliases are removable only with equivalent imports and a bounded native move closure [C7,H16]. */
 import assert from 'node:assert/strict';

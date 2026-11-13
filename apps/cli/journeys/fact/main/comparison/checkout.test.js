@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** A main comparison ships the exact main commit from the object store and writes no working tree on this machine [C7]. */
 import assert from 'node:assert/strict';
 import {

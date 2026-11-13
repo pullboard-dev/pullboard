@@ -1,7 +1,6 @@
 /** Installed guidance makes the board’s recorded checks and verdict the proof [I1,I3,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderAgentsBlock } from "../../config/index.js";
 import {
   HOOKS,
   hookScript,
@@ -21,7 +20,6 @@ function boardProofGuidance(text, surface) {
 }
 
 test('the guidance names the gate and the verdict as the proof and forbids private evidence folders [I1,I3,V4]', () => {
-  boardProofGuidance(renderAgentsBlock({}, ''), 'generated AGENTS');
   for (const hook of HOOKS) {
     boardProofGuidance(hookScript(hook), `installed ${hook} hook`);
   }

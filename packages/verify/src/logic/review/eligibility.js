@@ -3,6 +3,7 @@ import { compositionFamilyFallback } from '../../io/review/composition.js';
 import { seatFamily } from '../../../../items/index.js';
 import { withFamilyReads } from '../../../../items/index.js';
 import { committedItemAuthors } from '../../io/review/independence.js';
+import { earlierHolderProblem } from '../../io/review/independence.js';
 import { strictReviewProblem as strictAuthorProblem } from '../../io/review/independence.js';
 /** The show command and review queue use the native rules rather than an agent's lineage notes [V4,B26]. */
 import { strictReviewProblem } from '../../io/review/routing.js';
@@ -20,6 +21,8 @@ import { Refused } from '../../../../kernel/index.js';
 export function eligibilityProblem(board, item, agent, { policy = 'any', familyPolicy = 'off' } = {}) {
   const identity = itemAuthorProblem(board, item, agent.agent_id, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem: strictAuthorProblem });
   if (identity) return identity;
+  const earlier = earlierHolderProblem(board, item, agent.agent_id);
+  if (earlier) return earlier;
   if (!canTake(agent.agent_route ?? 'strong', item.item_route)) return new Refused('ROUTE', 'this seat route does not cover the item');
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');
   const required = requiredReviewFamilyProblem(board, item, agent.agent_id);

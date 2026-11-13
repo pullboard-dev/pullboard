@@ -98,13 +98,13 @@ async function fixture(t) {
 }
 
 /** File an item, claim it into its own item folder, commit a change there and submit it; returns the item id and its job. */
-function submitted(box, title, file) {
-  const id = document(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'The candidate passes.',
-    '--check', 'true', '--route', 'strong', '--brief', `Files: ${file}\nTest: the check proves the fixture`, '--wait', '--json')).item.item_id;
-  const folder = document(box.run(box.web, 'claim', String(id), '--json')).itemFolder;
+async function submitted(box, title, file) {
+  const id = document((await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'The candidate passes.',
+    '--check', 'true', '--route', 'strong', '--brief', `Files: ${file}\nTest: the check proves the fixture`, '--wait', '--json'))).item.item_id;
+  const folder = document((await box.runLocal(box.web, 'claim', String(id), '--json'))).itemFolder;
   const committed = box.helpers.commitFile(box, folder, file, 'x\n', `feat(web): ${title.toLowerCase()} [G1]`);
   assert.equal(committed.status, 0, `${committed.stderr}${committed.failure ?? ''}`);
-  const out = document(box.run(folder, 'submit', String(id), '--no-next', '--json'));
+  const out = document((await box.runLocal(folder, 'submit', String(id), '--no-next', '--json')));
   assert.equal(out.queued, true);
   const job = jobOf(box, id).job;
   const request = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'request.json'), 'utf8'));
@@ -113,11 +113,11 @@ function submitted(box, title, file) {
 
 test('clause 1: two submits at one tooling commit name one shared tools folder and copy nothing the second time [C7]', async t => {
   const box = await fixture(t);
-  const first = submitted(box, 'First shared gate', 'web/first.txt');
+  const first = await submitted(box, 'First shared gate', 'web/first.txt');
   const folders = snapshots(box.temp);
   assert.match(first.request.tools, /pullboard-handoff-tools-[0-9a-f]{40}$/u);
   assert.deepEqual(folders.map(name => join(box.temp, name)), [first.request.tools]);
-  const second = submitted(box, 'Second shared gate', 'web/second.txt');
+  const second = await submitted(box, 'Second shared gate', 'web/second.txt');
   assert.equal(second.request.tools, first.request.tools, 'both captured requests name the same tools');
   assert.deepEqual(snapshots(box.temp), folders, 'the second submit created no new tools folder');
   assert.equal(readdirSync(box.temp).some(name => name.startsWith('pullboard-handoff-staging-')), false, 'no half copy is left behind');
@@ -125,7 +125,7 @@ test('clause 1: two submits at one tooling commit name one shared tools folder a
 
 test('clause 2: cleanup of a snapshot while a queued request names it leaves the folder [C7]', async t => {
   const box = await fixture(t);
-  const queued = submitted(box, 'Held shared gate', 'web/held.txt');
+  const queued = await submitted(box, 'Held shared gate', 'web/held.txt');
   const tools = queued.request.tools;
   removeJobToolSnapshot({ job: queued.job.id, tools }, tools);
   removeJobToolSnapshot({ job: 'another-job', tools }, tools);
@@ -139,12 +139,12 @@ test('clause 2: cleanup of a snapshot while a queued request names it leaves the
 
 test('clause 2: a dead queued worker is relaunched from a shared snapshot [C7]', async t => {
   const box = await fixture(t);
-  const queued = submitted(box, 'Recovered shared gate', 'web/recovered.txt');
+  const queued = await submitted(box, 'Recovered shared gate', 'web/recovered.txt');
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', queued.job.id);
   setDriverUnstarted(box.boardFile, queued.job.id, { code: 'TEST_DEAD', message: 'the worker never started' });
   const waiting = () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(queued.job.id)).length;
   const before = waiting();
-  const again = box.run(queued.folder, 'submit', String(queued.id), '--no-next');
+  const again = await box.runLocal(queued.folder, 'submit', String(queued.id), '--no-next');
   assert.equal(again.code, 0, `${again.err}\n${again.out}`);
   assert.match(again.err + again.out, /relaunched queued submit #\d+ from its captured tools/u, `${again.err}\n${again.out}`);
   assert.ok(waiting() > before, 'the dead worker has a fresh launch ticket');

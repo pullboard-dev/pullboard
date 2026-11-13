@@ -1,18 +1,19 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/journeys/exit/rules.test.js */
 /** Focused main comparisons preserve named failures and use a complete file verdict only as a fallback [B3,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { mainCheckout } from '../../../../../git/index.js';
 import { compareMainFailures } from '../../../../index.js';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 
-const TARGET = 'apps/cli/tests/exit-rules.test.js';
+const TARGET = 'apps/cli/journeys/exit/rules.test.js';
 
 /** A complete TAP record remains a case-level match against the same focused main file. */
 test('a focused red main run yields a matching named failure account [B3,C7]', () => {
-  const root = import.meta.dirname + '/../../..';
+  const root = join(import.meta.dirname, '../../../../../..');
   const output = [
     'TAP version 13', 'not ok 1 - inherited case [B3]', '  ---',
     `  location: ${root}/test/inherited.test.js:1:1`,
@@ -38,7 +39,7 @@ test('an incomplete named account falls back to a complete per-file isolation ve
 
 /** The current exit-rules red is checked at exact main and retained as either named or isolated evidence. */
 test('exit-rules on main is recorded as a known red by the focused comparison [B3,C7]', { timeout: 240_000 }, async () => {
-  const root = import.meta.dirname + '/../../..';
+  const root = join(import.meta.dirname, '../../../../../..');
   // A runner's job checkout is detached and has no main branch: its committed head is the main the job proves.
   const main = mainCheckout(root) ?? { commit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim() };
   assert.ok(main?.commit, 'the focused comparison pins a committed main');

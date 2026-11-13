@@ -17,6 +17,7 @@ import {
 } from '../../tests/fixtures/cockpit/harness.js';
 
 /** Run one isolated raw-fetch control or export treatment with a real first-write socket fault. */
+// process-level: socketChild runs a real child process that faults the first socket write; the normal export below runs in-process.
 function socketChild(mode, box, root, output) {
   const source = `
     import assert from 'node:assert/strict';
@@ -90,7 +91,7 @@ function socketChild(mode, box, root, output) {
   });
 }
 
-test('a view export whose socket closes before the first write fails plainly [C7,N26]', () => {
+test('a view export whose socket closes before the first write fails plainly [C7,N26]', async () => {
   const box = machine();
   const alpha = project(box, 'exportfetch');
   const output = join(box.dir, 'failed snapshot');
@@ -109,7 +110,7 @@ test('a view export whose socket closes before the first write fails plainly [C7
   assert.equal(existsSync(output), false, 'a refused export writes no partial snapshot');
 
   const normal = join(box.dir, 'normal snapshot');
-  const result = JSON.parse(box.run(alpha.repo, 'view', '--export', normal, '--json'));
+  const result = JSON.parse(await box.inProcess(alpha.repo, 'view', '--export', normal, '--json'));
   assert.equal(result.path, normal);
   assert.ok(existsSync(join(normal, 'index.html')));
   assert.ok(existsSync(join(normal, 'view.css')));

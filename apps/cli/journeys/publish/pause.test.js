@@ -42,13 +42,13 @@ test('publish contract', () => assert.equal(existsSync(process.env.PUBLISH_PAUSE
   return { ...project, input, remote };
 }
 
-test('a red full-suite run pauses landing until a green head or a proven flake [C7,V4]', () => {
+test('a red full-suite run pauses landing until a green head or a proven flake [C7,V4]', async () => {
   const box = fixture();
   writeFileSync(box.input, 'red');
-  const red = box.run(box.repo, 'publish');
+  const red = (await box.runLocal(box.repo, 'publish'));
   assert.equal(red.code, 1, red.out + red.err);
   const head = box.git(box.repo, 'rev-parse', 'HEAD');
-  const blocked = box.run(box.repo, 'land');
+  const blocked = (await box.runLocal(box.repo, 'land'));
   assert.notEqual(blocked.code, 0);
   assert.match(blocked.err + blocked.out, /PUBLISH_RED/);
   assert.ok((blocked.err + blocked.out).includes(head.trim()));
@@ -57,10 +57,10 @@ test('a red full-suite run pauses landing until a green head or a proven flake [
   const state = join(box.repo, '.git', 'pullboard', 'publish.json');
   const originalRed = readFileSync(state, 'utf8');
   rmSync(box.input);
-  const green = box.run(box.repo, 'gate');
+  const green = (await box.runLocal(box.repo, 'gate'));
   assert.equal(green.code, 0, green.out + green.err);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), head);
-  const proven = box.run(box.repo, 'land');
+  const proven = (await box.runLocal(box.repo, 'land'));
   assert.doesNotMatch(proven.err + proven.out, /PUBLISH_RED/);
   assert.equal(readFileSync(state, 'utf8'), originalRed, 'flake proof leaves the original publish red intact');
 
@@ -69,8 +69,8 @@ test('a red full-suite run pauses landing until a green head or a proven flake [
   box.git(box.repo, 'add', 'fix.txt');
   box.git(box.repo, 'commit', '-qm', 'test: advance publish head');
   writeFileSync(box.input, 'red again');
-  assert.equal(box.run(box.repo, 'publish').code, 1);
-  assert.match(box.run(box.repo, 'land').err, /PUBLISH_RED/);
+  assert.equal((await box.runLocal(box.repo, 'publish')).code, 1);
+  assert.match((await box.runLocal(box.repo, 'land')).err, /PUBLISH_RED/);
   rmSync(box.input);
   writeFileSync(join(box.repo, 'fix.txt'), 'corrected head');
   box.git(box.repo, 'add', 'fix.txt');
@@ -78,25 +78,25 @@ test('a red full-suite run pauses landing until a green head or a proven flake [
   const pushHook = join(box.remote, 'hooks', 'pre-receive');
   writeFileSync(pushHook, '#!/bin/sh\nexit 1\n');
   chmodSync(pushHook, 0o755);
-  const failedPush = box.run(box.repo, 'publish');
+  const failedPush = (await box.runLocal(box.repo, 'publish'));
   assert.notEqual(failedPush.code, 0);
   assert.match(failedPush.err + failedPush.out, /LAND_PUSH/);
-  assert.doesNotMatch(box.run(box.repo, 'land').err, /PUBLISH_RED/);
+  assert.doesNotMatch((await box.runLocal(box.repo, 'land')).err, /PUBLISH_RED/);
   rmSync(pushHook);
-  const published = box.run(box.repo, 'publish');
+  const published = (await box.runLocal(box.repo, 'publish'));
   assert.equal(published.code, 0, published.out + published.err);
-  assert.doesNotMatch(box.run(box.repo, 'land').err, /PUBLISH_RED/);
+  assert.doesNotMatch((await box.runLocal(box.repo, 'land')).err, /PUBLISH_RED/);
 });
 
 
-test('publish pause is off by default and never rewrites the original red [C7,V4]', () => {
+test('publish pause is off by default and never rewrites the original red [C7,V4]', async () => {
   const box = fixture({ enabled: false });
   writeFileSync(box.input, 'red');
-  assert.equal(box.run(box.repo, 'publish').code, 1);
+  assert.equal((await box.runLocal(box.repo, 'publish')).code, 1);
   const common = box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').trim();
   const state = join(common, 'pullboard', 'publish.json');
   const original = readFileSync(state, 'utf8');
   assert.ok(JSON.parse(original).receipt);
-  assert.doesNotMatch(box.run(box.repo, 'land').err, /PUBLISH_RED/);
+  assert.doesNotMatch((await box.runLocal(box.repo, 'land')).err, /PUBLISH_RED/);
   assert.equal(readFileSync(state, 'utf8'), original);
 });

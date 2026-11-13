@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input CHANGELOG.md docs/contributing-runbook.md */
 /** Outside credits use the person's linked record format, without making acknowledgement compulsory [I1]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

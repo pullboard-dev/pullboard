@@ -90,7 +90,7 @@ function countingRunner(box) {
 async function submitStages(box, runner) {
   const doctrine = { mainCommit: box.main, commit: box.source, practice: 'DOCTRINE.md', timeoutMs: 60000, fast: true };
   const request = { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'node --test test/a.test.js', criterion: 'c',
-    composition: box.source, staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node packages/gate/src/io/run/tests.js', gate: 'npm test' },
+    composition: box.source, staticChecks: 'node bin/static-checks.js', config: { affectedTests: 'node apps/cli/src/io/run/tests.js', gate: 'npm test' },
     browserFreeChecks: true, readCutItems: () => [], perPart: true, doctrine };
   let leases = 0;
   const read = sharedRemoteAnalysis(() => { leases++; return remoteSubmitAnalysis(box.controller, request, runner.lease, join(box.dir, 'artifacts')); });

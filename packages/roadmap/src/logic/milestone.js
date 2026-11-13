@@ -10,7 +10,7 @@ import { lineSettings } from "../../../state/light.js";
  */
 function mainRedIds(board) {
   if (!engineAtLeast(board, MAIN_RED_FOCUS_ENGINE)) return [];
-  return board.db.prepare("SELECT item_id FROM item WHERE item_title GLOB 'Main red:*' AND item_status IN ('open','claimed','submitted')").all().map(row => row.item_id);
+  return board.db.prepare("SELECT item_id FROM item WHERE (item_title GLOB 'Main red:*' OR item_title GLOB 'Red cluster:*') AND item_status IN ('open','claimed','submitted')").all().map(row => row.item_id);
 }
 
 /** Historical moves never gain a preference from policy written by a later engine. */

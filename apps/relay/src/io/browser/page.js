@@ -65,6 +65,12 @@ const BROWSER_STANDINS = {
   'packages/kernel/light.js': new URL('../../../../../packages/kernel/browser.js', import.meta.url),
 };
 
+/** The kernel doors no browser may load as written, each read as the browser-safe door. */
+const KERNEL_BROWSER_DOORS = {
+  'packages/kernel/index.js': 'packages/kernel/browser.js',
+  'packages/kernel/light.js': 'packages/kernel/browser.js',
+};
+
 /** Where a module the browser reaches by repository path is served; its directory structure is kept, so relative imports resolve. */
 export const MODULE_PREFIX = '/relay/m/';
 
@@ -86,7 +92,8 @@ function refuseModule(path, text, why) {
  */
 export function browserModules(root, { named, standins = {}, generated = {} }) {
   const served = new Map(), urlOf = new Map(), pending = [];
-  const stand = Object.fromEntries(Object.entries(standins).map(([path, value]) => [path, repositoryPath(root, value)]));
+  // The kernel's light and index doors carry Node-only pieces (the process census imports node:crypto), so every browser graph reads the browser-safe door.
+  const stand = Object.fromEntries(Object.entries({ ...Object.fromEntries(Object.entries(KERNEL_BROWSER_DOORS).filter(([, door]) => existsSync(join(root, door)))), ...standins }).map(([path, value]) => [path, repositoryPath(root, value)]));
   for (const [url, value] of Object.entries(named)) { urlOf.set(repositoryPath(root, value), url); pending.push([url, repositoryPath(root, value)]); }
   const publicUrls = new Set([...Object.keys(named), ...Object.keys(generated)]);
   /** The URL a repository path is served at, queuing its module the first time. */

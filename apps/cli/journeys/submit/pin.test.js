@@ -19,10 +19,10 @@ function document(result) {
 }
 
 /** Invoke a native command under an explicit fixture session. */
-function asSession(box, session, cwd, ...args) {
+async function asSession(box, session, cwd, ...args) {
   const previous = box.env.CODEX_THREAD_ID;
   box.env.CODEX_THREAD_ID = session;
-  try { return box.run(cwd, ...args, '--json'); }
+  try { return await box.runLocal(cwd, ...args, '--json'); }
   finally {
     if (previous === undefined) delete box.env.CODEX_THREAD_ID;
     else box.env.CODEX_THREAD_ID = previous;
@@ -30,13 +30,13 @@ function asSession(box, session, cwd, ...args) {
 }
 
 /** Join an independent detached worktree at a commit under its own session. */
-function seat(box, name, lane, commit) {
+async function seat(box, name, lane, commit) {
   const path = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, commit);
-  return { path, id: document(asSession(box, name, path, 'join', lane)).agent, session: name };
+  return { path, id: document(await asSession(box, name, path, 'join', lane)).agent, session: name };
 }
 
-test('a companion submit seals when main advances during its proof phase, the #1668 shape [C7,V4,H16]', t => {
+test('a companion submit seals when main advances during its proof phase, the #1668 shape [C7,V4,H16]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -62,22 +62,22 @@ test('a companion submit seals when main advances during its proof phase, the #1
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: gate that lands during proof [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Companion submit across a landing',
+  const id = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Companion submit across a landing',
     '--criterion', 'The feature submits.', '--specs', 'G1', '--check', `node '${check}'`, '--json')).item.item_id;
-  document(asSession(box, 'pin-builder', box.web, 'claim', String(id)));
+  document(await asSession(box, 'pin-builder', box.web, 'claim', String(id)));
   const previous = box.env.CODEX_THREAD_ID;
   box.env.CODEX_THREAD_ID = 'pin-builder';
   try { assert.equal(helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add feature [G1]').status, 0); }
   finally { if (previous === undefined) delete box.env.CODEX_THREAD_ID; else box.env.CODEX_THREAD_ID = previous; }
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
-  const author = seat(box, 'pin-author', 'api', submitted);
+  const author = await seat(box, 'pin-author', 'api', submitted);
   mkdirSync(join(author.path, 'api'), { recursive: true });
   writeFileSync(join(author.path, 'api/companion.txt'), 'required companion\n');
   box.git(author.path, 'add', 'api/companion.txt');
   const patchFile = join(box.dir, 'companion.patch');
   writeFileSync(patchFile, box.git(author.path, 'diff', '--cached', '--binary') + '\n');
-  document(box.run(box.repo, 'patch', 'attach', String(id), patchFile, '--key', 'companion-v1', '--author', author.id, '--source', submitted, '--json'));
-  const submit = asSession(box, 'pin-builder', box.web, 'submit', String(id));
+  document(await box.runLocal(box.repo, 'patch', 'attach', String(id), patchFile, '--key', 'companion-v1', '--author', author.id, '--source', submitted, '--json'));
+  const submit = await asSession(box, 'pin-builder', box.web, 'submit', String(id));
   assert.equal(submit.code, 0, submit.out);
 });
 

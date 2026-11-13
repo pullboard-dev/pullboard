@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads apps/cli/pullboard.js apps/cli/tests/fixtures/lock/hold/budget/preload.js */
 /** The policy snapshot ignores a command's own Git churn but still refuses a foreign policy write [C7,V4,B2]. */
 import assert from 'node:assert/strict';

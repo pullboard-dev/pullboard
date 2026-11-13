@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Import-cut filing uses the committed plan, real CLI and real source graphs [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -177,7 +176,7 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     const green = runFixtureChild(process.execPath, [BIN, '--cuts', group.cell], { cwd: root, encoding: 'utf8' });
     assert.equal(green.status, 0, green.stdout + green.stderr);
     const lower = plan.cells.find(cell => cell.order < group.order);
-    const shared = `${lower.root}/src/core/extracted.js`;
+    const shared = `${lower.root}/src/logic/extracted.js`;
     put(shared, 'export const detached = true;\n');
     put('path-map.json', JSON.stringify({ [edge.to]: shared }));
     put(edge.from, `import ${JSON.stringify('../' + shared)}; export const detached = true;\n`);
@@ -209,8 +208,8 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
   test('declared loaders retain lower and later edges through transitive forwarding shims [C7,D3,CD64]', t => {
     const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
     const lower = plan.cells.find(cell => cell.order < group.order);
-    const shared = `${lower.root}/src/core/loader.js`, bridge = `${lower.root}/src/core/bridge.js`;
-    const leaf = `${lower.root}/src/core/leaf.js`, lowerGlob = `${lower.root}/src/core/leaf*.js`;
+    const shared = `${lower.root}/src/logic/loader.js`, bridge = `${lower.root}/src/logic/bridge.js`;
+    const leaf = `${lower.root}/src/logic/leaf.js`, lowerGlob = `${lower.root}/src/logic/leaf*.js`;
     put(leaf, 'export const value = true;\n');
     put(edge.from, `/** @pullboard-module-loads ${lowerGlob} */\nexport async function load(name) { return import(name); }\n`);
     assert.deepEqual(checkCuts(root, plan, group.cell), [], 'a declared own loader into a lower cell passes');

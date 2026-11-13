@@ -113,9 +113,9 @@ function importParents(entry) {
   return parent;
 }
 
-test('clause 1: packages/gate/src/io/run/tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
+test('clause 1: apps/cli/src/io/run/tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
   const runner = importParents('packages/gate/src/io/run-tests.js');
-  for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `packages/gate/src/io/run/tests.js statically imports ${barrel}`);
+  for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `apps/cli/src/io/run/tests.js statically imports ${barrel}`);
   for (const barrel of BARRELS) {
     const graph = importParents(barrel);
     for (const target of RUNNER_TARGETS) assert.ok(!graph.has(target) || !runner.has(barrel), `${barrel} reaches ${target}`);

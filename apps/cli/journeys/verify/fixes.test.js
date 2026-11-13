@@ -11,9 +11,9 @@ import { after } from 'node:test';
 import { before } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
-import { accept } from '../../tests/fixtures/cockpit/harness.js';
+import { acceptLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { boardId } from '../../tests/fixtures/cockpit/harness.js';
-import { build } from '../../tests/fixtures/cockpit/harness.js';
+import { buildLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { earlier } from '../../tests/fixtures/cockpit/harness.js';
@@ -43,7 +43,13 @@ async function boardInput(view, root) {
 
 // One real board for every case: two landed, one accepted, two in review, one sent back, three ready, one building.
 before(async () => {
+  try { await seed(); } catch (error) { seeded.failure = error; }
+}, { timeout: 120_000 });
+async function seed() {
+  const T0 = Date.now();
   const box = machine();
+  const real = box.inProcess;
+  box.inProcess = (cwd, ...args) => Promise.race([real(cwd, ...args), new Promise((_, no) => setTimeout(() => no(new Error(`seed step hung: ${args.slice(0, 3).join(' ')} after ${Date.now() - T0} ms`)), 25_000).unref())]);
   const alpha = project(box, 'agent-floor', undefined, {
     lease: '2h', reviewLease: '3h',
     lanes: { web: { owns: ['web/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] }, quiet: { owns: [], specs: ['G'] } },
@@ -51,34 +57,34 @@ before(async () => {
   const titles = ['Landed one', 'Landed two', 'Accepted, waiting to land', 'In review with a reviewer', 'In review, nobody yet',
     'Sent back once', 'Ready one', 'Ready two', 'Ready three'];
   for (const title of titles) {
-    box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture row shows on the agent floor.',
-      '--check', 'test -d web/', '--wait');
+    await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture row shows on the agent floor.',
+      '--check', 'test -d web/');
   }
   for (const id of [1, 2]) {
-    build(box, alpha, id, `landed-${id}.txt`);
-    accept(box, alpha, id);
+    await buildLocal(box, alpha, id, `landed-${id}.txt`);
+    await acceptLocal(box, alpha, id);
     box.git(alpha.repo, 'merge', '--no-ff', '-m', `chore: land floor item ${id}`, alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
-    box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
+    await box.inProcess(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
-  build(box, alpha, 3, 'accepted.txt');
-  accept(box, alpha, 3);
-  build(box, alpha, 4, 'review-4.txt');
-  build(box, alpha, 5, 'review-5.txt');
-  build(box, alpha, 6, 'sent-back.txt');
+  await buildLocal(box, alpha, 3, 'accepted.txt');
+  await acceptLocal(box, alpha, 3);
+  await buildLocal(box, alpha, 4, 'review-4.txt');
+  await buildLocal(box, alpha, 5, 'review-5.txt');
+  await buildLocal(box, alpha, 6, 'sent-back.txt');
   const reviewer = join(box.dir, 'agent-floor-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/agent-floor-reviewer', reviewer, 'main');
-  box.run(reviewer, 'join', 'tests', '--model', 'Floor reviewer');
+  await box.inProcess(reviewer, 'join', 'tests', '--model', 'Floor reviewer');
   // The reviewer sends #6 back from its submitted commit, so the red mark sits on the reviewer's own line.
   box.git(reviewer, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:6`));
-  box.run(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back');
+  await box.inProcess(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back', '--no-next');
   box.git(reviewer, 'switch', '-q', '--detach', 'main');
   earlier(alpha.repo, Date.now(), board => store.reserveReview(board, 4, { agentId: 'tests-1', leaseMs: 3 * 60 * MINUTE, policy: 'any' }));
   // web-1 claims its next ready item, which it is building now.
-  box.run(alpha.web, 'claim', '7');
+  await box.inProcess(alpha.web, 'claim', '7');
   for (const index of [1, 2]) {
     const path = join(box.dir, `agent-floor-quiet-${index}`);
     box.git(alpha.repo, 'worktree', 'add', '-q', '-b', `tests/agent-floor-quiet-${index}`, path, 'main');
-    box.run(path, 'join', 'quiet', '--model', `Floor seat ${index}`);
+    await box.inProcess(path, 'join', 'quiet', '--model', `Floor seat ${index}`);
     seeded[`quiet${index}`] = path;
   }
   const clockBase = Date.now();
@@ -104,7 +110,7 @@ before(async () => {
   assert.ok(events.every((event, index) => Number.isSafeInteger(event.event_id)
     && (!index || event.event_id > events[index - 1].event_id)), 'the actual history endpoint has complete ordered native identities');
 
-}, { timeout: 120_000 });
+}
 
 after(async () => { await seeded.view?.stop(); });
 
@@ -129,6 +135,7 @@ const MEASURE = `(() => {
 })()`;
 
 test('the floor\'s numbers, Now column and queue cards follow the approved fixes at desktop, 1100px and phone widths [N26,N38]', { timeout: 90_000 }, async () => {
+  assert.ifError(seeded.failure);
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the agent floor fixes.');
   const { view, alpha } = seeded;
@@ -136,12 +143,14 @@ test('the floor\'s numbers, Now column and queue cards follow the approved fixes
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.status [data-status=agents]')`);
+    // The notch steps aside under 900 px (nav.css), so the ways-in clause is read at a desktop width.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.notch [data-status=agents]')`);
     // Clause 4: three more ways in, each beside the existing "Open the agent floor" link.
     const ways = [
       ['the Agents card title', '#dashboard [aria-label=Agents] h2 > a:first-child'],
       ['the Agents card working count', '#dashboard [aria-label=Agents] h2 .dash-agents-count'],
-      ['the status bar agents count', '.status [data-status=agents]'],
+      ['the notch agents count', '.notch [data-status=agents]'],
     ];
     assert.match(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-agents-count").textContent'), /^\d+ working$/u);
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-floor-link").textContent'), 'Open the agent floor →', 'the existing link stays');

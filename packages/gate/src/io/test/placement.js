@@ -50,7 +50,7 @@ export function valueGateCommand(root, command, files, seen = new Set()) {
     const words = literalShellWords(stage.text);
     if (!words) return null;
     const node = /(?:^|\/)node(?:\.exe)?$/u.test(words[0]);
-    const runner = node && (words[1] === '--test' || /(?:^|\/)(?:bin\/run-tests|packages\/gate\/src\/io\/run\/tests)\.js$/u.test(words[1] ?? ''));
+    const runner = node && (words[1] === '--test' || /(?:^|\/)(?:bin\/run-tests|(?:packages\/gate|apps\/cli)\/src\/io\/run\/tests)\.js$/u.test(words[1] ?? ''));
     let next = stage.text;
     if (runner) {
       // A pre-existing selector/filter is a separate obligation, never expanded or weakened.

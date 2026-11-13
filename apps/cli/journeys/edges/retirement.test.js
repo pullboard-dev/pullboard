@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/lib/index.js */
 /** A named `plan retire entry <path>` line lets an accepted process entry leave the plan only once its file stopped running [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** A private native event import seeds two windows; this fixture is not review assurance [N26,R1,R2]. */
 import assert from 'node:assert/strict';
@@ -75,9 +74,11 @@ test('window overview renders canonical seeded values, directions, shares and mi
     await chrome.send('Emulation.setTimezoneOverride',{timezoneId:'America/Chicago'});
     await chrome.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
     await chrome.send('Page.navigate',{url:server.link.href});
-    await chrome.waitFor('document.querySelector("#dashboard .window-comparison") && data.project.statsComparison.available');
+    await chrome.waitFor('!!data?.project && !!document.querySelector("[data-tab=activity]")');
+    await chrome.click('document.querySelector("[data-tab=activity]")'); // the two-hour comparison lives on Activity
+    await chrome.waitFor('document.querySelector("#activity-compare .window-comparison") && data.project.statsComparison.available');
     const result=JSON.parse(await chrome.stable(`JSON.stringify((() => {
-      const c=data.project.statsComparison, root=document.querySelector('#dashboard .window-comparison');
+      const c=data.project.statsComparison, root=document.querySelector('#activity-compare .window-comparison');
       const keys=[['landed',false],['rejectRate',true],['idleShare',true],['agentHoursPerLanding',false]];
       return { landed:[c.current.landed,c.previous.landed], reject:[c.current.rejectRate,c.previous.rejectRate],
         title:root.querySelector('h2').textContent, sentence:root.querySelector('.window-sentence').textContent,
@@ -106,9 +107,9 @@ test('window overview renders canonical seeded values, directions, shares and mi
     assert.equal(result.stages.length,10);
     for (const [shown,expected,flex] of result.stages) {assert.equal(shown,expected);assert.ok(Math.abs(flex-expected)<0.000001,'Rendered stage share mismatch: ' + JSON.stringify({shown,expected,flex,stages:result.stages}));}
     assert.equal(result.visible,true); assert.equal(result.tableOpen,false); assert.equal(result.summary,'All 17 measures →');
-    await chrome.click('document.querySelector("#dashboard .window-comparison summary")');
-    await chrome.waitFor('document.querySelector("#dashboard .window-comparison details").open');
-    assert.equal(await chrome.stable('document.querySelectorAll("#dashboard [data-stats-comparison]").length'),17);
+    await chrome.click('document.querySelector("#activity-compare .window-comparison summary")');
+    await chrome.waitFor('document.querySelector("#activity-compare .window-comparison details").open');
+    assert.equal(await chrome.stable('document.querySelectorAll("#activity-compare [data-stats-comparison]").length'),17);
     for (const width of [1440,375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false});
       await chrome.waitFor('innerWidth === '+width);

@@ -18,19 +18,6 @@ export async function firstInputLine(stdin) {
   return text;
 }
 
-/**
- * Read everything git writes on a hook's stdin, or nothing when run by hand.
- *
- * @param {any} stdin
- * @returns {Promise<string>}
- */
-export async function readStdin(stdin) {
-  if (!stdin || stdin.isTTY) return '';
-  const chunks = [];
-  for await (const chunk of stdin) chunks.push(chunk);
-  return Buffer.concat(chunks).toString('utf8');
-}
-
 /** Wait up to the board's shared busy timeout while reading hook facts, without migrating its schema. */
 export function hookRead(ctx, read) {
   if (!existsSync(ctx.file)) return null;

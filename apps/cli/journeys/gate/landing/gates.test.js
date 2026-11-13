@@ -47,6 +47,7 @@ function fixture(t) {
   };
   const initial = commit({});
   mkdirSync(join(root, '.git/pullboard'), { recursive: true });
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(root, '.git/pullboard/board.sqlite'));
   t.after(() => closeBoard(board));
   const options = { agentId: 'fixture', policyCommit: initial, commit: initial, tree: git('rev-parse', 'HEAD^{tree}') };
@@ -82,6 +83,7 @@ for (const policy of [{ gate: 'false' }, { check: { timeout: '2s' } }]) test(`ch
 
 /** Observe the real queue without opening a write transaction or supplying any proof receipt. */
 function queuedState(box, id) {
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { return { job: submitHandoff(board, id), item: getItem(board, id) }; }
   finally { closeBoard(board); }
@@ -134,13 +136,13 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
     catch { /* A worker still running past the ceiling is removed with its fixture below. */ }
     await Promise.all(helpers.sandboxes.map(dir => rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })));
   });
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const source = JSON.parse(claimed.out).itemFolder ?? box.web;
   const committed = helpers.commitFile(box, source, 'web/snapshot.txt', 'candidate\n', 'feat(web): captured policy fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   writeFileSync(armed, 'armed');
-  const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
+  const submitted = (await box.runLocal(source, 'submit', String(id), '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   assert.equal(JSON.parse(submitted.out).queued, true);
   try { await helpers.waitFor(() => existsSync(entered), 'actual queued worker entered frozen check', 120_000); } // budget: owned worker readiness hang ceiling

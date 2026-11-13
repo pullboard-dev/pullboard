@@ -12,7 +12,7 @@ Agents keep hitting the same kinds of coordination problems: two test gates at o
 - **Procedures:** state machines declared as data.
 - **Proposals:** how a procedure is born or changed, decided up the chain of command.
 
-Two of the pieces exist already. The item lifecycle is a state machine declared as data in `src/machine.js`, and its guards refuse a move with a code, what they saw and the next step. This RFC generalizes them.
+Two of the pieces exist already. The item lifecycle is a state machine declared as data in `packages/state/src/io/machine.js`, and its guards refuse a move with a code, what they saw and the next step. This RFC generalizes them.
 
 ## Resources
 

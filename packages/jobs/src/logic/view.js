@@ -7,9 +7,10 @@
  *
  * @param {Record<string, any>} job - A `job` table row.
  * @param {Record<string, any>[]} steps - Its `job_step` rows, oldest first.
+ * @param {(text: string) => any} [parse] - Reads a payload text; the store passes one that fetches blob payloads.
  * @returns {{id: string, kind: string, item: number|null, candidate: string|null, base: string|null, step: string, attempt: number, leaseOwner: string|null, leaseUntil: number, created: number, updated: number, steps: {name: string, seq: number, payload: any, at: number}[]}}
  */
-export function viewOf(job, steps) {
+export function viewOf(job, steps, parse = JSON.parse) {
   return {
     id: job.job_id,
     kind: job.job_kind,
@@ -22,6 +23,6 @@ export function viewOf(job, steps) {
     leaseUntil: job.job_lease_until,
     created: job.job_created,
     updated: job.job_updated,
-    steps: steps.map(row => ({ name: row.job_step_name, seq: row.job_step_seq, payload: JSON.parse(row.job_step_payload), at: row.job_step_at })),
+    steps: steps.map(row => ({ name: row.job_step_name, seq: row.job_step_seq, payload: parse(row.job_step_payload), at: row.job_step_at })),
   };
 }

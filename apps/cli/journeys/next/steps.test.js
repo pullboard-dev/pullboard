@@ -9,7 +9,6 @@ import { join } from 'node:path';
 import { commandOutput } from '../../index.js';
 import { refusalDocument } from '../../index.js';
 import { NEXT_STEPS } from '../../index.js';
-import { agentsBlock } from '../../../../packages/doctrine/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { recordedRefusal } from '../../../../packages/state/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -37,14 +36,6 @@ test('agents are never told to ask the person [B26]', () => {
     assert.equal(refusalDocument(footer, { caller: 'seat' }).error.next, route, 'a remote next footer cannot direct a seat to the person');
     assert.equal(refusalDocument(footer, { caller: 'person' }).error.next, text, 'a person retains the original footer');
   }
-  const block = agentsBlock();
-  const talk = block.slice(block.indexOf('**Talk.**'), block.indexOf('**Small models.**') === -1 ? block.indexOf('**Never.**') : block.indexOf('**Small models.**'));
-  assert.match(talk, /only the coordinator/iu);
-  assert.match(talk, /main checkout/iu);
-  assert.match(talk, /pullboard shout coordinator/iu);
-  assert.match(talk, /--decision/u);
-  assert.match(talk, /never asks? the person in (?:its|their) own session/iu);
-  for (const need of ['decision', 'approval', 'waiver', 'preview', 'phone check']) assert.ok(talk.includes(need), `Talk routes a ${need}`);
 });
 
 test('person routing preserves reasons, quoted text and canonical refusal receipts [B26]', () => {
@@ -72,15 +63,15 @@ test('person routing preserves reasons, quoted text and canonical refusal receip
   assert.deepEqual(recordedRefusal(error), before);
 });
 
-test('real seat refusals and approved-row hooks send person requests to the coordinator [B26]', () => {
+test('real seat refusals and approved-row hooks send person requests to the coordinator [B26]', async () => {
   const box = e2e.project();
-  const json = box.run(box.web, 'spec', 'answer', 'G1', 'yes', '--json');
+  const json = (await box.runLocal(box.web, 'spec', 'answer', 'G1', 'yes', '--json'));
   assert.equal(json.code, 1, json.err);
   const error = JSON.parse(json.out).error;
   assert.equal(error.code, 'B26_PERSON_APPROVAL', 'routing never grants the seat person authority');
   assert.match(error.next, /pullboard shout coordinator.*--decision/u);
   assert.doesNotMatch(error.next, /ask the person/iu);
-  const text = box.run(box.web, 'spec', 'answer', 'G1', 'yes');
+  const text = (await box.runLocal(box.web, 'spec', 'answer', 'G1', 'yes'));
   assert.equal(text.code, 1);
   assert.match(text.err, /next: ask the coordinator to bring it to the person/u);
   const spec = readFileSync(join(box.web, 'SPEC.md'), 'utf8').replace('The page renders.', 'A different promise.');

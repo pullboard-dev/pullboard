@@ -17,6 +17,11 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   ITEM_FOLDER_DIRTY: 'commit or stash the dirty files in that item folder, then claim again',
   SUBMIT_HANDOFF_NOT_LAUNCHED: 'run pullboard submit again from the item folder; the hand-off did not start',
   LAND_STALLED: 'run pullboard resume to inspect the batch record, then retry landing',
+  JOBS_NOT_AVAILABLE: 'POST one job queue call (claim, renew, release or receipt) to a board that serves its runner job queue',
+  BAD_UPLOAD: 'send a nonempty sealed upload within the relay limit, such as a smaller snapshot, then retry',
+  BAD_BOARD_KEY: 'delete the named key file and run pullboard serve again to make a new board key',
+  COMPAT_NEEDS_REMOVE_BY: 'add removeBy: \'YYYY-MM-DD\' to the compatibility setting row in the settings inventory',
+  LAND_NAMED: 'name only accepted items on the board that are not merged or withdrawn, with commits in this repository; on a local trunk, set landing.publish to "separate" first',
   RUNNER_RESULT_SIGNATURE: 're-register the runner with pullboard runner add before accepting another result',
   RUNNER_RESULT_SOURCE: 'discard the result and rerun the pinned source on the runner',
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
@@ -33,6 +38,13 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_MAIN_COMPARISON: 'retry the landing once main can run the named files; run pullboard resume to start it',
   LAND_MAIN_MOVED: 'run pullboard resume so landing restarts from the new main tip',
   LAND_RUNNER: 'start landing through the CLI (pullboard resume), which supplies its in-process batch runner',
+  LAND_NO_RUNNER: 'set trunk.remote in pullboard.json to the trunk\'s git URL, then retry the forced landing',
+  UNDECLARED_STATE: 'export again from a board whose items all hold declared statuses, then import: nothing was inserted',
+  GATE_NOT_WAITING: 'nothing to withdraw: pullboard show <id> prints its gate state',
+  ITEM_FORCE_SIZE_PERSON: 'split the item with --after into pieces of 30 minutes or less, or ask the person',
+  SPEC_NOT_WRITABLE: 'make the spec file writable in the main checkout, then run the draft again',
+  REVIEW_EARLIER_HOLDER: 'ask a seat that never claimed, built or released this item: pullboard next --verify',
+  TRUNK_PACK_NOT_AVAILABLE: 'this board serves no trunk packs; fetch the commit from the trunk remote',
   DRIVE_OWNER: 'pass a driver id as { owner } to the drive call so the lease has a holder',
   SUBMIT_HANDOFF_STOPPED: 'no action needed: the next gate driver resumes the job; run pullboard next to see it',
   ITEM_FOLDER_SESSION_LIVE: 'ask the named agent to finish with the folder or end its session, then claim the item again; build another item meanwhile',
@@ -227,6 +239,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "CANNOT_SIGN": "sign only approved rows: pullboard spec signoff <approved ids>",
   "CHECKOUT_SESSION": "run pullboard takeover from the agent session that owns this checkout",
   "CHECKOUT_BUSY": "let the named command finish, or stop it if it is stuck, then commit again",
+  "CHECK_RUNS_PULLBOARD_TEST": "run the files directly: node packages/gate/src/io/run/tests.js <files>",
   "CHECK_SYNTAX": "close the quote the shell names, then set the check again: inside single quotes write an apostrophe as '\\'' or match it with ., and test with sh -n -c \"<command>\"",
   "CHECK_CANNOT_FAIL": "write a check that exits nonzero on the problem, then add the item again",
   "CHECK_CONFIRM": "read the check command, then run pullboard check <id> --yes",
@@ -348,6 +361,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "NOT_MAIN": "run this coordinator-owned operation from the main checkout, or ask the coordinator to do it",
   "NOT_APPROVER": "ask one of the approvers pullboard.json names to do it, signed in as themselves; to change the list, an approver commits it and runs pullboard relay on",
   "BAD_APPROVERS": "list approvers in pullboard.json as distinct GitHub logins, at most fifty, then run pullboard relay on",
+  "NOT_LANDED": "see its state with pullboard show <id>; only an item a forced merge landed with no verdict takes this accept",
   "NOT_MERGED": "merge the item's commit onto the trunk, then pullboard merged <id>",
   "NOT_SSH_KEY": "add a valid OpenSSH public key: pullboard spec signers add --key ~/.ssh/id_ed25519.pub",
   "NOT_SSH_KEY_PATH": "set user.signingkey to an SSH key file: git config user.signingkey ~/.ssh/id_ed25519.pub",
@@ -515,6 +529,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "SNAPSHOT_PAGE_FORMAT": "refresh the snapshot from a linked computer, or upgrade Pullboard before reading this sealed-page format",
   "SNAPSHOT_PAGE_MISSING": "refresh the phone board, or run pullboard relay from its linked computer to restage the missing encrypted pages",
   "SNAPSHOT_READ_EXPIRED": "refresh the phone board to obtain a new read pin, then retry the older-history read",
+  "SNAPSHOT_REQUIRED": "fetch the latest sealed state with GET /api/v2/boards/:id/state, then resume events after its sequence",
   "SNAPSHOT_UPLOAD_EXPIRED": "retry the saved upload; the linked CLI starts a fresh upload session without discarding pending data",
   "SPEC_ANSWER": "read the row with pullboard spec show <id>; the person answers a pending question with pullboard spec answer <id> \"<choice or text>\"",
   "SPEC_ANSWER_CHOICES": "the person approves the exact answered text instead: pullboard spec approve <id> --text \"<ask>: <answer>. Choices: <choices>.\"",
@@ -578,3 +593,6 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   WORKER_SEAT_IDENTITY: "check that pullboard worktree registers its seat in pullboard status, then run pullboard run --scale again",
   LAND_GIT: "fetch the source commit the message names into the main checkout, confirm git log --first-parent reads, then run pullboard land --adopt"
 });
+
+/** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */
+export const RECORDED_GENERIC_NEXT = 'Run pullboard help, correct the reported problem, and retry the command.';

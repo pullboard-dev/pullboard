@@ -37,7 +37,10 @@ export function landingLeaseState(board) {
   return { ...state, holder: local(state.holder), line: state.line.map(local) };
 }
 
-/** Renew an acknowledged invocation locally; this function never calls a relay or creates a grant. */
+/**
+ * Renew an acknowledged invocation locally; this function never calls a relay or creates a grant.
+ * Why no policy snapshot: renewal is a heartbeat, not a policy-judged move; a policy change landing mid-renewal killed the landing (#5672).
+ */
 export function renewLocalLanding(board, fence) {
   return atomic(board, () => {
     const holder = assertLandingLease(board, fence);
@@ -50,7 +53,7 @@ export function renewLocalLanding(board, fence) {
       save(board, state, 'renew', holder.token, false);
     }
     return renewed;
-  });
+  }, { writePolicy: false }); // A heartbeat reads no accepted policy, so a policy landing mid-renewal never refuses it (#5672).
 }
 
 /** Validate every queue identity before it becomes durable or controls admission. */

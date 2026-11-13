@@ -160,7 +160,7 @@ test("the API passes blank shout text to the CLI's own refusal [A2,A9]", async (
     return { status: response.status, document: await response.json() };
   }
   for (const text of ['', '  \t\n ']) {
-    const cli = box.run(box.repo, 'shout', 'web', text, '--json');
+    const cli = await box.runLocal(box.repo, 'shout', 'web', text, '--json');
     assert.notEqual(cli.code, 0);
     const expected = JSON.parse(cli.out).error;
     assert.equal(expected.code, 'EMPTY_SHOUT');
@@ -191,7 +191,7 @@ test("the API passes blank shout text to the CLI's own refusal [A2,A9]", async (
   const success = await move({ verb: 'shout', args: { to: 'web', text: 'Keep this valid message.' } });
   assert.equal(success.status, 200);
   assert.equal(success.document.event.event_kind, 'shout');
-  const inbox = box.run(box.web, 'inbox', '--json');
+  const inbox = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(inbox.code, 0, inbox.err || inbox.out);
   assert.deepEqual(JSON.parse(inbox.out).shouts.map(row => row.shout_text), ['Keep this valid message.']);
 });

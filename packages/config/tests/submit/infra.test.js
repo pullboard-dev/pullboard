@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/config/src/io/main.js */
 /**
  * The submit infra-note policy rejects invalid known values and warns on unknown keys [C7,V4,N26].
  */

@@ -25,6 +25,7 @@ function mergedItem(t) {
   const box = machine(), alpha = project(box, 'merged-once');
   fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'A merged-once fixture item', check: 'test -f pullboard.json', args: ['--specs', 'G1'], wait: true,
     run: (root, ...args) => ({ code: 0, out: box.run(root, ...args), err: '' }) });
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => closeBoard(board));
   const reviewer = register(board, { lane: 'tests', path: join(box.dir, 'merged-reviewer'), parentDigest: 'b'.repeat(64) });

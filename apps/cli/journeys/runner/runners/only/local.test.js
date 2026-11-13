@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/tests/fixtures/child.js packages/gate/index.js packages/gate/src/io/run/tests.js packages/kernel/index.js packages/kernel/src/logic/census.js packages/landing/index.js packages/resources/index.js */
 /** Actual entry points obey private machine policy before starting any local body [C7,Q1]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -52,14 +52,15 @@ async function directRun(t, runnersOnly, landing = false, inheritedLocal = false
   return await withMainCheckout(SOURCE, head, async root => {
     // The real landing reader requires this owned fixture's coordinator checkout on main.
     runFixtureGit(['checkout', '-B', 'main'], { cwd: root, env: box.env });
-    const file = 'test/private-no-local-body.test.js';
+    const file = 'packages/gate/tests/io/run/fixtures/private-no-local-body.test.js';
     assert.equal(existsSync(join(root, file)), false);
+    mkdirSync(join(root, 'packages/gate/tests/io/run/fixtures'), { recursive: true });
     writeFileSync(join(root, file), "import { test } from 'node:test';\nimport { writeFileSync } from 'node:fs';\n"
       + `test('private actual body [C7]', () => writeFileSync(${JSON.stringify(box.marker)}, 'ran'));\n`);
     runFixtureGit(['add', file], { cwd: root, env: box.env });
     runFixtureGit(['commit', '-qm', 'test: private runner policy body [C7]'], { cwd: root, env: box.env });
     if (landing) box.env.PULLBOARD_LANDING_RUN = '1';
-    let args = [join(root, 'packages/gate/src/io/run/tests.js'), file];
+    let args = [join(root, 'apps/cli/src/io/run/tests.js'), file];
     if (inheritedLocal) {
       const driver = join(box.home, 'inherited.mjs');
       writeFileSync(driver, `import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(join(root, 'packages/resources/index.js')).href)};
@@ -111,7 +112,7 @@ test('direct landing shards refuse unavailable runners without a local shard bod
   assert.equal(ran, false, 'landing scheduling cannot bypass the same machine policy');
 });
 
-for (const args of [[], ['--landing']]) test(`public gate ${args.join(' ')} refuses before its local body [C7,Q1]`, t => {
+for (const args of [[], ['--landing']]) test(`public gate ${args.join(' ')} refuses before its local body [C7,Q1]`, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs', helpers.sandbox(), { withWorktree: false });
@@ -120,7 +121,7 @@ for (const args of [[], ['--landing']]) test(`public gate ${args.join(' ')} refu
   writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').writeFileSync(${JSON.stringify(privateBox.marker)}, 'ran');\n`);
   box.git(box.repo, 'add', 'check.cjs');
   box.git(box.repo, 'commit', '-qm', 'test: private gate body [G1]');
-  const result = box.run(box.repo, 'gate', ...args, '--json');
+  const result = await box.runLocal(box.repo, 'gate', ...args, '--json');
   assert.notEqual(result.code, 0, result.out + result.err);
   assert.equal(JSON.parse(result.out).error.code, 'RUNNER_WAIT_DEADLINE');
   assert.equal(existsSync(privateBox.marker), false, 'no configured gate body ran locally');
@@ -129,12 +130,13 @@ for (const args of [[], ['--landing']]) test(`public gate ${args.join(' ')} refu
 test('landing cleanup failure stops named under runner-only and retains opt-out local recovery [C7,Q1]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('node packages/gate/src/io/run/tests.js', helpers.sandbox(), { withWorktree: false });
+  const box = helpers.project('node apps/cli/src/io/run/tests.js', helpers.sandbox(), { withWorktree: false });
   mkdirSync(join(box.repo, 'bin'));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'packages/gate/src/io/run/tests.js'), "require('node:fs').writeFileSync(process.env.PULLBOARD_PRIVATE_MARKER, 'ran');\n");
+  mkdirSync(join(box.repo, 'apps/cli/src/io/run'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/run/tests.js'), "require('node:fs').writeFileSync(process.env.PULLBOARD_PRIVATE_MARKER, 'ran');\n");
   writeFileSync(join(box.repo, 'test/probe.test.js'), '// the local recovery executable records its actual body\n');
-  box.git(box.repo, 'add', 'packages/gate/src/io/run/tests.js', 'test/probe.test.js');
+  box.git(box.repo, 'add', 'apps/cli/src/io/run/tests.js', 'test/probe.test.js');
   box.git(box.repo, 'commit', '-qm', 'test: actual private shard recovery body [G1]');
   for (const runnersOnly of [false, true]) {
     const privateBox = privateMachine(t, runnersOnly);
@@ -149,7 +151,7 @@ import { parseProcessCensus } from ${module('packages/kernel/src/logic/census.js
 import { Refused } from ${module('packages/kernel/index.js')};
 import { listResources } from ${module('packages/resources/index.js')};
 let output = '', calls = 0;
-const result = await runLandingShards({ root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'packages/gate/src/io/run/tests.js'))},
+const result = await runLandingShards({ root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'apps/cli/src/io/run/tests.js'))},
  files: ['test/probe.test.js'], count: 1, parseProcessCensus, needsBrowser: async () => false,
  remoteRun: async () => { calls++; throw new Refused('RUNNER_CLEANUP_TIMEOUT', 'private runner cleanup was not verified'); },
  write: text => { output += text; } });
@@ -191,7 +193,7 @@ await assert.rejects(runGate(${JSON.stringify(box.repo)}, { gate: 'node check.cj
  landing: true, collectAll: true, trustStamp: false, releaseRequest: release }), refuses);
 process.env[RELEASE_EXECUTORS_ENV] = original;
 process.env[LANDING_COLLECT_ALL_ENV] = '1';
-await assert.rejects(runLandingShards({ root: ${JSON.stringify(box.repo)}, runner: 'packages/gate/src/io/run/tests.js',
+await assert.rejects(runLandingShards({ root: ${JSON.stringify(box.repo)}, runner: 'apps/cli/src/io/run/tests.js',
  files: ['test/probe.test.js'], count: 1, parseProcessCensus }), refuses);
 assert.equal(JSON.stringify(release), original, 'captured placement remains intact');
 assert.equal(listResources({scope:'machine'}).flatMap(row => row.holders).length, 0);

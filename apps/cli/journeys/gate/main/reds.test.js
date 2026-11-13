@@ -55,7 +55,7 @@ function builderRows(db) {
   return db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
 }
 
-test('clause 1: every red named red by a fresh main receipt at the gate base records green with those cases listed as main-owned, no fact or resubmit [C7]', t => {
+test('clause 1: every red named red by a fresh main receipt at the gate base records green with those cases listed as main-owned, no fact or resubmit [C7]', async t => {
   withBoard(t, (db) => {
     const gate = recordGateVerdict(ports, db, { item: 7, candidate: 'a'.repeat(40), base, command, reds, receipts: [receipt()], now: 20_000 });
     assert.equal(gate.verdict, 'green');
@@ -79,7 +79,7 @@ test('clause 1: every red named red by a fresh main receipt at the gate base rec
   });
 });
 
-test('clause 2: a red file with no fresh main receipt queues a main-test job and the verdict finishes when it returns, without bouncing [C7]', t => {
+test('clause 2: a red file with no fresh main receipt queues a main-test job and the verdict finishes when it returns, without bouncing [C7]', async t => {
   withBoard(t, (db) => {
     const candidate = 'a'.repeat(40);
     const gate = recordGateVerdict(ports, db, { item: 7, candidate, base, command, reds, receipts: [receipt({ at: base.at - 1 })], now: 20_000 });
@@ -155,7 +155,7 @@ function queuedRecord(box, id) {
 
 /** Claim the item, commit a change, and submit through the real queued worker; returns the terminal record. */
 async function submitQueued(helpers, box, id, { moveMain = false } = {}) {
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const source = JSON.parse(claimed.out).itemFolder ?? box.web;
   const committed = helpers.commitFile(box, source, 'web/snapshot.txt', 'candidate\n', 'feat(web): change beside a main red [G1]');
@@ -166,7 +166,7 @@ async function submitQueued(helpers, box, id, { moveMain = false } = {}) {
     box.git(box.repo, 'add', 'docs-note.txt');
     box.git(box.repo, 'commit', '-qm', 'docs: main moves after the claim');
   }
-  const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
+  const submitted = (await box.runLocal(source, 'submit', String(id), '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   assert.equal(JSON.parse(submitted.out).queued, true, 'the submit is queued for the real worker');
   await helpers.waitFor(() => ['green', 'infrastructure', 'red', 'incomplete'].includes(queuedRecord(box, id).job?.state), // budget: real queued worker hang ceiling
@@ -178,8 +178,8 @@ async function submitQueued(helpers, box, id, { moveMain = false } = {}) {
  * The thread's facts about main's red: the known-main measurement a red gate made the builder carry. The machine's own
  * bookkeeping facts (the tier-1 shadow, the automatic main merge, the review comparison) do not name the red.
  */
-function facts(box, id) {
-  const shown = box.run(box.repo, 'show', String(id), '--json');
+async function facts(box, id) {
+  const shown = (await box.runLocal(box.repo, 'show', String(id), '--json'));
   return JSON.parse(shown.out).thread.filter(entry => entry.type === 'fact' && /main-red\.test\.js|main red|known main/iu.test(entry.text))
     .map(entry => entry.text);
 }
@@ -204,7 +204,7 @@ test('clause 1: a real queued submit whose frozen check is red only in main\'s o
   const verdict = record.verdicts.at(-1).steps.find(step => step.name === 'verdict').payload;
   assert.equal(verdict.green, true, 'the gate records green');
   assert.deepEqual(verdict.mainOwned.map(({ file, name }) => ({ file, name })), [{ file: 'web/main-red.test.js', name: 'main red case [G1]' }], 'the red case is listed as main-owned');
-  assert.deepEqual(facts(box, id), [], 'no fact about main\'s red is written for the builder');
+  assert.deepEqual(await facts(box, id), [], 'no fact about main\'s red is written for the builder');
 });
 
 test('clause 2: a real queued submit with no main receipt at its base runs the main-test job and finishes green when it returns, without a bounce [C7]', { timeout: 150_000 }, async t => {
@@ -219,10 +219,10 @@ test('clause 2: a real queued submit with no main receipt at its base runs the m
   const returned = record.mainTests.filter(job => job.steps.some(step => step.name === 'receipt'));
   assert.ok(returned.some(job => job.steps.find(step => step.name === 'receipt').payload.file === 'web/main-red.test.js'), 'the main-test job returned its receipt');
   assert.equal(record.verdicts.at(-1).steps.at(-1).payload.green, true);
-  assert.deepEqual(facts(box, id), [], 'no fact about main\'s red is written for the builder');
+  assert.deepEqual(await facts(box, id), [], 'no fact about main\'s red is written for the builder');
 });
 
-test('clause 2: the dispatcher pass finishes a verdict waiting on main once its main-test job returned, at most every 5 s [C7]', t => {
+test('clause 2: the dispatcher pass finishes a verdict waiting on main once its main-test job returned, at most every 5 s [C7]', async t => {
   withBoard(t, (db) => {
     const gate = recordGateVerdict(ports, db, { item: 21, candidate: 'a'.repeat(40), base, command, reds, now: 30_000 });
     assert.equal(gate.verdict, 'pending');

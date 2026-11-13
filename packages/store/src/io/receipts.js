@@ -15,7 +15,11 @@ import { Refused } from "../../../kernel/index.js";
 import { agentParent } from "../../../seats/index.js";
 import { SHADOW_TIER1_ENGINE } from "../../../state/light.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../state/light.js";
+import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
 export function boundProofReceipt(board, request) {
@@ -89,6 +93,31 @@ export function recordProofRun(board, request) {
       ref: { kind: 'proof-run', id: receipt.id }, supersedes: null });
     return receipt;
   });
+}
+
+/**
+ * Store a green `pullboard test` run as an immutable native check receipt, naming the item, the checkout's commit,
+ * the files (as the command digest) and the runner, and return its id for recordProofRun to bind. Null when the board keeps no receipt folder.
+ * Why: a test run is proof only when show <id> can name the item and commit it covered [C7].
+ * @param {any} board
+ * @param {{ agentId: string, itemId: number, commit: string, tree?: string|null, files: string[], runner?: string|null, durationMs?: numbercounts?: object }} run
+ * @returns {string|null}
+ */
+export function storeTestReceipt(board, run) {
+  const { boardReceiptStore, receiptBody } = board.runtimePorts?.sourceAdvanceReceipts ?? {};
+  const folder = typeof boardReceiptStore === 'function' ? boardReceiptStore(board) : null;
+  if (!folder) return null;
+  const item = getItem(board, run.itemId);
+  const counts = { passed: run.counts?.passed ?? null, failed: run.counts?.failed ?? null, skipped: run.counts?.skipped ?? null };
+  const body = { version: 2, id: randomUUID(), kind: 'check', tree: run.tree ?? null, head: run.commit, main: null,
+    command: createHash('sha256').update(`pullboard test ${run.files.join(' ')}`).digest('hex'), green: true, failures: [], load: null, at: new Date().toISOString(),
+    proof: { item: run.itemId, frozenDigest: item.item_frozen_digest ?? null, seat: run.agentId, runner: run.runner ?? null, exitCode: 0,
+      durationMs: Number.isSafeInteger(run.durationMs) && run.durationMs >= 0 ? run.durationMs : 0, sourceClean: true, environment: null, counts } };
+  const text = receiptBody(body);
+  if (!text) return null;
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  writeFileSync(join(folder, `${body.id}.json`), text, { mode: 0o600, flag: 'wx' });
+  return body.id;
 }
 
 /** A short pointer replaces repeated provenance narratives in shouts. */

@@ -16,7 +16,7 @@ const TRACKED = [
   'apps/cli/tests/fixtures/child.js',
   'packages/gate/index.js',
   'packages/gate/light.js',
-  'packages/gate/src/io/run/tests.js',
+  'apps/cli/src/io/run/tests.js',
   'packages/gate/tests/io/test/example.test.js',
   'packages/view/browser.js',
   'docs/guide.md',
@@ -36,7 +36,7 @@ function inputsOf(name) {
 test('clause 1: a source-tree test gets the post-move source folders and cell doors, never tests or the old roots [C7]', () => {
   const inputs = inputsOf('source-tree');
   assert.ok(inputs.length > 0, 'a source-tree declaration is never an empty input set');
-  for (const path of ['apps/cli/src/io/item.js', 'apps/cli/pullboard.js', 'packages/gate/index.js', 'packages/gate/light.js', 'packages/gate/src/io/run/tests.js', 'packages/view/browser.js']) {
+  for (const path of ['apps/cli/src/io/item.js', 'apps/cli/pullboard.js', 'packages/gate/index.js', 'packages/gate/light.js', 'apps/cli/src/io/run/tests.js', 'packages/view/browser.js']) {
     assert.ok(inputs.includes(path), `${path} is a source input`);
   }
   for (const path of ['apps/cli/journeys/show/main.test.js', 'apps/cli/tests/fixtures/child.js', TEST_FILE, 'docs/guide.md', 'src/stale.js', 'bin/stale.js']) {

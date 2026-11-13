@@ -1,0 +1,8 @@
+{
+  "openai": ["openai", "codex", "gpt", "chatgpt"],
+  "anthropic": ["anthropic", "claude", "sonnet", "opus", "haiku"],
+  "google": ["google", "gemini"],
+  "xai": ["xai", "grok"],
+  "deepseek": ["deepseek"],
+  "mistral": ["mistral"]
+}

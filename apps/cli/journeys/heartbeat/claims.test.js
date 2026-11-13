@@ -45,14 +45,14 @@ test('clause 1: from a joined seat checkout the loop beats its real board while 
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   const seat = JSON.parse(joined.out).agent;
   const id = String(fileFixtureItem(box, box.repo, { lane: 'web', title: 'Kept alive', check: 'true', args: ['--specs', 'G1'] }).item_id);
-  const claimed = box.run(box.web, 'claim', id);
+  const claimed = (await box.runLocal(box.web, 'claim', id));
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const beats = [];
   const result = await keepClaimsAlive(box.web, {
     beat: async (file, beaten) => { beats.push([file, beaten]); },
     // After the first beat the builder releases, so the next held check reads no claim and the loop ends.
     wait: async () => {
-      const released = box.run(box.web, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture keepalive done');
+      const released = (await box.runLocal(box.web, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture keepalive done'));
       assert.equal(released.code, 0, `${released.out}\n${released.err}`);
     },
   });

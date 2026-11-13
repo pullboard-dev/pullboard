@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   existsSync,
-  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -16,19 +15,18 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
-  isAbsolute,
   join,
-  relative,
   resolve,
-  sep,
 } from 'node:path';
 import {
   runFixtureChild,
   runFixtureGit,
 } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js';
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { HOST } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { evidenceReader } from './evidence.js';
 
 const BIN = resolve(import.meta.dirname, '../../../../apps/cli/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
@@ -36,13 +34,22 @@ export const TITLE = 'a controlled intermittent assertion [C7]';
 /** Initialize a real private board and Git history; optional pre-init source seeding can return the fixture CLI path. */
 export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false, beforeInit } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-native-flake-')));
-  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  // A Submit leaves detached diagnostics and workers that still write under the scratch; wait for them before removing it.
+  t.after(() => {
+    // The pattern rides in the environment so the waiting shell's own arguments never match it; capped at 90 s.
+    runFixtureChild('/bin/sh', ['-c', 'n=0; while pgrep -f "$PB_SCRATCH" >/dev/null && [ $n -lt 180 ]; do sleep 0.5; n=$((n+1)); done'],
+      { env: { ...process.env, PB_SCRATCH: scratch }, encoding: 'utf8' });
+    rmSync(scratch, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  });
   const root = join(scratch, 'repo'); mkdirSync(root);
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.com',
     GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.com',
-    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0' };
+    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0', PULLBOARD_CLAIM_BEATER: '0' };
   delete env.PULLBOARD_RELAY_TOKEN; delete env.NODE_TEST_CONTEXT;
+  // The submitting process holds this fixture's gate, so every flake journey pins controller dispatch like the cockpit fixture [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   for (const key of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[key]; // the host agent's session must not make builder and reviewer one session [V4]
   /** Run Git only within this fixture with a private deterministic identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
@@ -50,10 +57,16 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   /** Exercise the real CLI, retaining only its structured receipt for assertions. */
   const cliAt = (cwd, ...args) => {
     const result = runFixtureChild(process.execPath, [cliBin, ...args, '--json'], { cwd, env, encoding: 'utf8' });
-    return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure };
+    return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure, stderr: result.stderr };
+  };
+  /** The same receipt as cliAt, from an awaited in-process run of the production dispatch; the fixture's own binary is not used. */
+  const callAt = async (cwd, ...args) => {
+    const result = await runCliInProcess([...args, '--json'], { cwd, env });
+    return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure, stderr: result.stderr };
   };
   /** Keep the coordinator's normal command path separate from its actual joined worktrees. */
   const cli = (...args) => cliAt(root, ...args);
+  const call = (...args) => callAt(root, ...args);
   git('init', '-q', '-b', 'main');
   cliBin = beforeInit?.({ root, scratch, env, git }) ?? BIN;
   assert.equal(cli('init').code, 0);
@@ -76,27 +89,8 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   if (alwaysPass === 'controlled') writeFileSync(counter + '.mode', 'pass');
   writeTarget(root, counter, alwaysPass);
   git('add', '-A'); git('commit', '-q', '-m', 'chore: prepare private flake fixture');
-  /** Read real private evidence only from this freshly owned counter or board evidence directory. */
-  function readData(file, encoding) {
-    if (typeof file !== 'string' || !isAbsolute(file)) throw new Error('private flake evidence requires an absolute file');
-    const path = resolve(file), evidence = join(root, '.git/pullboard');
-    const within = relative(evidence, path);
-    if (path !== counter && (!within || within === '..' || within.startsWith('..' + sep) || isAbsolute(within))) {
-      throw new Error('private flake evidence escaped its counter or board evidence');
-    }
-    let current = scratch;
-    const parts = relative(scratch, path).split(sep);
-    if (lstatSync(current).isSymbolicLink()) throw new Error('private flake evidence root is symbolic');
-    for (const part of parts) {
-      current = join(current, part);
-      const stat = lstatSync(current);
-      if (stat.isSymbolicLink() || (current === path ? !stat.isFile() : !stat.isDirectory())) {
-        throw new Error('private flake evidence is not a contained regular file');
-      }
-    }
-    return readFileSync(path, encoding);
-  }
-  return { root, scratch, env, git, cli, cliAt, counter, readData, lane: 'build' };
+  const readData = evidenceReader({ scratch, root, counter });
+  return { root, scratch, env, git, cli, cliAt, call, callAt, counter, readData, lane: 'build' };
 }
 
 /** Keep the exact same test identity on main and a candidate, with independently controlled behavior. */
@@ -135,9 +129,10 @@ export function privateBuilder(box) {
   const root = made.document.path;
   /** Run a candidate command without taking the coordinator's seat. */
   const cli = (...args) => box.cliAt(root, ...args);
+  const call = (...args) => box.callAt(root, ...args);
   /** Commit only this private candidate's source. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
-  return { root, cli, git };
+  return { root, cli, call, git };
 }
 
 /** Commit one real file change in a private candidate, because submit refuses a head with no change against main. */
@@ -155,11 +150,13 @@ export function checkedItem(box) {
   const bin = join(box.scratch, 'baseline-bin'), worker = join(box.scratch, 'baseline-worker');
   const home = join(box.scratch, 'baseline-home'), machine = box.env.PULLBOARD_MACHINE_HOME;
   for (const path of [bin, worker, home, join(home, '.pullboard'), machine]) mkdirSync(path, { recursive: true });
+  // The stand-in runner's disk floor would otherwise be the host's real free space against 10 GB (RUNNER_DISK_FULL on a crowded runner).
+  fixtureMachineSettings(join(home, '.pullboard'), { gate: { diskFloorMB: 0 } });
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.scratch, 'baseline-ssh.jsonl'), nodeCommand: process.execPath });
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { runnerDispatch: 'controller', browserFreeChecks: true, timingRunner: false },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
   let added;
@@ -171,7 +168,7 @@ export function checkedItem(box) {
     if (previous === null) unlinkSync(settings); else writeFileSync(settings, previous);
   }
   assert.equal(added.code, 0, JSON.stringify(added.document));
-  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
+  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), `baseline setup finished before the measured check: ${JSON.stringify(added.document.item.item_check_baseline)}`);
   assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
   writeFileSync(box.counter, '');
   return added.document.item.item_id;

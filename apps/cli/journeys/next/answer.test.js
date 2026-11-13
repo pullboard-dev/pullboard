@@ -23,10 +23,10 @@ test('no-item answer comes first and fifty held items fit in a short response [N
     store.holdItem(box.board, id, { agentId: 'coordinator', reason: `fixture hold ${index + 1}` });
   }
 
-  const result = await answer(box);
+  const result = await answer(box, ['next', '--build']);
   const first = result.text.split(/\r?\n/u, 1)[0];
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 1, result.text);
   assert.match(first, /^pullboard: \[NOTHING_FREE\].*no item is free/u);
   assert.match(first, /50 items are held by coordinator/u);
   assert.doesNotMatch(first, /#\d+ is held by coordinator:/u);
@@ -80,7 +80,7 @@ test('a returned red gate starts with the fix action [N2,C7]', async t => {
   const first = result.text.split(/\r?\n/u, 1)[0];
 
   assert.equal(result.code, 0, result.text);
-  assert.match(first, new RegExp(`^red queued gate on #${id} A failed gate returns to its builder: GATE_RED:`,'u'));
+  assert.match(first, new RegExp(`^red queued gate on #${id}: GATE_RED; pullboard show ${id} for the full refusal`, 'u'));
 });
 
 /** Capture the actual next command's human output without acknowledging its inbox preview. */

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/runner/src/io/scripts/worker.js apps/runner/src/io/worker/spec.js packages/landing/src/io/main/red.js */
 /** A landing's known-main comparison reaches a real runner worker and a refused spec names its rule [C7,B3]. */
 import assert from 'node:assert/strict';
 import {

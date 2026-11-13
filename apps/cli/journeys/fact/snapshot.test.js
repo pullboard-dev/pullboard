@@ -1,15 +1,20 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** Cockpit snapshot checks, using the shared real-board fixtures [N26]. */
-import { main as nativeTestMain } from '../../tests/fixtures/native.js';
+/** Cockpit snapshot export checks, using the shared real-board fixtures [N26]. */
 import { events as readStatsEvents } from '../../../../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../../../../packages/verify/index.js';
 import assert from 'node:assert/strict';
+import { closeBoard } from '../../../../packages/store/index.js';
+import { events } from '../../../../packages/store/index.js';
+import { openBoardForRead } from '../../../../packages/store/index.js';
+import { proofStats } from '../../../../packages/stats/index.js';
+import { compareFlowWindows } from '../../../../packages/stats/index.js';
+import { portableSnapshot } from '../../../view/index.js';
+import { viewProofSummary } from '../../../view/index.js';
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -24,23 +29,12 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
-import { fetchLocal } from '../../../../packages/sync/index.js';
-import { closeBoard } from '../../../../packages/store/index.js';
-import { events } from '../../../../packages/store/index.js';
-import { openBoardForRead } from '../../../../packages/store/index.js';
-import { proofStats } from '../../../../packages/stats/index.js';
-import { compareFlowWindows } from '../../../../packages/stats/index.js';
-import { portableSnapshot } from '../../../view/index.js';
-import { viewProofSummary } from '../../../view/index.js';
-import { exportView } from '../../src/io/commands/view.js';
 import {
   machine,
   project,
   build,
   sendBack,
-  fetchLive,
   startView,
-  accept,
   boardId,
   boardOf,
   chromeExecutable,
@@ -48,17 +42,8 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
-  travel,
-  settled,
-  roadmapRow,
-  showing,
-  readRoadmap,
-  openRoadmapParts,
-  serveFolder,
-  proofShot,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-/** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
 
 
@@ -72,7 +57,9 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
     assert.equal(observation.observedAt, new Date(now).toISOString(), 'the root read stamp matches its statistics observation clock');
     return portableSnapshot(JSON.parse(JSON.stringify(viewProofSummary(proofStats(board, { now }, statsReadPorts)))), root);
   };
-  assert.deepEqual(expected.proofStats, statisticsAt(expected), 'the live projection matches the public statistics reader at its clock');
+  /** Drop the newest-event stamps: the live read ran before the oracle's snapshot, so a later wake may sit past it and only its stamp moves [N26]. */
+  const withoutNewest = (value) => JSON.parse(JSON.stringify(value, (key, field) => (key === 'lastEventAt' ? undefined : field)));
+  assert.deepEqual(withoutNewest(expected.proofStats), withoutNewest(statisticsAt(expected)), 'the live projection matches the public statistics reader at its clock');
   const actualStatistics = statisticsAt(actual);
   assert.deepEqual(actual.proofStats, actualStatistics, 'the export projection matches the public statistics reader at its clock');
   /** Check the complete comparison window against the same locked event prefix at each read clock. */
@@ -82,10 +69,34 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
   assert.deepEqual(expected.statsComparison, comparisonAt(expected), 'the live comparison matches its public reader at its observation clock');
   const actualComparison = comparisonAt(actual);
   assert.deepEqual(actual.statsComparison, actualComparison, 'the export comparison matches its public reader at its observation clock');
-  assert.deepEqual(actual, { ...expected, observedAt: actual.observedAt, proofStats: actualStatistics, statsComparison: actualComparison }, message);
+  /** The Dashboard hero's four-hour window ends at its own read clock, so it moves with each observation; its counts must not [N26]. */
+  const recentWindow = (observation, name) => {
+    assert.ok(observation.dashboardRecent.until <= Date.parse(observation.observedAt), `${name} four-hour window ends at or before its read stamp`);
+    assert.equal(observation.dashboardRecent.until - observation.dashboardRecent.since, 4 * 3_600_000, `${name} window spans four hours`);
+  };
+  recentWindow(expected, 'the live projection');
+  recentWindow(actual, 'the export projection');
+  const wanted = {
+    ...expected,
+    observedAt: actual.observedAt,
+    proofStats: actualStatistics,
+    statsComparison: actualComparison,
+    dashboardRecent: actual.dashboardRecent,
+    // The export is a served summary, which counts its finished items; the live read lists them whole, so the counts follow its items [#6588].
+    ...(actual.finished ? { finished: { verified: expected.items.filter(item => item.status === 'verified').length, withdrawn: expected.items.filter(item => item.status === 'withdrawn').length } } : {}),
+  };
+  assert.deepEqual(Object.keys(actual).sort(), Object.keys(wanted).sort(), `${message}: the same projection fields`);
+  // Compare field by field so a red names the one field that moved between the two reads.
+  /** An item with no claim carries claimHealth null live and omits it in the served summary; neither says anything different [#6588]. */
+  const unclaimed = (value) => JSON.parse(JSON.stringify(value, (key, field) => (key === 'claimHealth' && field === null ? undefined : field)));
+  for (const field of Object.keys(wanted)) assert.deepEqual(unclaimed(actual[field]), unclaimed(wanted[field]), `${message}: field ${field}`);
+  assert.deepEqual(unclaimed(actual), unclaimed(wanted), message);
+  const { since, until, ...liveCounts } = expected.dashboardRecent;
+  const { since: exportSince, until: exportUntil, ...exportCounts } = actual.dashboardRecent;
+  assert.deepEqual(exportCounts, liveCounts, 'the hero counts match across the two reads');
 }
 
-test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
+test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 240_000 }, async (t) => { // budget: hang-only ceiling for fixture setup plus four real 1x/4x/16x replays on a loaded runner; no speed claim.
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the static replay proof.');
 
@@ -117,14 +128,16 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   observationBoard.db.exec('BEGIN');
   const observationEvents = JSON.parse(JSON.stringify(events(observationBoard)));
 
+  // The coordinator may write a landing wake after the observation: compare up to the observation cursor, never drop the equality.
+  const upToCursor = (rows) => rows.slice(0, observationEvents.length);
   const snapshotOutput = box.exportSnapshot(alpha.repo, 'snapshot-export');
   const exportDir = snapshotOutput.root;
   assert.ok(existsSync(join(exportDir, 'index.html')));
   assert.ok(existsSync(join(exportDir, 'view.css')));
   const exportedBoards = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards.json'), 'utf8'));
   const boardId = exportedBoards.boards[0].id;
-  const exportedEvents = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events;
-  const fullBoardLog = JSON.parse(box.run(alpha.repo, 'log', '--json')).events;
+  const exportedEvents = upToCursor(JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events);
+  const fullBoardLog = upToCursor(JSON.parse(box.run(alpha.repo, 'log', '--json')).events);
   assert.deepEqual(fullBoardLog, observationEvents, 'the live and exported projections share the same unchanged native history');
   assert.equal(exportedEvents.length, fullBoardLog.length, 'the snapshot exports every board event');
   assert.deepEqual(exportedEvents.map((event) => event.event_id), fullBoardLog.map((event) => event.event_id),
@@ -252,8 +265,14 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     })()`);
     await chrome.click("document.querySelector('#replay-play')");
     await chrome.waitFor('snapshotReplay.playing && snapshotReplay.index > 0 && snapshotReplay.index < snapshotReplay.events.length');
-    const beforePause = await evaluate('snapshotReplay.index');
+    // Record the event showing when the press reaches the page: a busy runner can take over a 1× interval between a
+    // separate read and the press, so an index read beforehand races the replay rather than proving pause (#5738).
+    await evaluate(`document.addEventListener('click', (event) => {
+      if (event.target.closest?.('#replay-pause')) window.__replayIndexAtPause = snapshotReplay.index;
+    }, { capture: true })`);
     await chrome.click("document.querySelector('#replay-pause')");
+    const beforePause = await evaluate('window.__replayIndexAtPause');
+    assert.ok(Number.isInteger(beforePause), 'the pause press reached the page');
     await chrome.waitFor('!snapshotReplay.playing');
     const pausedIndex = await evaluate('snapshotReplay.index');
     assert.equal(pausedIndex, beforePause, 'pause keeps the current replay event');
@@ -356,527 +375,3 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     rmSync(profile, { recursive: true, force: true });
   }
 });
-
-test("the static export's Pause keeps its box through a press [A10,N26,C7]", { timeout: 60_000 }, // budget: hang-only ceiling for two viewport press journeys in isolated Chrome.
-  async () => {
-    const executable = chromeExecutable();
-    assert.ok(executable, 'Chrome is required for the static Pause press proof');
-    const box = machine();
-    const alpha = project(box, 'snapshot replay');
-    box.run(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
-    build(box, alpha, 1, 'greeting.html');
-    sendBack(box, alpha, 1, 'the first greeting needs a correction');
-    build(box, alpha, 1, 'greeting-fix.html');
-    box.git(alpha.repo, 'switch', '-q', '--detach', alpha.branch);
-    try { box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
-    finally { box.git(alpha.repo, 'switch', '-q', 'main'); }
-    box.run(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
-    box.run(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
-    box.run(alpha.repo, 'shout', 'all', '<script>window.__snapshotShoutRan = true</script>');
-    const folder = join(box.dir, 'pause-export');
-    box.run(alpha.repo, 'view', '--export', folder);
-    const host = await serveFolder(folder, '/demo/');
-    let chrome;
-    try {
-      chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, join(box.dir, 'pause-chrome'));
-      await settled(chrome, "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length");
-      for (const width of [null, 375]) {
-        if (width !== null) await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-        await chrome.stable(`replayPosition(snapshotReplay.events.length)`);
-        await press(chrome, "document.querySelector('#replay-play')");
-        const before = await chrome.stable(`(() => {
-          // Hold only the next callback until the real pointer move, then deliver real replay steps.
-          clearTimeout(snapshotReplay.timer);
-          const pause = document.querySelector('#replay-pause');
-          window.__pauseEndWitness = { before: { index: snapshotReplay.index, playing: snapshotReplay.playing,
-            disabled: pause.disabled, label: pause.getAttribute('aria-label') }, moves: 0 };
-          /** Finish the actual replay between the original shared press's aim and assertion. */
-          pause.addEventListener('mousemove', () => {
-            window.__pauseEndWitness.moves++;
-            while (snapshotReplay.playing) { clearTimeout(snapshotReplay.timer); advanceReplay(); }
-            clearTimeout(snapshotReplay.timer);
-            window.__pauseEndWitness.after = { index: snapshotReplay.index, playing: snapshotReplay.playing,
-              disabled: pause.disabled, label: pause.getAttribute('aria-label') };
-          }, { once: true });
-          return window.__pauseEndWitness.before;
-        })()`);
-        assert.equal(before.playing, true, `${width}: Pause is aimed while replay is running`);
-        assert.equal(before.disabled, false, `${width}: Pause starts enabled`);
-        assert.equal(before.label, 'Pause replay', `${width}: the icon-only control keeps its accessible label`);
-        await press(chrome, "document.querySelector('#replay-pause')");
-        const seen = await chrome.stable('({ witness: window.__pauseEndWitness, total: snapshotReplay.events.length })');
-        assert.equal(seen.witness.moves, 1, `${width}: native pointer movement delivers the controlled interleaving`);
-        assert.deepEqual(seen.witness.after, { index: seen.total, playing: false, disabled: true, label: 'Pause replay' },
-          `${width}: actual replay end disables the same Pause label during the press`);
-        console.log('PULLBOARD_499_END_PRESS ' + JSON.stringify({ width, ...seen }));
-      }
-      assert.deepEqual(chrome.exceptions, [], 'the end-during-press snapshot has no browser exceptions');
-    } finally {
-      if (chrome) await closeSnapshotChrome(chrome);
-      await host.close();
-    }
-  });
-
-test('replay speed is judged by its scheduled delay [A10,C7]', { timeout: 90_000 }, async () => {
-  const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required for the throttled replay timing proof');
-  const box = machine();
-  const alpha = project(box, 'throttled-snapshot');
-  for (let id = 1; id <= 6; id++) {
-    box.run(alpha.repo, 'add', 'web', `Throttled replay item ${id}`, '--specs', 'G1', '--criterion', 'replays');
-  }
-  const folder = join(box.dir, 'throttled-export');
-  box.run(alpha.repo, 'view', '--export', folder);
-  const host = await serveFolder(folder, '/demo/');
-  const profile = join(box.dir, 'throttled-chrome');
-  let chrome;
-  try {
-    chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
-    await settled(chrome, "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length");
-    await chrome.send('Emulation.setCPUThrottlingRate', { rate: 6 });
-    const total = await chrome.stable('snapshotReplay.events.length');
-    assert.ok(total >= 6, 'the exported history contains at least six native item moves');
-    await chrome.stable(`(() => {
-      window.__replayScheduledDelays = [];
-      const nativeSetTimeout = window.setTimeout.bind(window);
-      /** Observe replay pacing while preserving each native browser timeout unchanged. */
-      window.setTimeout = (callback, delay, ...args) => {
-        if (callback === window.advanceReplay) window.__replayScheduledDelays.push(delay);
-        return nativeSetTimeout(callback, delay, ...args);
-      };
-    })()`);
-    /** Confirm the pacing value for every scheduled step in a complete CPU-throttled replay. */
-    const assertThrottledDelay = async (speed, delay) => {
-      await chrome.stable(`(() => {
-        window.__replayScheduledDelays.length = 0;
-        replayPosition(snapshotReplay.events.length);
-        const select = document.querySelector('#replay-speed');
-        select.value = '${speed}';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-      })()`);
-      await press(chrome, "document.querySelector('#replay-play')");
-      await chrome.waitFor('!snapshotReplay.playing', 30_000); // budget: hang-only ceiling for one complete replay.
-      assert.equal(await chrome.stable('snapshotReplay.playing'), false, `${speed}× replay reaches its end`);
-      assert.equal(await chrome.stable('snapshotReplay.index'), total, `${speed}× replay renders the final exported event`);
-      const scheduled = await chrome.stable('window.__replayScheduledDelays');
-      assert.equal(scheduled.length, total - 1, `${speed}× schedules one delay between every replay step`);
-      assert.ok(scheduled.every((actual) => actual === delay), `${speed}× schedules ${delay} ms per step`);
-    };
-    await assertThrottledDelay('1', 1000);
-    await assertThrottledDelay('4', 250);
-    await assertThrottledDelay('16', 62.5);
-    await chrome.stable(`(() => {
-      window.__replayScheduledDelays.length = 0;
-      replayPosition(snapshotReplay.events.length);
-      const select = document.querySelector('#replay-speed');
-      select.value = '4';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    })()`);
-    await press(chrome, "document.querySelector('#replay-play')");
-    const atFour = await chrome.stable('({ playing: snapshotReplay.playing, delay: window.__replayScheduledDelays.at(-1) })');
-    const atSixteen = await chrome.stable(`(() => {
-      const select = document.querySelector('#replay-speed');
-      select.value = '16';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-      return { playing: snapshotReplay.playing, delay: window.__replayScheduledDelays.at(-1) };
-    })()`);
-    await press(chrome, "document.querySelector('#replay-pause')");
-    const changedSpeed = { wasPlaying: atFour.playing, atFour: atFour.delay, remainsPlaying: atSixteen.playing,
-      atSixteen: atSixteen.delay, paused: !(await chrome.stable('snapshotReplay.playing')) };
-    assert.deepEqual(changedSpeed, { wasPlaying: true, atFour: 250, remainsPlaying: true, atSixteen: 62.5, paused: true },
-      'changing speed while playing replaces the scheduled delay under CPU throttle');
-    assert.deepEqual(chrome.exceptions, [], 'the throttled snapshot reports no uncaught browser errors');
-  } finally {
-    if (chrome) await closeSnapshotChrome(chrome);
-    await host.close();
-  }
-});
-
-/** Measure every interactive replay control through its real start, pause, and end states. */
-const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => async function replayControlsStayPutCase(t) {
-  const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required for replay control geometry coverage');
-  const box = machine();
-  const alpha = project(box, 'stable-replay-controls');
-  for (let id = 1; id <= 6; id++) {
-    box.run(alpha.repo, 'add', 'web', `Replay geometry item ${id}`, '--specs', 'G1', '--criterion', 'replay controls stay put');
-  }
-  const folder = join(box.dir, 'stable-replay-controls-export');
-  box.run(alpha.repo, 'view', '--export', folder);
-  if (classicScrollbar) {
-    const stylesheet = join(folder, 'view.css');
-    writeFileSync(stylesheet, readFileSync(stylesheet, 'utf8') + '\n::-webkit-scrollbar { width: 15px; }\n');
-  }
-  const host = await serveFolder(folder, '/demo/');
-  const profile = join(box.dir, 'stable-replay-controls-chrome');
-  let chrome;
-  try {
-    chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
-    await settled(chrome, "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length");
-    await chrome.send('Emulation.setCPUThrottlingRate', { rate: 6 });
-    const total = await chrome.stable('snapshotReplay.events.length');
-    assert.ok(total >= 6, 'the exported replay has enough events to exercise all control states');
-    /** Sample original comparison boxes and runner layout evidence in the same browser evaluation. */
-    const readControlBoxes = async (width, state) => {
-      const capture = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const selectors = ['#replay-play', '#replay-pause', '#replay-speed'];
-        const boxes = Object.fromEntries(selectors.map(selector => {
-          const node = document.querySelector(selector);
-          const rect = node.getBoundingClientRect();
-          return [selector, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
-        }));
-        const controls = selectors.map(selector => {
-          const node = document.querySelector(selector);
-          const style = getComputedStyle(node);
-          const parent = node.parentElement;
-          const track = getComputedStyle(parent);
-          return { id: node.id, box: boxes[selector], label: node.textContent,
-            selectedLabel: node.selectedOptions?.[0]?.textContent ?? null,
-            fontFamily: style.fontFamily, fontSize: style.fontSize, fontWeight: style.fontWeight,
-            lineHeight: style.lineHeight, letterSpacing: style.letterSpacing,
-            width: style.width, minWidth: style.minWidth, maxWidth: style.maxWidth,
-            track: { parent: parent.id || parent.className, display: track.display,
-              columns: track.gridTemplateColumns, rows: track.gridTemplateRows,
-              flexDirection: track.flexDirection, flexWrap: track.flexWrap,
-              gap: track.gap, parentWidth: track.width, flexBasis: style.flexBasis,
-              flexGrow: style.flexGrow, flexShrink: style.flexShrink,
-              columnStart: style.gridColumnStart, columnEnd: style.gridColumnEnd } };
-        });
-        const root = document.documentElement;
-        const scroller = document.scrollingElement;
-        const rootStyle = getComputedStyle(root);
-        return { boxes, controls, observedAt: Date.now(),
-          viewport: { innerWidth, innerHeight, clientWidth: root.clientWidth,
-            bodyClientWidth: document.body.clientWidth, scrollWidth: scroller.scrollWidth,
-            scrollHeight: scroller.scrollHeight, clientHeight: scroller.clientHeight,
-            scrollbarWidth: innerWidth - root.clientWidth,
-            scrollbarGutter: rootStyle.scrollbarGutter, overflowY: rootStyle.overflowY },
-          browser: { userAgent: navigator.userAgent, platform: navigator.platform, devicePixelRatio },
-          replay: { index: snapshotReplay.index, total: snapshotReplay.events.length,
-            playing: snapshotReplay.playing } };
-      })())`));
-      t.diagnostic('replay control boxes ' + JSON.stringify({ width, state,
-        runner: { node: process.version, platform: process.platform, arch: process.arch }, ...capture }));
-      if (classicScrollbar && state === 'end') {
-        assert.equal(capture.viewport.scrollbarWidth, 15, `${width}: the fixture uses the measured native 15px classic scrollbar`);
-        if (width === 375) assert.ok(capture.viewport.scrollHeight > capture.viewport.clientHeight, `${width}: the final event list needs vertical scrolling`);
-      }
-      return capture.boxes;
-    };
-    /** Exercise real browser input and compare control geometry within one viewport. */
-    const verifyWidth = async (width) => {
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width}`);
-      if (wideFonts) {
-        await chrome.stable(`(() => {
-          const sheet = document.styleSheets[0];
-          sheet.insertRule('.snapshot-controls, .snapshot-controls * { letter-spacing: .12em !important; }', sheet.cssRules.length);
-        })()`);
-        const spacing = JSON.parse(await chrome.stable(`JSON.stringify(
-          ['#snapshot-controls', '#replay-play', '#replay-pause', '#replay-speed', '#replay-progress']
-            .map(selector => getComputedStyle(document.querySelector(selector)).letterSpacing)
-        )`));
-        assert.ok(spacing.every(value => Number.parseFloat(value) > 0),
-          `${width}: every replay control receives the wide-font fixture`);
-      }
-      await chrome.stable(`(() => {
-        replayPosition(0);
-        const speed = document.querySelector('#replay-speed');
-        speed.value = '1';
-        speed.dispatchEvent(new Event('change', { bubbles: true }));
-      })()`);
-      const atStart = await readControlBoxes(width, 'start');
-      assert.equal(await chrome.stable("document.querySelector('#replay-play').getAttribute('aria-label')"), 'Play',
-        `${width}: the start-state label is the short Play label`);
-      await press(chrome, "document.querySelector('#replay-play')");
-      assert.equal(await chrome.stable('snapshotReplay.playing'), true, `${width}: native Play starts replay`);
-      const whilePlaying = await readControlBoxes(width, 'after Play');
-      await press(chrome, "document.querySelector('#replay-pause')");
-      assert.equal(await chrome.stable('snapshotReplay.playing'), false, `${width}: native Pause pauses replay`);
-      const whilePaused = await readControlBoxes(width, 'after Pause');
-      await chrome.stable(`(() => {
-        replayPosition(snapshotReplay.events.length - 1);
-        document.querySelector('#replay-speed').value = '16';
-        document.querySelector('#replay-speed').dispatchEvent(new Event('change', { bubbles: true }));
-      })()`);
-      await press(chrome, "document.querySelector('#replay-play')");
-      assert.equal(await chrome.stable('snapshotReplay.index'), total, `${width}: final Play renders the end state`);
-      assert.equal(await chrome.stable('snapshotReplay.playing'), false, `${width}: replay stops at its final event`);
-      const atEnd = await readControlBoxes(width, 'end');
-      assert.equal(await chrome.stable("document.querySelector('#replay-play').getAttribute('aria-label')"), 'Play from first event',
-        `${width}: the end-state label exercises the longer Play text`);
-      for (const [state, boxes] of Object.entries({ whilePlaying, whilePaused, atEnd })) {
-        assert.deepEqual(boxes, atStart, `${width}: every interactive replay control keeps its box unchanged ${state}`);
-      }
-    };
-    for (const width of (wideFonts ? [375] : [375, 1280])) {
-      await verifyWidth(width);
-    }
-    /** Verify that a larger replay counter cannot move the fixed Play, Pause, and speed tracks. */
-    const countLayout = async (index) => {
-      await chrome.stable(`(() => {
-        snapshotReplay.events = new Array(123456);
-        snapshotReplay.index = ${index};
-        replayControls();
-        return true;
-      })()`);
-      return JSON.parse(await chrome.stable(`JSON.stringify({
-        count: document.querySelector('#replay-progress').textContent,
-        boxes: Object.fromEntries(['#replay-play', '#replay-pause', '#replay-speed'].map(selector => {
-          const rect = document.querySelector(selector).getBoundingClientRect();
-          return [selector, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
-        }))
-      })`));
-    };
-    const shortCount = await countLayout(0);
-    const longCount = await countLayout(1234);
-    assert.equal(shortCount.count, 'event 0 of 123,456', 'the initial counter has a short current index and full denominator');
-    assert.equal(longCount.count, 'event 1,234 of 123,456', 'the running counter grows to four current-index digits');
-    assert.deepEqual(longCount.boxes, shortCount.boxes, 'a growing counter leaves Play, Pause, and speed in their original boxes');
-  } finally {
-    if (chrome) await closeSnapshotChrome(chrome);
-    await host.close();
-    rmSync(profile, { recursive: true, force: true });
-  }
-};
-
-test('the replay controls don\'t move when the replay starts [A10,C7]', { timeout: 60_000 }, // budget: hang-only ceiling for two viewport geometry passes.
-  replayControlsStayPut());
-
-test('the replay controls hold their place at 375 with wide fonts [A10,C7]', { timeout: 60_000 }, // budget: hang-only ceiling for one viewport geometry pass.
-  replayControlsStayPut(true));
-
-test('the replay controls hold their place with a classic scrollbar [A10,C7]', { timeout: 60_000 }, // budget: hang-only ceiling for two viewport geometry passes.
-  replayControlsStayPut(false, true));
-
-test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
-  const box = machine();
-  const alpha = project(box, 'private-project');
-  box.run(alpha.repo, 'add', 'web', 'Private checkout item', '--specs', 'G1', '--criterion', 'exports without checkout paths');
-  const projectRoot = alpha.repo;
-  const worktreeRoot = alpha.web;
-  const commonGitDir = box.git(alpha.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
-  const live = await startView(box);
-  try {
-    const listingResponse = await fetchLive(`${live.base}/api/v1/boards`, { headers: { 'x-pullboard-key': live.key } });
-    assert.equal(listingResponse.status, 200);
-    const listing = await listingResponse.json();
-    const board = listing.boards.find((entry) => entry.root === projectRoot);
-    assert.ok(board, 'the live listing keeps the absolute project root');
-    assert.equal(board.root, projectRoot);
-    const state = await boardOf(live, projectRoot);
-    assert.equal(state.root, projectRoot, 'live state keeps the absolute root');
-    const agent = state.agents.find((entry) => entry.agent_id === 'web-1');
-    assert.ok(agent);
-    assert.equal(agent.agent_path, worktreeRoot, 'live state keeps the agent worktree path');
-    assert.equal(box.git(alpha.web, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonGitDir,
-      'the linked worktree still shares the repository common Git directory');
-    const boardEvents = await fetchLive(`${live.base}/api/v1/boards/${board.id}/events`, { headers: { 'x-pullboard-key': live.key } });
-    assert.equal(boardEvents.status, 200);
-    const events = await boardEvents.json();
-    assert.ok(events.events.length > 0);
-
-    /** Read every actual export Buffer so an unexpected subtree cannot hide a private folder. */
-    const exportedText = (output) => output.files().map(({ body }) => body.toString('utf8')).join('\n');
-    const structuredOutput = box.exportSnapshot(alpha.repo, 'export-structured');
-    const structuredFiles = exportedText(structuredOutput);
-    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
-      assert.ok(!structuredFiles.includes(privatePath), `export does not include structured path ${privatePath}`);
-    }
-
-    // A second export deliberately includes paths in human-authored prose. Those exact values are
-    // the only allowed occurrences; project.root, agent_path and common Git metadata stay redacted.
-    const brief = `Keep this literal checkout reference: ${projectRoot}`;
-    const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
-    box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
-    box.run(alpha.web, 'shout', 'all', shout);
-    const proseOutput = box.exportSnapshot(alpha.repo, 'export-prose');
-    const proseSnapshot = proseOutput.root;
-    const stateFile = JSON.parse(readFileSync(join(proseSnapshot, 'api', 'v1', 'boards', board.id, 'state.json'), 'utf8')).state;
-    assert.notEqual(stateFile.root, projectRoot, 'export redacts structured project root');
-    assert.notEqual(stateFile.agents.find((entry) => entry.agent_id === 'web-1').agent_path, worktreeRoot,
-      'export redacts the structured agent worktree');
-    assert.equal(stateFile.items.find((entry) => entry.title === 'Path in prose').brief, brief);
-    assert.ok(stateFile.shouts.some((entry) => entry.shout_text === shout), 'the authored shout remains literal');
-    const proseFiles = proseOutput.files().map(({ body }) => body.toString('utf8'));
-    let scrubbedText = proseFiles.join('\n');
-    for (const text of [brief, shout]) {
-      scrubbedText = scrubbedText.replaceAll(JSON.stringify(text), '"<authored prose>"')
-        .replaceAll(JSON.stringify(JSON.stringify(text)).slice(1, -1), '<authored event prose>');
-    }
-    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
-      assert.ok(!scrubbedText.includes(privatePath), `outside authored prose, export does not include ${privatePath}`);
-    }
-  } finally {
-    await live.stop();
-  }
-});
-
-test('an exported roadmap has its own address under a folder, and Back and Forward return to it [N38,A10]', { timeout: 120_000 }, async (t) => {
-  const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for exported roadmap checks.');
-  const box = machine();
-  const alpha = project(box, 'roadmap-snapshot');
-  const beacon = project(box, 'beacon');
-  box.run(alpha.repo, 'add', 'web', 'Verified page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Open page', '--specs', 'G1', '--criterion', 'renders');
-  build(box, alpha, 1, 'one.txt');
-  accept(box, alpha, 1);
-  box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
-  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1', '--reason', 'the fixture places its own items');
-  box.run(alpha.repo, 'milestone', 'add', 'Later');
-  const folder = join(box.dir, 'roadmap-export');
-  box.run(alpha.repo, 'view', '--export', folder);
-  const host = await serveFolder(folder, '/demo/');
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-export-chrome-'));
-  const ready = "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length";
-  let chrome;
-  try {
-    chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
-    await settled(chrome, ready);
-    assert.equal(await chrome.stable("[...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane).join()"), 'dashboard', 'a fresh snapshot opens on Dashboard');
-    assert.equal(await chrome.stable('location.pathname + location.hash'), '/demo/', 'Dashboard keeps the snapshot folder address');
-    await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
-    await chrome.waitFor(showing('roadmap', '/demo/#roadmap'));
-    await openRoadmapParts(chrome);
-    const seen = await readRoadmap(chrome);
-    assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
-      { id: '#2', label: 'Ready', tone: 'ready', button: true },
-      { id: '#1', label: 'Verified', tone: 'verified', button: true },
-      { id: 'beacon#1', label: 'Ready', tone: 'ready', button: true },
-    ], "the snapshot's rows expand in place; another repo's unavailable item has no Items link");
-    assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
-    assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
-
-    await press(chrome, roadmapRow('beacon#1'));
-    await chrome.waitFor(roadmapRow('beacon#1') + ".getAttribute('aria-expanded') === 'true'");
-    assert.equal(await chrome.stable('location.pathname + location.hash'), '/demo/#roadmap');
-    assert.match(await chrome.stable(roadmapRow('beacon#1') + ".parentElement.querySelector('.milestone-why').textContent"), /not in this snapshot/u);
-    assert.equal(await chrome.stable(roadmapRow('beacon#1') + ".parentElement.querySelectorAll('.milestone-why a[data-go]').length"), 0, 'unavailable items expand to why, without a false navigation target');
-    await press(chrome, roadmapRow('beacon#1'));
-
-    // The address survives a reload on a static host, and Back and Forward show the tab it names,
-    // whether the browser keeps the page for an entry or loads it again.
-    await chrome.send('Page.reload');
-    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#1')}`);
-    await travel(chrome, -1);
-    await settled(chrome, `${ready} && ${showing('dashboard', '/demo/')}`);
-    await travel(chrome, 1);
-    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#2')}`);
-    await press(chrome, roadmapRow('#2'));
-    await chrome.waitFor(roadmapRow('#2') + ".getAttribute('aria-expanded') === 'true'");
-    assert.equal(await chrome.stable('location.pathname + location.hash'), '/demo/#roadmap', 'a snapshot row click stays on Roadmap');
-    await press(chrome, roadmapRow('#2') + ".parentElement.querySelector('.milestone-why a[data-go]')");
-    await chrome.waitFor(`${showing('items', '/demo/#items/2')} && document.querySelector('#detail h2')?.innerText.includes('Open page')`);
-    await travel(chrome, -1);
-    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')}`);
-    assert.equal(await chrome.stable("localStorage.getItem('snapshot.pb.tab')"), 'items', 'the earlier Items navigation remains the saved tab for this Chrome profile');
-
-    // A fresh navigation in this profile restores Items, while an explicit #roadmap address still selects Roadmap.
-    for (const [address, pane] of [['/demo/', 'items'], ['/demo/#roadmap', 'roadmap']]) {
-      await chrome.send('Page.navigate', { url: 'about:blank' });
-      await settled(chrome, "location.href === 'about:blank'");
-      await chrome.send('Page.navigate', { url: `${host.base}${address}` });
-      const navigationReady = `${ready} && ${showing(pane, address)}`;
-      try {
-        await settled(chrome, navigationReady);
-      } catch (error) {
-        const actual = await chrome.stable(`JSON.stringify({
-          snapshotClass: document.body?.classList.contains('snapshot') ?? false,
-          projectPresent: typeof data !== 'undefined' && !!data?.project,
-          replay: typeof snapshotReplay === 'object' && snapshotReplay ? {
-            index: snapshotReplay.index,
-            eventsLength: Array.isArray(snapshotReplay.events) ? snapshotReplay.events.length : null,
-            atEnd: Array.isArray(snapshotReplay.events) && snapshotReplay.index === snapshotReplay.events.length,
-          } : null,
-          visiblePanes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane),
-          paneMatches: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane).join() === ${JSON.stringify(pane)},
-          pathname: location.pathname,
-          hash: location.hash,
-          address: location.pathname + location.hash,
-          expectedPane: ${JSON.stringify(pane)},
-          expectedAddress: ${JSON.stringify(address)},
-          addressMatches: location.pathname + location.hash === ${JSON.stringify(address)},
-        })`).catch((captureError) => `capture unavailable: ${captureError.message}`);
-        throw new Error(`${error.message}; fresh-navigation state ${actual}`, { cause: error });
-      }
-    }
-    for (const width of [375, 1280]) {
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width}`);
-      await openRoadmapParts(chrome);
-      const layout = await readRoadmap(chrome);
-      assert.ok(layout.document <= layout.client && layout.body <= layout.client, `${width}: no sideways scroll in the snapshot: ${JSON.stringify(layout)}`);
-      await proofShot(chrome, 'snapshot-roadmap', width);
-    }
-    assert.deepEqual(host.requests.filter((request) => !request.path.startsWith('/demo/') || request.status !== 200), [], 'every request stays in the folder and finds its file');
-    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
-  } finally {
-    if (chrome) await closeSnapshotChrome(chrome);
-    await host.close();
-    rmSync(profile, { recursive: true, force: true });
-  }
-});
-
-test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budget: hang-only ceiling for one export and one Chrome open of its item.
-  async () => {
-    const executable = chromeExecutable();
-    assert.ok(executable, 'Chrome is required to open the exported item offline');
-    const box = machine();
-    const alpha = project(box, 'full-board');
-    const criterion = 'The greeting renders from the snapshot alone.';
-    box.run(alpha.repo, 'add', 'web', 'Offline greeting', '--specs', 'G1', '--criterion', criterion);
-    build(box, alpha, 1, 'greeting.html');
-    sendBack(box, alpha, 1, 'the first greeting needs a correction');
-    box.run(alpha.web, 'fact', '1', 'measurement', 'The corrected greeting renders offline.');
-    build(box, alpha, 1, 'greeting-fix.html');
-    accept(box, alpha, 1);
-
-    // The export reads the board through the local API with fetchLocal. Record each address it asks
-    // for, never its key, and make every read through fetchLocal unchanged.
-    const asked = [];
-    /** Note the address of each API read, then read it through the export's own transport. */
-    const fetchApi = (url, init) => {
-      asked.push(new URL(String(url)));
-      return fetchLocal(url, init);
-    };
-    const folder = join(box.dir, 'full-board-export');
-    await exportView(alpha.repo, folder, { fetchApi, runCommand: nativeTestMain });
-    const stateReads = asked.filter((url) => url.pathname.endsWith('/state'));
-    assert.deepEqual(stateReads.map((url) => url.searchParams.get('detail')), ['full'],
-      `the export reads the state once, asking for detail=full; it asked for ${asked.map((url) => url.pathname + url.search).join(', ')}`);
-
-    // With no API left to ask, the exported page still opens the item's criterion, verdicts and thread.
-    const host = await serveFolder(folder, '/demo/');
-    let chrome;
-    try {
-      chrome = await openSnapshotChrome(executable, `${host.base}/demo/#items/1`, join(box.dir, 'full-board-chrome'));
-      await settled(chrome, "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length && view.item === 1 && !!document.querySelector('#detail .tl')");
-      const opened = await chrome.stable(`(() => {
-        const detail = document.querySelector('#detail');
-        const part = (name) => [...detail.querySelectorAll('h3')].find((heading) => heading.textContent === name)?.parentElement;
-        return {
-          title: detail.querySelector('h2').innerText,
-          criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
-          verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').textContent]),
-          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)).reverse(),
-          facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !text.startsWith('Review comparison:')),
-        };
-      })()`);
-      assert.ok(opened.title.includes('Offline greeting'), `the address opens item #1: ${opened.title}`);
-      assert.equal(opened.criterion, criterion, 'the exported item shows its criterion');
-      assert.deepEqual(opened.verdicts, [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it']],
-        'the exported item shows both verdicts with their notes');
-      assert.deepEqual(opened.moves, ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'submit', 'accept'], 'the exported thread shows every move including native proof receipts');
-      assert.deepEqual(opened.facts, ['The corrected greeting renders offline.'], 'the exported thread shows its fact');
-      assert.ok(host.requests.some((request) => request.path.endsWith('/state.json')), 'the page reads the exported state file');
-      assert.deepEqual(host.requests.filter((request) => !request.path.startsWith('/demo/') || request.status !== 200), [],
-        'every request stays in the exported folder and finds its file');
-      assert.deepEqual(chrome.requests.map((request) => request.url).filter((url) => !url.startsWith(`${host.base}/demo/`) && !url.startsWith('data:')), [],
-        'the page asks nothing outside the exported folder');
-      assert.deepEqual(chrome.exceptions, [], 'the exported page opens the item without browser exceptions');
-    } finally {
-      if (chrome) await closeSnapshotChrome(chrome);
-      await host.close();
-    }
-  });

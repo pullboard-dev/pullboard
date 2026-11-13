@@ -18,7 +18,7 @@ export function modelTierRoute(model, tiers) {
 /**
  * The route a seat serves for the session now running in it [#3678]: its joined route, lowered to the join rule's
  * route for the model this session declares (PULLBOARD_MODEL) when that model differs from the one the seat joined
- * with. Why: Haiku sessions started in seats Sonnets joined on the strong route were handed strong items. The joined
+ * with. Why: Light-route sessions started in seats mid-route models joined on the strong route were handed strong items. The joined
  * model keeps the joined route, so an explicit join --route still holds, and declaring it again restores the route.
  * A label the tier table does not name lowers nothing: it says no more about the model than the join did.
  *

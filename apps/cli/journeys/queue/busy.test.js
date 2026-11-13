@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js apps/lib/index.js packages/store/index.js */
 /** @pullboard-test-loads packages/store/src/io/board.js */
 import assert from 'node:assert/strict';
 import {
@@ -30,6 +30,8 @@ function snapshot(file) {
   finally { db.close(); }
 }
 
+// Process-level, all three launches: the lock holder (another process holding the SQLite writer), and the concurrent shout writers,
+// which queue behind it in real parallel processes; in-process calls serialize and could neither contend nor time out.
 /** Hold a named public store transaction until the parent releases it, as another seat's submit would. */
 async function holdNamedWriter(box, file) {
   const releaseFile = join(box.dir, 'release-queue-board-writer');

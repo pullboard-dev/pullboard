@@ -133,7 +133,7 @@ test('following prints one line per event in order, skips change pings, and foll
   assert.equal(requests[1].after, events.at(-1).event_id, 'the second follow starts after the last event printed, so nothing repeats');
   assert.match(notes[0], /following the view on port \d+ after sequence 0/u);
   assert.match(notes[1], /the stream dropped after sequence \d+; following again/u);
-  assert.match(requests[0].url, /\/api\/v1\/boards\/[^/]+\/events$/u);
+  assert.match(requests[0].url, /\/api\/v1\/boards\/[^/]+\/events\?signals=none$/u, 'events only: no changed notices without --work');
 });
 
 test('filters keep only the wanted kinds, item and audience, and --json prints one versioned document per line [A2,N26]', async t => {

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js */
 /** Deferred landing has durable, authenticated custody independent of a third acceptance [B35,B3,R3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

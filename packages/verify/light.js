@@ -21,10 +21,10 @@ export function testOutcomeFields(value) {
   return rows;
 }
 
-const LANE_TEST_PART = /^(?:node --test|node (?:bin\/run-tests|packages\/gate\/src\/io\/run\/tests)\.js)(?: --test-force-exit)?((?: [A-Za-z0-9_][A-Za-z0-9_./-]*\.test\.js)+)$/u;
+const LANE_TEST_PART = /^(?:node --test|node (?:bin\/run-tests|(?:packages\/gate|apps\/cli)\/src\/io\/run\/tests)\.js)(?: --test-force-exit)?((?: [A-Za-z0-9_][A-Za-z0-9_./-]*\.test\.js)+)$/u;
 
 /**
- * The test files of a check that is only `node --test` or `node packages/gate/src/io/run/tests.js` over plain .test.js paths, joined by &&;
+ * The test files of a check that is only `node --test` or `node apps/cli/src/io/run/tests.js` over plain .test.js paths, joined by &&;
  * null for any other check. Why: a lane seat may file such a check over files its lane owns [C7,#2908]; the CLI proves ownership.
  */
 export function laneCheckFiles(command) {

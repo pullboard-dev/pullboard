@@ -13,7 +13,7 @@ import { RELEASE_TWICE_ROUTE_ENGINE } from '../../../packages/state/light.js';
 const commit = 'a'.repeat(40);
 test('two releases hold the item until coordinator lifts it [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-twice-'));
-  const board = openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const first = store.register(board, { lane: 'core', path: '/one', route: 'strong' });
@@ -38,7 +38,7 @@ test('two releases hold the item until coordinator lifts it [C7,H16]', t => {
 
 test('old-engine releases retain their pre-hold behavior [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-old-'));
-  const board = openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const first = store.register(board, { lane: 'core', path: '/one', route: 'strong' });
@@ -55,7 +55,7 @@ test('old-engine releases retain their pre-hold behavior [C7,H16]', t => {
 
 test('clean next claims do not count, but changed or explicit claims do [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-auto-'));
-  const board = openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const first = store.register(board, { lane: 'core', path: '/one', route: 'strong' });
@@ -76,7 +76,7 @@ test('clean next claims do not count, but changed or explicit claims do [C7,H16]
 /** A board with a coordinator and two core seats on the given route, and one open item on that route. */
 function routeBoard(t, route, prefix, seatRoute = route) {
   const dir = mkdtempSync(join(tmpdir(), prefix));
-  const board = openBoard(join(dir, 'board.sqlite'));
+  const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const first = store.register(board, { lane: 'core', path: '/one', route: seatRoute });

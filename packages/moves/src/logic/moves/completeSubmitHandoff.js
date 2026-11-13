@@ -3,7 +3,7 @@ import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../state/light.js';
 import { SUBMIT_HANDOFF_ENGINE } from "../../../../state/light.js";
 import { CONVEYOR_RETURN_ENGINE } from "../../../../state/light.js";
 /** New queued moves never replay as an older synchronous submission; a red result keeps its builder only on a replica that knows it. */
-function minimumEngine(args) { if (args?.[1]?.result?.code === 1 && args[1].returnToBoard === true) return CONVEYOR_RETURN_ENGINE; return args?.[1]?.result?.code === 1 ? INFRA_HANDOFF_RECOVERY_ENGINE : SUBMIT_HANDOFF_ENGINE; }
+function minimumEngine(args) { if (args?.[1]?.withdrawn === true) return INFRA_HANDOFF_RECOVERY_ENGINE; if (args?.[1]?.result?.code === 1 && args[1].returnToBoard === true) return CONVEYOR_RETURN_ENGINE; return args?.[1]?.result?.code === 1 ? INFRA_HANDOFF_RECOVERY_ENGINE : SUBMIT_HANDOFF_ENGINE; }
 /** Retain the existing sender-to-actor binding. */
 function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: 'completeSubmitHandoff', engine: SUBMIT_HANDOFF_ENGINE,

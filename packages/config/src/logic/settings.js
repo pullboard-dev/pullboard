@@ -1,6 +1,7 @@
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './prices.js';
+import { validateRunnerRates } from './runner-rates.js';
 import { Refused } from '../../../kernel/light.js';
 import { machineSettingsFile } from '../../../resources/index.js';
 import { readMachineSettingsFile } from '../../../queue/index.js';
@@ -33,6 +34,47 @@ function validateBudget(budget, file) {
     if (budget[key] !== undefined && (typeof budget[key] !== 'number' || !Number.isFinite(budget[key]) || budget[key] <= 0)) {
       throw new Refused('BAD_MACHINE_SETTINGS', `budget.${key} in ${file} must be a positive dollar amount; remove it to turn that ceiling off`);
     }
+  }
+}
+
+/**
+ * Where `pullboard serve` listens: a literal IPv4 address of one of this machine's interfaces and a port. Off the
+ * loopback address the API needs the machine's board key, so runners on the network can pull jobs [P7,O5].
+ *
+ * @param {unknown} serve the serve value from the machine settings file
+ * @param {string} file the settings file named in any refusal
+ */
+export function validateServe(serve, file) {
+  if (serve === undefined) return;
+  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address and port; remove it to serve on loopback`);
+  }
+  const octets = typeof serve.address === 'string' ? serve.address.split('.') : [];
+  if (serve.address !== undefined && (octets.length !== 4 || octets.some(part => !/^(?:0|[1-9]\d{0,2})$/u.test(part) || Number(part) > 255) || serve.address === '0.0.0.0')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.address in ${file} must be one interface's literal IPv4 address, such as 192.168.1.98; remove it to serve on loopback`);
+  }
+  if (serve.port !== undefined && (!Number.isSafeInteger(serve.port) || serve.port < 0 || serve.port > 65535)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.port in ${file} must be a port from 0 to 65535; 0 chooses a free one`);
+  }
+}
+
+/**
+ * Check the board this machine's seats use over HTTP: board.url, an http(s) address, and board.token, the serve key [P7].
+ * @param {unknown} board
+ * @param {string} file
+ */
+export function validateBoardRemote(board, file) {
+  if (board === undefined) return;
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => key !== 'url' && key !== 'token')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url and token; remove it to use the local board`);
+  }
+  let url = null;
+  try { url = board.url === undefined ? null : new URL(board.url); } catch { /* Refused below. */ }
+  if (board.url !== undefined && (!url || !['http:', 'https:'].includes(url.protocol))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board.url in ${file} must be an http or https address, such as http://100.64.0.2:4321; run pullboard settings board.url <url>`);
+  }
+  if (board.token !== undefined && (typeof board.token !== 'string' || !board.token || /\s/u.test(board.token))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board.token in ${file} must be the key pullboard serve printed; run pullboard settings board.token <key>`);
   }
 }
 
@@ -73,6 +115,28 @@ export function loadMachineSettings() {
   }
   if (value.gate?.loadAwareDispatch !== undefined && typeof value.gate.loadAwareDispatch !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.loadAwareDispatch must be true or false');
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
+  if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
+  }
+  const reserve = value.gate?.jobReserve;
+  if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
+    || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.jobReserve in ${file} must be { "interactive", "gate", "landing", "background": a share of 0 through 1 }, adding up to at most 1; remove it to keep the plain claim order`);
+  }
+  const pilot = value.gate?.pullPilot;
+  if (pilot !== undefined && (!pilot || typeof pilot !== 'object' || Array.isArray(pilot) || Object.keys(pilot).some(key => !['items', 'share'].includes(key))
+    || (pilot.items !== undefined && (!Array.isArray(pilot.items) || pilot.items.some(id => !Number.isSafeInteger(id) || id < 1)))
+    || (pilot.share !== undefined && (!Number.isFinite(pilot.share) || pilot.share < 0 || pilot.share > 100)))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.pullPilot in ${file} must be { "items": [item numbers], "share": 0 through 100 }; remove it to send every submit through the controller path`);
+  }
+  if (value.gate?.localRunner !== undefined && typeof value.gate.localRunner !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.localRunner in ${file} must be true or false`);
+  if (value.gate?.localLoadShare !== undefined && (!Number.isFinite(value.gate.localLoadShare) || value.gate.localLoadShare <= 0)) throw new Refused('BAD_MACHINE_SETTINGS', `gate.localLoadShare in ${file} must be a number above 0: the load per core below which the local runner takes a job`);
+  if (value.gate?.submitAuthorization !== undefined && !['runner', 'local'].includes(value.gate.submitAuthorization)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.submitAuthorization in ${file} must be "runner" or "local"`);
+  }
+  if (value.gate?.mainComparison !== undefined && !['on-red', 'off'].includes(value.gate.mainComparison)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.mainComparison in ${file} must be "on-red" or "off"`);
+  }
   const timingRunner = value.gate?.timingRunner;
   if (timingRunner !== undefined && timingRunner !== false && (typeof timingRunner !== 'string' || !timingRunner.trim() || timingRunner.trim() !== timingRunner)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.timingRunner in ${file} must be "auto", a registered runner host, or false`);
@@ -80,8 +144,11 @@ export function loadMachineSettings() {
   if (value.inspection?.clauses !== undefined && typeof value.inspection.clauses !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `inspection.clauses in ${file} must be true or false`);
   }
+  validateServe(value.serve, file);
+  validateBoardRemote(value.board, file);
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
+  validateRunnerRates(value.runnerRates);
   validateBudget(value.budget, file);
   if (value.view !== undefined && (!value.view || typeof value.view !== 'object' || Array.isArray(value.view)
     || (value.view.background !== undefined && typeof value.view.background !== 'boolean'))) {
@@ -153,7 +220,9 @@ export function validateRunner(value) {
       throw new Refused('BAD_RUNNER', `runner ${key} must be an absolute remote path${key === 'node' ? ' or node' : ''}`);
     }
   }
+  if (value.toolchains !== undefined) validateToolchains(value.toolchains);
   if (value.fixed !== undefined && typeof value.fixed !== 'boolean') throw new Refused('BAD_RUNNER', 'runner fixed must be true or false');
+  if (value.drain !== undefined && typeof value.drain !== 'boolean') throw new Refused('BAD_RUNNER', 'runner drain must be true or false');
   for (const key of ['cores', 'memoryMB']) {
     if (value[key] !== undefined && (!Number.isSafeInteger(value[key]) || value[key] < 1)) throw new Refused('BAD_RUNNER', `runner ${key} must be a positive whole number measured on the runner`);
   }
@@ -162,10 +231,38 @@ export function validateRunner(value) {
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
     ...(value.publicKey ? { publicKey: value.publicKey } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
-    ...(value.fixed === true ? { fixed: true } : {}),
+    ...(value.toolchains && Object.keys(value.toolchains).length ? { toolchains: { ...value.toolchains } } : {}),
+    ...(value.fixed === true ? { fixed: true } : {}), ...(value.drain === true ? { drain: true } : {}),
     ...(value.cores !== undefined && value.memoryMB !== undefined ? { cores: value.cores, memoryMB: value.memoryMB, ...(value.measuredAt !== undefined ? { measuredAt: value.measuredAt } : {}) } : {}) };
 }
 
+
+/**
+ * Check a runner's toolchains: names (node, python, go, cargo, dotnet) mapped to a version string, empty when any version serves.
+ * Why: a job is admitted only where its project's toolchains exist, so the record must be exact and bounded [C7].
+ */
+export function validateToolchains(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Refused('BAD_RUNNER', 'runner toolchains must map names to versions, for example node=22,python=3.12');
+  const names = Object.keys(value);
+  if (names.length > 32) throw new Refused('BAD_RUNNER', 'a runner declares at most 32 toolchains');
+  for (const name of names) {
+    if (!/^[a-z][a-z0-9+_-]{0,31}$/u.test(name)) throw new Refused('BAD_RUNNER', `toolchain name "${name}" must be lowercase letters, digits, +, _ or -; for example node, python, go, cargo`);
+    if (typeof value[name] !== 'string' || !/^[0-9A-Za-z._+-]{0,32}$/u.test(value[name])) throw new Refused('BAD_RUNNER', `toolchain ${name} version must be up to 32 letters, digits, dots, +, _ or -; for example ${name}=22`);
+  }
+  return value;
+}
+
+/** Parse the --toolchain flag text, "node=22,python=3.12,cargo", into the toolchains record. */
+export function parseToolchains(text) {
+  if (typeof text !== 'string' || !text.trim()) throw new Refused('BAD_RUNNER', 'use --toolchain node=22,python=3.12,go=1.23 (a name, optionally =version, comma separated)');
+  const out = {};
+  for (const part of text.split(',')) {
+    const [name, ...version] = part.trim().split('=');
+    if (Object.hasOwn(out, name)) throw new Refused('BAD_RUNNER', `toolchain ${name} is listed twice`);
+    out[name] = version.join('=');
+  }
+  return validateToolchains(out);
+}
 
 /** Validate only execution settings; credentials remain in the existing board link and device key store. */
 export function relayCanaryConfig(value) {

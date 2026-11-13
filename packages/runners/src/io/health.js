@@ -113,5 +113,5 @@ export async function probeRunnerHealth(runner, previous, { idle = false, restar
 /** Supply canonical late-bound runner operations to an actual higher gate composition root. */
 export function runnerExecutionServices(front = { runOnRunner, runOnRunnerAsync, probeRunnerHealth }) {
   return Object.freeze({ runOnRunner: front.runOnRunner, runOnRunnerAsync: front.runOnRunnerAsync, sampleRunnerLoad, localRunnerDescriptor,
-    carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth: front.probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements });
+    carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth: front.probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements, trustedTooling });
 }

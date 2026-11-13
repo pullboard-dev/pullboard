@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/state/src/logic/engines/* */
 import { submitHandoffEventContract } from '../apps/cli/tests/fixtures/generated/handoff.js';
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../packages/link/index.js';
@@ -345,7 +345,7 @@ function recordEventContract() {
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong', reviewFamily: 'Fixture Review', checkTiming: false });
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
-  editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review', checkTiming: false });
+  editItem(board, first, { agentId: coordinator, title: 'Accepted example, retitled', brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review', checkTiming: false });
   const dependency = addItem(board, { by: coordinator, lane: 'docs', title: 'Dependency example' });
   requestCompanion(board, { agentId: builder, parentId: dependency, lane: 'core', key: 'format-event', title: 'Companion event example' });
   editItem(board, first, { agentId: coordinator, after: [dependency] });
@@ -429,9 +429,9 @@ function recordEventContract() {
   assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).pendingRefreeze, ['criterion']);
   refreeze(board, corrected, { agentId: builder, freeze: freeze('adopted-correction') });
   const widener = register(board, { lane: 'docs', path: '/widener' });
-  const widened = addItem(board, { by: coordinator, lane: 'docs', title: 'Widened own check', check: 'node packages/gate/src/io/run/tests.js docs/formats.test.js' });
+  const widened = addItem(board, { by: coordinator, lane: 'docs', title: 'Widened own check', check: 'node apps/cli/src/io/run/tests.js docs/formats.test.js' });
   claim(board, widened, { agentId: widener, lane: 'docs', leaseMs: 60_000, freeze: freeze('before-widening') });
-  const widenedCheck = 'node packages/gate/src/io/run/tests.js docs/formats.test.js apps/cli/journeys/init/docs.test.js';
+  const widenedCheck = 'node apps/cli/src/io/run/tests.js docs/formats.test.js apps/cli/journeys/init/docs.test.js';
   const widenedBar = JSON.stringify({ criterion: '', check: widenedCheck });
   editItem(board, widened, { agentId: widener, check: widenedCheck, correction: true, freeze: () => ({ text: widenedBar, digest: createHash('sha256').update(widenedBar).digest('hex') }) });
   assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).widenedCheck, ['apps/cli/journeys/init/docs.test.js'], 'a builder widening is the one edit that carries widenedCheck');

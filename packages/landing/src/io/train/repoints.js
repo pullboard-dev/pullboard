@@ -81,7 +81,7 @@ function rewriteCheck(check, pathMap) {
   const replacements = [];
   const found = new Set();
   for (const words of bySegment.values()) {
-    const runner = words[0]?.value === 'node' && ['packages/gate/src/io/run/tests.js', './packages/gate/src/io/run/tests.js', '--test', '--test-force-exit'].includes(words[1]?.value);
+    const runner = words[0]?.value === 'node' && ['apps/cli/src/io/run/tests.js', './apps/cli/src/io/run/tests.js', '--test', '--test-force-exit'].includes(words[1]?.value);
     for (let index = 0; index < words.length; index += 1) {
       const word = words[index];
       const normalized = word.value.startsWith('./') ? word.value.slice(2) : word.value;

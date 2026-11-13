@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js */
 /** The test runner names itself to the tests it starts, so a test finds its runner without parsing ps text [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 test('the test runner names itself to the tests it starts [C7]', async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-pid-')));

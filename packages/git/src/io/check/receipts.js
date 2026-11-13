@@ -1,4 +1,5 @@
 import { checkCommandDefinition } from './definition.js';
+import { definitionUnchanged } from './definition.js';
 /**
  * Each check runs once per tree (#2230). A static, lint or doctrine check that passed records a receipt keyed by the
  * exact git tree it read, a digest of the check's own definition (its command, the rules it holds and the code that
@@ -99,7 +100,7 @@ export function readCheckReceipt(root, key) {
 
 /** Record a green run under its key; a failed write only means the next caller runs the check again. */
 export function writeCheckReceipt(root, key, { by = '', result = null } = {}) {
-  if (!key || cleanTree(root) !== key.tree || receiptDigest(checkCommandDefinition(root, key.commands ?? [])) !== key.implementationDigest || receiptDigest(checkCommandDefinition(root, [], key.code)) !== receiptDigest(key.tool) || receiptDigest({ effective: key.config ?? null, files: projectConfig(root) }) !== key.configDigest) return null;
+  if (!key || cleanTree(root) !== key.tree || !definitionUnchanged(root, key.files, key.commands ?? [], []) || !definitionUnchanged(root, key.tool, [], key.code) || receiptDigest({ effective: key.config ?? null, files: projectConfig(root) }) !== key.configDigest) return null;
   const receipt = { version: 1, id: randomUUID(), kind: key.kind, tree: key.tree, checkDigest: key.checkDigest, configDigest: key.configDigest,
     parts: key.parts, files: key.files, green: true, by, at: new Date().toISOString(), result };
   try {

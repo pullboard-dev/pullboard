@@ -1,4 +1,5 @@
 import { boardWriteHolderText } from "./write/lock.js";
+import { busyRefusal } from "./read/light.js";
 /** Name a board this process cannot write, such as one inside a read-only agent sandbox [I1,P4]. */
 import { randomUUID } from 'node:crypto';
 import {
@@ -10,8 +11,8 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { AGENT_SHELL_MARKERS } from "../../../../kernel/index.js";
-import { Refused } from "../../../../kernel/index.js";
+import { AGENT_SHELL_MARKERS } from "../../../../kernel/light.js";
+import { Refused } from "../../../../kernel/light.js";
 
 /** The markers a Codex session sets; its sandbox needs the board folder named to Codex itself. */
 const CODEX_MARKERS = AGENT_SHELL_MARKERS.filter((name) => name.startsWith('CODEX_'));
@@ -66,7 +67,5 @@ export function requireBoardWriteAccess(file) {
  * @returns {Error}
  */
 export function boardBusyError(file, startedAt, error) {
-  const sqliteCode = Number.isInteger(error.errcode) ? error.errcode & 0xff : null;
-  if (sqliteCode !== 5 && error.code !== 'SQLITE_BUSY' && !/database is locked/iu.test(error.message ?? '')) return error;
-  return new Refused('BOARD_BUSY', `board file ${file} remained held by another process after ${Date.now() - startedAt}ms; wait for it to finish and retry${boardWriteHolderText(file)}`);
+  return busyRefusal(file, startedAt, error, boardWriteHolderText(file));
 }

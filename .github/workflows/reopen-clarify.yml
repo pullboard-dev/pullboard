@@ -31,5 +31,5 @@ jobs:
             if (issue.state !== 'closed' || issue.user?.id !== comment.user.id
                 || !issue.labels.some(label => label.name === 'clarify')) return;
 
-            const labels = issue.labels.filter(label => !['clarify', 'clarify-inactive'].includes(label.name)).map(label => label.name);
+            const labels = issue.labels.filter(label => !['clarify'].includes(label.name)).map(label => label.name);
             await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: 'open', labels });

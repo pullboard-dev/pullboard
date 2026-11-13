@@ -72,6 +72,7 @@ try {
   const { result, attempts, avoided } = await submitUntilSettled(run, { say: line => said.push(line), wait: async () => {} });
   console.log(JSON.stringify({ green: result.isGreen, output: result.output, calls, seen, attempts, said, avoided }));
 } catch (error) { console.log(JSON.stringify({ refused: error.code, calls, seen, said })); }`;
+  // process-level: an inline module scenario, not the CLI.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000,
   });

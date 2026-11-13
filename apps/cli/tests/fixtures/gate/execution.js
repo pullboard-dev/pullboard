@@ -7,7 +7,7 @@ export const executionServices = Object.freeze({ runners: runnerExecutionService
 /** Generate literal provider imports beside a fixture's actual gate module, retaining its tooling version. */
 export function executionServicesSource(gateURL) {
   const root = new URL(gateURL);
-  const entry = /\/(?:src\/[^/]+\.js|packages\/gate\/(?:index\.js|src\/shell\/[^/]+\.js))$/u.exec(root.pathname);
+  const entry = /\/(?:src\/[^/]+\.js|packages\/gate\/(?:index\.js|src\/(?:io|shell)\/.+\.js))$/u.exec(root.pathname);
   if (!entry) throw new Error('gate fixture needs an exact canonical gate entry');
   root.pathname = root.pathname.slice(0, entry.index + 1);
   const runners = new URL('packages/runners/index.js', root).href;

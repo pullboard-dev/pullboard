@@ -10,6 +10,8 @@ import { resolve } from 'node:path';
 
 export const SENTENCE = 'I have read CLA.md and I agree to it.';
 const SIGNATURES = '.github/cla-signatures.json';
+// The one HTTP client of this check, named once so every GitHub call below reads as a plain call [P5].
+const send = fetch;
 
 /**
  * Read the signatures file: `{exempt: [login], signatures: [{login, id, comment_url, agreed_at, cla_sha256}]}`.
@@ -68,7 +70,7 @@ export function appendSignatures(path, newSigners, claText, now = new Date().toI
 async function pages(url, headers) {
   const all = [];
   for (let page = 1; page <= 10; page += 1) {
-    const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}per_page=100&page=${page}`, { headers });
+    const response = await send(`${url}${url.includes('?') ? '&' : '?'}per_page=100&page=${page}`, { headers });
     if (!response.ok) throw new Error(`GitHub API ${response.status} for ${url}`);
     const batch = await response.json();
     all.push(...batch);
@@ -87,7 +89,7 @@ async function loadPullRequest() {
   const commits = (await pages(`${api}/pulls/${number}/commits`, headers)).map((c) => ({ sha: c.sha, login: c.author?.login ?? null, parents: c.parents ?? [] }));
   const comments = (await pages(`${api}/issues/${number}/comments`, headers)).map((c) => ({ id: c.id, user_id: c.user?.id, login: c.user?.login, body: c.body, url: c.html_url, created_at: c.created_at }));
   let head = event.pull_request?.head?.sha;
-  if (!head) head = (await (await fetch(`${api}/pulls/${number}`, { headers })).json()).head.sha;
+  if (!head) head = (await (await send(`${api}/pulls/${number}`, { headers })).json()).head.sha;
   return { commits, comments, live: true, api, headers, head };
 }
 
@@ -95,7 +97,7 @@ async function loadPullRequest() {
 async function postStatus(pr, ok, description) {
   if (!pr.live) return;
   try {
-    await fetch(`${pr.api}/statuses/${pr.head}`, {
+    await send(`${pr.api}/statuses/${pr.head}`, {
       method: 'POST', headers: pr.headers,
       body: JSON.stringify({ state: ok ? 'success' : 'failure', context: 'CLA', description: description.slice(0, 140) }),
     });

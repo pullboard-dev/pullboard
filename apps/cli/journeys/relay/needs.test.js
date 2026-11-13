@@ -32,6 +32,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   stopOwnedChrome,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('read-only Needs-you preserves each entry as text while its transport stays read-only [N26,N27,B26]', { timeout: 90_000 }, async (t) => {
@@ -40,9 +41,9 @@ test('read-only Needs-you preserves each entry as text while its transport stays
 
   const box = machine();
   const app = project(box, 'read only transport', `${SPEC}- G3 [pending, must] Confirm the read-only question. | gate: review\n- G4 [draft, must] Confirm the draft row. | gate: review\n`);
-  box.run(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
-  box.run(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
-  box.run(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
+  await box.inProcess(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
+  await box.inProcess(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
+  await box.inProcess(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
   const live = await startView(box);
   const pageKey = 'page-relay-secret';
   const headerKey = 'header-relay-secret';
@@ -125,6 +126,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.deepEqual(normalEntries.map((row) => row[0]), ['G3', '#' + await chrome.stable('data.project.decisions[0].shout_id'), 'web', null], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
     assert.match(normalEntries[1][2], /^Asked by coordinator @[^ ]+$/, 'the API-provided decision timestamp is shown as an age; a seat with no declared model shows its bare id (5665f8678a)');
     assert.match(normalEntries[2][2], /^lane held by coordinator @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
+    await openItemsNeeds(chrome);
     await chrome.click(`document.querySelector('#needs .needs-drafts [data-go="tab:spec"]')`);
     await chrome.waitFor('view.tab === "spec"');
     assert.equal(await chrome.stable('data.project.spec.some(row => row.id === "G4" && row.status === "draft")'), true,
@@ -162,7 +164,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.ok(forwarded.every((method) => method === 'GET'), 'read-only action attempts send no write through the transport');
 
     await chrome.stable(`window.__samePage = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })`);
-    box.run(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
+    await box.inProcess(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
     await chrome.stable('window.__transportUpdate()');
     const refreshed = JSON.parse(await chrome.stable("JSON.stringify({ samePage: window.__samePage === true, titles: (data?.project?.items || []).map((item) => item.title), live: document.querySelector('#live').textContent, calls: window.__transportCalls.slice(-4) })"));
     assert.equal(refreshed.samePage, true, 'onUpdate refreshes in the same page');

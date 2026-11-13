@@ -1,0 +1,10 @@
+{
+  "claude-haiku-6-0": { "family": "anthropic", "route": "light" },
+  "claude-opus-5-5": { "family": "anthropic", "route": "strong" },
+  "claude-sonnet-5-5": { "family": "anthropic", "route": "strong" },
+  "codex": { "family": "openai", "route": "strong" },
+  "gpt-6-codex": { "family": "openai", "route": "strong" },
+  "gpt-6-luna": { "family": "openai", "route": "light" },
+  "gpt-6.1-sol": { "family": "openai", "route": "strong" },
+  "gpt-6.1-terra": { "family": "openai", "route": "strong" }
+}

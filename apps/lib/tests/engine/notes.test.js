@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Typed notes preserve authority and historical replay on independent in-memory SQLite replicas [B29,B30,B31,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

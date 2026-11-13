@@ -57,9 +57,9 @@ function committedGuiFixture(t) {
   command('init', '-q');
   command('config', 'user.name', 'GUI fixture');
   command('config', 'user.email', 'gui@example.invalid');
-  mkdirSync(join(root, 'packages/gate/src/io/run'), { recursive: true });
+  mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'packages/gate/src/io/run/tests.js'), '// Private classifier fixture; never executed.\n');
+  writeFileSync(join(root, 'apps/cli/src/io/run/tests.js'), '// Private classifier fixture; never executed.\n');
   writeFileSync(join(root, 'test/native.test.js'), '/** Ordinary test. */\n');
   command('add', '.');
   command('commit', '-qm', 'Ordinary source');
@@ -74,12 +74,12 @@ function committedGuiFixture(t) {
 
 test('GUI admission classifies the exact committed selection and opaque tree, never live markers [C7,V4]', async t => {
   const box = committedGuiFixture(t);
-  const check = 'node packages/gate/src/io/run/tests.js test/native.test.js';
+  const check = 'node apps/cli/src/io/run/tests.js test/native.test.js';
   box.command('checkout', '-q', '--detach', box.base);
   assert.equal(await checkNeedsGui(box.root, check), false);
   assert.equal(await checkNeedsGui(box.root, check, { commit: box.desktop }), true, 'a patch-only marker requests actual desktop admission');
   assert.equal(await checkNeedsGui(box.root, 'opaque-check', { commit: box.desktop }), true, 'opaque checks inspect committed added test files');
-  assert.equal(await checkNeedsGui(box.root, 'node packages/gate/src/io/run/tests.js test/added.test.js', { commit: box.desktop }), true, 'selected newly committed files need not exist live');
+  assert.equal(await checkNeedsGui(box.root, 'node apps/cli/src/io/run/tests.js test/added.test.js', { commit: box.desktop }), true, 'selected newly committed files need not exist live');
   box.command('checkout', '-q', '--detach', box.desktop);
   assert.equal(await checkNeedsGui(box.root, check), true);
   assert.equal(await checkNeedsGui(box.root, check, { commit: box.base }), false, 'live annotations cannot replace the selected committed source');
@@ -88,7 +88,7 @@ test('GUI admission classifies the exact committed selection and opaque tree, ne
 
 test('unreadable or nonregular committed GUI metadata retains desktop admission [C7,V4]', async t => {
   const box = committedGuiFixture(t);
-  const check = 'node packages/gate/src/io/run/tests.js test/native.test.js';
+  const check = 'node apps/cli/src/io/run/tests.js test/native.test.js';
   assert.equal(await checkNeedsGui(box.root, check, { commit: '0'.repeat(40) }), true);
   assert.equal(await checkNeedsGui(box.root, check, { commit: 'not-a-commit' }), true);
   box.command('checkout', '-q', '--detach', box.base);
@@ -96,5 +96,5 @@ test('unreadable or nonregular committed GUI metadata retains desktop admission 
   box.command('add', 'test/link.test.js');
   box.command('commit', '-qm', 'Nonregular test input');
   const link = box.command('rev-parse', 'HEAD');
-  assert.equal(await checkNeedsGui(box.root, 'node packages/gate/src/io/run/tests.js test/link.test.js', { commit: link }), true);
+  assert.equal(await checkNeedsGui(box.root, 'node apps/cli/src/io/run/tests.js test/link.test.js', { commit: link }), true);
 });

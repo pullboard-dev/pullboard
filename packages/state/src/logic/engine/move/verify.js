@@ -6,7 +6,12 @@ export function prepareAfter(board, values, { ports }) {
   if (values[1]?.sandbox !== undefined) ports.requireOutsideReceipt(board, values[1].sandbox);
 }
 
-/** Replay a verdict with the move's implied-fact ids and the verify policy frozen on the item [V4,H16]. */
+/**
+ * Replay a verdict with the move's implied-fact ids and the verify policy it was judged under [V4,H16,B4,R2].
+ *
+ * A bar frozen by the previous release pins its verify policy, and replay keeps reading it (N-1). A bar-only
+ * freeze pins none, so the policy the move sealed is the one replay re-judges with.
+ */
 export function replayArgs(board, args, { move, store }) {
   // Implied facts take their ids from the sealed move, so every replica writes the same ones.
   if (args[1] && typeof args[1] === 'object' && !Array.isArray(args[1])) args[1].impliesId = move.id;
@@ -16,11 +21,12 @@ export function replayArgs(board, args, { move, store }) {
   try { frozen = JSON.parse(item.item_frozen ?? 'null'); }
   catch { throw new Refused('NO_POLICY', 'the frozen verify policy is invalid; ask the coordinator to refreeze this item before verifying it'); }
   const capturedPolicy = frozen?.policy;
-  const captured = capturedPolicy?.verify;
+  const pinned = capturedPolicy !== undefined;
+  const captured = pinned ? capturedPolicy?.verify : { policy: options?.policy, family: options?.familyPolicy };
   if (!options || typeof options !== 'object' || Array.isArray(options) ||
-      capturedPolicy?.version !== 1 || !/^[0-9a-f]{40,64}$/.test(capturedPolicy.commit ?? '') ||
+      (pinned && (capturedPolicy?.version !== 1 || !/^[0-9a-f]{40,64}$/.test(capturedPolicy.commit ?? ''))) ||
       !['any', 'coordinator'].includes(captured?.policy) || !['off', 'prefer', 'require'].includes(captured?.family)) {
-    throw new Refused('NO_POLICY', 'the frozen verify policy is missing or invalid; ask the coordinator to refreeze this item before verifying it');
+    throw new Refused('NO_POLICY', 'the verify policy is missing or invalid; ask the coordinator to refreeze this item before verifying it');
   }
   args[1] = { ...options, policy: captured.policy, familyPolicy: captured.family, impliesId: move.id };
 }

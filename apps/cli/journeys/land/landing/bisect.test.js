@@ -30,16 +30,16 @@ test('a single-item batch with repeated unnamed reds still refuses, since there 
   await assert.rejects(diagnose(stateWith(3, [{ id: 1 }]), [], { logPath: 'x' }), { code: 'LAND_DIAGNOSTIC' });
 });
 
-test('a real two-item batch red three times with no named file lands refusing twice, then splits and runs gates over single items [C7,#2858]', () => {
+test('a real two-item batch red three times with no named file lands refusing twice, then splits and runs gates over single items [C7,#2858]', async () => {
   const box = landProject();
   const entries = FILES.slice(0, 2).map((file, index) => itemWorktree(box, index + 1, file));
   for (const entry of entries) submitItem(box, entry, 'PASS\n');
   for (const entry of entries) acceptItem(box, entry);
   box.env.LAND_UNNAMED_RED = '1';
-  const firsts = [box.run(box.repo, 'land', '--max', '2', '--json'), box.run(box.repo, 'land', '--adopt', '--json')];
+  const firsts = [await box.runLocal(box.repo, 'land', '--max', '2', '--json'), await box.runLocal(box.repo, 'land', '--adopt', '--json')];
   for (const refused of firsts) assert.equal(JSON.parse(refused.out).error.code, 'LAND_DIAGNOSTIC', refused.out);
   const before = calls(box).length;
-  const third = box.run(box.repo, 'land', '--adopt', '--json');
+  const third = await box.runLocal(box.repo, 'land', '--adopt', '--json');
   const ran = calls(box).slice(before);
   assert.ok(ran.length >= 1 && JSON.parse(third.out).error?.code !== 'LAND_DIAGNOSTIC', `the third land splits and runs gates: ${third.out}${third.err}`);
   const traced = readFileSync(box.gate.trace ?? join(box.dir, 'gate-trace.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));

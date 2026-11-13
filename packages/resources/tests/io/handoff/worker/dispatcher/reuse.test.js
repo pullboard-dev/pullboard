@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/gate/drive.js apps/lib/src/io/handoff/dispatcher.js packages/resources/src/io/handoff/worker/detach.js */
 /** @pullboard-world-pin: the fixture copies the real detached launcher packages/resources/src/io/handoff/worker/detach.js so the dispatcher starts the way production starts it. */
 /** The handoff dispatcher survives a failed slot release at a worker exit, and never trusts a receipt over the lock [C7,#2996]. */
 import assert from 'node:assert/strict';

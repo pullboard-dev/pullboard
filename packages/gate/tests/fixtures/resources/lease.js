@@ -23,6 +23,7 @@ import { SUBMIT_ADMISSION_ENGINE } from '../../../../state/light.js';
 import { registerProject } from '../../../../seats/index.js';
 import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureJoinRoute } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
 export { resourceWorkerSources, resourceNames, oldSchema, staleIdentity, expireHeartbeat } from '../../../../../apps/cli/tests/fixtures/resources/lease.js';
 
@@ -57,6 +58,7 @@ process.exitCode = await main(process.argv.slice(1), {
 
 /** Run the real CLI with a private file-backed board clock and the fixture's ordinary identity. */
 function clockedCli(box, cwd, ...args) {
+  fixtureJoinRoute(args, box.env.PULLBOARD_MODEL); // fixture items default strong, so a bare join must take the strong route [C7]
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args],
     { cwd, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}\n${result.failure ?? result.stderr}`);
@@ -105,9 +107,10 @@ function itemLeaseFixture(t, helpers) {
     const gate = helpers.holdingGate({ dir: folder });
     // Baseline measurement is setup, not the queued CLI under test. Measure it directly to avoid
     // four additional CLI/worker startups while preserving a real completed baseline for each item.
-    const baseline = checkBaseline(box.repo, gate.command, { main: box.git(box.repo, 'rev-parse', 'main') });
+    const named = `${gate.command} lease-input.txt`; // the gate ignores the extra word; naming a repo file lets a later landing defeat proof reuse
+    const baseline = checkBaseline(box.repo, named, { main: box.git(box.repo, 'rev-parse', 'main') });
     const id = store.addItem(box.board, { by: 'coordinator', lane: 'web', title: `Queued lease ${number}`,
-      specIds: ['G1'], criterion: 'The queued command retains only its own live item lease.', check: gate.command, checkBaseline: baseline });
+      specIds: ['G1'], criterion: 'The queued command retains only its own live item lease.', check: named, checkBaseline: baseline });
     assert.notEqual(store.getItem(box.board, id).item_check_baseline?.result, 'pending', 'the fixture completes its baseline before preparing any item claim');
     box.ids.push(id); box.gates.push(gate);
     if (number < 4) {
@@ -124,6 +127,10 @@ function itemLeaseFixture(t, helpers) {
       }
     }
   }
+  // A landing between submit and review touches a file the check names, so the sealed submit proof is not reused and a real check queues.
+  writeFileSync(join(box.repo, 'lease-input.txt'), 'an earlier landing\n');
+  box.git(box.repo, 'add', 'lease-input.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   box.reviewers = [];
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   for (const number of [1, 2]) {
@@ -196,6 +203,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
         // These old writers predate clause-inspection fields; retain their actual wire shape.
         delete move.args[1].clausePolicyCommit;
         delete move.args[1].inspectClauses;
+        delete move.args[1].strictRenames; // also newer than these writers: it would lift the move's minimum engine to 221
         move.engine = scenario === 'admission engine' ? SUBMIT_ADMISSION_ENGINE : SUBMIT_ADMISSION_ENGINE - 1;
       }
       const result = applyEngineMove(peer, move, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() });

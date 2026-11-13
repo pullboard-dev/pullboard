@@ -11,6 +11,7 @@ import { seatWakeCommand } from '../../../../../packages/seats/index.js';
 import { registerSeatWake } from '../../../../../packages/seats/index.js';
 import {
   COORDINATOR,
+  COORDINATOR_GUIDE_FILE,
 } from '../../../../../packages/config/index.js';
 import {
   isLane,
@@ -23,6 +24,7 @@ import {
   relayLinked,
 } from '../../../../../packages/link/index.js';
 import * as store from '../../../../../packages/store/index.js';
+import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { itemFolderSeat } from '../item/folder/identity.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
@@ -39,14 +41,29 @@ import {
   primaryCheckoutRoot,
 } from '../entry.js';
 
-/** Run `pullboard join` and return its exit code. */
 /**
- * Whether a model is a small, light-route model: a claude-haiku-* model or gpt-6-luna.
- * A seat on such a model joins the light route unless it names --route, so it never claims strong work.
+ * Join a lane on the board host board.url names [P7]. The served board registers the seat with a remote marker in
+ * place of a path here, and this worktree's git config pullboard.agent keeps its name for later board calls.
+ * @param {any} io
+ * @param {{ positionals: string[], values: any }} parsed
+ * @param {string} origin The board host, as the seat prints it.
+ * @param {(move: object) => Promise<any>} postMove Posts one move to the served board.
  */
-export function lightModel(model) {
-  return /^claude-haiku-/u.test(String(model ?? '')) || model === 'gpt-6-luna';
+export async function joinRemote(io, { positionals, values }, origin, postMove) {
+  const lane = positionals[1];
+  if (!lane) throw new Refused('NO_LANE', 'name a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
+  const model = requiredModel(values.model, process.env, `join ${shellWord(lane)}`);
+  const ctx = context(io);
+  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
+  const { result } = await postMove({ verb: 'join', args: { lane, model, route, ...(values.family === undefined ? {} : { family: values.family }) } });
+  // Per-worktree config, so each seat's worktree in one clone keeps its own name.
+  gitExecFileSync(['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
+  gitExecFileSync(['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
+  io.result?.({ agent: result.agent, lane, route, model, board: origin });
+  io.say(`joined as ${result.agent} in the ${lane} lane via ${origin}${route === 'light' ? ', on the light route' : ''}`);
 }
+
+/** Run `pullboard join` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const folder = itemFolderSeat(ctx.info.root);
@@ -76,6 +93,7 @@ export async function run(io, { first, values }) {
     const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
     io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
     io.say(`declared ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the coordinator lane`);
+    io.say(`coordinator: read ${COORDINATOR_GUIDE_FILE} before you route anything`);
     return 0;
   }
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
@@ -86,7 +104,7 @@ export async function run(io, { first, values }) {
   const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
   const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
   // Explicit registration updates must reach the board even when the seat identity is unchanged.
-  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined) {
+  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined && !values['lock-lane']) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
     io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, path: ctx.info.root,
       model: existing.agent_model, displayName, family: existing.agent_family ?? null, alreadyJoined: true });
@@ -101,7 +119,7 @@ export async function run(io, { first, values }) {
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
   const joined = await withBoard(ctx, async (board) => {
-    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest }]);
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest, ...(values['lock-lane'] ? { lockLane: true } : {}) }]);
     return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
   });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
@@ -111,6 +129,6 @@ export async function run(io, { first, values }) {
   io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(sameSeat ? { alreadyJoined: true } : {}) });
   io.say(sameSeat
     ? `already joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''}; run pullboard next`
-    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
+    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}${values['lock-lane'] ? ', locked to it: next never moves this seat to another lane' : ''}`);
   return 0;
 }

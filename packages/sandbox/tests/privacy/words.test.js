@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input docs/privacy.test.js packages/sandbox/src/io/verify.js packages/sandbox/tests/privacy/guard.test.js */
 /**
  * Tracked files and pushed commit bodies never quote the owner or name private infrastructure (#895): the owner's
  * machines by name, this machine's host name, its private network addresses, or this user's home folder. Published

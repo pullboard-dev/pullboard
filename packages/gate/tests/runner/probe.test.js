@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/config/index.js packages/gate/index.js packages/gate/src/io/shards/proof.js packages/landing/index.js packages/runners/index.js */
 /** A missed runner admission deadline quarantines a runner only when its confirming probe fails too (#3738) [C7]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';

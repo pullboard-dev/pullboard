@@ -13,9 +13,10 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 
-test('init and opening a temporary board leave the person registry unchanged [I8,N26,N35]', t => {
+test('init and opening a temporary board leave the person registry unchanged [I8,N26,N35]', async t => {
   const box = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-temp-open-')));
   t.after(() => rmSync(box, { recursive: true, force: true }));
   const repo = join(box, 'preview');
@@ -39,9 +40,9 @@ test('init and opening a temporary board leave the person registry unchanged [I8
   mkdirSync(join(env.HOME, '.pullboard'), { recursive: true });
   const before = '{"projects":[],"fixture":"preserve these exact bytes"}\n';
   writeFileSync(registry, before);
-  const init = runFixtureChild(process.execPath, [bin, 'init', '--yes', '--no-permissions', '--no-hooks', '--model', 'fixture', '--json'],
-    { cwd: repo, env, encoding: 'utf8' });
-  assert.equal(init.status, 0, `${init.context}\n${init.stdout}`);
+  const init = await runCliInProcess(['init', '--yes', '--no-permissions', '--no-hooks', '--model', 'fixture', '--json'],
+    { cwd: repo, env });
+  assert.equal(init.status, 0, `${init.stderr}\n${init.stdout}`);
   assert.equal(readFileSync(registry, 'utf8'), before, 'init does not register the preview');
   const script = `import { cli$main as main } from ${JSON.stringify(new URL('../../index.js', import.meta.url).href)};
 import { serveView } from ${JSON.stringify(new URL('../../src/io/commands/view.js', import.meta.url).href)};

@@ -12,13 +12,13 @@ import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
 
-test('a run-together shout is refused with the next step and a readable one is sent [B7,A2]', () => {
+test('a run-together shout is refused with the next step and a readable one is sent [B7,A2]', async () => {
   const box = fixtures.project('true');
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const before = store.events(board);
     const shouts = store.allShouts(board);
-    const refused = box.run(box.web, 'shout', 'all', 'exactimmutableproducerpacket+SHA', '--json');
+    const refused = await box.runIn(box.web, 'shout', 'all', 'exactimmutableproducerpacket+SHA', '--json');
     assert.notEqual(refused.code, 0, refused.out || refused.err);
     const error = JSON.parse(refused.out).error;
     assert.equal(error.code, 'SHOUT_SPACES');
@@ -32,12 +32,12 @@ test('a run-together shout is refused with the next step and a readable one is s
       `The commit is ${'a'.repeat(40)}.`,
       'abcdefghijklmnopqrstuvwx',
     ]) {
-      const sent = box.run(box.web, 'shout', 'all', text, '--json');
+      const sent = await box.runIn(box.web, 'shout', 'all', text, '--json');
       assert.equal(sent.code, 0, sent.out || sent.err);
       assert.equal(store.getShout(board, JSON.parse(sent.out).id).shout_text, text);
     }
     for (const text of ['abcdefghijklmnopqrstuvwxy', '`exactimmutableproducerpacket+SHA`']) {
-      const denied = box.run(box.web, 'shout', 'all', text, '--json');
+      const denied = await box.runIn(box.web, 'shout', 'all', text, '--json');
       assert.notEqual(denied.code, 0, denied.out || denied.err);
       assert.equal(JSON.parse(denied.out).error.code, 'SHOUT_SPACES');
     }

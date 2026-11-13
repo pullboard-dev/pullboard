@@ -5,7 +5,8 @@
  * Submit selects the tests a change affects through import edges (src/affected-tests.js). A test
  * that reaches source by path, rather than importing it, is invisible to that graph unless its
  * file opens with the header line the selection reads: `/** @pullboard-test-input source-tree *\/`,
- * among the declaration lines at the very top of the file.
+ * among the declaration lines at the very top of the file; a header naming the exact files the test
+ * reads instead of the whole tree declares it too, and selects it for those files alone. `/** @pullboard-test-input source-cell <cell> *\/` names the cells read instead.
  *
  * The rule is per file, because a path is often built on one line and read on another (a variable,
  * a queue of files to walk). A test file reads source files when its code (outside strings and
@@ -26,6 +27,8 @@
  *
  * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
+import { isSourceCellLine } from '../affected/inputs.js';
+import { sourceCellPrefixes } from '../affected/inputs.js';
 import {
   lex,
   lineAt,
@@ -40,6 +43,8 @@ const DECLARATIONS = new Set([SOURCE_TREE_INPUT, '// pullboard: browser', '/** @
 const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
 const ANCHOR = /(?<![\w$])import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
 const SOURCE_PATH = /(?:^|\/)src(?:\/|$)/u;
+// A header naming the exact files a test reads, such as `/** @pullboard-test-input packages/gate/src/io/run/slots.js */`, also declares it.
+const NAMED_INPUTS = /^\/\*\* @pullboard-test-input (?!source-tree \*\/$)\S.* \*\/$/u;
 const OPENERS = '([{';
 const CLOSERS = ')]}';
 
@@ -53,6 +58,8 @@ const CLOSERS = ')]}';
 export function declaresSource(source) {
   for (const line of source.split(/\r?\n/u)) {
     if (line === SOURCE_TREE_INPUT) return true;
+    if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return false; return true; }
+    if (NAMED_INPUTS.test(line)) return true;
     if (!DECLARATIONS.has(line)) return false;
   }
   return false;

@@ -10,13 +10,11 @@ import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -27,6 +25,7 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { scratchFolder } from '../../../../config/index.js';
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -36,7 +35,7 @@ export function sourceGit(root, args, options = {}) {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: MAX_BLOB_BYTES, ...options,
   });
   if (result.error?.code === 'ENOBUFS') {
-    const directory = mkdtempSync(join(tmpdir(), 'pullboard-source-count-'));
+    const directory = scratchFolder('pullboard-source-count-');
     const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
     try {
       const counted = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
@@ -52,14 +51,16 @@ export function sourceGit(root, args, options = {}) {
 }
 
 /** The tooling export manifest a controller runs from; its tree names the scanner rules that made a verdict. */
-const TOOLING_MANIFEST = fileURLToPath(new URL('../../../../.pullboard-runner-source.json', import.meta.url));
+/** The file name of that manifest; a runtime-written file, never part of the shipped closure. */
+export const TOOLING_MANIFEST_NAME = '.pullboard-runner-source.json';
+const TOOLING_MANIFEST = fileURLToPath(new URL(`../../../../../${TOOLING_MANIFEST_NAME}`, import.meta.url));
 let toolingTree;
 
 /**
  * The tree of the committed tooling this process runs, or null when it runs from no export. Why: a cached scan verdict
  * holds only for the rules that made it, and an export's tree names those rules exactly.
  */
-function scannerTree() {
+export function scannerTree() {
   if (toolingTree === undefined) {
     try { toolingTree = JSON.parse(readFileSync(TOOLING_MANIFEST, 'utf8')).tree; } catch { toolingTree = null; }
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(toolingTree ?? '')) toolingTree = null;
@@ -83,17 +84,34 @@ export function cachedScan(kind, parts, scan) {
   if (!tree) return scan();
   const folder = join(process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard'), 'source-scan');
   const key = JSON.stringify([kind, tree, ...parts]);
+  let saved = keptScan(folder, key);
+  if (saved) return saved.value;
+  // One scan per key: the shards and the analysis trip of one gate prepare the same commit at once, and each scanned
+  // it cold, 22-25 s apiece on the controller (11 Nov) [C7,#5728]. A waiter answers from the scanner's verdict; a
+  // refusal is never kept, so after it each waiter scans and refuses for itself.
+  const lock = join(folder, `${createHash('sha256').update(key).digest('hex').slice(0, 32)}.lock`);
+  const release = takeScan(lock, () => (saved = keptScan(folder, key)) !== null);
+  if (!release) return saved.value;
+  try {
+    saved = keptScan(folder, key);
+    if (saved) return saved.value;
+    const value = scan();
+    try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, value }))); }
+    catch { /* An unwritable cache only costs the next scan its shortcut. */ }
+    return value;
+  } finally { release(); }
+}
+
+/** A kept clean verdict for this exact key, as { value }, or null; an unreadable verdict only costs the shortcut. */
+function keptScan(folder, key) {
   try {
     const saved = loadKeyedResult(folder, key);
     if (saved) {
       const entry = JSON.parse(saved.toString('utf8'));
-      if (entry?.key === key) return entry.value;
+      if (entry?.key === key) return { value: entry.value };
     }
   } catch { /* An unreadable verdict only costs this scan its shortcut. */ }
-  const value = scan();
-  try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, value }))); }
-  catch { /* An unwritable cache only costs the next scan its shortcut. */ }
-  return value;
+  return null;
 }
 
 /** Scan every current blob and the commit message before any source bytes leave the controller; a clean commit's verdict is kept (cachedScan). */
@@ -134,7 +152,7 @@ function scanSourceObjects(root, source) {
       }
       return size;
     });
-    const scratch = mkdtempSync(join(tmpdir(), 'pullboard-runner-source-'));
+    const scratch = scratchFolder('pullboard-runner-source-');
     try {
       const scan = join(scratch, 'current.scan');
       for (let start = 0; start < blobs.length;) {
@@ -304,7 +322,13 @@ export function protectHistory(root, source, policies) {
       try { record(blocked, ''); } catch { /* Waiters then scan and refuse for themselves. */ }
       throw refuse();
     }
-    try { record(file, JSON.stringify([source.commit, ...cleanHistory(file).filter(commit => commit !== source.commit)].slice(0, CLEAN_HISTORY_KEEP))); }
+    // A clean history makes each parent's history clean too. Proof commits are siblings on one main tip that no one
+    // dispatched itself, so keeping the parents lets the next sibling scan only its own commit, not all history (#5550).
+    let parents = [];
+    try { parents = sourceGit(root, ['rev-parse', `${source.commit}^@`]).split('\n').filter(commit => /^[a-f0-9]{40,64}$/u.test(commit)); }
+    catch { /* Without the parents only the commit itself is kept. */ }
+    const fresh = [source.commit, ...parents];
+    try { record(file, JSON.stringify([...fresh, ...cleanHistory(file).filter(commit => !fresh.includes(commit))].slice(0, CLEAN_HISTORY_KEEP))); }
     catch { /* An unwritable cache only costs the next scan its shortcut. */ }
   } finally { release?.(); }
 }

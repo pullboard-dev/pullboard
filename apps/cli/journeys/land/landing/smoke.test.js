@@ -32,7 +32,7 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 /** A project CLI that answers every command until an item's file asks it to break, as an import cycle would. */
 const BREAKABLE_CLI = [
   "const fs = require('node:fs'); const path = require('node:path');",
-  "const file = path.join(__dirname, '../../../../..', 'web', 'land-1.test.js');",
+  "const file = path.join(__dirname, '../..', 'web', 'land-1.test.js');",
   "if (fs.existsSync(file) && fs.readFileSync(file, 'utf8').includes('BREAK')) throw new Error('import cycle in the command catalog');",
 ].join('\n') + '\n';
 
@@ -46,7 +46,7 @@ function landBrokenCli({ separate }) {
   const config = JSON.parse(readFileSync(path, 'utf8'));
   assert.notEqual(config.landing?.parallel, true, 'the fixture lands through the ordinary, non-parallel path');
   if (separate) writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, publish: 'separate' } }, null, 2));
-  mkdirSync(join(box.repo, 'bin'));
+  mkdirSync(join(box.repo, 'apps', 'cli'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/pullboard.js'), BREAKABLE_CLI);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: ship a project CLI');
@@ -63,7 +63,7 @@ function landBrokenCli({ separate }) {
 function brokenCandidate(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-smoke-candidate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  mkdirSync(join(dir, 'bin'));
+  mkdirSync(join(dir, 'apps', 'cli'), { recursive: true });
   writeFileSync(join(dir, 'apps/cli/pullboard.js'), "throw new Error('import cycle in the command catalog');\n");
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
     GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' };

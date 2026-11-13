@@ -23,6 +23,7 @@ test('the sentinel names an agent process past 20 CPU minutes once [A6,H16]', as
   mkdirSync(root); mkdirSync(work);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
   const file = join(directory, 'board.sqlite');
+  // @pullboard-board-file persistence: the board is closed and reopened to check the delivery queue survives
   let board = openBoard(file);
   store.register(board, { lane: 'coordinator', path: root });
   const seat = store.register(board, { lane: 'core', path: work });
@@ -96,6 +97,7 @@ test('the sentinel names an agent process past 20 CPU minutes once [A6,H16]', as
   }), { code: 'ENGINE_VERSION' }, 'an older empty scan cannot erase pending CPU delivery');
   assert.deepEqual(store.events(board), pendingEvents, 'refusal preserves the complete delivery queue and history');
   delete board.executionEngineVersion;
+  // @pullboard-board-file persistence: the board is closed and reopened to check the delivery queue survives
   store.closeBoard(board); board = openBoard(file);
   cappedScan(); cappedScan();
   for (const pid of pids) assert.equal(notices().filter(row => row.shout_text.includes(`pid ${pid} `)).length, 1, `PID ${pid} is named exactly once after restart`);

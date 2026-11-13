@@ -63,11 +63,11 @@ function fixtureGit(cwd, ...args) {
 }
 
 test('only the two exact named-file Node check forms are eligible [C7]', () => {
-  assert.deepEqual(mainRedCheckFiles('node packages/gate/src/io/run/tests.js test/a.test.js test/b.test.js'), ['test/a.test.js', 'test/b.test.js']);
+  assert.deepEqual(mainRedCheckFiles('node apps/cli/src/io/run/tests.js test/a.test.js test/b.test.js'), ['test/a.test.js', 'test/b.test.js']);
   assert.deepEqual(mainRedCheckFiles('node --test test/a.test.js'), ['test/a.test.js']);
-  for (const check of ['node packages/gate/src/io/run/tests.js --test test/a.test.js', 'node --test --test-reporter=tap test/a.test.js',
+  for (const check of ['node apps/cli/src/io/run/tests.js --test test/a.test.js', 'node --test --test-reporter=tap test/a.test.js',
     'node --test test/a.test.js && true', 'node  --test test/a.test.js', 'node --test test/../outside.test.js',
-    'node --test test/a.test.js test/a.test.js', 'node packages/gate/src/io/run/tests.js']) assert.equal(mainRedCheckFiles(check), null, check);
+    'node --test test/a.test.js test/a.test.js', 'node apps/cli/src/io/run/tests.js']) assert.equal(mainRedCheckFiles(check), null, check);
 });
 
 test('the check comes from a digest-matching frozen bar, never the mutable check field [C7]', () => {
@@ -112,6 +112,7 @@ function auditFixture(t) {
   const tip = fixtureGit(repo, 'rev-parse', 'HEAD');
   const tree = fixtureGit(repo, 'rev-parse', 'HEAD^{tree}');
   const dbFile = join(repo, '.git/pullboard/board.sqlite');
+  // @pullboard-board-file journey: the main-audit writer and reader contend on the repo board file.
   db = openBoard(dbFile, undefined, { isMain: true, gitRoot: repo });
   store.register(db, { lane: 'coordinator', path: repo });
   /** Give a private Main red a real frozen named-file bar without claiming a gate ran. */
@@ -194,6 +195,7 @@ test('native audit admission refuses a main move while its withdrawal waits, wit
   const item = store.getItem(db, id);
   const expected = { status: 'open', title: item.item_title, check: item.item_check, frozenDigest: item.item_frozen_digest, head: tip };
   const ctx = { info: repoInfo(repo), io: {} };
+  // @pullboard-board-file journey: the main-audit writer and reader contend on the repo board file.
   const writer = openBoard(join(repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: repo });
   await assert.rejects(withOpenedBoard(ctx, board => withAuditedMain(repo, board, expected, async () => {
     fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'queued main moved');
@@ -209,6 +211,7 @@ test('the existing native policy witness rolls back a main move after audit with
   const item = store.getItem(db, id);
   const expected = { status: 'open', title: item.item_title, check: item.item_check, frozenDigest: item.item_frozen_digest, head: tip };
   const ctx = { info: repoInfo(repo), io: {} };
+  // @pullboard-board-file journey: the main-audit writer and reader contend on the repo board file.
   const writer = openBoard(join(repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: repo });
   await assert.rejects(withOpenedBoard(ctx, board => withAuditedMain(repo, board, expected, () => store.atomic(board, () => {
     store.withdraw(board, id, { agentId: 'coordinator', reason: 'audit was green at admission', expected });

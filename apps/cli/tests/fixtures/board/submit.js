@@ -35,14 +35,27 @@ function bindBoardRepository(board) {
   if (at > 0) board.gitRoot = file.slice(0, at);
 }
 
-/** Record a synthetic board move without claiming that this fixture ran a gate. */
+/**
+ * Record a synthetic board move without claiming that this fixture ran a gate.
+ *
+ * A native CLI step just before (a claim) can leave a background process committing to the same board while the submit
+ * seals its repository reads; submit then refuses BOARD_BUSY and says to retry from the current snapshot, so this does,
+ * a few times, and no other refusal is retried.
+ */
 export function submitFixture(board, id, options) {
   bindBoardRepository(board);
-  return submit(board, id, {
-    submissionProof: { version: 1, files: [], full: false, deferred: true,
-      reason: 'synthetic board-state fixture; no gate execution' },
-    ...options,
-  });
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return submit(board, id, {
+        submissionProof: { version: 1, files: [], full: false, deferred: true,
+          reason: 'synthetic board-state fixture; no gate execution' },
+        ...options,
+      });
+    } catch (error) {
+      if (error?.code !== 'BOARD_BUSY' || attempt >= 5) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200 * attempt);
+    }
+  }
 }
 
 /**

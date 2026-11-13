@@ -68,7 +68,7 @@ function seededProject(t) {
 
 test('status shows max useful agents the binding constraint and its lever [N2,R1,R2]', async t => {
   const box = seededProject(t);
-  const result = box.run(box.repo, 'status', '--json');
+  const result = (await box.runLocal(box.repo, 'status', '--json'));
   assert.equal(result.code, 0, result.out + result.err);
   const planner = JSON.parse(result.out).capacityForecast;
   assert.ok(planner && typeof planner === 'object', 'status exposes the board capacity projection');
@@ -79,12 +79,12 @@ test('status shows max useful agents the binding constraint and its lever [N2,R1
   assert.equal(planner.monteCarlo.replicates, 100);
   assert.ok(planner.finishHours.lower > 0 && planner.finishHours.upper >= planner.finishHours.lower);
   assert.ok(planner.binding.kind && planner.binding.text && planner.lever.kind && planner.lever.text);
-  const text = box.run(box.repo, 'status');
+  const text = (await box.runLocal(box.repo, 'status'));
   assert.equal(text.code, 0, text.out + text.err);
   assert.match(text.out, /Max useful agents now:/u);
   assert.match(text.out, /Binding:/u);
   assert.match(text.out, /Lever:/u);
-  const digest = box.run(box.repo, 'digest', '--json');
+  const digest = (await box.runLocal(box.repo, 'digest', '--json'));
   assert.equal(digest.code, 0, digest.out + digest.err);
   const morning = JSON.parse(digest.out);
   assert.deepEqual(morning.capacityForecast, planner, 'morning digest uses the identical cached projection');

@@ -41,6 +41,7 @@ import {
   stopSender,
 } from '../../../tests/fixtures/relay/sender.js';
 import { fixtureJoinArgv } from '../../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
 
 const CLI = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
 // Budget: the criterion's bar for a move or a read, measured from spawn to exit of the real CLI.
@@ -102,6 +103,7 @@ async function local(box, t, cwd, env, name, args, budget) {
     '  return fetch(...args);',
     '};',
   ].join('\n'), { mode: 0o600 });
+  // Process-level: this measures a real process's wall clock from spawn to exit and counts its network calls through a preload.
   const running = runFixtureChildAsync(process.execPath, ['--import', preload, CLI, ...args, '--json'], { cwd, env });
   // Budget: well past the one-second bar, so a slow command fails its assertion instead of hanging the file.
   const timer = setTimeout(() => running.child.kill('SIGKILL'), 10_000);
@@ -121,6 +123,7 @@ async function local(box, t, cwd, env, name, args, budget) {
  * Why: the bar is about the CLI's own work, and a loaded runner made the same command read red in one run and green in the next.
  */
 async function loadedBudgetMs(concurrent = 0) {
+  // Process-level: this times how slow a bare node process starts right now, so it must be a real spawn.
   const starts = await Promise.all([1, 2, 3, 4, 5, 6].map(() => runFixtureChildAsync(process.execPath, ['-e', '0'], {})));
   const slowest = Math.max(...starts.map(start => start.elapsedMs));
   // A CLI command is heavier than a bare start and queues on the CPU like any other process, so run-queue pressure counts twice.
@@ -205,9 +208,8 @@ test('a locally known revoked seat cannot queue or apply a move and retains earl
   const beforeOutbox = readFileSync(sealed);
   const beforeGeneration = readFileSync(generation, 'utf8');
   const calls = box.calls.length;
-  const refused = await runFixtureChildAsync(process.execPath,
-    [CLI, 'shout', 'all', 'A revoked seat must not create this move', '--json'], { cwd: box.root, env });
-  assert.equal(refused.status, 1, refused.context);
+  const refused = await runCliInProcess(['shout', 'all', 'A revoked seat must not create this move', '--json'], { cwd: box.root, env });
+  assert.equal(refused.code, 1, refused.stderr);
   assert.equal(JSON.parse(refused.stdout).error.code, 'TOKEN_REVOKED');
   assert.equal(box.calls.length, calls, 'known revocation is refused without network or token minting');
   assert.equal(readFileSync(sealed).equals(beforeOutbox), true, 'earlier valid queued moves remain byte-identical');
@@ -228,6 +230,7 @@ test('a seat registration waits for relay authority while ordinary moves and rea
     registrationReached = true;
     await registrationResponse;
   });
+  // Process-level: the join stays pending, a detached child, while the test keeps running other commands.
   const joining = runFixtureChildAsync(process.execPath,
     [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json'], { cwd: agentPath, env });
   let joinResult;
@@ -290,7 +293,7 @@ test('a GitHub 403 never refuses or delays a move: it is recorded and queued, th
 
 test('one background sender per machine sends each new move once, asks GitHub once per window, pulls other machines\' moves, and the relay reads none [H21,H5,H15]', async t => {
   const { box, env } = await linkedBoard(t);
-  const printed = await box.cli('relay', 'pair');
+  const printed = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const permission = () => box.providerCalls.filter(call => call.path.endsWith('/permission')).length;
   const asked = permission();
@@ -352,7 +355,7 @@ test('one background sender per machine sends each new move once, asks GitHub on
 async function seat(box, name) {
   const path = join(dirname(box.root), name);
   runFixtureGit(['worktree', 'add', '-q', '-b', `agent/${name}`, path], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(path, 'join', box.lane, '--model', 'fixture-model', '--route', 'strong');
+  const joined = await box.cliAtLocal(path, 'join', box.lane, '--model', 'fixture-model', '--route', 'strong');
   assert.equal(joined.code, 0, joined.failure);
   return { path, id: joined.document.agent };
 }
@@ -361,8 +364,8 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   const box = await relayClientFixture(t);
   enableOutbox(box);
   await box.link();
-  const contested = (await box.cli('add', box.lane, 'Claimed on two machines')).document.item.item_id;
-  const printed = await box.cli('relay', 'pair');
+  const contested = (await box.cliLocal('add', box.lane, 'Claimed on two machines')).document.item.item_id;
+  const printed = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const here = await seat(box, 'here-agent');
   const otherPath = join(dirname(other.root), 'there-agent');
@@ -372,13 +375,13 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   const winner = there.document.agent;
 
   await box.stopRelay();
-  const queued = await box.cliAt(here.path, 'claim', String(contested));
+  const queued = await box.cliAtLocal(here.path, 'claim', String(contested));
   assert.equal(queued.code, 0, `the claim succeeds here at once, with no up-front coordination: ${queued.failure}; ${JSON.stringify(queued.document?.error ?? queued.document?.refusal ?? null)}`);
   await box.restartRelay();
   const won = await other.cliAt(otherPath, 'claim', String(contested));
   assert.equal(won.code, 0, won.failure);
 
-  const synced = await box.cli('status');
+  const synced = await box.cliLocal('status');
   assert.equal(synced.code, 0, synced.failure);
   const [refused] = synced.document.relay.outboxRefusals ?? [];
   assert.ok(refused, 'the later claim is refused when it replays');
@@ -387,10 +390,10 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   assert.ok(refused.earlier.some(move => move.move === `claim #${contested} by ${winner}`), 'the refusal names the winning claim and its agent');
 
   // The agent whose claim lost is told on its next command, once.
-  const told = await runFixtureChildAsync(process.execPath, [CLI, 'status'], { cwd: here.path, env: box.env });
-  assert.equal(told.status, 0, told.context);
+  const told = await runCliInProcess(['status'], { cwd: here.path, env: box.env });
+  assert.equal(told.code, 0, told.stderr);
   assert.match(told.stderr, new RegExp(`\\[RELAY_OUTBOX_REFUSED\\] the queued move claim #${contested} by ${here.id} .*\\[HELD\\].*won by sequence \\d+ claim #${contested} by ${winner}`, 'u'));
-  const again = await runFixtureChildAsync(process.execPath, [CLI, 'status'], { cwd: here.path, env: box.env });
+  const again = await runCliInProcess(['status'], { cwd: here.path, env: box.env });
   assert.doesNotMatch(again.stderr, /RELAY_OUTBOX_REFUSED/u, 'the notice is said once');
 
   for (const machine of [box, other]) {

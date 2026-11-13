@@ -1,10 +1,11 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js */
 /**
  * Submit asks why when a change edits an existing test or gate file, and a new test file needs no reason [C7,V4].
  * Drives the real CLI in process.
  */
 import assert from 'node:assert/strict';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -37,6 +38,15 @@ async function drainComparisons(box, t) {
   const jobs = existsSync(directory) ? readdirSync(directory).map(job => join(directory, job)) : [];
   await waitForCondition(() => jobs.every(job => existsSync(join(job, 'result.json'))),
     'owned submit-infra comparison to finish', { signal: t.signal });
+}
+
+/**
+ * Submit item 1 and wait for its pulled gate: the receipt records the submit and its infra note, which show then reads [C7].
+ */
+async function submitSettled(t, box, ...extra) {
+  const submitted = await box.run('submit', '1', ...extra, '--json');
+  if (submitted.code === 0) await settleSubmit(t, { repo: box.root, env: box.env, run: (_cwd, ...args) => box.run(...args) }, JSON.parse(submitted.out));
+  return submitted;
 }
 
 /** Write a fixture file, creating its parent directory when needed. */
@@ -132,7 +142,7 @@ async function infraBox(t, { edit, existing = true, requireInfraNote = true, fil
 
 test('submit drafts a note when a change edits an existing test [C7,V4]', async (t) => {
   const box = await infraBox(t, { edit: (box) => put(box.root, 'test/existing.test.js', "import '../src/a.js';\n// a reason\n") });
-  const submitted = await box.run('submit', '1');
+  const submitted = await submitSettled(t, box);
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
   const shown = await box.run('show', '1');
   assert.equal(shown.code, 0, shown.err);
@@ -145,12 +155,12 @@ test('a supplied infra note is retained and an enabled board drafts one [C7,V4]'
   /** Edit an existing test file after the item claim. */
   const edit = (box) => put(box.root, 'test/existing.test.js', "import '../src/a.js';\n// a change\n");
   const optional = await infraBox(t, { edit, requireInfraNote: false });
-  const accepted = await optional.run('submit', '1');
+  const accepted = await submitSettled(t, optional);
   assert.equal(accepted.code, 0, `${accepted.out}\n${accepted.err}`);
   assert.doesNotMatch(`${accepted.out}\n${accepted.err}`, /INFRA_NOTE_REQUIRED/u);
 
   const recorded = await infraBox(t, { edit, requireInfraNote: false });
-  const noted = await recorded.run('submit', '1', '--infra', 'the change keeps the real listener covered');
+  const noted = await submitSettled(t, recorded, '--infra', 'the change keeps the real listener covered');
   assert.equal(noted.code, 0, `${noted.out}\n${noted.err}`);
   const shown = await recorded.run('show', '1');
   assert.equal(shown.code, 0, shown.err);
@@ -158,7 +168,7 @@ test('a supplied infra note is retained and an enabled board drafts one [C7,V4]'
   assert.match(shown.out, /test\/existing\.test\.js/u);
 
   const enabled = await infraBox(t, { edit, requireInfraNote: true });
-  const drafted = await enabled.run('submit', '1');
+  const drafted = await submitSettled(t, enabled);
   assert.equal(drafted.code, 0, `${drafted.out}\n${drafted.err}`);
   assert.match((await enabled.run('show', '1')).out, /infra note:/u);
   for (const box of [optional, recorded, enabled]) await drainComparisons(box, t);
@@ -166,7 +176,7 @@ test('a supplied infra note is retained and an enabled board drafts one [C7,V4]'
 
 test('a new test file needs no note [C7,V4]', async (t) => {
   const box = await infraBox(t, { existing: true, files: ['test/brand-new.test.js'], edit: (box) => put(box.root, 'test/brand-new.test.js', "import '../src/a.js';\n") });
-  const submitted = await box.run('submit', '1');
+  const submitted = await submitSettled(t, box);
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
   assert.doesNotMatch(`${submitted.out}\n${submitted.err}`, /INFRA_NOTE_REQUIRED/u);
   await drainComparisons(box, t);
@@ -188,7 +198,7 @@ test('a gate named by a quoted path or a shell separator receives a drafted note
     assert.equal((await box.run('claim', '1')).code, 0);
     put(box.root, file, 'process.exit(0); // edited after the claim\n');
     commitAll(box, 'feat(core): change the gate script [G1]');
-    const submitted = await box.run('submit', '1');
+    const submitted = await submitSettled(t, box);
     assert.equal(submitted.code, 0, `${gate}: ${submitted.out}\n${submitted.err}`);
     const shown = await box.run('show', '1');
     assert.match(shown.out, /infra note:/u);

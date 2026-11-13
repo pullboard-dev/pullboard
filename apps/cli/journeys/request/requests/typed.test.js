@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Typed requests retain coordinator authority, native execution evidence and ordered replay [B3,N26,H16]. */
 import assert from 'node:assert/strict';
 import {
@@ -47,38 +46,38 @@ function fixture(t) {
 function history(board){return store.events(board);}
 
 /** Exercise the actual parsed CLI and require one versioned JSON document. */
-function cli(box,cwd,...args){const r=box.run(cwd,...args,'--json');assert.equal(r.code,0,r.err+r.out);const d=JSON.parse(r.out);assert.equal(d.version,1);return d;}
+async function cli(box,cwd,...args){const r=await box.runLocal(cwd,...args,'--json');assert.equal(r.code,0,r.err+r.out);const d=JSON.parse(r.out);assert.equal(d.version,1);return d;}
 
 /** Read genuine native operation events produced by the original coordinator commands. */
 // @pullboard-board-file journey: read the durable native events written by the preceding separate coordinator CLI commands.
 function eventFor(box,item,kind){const board=openBoard(join(box.repo,'.git/pullboard/board.sqlite'));try{return history(board).findLast(row=>row.item_id===item&&row.event_kind===kind).event_id;}finally{store.closeBoard(board);}}
 
-test('actual CLI files, lists, delivers and batch-answers typed coordinator requests [B3,N26]',()=>{
+test('actual CLI files, lists, delivers and batch-answers typed coordinator requests [B3,N26]',async ()=>{
   const box=helpers.project('true');
-  const first=cli(box,box.repo,'add','web','Hold target').item.item_id;
-  const second=cli(box,box.repo,'add','web','Withdraw target').item.item_id;
-  const missing=box.run(box.web,'request','hold',String(first),'--json');
+  const first=(await cli(box,box.repo,'add','web','Hold target')).item.item_id;
+  const second=(await cli(box,box.repo,'add','web','Withdraw target')).item.item_id;
+  const missing=await box.runLocal(box.web,'request','hold',String(first),'--json');
   assert.notEqual(missing.code,0);assert.equal(JSON.parse(missing.out).error.code,'BAD_REQUEST_CAUSE');
-  const a=cli(box,box.web,'request','hold',String(first),'--cause','routing-assignment','--note','Wait for the dependency').id;
-  const b=cli(box,box.web,'request','withdraw',String(second),'--cause','tool-defect').id;
-  assert.equal(cli(box,box.repo,'show',String(first)).item_hold_reason,null,'request alone never executes a hold');
-  assert.equal(cli(box,box.repo,'show',String(second)).item_status,'open','request alone never withdraws');
-  assert.deepEqual(cli(box,box.web,'request','list').requests.map(row=>row.id),[a,b]);
-  const inbox=cli(box,box.repo,'inbox');
+  const a=(await cli(box,box.web,'request','hold',String(first),'--cause','routing-assignment','--note','Wait for the dependency')).id;
+  const b=(await cli(box,box.web,'request','withdraw',String(second),'--cause','tool-defect')).id;
+  assert.equal((await cli(box,box.repo,'show',String(first))).item_hold_reason,null,'request alone never executes a hold');
+  assert.equal((await cli(box,box.repo,'show',String(second))).item_status,'open','request alone never withdraws');
+  assert.deepEqual((await cli(box,box.web,'request','list')).requests.map(row=>row.id),[a,b]);
+  const inbox=await cli(box,box.repo,'inbox');
   assert.ok(inbox.activity.entries.some(row=>row.typedRequest&&row.eventId===a),'coordinator receives typed queue activity');
-  const denied=box.run(box.web,'request','answer',`${a},${b}`,'declined','--note','Forged coordinator','--json');
+  const denied=await box.runLocal(box.web,'request','answer',`${a},${b}`,'declined','--note','Forged coordinator','--json');
   assert.notEqual(denied.code,0);assert.equal(JSON.parse(denied.out).error.code,'COORDINATOR_ONLY');
-  cli(box,box.repo,'hold',String(first),'--reason','Dependency holds it');
-  cli(box,box.repo,'withdraw',String(second),'Superseded requirement');
+  await cli(box,box.repo,'hold',String(first),'--reason','Dependency holds it');
+  await cli(box,box.repo,'withdraw',String(second),'Superseded requirement');
   const events=[eventFor(box,first,'hold_item'),eventFor(box,second,'withdraw')];
-  const answered=cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(','));
+  const answered=await cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(','));
   assert.deepEqual(answered.requests.map(row=>row.status),['done','done']);
-  assert.equal(cli(box,box.repo,'request','list').requests.length,0);
-  assert.equal(cli(box,box.web,'request','list','--all').requests.length,2);
-  const reply=cli(box,box.web,'inbox');
+  assert.equal((await cli(box,box.repo,'request','list')).requests.length,0);
+  assert.equal((await cli(box,box.web,'request','list','--all')).requests.length,2);
+  const reply=await cli(box,box.web,'inbox');
   assert.ok(reply.activity.entries.some(row=>row.typedRequest&&row.text.includes(`#${a} done`)),'requester receives actual answer activity');
-  cli(box,box.repo,'hold',String(first),'--off');
-  assert.deepEqual(cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(',')).requests,answered.requests,'exact retry retains original result after later legitimate state changes');
+  await cli(box,box.repo,'hold',String(first),'--off');
+  assert.deepEqual((await cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(','))).requests,answered.requests,'exact retry retains original result after later legitimate state changes');
 });
 
 test('malformed causes, targets, verbs and authority fields refuse without creating requests [B3,N26]',t=>{

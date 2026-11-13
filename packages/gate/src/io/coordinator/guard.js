@@ -43,7 +43,7 @@ export function refuseTestsOnCoordinator({ env = process.env, read, exit = code 
 }
 
 /**
- * Test processes running on this machine, as `ps` lists them: node processes running packages/gate/src/io/run/tests.js or node --test.
+ * Test processes running on this machine, as `ps` lists them: node processes running apps/cli/src/io/run/tests.js or node --test.
  *
  * @param {string} listing - `ps -axo pid=,command=` output.
  * @returns {{ pid: number, command: string }[]}

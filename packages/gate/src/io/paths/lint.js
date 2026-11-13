@@ -108,9 +108,10 @@ function renameMap(root, option) {
  * @param {string} file - Repo-relative file.
  * @param {string} source - File text.
  * @param {Set<string>} tops - First path segments that name repository folders, old or new.
+ * @param {(path: string) => boolean} [exists] - Whether a path exists; a caching caller records every probe.
  * @returns {{line: number, path: string}[]} Missing paths with their lines.
  */
-function fileFindings(root, file, source, tops) {
+export function fileFindings(root, file, source, tops, exists = existsSync) {
   if (!/import\.meta|REPO_ROOT|repoRoot|REPOSITORY_ROOT|repositoryRoot|\[\s*['"`](?:packages|apps|src|test|bin|relay|docs)['"`]/u.test(source)) return [];
   const { code, strings } = lex(source);
   const literal = new Map(strings.map(entry => [entry.start, entry]));
@@ -151,7 +152,7 @@ function fileFindings(root, file, source, tops) {
 
   const inside = abs => abs === resolve(root) || abs.startsWith(resolve(root) + sep);
   const record = (offset, abs) => {
-    if (!isAbsolute(abs) || !inside(abs) || existsSync(abs)) return;
+    if (!isAbsolute(abs) || !inside(abs) || exists(abs)) return;
     const path = relative(root, abs).split(sep).join('/');
     const line = lineAt(source, offset);
     if (!seen.has(`${line}:${path}`)) { seen.add(`${line}:${path}`); found.push({ line, path }); }
@@ -176,7 +177,7 @@ function fileFindings(root, file, source, tops) {
     const first = elements(code, open, close)[0];
     const base = first && /^[A-Za-z_$][\w$]*$/u.test(source.slice(first.start, first.end)) ? vars.get(source.slice(first.start, first.end)) : null;
     // A missing root variable is reported where it is declared, not at every use.
-    if (base && !existsSync(base)) continue;
+    if (base && !exists(base)) continue;
     record(call.index, abs);
   }
 
@@ -201,7 +202,7 @@ function fileFindings(root, file, source, tops) {
  * Every repository path in code under `root` that does not exist, with the path-map suggestion when known.
  *
  * @param {string} root - Checkout root.
- * @param {{map?: Map<string,string>|Record<string,string>, files?: string[]}} [options] - Rename map and files to read.
+ * @param {{map?: Map<string,string>|Record<string,string>, files?: string[], findingsOf?: typeof fileFindings}} [options] - Rename map, files to read, and a replacement for the per-file scan (a cache).
  * @returns {{file: string, line: number, path: string, suggest: string|null}[]} Findings sorted by file and line.
  */
 export function missingPathFindings(root, options = {}) {
@@ -213,7 +214,7 @@ export function missingPathFindings(root, options = {}) {
   for (const file of files) {
     let source;
     try { source = readFileSync(join(root, file), 'utf8'); } catch { continue; }
-    for (const row of fileFindings(root, file, source, tops)) rows.push({ file, line: row.line, path: row.path, suggest: movedTo(map, row.path) });
+    for (const row of (options.findingsOf ?? fileFindings)(root, file, source, tops)) rows.push({ file, line: row.line, path: row.path, suggest: movedTo(map, row.path) });
   }
   return rows.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line));
 }

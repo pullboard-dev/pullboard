@@ -48,7 +48,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
   const olderQueued = join(dir, 'older-local-queued');
   const order = join(dir, 'execution-order');
   for (const folder of [repo, worker, bin, home, remoteHome, remoteMachineHome, machineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PULLBOARD_RUNNER_FIXTURE_SECRET: SECRET, SSH_AUTH_SOCK: join(dir, 'must-not-forward.sock'),
@@ -140,7 +140,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
   const setupGone = join(dir, 'setup-gone');
   const remoteDatabase = join(remoteMachineHome, 'resources.sqlite');
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome, packageDirectory]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',

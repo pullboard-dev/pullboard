@@ -29,7 +29,7 @@ test('a runner request naming every test file of this repository builds a spec u
   const dir = await scratch('runner-spec');
   const repo = committedCopy(ROOT, join(dir, 'repo'));
   const files = gitIn(repo, 'ls-files', '*.test.js').split('\n').filter(Boolean);
-  const command = `node packages/gate/src/io/run/tests.js ${files.join(' ')}`;
+  const command = `node apps/cli/src/io/run/tests.js ${files.join(' ')}`;
   const source = `
     import { requestFor, trustedTooling } from ${JSON.stringify(pathToFileURL(join(ROOT, 'packages/runners/index.js')).href)};
     import { privateCheckEnvelope } from ${JSON.stringify(pathToFileURL(join(ROOT, 'apps/runner/src/io/private/guard.js')).href)};

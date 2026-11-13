@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Synthetic provider counters distinguish missing claim checkpoints from discovery failures [N2]. */
 import assert from 'node:assert/strict';
 import {

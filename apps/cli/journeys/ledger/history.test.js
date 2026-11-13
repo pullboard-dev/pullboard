@@ -78,7 +78,7 @@ test('a legacy preview without full trailers preserves only the rows actually na
 });
 
 
-test('mixed Git history cannot replace show, ledger or coverage board authority [C7,S8,B3]', () => {
+test('mixed Git history cannot replace show, ledger or coverage board authority [C7,S8,B3]', async () => {
   const { box, root, first, commit } = historyFixture();
   const spec = '# Spec\n\n## G · Goals\n- G1 [approved, must] Board requirement. | gate: test\n- G2 [approved, must] Historical requirement. | gate: test\n';
   writeFileSync(join(root, 'SPEC.md'), spec);
@@ -89,7 +89,7 @@ test('mixed Git history cannot replace show, ledger or coverage board authority 
   commit('test: legacy citation [G1]');
   commit('test(merge): historic item [G2]\n\nPullboard-Item: #1\nPullboard-Rows: G2');
   const source = box.git(root, 'rev-parse', 'HEAD').trim();
-  const initialized = box.run(root, 'init');
+  const initialized = await box.runLocal(root, 'init');
   assert.equal(initialized.code, 0, initialized.err);
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   let id;
@@ -108,12 +108,12 @@ test('mixed Git history cannot replace show, ledger or coverage board authority 
     assert.equal(coverage.awaiting, true);
     assert.equal(rowEvidence(root, 'G2', { items: [item], testFiles: [] }).awaiting, false);
   } finally { store.closeBoard(board); }
-  const shown = box.run(root, 'show', String(id), '--json');
+  const shown = await box.runLocal(root, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err);
   const detail = JSON.parse(shown.out);
   assert.equal(detail.item_spec_ids, 'G1');
   assert.deepEqual(JSON.parse(detail.item_frozen).rows.map(row => row.id), ['G1']);
-  const ledger = box.run(root, 'ledger', '--json');
+  const ledger = await box.runLocal(root, 'ledger', '--json');
   assert.equal(ledger.code, 0, ledger.err);
   assert.equal(JSON.parse(ledger.out).items.find(entry => entry.item_id === id).item_spec_ids, 'G1');
   assert.deepEqual([...commitCitations(root, first).keys()].sort(), ['G1', 'G2']);

@@ -22,7 +22,7 @@ import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 const SOURCE = new URL('../../../../../', import.meta.url);
 
 /** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false } = {}) {
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = false } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -31,8 +31,8 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   if (!selective) {
     const tooling = join(repo,'.tooling');
     shipped = copyPackageFiles(fileURLToPath(SOURCE),tooling);
-    mkdirSync(join(repo,'bin'));
-    writeFileSync(join(repo,'apps/cli/pullboard.js'),`/** @pullboard-module-loads .tooling/bin/pullboard.js */\nimport {spawnSync} from 'node:child_process';\nimport {fileURLToPath} from 'node:url';\nconst entry=fileURLToPath(new URL('../.tooling/bin/pullboard.js',import.meta.url));\nconst child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});\nif(child.error)throw child.error;\nif(child.signal)process.kill(process.pid,child.signal);\nelse process.exitCode=child.status??1;\n`);
+    mkdirSync(join(repo,'apps/cli'),{recursive:true});
+    writeFileSync(join(repo,'apps/cli/pullboard.js'),`/** @pullboard-module-loads .tooling/apps/cli/pullboard.js */\nimport {spawnSync} from 'node:child_process';\nimport {fileURLToPath} from 'node:url';\nconst entry=fileURLToPath(new URL('../../.tooling/apps/cli/pullboard.js',import.meta.url));\nconst child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});\nif(child.error)throw child.error;\nif(child.signal)process.kill(process.pid,child.signal);\nelse process.exitCode=child.status??1;\n`);
   }
   writeFileSync(join(repo,'package.json'),JSON.stringify({private:true,type:'module'}));
   const env = { ...process.env, HOME: join(scratch,'home'), PULLBOARD_HOME: join(scratch,'home','pullboard'),
@@ -40,7 +40,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(key)) delete env[key];
   for (const key of ['NODE_TEST_CONTEXT','PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN','PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN','PULLBOARD_RELAY_TOKEN','SSH_AUTH_SOCK']) delete env[key];
-  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:1,browserSlots:1,gate:{browserFreeChecks:true}}));
+  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:1,browserSlots:1,gate:{browserFreeChecks:true,runnerDispatch:'controller'}}));
   /** Real Git output is retained on failure rather than replaced with fixture results. */
   function git(cwd,...args) {
     const run = runFixtureChild('git',args,{cwd,env,encoding:'utf8'});
@@ -53,7 +53,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   for (const name of ['web','test','docs']) mkdirSync(join(repo,name),{recursive:true});
   writeFileSync(join(repo,'SPEC.md'),'# Private fixture specification\n');
   const check = 'node --test --test-reporter=tap test/check.test.js';
-  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,...(selective?{affectedTests:'node --test --test-reporter=tap'}:{}),submitGate:'landing',submitDeferAbove:1,
+  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,...(selective?{affectedTests:'node --test --test-reporter=tap'}:{}),...(manualLanding?{landing:{manualOverride:true}}:{}),submitGate:'landing',submitDeferAbove:1,
     spec:'SPEC.md',verify:'any',lanes:{web:{owns:['web/'],specs:[]},review:{owns:['test/'],specs:[]}},shared:['docs/','src/','bin/','package.json','pullboard.json']}));
   writeFileSync(join(repo,'web/feature.js'),"export const feature = 'base';\n");
   writeFileSync(join(repo,'web/other.js'),"export const other = 'base';\n");

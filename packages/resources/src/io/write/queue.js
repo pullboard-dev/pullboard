@@ -110,9 +110,12 @@ function tryLock(dir, owner) {
     let text = '';
     try { text = readFileSync(lock, 'utf8'); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     const [pid, at] = text.split(' ').map(Number);
-    // A lock written but not yet filled reads empty; only a named dead or hung writer is replaced. A writer refreshes the
-    // lock's mtime while it applies a long drain, so the later of the two stamps is its last sign of life.
-    if (!text || alive(pid) && Date.now() - Math.max(at, touchedAt(lock)) < WRITER_STALE_MS) return false;
+    // A lock written but not yet filled reads empty for microseconds; one still empty past the stale window was left by a
+    // writer killed between create and write, and is replaced. Why: on 11 Nov a SIGKILLed handoff worker left an empty
+    // lock and every resource write failed SLOT_DB_LOCKED for 10 minutes [C7]. A writer refreshes the lock's mtime
+    // while it applies a long drain, so the later of the two stamps is its last sign of life.
+    if (!text ? Date.now() - touchedAt(lock) < WRITER_STALE_MS
+      : alive(pid) && Date.now() - Math.max(at, touchedAt(lock)) < WRITER_STALE_MS) return false;
     try { unlinkSync(lock); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   return false;

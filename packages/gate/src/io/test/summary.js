@@ -13,6 +13,7 @@ import { gitPath } from '../../../../git/index.js';
 import { safeLog } from '../execution.js';
 import { tapTests } from '../tap.js';
 import { readCacheRows } from './account.js';
+import { ledgerFromOutput } from './account.js';
 
 const FAILURE_LIMIT = 30;
 const TEXT_LIMIT = 240;
@@ -76,7 +77,7 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
     .filter(Boolean))].slice(0, 3).map(short);
   if (!rows.length && output.trim()) failed.push({ file: null, name: 'command output',
     error: short(diagnostics[0] ?? lines[0]) });
-  return { counts, cache: readCacheRows(output)?.summary ?? null, failures: failed.slice(0, FAILURE_LIMIT),
+  return { counts, cache: readCacheRows(output)?.summary ?? null, ledger: ledgerFromOutput(output), failures: failed.slice(0, FAILURE_LIMIT),
     ...(diagnostics.length ? { diagnostics: rows.length ? diagnostics : diagnostics.slice(1), omittedOutputLines: Math.max(0, lines.length - diagnostics.length) } : {}),
     omittedFailures: Math.max(0, failed.length - FAILURE_LIMIT), logPath };
 }
@@ -101,7 +102,7 @@ export function renderTestSummary(summary) {
   const heading = passed === null || failed === null ? 'test counts unavailable'
     : `${passed} passed, ${failed} failed, ${skipped ?? 'unknown'} skipped`;
   const failures = summary.failures.map(row => `${short(row.file || '(file unavailable)')}: ${row.name}: ${row.error}`);
-  return [heading, ...(summary.cache ? [summary.cache] : []), ...failures,
+  return [heading, ...(summary.cache ? [summary.cache] : []), ...(summary.ledger ? [summary.ledger] : []), ...failures,
     ...(summary.diagnostics ?? []),
     ...(summary.omittedOutputLines ? [`${summary.omittedOutputLines} nonempty output lines omitted`] : []),
     ...(summary.omittedFailures ? [`${summary.omittedFailures} additional failures are in the full log`] : []),

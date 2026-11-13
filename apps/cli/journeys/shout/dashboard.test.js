@@ -25,15 +25,13 @@ import { press } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
 
-test('Dashboard is the first board tab and Home is removed [N26]', () => {
+test('Dashboard is a board page under Insights and Home is removed [N26]', () => {
   const page = cockpitPage();
-  const tabs = [...page.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>([^<]+)<\/button>/gu)]
-    .filter(([, tab]) => tab !== 'settings');
-  assert.equal(tabs[0]?.[1], 'dashboard');
-  assert.equal(tabs[0]?.[2], 'Dashboard');
-  assert.ok(!tabs.some(([, tab]) => tab === 'home'), 'Home is not a board tab');
+  const tabs = [...page.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"/gu)].map(([, tab]) => tab).filter(tab => tab !== 'settings');
+  assert.ok(tabs.includes('dashboard'), 'Dashboard is a board page');
+  assert.ok(!tabs.includes('home'), 'Home is not a board tab');
   for (const tab of ['items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
-    assert.ok(tabs.some(([, id]) => id === tab), `${tab} remains available`);
+    assert.ok(tabs.includes(tab), `${tab} remains available`);
   }
 });
 
@@ -64,7 +62,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     await chrome.waitFor('!!document.querySelector("#dashboard [data-dashboard-stat=building]")');
     assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=building]").dataset.value'),
       String(activeClaims.length), 'the headline and agent work use the same live claims');
-    for (const section of ['Needs you', 'Shipping now', 'Landed per hour', 'Agent time', 'Agents', 'Landing now', 'Just landed', 'In review', 'Next up']) {
+    for (const section of ['Rulings', 'Shipping now', 'Where the work is', 'Landed per hour', 'Agent time', 'Agents']) {
       assert.equal(await chrome.stable(`!!document.querySelector('#dashboard [aria-label=${JSON.stringify(section)}]')`),
         true, `${section} is rendered`);
     }
@@ -73,12 +71,10 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     assert.equal(state.statsComparison.durationMinutes, comparisonMinutes, 'Dashboard compares the last two hours with the two hours before');
     assert.equal(state.statsComparison.current.until, state.observedAt, 'the full API comparison uses its own read clock');
     assert.ok(state.statsComparison.current.agentHours > 0, 'real seeded join and claim events produce observed-seat time');
-    await chrome.waitFor('document.querySelectorAll("#dashboard [data-stats-comparison]").length === 17');
-    await press(chrome, 'document.querySelector("#dashboard [data-dashboard-disclosure=comparison] summary")');
-    const pace = state.milestones[0].summary.pace;
-    assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=pace6]").dataset.value'),
-      String(pace.last6h / 6), 'Dashboard reads the Roadmap six-hour pace');
-    await chrome.waitFor(`!!document.querySelector('#dashboard svg[aria-label="Items landed per hour, last 24 hours"]')`);
+    // The two-hour comparison moved to Activity: open it there, measure it at each pass, then return to the Dashboard.
+    await press(chrome, 'document.querySelector("[data-tab=activity]")');
+    await chrome.waitFor('document.querySelectorAll("#activity-compare [data-stats-comparison]").length === 17');
+    await press(chrome, 'document.querySelector("#activity-compare [data-dashboard-disclosure=comparison] summary")');
     for (const [scheme, width] of [['light', 1440], ['dark', 1440], ['light', 375], ['dark', 375]]) {
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -94,28 +90,39 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
             current:String(group ? comparison.current[group][key] : comparison.current[key]),
             previous:String(group ? comparison.previous[group][key] : comparison.previous[key]),
             change:String(group ? comparison.change[group][key] : comparison.change[key]) })),
-          actual:Array.from(document.querySelectorAll('#dashboard [data-stats-comparison]'), row => ({ key:row.dataset.statsComparison,current:row.dataset.current,previous:row.dataset.previous,change:row.dataset.change })),
+          actual:Array.from(document.querySelectorAll('#activity-compare [data-stats-comparison]'), row => ({ key:row.dataset.statsComparison,current:row.dataset.current,previous:row.dataset.previous,change:row.dataset.change })),
           observedAt:data.project.observedAt, until:comparison.current.until,
-          shownAsOf:document.querySelector('#dashboard [data-stats-as-of]').dataset.statsAsOf,
-          visible:Array.from(document.querySelectorAll('#dashboard [data-stats-comparison]')).every(row => row.getBoundingClientRect().height > 0),
+          shownAsOf:document.querySelector('#activity-compare [data-stats-as-of]').dataset.statsAsOf,
+          visible:Array.from(document.querySelectorAll('#activity-compare [data-stats-comparison]')).every(row => row.getBoundingClientRect().height > 0),
         };
       })()`);
       assert.deepEqual(comparisonView.actual, comparisonView.expected, 'all 17 displayed scalars come unchanged from this rendered canonical API generation');
       assert.equal(comparisonView.until, comparisonView.observedAt, 'the comparison uses this snapshot read time');
       assert.equal(comparisonView.shownAsOf, comparisonView.until, 'the view shows the API observation clock rather than inventing one');
       assert.equal(comparisonView.visible, true, 'all 17 metrics remain visible when the comparison is opened');
-      assert.match(await chrome.stable(`document.querySelector('#dashboard .dash-comparison').textContent`), /all observed seat-hours as their denominator/u);
+      assert.match(await chrome.stable(`document.querySelector('#activity-compare .dash-comparison').textContent`), /all observed seat-hours as their denominator/u);
+    }
+    await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+    await chrome.waitFor('!!document.querySelector("#dashboard [data-dashboard-stat=building]")');
+    assert.equal(await chrome.stable('document.querySelectorAll("#dashboard [data-stats-comparison]").length'), 0, 'the comparison is not on the Dashboard');
+    const pace = state.milestones[0].summary.pace;
+    assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=pace6]").dataset.value'),
+      String(pace.last6h / 6), 'Dashboard reads the Roadmap six-hour pace');
+    await chrome.waitFor(`!!document.querySelector('#dashboard svg[aria-label="Items landed per hour, last 24 hours"]')`);
+    for (const [scheme, width] of [['light', 1440], ['dark', 1440], ['light', 375], ['dark', 375]]) {
+      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const fits = await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1');
       const overflow = await chrome.stable(`JSON.stringify([...document.body.querySelectorAll('*')].map(element => {
         const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
         return { tag: element.tagName, id: element.id, class: element.getAttribute('class'), left: rect.left, right: rect.right, width: rect.width, display: style.display };
       }).filter(rect => rect.width > 0 && (rect.right > document.documentElement.clientWidth + 1 || rect.left < -1)).slice(0, 16))`);
       assert.equal(fits, true, `${scheme} at ${width}px has no sideways page scroll; overflow: ${overflow}`);
-      assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs [data-tab]')).every(button => {
-        const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
-      })`), true, 'every retained tab is accessible inside the viewport');
+      assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs > [data-tab], #tabs .tab-group-btn')).every(button => {
+        const rect = button.getBoundingClientRect(), strip = button.closest('.strip'); return rect.width > 0 && (strip && getComputedStyle(strip).overflowX === 'auto' ? rect.left >= 0 : rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1);
+      })`), true, 'every retained tab is on screen, or reachable by sideways scroll');
       const title = await chrome.stable(`(() => {
-        const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-item b');
+        const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-flight-row b');
         const rect = element.getBoundingClientRect(); return { text: element.textContent.trim(), width: rect.width };
       })()`);
       assert.equal(title.text, 'A task in flight', 'the building row retains the actual task title');
@@ -141,6 +148,14 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
       for (let index = 0; index < chunks; index++) console.log('# dashboard-image ' + JSON.stringify({ scheme, width, index, chunks, data: capture.data.slice(index * chunkSize, (index + 1) * chunkSize) }));
     }
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents]").textContent.includes("web-1")'), true, 'the live summary holder appears in Agents');
+    // Where the work is: each of the five step cards opens Items filtered to its own step (#6645).
+    for (const [step, state] of [['ready', 'ready'], ['building', 'building'], ['review', 'verify'], ['passed', 'passed'], ['landed', 'landed']]) {
+      await press(chrome, `document.querySelector('#dashboard [data-dashboard-step="${step}"]')`);
+      await chrome.waitFor(`view.tab === "items" && view.state === ${JSON.stringify(state)}`);
+      if (step === 'building') assert.match(await chrome.stable('document.querySelector("#chain").textContent'), /A task in flight/u, 'the Building card lists the item being built');
+      await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+      await chrome.waitFor('view.tab === "dashboard"');
+    }
     await press(chrome, 'document.querySelector("#dashboard [data-dashboard-list=review]")');
     await chrome.waitFor('view.tab === "items" && view.state === "verify"');
     await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
@@ -150,7 +165,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
     await chrome.waitFor('view.tab === "dashboard"');
     box.run(alpha.repo, 'shout', 'person', 'Which release wording should we use?', '--decision');
-    await chrome.waitFor(`document.querySelector('#dashboard [aria-label="Needs you"]').textContent.includes('Which release wording')`);
+    await chrome.waitFor(`document.querySelector('#dashboard [aria-label="Rulings"]').textContent.includes('Which release wording')`);
     await press(chrome, 'document.querySelector("[data-tab=items]")');
     await chrome.waitFor('view.tab === "items"');
     assert.equal(await chrome.stable('view.state'), 'ready', 'Items preserves the filter chosen by the Dashboard link');

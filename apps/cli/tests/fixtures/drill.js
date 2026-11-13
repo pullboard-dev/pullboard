@@ -34,7 +34,7 @@ console.log('# fail 0'); console.log('# skipped 0');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const runner = join(box.dir, 'runner-developer');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/runner', runner, 'main');
-  const joined = fixtureJoin(box.run, runner, 'web', '--json');
+  const joined = fixtureJoin(box.run, runner, 'web', '--route', 'mid', '--json');
   assert.equal(joined.code, 0, joined.err);
   const remote = join(box.dir, 'origin.git');
   box.git(box.dir, 'init', '-q', '--bare', remote);

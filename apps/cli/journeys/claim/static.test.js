@@ -10,7 +10,7 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import * as store from '../../../../packages/store/index.js';
 import { claimProgress } from '../../../../packages/items/index.js';
 
-test('an actual submit static refusal never counts toward the three runner failures [B4,B5]', { timeout: 300_000 }, t => {
+test('an actual submit static refusal never counts toward the three runner failures [B4,B5]', { timeout: 300_000 }, async t => {
   // Budget: one private project, one submit and one static subprocess; the ceiling is for hangs, not a speed target.
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
@@ -26,7 +26,7 @@ test('an actual submit static refusal never counts toward the three runner failu
   writeFileSync(join(box.web, 'web/result.txt'), 'private result\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-qm', 'feat(web): private result [G1]');
-  const failed = box.run(box.web, 'submit', String(id));
+  const failed = await box.runLocal(box.web, 'submit', String(id));
   assert.notEqual(failed.code, 0);
   assert.match(failed.out + failed.err, /static checks are red/u, 'the real static stage refused it');
   const observed = onBoard(box, board => {
@@ -39,7 +39,7 @@ test('an actual submit static refusal never counts toward the three runner failu
 });
 
 /** A real runner-stage red survives the submit context handoff [B4,B5]. */
-test('an actual submit runner red counts toward the three runner failures [B4,B5]', { timeout: 300_000 }, t => {
+test('an actual submit runner red counts toward the three runner failures [B4,B5]', { timeout: 300_000 }, async t => {
   // Budget: one private project and one failing gate; the ceiling is for hangs.
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
@@ -50,7 +50,7 @@ test('an actual submit runner red counts toward the three runner failures [B4,B5
   writeFileSync(join(box.web, 'web/result.txt'), 'private result\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-qm', 'feat(web): private result [G1]');
-  const failed = box.run(box.web, 'submit', String(id));
+  const failed = await box.runLocal(box.web, 'submit', String(id));
   assert.notEqual(failed.code, 0);
   const observed = onBoard(box, board => {
     const outcomes = store.events(board, { itemId: id }).map(event => JSON.parse(event.event_detail).submitOutcome).filter(Boolean);

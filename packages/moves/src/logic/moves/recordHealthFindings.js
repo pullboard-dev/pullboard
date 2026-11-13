@@ -1,11 +1,11 @@
-import { hasPendingDispatchNotices } from "../../../../store/light.js";
+import { hasPendingDispatchNotices } from "../../../../store/browser.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
 import { CPU_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { REJECTED_WORK_RETURN_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by recordHealthFindings, discovered without a shared registry edit [C7,V4,H16]. */
 import { HEALTH_SENTINEL_ENGINE } from "../../../../state/light.js";
-import { hasPendingCpuNotices } from "../../../../store/light.js";
+import { hasPendingCpuNotices } from "../../../../store/browser.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 

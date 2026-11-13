@@ -9,7 +9,7 @@ import { VERDICT_WITHDRAW_ENGINE } from "../../../../state/light.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by reopen, discovered without a shared registry edit [C7,V4,H16]. */
-import { itemById } from "../../../../store/light.js";
+import { itemById } from "../../../../store/browser.js";
 import {
   CAUSE_ENGINE,
   QUOTED_LANDING_FAILURE_ENGINE,

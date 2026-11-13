@@ -1,6 +1,6 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run-tests.js packages/gate/src/io/run/tests.js */
 /** Build, submit and review test runs split by the shard planner over the slots free after landings [C7]. */
-/** @pullboard-world-pin: clause 1 reads packages/gate/src/io/run/tests.js to prove the runner entry calls the ordinary-run shard helper. */
+/** @pullboard-world-pin: clause 1 reads packages/gate/src/io/run-tests.js (the engine apps/cli/src/io/run/tests.js launches) to prove the runner entry calls the ordinary-run shard helper. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,13 +11,13 @@ import { planRunShards } from '../../../index.js';
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
 const TIMES = { 'test/a.test.js': 100, 'test/b.test.js': 10, 'test/c.test.js': 50, 'test/d.test.js': 50 };
 
-test('clause 1: packages/gate/src/io/run/tests.js shards an ordinary run through the planner over the free runner slots [test] [C7]', () => {
+test('clause 1: apps/cli/src/io/run/tests.js shards an ordinary run through the planner over the free runner slots [test] [C7]', () => {
   const plan = ordinaryRunShards({ files: FILES, freeSlots: 2, times: TIMES });
   assert.deepEqual(plan, planRunShards(FILES, 2, TIMES), 'an ordinary run takes the planner\'s split');
   assert.equal(plan.length, 2);
   assert.deepEqual(plan.flatMap(shard => shard.files).sort(), [...FILES].sort(), 'every selected file is in exactly one shard');
-  const source = readFileSync(join(import.meta.dirname, '../../../../gate/src/io/run/tests.js'), 'utf8');
-  assert.match(source, /ordinaryShards \? freeRunnerSlots\(\) : landingShardCount/u, 'the runner entry sizes every non-landing, non-shard run by the free runner slots and runs it through the landing shard planner');
+  const source = readFileSync(join(import.meta.dirname, '../../../../gate/src/io/run-tests.js'), 'utf8');
+  assert.match(source, /ordinaryShards \? freeRunnerSlots\(\) : \(await import\('[^']+'\)\)\.landingShardCount/u, 'the runner entry sizes every non-landing, non-shard run by the free runner slots and runs it through the landing shard planner');
 });
 
 test('clause 2: landing stays first and a run takes only the slots free after landings [test] [C7]', () => {

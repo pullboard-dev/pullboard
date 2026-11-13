@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/codemap/src/io/cells/cache.js packages/codemap/src/io/cells/scripts/plan.js packages/gate/src/io/edges.js */
 /** @pullboard-world-pin: clause 1 reads the repository tree to prove the file moved; clause 2 runs the repository cells checks. */
 /** The cells checks replay a saved answer for an unchanged commit, tree and diff, and miss on any change [C7]. */
 import assert from 'node:assert/strict';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/submit/handoff/worker.js packages/gate/data/baselines/test-waits-baseline.json packages/gate/src/io/changed/scripts/static.js packages/gate/src/logic/load/bearing.js packages/resources/src/io/handoff/worker/cap.js */
 /** No process is load-bearing: the changed-file static check refuses new daemons and state files outside the drive, transport, jobs and pin cells [C7]. */
 import assert from 'node:assert/strict';
 import {

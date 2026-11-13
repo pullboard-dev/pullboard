@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/index.js packages/resources/index.js */
 /** Item checks retry one infrastructure-only gate failure, retain it in the receipt, and leave test reds alone [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

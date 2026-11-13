@@ -24,7 +24,8 @@ export const LAYOUT_RULES = Object.freeze({
   'name-group': 'three or more files sharing a first word become a subfolder named for that word, without the word in each file',
 });
 
-const ROOT_DIRS = new Set(['apps', 'packages', 'docs', 'skills', ...ROOT_FOLDERS.filter(folder => folder.startsWith('.'))]);
+/** .pullboard is the board's own config folder (test-file budgets and the like), so it may sit at the root [#6544]. */
+const ROOT_DIRS = new Set(['apps', 'packages', 'docs', 'skills', '.pullboard', ...ROOT_FOLDERS.filter(folder => folder.startsWith('.'))]);
 const ROOT_DOCS = new Set([...ROOT_FILES, 'COORDINATOR.md']);
 const ALIAS_ROOTS = new Set(['bin', 'src', 'relay', 'test']);
 const DOORS = new Set(['index.js', 'light.js', 'browser.js']);
@@ -140,8 +141,8 @@ function nameViolations(cell, cellName, rel, parts, effective, add) {
   if (repeats) add('name-repeat', full, full);
   const siblings = [...effective].filter(other => other !== rel && other.startsWith(parts.slice(0, -1).join('/') + '/') && other.split('/').length === parts.length);
   const mates = siblings.map(other => words(other.split('/').at(-1)));
-  if (own.length > 2) add('name-length', full, full);
-  else if (own.length === 2 && !mates.some(other => other.at(-1) === own[1] || other[0] === own[0])) add('name-length', full, full);
+  if (folder !== 'engines' && own.length > 2) add('name-length', full, full);
+  else if (folder !== 'engines' && own.length === 2 && !mates.some(other => other.at(-1) === own[1] || other[0] === own[0])) add('name-length', full, full);
   if (own.length > 1 && 1 + mates.filter(other => other.length > 1 && other[0] === own[0]).length >= 3) {
     add('name-group', `${cell}/${parts.slice(0, -1).join('/')}/${own[0]}-`, `${cell}/${parts.slice(0, -1).join('/')}: files starting ${own[0]}-`);
   }

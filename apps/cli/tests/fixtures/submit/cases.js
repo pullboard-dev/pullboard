@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/tests/io/board/baseline/guard.test.js */
 /** Real private submissions keep declared test scanners even when other proofs defer [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -48,12 +48,12 @@ function fixture() {
   const toolRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   const scanner = testClosures(toolRoot).closures.get('packages/gate/tests/io/board/baseline/guard.test.js');
   assert.ok(scanner?.files, scanner?.reason || 'the actual board-file scanner needs a complete committed closure');
-  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/')) });
+  copyPackageFiles(toolRoot, box.repo, { files: scanner.files.filter(file => !file.startsWith('test/') && file !== 'packages/gate/tests/io/board/baseline/guard.test.js') });
   put(box.repo, 'packages/gate/tests/io/board/baseline/guard.test.js', [
     '/** @pullboard-test-input test-tree */',
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
-    "import { boardFileProblems } from '../../../../../packages/gate/src/io/board/files.js';",
+    "import { boardFileProblems } from '../../../../../../packages/gate/src/io/board/files.js';",
     "test('no growing file-board debt [G1]', () => {",
     '  const problems = boardFileProblems(process.cwd(), {});',
     "  assert.deepEqual(problems, [], problems.map(p => `${p.path}:${p.line}: ${p.text}`).join('\\n'));",
@@ -70,9 +70,9 @@ function fixture() {
   return { ...box, id };
 }
 
-/** Install only through the frozen affected-tests wrapper; this helper is not another test root. */
-export function installSubmitTestTreeCases() {
-  for (const mode of ['large selection', 'full fallback']) {
+/** Install only through the affected-tests wrappers, one mode per file (#4939); this helper is not another test root. */
+export function installSubmitTestTreeCases(modes = ['large selection', 'full fallback']) {
+  for (const mode of modes) {
     test(`submit names the new board-open file and line before ${mode} defers [C7]`, () => {
       const box = fixture();
       const source = ["import {test} from 'node:test';", "import {DatabaseSync as openBoard} from 'node:sqlite';",

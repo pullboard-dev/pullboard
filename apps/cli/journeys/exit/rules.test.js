@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-loads apps/cli/pullboard.js */
 /** Fixture claims exercise real native atomic exit and same-family continuation, never shared sessions [B3,C7,N2]. */
 import assert from 'node:assert/strict';
@@ -126,7 +125,7 @@ test('claim counters reject stale owners and preserve a proven stop across unkno
   assert.throws(() => store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.key, tokens: 100, calls: 3 }), error => error.code === 'ENGINE_VERSION');
 });
 
-test('an external native CLI captures the claim prefix, refuses its next command and seals the release summary [B3,C7,N2]', { timeout: 120000 }, t => {
+test('an external native CLI captures the claim prefix, refuses its next command and seals the release summary [B3,C7,N2]', { timeout: 120000 }, async t => {
   const helpers = createE2eHelpers(), sandbox = helpers.sandbox({ declareFamilies: true });
   sandbox.env.PULLBOARD_MODEL = 'Test Model';
   isolateTestMachine(sandbox.env, sandbox.dir);
@@ -151,18 +150,18 @@ test('an external native CLI captures the claim prefix, refuses its next command
   writeFileSync(file, JSON.stringify(config));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'test: enable private exit policy');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Private native exit', '--specs', 'G1', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Private native exit', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   appendFileSync(transcript, JSON.stringify(usage(10)) + '\n');
-  const stopped = box.run(box.web, 'status', '--json');
+  const stopped = await box.runLocal(box.web, 'status', '--json');
   assert.equal(stopped.code, 1, stopped.out + stopped.err);
   assert.equal(JSON.parse(stopped.out).error.code, 'EXIT_BUDGET');
-  const released = box.run(box.web, 'release', String(id), '--reason', 'BUDGET', '--note', summary, '--no-next', '--json');
+  const released = await box.runLocal(box.web, 'release', String(id), '--reason', 'BUDGET', '--note', summary, '--no-next', '--json');
   assert.equal(released.code, 0, released.out + released.err);
-  const fenced = box.run(box.web, 'status', '--json');
+  const fenced = await box.runLocal(box.web, 'status', '--json');
   assert.equal(fenced.code, 1, fenced.out + fenced.err);
   assert.equal(JSON.parse(fenced.out).error.code, 'EXIT_BUDGET');
 });
@@ -206,7 +205,7 @@ test('immutable claim keys survive different replica history and nested item rem
 });
 
 
-test('ordinary native failed checks retain cases through receipt recording and stop the repeated claim [B3,C7,H16]', { timeout: 120000 }, t => {
+test('ordinary native failed checks retain cases through receipt recording and stop the repeated claim [B3,C7,H16]', { timeout: 120000 }, async t => {
   const helpers = createE2eHelpers(), sandbox = helpers.sandbox({ declareFamilies: true });
   sandbox.env.PULLBOARD_MODEL = 'Test Model';
   isolateTestMachine(sandbox.env, sandbox.dir);
@@ -224,17 +223,17 @@ test('ordinary native failed checks retain cases through receipt recording and s
   box.git(box.repo, 'add', 'pullboard.json', 'web/private-exit-repeat.test.cjs');
   box.git(box.repo, 'commit', '-qm', 'test: enable private repeated native proof');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--route', 'strong', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   for (let n = 0; n < 2; n++) {
-    const red = box.run(box.web, 'check', String(id), '--yes', '--json');
+    const red = await box.runLocal(box.web, 'check', String(id), '--yes', '--json');
     assert.equal(red.code, 1, red.out + red.err);
     assert.equal(JSON.parse(red.out).green, false, 'the real private process failed, rather than an admission refusal');
     if (!n) {
-      const active = box.run(box.web, 'status', '--json');
+      const active = await box.runLocal(box.web, 'status', '--json');
       assert.equal(active.code, 0, active.out + active.err);
     }
   }
@@ -272,7 +271,7 @@ test('ordinary native failed checks retain cases through receipt recording and s
   const oldEvent = historical.db.prepare("SELECT event_detail FROM event WHERE event_kind='proof-run' AND item_id=?").get(oldItem);
   assert.ok(JSON.parse(oldEvent.event_detail).engine < EXIT_RULES_ENGINE, 'historical receipt events keep their original floor');
   assert.equal(exitClaimDecision(board, id, receipts[0].seat).code, 'EXIT_REPEAT_FAILURE');
-  const stopped = box.run(box.web, 'status', '--json');
+  const stopped = await box.runLocal(box.web, 'status', '--json');
   assert.equal(stopped.code, 1, stopped.out + stopped.err);
   assert.equal(JSON.parse(stopped.out).error.code, 'EXIT_REPEAT_FAILURE');
 });

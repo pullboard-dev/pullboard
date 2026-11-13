@@ -1,10 +1,6 @@
 /** Durable gate 1/20: the job and job_step tables, idempotent step writes and the job view [C7]. */
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
 import { openBoard } from '../../index.js';
 import { closeBoard } from '../../index.js';
 import { createJob } from '../../../../packages/jobs/index.js';
@@ -17,12 +13,9 @@ import { LEASE_MS } from '../../../../packages/jobs/index.js';
 import { gatePanel } from '../../../../packages/jobs/index.js';
 import { stalledGates } from '../../../../packages/jobs/index.js';
 
-const files = privateFixtureFiles('pullboard-durable-jobs-');
-after(() => rmSync(files.root, { recursive: true, force: true }));
-
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
@@ -65,12 +58,9 @@ test('clause 3: jobView returns the current step, the last one written [C7]', ()
   });
 });
 
-const filesPart2 = privateFixtureFiles('pullboard-durable-jobs-');
-after(() => rmSync(filesPart2.root, { recursive: true, force: true }));
-
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoardPart2(name, body) {
-  const board = openBoard(join(filesPart2.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
@@ -113,12 +103,9 @@ test('clause 3: reclaimLapsed returns taken jobs whose lease lapsed, 2 minutes a
   });
 });
 
-const filesPart3 = privateFixtureFiles('pullboard-durable-jobs-');
-after(() => rmSync(filesPart3.root, { recursive: true, force: true }));
-
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoardPart3(name, body) {
-  const board = openBoard(join(filesPart3.root, `${name}.sqlite`));
+  const board = openBoard(':memory:');
   try { return body(board.db); } finally { closeBoard(board); }
 }
 

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/data/tests/tiers.json packages/gate/src/io/test/scripts/tiers.js */
 /** Test-tier generation inspects real repository source without executing candidate tests [C7,CS4,CD44,CD47]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -57,7 +57,7 @@ test('helper-hidden boards and processes, browser and runner calls remain journe
     'packages/math/index.js': 'export const n = 1;',
     'test/helper.js': 'import { spawnSync } from "node:child_process"; export const git = () => spawnSync("git");',
     'test/hidden.test.js': 'import "../packages/math/index.js"; import { git } from "./helper.js"; git();',
-    'apps/cli/journeys/resume/board.test.js': 'import "../packages/math/index.js"; fake.openBoard(":memory:");',
+    'test/board.test.js': 'import "../packages/math/index.js"; fake.openBoard(":memory:");',
     'test/browser.test.js': 'import "../packages/math/index.js"; chromium.launch();',
     'test/runner.test.js': 'import "../packages/math/index.js"; runRunner();',
     'test/computed.test.js': 'import(where);',

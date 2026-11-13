@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/gate/src/io/run/shell.js */
 /** Generator execution must retain its guards in the lifecycle audit's source model [M1,M4,C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

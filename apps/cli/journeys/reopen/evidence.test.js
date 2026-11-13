@@ -40,7 +40,8 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
   moveMainPastSubmit(box);
   const base = box.git(box.repo, 'rev-parse', 'main');
-  json(box, box.repo, 'land');
+  const landing = box.run(box.repo, 'land', '--json');
+  assert.equal(landing.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${landing.err}${landing.out}`);
   const item = json(box, box.repo, 'show', String(entry.item));
   assert.equal(item.item_status, 'open');
   const thread = onBoard(box, board => store.itemThread(board, entry.item));

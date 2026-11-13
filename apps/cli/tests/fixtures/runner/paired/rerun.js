@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** Exercise the real registered-runner flake ledger with an isolated committed source [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -51,6 +50,9 @@ test('remote flaky case [C7]', () => { const n = existsSync(${JSON.stringify(run
   installSshStandIn({ bin: fixtureBin, worker, home: remoteHome, machineHome: remoteMachineHome,
     requests: join(box.dir, 'requests.jsonl'), nodeOptions: '--import=' + pathToFileURL(preload).href, hold });
   assert.equal(cli(repo, env, 'settings', 'gateSlots', '1', '--json').status, 0);
+  const settingsFile = join(env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const kept = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  writeFileSync(settingsFile, JSON.stringify({ ...kept, gate: { ...kept.gate, runnerDispatch: 'controller' } }));
   const registered = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(registered.status, 0, registered.context);
   const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME };

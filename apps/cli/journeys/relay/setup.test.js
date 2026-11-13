@@ -1,6 +1,5 @@
 /** Relay setup commands: help, pair, the approval wait, relay on --all and moves from an agent worktree [H17,H5,I1,C6]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -24,6 +23,7 @@ import {
 } from '../../../../packages/link/index.js';
 const setup = { startViewSignIn, viewSignInStatus, cancelViewSignIn, viewSignInPairingNavigation };
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   runFixtureChild,
   runFixtureGit,
@@ -33,12 +33,11 @@ import {
   SSH_SHELL_MARKERS,
 } from '../../../../packages/kernel/index.js';
 import {
-  CLI,
   plainCommand,
 } from '../../tests/fixtures/relay/setup.js';
 
-test('relay help lists every relay command, with a whole example [H17]', () => {
-  const printed = spawnSync(process.execPath, [CLI, 'relay', '--help'], { cwd: tmpdir(), encoding: 'utf8' });
+test('relay help lists every relay command, with a whole example [H17]', async () => {
+  const printed = await runCliInProcess(['relay', '--help'], { cwd: tmpdir() });
   assert.equal(printed.status, 0, printed.stderr);
   const [usage, rest] = printed.stdout.split('\nFlags:\n');
   for (const command of ['relay [status|on|off|pair|join <code>]', 'relay on --all', 'relay devices', 'relay revoke <device>',
@@ -141,7 +140,7 @@ test('relay on --all says who signed in, what it linked and what it waits for [H
     ['remote', 'add', 'origin', 'git@github.com:fixture/repository-2.git']]) {
     assert.equal(runFixtureChild('git', args, { cwd: second, env: box.env }).status, 0);
   }
-  assert.equal(runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), 'init', '--json'], { cwd: second, env: box.env }).status, 0,
+  assert.equal((await runCliInProcess(['init', '--json'], { cwd: second, env: box.env })).status, 0,
     'the second board registers through the actual init command');
   const setup = plainCommand(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin]);
   t.after(async () => { if (setup.child.exitCode === null) setup.child.kill('SIGTERM'); await setup.done; });
@@ -190,13 +189,13 @@ test('relay on --all says who signed in, what it linked and what it waits for [H
 });
 
 /** Run one CLI command in plain words inside a private home, returning its exit code and both streams. */
-function relayOffCommand(cwd, env, args) {
-  const result = runFixtureChild(process.execPath, [CLI, ...args], { cwd, env, encoding: 'utf8' });
+async function relayOffCommand(cwd, env, args) {
+  const result = await runCliInProcess(args, { cwd, env });
   return { code: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
 
 /** Build a set-up-once machine with the relay off, a board with an agent worktree, and optionally a stale registry entry. */
-function relayOffWorktree(t, { stale }) {
+async function relayOffWorktree(t, { stale }) {
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard-relay-off-'));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const home = join(scratch, 'home');
@@ -207,23 +206,24 @@ function relayOffWorktree(t, { stale }) {
     GIT_COMMITTER_NAME: 'Relay Fixture', GIT_COMMITTER_EMAIL: 'relay-fixture@example.com' };
   for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN', ...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[name];
   /** Make one committed repository with a GitHub origin, registered through the production CLI. */
-  const board = name => {
+  const board = async name => {
     const root = join(scratch, name);
     mkdirSync(root);
     for (const args of [['init', '-q', '-b', 'main'], ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'chore: ' + name],
       ['remote', 'add', 'origin', 'git@github.com:fixture/' + name + '.git']]) runFixtureGit(args, { cwd: root, env });
-    const init = relayOffCommand(root, env, ['init', '--json']);
+    const init = await relayOffCommand(root, env, ['init', '--json']);
     assert.equal(init.code, 0, init.stderr);
     runFixtureGit(['add', '-A'], { cwd: root, env });
     runFixtureGit(['-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', 'chore: pullboard files'], { cwd: root, env });
     return root;
   };
-  const root = board('repo');
+  const root = await board('repo');
   if (stale) {
     // A registered folder that is no longer a git work tree, like a deleted scratch clone.
-    const gone = board('stale-scratch');
+    const gone = await board('stale-scratch');
     rmSync(join(gone, '.git'), { recursive: true, force: true });
   }
+  // Process-level case: the one-off module script below needs its own node process, so it stays a launched process.
   // Set up once, then the relay is off: auto-link stays on for the owner, and no board on this machine is linked.
   const machine = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../../packages/link/index.js')).href);
   const saved = runFixtureChild(process.execPath, ['--input-type=module', '-e',
@@ -232,15 +232,15 @@ function relayOffWorktree(t, { stale }) {
   assert.equal(saved.status, 0, saved.stderr);
   const worktree = join(scratch, 'repo-core-1');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/1', worktree], { cwd: root, env });
-  const joined = relayOffCommand(worktree, env, ['join', 'review', '--model', 'fixture-model']);
+  const joined = await relayOffCommand(worktree, env, ['join', 'review', '--model', 'fixture-model']);
   assert.equal(joined.code, 0, joined.stderr);
   return { worktree, env };
 }
 
-test('a move from an agent worktree prints no relay-link line [C6,H5]', (t) => {
+test('a move from an agent worktree prints no relay-link line [C6,H5]', async (t) => {
   for (const stale of [true, false]) {
-    const { worktree, env } = relayOffWorktree(t, { stale });
-    const move = relayOffCommand(worktree, env, ['spec', 'draft', 'A fixture row', '--section', 'G']);
+    const { worktree, env } = await relayOffWorktree(t, { stale });
+    const move = await relayOffCommand(worktree, env, ['spec', 'draft', 'A fixture row', '--section', 'G']);
     const label = stale ? 'with a stale registry entry' : 'the control with no stale entry';
     assert.equal(move.code, 0, `the move succeeds ${label}: ${move.stderr}`);
     assert.doesNotMatch(move.stdout + move.stderr, /not linked|NOT_A_REPO|not inside a git work tree/u, `the move prints only its result ${label}`);

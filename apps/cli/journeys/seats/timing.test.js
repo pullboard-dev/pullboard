@@ -23,11 +23,11 @@ function finished(box) {
     .filter(row => row.kind === 'command' && row.phase === 'end');
 }
 
-test('clause 1: next, claim, show, heartbeat and submit each leave a wall-time row for the seat and item on the real path [C7,N2]', () => {
+test('clause 1: next, claim, show, heartbeat and submit each leave a wall-time row for the seat and item on the real path [C7,N2]', async () => {
   const box = e2e.project();
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Timed cycle', check: 'true', args: ['--specs', 'G1'] });
   const id = String(item.item_id);
-  for (const args of [['next'], ['claim', id], ['show', id], ['heartbeat'], ['submit', id]]) box.run(box.web, ...args);
+  for (const args of [['next'], ['claim', id], ['show', id], ['heartbeat'], ['submit', id]]) await box.runLocal(box.web, ...args);
   const rows = finished(box).filter(row => row.seat === 'web-1');
   for (const command of ['next', 'claim', 'show', 'heartbeat', 'submit']) {
     const row = rows.find(candidate => candidate.command === command);
@@ -38,16 +38,16 @@ test('clause 1: next, claim, show, heartbeat and submit each leave a wall-time r
   assert.equal(rows.find(row => row.command === 'show').item, Number(id), 'a show row names its item');
 });
 
-test('clause 2: a real next then submit cycle shows in the seats report with median, p90, next-to-submit, busy fraction and a flagged 31 s command [C7,N2]', () => {
+test('clause 2: a real next then submit cycle shows in the seats report with median, p90, next-to-submit, busy fraction and a flagged 31 s command [C7,N2]', async () => {
   const box = e2e.project();
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Reported cycle', check: 'true', args: ['--specs', 'G1'] });
   const id = String(item.item_id);
-  for (const args of [['next'], ['claim', id], ['submit', id]]) box.run(box.web, ...args);
+  for (const args of [['next'], ['claim', id], ['submit', id]]) await box.runLocal(box.web, ...args);
   const file = join(box.repo, '.git', 'pullboard', 'seat-timing.jsonl');
   const now = Date.now();
   // A stubbed slow command: the only synthetic row, standing in for a 31 s wait no fixture should really take.
   appendSeatTiming(file, { version: 1, id: 'slow-1', seat: 'web-1', item: Number(id), kind: 'command', command: 'next', phase: 'end', start: now - 40_000, end: now - 9_000, durationMs: 31_000 });
-  const run = box.run(box.web, 'seats', '--json');
+  const run = await box.runLocal(box.web, 'seats', '--json');
   assert.equal(run.code, 0, `${run.out}\n${run.err}`);
   const { timing } = JSON.parse(run.out);
   const next = timing.commands.find(row => row.command === 'next');
@@ -56,7 +56,7 @@ test('clause 2: a real next then submit cycle shows in the seats report with med
   assert.ok(timing.items.some(row => row.item === Number(id) && row.nextToSubmitMs >= 0), 'next-to-submit is reported for the item');
   assert.ok(timing.seats.some(row => row.seat === 'web-1' && row.busyFraction >= 0 && row.busyFraction <= 1), 'the seat has a busy fraction');
   assert.deepEqual(timing.defects.map(row => [row.command, row.seat, row.durationMs]), [['next', 'web-1', 31_000]], 'only the 31 s command is flagged');
-  const plain = box.run(box.web, 'seats');
+  const plain = await box.runLocal(box.web, 'seats');
   assert.equal(plain.code, 0, `${plain.out}\n${plain.err}`);
   assert.match(plain.out, /conveyor defect: next took 31\.0s/u, 'the flag is part of the printed report');
 });

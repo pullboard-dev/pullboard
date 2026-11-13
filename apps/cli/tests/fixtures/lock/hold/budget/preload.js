@@ -26,7 +26,7 @@ if (isMainThread && entry && process.argv[1] && resolve(process.argv[1]) === res
     const begin = typeof sql === 'string' && /^\s*BEGIN(?:\s+(IMMEDIATE|DEFERRED|EXCLUSIVE))?\s*;?\s*$/iu.exec(sql);
     const release = typeof sql === 'string' && /^\s*(COMMIT|ROLLBACK)\s*;?\s*$/iu.exec(sql);
     const site = begin ? new Error().stack.split('\n').slice(1, 9) : [];
-    const board = site.some(line => line.includes('/packages/store/src/shell/board-event-log.js:'));
+    const board = site.some(line => line.includes('/packages/store/src/io/board/busy.js:'));
     const waitingAt = performance.now();
     const result = Reflect.apply(exec, this, [sql, ...args]);
     const ended = performance.now();

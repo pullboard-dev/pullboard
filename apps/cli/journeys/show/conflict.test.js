@@ -26,25 +26,25 @@ after(helpers.cleanup);
  * A submitted web head that the trunk then conflicts with, plus two reviewer seats on the api lane.
  * The first reviewer reserves the head before the trunk moves, so the conflict arrives under a live review.
  */
-function reservedConflictFixture() {
+async function reservedConflictFixture() {
   const box = helpers.project('true');
   /** Demand real command success and its versioned result. */
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  const id = json(fixtureAdd(box.run, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists', '--json')).item.item_id;
-  json(box.run(box.web, 'claim', String(id), '--json'));
+  const id = json((await fixtureAdd(box.runLocal, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists', '--json'))).item.item_id;
+  json((await box.runLocal(box.web, 'claim', String(id), '--json')));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/list.html'), '<ul>from the branch</ul>\n');
   box.git(box.web, 'add', 'web/list.html');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): show the list [G1]');
   // Submit returns before its gate by default; --wait ends at the gate so the head is submitted for review.
-  json(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
+  json((await box.runLocal(box.web, 'submit', String(id), '--wait', '--no-next', '--json')));
   // An unrouted item is strong, so its reviewers join on the strong route.
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/review-one');
-  json(fixtureJoin(box.run, reviewer, 'api', '--route', 'strong', '--json'));
+  json((await fixtureJoin(box.runLocal, reviewer, 'api', '--route', 'strong', '--json')));
   const other = join(box.dir, 'api-2');
   box.git(box.repo, 'worktree', 'add', '-q', other, '-b', 'api/review-two');
-  json(fixtureJoin(box.run, other, 'api', '--route', 'strong', '--json'));
+  json((await fixtureJoin(box.runLocal, other, 'api', '--route', 'strong', '--json')));
   return { box, json, id, reviewer, other };
 }
 
@@ -65,39 +65,40 @@ function moveTrunk(box) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(web): main lands its own list [G1]');
 }
 
-test('a trunk conflict waits while another seat reserves the head, then applies when the reservation ends [C7,V4]', () => {
-  const { box, json, id, reviewer, other } = reservedConflictFixture();
-  const reserved = json(box.run(reviewer, 'next', '--verify', '--json'));
+test('a trunk conflict waits while another seat reserves the head, then applies when the reservation ends [C7,V4]', async () => {
+  const { box, json, id, reviewer, other } = await reservedConflictFixture();
+  const reserved = json((await box.runLocal(reviewer, 'next', '--verify', '--json')));
   assert.equal(reserved.item.item_id, id, 'the first reviewer reserves the head before the trunk moves');
-  const holder = json(box.run(box.repo, 'show', String(id), '--json')).item_review_by;
+  const holder = json((await box.runLocal(box.repo, 'show', String(id), '--json'))).item_review_by;
   assert.ok(holder, 'the reservation names its reviewer');
 
   moveTrunk(box);
 
-  const held = box.run(other, 'next', '--verify', '--json');
+  const held = (await box.runLocal(other, 'next', '--verify', '--json'));
   assert.equal(nothingFree(held), 'NOTHING_FREE', 'the second reviewer has nothing to take, since the head is held');
   assert.doesNotMatch(held.err, /returned #/u, 'a second reviewer does not return a head another seat holds');
-  const stillSubmitted = json(box.run(box.repo, 'show', String(id), '--json'));
+  const stillSubmitted = json((await box.runLocal(box.repo, 'show', String(id), '--json')));
   assert.equal(stillSubmitted.item_status, 'submitted', 'the head stays submitted while the reservation is live');
   assert.equal(stillSubmitted.item_review_by, holder, 'the reservation is untouched');
   assert.ok(!stillSubmitted.thread.some((entry) => entry.type === 'move' && entry.kind === 'reopen'), 'no reopen is recorded');
 
-  const notice = box.run(reviewer, 'inbox').out;
+  const notice = (await box.runLocal(reviewer, 'inbox')).out;
   assert.match(notice, new RegExp(`#${id} conflicts with the trunk at [0-9a-f]{12} in web/list\\.html; your review holds it until`, 'u'),
     'the reviewer holding the reservation is told the named file conflicts');
 
-  json(box.run(reviewer, 'release', String(id), '--reason', 'OTHER', '--note', 'stepping away', '--json'));
-  const applied = box.run(other, 'next', '--verify', '--json');
+  json((await box.runLocal(reviewer, 'release', String(id), '--reason', 'OTHER', '--note', 'stepping away', '--json')));
+  const applied = (await box.runLocal(other, 'next', '--verify', '--json'));
   assert.match(applied.err, new RegExp(`returned #${id} to its builder unreviewed: it no longer merges onto the trunk \\(web/list\\.html\\)`, 'u'),
     'once the reservation ends the conflict return applies');
-  const returned = json(box.run(box.repo, 'show', String(id), '--json'));
+  const returned = json((await box.runLocal(box.repo, 'show', String(id), '--json')));
   assert.equal(returned.item_status, 'open', 'the head goes back to its builder');
   assert.equal(returned.item_review_by, null, 'no reviewer holds it');
 });
 
 test('a reservation taken after the conflict snapshot still holds: the reopen authority refuses and the holder is told [C7,V4]', async t => {
-  const { box, id, reviewer, other } = reservedConflictFixture();
+  const { box, id, reviewer, other } = await reservedConflictFixture();
   moveTrunk(box);
+  // @pullboard-board-file journey: reads the board the CLI children wrote
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
   const me = store.agentAt(board, other), peer = store.agentAt(board, reviewer).agent_id;

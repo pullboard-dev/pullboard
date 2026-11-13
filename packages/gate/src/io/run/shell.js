@@ -1,4 +1,5 @@
-import { spawnCaptured } from '../../../../sandbox/index.js';
+import { spawnCaptured } from '../../../../sandbox/light.js';
+import { scratchFolder } from '../../../../config/index.js';
 /**
  * Run one shell command in a checkout and keep its output, apart from the gate's queue, runners and receipts. A
  * board read that replays a check baseline needs only this, so it never loads the gate [C7].
@@ -7,14 +8,12 @@ import { spawnSync } from 'node:child_process';
 import {
   captureTestRuntimes,
   executionEnvironment,
-} from '../../../../sandbox/index.js';
+} from '../../../../sandbox/light.js';
 import { randomUUID } from 'node:crypto';
 import {
-  mkdtempSync,
   readFileSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -28,7 +27,12 @@ import {
   stagedScript,
 } from '../stages.js';
 import { Refused } from '../../../../kernel/index.js';
-import { sandboxBlockedOperation } from '../../../../sandbox/index.js';
+import { runStallMs } from './stall.js';
+import {
+  processRows,
+  watchRun,
+} from './stall.js';
+import { sandboxBlockedOperation } from '../../../../sandbox/light.js';
 
 /**
  * Run a shell command in a checkout for a digest: both streams in one pipe, in order, read whole
@@ -62,12 +66,14 @@ function* shellExecution(root, command, { pipefail = false, env = {}, stages = f
   try {
     const split = stages ? gateStages(command) : null;
     const marker = `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}`;
-    const pipes = split?.some((stage) => stage.pipeline.length > 1) ? mkdtempSync(join(tmpdir(), 'pullboard-pipes-')) : null;
+    const pipes = split?.some((stage) => stage.pipeline.length > 1) ? scratchFolder('pullboard-pipes-') : null;
+    // A landing's guardian finds its gate by this token in the shell's command line [Q1,Q3,B3].
+    const custody = process.env.PULLBOARD_LANDING_CUSTODY ? `: --landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}\n` : '';
     // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
-    const script = `${prefix}(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`;
-    const timedDirectory = timeoutMs ? mkdtempSync(join(tmpdir(), 'pullboard-timed-output-')) : null;
+    const script = `${custody}${prefix}(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`;
+    const timedDirectory = timeoutMs ? scratchFolder('pullboard-timed-output-') : null;
     const outputFile = timedDirectory ? join(timedDirectory, 'output.log') : null;
-    const timed = timeoutMs ? yield { command: process.execPath, args: [fileURLToPath(new URL('../../../../../apps/runner/src/io/shell.js', import.meta.url))], options: { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) } } : null;
+    const timed = timeoutMs ? yield { command: process.execPath, args: [fileURLToPath(new URL('../../../../../apps/runner/src/io/shell.js', import.meta.url)), ...(process.env.PULLBOARD_LANDING_CUSTODY ? [`--landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}`] : [])], options: { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) } } : null;
     if (timed && (timed.status !== 0 || timed.error)) throw new Refused('LAND_TIMEOUT_CUSTODY', 'the timed gate worker did not prove cleanup; inspect its owned processes before landing again');
     const result = timed ? { ...JSON.parse(timed.stdout || '{}'), stdout: '', stderr: timed.stderr } : yield { command: script, args: [], options };
     if (timed && result.error) throw new Refused('LAND_GATE_OUTPUT', `the timed gate stopped and drained after its output failed (${result.error}); inspect free disk space and ${timedDirectory} before landing again`);
@@ -101,12 +107,29 @@ export function runShell(root, command, options) {
   } finally { execution.return(); }
 }
 
-/** Execute the same shell plan without blocking other admitted checks. */
+/**
+ * Execute the same shell plan without blocking other admitted checks. A run with no hard timeout that makes no output,
+ * CPU or process change for the stall interval (options.stallMs, PULLBOARD_RUN_STALL_MS, 15 min) is stopped, named
+ * PULLBOARD_RUN_STALLED and ends red, so it frees its slot instead of holding it forever.
+ */
 export async function runShellAsync(root, command, options) {
+  const stallMs = options?.timeoutMs ? 0 : runStallMs(options?.stallMs);
   const execution = shellExecution(root, command, options);
   try {
     let step = execution.next();
-    while (!step.done) step = execution.next(await spawnCaptured(step.value.command, step.value.args, { ...step.value.options, signal: options?.signal }));
+    while (!step.done) {
+      const guard = new AbortController();
+      let stalled = null;
+      const watch = watchRun({ stallMs, rows: () => processRows(spawnCaptured), onStall: info => { stalled = info; guard.abort(); } });
+      const signal = options?.signal ? AbortSignal.any([options.signal, guard.signal]) : guard.signal;
+      let result;
+      try { result = await spawnCaptured(step.value.command, step.value.args, { ...step.value.options, signal, onSpawn: watch.spawned, onOutput: watch.output }); }
+      catch (error) { if (!stalled) throw error; result = { status: null, stdout: '', stderr: '' }; } finally { watch.stop(); }
+      if (stalled) {
+        result = { ...result, status: 1, stdout: `${result.stdout ?? ''}\nPULLBOARD_RUN_STALLED: no output and no CPU or process change for ${Math.round(stalled.idleMs / 1000)}s; stopped: ${stalled.processes}\n` };
+      }
+      step = execution.next(result);
+    }
     return step.value;
   } finally { execution.return(); }
 }

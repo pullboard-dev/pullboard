@@ -40,7 +40,7 @@ test('every help example carries its required flags [O3]', async () => {
   }
 });
 
-test('an unjoined worktree gets a model-bearing join instruction [O3]', (context) => {
+test('an unjoined worktree gets a model-bearing join instruction [O3]', async (context) => {
   const helpers = createE2eHelpers();
   context.after(helpers.cleanup);
   const box = helpers.sandbox();
@@ -50,7 +50,7 @@ test('an unjoined worktree gets a model-bearing join instruction [O3]', (context
   box.git(project.repo, 'worktree', 'add', '-q', '--detach', unjoined);
   box.env.AI_AGENT = '1';
   box.env.CODEX_THREAD_ID = 'unjoined-help-example-fixture';
-  const refused = box.run(unjoined, 'claim', '1');
+  const refused = await box.runLocal(unjoined, 'claim', '1');
   assert.equal(refused.code, 1, refused.err);
   assert.match(refused.err, /\[NOT_JOINED\].*run pullboard join <lane> --model "<model name>"/);
 });

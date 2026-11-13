@@ -27,7 +27,7 @@ function unlandedEngine(name) {
   return `import { unassignedEngine } from './engine-next.js';\nexport const ${name.toUpperCase()}_ENGINE = unassignedEngine();\n`;
 }
 
-test('a real landing runner receives the clean committed engine amendment [C7]', { timeout: 180_000 }, () => {
+test('a real landing runner receives the clean committed engine amendment [C7]', { timeout: 180_000 }, async () => {
   const box = landProject();
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -74,11 +74,11 @@ test('a real landing runner receives the clean committed engine amendment [C7]',
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
     runners: [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0 } }));
 
-  const result = box.run(box.repo, 'land', '--json');
+  const result = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const landed = JSON.parse(result.out);
   assert.deepEqual(landed.landed, [entry.item]);
-  const merged = JSON.parse(box.run(box.repo, 'show', String(entry.item), '--json').out);
+  const merged = JSON.parse((await box.runLocal(box.repo, 'show', String(entry.item), '--json')).out);
   assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', merged.item_merged_commit).split(' ').length, 3,
     'the engine numbering amendment remains inside the landed item merge');
   assert.match(box.git(box.repo, 'show', `${merged.item_merged_commit}:packages/state/src/logic/engines/alpha-engine.js`), /ALPHA_ENGINE = \d+;/u);

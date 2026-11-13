@@ -17,7 +17,7 @@ import { fixtureProjectPolicy } from '../testkit.js';
 export function cpuCheckRepo(box) {
   const repo = box.first;
   runFixtureGit(['branch', '-M', 'main'], { cwd: repo, env: box.env });
-  fixtureProjectPolicy(repo, { config: { gate: 'true', spec: 'SPEC.md', affectedTests: 'node packages/gate/src/io/run/tests.js', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] },
+  fixtureProjectPolicy(repo, { config: { gate: 'true', spec: 'SPEC.md', affectedTests: 'node apps/cli/src/io/run/tests.js', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] },
     spec: '# CPU check fixture\n\n## G · Goals\n- G1 [approved, must] The fixture keeps its board. | gate: true\n' });
   writeFileSync(join(repo, 'package.json'), '{"type":"module"}\n');
   copyFixtureRunner(resolve(import.meta.dirname, '../../../../..'), repo);

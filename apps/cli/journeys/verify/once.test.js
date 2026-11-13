@@ -182,6 +182,7 @@ test('native review records sealed citations and reuses the actual submit execut
   assert.equal(reviewed.code, 0, reviewed.err + reviewed.out);
   assert.equal(readFileSync(baseRuns, 'utf8'), count, 'review adds no second execution to the proven item: ' + reviewed.out + reviewed.err);
   assert.equal(existsSync(aloneRuns), false, 'review cites the sealed package without executing it');
+  // @pullboard-board-file journey: read the board file the real review command wrote
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const verdict = board.db.prepare('SELECT verdict_note FROM verdict WHERE item_id=? ORDER BY verdict_id DESC LIMIT 1').get(id);

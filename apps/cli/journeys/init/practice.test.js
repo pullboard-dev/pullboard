@@ -23,7 +23,6 @@ import {
 } from '../../../../packages/spec/index.js';
 import { standardDoctrine } from '../../../../packages/doctrine/index.js';
 import { practiceTemplate } from '../../../../packages/config/index.js';
-import { agentsBlock } from '../../../../packages/doctrine/index.js';
 
 test('the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
   const practice = parseSpec(practiceTemplate());
@@ -52,18 +51,17 @@ test('the run guide takes one agent through the whole team, and init installs it
       'pullboard worktree review',
       'pullboard-verify',
       'git merge --no-edit',
-      'pullboard merged',
-      'not yet verified',
-      'never by you',
+      'pullboard land --dry-run',
+      'pullboard land --max N',
+      'Never merge by hand',
+      'a separate session, never a subagent of yours',
       'Ask, never guess',
     ]) {
       assert.ok(guide.includes(step), `the run guide says: ${step}`);
     }
-    assert.match(guide, /\*\*Build[^\n]*A worktree starts from the last commit, so first commit what init wrote, the spec and the lanes/, 'the build step commits the setup before the first worktree');
+    assert.match(guide, /\*\*Build[^\n]*commit what init wrote, the spec and the lanes first; worktrees start from the last commit/, 'the build step commits the setup before the first worktree');
     assert.match(installSkills(root)[0], /pullboard-run/);
     assert.ok(existsSync(join(root, '.claude', 'skills', 'pullboard-run', 'SKILL.md')), 'init installs it as a skill');
-    assert.match(agentsBlock(), /pullboard prompt run/, 'AGENTS.md names it');
-    assert.match(agentsBlock(), /pullboard-run skill/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -112,9 +110,9 @@ test('the plan guide keeps git with the builder, routes for the fleet, and reads
   try {
     const plan = promptFor(root, 'plan');
     assert.doesNotMatch(plan, /no git commands/);
-    assert.match(plan, /Builders commit and submit their own work, so a brief never forbids git/);
-    assert.match(plan, /Route for the builders who will join\. An item routed above every builder's tier is never built/);
-    assert.match(plan, /the module system \(`"type"` in package\.json\), the test runner/);
+    assert.match(plan, /A brief never forbids git: workers commit and submit their own work/);
+    assert.match(plan, /Route for your workers\.\*\* Too hard for all of them\? Lighten it with a full brief, or tell the person/);
+    assert.match(plan, /repo's conventions: module system, test runner, test folder/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

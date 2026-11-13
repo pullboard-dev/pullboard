@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js packages/landing/index.js */
 /** A waiting lander whose code is older than main's releases its place, names the change and hands over to a fresh lander [C7,#3467]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

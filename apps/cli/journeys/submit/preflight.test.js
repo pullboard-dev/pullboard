@@ -15,7 +15,7 @@ import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
-test('resubmitting a rejected head refuses HEAD_NOT_NEW before its slow check starts [V4,C7]', { timeout: 180_000 }, (t) => { // budget: the refused submit must return within 60 s; before #924 it waits on a 120 s check.
+test('resubmitting a rejected head refuses HEAD_NOT_NEW before its slow check starts [V4,C7]', { timeout: 180_000 }, async (t) => { // budget: the refused submit must return within 60 s; before #924 it waits on a 120 s check.
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -31,24 +31,25 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the recorded check [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Demand real command success and its versioned result. */
-  const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs', '--json'));
-  json(box.run(box.web, 'claim', '1', '--json'));
+  const json = async (pending) => { const result = await pending; assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
+  await json(fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs', '--json'));
+  await json(box.runLocal(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'built\n');
   box.git(box.web, 'add', 'web/page.txt');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
-  json(box.run(box.web, 'submit', '1', '--json'));
+  await json(box.runLocal(box.web, 'submit', '1', '--json'));
   // An outside reviewer rejects that exact head.
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   assert.equal(joinFixtureSeat(box, reviewer, 'api').code, 0); // the reviewer joins on the strong route, whatever model runs the gate.
-  json(box.run(reviewer, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'the page is built', '--note', 'the page is not reachable', '--json'));
-  json(box.run(box.web, 'claim', '1', '--json'));
+  await json(box.runLocal(reviewer, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'the page is built', '--note', 'the page is not reachable', '--json'));
+  await json(box.runLocal(box.web, 'claim', '1', '--json'));
   // Resubmit the same head with the check armed to run for minutes.
   rmSync(ran, { force: true });
   writeFileSync(slow, 'armed\n');
   const started = Date.now();
+  // Process-level: the wall-clock bound needs a real child that a 60 s timeout can kill.
   const resubmit = spawnSync(process.execPath, [BIN, 'submit', '1', '--json'], { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 60_000 });
   const seconds = (Date.now() - started) / 1000;
   assert.notEqual(resubmit.signal, 'SIGTERM', `the refusal came back before the 60 s limit, not after a check run (${seconds.toFixed(1)} s)`);
@@ -62,6 +63,7 @@ function preflightProject(t) {
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/gate/data/baselines'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'), '{}');
   mkdirSync(join(box.repo, 'packages/x/src'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/x/src/a.js'), 'export const a = 1;\n');

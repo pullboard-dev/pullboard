@@ -57,7 +57,7 @@ function lapsedJob(db, id, candidate, takenAt) {
 
 test('clause 1: one reclaim pass drives at most one lapsed job by one transition and never waits past its budget [C7]', async () => {
   const { repo, head } = repoWithCommit();
-  const board = openBoard(join(files.root, 'unit.sqlite'));
+  const board = openBoard(':memory:');
   try {
     const db = board.db;
     let calls = 0;
@@ -94,6 +94,7 @@ test('clause 1: `status` and `next` each run the reclaim pass and drive at most 
   const head = box.git(box.repo, 'rev-parse', 'HEAD');
   const file = join(box.repo, '.git/pullboard/board.sqlite');
   const takenAt = Date.now() - LEASE_MS - 60_000;
+  // @pullboard-board-file journey: seed and read back the lapsed job rows in the board file the real status command opens
   const seed = openBoard(file, undefined, { gitRoot: box.repo });
   try {
     lapsedJob(seed.db, 'g-old', head, takenAt);
@@ -122,6 +123,7 @@ test('clause 1: `status` and `next` each run the reclaim pass and drive at most 
     'status drove the oldest lapsed job one step before answering');
 
   const read = (id) => {
+    // @pullboard-board-file journey: seed and read back the lapsed job rows in the board file the real status command opens
     const board = openBoard(file, undefined, { gitRoot: box.repo });
     try { return jobView(board.db, id); } finally { closeBoard(board); }
   };

@@ -59,3 +59,22 @@ export function landNext(info, item, commit = item.item_commit, { spec = null } 
   return `next: this repo has no remote for pullboard land to push to, so the coordinator merges it on ${branch.replace(/^refs\/heads\//u, '') || 'the trunk'}: ${cdTo(mainRoot)} ${command}`;
 }
 
+
+/**
+ * Moves a clean review worktree onto the submitted commit, detached, so a reviewer never runs
+ * git switch by hand before a verdict (#2907). The main checkout and a dirty tree still refuse
+ * NOT_AT_COMMIT; a dirty refusal names the files, since switching would carry or lose them.
+ *
+ * @param {any} info - The command's repository info.
+ * @param {string} commit - The resolved submitted commit.
+ * @param {string} short - The commit as `show` prints it.
+ */
+export function switchToSubmitted(info, commit, short) {
+  const back = `check out the submitted commit first: ${cdTo(info.root)} git switch --detach ${short}`;
+  if (info.isMain) throw new Refused('NOT_AT_COMMIT', back);
+  const listed = args => tryGit(info.root, args).stdout.split('\n').filter(Boolean);
+  const dirty = [...new Set([...listed(['diff', '--name-only', 'HEAD']), ...listed(['ls-files', '--others', '--exclude-standard'])])];
+  if (dirty.length) throw new Refused('NOT_AT_COMMIT', `this review worktree has uncommitted files: ${dirty.slice(0, 8).join(', ')}${dirty.length > 8 ? ', …' : ''}; commit or remove them, then ${back}`);
+  const switched = tryGit(info.root, ['switch', '--quiet', '--detach', commit]);
+  if (switched.status !== 0) throw new Refused('NOT_AT_COMMIT', `${back} (${String(switched.stderr).trim()})`);
+}
