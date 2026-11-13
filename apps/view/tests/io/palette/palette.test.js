@@ -166,3 +166,12 @@ test('clause 1: the hosted page mounts it with one hook and the palette reads th
   const actions = readFileSync(new URL('../../../src/io/page/actions.js', import.meta.url), 'utf8');
   assert.doesNotMatch(actions, /event\.key !== '\/'/u, 'the old "/" focus handler is gone, so "/" opens the palette only');
 });
+
+test('clause 1: the mounted script runs in a page that has no navigator [C7,#6719]', () => {
+  const part = { innerHTML: '', classList: { toggle() {} }, setAttribute() {}, focus() {}, setSelectionRange() {}, scrollIntoView() {} };
+  const overlay = { innerHTML: '', addEventListener() {}, setAttribute() {}, querySelector: () => part, querySelectorAll: () => [] };
+  const document = { body: { appendChild() {} }, activeElement: null, createElement: () => overlay, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] };
+  const box = { placeholder: 'Search', parentNode: { appendChild() {} }, addEventListener() {} };
+  const run = new Function('navigator', 'document', '$', 'data', 'go', 'flipTheme', 'stateLabel', paletteScript());
+  assert.doesNotThrow(() => run(undefined, document, () => box, { project: { items: [] } }, () => {}, () => {}, () => ''), 'no navigator means no platform to read, not a crash');
+});
