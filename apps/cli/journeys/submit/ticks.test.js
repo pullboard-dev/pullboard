@@ -12,6 +12,7 @@ import {
 } from 'node:test';
 import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -102,7 +103,9 @@ test('submit requires named evidence for every clause and the reviewer packet bi
   for (const [number, title] of [[1, 'the heading is present'], [2, 'the count appears'], [3, 'the page fits at 375px']]) {
     (await ok(box, builder, 'fact', String(id), 'note', `clause ${number} [test]: web/inspection.test.js :: clause ${number}: ${title}`));
   }
-  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
+  // A pulled submit returns queued; its gate is the settled job's, read through the shared settle seam (#6249).
+  const queued = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
+  const submitted = queued.gate ? queued : { ...queued, gate: (await settledGateJob(box, id)).gate };
   assert.equal(submitted.gate.green, true, 'the submit gate ran the named clause cases');
   const detail = (await ok(box, box.repo, 'show', String(id), '--detail')).out;
   assert.match(detail, /inspection, clause by clause:/u, 'submit records its evidence checklist for the reviewer');

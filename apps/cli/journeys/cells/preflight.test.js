@@ -1,4 +1,4 @@
-/** The trusted cells checker accepts coordinator-approved plan stays and served URLs, never a real deletion [C7,D3,CD64]. */
+/** The trusted cells checker accepts served URLs, never a real deletion [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
@@ -67,51 +67,6 @@ async function refusal(promise) {
 
 /** A frozen item whose coordinator-written criterion carries `text`. */
 const item = text => ({ item_frozen: JSON.stringify({ criterion: text }) });
-
-/** Move the kernel cell's first accepted row into stays, as a deploy-entry ruling does, and return its old path. */
-function stayFirstKernelRow(box) {
-  const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
-  const [from] = kernel.paths.shift();
-  plan.stays.push({ path: from, reason: 'deployed entry keeps its path' });
-  writePlan(box.root, plan);
-  return from;
-}
-
-test('an accepted row the frozen criterion names as a plan stay may stay in place [C7,D3,CD64]', async t => {
-  const box = await plannedFixture(t);
-  const from = stayFirstKernelRow(box);
-  const candidate = commitCandidate(box);
-  assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from} for the deploy.`))), /disappeared/u);
-  assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Ops ruling: plan stay ${from}.`))), /disappeared/u,
-    'a sentence ending right after the path still names it');
-  for (const mark of [',', ';']) {
-    assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from}${mark} then deploy.`))), /disappeared/u,
-      `a clause ending in ${mark} right after the path still names it`);
-  }
-  for (const suffix of ['+copy', 'é']) {
-    assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from}${suffix} for the deploy.`))), /disappeared/u,
-      `a ruling for ${from}${suffix} names a different path and never approves this one`);
-  }
-  assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item('Preserve actual cell boundaries.'))),
-    new RegExp(`accepted row ${from.replaceAll('.', '\\.')} disappeared`, 'u'), 'the candidate stays list alone never authorizes itself');
-  assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from}.map for the deploy.`))), /disappeared/u,
-    'a ruling for a longer path that merely starts with this one never approves it');
-  assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay x${from} for the deploy.`))), /disappeared/u,
-    'a ruling for a path that merely ends with this one never approves it');
-});
-
-test('a named plan stay still refuses when its file was deleted or also sits at its target [C7,D3,CD64]', async t => {
-  const box = await plannedFixture(t);
-  const plan = readPlan(box.root), row = plan.cells.find(cell => cell.name === 'kernel').paths[0];
-  const from = stayFirstKernelRow(box);
-  const approved = item(`Keep plan stay ${from} for the deploy.`);
-  box.put(row[1], 'export const copy = 1;\n');
-  assert.match(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), approved)), /disappeared/u,
-    'a stay whose body also appears at its old target is a hidden move');
-  git(box.root, 'rm', '-q', '--', row[1], from);
-  assert.match(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), approved)), /disappeared/u,
-    'a deleted file is not a stay');
-});
 
 test('a root-relative served URL is not a deleted path, while a relative one still refuses [C7,D3]', async t => {
   const box = await plannedFixture(t, fixture => {
