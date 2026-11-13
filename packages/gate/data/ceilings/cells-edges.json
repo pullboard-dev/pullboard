@@ -2968,10 +2968,6 @@
       "cells": 3,
       "deep": 4
     },
-    "packages/moves/tests/fixtures/next.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/outbox/src/io/relay.js": {
       "cells": 5,
       "deep": 1
@@ -6160,9 +6156,6 @@
       "apps/cli"
     ],
     "packages/landing/tests/fixtures/relay/parity/train.js": [
-      "apps/cli"
-    ],
-    "packages/moves/tests/fixtures/next.js": [
       "apps/cli"
     ],
     "packages/resources/src/io/handoff/worker/cap.js": [
