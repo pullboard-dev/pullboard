@@ -5,6 +5,8 @@ import { boardJobQueueCall } from '../../../../../packages/api/index.js';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
+import { register } from '../../../../../packages/store/index.js';
+import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { itemThread } from '../../../../../packages/store/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
@@ -15,6 +17,7 @@ const HOUR = 3_600_000;
 
 test('#7386 clause 1: a runner that releases every land claim is claimed at most a few times in 3.5 hours, then the job ends released and its item stays accepted [C7]', t => {
   const board = cellBoard(t, ':memory:');
+  register(board, { lane: 'coordinator', path: '/nowhere', route: 'strong', model: FIXTURE_MODEL });
   const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Item one', criterion: 'The item lands.' });
   const job = offerLandingJob(board.db, { items: [{ id, commit: SHA, ref: 'refs/heads/item/1' }], expect: SHA, config: { trunk: { remote: '/nowhere/trunk.git' } }, now: 0 });
   const call = (body, now) => boardJobQueueCall(board, body, { mode: 'pull', now });
