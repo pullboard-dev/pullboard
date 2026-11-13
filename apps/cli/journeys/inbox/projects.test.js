@@ -68,7 +68,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
       if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.click('document.querySelector(".unreadable-projects summary")');
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const section = document.querySelector('.unreadable-projects');
-        return { pageFits: document.documentElement.scrollWidth <= innerWidth,
+        return { shown: { nav: document.documentElement.dataset.nav, side: document.documentElement.dataset.side, sideClass: document.querySelector('#side').className, body: getComputedStyle(document.querySelector('#side .side-body')).display, open: section.open }, pageFits: document.documentElement.scrollWidth <= innerWidth,
           rows: [...section.querySelectorAll('li')].map(row => {
             const copy = row.querySelector('.unreadable-copy'), name = copy.querySelector('b'), path = copy.querySelector('code');
             /** Ellipsis may add a second rectangle on the same line; count distinct actual line bands. */
@@ -90,7 +90,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
         const index = missing.findIndex(project => project.repo === row.full);
         assert.equal(row.name, 'Missing ' + ['Alpha', 'Beta', 'Gamma', 'Delta'][index]);
         assert.ok(row.path.length < row.full.length && row.path.includes('…'), 'long middles are elided');
-        assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line');
+        assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line ' + JSON.stringify({ row, shown: seen.shown }));
         assert.equal(row.nowrap, 'nowrap');
         assert.ok(row.fits && row.width > 0 && row.pathWidth > 0 && row.weight <= 400, width + ': compact muted names and paths fit their row');
         assert.equal(row.forget, 'Forget');
@@ -162,7 +162,7 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
       gate.release = () => { gate.all = false; gate.board = null; gate.blocked.splice(0).forEach((entry) => entry.resolve()); };
       window.fetch = async (input, init) => {
         const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
-        if (/^\\/api\\/v1\\/boards\\/[^/]+\\/state$/.test(path) && (gate.all || path === '/api/v1/boards/' + gate.board + '/state')) {
+        if (/^\\/api\\/v1\\/boards\\/[^/]+\\/(?:state|summary)$/.test(path) && (gate.all || path === '/api/v1/boards/' + gate.board + '/state')) {
           await new Promise((resolve) => gate.blocked.push({ path, resolve }));
         }
         return nativeFetch(input, init);
@@ -249,7 +249,7 @@ test('a page load draws its frame at once and fills each part in as its board ar
       gate.release = (id) => { gate.open.add(id); gate.blocked.filter((entry) => entry.id === id).forEach((entry) => entry.resolve()); };
       window.fetch = async (input, init) => {
         const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
-        const id = /^\\/api\\/v1\\/boards\\/([^/]+)\\/state$/.exec(path)?.[1];
+        const id = /^\\/api\\/v1\\/boards\\/([^/]+)\\/(?:state|summary)$/.exec(path)?.[1];
         if (id && !gate.open.has(decodeURIComponent(id))) await new Promise((resolve) => gate.blocked.push({ id: decodeURIComponent(id), resolve }));
         return nativeFetch(input, init);
       };
