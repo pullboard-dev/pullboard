@@ -108,8 +108,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
-import { registeredBoard } from './registered.js';
-import { summaryTextOf } from './summary.js';
+import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -1079,8 +1078,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
       return {
         cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, reportValidator,
         summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
-        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas,
-        summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
+        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
         search: entry.searchTexts ??= entry.state.items.map((item) => [item.id, searchText(item)]),
         shouts: Float64Array.from(withBoard(board.root, (current) => current.db.prepare('SELECT shout_id FROM shout ORDER BY shout_id').all().map((row) => row.shout_id), codeIsMain, boardOpeners)),
       };
@@ -1350,8 +1348,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
       return watched;
     },
-    summary: snapshots.summaryText && ((board) => materialized(() => materializer.summaryJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => snapshots.summaryText(entry)))))),
-    delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
+    summary: snapshots.summaryText && ((board) => materialized(() => materializer.summaryJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => snapshots.summaryText(entry)))))), delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
       catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
