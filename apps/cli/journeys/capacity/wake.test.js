@@ -45,8 +45,11 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   // The submit offers its gate as a pulled job; wait for the loopback runner's receipt before reading the item.
   settlePulledJobs(box.web, ['submit'], box.env);
-  // The runner stamped the submission with the real clock, so the injected clock starts from there.
-  at = Math.max(at, Date.now());
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
+  t.after(() => closeBoard(board));
+  // The runner stamped the submission when it applied the gate receipt, so the injected clock starts from that stamp.
+  at = Date.parse(board.db.prepare("SELECT event_at FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item).event_at);
   const output = join(box.dir, 'wake-arguments.jsonl');
   const executable = join(box.dir, 'reviewer-wake.mjs');
   writeFileSync(executable, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(output)},JSON.stringify(process.argv.slice(2))+'\\n');\nprocess.exitCode=${fails ? 1 : 0};\n`);
@@ -59,9 +62,6 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
     ...(command ? ['--wake', executable] : []), '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
   at += staleBy;
-  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
-  t.after(() => closeBoard(board));
   assert.equal(getItem(board, item).item_status, 'submitted');
   // Wake tests need an idle reviewer even when the queue's deadline is shorter than seat liveness.
   at += REVIEW_WAKE_WAIT_MS - 1;
