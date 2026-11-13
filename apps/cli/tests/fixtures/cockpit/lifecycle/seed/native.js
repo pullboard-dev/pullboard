@@ -270,7 +270,8 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       const patch = patchFile('objected-lifecycle-companion', 'api');
       await json(demo.web, 'submit', String(id), '--companion', patch.path, '--key', 'objected-lifecycle-route',
         '--author', owner.agent, '--wait', '--no-next');
-      assert.equal((await json(demo.repo, 'show', String(id))).item_status, 'submitted');
+      const shown = await json(demo.repo, 'show', String(id));
+      assert.equal(shown.item_status, 'submitted', 'the companion submit reached review: ' + JSON.stringify({ progress: shown.progress, refusal: shown.item_refusal, gate: shown.item_gate }));
       await json(owner.path, 'patch', 'object', String(id), 'objected-lifecycle-route', '--note', 'The owning lane needs a different interface.');
       assert.equal((await json(demo.repo, 'show', String(id))).item_status, 'open');
       return id;
