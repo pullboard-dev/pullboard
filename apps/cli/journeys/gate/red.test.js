@@ -27,7 +27,7 @@ function repair(box, criterion) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-test('a check case red on main with two candidate repairs is reported as known-main and the gate passes [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
+test('a check case red on main with two candidate repairs is reported as known-main and the gate passes [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7373' }, t => {
   const box = fixture(t, { affected: SHARED, check: CHECK });
   const alpha = repair(box, "The case 'alpha case' passes on main.");
   const shared = repair(box, 'The shared file passes on main.');
@@ -41,7 +41,7 @@ test('a check case red on main with two candidate repairs is reported as known-m
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
 
-test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
+test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7372' }, t => {
   const box = fixture(t, { affected: SHARED, check: CHECK });
   repair(box, "The case 'alpha case' passes on main.");
   repair(box, 'The shared file passes on main.');
