@@ -86,6 +86,7 @@ import {
   mainRedFilesProven,
   mainRedFrozenCheck,
 } from '../../test/economics.js';
+import { storeName } from '../../store-names.js';
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
@@ -269,7 +270,7 @@ export async function closeAuditedMainReds(root, job, plan, receipt, write, open
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
 async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead, collectCellsBacklog) {
-  const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
+  const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, storeName(key));
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
   if (saved?.cleanupNeeded && saved.cleanupNeeded !== source) throw new Error('main audit cleanup path is not the owned source');
@@ -430,7 +431,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
         visited.add(key);
         try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices, openBoardForRead, services.cellsBacklog); }
         catch (error) {
-          const file = join(directory, `${key}.json`);
+          const file = join(directory, storeName(key));
           const saved = readMainAudit(file) ?? job;
           saveMainAudit(file, { ...saved, incomplete: true, error: String(error.message) });
           // A refused notice or malformed job must not prevent remaining obligations.
