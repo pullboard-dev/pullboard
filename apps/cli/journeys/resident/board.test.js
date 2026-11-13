@@ -513,3 +513,13 @@ test('clause 2: pullboard test --status is served by the resident process, a thi
   assert.ok(warm.loaded.length < 20, `test --status was served warm (client loaded ${warm.loaded.length} modules)`);
   assert.match(warm.stdout + warm.stderr, /no-such-run|run/u);
 });
+
+test('clause 1: stats --json answers through the warm resident process with testWallBudgets, from a client of under 20 modules [C7,#6415]', () => {
+  fx.awaitResident();
+  const warm = fx.runIn(fx.repo, ['stats', '--json'], { modules: true });
+  assert.equal(warm.status, 0, `${warm.stdout}${warm.stderr}`);
+  assert.ok(warm.loaded.length < 20, `stats --json loaded ${warm.loaded.length} modules in the client: ${warm.loaded.join(', ')}`);
+  const document = JSON.parse(warm.stdout);
+  assert.ok(document.testWallBudgets && typeof document.testWallBudgets === 'object', 'the resident answer carries testWallBudgets');
+  assert.ok(document.stats, 'the resident answer carries the board stats');
+});
