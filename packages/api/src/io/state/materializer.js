@@ -174,12 +174,23 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   /**
    * A board's record as of this read: the held one while the board's revision is unchanged, its clock readings restamped to
    * this read with no build started; otherwise the next build, which extends the last one with the change.
+   *
+   * A kept read (a page's first load, which then catches up through deltas) takes the held record even after a change,
+   * and starts the build that catches up on it unless one is already on its way. Why: on a board agents write every few
+   * seconds, nearly every first load waited 10-60 s for a build; a kept read follows no write of its reader [A2,C7].
    */
-  function latest(board, { full = false } = {}) {
+  function latest(board, { full = false, kept = false } = {}) {
     const entry = boardEntry(board);
     if (full) entry.full = true;
     const revision = revisionOf(entry);
-    if (entry.record && (!full || entry.record.full) && revision !== null && entry.record.revision === revision) return restamped(entry.record, Date.now());
+    const usable = entry.record && (!full || entry.record.full);
+    if (usable && revision !== null && entry.record.revision === revision) return restamped(entry.record, Date.now());
+    if (usable && kept) {
+      if (!full) hold(board, entry.record.sequence);
+      entry.wanted = revision;
+      if (entry.inflight === null) request(entry);
+      return restamped(entry.record, Date.now());
+    }
     const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full, revision, after: nextId }));
     entry.wanted = revision;
     request(entry);
@@ -196,15 +207,19 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   return {
     /** Whether the worker still runs; a server whose worker failed reads on the request thread instead. */
     get alive() { return failure === null; },
-    /** A state read's JSON, validator and report validator, from the latest materialized record. */
-    async stateJson(board, seen, { detail = null, items = null, stateDetail = 'summary' } = {}) {
+    /** A state read's JSON, validator and report validator, from the latest materialized record, or the kept one for a kept read. */
+    async stateJson(board, seen, { detail = null, items = null, finished = null, stateDetail = 'summary', kept = false } = {}) {
       const compact = items === 'compact';
       const full = !compact && (detail ?? stateDetail) === 'full';
-      const record = await latest(board, { full });
+      const record = await latest(board, { full, kept });
       const unseen = seen === null ? null : { since: seen, count: shoutsAfter(record.shouts, seen) };
-      const variant = full ? record.full : compact ? record.compact : record.summary;
+      const variant = full ? record.full : compact ? (finished === 'omit' ? record.open : record.compact) : record.summary;
       if (!full) hold(board, record.sequence);
       return { json: joined(variant.json, unseen), validator: joined(variant.validator, unseen), reportValidator: record.reportValidator };
+    },
+    /** The finished items of the latest build, as the JSON text GET /boards/:id/finished serves; a read of an unchanged board starts no build. */
+    async finishedJson(board) {
+      return (await latest(board)).finished;
     },
     /** A delta read: the change since a held sequence, or a reset naming why there is none. */
     async delta(board, seen, { since, eventLogVersion = null }, refusalDocument) {
@@ -222,10 +237,20 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       const unseen = seen === null ? null : { since: seen, count: shoutsAfter(record.shouts, seen) };
       return Object.defineProperty({ ...answer, delta: JSON.parse(joined(parts, unseen)) }, 'reportValidator', { value: record.reportValidator });
     },
-    /** The ids of the items a search shows, from the latest record's search texts. */
+    /**
+     * The ids of the items a search shows, from the held record's search texts, answered at once and never after a build.
+     * Why: on a live board the revision moves every few seconds and a build takes 4-30 s, so a search that waited for the
+     * newest build waited 6-7 s [A2,C7]. A changed board starts the build that catches up, and the next search finds
+     * the change; a board never read before has no held record and waits for its first build.
+     */
     async search(board, text) {
       const words = String(text).trim().toLowerCase();
-      const record = await latest(board);
+      const entry = boardEntry(board);
+      let record = entry.record;
+      if (record) {
+        const revision = revisionOf(entry);
+        if (revision === null || record.revision !== revision) { entry.wanted = revision; if (entry.inflight === null) request(entry); }
+      } else record = await latest(board);
       return record.search.filter(([, searched]) => !words || searched.includes(words)).map(([id]) => id);
     },
     /**
