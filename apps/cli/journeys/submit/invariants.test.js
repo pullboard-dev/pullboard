@@ -126,9 +126,9 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
   assert.ok(submit.submissionProof, 'the actual submit event retains the selected files instead of relying on its human note');
   assert.equal(submit.submissionProof.full, false);
   assert.deepEqual(submit.submissionProof.files, ['web/page.test.js']);
-  // The pulled gate job's receipt is the proof: it names its job, and a pulled gate defers nothing to landing [P7,C7].
+  // The pulled gate job's receipt is the proof: it names its job, and carries the plan's own landing deferral (submitGate landing) [P7,C7].
   assert.match(submit.submissionProof.reason, /^pulled gate job /u);
-  assert.equal(submit.submissionProof.deferred, false);
+  assert.equal(submit.submissionProof.deferred, true);
   assert.equal(submit.submissionProof.version, 1);
 
   const first = 'a'.repeat(40);
