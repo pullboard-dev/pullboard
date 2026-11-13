@@ -9,7 +9,235 @@
     "jsconfig.json"
   ],
   "pinned": {
-    "board.sqlite": "packages/store/src/io/board/sqlite.js"
+    "board.sqlite": "packages/store/src/io/board/sqlite.js",
+    "table:board_meta": "packages/store/src/io/board/meta.js"
+  },
+  "outsideWriters": {
+    "table:board_meta": [
+      "packages/health/src/io/claim/sweep.js",
+      "packages/items/src/io/declaration.js",
+      "packages/items/src/io/offer.js",
+      "packages/items/src/io/patches.js",
+      "packages/items/src/io/rehome.js",
+      "packages/items/src/logic/check/timing.js",
+      "packages/items/src/logic/decision/queue.js",
+      "packages/items/src/logic/outside/source.js",
+      "packages/landing/src/io/worker.js",
+      "packages/link/src/io/relay/requests.js",
+      "packages/person/src/io/signing.js",
+      "packages/rigor/src/io/counters.js",
+      "packages/roadmap/src/logic/milestones.js",
+      "packages/sandbox/src/io/source/advance.js",
+      "packages/seats/src/io/hold.js",
+      "packages/seats/src/io/main.js",
+      "packages/seats/src/io/projects.js",
+      "packages/seats/src/logic/lane/lead/policy.js",
+      "packages/seats/src/logic/line/settings.js",
+      "packages/spec/src/io/revisions.js",
+      "packages/spec/src/io/verdicts.js",
+      "packages/spec/src/logic/row/draft.js",
+      "packages/state/src/io/engine.js",
+      "packages/state/src/logic/policy.js",
+      "packages/stats/src/io/cost.js",
+      "packages/stats/src/io/cost/shared.js",
+      "packages/sync/src/io/main.js",
+      "packages/verify/src/io/bar/readiness.js",
+      "packages/verify/src/io/machine.js",
+      "packages/verify/src/io/proof/counters.js",
+      "packages/verify/src/io/review/default.js",
+      "packages/verify/src/io/review/independence.js",
+      "packages/verify/src/logic/required.js",
+      "packages/verify/src/logic/verdict/assurance.js"
+    ]
+  },
+  "dirs": {
+    "automatic-landing": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/cli-main/run.js",
+      "homes": {
+        "apps/view/src/io/live/read.js": 1,
+        "packages/landing/src/io/automatic/scheduler.js": 1,
+        "packages/landing/src/io/main/red/refresh.js": 1
+      }
+    },
+    "baseline-results": {
+      "kind": "dir",
+      "owner": "packages/store/src/io/home.js"
+    },
+    "board": {
+      "kind": "dir",
+      "owner": "packages/keys/src/io/relay.js"
+    },
+    "census": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/test/census.js"
+    },
+    "check-output": {
+      "kind": "dir",
+      "owner": "apps/runner/src/io/private/privacy.js",
+      "homes": {
+        "packages/verify/src/io/compare.js": 1
+      }
+    },
+    "check-receipts": {
+      "kind": "dir",
+      "owner": "packages/git/src/io/check/receipts.js"
+    },
+    "flake-evidence": {
+      "kind": "dir",
+      "owner": "packages/flakes/src/io/native.js",
+      "homes": {
+        "packages/github/src/io/flakes.js": 1
+      }
+    },
+    "gate-receipts": {
+      "kind": "dir",
+      "owner": "packages/verify/src/io/review/packet.js",
+      "homes": {
+        "packages/gate/src/io/test/budget-rows.js": 1
+      }
+    },
+    "gate-spans": {
+      "kind": "dir",
+      "owner": "packages/jobs/src/io/gate/span.js",
+      "homes": {
+        "packages/sentinels/src/io/waits.js": 1
+      }
+    },
+    "history-scan": {
+      "kind": "dir",
+      "owner": "packages/runners/src/io/source/scan.js"
+    },
+    "landings": {
+      "kind": "dir",
+      "owner": "packages/landing/src/io/step/batch.js"
+    },
+    "ledger-cache": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/commands/ledger.js"
+    },
+    "main-audits": {
+      "kind": "dir",
+      "owner": "packages/gate/src/io/main/audit/state.js"
+    },
+    "module-graphs": {
+      "kind": "dir",
+      "owner": "packages/landing/src/io/guards.js"
+    },
+    "outside-check-output": {
+      "kind": "dir",
+      "owner": "packages/sandbox/src/io/verify.js"
+    },
+    "packs": {
+      "kind": "dir",
+      "owner": "packages/runners/src/io/run.js"
+    },
+    "publish": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/join.js",
+      "homes": {
+        "packages/github/src/io/pr/publish.js": 1,
+        "packages/github/src/io/publish.js": 1
+      }
+    },
+    "publish-index": {
+      "kind": "dir",
+      "owner": "packages/github/src/io/pr/publish.js"
+    },
+    "release-coordinator-actions": {
+      "kind": "dir",
+      "owner": "packages/gate/src/io/coordinator/release.js"
+    },
+    "release-receipts": {
+      "kind": "dir",
+      "owner": "packages/gate/src/io/release.js",
+      "homes": {
+        "packages/gate/src/io/coordinator/release.js": 1
+      }
+    },
+    "review-comparisons": {
+      "kind": "dir",
+      "owner": "packages/verify/src/io/compare.js",
+      "homes": {
+        "packages/verify/src/io/comparison.js": 1
+      }
+    },
+    "review-packets": {
+      "kind": "dir",
+      "owner": "packages/verify/src/io/review/packet.js"
+    },
+    "sandbox-exports": {
+      "kind": "dir",
+      "owner": "packages/sandbox/src/io/verify.js"
+    },
+    "search": {
+      "kind": "dir",
+      "owner": "packages/search/src/logic/sidecar.js"
+    },
+    "source-advances": {
+      "kind": "dir",
+      "owner": "packages/sandbox/src/io/source/advance/worker.js"
+    },
+    "state-cache": {
+      "kind": "dir",
+      "owner": "packages/api/src/io/main.js"
+    },
+    "submit-handoffs": {
+      "kind": "dir",
+      "owner": "packages/sandbox/src/io/submit/handoff/origin.js",
+      "homes": {
+        "packages/gate/src/io/test/summary.js": 1,
+        "packages/items/src/io/submit/recovery.js": 1
+      }
+    },
+    "test-actions": {
+      "kind": "dir",
+      "owner": "packages/gate/src/io/test/action/cache.js"
+    },
+    "test-runs": {
+      "kind": "dir",
+      "owner": "packages/drive/src/io/queue.js"
+    },
+    "test-value-index": {
+      "kind": "dir",
+      "owner": "packages/gate/src/io/test/economics/placement.js"
+    },
+    "tool-build-scheduler": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/tool/build.js"
+    },
+    "tool-builds": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/pinned/tool/build.js"
+    },
+    "trace": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/trace.js"
+    },
+    "trunk": {
+      "kind": "dir",
+      "owner": "packages/git/src/io/trunk/ref.js"
+    },
+    "usage-due": {
+      "kind": "dir",
+      "owner": "packages/stats/src/io/cost/due.js"
+    },
+    "worktree-archives": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/worktree/maintenance/archive.js"
+    },
+    "worktree-maintenance": {
+      "kind": "dir",
+      "owner": "apps/cli/src/io/worktree/maintenance/observation.js",
+      "homes": {
+        "apps/cli/src/io/worktree/maintenance/diagnostics.js": 1,
+        "apps/cli/src/io/worktree/maintenance/scheduler.js": 1
+      }
+    },
+    "worktree-prune": {
+      "kind": "dir",
+      "owner": "packages/landing/src/io/prune.js"
+    }
   },
   "stores": {
     ".journal.sqlite": {
@@ -658,7 +886,7 @@
     },
     "table:board_meta": {
       "kind": "table",
-      "owner": "packages/store/src/logic/board/stale/apply.js"
+      "owner": "packages/store/src/io/board/meta.js"
     },
     "table:canary_schedule": {
       "kind": "table",
