@@ -58,13 +58,13 @@ test('coordinator removal during the actual gate prevents sealing its superseded
   await attach(f);
   // The pulled gate runs the held frozen check on a runner; the submit returns queued at once.
   const queued = document(await run(f.box, f.builder, 'submit', String(f.id)));
+  const pid = queued.localRunner?.pid;
+  if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
+  reviveFixtureLocalRunner(f.box.repo, f.box.env);
   try {
     await f.helpers.waitFor(() => existsSync(f.entered), 'the actual frozen companion check', 60000); // budget: failure hang ceiling for runner startup; no elapsed-time assertion.
     document(await run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
   } finally { writeFileSync(f.release, 'released'); }
-  const pid = queued.localRunner?.pid;
-  if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
-  reviveFixtureLocalRunner(f.box.repo, f.box.env);
   // The job is done once the runner posts its receipt; the board then refuses to seal the removed companion.
   const shown = await whenRunnerSettles(f.box.env, async () => {
     const read = JSON.parse((await f.box.run(f.box.repo, 'show', String(f.id), '--json', '--no-next')).out);
