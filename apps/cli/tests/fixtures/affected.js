@@ -165,10 +165,10 @@ export function fileMainRed(box) {
 
 
 /**
- * Submit the claimed item and wait for its pulled gate job, then for the item to be submitted: a red in main's own cases
+ * Submit the claimed item and wait for its pulled gate job, then (unless `submitted` is false, as for a red gate) for the item to be submitted: a red in main's own cases
  * settles once main's receipts record [P7,C7,#6249]. `submission` is the recorded submit's detail, or null while none is.
  */
-export async function settledSubmit(t, box) {
+export async function settledSubmit(t, box, { submitted = true } = {}) {
   const result = once(box, box.builder, ['submit', String(box.item), '--no-next']);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const run = (cwd, ...args) => {
@@ -177,7 +177,7 @@ export async function settledSubmit(t, box) {
   };
   let shown = null;
   const until = document => { shown = document; return document?.item_status === 'submitted'; };
-  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), { until, deadlineMs: 75_000 })
+  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), submitted ? { until, deadlineMs: 75_000 } : {})
     .catch(error => { throw new Error(`${error.message.split('\n')[0]}; item ${shown?.item_status}; thread:\n${JSON.stringify((shown?.thread ?? []).slice(-6)).slice(0, 3000)}`); });
   const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1", box.item)[0];
   return { ...settled, submission: event ? JSON.parse(event.event_detail) : null };
