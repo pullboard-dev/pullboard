@@ -257,6 +257,8 @@ function element(id) {
     focus() {},
     scrollIntoView() { this.scrolled += 1; },
     getBoundingClientRect: () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 }),
+    // The palette's search box hint is added beside its box.
+    parentNode: { appendChild() {} },
     querySelectorAll: () => [],
   };
 }
