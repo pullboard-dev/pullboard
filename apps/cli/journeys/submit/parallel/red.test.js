@@ -7,10 +7,12 @@ import { submit } from '../../../tests/fixtures/submit/parallel.js';
 for (const role of ['criterion', 'proof']) {
   test(`a red ${role} refuses submit and retains both independent raw receipts [V4,C7]`, async t => {
     const { box } = project(t, 25);
-    const { gate, receipts } = await submit(t, box, `fail-${role}`);
+    const { gate } = await submit(t, box, `fail-${role}`);
     assert.equal(gate?.green, false, `the pulled gate ends red: ${JSON.stringify(gate)}`);
-    assert.equal(receipts.length, 2, 'the passing sibling also finishes and records its result');
-    assert.deepEqual(receipts.map(receipt => receipt.exitCode).toSorted(), [0, 1]);
-    assert.equal(new Set(receipts.map(receipt => receipt.id)).size, 2);
+    // A pulled gate posts one receipt whose phases are the two commands' own raw results, not one board receipt each.
+    const phases = gate?.phases ?? [];
+    assert.deepEqual(phases.map(phase => phase.role).toSorted(), ['check', 'proof'], 'the passing sibling also finishes and records its result');
+    assert.deepEqual(phases.map(phase => phase.status).toSorted(), [0, 1]);
+    assert.equal(new Set(phases.map(phase => phase.sha256)).size, 2);
   });
 }
