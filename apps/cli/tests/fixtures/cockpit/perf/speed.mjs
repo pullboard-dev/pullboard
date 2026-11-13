@@ -24,6 +24,10 @@ import {
 /** Every tab the speed contract measures, in strip order; files split them to stay inside the 120 s file budget. */
 export const ALL_TABS = ['spec', 'doctrine', 'items', 'roadmap', 'dashboard'];
 
+/** Setup wait for the large state's first load; not part of any measured click. */
+function firstLoadMs() { return 60_000; }
+const LOADED = "!!data?.project && !document.body.classList.contains('loading')";
+
 /** The strip menu each page lives in; Work's pages are plain tabs. */
 const MENU_OF = { spec: 'rules', doctrine: 'rules', dashboard: 'insights' };
 
@@ -119,7 +123,8 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
       env: { HOME: profile, PATH: process.env.PATH ?? '/usr/bin:/bin' } }));
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     await chrome.navigate(server.link.href);
-    try { await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')"); }
+    // First load of the 40000-shout state is setup, not a measured click: give a loaded runner a minute [N26].
+    try { await chrome.waitFor(LOADED, firstLoadMs()); }
     catch (error) {
       const seen = await chrome.evaluate("JSON.stringify({ text: document.body.innerText.slice(0, 400), loading: document.body.className, data: typeof data })").catch(e => e.message);
       throw new Error(`DIAG ${seen} :: ${error.message.slice(0, 200)}`);
