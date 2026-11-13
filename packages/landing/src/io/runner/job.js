@@ -9,6 +9,8 @@ import { tryGit } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
 import { runnerPolicyRecord } from '../../../../sandbox/light.js';
+import { amendLandingEngines } from '../derive.js';
+import { amendLandingRegistries } from '../derive.js';
 
 /** The board's landing job kind, as packages/api offers it. */
 export const LANDING_JOB_KIND = 'land';
@@ -139,11 +141,23 @@ function mergeItem(root, entry, base) {
 }
 
 /**
+ * Number the merged tree's unlanded engines and refresh its format table and generated docs, amended into the last
+ * merge; null when done, else why not. Why: the job is the only lander, so it must derive what the batch path did, or
+ * main keeps unassignedEngine() placeholders (#1101, #6951) [C7].
+ */
+async function deriveMerged(root, { base, badges }) {
+  try { amendLandingEngines(root, IDENTITY); await amendLandingRegistries(root, { base, badges, hooks: IDENTITY }); return null; } catch (error) {
+    must(root, ['reset', '-q', '--hard', 'HEAD']);
+    return `the landing derive failed: ${String(error?.message ?? error).slice(0, 300)}`;
+  }
+}
+
+/**
  * Find which merged items turn the check red: merge them again one at a time on the base, checking each step, and drop
  * each one whose merge turns it red. HEAD ends on the base plus the clean items, a tree the last step checked green.
  * Why: 0.9.3's landing returned only the red item; the clean ones beside it stay accepted, or land under separate publish.
  */
-async function isolateReds(root, { base, trunk, pending, check, renew }) {
+async function isolateReds(root, { base, trunk, pending, check, renew, payload }) {
   must(root, ['checkout', '-q', '--detach', '--force', base]);
   must(root, ['clean', '-q', '-fd']);
   const kept = [], red = [];
@@ -152,8 +166,9 @@ async function isolateReds(root, { base, trunk, pending, check, renew }) {
     const before = must(root, ['rev-parse', 'HEAD']);
     if (mergeItem(root, entry, base)) { red.push(entry.id); continue; }
     if (!await renew()) return null;
+    const derived = await deriveMerged(root, { base, badges: payload.badges });
     admitTrunk(root, { trunk, base });
-    const result = await check({ root, base, items: [...kept, entry.id], renew });
+    const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: [...kept, entry.id], renew });
     if (result?.ok) { kept.push(entry.id); continue; }
     red.push(entry.id);
     detail ??= `#${entry.id}: ${result?.detail ?? 'the landing check failed'}`;
@@ -165,7 +180,7 @@ async function isolateReds(root, { base, trunk, pending, check, renew }) {
 
 /**
  * Land one job's accepted items on the trunk remote, from a runner. Each attempt fetches trunk, skips items trunk
- * already holds, merges the rest on that tip with --no-ff, runs the check on the merged tree, and pushes with
+ * already holds, merges the rest on that tip with --no-ff, numbers new engines into the last merge, runs the check on the merged tree, and pushes with
  * --force-with-lease=<trunk>:<the tip it merged on>: git's compare-and-swap, so the push lands only if trunk is still
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
@@ -214,13 +229,15 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     // Renew around the check: a check longer than the lease may let a second runner take the job, which is safe, since
     // the push's compare-and-swap and the on-trunk skip keep a duplicate landing from losing or doubling a commit.
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before its check' });
+    // The check proves the tree that lands: engine numbers and derived docs ride inside the last merge [C7].
+    const derived = await deriveMerged(root, { base, badges: payload.badges });
     admitTrunk(root, { trunk, base });
-    const result = await check({ root, base, items: pending.map(entry => entry.id), renew });
+    const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
     if (!result?.ok) {
       // A red tree lands nothing it did not check green: name the red items, return them, and under separate publish
       // land the clean rest on the tree the culprit search checked green [P7].
-      const found = pending.length > 1 ? await isolateReds(root, { base, trunk, pending, check, renew })
+      const found = pending.length > 1 ? await isolateReds(root, { base, trunk, pending, check, renew, payload })
         : { kept: [], red: [pending[0].id], detail: `#${pending[0].id}: ${result?.detail ?? 'the landing check failed'}` };
       if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
       receipt.detail ??= result?.detail ?? 'the landing check failed';

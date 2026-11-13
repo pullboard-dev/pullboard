@@ -3,4 +3,5 @@ export { lex, lineAt } from './src/logic/lex.js';
 export { seal, unseal, generateBoardKey, encodeBoardKey, decodeBoardKey } from './src/logic/seal.js';
 export { proofEventDetail } from './src/logic/detail.js';
 export { Refused } from './src/logic/refused.js';
+export { CONFIG_FILE, isConfigFile } from './src/logic/config-file.js';
 export { createRelayAdapter, createFakeRelayAdapter } from './src/logic/adapter.js';

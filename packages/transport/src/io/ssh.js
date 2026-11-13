@@ -14,7 +14,7 @@ import { sshStartShard } from './ssh/shards.js';
 
 // These are transport hang ceilings, independent of any command's execution budget.
 const SSH_OPTIONS = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes', '-o', 'SendEnv=-*'];
-// Budget: a probe proves the runner answers at all; ssh connect plus a trivial reply.
+// Budget: a probe proves the runner answers: connect plus a trivial reply.
 const PROBE_TIMEOUT_MS = 5_000;
 const PROBE_TOKEN = 'PULLBOARD_PROBE_OK';
 
@@ -36,11 +36,9 @@ const MASTER_OPTIONS = '-T -o BatchMode=yes -o ForwardAgent=no -o ClearAllForwar
 // sshd's MaxSessions (default 10) caps the sessions one master carries; a refused session would dial its own connection.
 const SESSIONS_PER_MASTER = 10;
 // A Unix socket path is limited to 104 bytes on macOS, so the shell runs in the socket's folder and names it relatively.
-// One shell per call, under a per-runner lock (a mkdir, shared across processes): count the live sessions on master
-// 0, 1, ... by their lease files (one per session, named by its pid, which the exec keeps), take the first master with
-// room, start it in the background if it is not up, then exec the real session over it. A new master opens only when
-// every existing one holds SESSIONS_PER_MASTER sessions. Waiters give up on the lock after 15 s; a lock older than a
-// minute is a dead holder's and is removed. If a master cannot start, ssh connects directly.
+// One shell per call, under a per-runner lock (a mkdir): count live sessions on master 0, 1, ... by their lease files
+// (named by pid), take the first master with room, start it if it is not up, then exec the session over it. Waiters give
+// up on the lock after 15 s; a lock older than a minute is removed. If a master cannot start, ssh connects directly.
 const MULTIPLEX_SCRIPT = [
   'd=$1; b=$2; h=$3; shift 3; held=',
   'cd "$d" 2>/dev/null || exec ssh "$@"',

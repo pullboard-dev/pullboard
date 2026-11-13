@@ -89,7 +89,6 @@ export {
   waitedOnItems,
   reviewerScarcity,
   lineBuildOrder,
-  barReadyForOrder,
 } from './src/io/order.js';
 export {
   lineSettingsCommand,

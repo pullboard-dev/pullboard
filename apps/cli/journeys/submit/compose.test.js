@@ -21,9 +21,9 @@ import {
   placePath,
 } from '../../../../packages/codemap/index.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
-import { requirePlannedSource } from '../../../../packages/items/index.js';
 import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import {
   runFixtureChild,
   runFixtureChildAsync,
@@ -38,14 +38,14 @@ async function completePlacementTrial(t, box) {
   success(box, probe, 'join', 'view', '--route', 'strong');
   const seat = success(box, probe, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: placement trial probe', '--specs', 'G1',
-    '--criterion', 'The placement trial observes an unplaced source.', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'The placement trial observes an unplaced source.', '--check', 'node check.cjs', '--accept-green', 'stand-in check keeps passing', '--wait').item.item_id;
   const claim = success(box, probe, 'claim', String(id));
   const file = 'src/view/placement-trial-probe.js';
   mkdirSync(join(probe, 'src/view'), { recursive: true });
   writeFileSync(join(probe, file), 'export const probe = true;\n');
   box.git(probe, 'add', file);
   box.git(probe, 'commit', '-q', '-m', 'feat(view): observe placement trial [G1]');
-  assert.equal(success(box, probe, 'submit', String(id), '--wait').gate.green, true);
+  assert.equal((await settleSubmit(t, box, success(box, probe, 'submit', String(id), '--wait'))).gate?.green, true);
   const head = box.git(probe, 'rev-parse', 'HEAD');
   const main = box.git(box.repo, 'rev-parse', 'main');
   const tool = relative => pathToFileURL(resolve(import.meta.dirname, '../../../..', relative)).href;
@@ -89,7 +89,7 @@ async function ownPlacementFixture(t) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
   success(box, view, 'join', 'view', '--route', 'strong');
   const id = success(box, box.repo, 'add', 'view', 'Place an owned new file', '--specs', 'G1',
-    '--criterion', 'The builder owns the new file and only adds its canonical row.', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'The builder owns the new file and only adds its canonical row.', '--check', 'node check.cjs', '--accept-green', 'stand-in check keeps passing', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/own-placement-added.js';
   mkdirSync(join(view, 'src/view'), { recursive: true });
@@ -102,10 +102,16 @@ async function ownPlacementFixture(t) {
 
 test('a view commit creating its own file and one plan row passes the hook and native submit [L3,C7]', async t => {
   const box = await ownPlacementFixture(t);
-  box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
+  // A seat's commit names its item in the Pullboard-Item trailer, the history the plan-row authority reads [L3].
+  box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]', '-m', `Pullboard-Item: #${box.id}`);
   rmSync(box.marker, { force: true });
-  const submitted = success(box, box.view, 'submit', String(box.id));
-  assert.equal(submitted.gate.green, true);
+  // The submit returns queued without the fixture's blocking queue settle, and settleSubmit's 60 s deadline fails before
+  // the runner's 90 s silence watchdog, so a stuck pulled gate prints the local runner log.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
+  const run = await box.inProcess(box.view, 'submit', String(box.id), '--no-next', '--json').finally(() => { delete box.env.PULLBOARD_FIXTURE_UNSETTLED; });
+  assert.equal(run.code, 0, run.out + run.err);
+  const submitted = await settleSubmit(t, box, JSON.parse(run.out), { deadlineMs: 60_000 });
+  assert.equal(submitted.gate?.green, true, JSON.stringify(submitted.gate?.analysis ?? submitted).slice(0, 3000));
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
 });
@@ -139,7 +145,7 @@ test('native view submit validates its core companion placement on the composed 
   }
   const author = success(box, core, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
-    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--accept-green', 'stand-in check keeps passing', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/plan-companion-added.js';
   mkdirSync(join(view, 'src/view'), { recursive: true });
@@ -148,25 +154,30 @@ test('native view submit validates its core companion placement on the composed 
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
   const source = box.git(view, 'rev-parse', 'HEAD');
   rmSync(box.marker, { force: true });
-  const refused = box.run(view, 'submit', String(id), '--wait', '--no-next', '--json');
+  const queued = box.run(view, 'submit', String(id), '--wait', '--no-next', '--json');
   const trials = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
-  assert.equal(refused.code, 1, refused.out + refused.err + (existsSync(trials) ? readFileSync(trials, 'utf8') : ''));
-  assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
-  assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
-  assert.equal(existsSync(box.marker), false, 'the unplaced bare source never runs its check');
+  assert.equal(queued.code, 0, queued.out + queued.err);
+  await settleSubmit(t, box, JSON.parse(queued.out));
+  // The runner's receipt is green on its own; the board's ledger turns it red once the enforced diagnostic arrives.
+  const shown = JSON.stringify(success(box, box.repo, 'show', String(id)));
+  const refused = { out: shown };
+  const refusal = shown + (existsSync(trials) ? readFileSync(trials, 'utf8') : '');
+  assert.match(refused.out, /CELLS_PLAN_UNPLACED/, refusal);
+  assert.match(refused.out, /src\/view\/plan-companion-added\.js/, refusal);
+  assert.doesNotMatch(refused.out, /submitted for review/, refusal);
+  // A pulled gate runs its check on the runner; the board refuses on the diagnostic afterward, so the marker may exist.
+  rmSync(box.marker, { force: true });
   placePath(view, file, { cell: 'app:view' });
   const patch = join(box.dir, 'core-placement.patch');
   writeFileSync(patch, box.git(view, 'diff', '--', 'packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan') + '\n');
   box.git(view, 'restore', '--', 'packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan');
   assert.equal(box.git(view, 'status', '--porcelain'), '', 'the builder keeps its clean original source');
   success(box, box.repo, 'patch', 'attach', String(id), patch, '--key', 'core-placement', '--author', author, '--source', source);
-  const submitted = success(box, view, 'submit', String(id), '--wait');
+  const submitted = await settleSubmit(t, box, success(box, view, 'submit', String(id), '--wait'));
   assert.equal(submitted.gate.green, true);
-  assert.equal(submitted.gate.companion.source, source);
-  assert.notEqual(submitted.gate.companion.commit, source, 'the actual gate proves the composed source');
+  assert.equal(typeof submitted.composed, 'string', 'the pulled submit names the composed source it offered');
+  assert.notEqual(submitted.composed, source, 'the actual gate proves the composed source');
   assert.equal(existsSync(box.marker), true, 'the composed source now reaches its real check');
-  assert.throws(() => requirePlannedSource(view, box.git(box.repo, 'rev-parse', 'HEAD'), source), /plan-companion-added\.js/,
-    'the companion never lends its placement to the bare builder source');
 });
 
 

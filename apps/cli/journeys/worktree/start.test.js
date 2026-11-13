@@ -362,6 +362,6 @@ test('the same submit only warns when commits.noHostName is off, and the submit 
   const submitted = (await submitNamingThisMachine(box, false));
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /warning: commit [0-9a-f]{12} names this machine in its message/u, 'the warning line is printed');
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}/u, 'the submit continues to its record');
+  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}|#1 is in the gate as job gate:1:[0-9a-f]{12}:/u, 'the submit continues to its record (pull dispatch queues the gate at once)');
   assert.equal(`${submitted.out}\n${submitted.err}`.toLowerCase().includes(host), false, 'the output does not name the host');
 });

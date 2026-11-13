@@ -42,6 +42,7 @@ import {
 import {
   Refused,
 } from '../../../kernel/index.js';
+import { storeName } from './store-names.js';
 
 /** Bind a release to the accepted coordinator head and accepted command, with no dirty-tree substitute. */
 export function releaseSource(root) {
@@ -58,7 +59,7 @@ export function releaseReceiptDirectory(root) {
 
 /** The path of one native release receipt. */
 export function releaseReceiptFile(root, id) {
-  return join(releaseReceiptDirectory(root), `${id}.json`);
+  return join(releaseReceiptDirectory(root), storeName(id));
 }
 
 /** Verify only this repository's privately recorded execution and its native gate bytes, never an imported file. */

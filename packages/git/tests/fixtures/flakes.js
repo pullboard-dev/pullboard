@@ -31,6 +31,14 @@ import { evidenceReader } from './evidence.js';
 const BIN = resolve(import.meta.dirname, '../../../../apps/cli/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
 
+/**
+ * Make a flake fixture's setup commit with the repository's hooks off [C7].
+ * Why: init installed the board's hooks, each a Node launch; a setup commit is not what a flake journey tests.
+ */
+export function commitFixtureSetup(git, message) {
+  return git('-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message);
+}
+
 /** Initialize a real private board and Git history; optional pre-init source seeding can return the fixture CLI path. */
 export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false, beforeInit } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-native-flake-')));
@@ -88,7 +96,7 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   const counter = join(scratch, 'observed-target-runs');
   if (alwaysPass === 'controlled') writeFileSync(counter + '.mode', 'pass');
   writeTarget(root, counter, alwaysPass);
-  git('add', '-A'); git('commit', '-q', '-m', 'chore: prepare private flake fixture');
+  git('add', '-A'); commitFixtureSetup(git, 'chore: prepare private flake fixture');
   const readData = evidenceReader({ scratch, root, counter });
   return { root, scratch, env, git, cli, cliAt, call, callAt, counter, readData, lane: 'build' };
 }
