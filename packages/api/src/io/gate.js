@@ -477,7 +477,7 @@ export function applyJobReceipt(board, posted, ports = {}) {
 /**
  * Settle the items a land receipt gives back, as 0.9.3's landing did: each red or colliding item goes back to its
  * builder with its accept withdrawn, or under separate publish parks on a hold, and its note leads with the receipt's
- * first line (the run-tests refusal or first failing test), so `pullboard show` prints why. A red receipt with no
+ * first line (the run-tests refusal or first failing test) and keeps the failing case's lines, so `pullboard show` prints why. A red receipt with no
  * returned list names every unmerged item it carried. Why: a red receipt only wrote a note, so the item stayed accepted
  * and the next accept bundled it into a land job that went red again (#6469) [P7].
  */
@@ -489,7 +489,8 @@ function returnLandedReds(board, job, named, receipt, separate) {
     const item = named.has(row?.id) ? store.getItem(board, row.id) : null;
     if (!item || item.item_merged_commit || item.item_status !== 'verified' || item.item_hold_at) continue;
     const first = String(row.detail ?? receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
-    store.appendFact(board, row.id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${row.reason === 'conflict' ? 'conflict' : 'red'}: ${first}`.slice(0, 600) });
+    // The note keeps the failing case's lines too, so the builder reads the assertion, not only the case name.
+    store.appendFact(board, row.id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${row.reason === 'conflict' ? 'conflict' : 'red'}: ${String(row.detail ?? receipt.detail ?? first).trim() || first}`.slice(0, 900) });
     const why = `land job ${job} ${row.reason === 'conflict' ? 'could not merge it' : 'checked the merged tree red'}: ${first}`.slice(0, 400);
     try {
       if (separate) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });

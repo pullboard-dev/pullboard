@@ -79,20 +79,36 @@ export function admitTrunk(root, { trunk, base }) {
   writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600 });
 }
 
-/** Run one check command in the merged tree; exit 0 is green. Its red names the command, so the receipt says which check failed. */
+// A failing test's first line in TAP ("not ok 3 - name") or the spec reporter ("✖ name"), and the lines after it.
+const FAILED_CASE = /^\s*(?:not ok \d+|\u2716 )/u;
+
+/**
+ * Run one check command in the merged tree; exit 0 is green. Its red names the command and its first failing case with
+ * the lines after it, so the item's builder reads which case failed, as 0.9.3's landing told them [P7].
+ */
 export function commandCheck(argv) {
   return ({ root }) => new Promise(resolve => {
     // An enclosing node --test run's context never reaches the project's check, which then reports as its own run.
     const { NODE_TEST_CONTEXT, ...env } = process.env;
-    const child = spawn(argv[0], argv.slice(1), { cwd: root, stdio: 'ignore', env });
+    const child = spawn(argv[0], argv.slice(1), { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env });
     const named = argv.at(-1).slice(0, 200);
+    let output = '';
+    const keep = chunk => { if (output.length < 200_000) output += chunk.toString('utf8'); };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
     child.on('error', error => resolve({ ok: false, detail: `${named}: ${String(error.message).slice(0, 300)}` }));
-    child.on('exit', (code, signal) => resolve({ ok: code === 0, detail: code === 0 ? null : `check ${named} exited ${code ?? signal}` }));
+    child.on('close', (code, signal) => {
+      if (code === 0) return resolve({ ok: true, detail: null });
+      const lines = output.split('\n');
+      const at = lines.findIndex(line => FAILED_CASE.test(line));
+      const failed = at < 0 ? lines.filter(Boolean).slice(-8) : lines.slice(at, at + 12);
+      resolve({ ok: false, detail: `check ${named} exited ${code ?? signal}: ${failed.join('\n').trim().slice(0, 600)}` });
+    });
   });
 }
 
 /**
- * The land job's check of the items merged so far: the job's command, each merged item's own check, then the ledger
+ * The land job's check of the items merged so far: each merged item's own check, the job's command, then the ledger
  * proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a culprit search
  * merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
@@ -101,8 +117,8 @@ async function landingCheck(payload, env) {
   return async context => {
     const merged = new Set(context.items);
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
-    const parts = [...(payload.check ? [commandCheck(payload.check)] : []),
-      ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => commandCheck(['sh', '-c', payload.checks[entry.id]])),
+    const parts = [...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => commandCheck(['sh', '-c', payload.checks[entry.id]])),
+      ...(payload.check ? [commandCheck(payload.check)] : []),
       ...(prove && files.length ? [prove({ ...payload.proof, files }, { env })] : [])];
     let proof = null;
     for (const part of parts) {

@@ -196,7 +196,9 @@ test('clause 1: a plain project\'s land job checks the merged tree; red lands no
   assert.equal(item.item_merged_commit, null);
   const shouts = box.board.db.prepare('SELECT shout_text FROM shout WHERE shout_to = ?').all(bang.actor).map(row => row.shout_text);
   assert.ok(shouts.some(text => text.startsWith(`#${bang.id} is back with you: land job`)), JSON.stringify(shouts));
-  assert.ok(itemThread(box.board, bang.id).some(entry => /^Land job .* red: #\d+: check node --test/u.test(entry.text ?? '')), 'the note names the red check');
+  const note = itemThread(box.board, bang.id).find(entry => /^Land job .* red: /u.test(entry.text ?? ''))?.text ?? '';
+  assert.match(note, /check node --test test\/bang\.test\.js exited 1: not ok 1 - bang/u, 'the note names the red check and its failing case');
+  assert.match(note, /hello ann!/u, 'the note keeps the failing assertion');
 });
 
 test('clause 2: under separate publish the red item parks and the clean item in the same job lands [P7]', { timeout: 60_000 }, async t => {
