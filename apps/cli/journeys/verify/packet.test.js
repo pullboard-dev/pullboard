@@ -16,6 +16,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { waitFor } from '../../tests/fixtures/gate/resource.js';
 import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/index.js';
 import { testTierReport } from '../../../../packages/gate/index.js';
 
@@ -76,7 +77,7 @@ export default async function* report(events) {
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 const CRITERION = 'The page shows a greeting. The greeting names the visitor by first name. Old browsers fall back to plain text.';
 
-test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, () => {
+test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -116,7 +117,8 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.equal(settled.gateJob?.gate?.green, true, `the fixture gate is green: ${JSON.stringify(settled.gateJob?.step)}`);
 
   const stored = join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`);
-  assert.ok(existsSync(stored), 'the packet is stored when the gate goes green, before anyone asks for it');
+  // The queued gate's handoff worker stores the packet as the gate settles, a moment after the queue empties.
+  await waitFor(() => existsSync(stored), 'the packet to be stored when the gate goes green, before anyone asks for it', 60_000); // budget: hang ceiling for the gate handoff worker's packet store.
 
   const shown = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out);
   const receiptIds = new Set(shown.proofReceipts.map(receipt => receipt.id));
@@ -198,7 +200,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
     'the accept records which clauses it read');
 });
 
-test('a test clause with no case of its own is proved by the item\'s check cases the gate ran; a clause whose own case was skipped is not [V4,C7]', { timeout: 240_000 }, () => {
+test('a test clause with no case of its own is proved by the item\'s check cases the gate ran; a clause whose own case was skipped is not [V4,C7]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -237,7 +239,9 @@ test('a test clause with no case of its own is proved by the item\'s check cases
   // The fixture command returns once the runner has settled the queued gate, so show reads its outcome.
   const settled = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out);
   assert.equal(settled.gateJob?.gate?.green, true, `the fixture gate is green: ${JSON.stringify(settled.gateJob?.step)}`);
-  const packet = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`), 'utf8'));
+  const storedAt = join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`);
+  await waitFor(() => existsSync(storedAt), 'the packet to be stored when the gate goes green', 60_000); // budget: hang ceiling for the gate handoff worker's packet store.
+  const packet = JSON.parse(readFileSync(storedAt, 'utf8'));
   const [greeting, legacy, old] = packet.clauses;
   assert.ok(greeting.runs.length, 'the greeting clause is matched by its words');
   assert.ok(legacy.runs.length, 'a test clause with no case of its own cites the check cases the gate ran');
