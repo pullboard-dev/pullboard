@@ -14,6 +14,9 @@ import {
   stopView,
 } from './run.mjs';
 
+/** The strip menu each page lives in; Work's pages are plain tabs. */
+const MENU_OF = { spec: 'rules', doctrine: 'rules', dashboard: 'insights' };
+
 /** Observe actual fetch/body/parse work before the page starts, without replacing its data. */
 function observationScript() {
   return `(() => {
@@ -107,9 +110,11 @@ export async function measureTabSpeed(board) {
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     await chrome.navigate(server.link.href);
     await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')");
-    await chrome.stable(inputScript(), "document.querySelector('[data-tab=spec]')");
+    await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
       for (const tab of ['spec', 'doctrine', 'items', 'roadmap', 'dashboard']) {
+        // Rules and Insights pages sit in a menu; open it first, outside the measured click [N26].
+        if (MENU_OF[tab]) await press(chrome, `document.querySelector('[data-nav-group="${MENU_OF[tab]}"]')`);
         await chrome.stable(`window.__tabSpeed.next = ${JSON.stringify(mode)}`, `document.querySelector('[data-tab="${tab}"]')`);
         await press(chrome, `document.querySelector('[data-tab="${tab}"]')`);
         // Observe the unchanged 100 ms bar without any CDP/layout sampling inside that window.
