@@ -1,5 +1,10 @@
 /** The board side of a runner landing job: one queue row naming the accepted items and the trunk sha expected [P7]. */
 import { createHash } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { ledgerFiles } from '../../../store/index.js';
 import { ledgerHits } from '../../../store/index.js';
@@ -63,7 +68,7 @@ function landingItems(items) {
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, forced = null, badges = [], flakes = null, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, forced = null, badges = [], deferred = null, flakes = null, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -76,16 +81,39 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
     throw new Refused('LANDING_FLAKES', 'a landing job\'s flakes are { rerun, prefixes: { check, proof } }: whether a red pairs its failing cases, and the runner prefix of each command');
   }
   const landed = landingItems(items);
+  const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect);
   // The person's live waivers ride on the job, so its runner holds no landing for a waived test; a new waiver is a new job [#655].
   const waivers = proof ? livePersonWaivers(db, now) : [];
   const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
+  // A deferred selection replaces only the affected tests; the project's own gate still judges the merged tree [C7].
+  const deferGate = defer && !forced && typeof config?.gate === 'string' && config.gate.trim() ? ['sh', '-c', config.gate.trim()] : null;
   const separate = config?.landing?.publish === 'separate';
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
-    payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ? { check: check ?? own.gate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(waivers.length ? { waivers } : {}),
+    payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(waivers.length ? { waivers } : {}),
       ...(separate ? { publish: 'separate' } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
+}
+
+/**
+ * The deferred test files each landed item's submit left to the landing gate, with the project's runner: what the runner
+ * runs on the merged tree and returns the item on red. Null when none, or no runner to run them.
+ * Why: a submit that deferred its selection proved only part of it, so the land job owes the rest [C7].
+ *
+ * @param {Record<string, string[]> | null} deferred Deferred files by item id, as each item's submission proof recorded them.
+ * @param {unknown} runner The project's affectedTests command.
+ * @param {{ id: number }[]} landed
+ * @returns {{ runner: string, files: Record<string, string[]> } | null}
+ */
+function deferredPayload(deferred, runner, landed) {
+  if (!deferred || typeof runner !== 'string' || !runner.trim() || /[\0\n\r]/u.test(runner)) return null;
+  const files = {};
+  for (const entry of landed) {
+    const rows = deferred[String(entry.id)];
+    if (Array.isArray(rows) && rows.length && rows.every(file => typeof file === 'string' && /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u.test(file))) files[String(entry.id)] = rows;
+  }
+  return Object.keys(files).length ? { runner: runner.trim(), files } : null;
 }
 
 /**
@@ -139,4 +167,27 @@ export function landingProof(db, items, runner, main) {
  */
 export function openLandingJob(db) {
   return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_step <> 'done' ORDER BY job_created LIMIT 1").get(LANDING_JOB_KIND)?.job_id ?? null;
+}
+
+/**
+ * Keep a red land job's receipt as a durable log under the repo's pullboard/landings folder, where the inline engine
+ * kept its batch log and users read it. Why: a pulled runner works in its own checkout and writes no log on this machine,
+ * so the board, which holds the receipt, writes it [C7].
+ *
+ * @param {any} board
+ * @param {string} job
+ * @param {{ outcome?: string, detail?: string | null, returned?: { id: number, reason: string, detail: string }[] }} receipt
+ * @returns {string | null} the log's path, or null when the board has no repo folder or nothing red to keep
+ */
+export function keepLandingLog(board, job, receipt) {
+  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+  const folder = file && basename(dirname(file)) === 'pullboard' ? join(dirname(file), 'landings', String(job).replace(/[^\w.-]+/gu, '_').slice(0, 120)) : null;
+  const rows = (receipt.returned ?? []).filter(row => typeof row?.detail === 'string');
+  if (!folder || (!rows.length && !receipt.detail)) return null;
+  try {
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    const body = [`land job ${job}: ${receipt.outcome ?? 'red'}`, ...rows.map(row => `#${row.id} ${row.reason}:\n${row.detail}`), ...(rows.length ? [] : [String(receipt.detail)])].join('\n\n');
+    writeFileSync(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
+    return join(folder, 'runner.log');
+  } catch { return null; }
 }
