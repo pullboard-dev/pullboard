@@ -520,8 +520,10 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       await typeKey(chrome, character);
       await pause(90); // budget: reproduce the measured person's 90ms key cadence; the search sample starts at the first keydown.
     }
-    actions.push(await waitPaintedAndStable(chrome, network, 'search', '#find-results [data-find]',
-      `document.querySelector('#q').value === 'Small' && !document.querySelector('#find-results').hidden`));
+    // Search opens the command palette (f3505cc3a2): the typed words land in #pal-q and its rows are the results.
+    actions.push(await waitPaintedAndStable(chrome, network, 'search', '#pal-overlay .pal-r',
+      `document.querySelector('#pal-q')?.value === 'Small' && !!document.querySelector('#pal-overlay .pal-r')`));
+    await chrome.stable("(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()");
 
     await beginAction(chrome, 'idleSetup', 'mousedown');
     await press(chrome, "document.querySelector('[data-tab=\"shouts\"]')");
