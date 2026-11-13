@@ -124,6 +124,7 @@ import { environmentLink } from './relay-environment.js';
 import { locked } from './relay-lock.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { relayOrdering } from './relay-ordering.js';
+import { discardUnpublished } from './relay-local-recovery.js';
 import { nudgeRelaySender } from './relay-local-first.js';
 import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import {
@@ -1054,6 +1055,7 @@ async function queueLocally(root, file, operation, args, io, command, applyLocal
   const result = await withOutboxGuard(file, () => {
     // A revoke can finish while this move waits: admission uses the cache protected by this guard, never its earlier snapshot.
     const current = loadLink(file);
+    if (current?.recovery) throw new Refused('RELAY_RECOVERY_PENDING', 'finish the exact selected recovery before queuing another move');
     return !current ? guarded.apply() : queueMove(outboxLink(root, file, current, io),
       { operation, args, command, applyLocally: guarded.apply, quiet: true });
   });
@@ -1380,6 +1382,20 @@ export async function relayCommandReceiptReported(root, moveId) {
 export function relayRecovered(root, { includePending = false } = {}) {
   const state = loadLink(linkFile(root));
   return state ? state.recovered?.move ?? (includePending ? state.pending?.move : null) ?? null : deletedRecovery(root)?.move ?? null;
+}
+
+/**
+ * Operator recovery API: explicitly abandon a selected unpublished local queue, keeping authenticated order.
+ * The runtime owner must quiesce old writers/publishers and supply the real principal loss decision; this API
+ * neither impersonates a person nor changes relay credentials, identity, remote state or source files.
+ */
+export async function relayDiscardUnpublished(root, queueSha256, decision, io) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state) throw new Refused('RELAY_NOT_LINKED', 'this board has no retained relay link');
+    return discardUnpublished({ ...outboxLink(root, file, state, io), loadLink }, { queueSha256, decision });
+  }, io);
 }
 
 /** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */

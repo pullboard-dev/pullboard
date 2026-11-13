@@ -1,7 +1,8 @@
 /** Recover an interrupted local rebuild from authenticated order, never by resending its prefix [H16,H21]. */
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { discardUnpublished } from '../src/relay-local-recovery.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -473,4 +474,94 @@ for (const kind of ['shout', 'event']) test(`review unshifted positional ${kind}
     assert.ok(receipt); assert.equal(receipt.outcome.error, undefined);
   }
   assert.equal(await readOutbox(outboxFile(f.link.file), f.key, f.id), null);
+});
+
+/** Explicit service-first selection uses real durable queue/link files and native SQLite, no live relay. */
+async function lossFixture(t) {
+  const f = await fixture(t, { partialReapply: true,
+    setup(board, directory) {
+      const actor = store.register(board, { lane: 'core', path: join(directory, 'builder'), route: 'mid' });
+      return { actor };
+    } });
+  f.link.state.token = 'synthetic-machine-credential';
+  f.link.state.pending = { move: { id: 'uncertain-original' }, sequence: 4, sealed: 'synthetic-retained-ciphertext' };
+  f.link.loadLink = () => JSON.parse(readFileSync(f.link.file));
+  f.link.saveLink = (file, state) => writeFileSync(file, JSON.stringify(state), { mode: 0o600 });
+  f.link.saveLink(f.link.file, f.link.state);
+  const queue = readFileSync(outboxFile(f.link.file));
+  const choice = { queueSha256: createHash('sha256').update(queue).digest('hex'), decision: 'fixture principal accepts unpublished message loss' };
+  return { ...f, queue, choice };
+}
+
+for (const cut of ['none', 'held', 'archived', 'restored']) test(`service-first recovery survives ${cut} cut without replay and resumes useful native work [H16,H21]`, async t => {
+  const f = await lossFixture(t);
+  const before = JSON.stringify(f.link.state);
+  if (cut !== 'none') {
+    f.link.io.recoveryCut = name => { if (name === cut) throw new Error('fixture interruption'); };
+    await assert.rejects(discardUnpublished(f.link, f.choice), /fixture interruption/u);
+    assert.equal(f.link.loadLink().recovery.kind, 'discard-unpublished');
+    // Reopen the persisted link, rather than relying on the interrupted call's in-memory state.
+    f.link.state = f.link.loadLink(); delete f.link.io.recoveryCut;
+  }
+  const result = await discardUnpublished(f.link, f.choice);
+  assert.equal(result.sequence, 3);
+  assert.deepEqual(f.posts, [], 'neither settled nor uncertain nor abandoned old moves were posted');
+  assert.deepEqual(engineReceipt(f.board, f.third.id), f.receipt);
+  assert.equal(engineReceipt(f.board, f.fourth.id), null, 'abandonment did not invent a refusal/receipt');
+  assert.equal(engineReceipt(f.board, 'uncertain-original'), null);
+  assert.deepEqual(readFileSync(result.archive), f.queue);
+  assert.equal(existsSync(outboxFile(f.link.file)), false);
+  assert.equal(f.link.loadLink().token, JSON.parse(before).token);
+  assert.equal(f.link.loadLink().board, f.id);
+  assert.equal(f.link.loadLink().pending, undefined);
+  assert.equal(JSON.parse(readFileSync(result.plan)).previousLinkState.pending.move.id, 'uncertain-original');
+  assert.equal(f.link.loadLink().recovery, undefined);
+  assert.equal(f.link.loadLink().cursor, f.board.db.prepare('SELECT max(event_id) AS id FROM event').get().id);
+  const item = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'new useful source work', criterion: 'claim exact source', route: 'mid',
+    check: 'node --test test/relay-outbox-rebuild-recovery.test.js', brief: 'Files: src/relay-local-recovery.js\nTest: new native work can be claimed after explicit recovery' });
+  const claimed = store.claim(f.board, item, { agentId: f.extra.actor, lane: 'core', leaseMs: 60000,
+    freeze: () => ({ text: 'new source obligation', digest: 'fixture-source-digest' }) });
+  assert.ok(claimed);
+  const after = exportBoard(f.board);
+  const again = await discardUnpublished(f.link, f.choice);
+  assert.equal(again.alreadyCompleted, true);
+  assert.deepEqual(exportBoard(f.board), after, 'response recovery never overwrites later native work');
+});
+
+for (const failure of ['wrong-digest', 'changed-during-fetch', 'foreign-checkpoint', 'short-prefix', 'receipt-mismatch']) test(`service-first preflight refuses ${failure} before losing local work [H16,H21]`, async t => {
+  const f = await lossFixture(t);
+  const native = exportBoard(f.board), link = readFileSync(f.link.file);
+  if (failure === 'wrong-digest') f.choice.queueSha256 = 'f'.repeat(64);
+  if (failure === 'changed-during-fetch') {
+    const fetch = f.link.fetchCheckpoint;
+    f.link.fetchCheckpoint = async key => { const cp = await fetch(key); f.link.state.testConcurrent = true; f.link.saveLink(f.link.file, f.link.state); return cp; };
+  }
+  if (failure === 'foreign-checkpoint') {
+    const fetch = f.link.fetchCheckpoint;
+    f.link.fetchCheckpoint = async key => { const cp = await fetch(key); cp.native.tables.board_meta.find(r => r.meta_key === 'board_id').meta_value = 'f'.repeat(32); return cp; };
+  }
+  if (failure === 'short-prefix') f.link.request = async () => ({ events: [] });
+  if (failure === 'receipt-mismatch') {
+    const advance = f.link.advanceCheckpoint;
+    f.link.advanceCheckpoint = async (...args) => { const cp = await advance(...args); cp.native.tables.board_meta.find(r => r.meta_key === 'relay_receipt_' + f.third.id).meta_value += ' '; return cp; };
+  }
+  await assert.rejects(discardUnpublished(f.link, f.choice));
+  assert.deepEqual(exportBoard(f.board), native);
+  assert.deepEqual(readFileSync(outboxFile(f.link.file)), f.queue);
+  if (failure !== 'changed-during-fetch') assert.deepEqual(readFileSync(f.link.file), link);
+  assert.deepEqual(f.posts, []);
+});
+
+for (const failure of ['changed-plan', 'changed-queue', 'changed-board']) test(`service-first persisted ${failure} keeps its recovery hold and refuses replacement [H16,H21]`, async t => {
+  const f = await lossFixture(t);
+  f.link.io.recoveryCut = name => { if (name === 'held') throw new Error('fixture interruption'); };
+  await assert.rejects(discardUnpublished(f.link, f.choice), /fixture interruption/u);
+  delete f.link.io.recoveryCut; f.link.state = f.link.loadLink();
+  if (failure === 'changed-plan') writeFileSync(join(f.link.root, 'link', 'local-recovery', f.choice.queueSha256, 'plan.json'), '{}');
+  if (failure === 'changed-queue') writeFileSync(outboxFile(f.link.file), 'changed queue');
+  if (failure === 'changed-board') store.shout(f.board, { from: 'coordinator', to: 'all', text: 'new writer must not be lost', lanes: [] });
+  const after = exportBoard(f.board), queue = readFileSync(outboxFile(f.link.file));
+  await assert.rejects(discardUnpublished(f.link, f.choice));
+  assert.deepEqual(exportBoard(f.board), after); assert.deepEqual(readFileSync(outboxFile(f.link.file)), queue);
+  assert.equal(f.link.loadLink().recovery.kind, 'discard-unpublished'); assert.deepEqual(f.posts, []);
 });
