@@ -1345,7 +1345,16 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     watchRevision: (board, who, { signals = true } = {}) => {
       if (!signals) return projectRead(board, () => watchEventSignals(board));
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
-      const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
+      // A build landing after a read was answered from an older one is a change the page has not read yet (#6850).
+      const landed = materializer?.alive ? materializer.landed(board) : null;
+      const watched = { ...watcher, revision: () => { const revision = projectRead(board, () => watcher.revision()); return landed ? revision + '\0landed:' + landed.count() : revision; } };
+      if (landed && typeof watcher.subscribe === 'function') {
+        watched.subscribe = (listener) => {
+          const files = watcher.subscribe(listener);
+          const builds = landed.subscribe(() => listener());
+          return () => { builds(); if (typeof files === 'function') files(); };
+        };
+      }
       return watched;
     },
     finished: (board) => materialized(() => materializer.finishedJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => finishedText(entry, compactItemSummaries))))),
