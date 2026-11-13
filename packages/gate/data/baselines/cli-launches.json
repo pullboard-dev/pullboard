@@ -593,9 +593,6 @@
   "packages/codemap/tests/io/cells/door/app.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/inbox/events.test.js": {
-    "launch": 2
-  },
   "packages/resources/tests/io/main/probe.test.js": {
     "launch": 2
   },
@@ -1630,5 +1627,11 @@
   },
   "apps/cli/journeys/init/refresh.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/inbox/events-stream.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/inbox/events-fresh.test.js": {
+    "launch": 1
   }
 }
