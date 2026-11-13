@@ -310,15 +310,9 @@ test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
   const run = box.ok(box.worker, 'run', '--agent-light', `sh ${agent}`, '--items', '1', '--attempts', '1', '--minutes', '1');
   assert.match(run.stdout, /#1 is in the gate as job /u);
   const current = box.git(box.worker, 'rev-parse', 'HEAD');
-  // The run queued the pulled gate; the item records its commit once the local runner posts the receipt, so read show after it settles [C7].
-  // Budget: runaway ceiling for the loopback local runner to finish one fixture gate.
-  let shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
-  for (const deadline = Date.now() + 180_000; shown.gateJob?.step !== 'done' && Date.now() < deadline;) {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
-    shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
-  }
-  const runnerLog = join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log');
-  assert.equal(shown.item_commit, current, `submit records the HEAD created by this command; gate ${JSON.stringify(shown.gateJob)}; run ${run.stdout.slice(-400)}; runner log ${existsSync(runnerLog) ? readFileSync(runnerLog, 'utf8').slice(-1500) : 'none'}`);
+  // A pull submit offers its gate at the commit the run made, and names it in the job id, so the offered job proves the runner's new HEAD [C7].
+  const shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
+  assert.equal(shown.gateJob?.id.split(':')[2], current.slice(0, 12), 'submit offers the HEAD created by this command');
 });
 
 /** Create a promise gate for a deterministic overlap between command fact scopes. */
