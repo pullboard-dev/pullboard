@@ -45,8 +45,8 @@ async function fixture(t, { partialReapply = false, setup, pending } = {}) {
   }
   /** Preserve the exact move bytes and original sequence on the synthetic relay. */
   async function record(move, sequence) {
-    return { event_id: sequence, event_at: `2026-10-24T00:00:0${sequence}Z`, kind: 'move',
-      sender: { kind: 'agent', userId: 'fixture', agent: 'coordinator' },
+    return { event_id: sequence, event_at: new Date(Date.parse('2026-10-24T00:00:00Z') + sequence * 1000).toISOString(), kind: 'move',
+      sender: { kind: 'agent', userId: 'fixture', agent: move.actor },
       sealed: Buffer.from(await seal(key, Buffer.from(JSON.stringify(move)), { boardId: id, kind: 'move', sequence })).toString('base64url') };
   }
   /** Make a normal native shout without test-only SQL mutations. */
@@ -80,7 +80,7 @@ async function fixture(t, { partialReapply = false, setup, pending } = {}) {
   // This is the actual failure cut: ordered prefix committed, sealed queue still describes the prior local rows.
   assert.equal(appliedSequence(board), 3);
   const receipt = engineReceipt(board, third.id);
-  return { board, link, key, id, checkpoint, records, posts, reads, errors, receipt, third, fourth, ordering, extra };
+  return { board, link, key, id, checkpoint, records, posts, reads, errors, receipt, third, fourth, ordering, extra, record };
 }
 
 for (const mode of ['ordered-only', 'partial-reapply', 'paged']) test(`interrupted rebuild restores local pending work without resending accepted moves (${mode}) [H16,H21]`, async t => {
@@ -128,7 +128,7 @@ for (const kind of ['gap', 'short', 'foreign-board', 'receipt-mismatch', 'engine
 });
 
 /** Rebuild two genuinely queued claims made after the preceding lease expired, with no relay send. */
-async function leaseFixture(t) {
+async function leaseFixture(t, applicationDelay = 0) {
   const start = Date.parse('2026-10-24T00:00:00Z');
   t.mock.timers.enable({ apis: ['Date'], now: start });
   const f = await fixture(t, {
@@ -147,7 +147,7 @@ async function leaseFixture(t) {
           freeze: found => ({ text: found.item_title, digest: `digest:${found.item_title}` }) }];
         const move = prepareEngineMove(board, 'claim', args, { id: `queued-claim-${index}`, actor: extra.actor });
         const result = await queueMove(link, { operation: 'claim', args, move, quiet: true,
-          applyLocally: () => store.claim(board, ...args) });
+          applyLocally: () => { t.mock.timers.setTime(start + 10_000 + index * 2_000 + applicationDelay); return store.claim(board, ...args); } });
         extra.leases.push(result.leaseUntil); extra.moves.push(move);
       }
       t.mock.timers.setTime(start + 100_000);
@@ -202,7 +202,7 @@ test('pending fact corrections retain their genuine original identity during reb
     },
   });
   f.link.postPending = async () => { throw Object.assign(new Error('stop before send'), { code: 'NO_SEND' }); };
-  await assert.rejects(flushOutbox(f.link), error => error.code === 'NO_SEND');
+  await assert.rejects(flushOutbox(f.link), error => error.code === 'RELAY_OUTBOX_IDENTITY');
   const facts = f.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='fact' ORDER BY event_id").all().map(row => JSON.parse(row.event_detail));
   assert.deepEqual(facts.map(row => ({ id: row.id, supersedes: row.supersedes })), f.extra.originalFacts.map(row => ({ id: row.id, supersedes: row.supersedes })));
 });
@@ -251,11 +251,131 @@ test('fact and implied-fact identities preserve later decisions, supersession an
   });
   f.link.postPending = async () => { throw Object.assign(new Error('stop before send'), { code: 'NO_SEND' }); };
   for (const round of [1, 2]) {
-    await assert.rejects(flushOutbox(f.link), error => error.code === 'NO_SEND');
+    await assert.rejects(flushOutbox(f.link), error => error.code === 'RELAY_OUTBOX_IDENTITY');
     assert.deepEqual(referenceProjection(f.board), f.extra.original, `all original references retain their meaning after rebuild ${round}`);
     const queued = await readOutbox(outboxFile(f.link.file), f.key, f.id);
     assert.deepEqual(queued.moves.slice(1).map(entry => entry.move), f.extra.originalMoves, 'no queued payload is rewritten');
     assert.deepEqual(f.posts, [], 'no real relay attempt is made by this regression');
   }
   assert.throws(() => store.appendFact(f.board, f.extra.items[0], { agentId: 'web-1', kind: 'note', text: 'unauthorized correction', supersedes: f.extra.originalFactId }), error => error.code === 'FACT_JUDGEMENT');
+});
+
+// Independent review regressions: preserve the failing baseline, not just the successful recovery cut.
+test('review partial-reapply bridge failure leaves the original board and queue unchanged [H16,H21]', async t => {
+  const f = await fixture(t, { partialReapply: true });
+  f.link.fetchCheckpoint = async () => { throw Object.assign(new Error('checkpoint unavailable'), { code: 'OFFLINE' }); };
+  const native = exportBoard(f.board), queued = readFileSync(outboxFile(f.link.file));
+  await assert.rejects(flushOutbox(f.link), error => error.code === 'OFFLINE');
+  assert.deepEqual(exportBoard(f.board), native, 'do not undo an already-advanced prefix before failed recovery');
+  assert.deepEqual(readFileSync(outboxFile(f.link.file)), queued);
+  assert.deepEqual(f.posts, []);
+});
+
+test('review delayed local application retains exact original claim deadlines [H21,B4,B5]', async t => {
+  const f = await leaseFixture(t, 125);
+  await assert.rejects(flushOutbox(f.link), error => error.code === 'NO_SEND');
+  const actual = f.extra.items.map(id => f.board.db.prepare('SELECT item_lease_until FROM item WHERE item_id=?').get(id).item_lease_until);
+  assert.deepEqual(actual, f.extra.leases, 'queue persistence time is not the original lease-computation time');
+  assert.equal(f.board.clock, store.systemClock);
+  assert.deepEqual(f.posts, []);
+});
+
+/** Two original fact captures, optionally using ids already representable by the sealed ordered moves. */
+async function deliveryFactFixture(t, compatible = false) {
+  return fixture(t, {
+    setup(board) { return { item: store.addItem(board, { by: 'coordinator', lane: 'coordinator', title: 'retained facts', criterion: 'retain exact fact identities' }) }; },
+    async pending({ board, link, extra }) {
+      extra.moves = []; extra.ids = [];
+      for (const index of [0, 1]) {
+        const args = [extra.item, { agentId: 'coordinator', kind: 'note', text: `retained fact ${index}`, ...(index ? { supersedes: extra.ids[0] } : {}) }];
+        const move = prepareEngineMove(board, 'appendFact', args, { id: `retained-fact-${index}`, actor: 'coordinator' });
+        if (compatible) args[1].factId = move.id;
+        const fact = await queueMove(link, { operation: 'appendFact', args, move, quiet: true, applyLocally: () => store.appendFact(board, ...args) });
+        extra.moves.push(move); extra.ids.push(fact.id);
+      }
+    },
+  });
+}
+
+for (const mode of ['malformed', 'ambiguous']) test(`review ${mode} identity capture refuses before any restore or undo [H21,B30]`, async t => {
+  const f = await deliveryFactFixture(t), file = outboxFile(f.link.file);
+  const outbox = await readOutbox(file, f.key, f.id);
+  outbox.moves.at(-1).changes = mode === 'malformed' ? ['AA=='] : outbox.moves.at(-2).changes;
+  await writeOutbox(file, f.key, f.id, outbox);
+  const native = exportBoard(f.board), queued = readFileSync(file);
+  let refusal; try { await flushOutbox(f.link); } catch (error) { refusal = error; }
+  assert.ok(refusal, 'invalid original identity capture must refuse');
+  assert.deepEqual(exportBoard(f.board), native, 'capture validation precedes every restore and local replay');
+  assert.deepEqual(readFileSync(file), queued);
+  assert.equal(refusal.code, 'RELAY_OUTBOX');
+  assert.deepEqual(f.posts, []);
+});
+
+test('review unrepresentable legacy fact identities stop before the first ordered send [H16,H21,B30,B31]', async t => {
+  const f = await deliveryFactFixture(t);
+  await assert.rejects(flushOutbox(f.link), error => error.code === 'RELAY_OUTBOX_IDENTITY');
+  assert.deepEqual(f.posts, [], 'do not partially drain ahead of the known unrepresentable dependency');
+  for (const move of f.extra.moves) assert.equal(engineReceipt(f.board, move.id), null);
+  const queued = await readOutbox(outboxFile(f.link.file), f.key, f.id);
+  assert.deepEqual(queued.moves.slice(-2).map(e => e.move), f.extra.moves, 'do not rewrite or remint the original moves');
+  const facts = store.events(f.board).filter(e => e.event_kind === 'fact').map(e => JSON.parse(e.event_detail));
+  assert.deepEqual(facts.map(fact => fact.id), f.extra.ids);
+});
+
+test('review representable original facts still deliver and retain both successful receipts [H16,H21,B30,B31]', async t => {
+  const f = await deliveryFactFixture(t, true);
+  await flushOutbox(f.link);
+  for (const move of f.extra.moves) {
+    const receipt = engineReceipt(f.board, move.id);
+    assert.ok(receipt); assert.equal(receipt.outcome.error, undefined);
+  }
+  assert.equal(await readOutbox(outboxFile(f.link.file), f.key, f.id), null);
+  const facts = store.events(f.board).filter(e => e.event_kind === 'fact').map(e => JSON.parse(e.event_detail));
+  assert.deepEqual(facts.map(fact => fact.id), f.extra.ids);
+});
+
+/** Original numeric references, without fact IDs that would independently hold transport. */
+async function positionalFixture(t, kind) {
+  return fixture(t, {
+    setup(board, directory) { store.register(board, { lane: 'web', path: join(directory, 'web-1') }); return { moves: [] }; },
+    async pending({ board, link, extra }) {
+      const queued = async (operation, args, actor) => {
+        const move = prepareEngineMove(board, operation, args, { id: `positional-${extra.moves.length}`, actor });
+        extra.moves.push(move);
+        return queueMove(link, { operation, args, move, quiet: true, applyLocally: () => store[operation](board, ...args) });
+      };
+      if (kind === 'shout') {
+        const question = await queued('shout', [{ from: 'web-1', to: 'coordinator', text: 'original question', decision: true, lanes: ['web'] }], 'web-1');
+        extra.answer = await queued('answerDecision', [question, { agentId: 'coordinator', text: 'original answer', lanes: ['web'] }], 'coordinator');
+      } else {
+        const through = store.events(board).at(-1).event_id;
+        await queued('recordActivityDelivery', [{ agentId: 'web-1', through, observedThrough: through, digestThrough: through, interrupts: [] }], 'web-1');
+      }
+      extra.original = referenceProjection(board);
+    },
+  });
+}
+
+for (const kind of ['shout', 'event']) test(`review positional ${kind} shift refuses before changing the board or queue [H16,H21,B27,N26]`, async t => {
+  const f = await positionalFixture(t, kind);
+  const extra = prepareEngineMove(f.board, 'shout', [{ from: 'coordinator', to: 'all', text: 'another ordered message', lanes: [] }], { id: 'extra-ordered', actor: 'coordinator' });
+  f.records.push(await f.record(extra, 4));
+  const native = exportBoard(f.board), queued = readFileSync(outboxFile(f.link.file));
+  let refusal; try { await flushOutbox(f.link); } catch (error) { refusal = error; }
+  assert.ok(refusal, 'shifted numeric references cannot silently name different records');
+  assert.deepEqual(exportBoard(f.board), native, 'detect the shift before publishing any replacement state');
+  assert.deepEqual(readFileSync(outboxFile(f.link.file)), queued);
+  assert.equal(refusal.code, 'RELAY_OUTBOX_REFERENCE');
+  assert.deepEqual(f.posts, []);
+});
+
+for (const kind of ['shout', 'event']) test(`review unshifted positional ${kind} references retain meaning and deliver [H16,H21,B27,N26]`, async t => {
+  const f = await positionalFixture(t, kind);
+  await flushOutbox(f.link);
+  assert.deepEqual(referenceProjection(f.board), f.extra.original);
+  for (const move of f.extra.moves) {
+    const receipt = engineReceipt(f.board, move.id);
+    assert.ok(receipt); assert.equal(receipt.outcome.error, undefined);
+  }
+  assert.equal(await readOutbox(outboxFile(f.link.file), f.key, f.id), null);
 });
