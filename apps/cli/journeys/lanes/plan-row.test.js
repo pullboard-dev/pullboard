@@ -32,7 +32,8 @@ test('native submit accepts a plan row for an item file after reclaim and refree
   commitPlanRow(box, id, shardPath, 'src/new.js');
   const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).item_status, 'submitted');
+  const shown = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+  assert.equal(shown.item_status, 'submitted', JSON.stringify(shown.thread.filter(row => row.type === 'fact').map(row => row.text)).slice(-3000));
 });
 
 test('native submit refuses a plan row for a file already present on main [L3,C7,#2108]', async t => {
