@@ -1,6 +1,6 @@
 /** @pullboard-test-loads packages/gate/index.js */
 /** @pullboard-test-loads apps/cli/src/io/commands/status.js */
-/** pullboard test runs named test files on the runner pool, and names a failure main already has [C7]. */
+/** pullboard test runs named test files on the runner pool [C7]. */
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -14,29 +14,14 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { assertRunnerMemoryAdmission } from '../../tests/fixtures/runner/memory.js';
+import { focusedProject as focused } from '../../tests/fixtures/test/focused.js';
+import { PASSES } from '../../tests/fixtures/test/focused.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const PASSES = "import { test } from 'node:test';\ntest('passes', () => {});\n";
-const HANGS = "import { test } from 'node:test';\ntest('hangs', () => new Promise(() => {}));\n";
-const FAILS = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('fails here', () => assert.equal(1, 2));\n";
-
-/** A project whose main holds the focused runner with its per-test timeout and a test that hangs on main as well; the agent's failing change is committed on its worktree, since a pulled job runs the committed head. */
-function focusedProject() {
-  const box = e2e.project('true');
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
-  mkdirSync(join(box.repo, 'test'));
-  for (const [name, text] of [['ok', PASSES], ['hang', HANGS], ['changed', PASSES]]) writeFileSync(join(box.repo, `test/${name}.test.js`), text);
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'test: focused runner and three test files');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  writeFileSync(join(box.web, 'test/changed.test.js'), FAILS);
-  box.git(box.web, 'add', '-A');
-  box.git(box.web, 'commit', '-q', '-m', 'test: the changed file fails');
-  return box;
-}
+/** The focused-runner project, its failing change committed on the builder worktree. */
+const focusedProject = () => focused(e2e);
 
 test('pullboard test runs files as a pulled job with a per-file timeout [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for the pulled test job; not a speed target.
   const box = focusedProject();
@@ -53,19 +38,6 @@ test('pullboard test runs files as a pulled job with a per-file timeout [C7]', {
   assert.match(output, /fails here/u, 'the committed change ran on the runner');
   assert.match(output, /hangs/u, 'the hanging test stops at its timeout and is named');
   assert.ok(seconds < 200, `the hung file never holds the run past its timeout (${seconds}s)`); // budget: hang ceiling far above the 3 s test timeout; not a speed target.
-});
-
-test('pullboard test names a failure main already has, per file [C7]', async () => {
-  const box = focusedProject();
-  const ran = await box.runLocal(box.web, 'test', 'test/ok.test.js', 'test/hang.test.js', 'test/changed.test.js', '--json');
-  const known = Object.fromEntries(JSON.parse(ran.out).known.map((entry) => [entry.file, entry.result]));
-  assert.equal(known['test/hang.test.js'], 'red', 'the hang fails on main too, so it reads as a known main failure');
-  assert.equal(known['test/changed.test.js'], 'green', 'the changed file passes on main, so its failure is new');
-  assert.equal(known['test/ok.test.js'], undefined, 'a passing file needs no main comparison');
-  const text = await box.runLocal(box.web, 'test', 'test/hang.test.js', '--compare-main');
-  assert.equal(text.code, 1);
-  assert.match(text.out.split('\n')[0], /file also fails on main at [a-f0-9]+: test\/hang\.test\.js \(case comparison unavailable\)/u, 'the first result line keeps the real file verdict without inventing a case match');
-  assert.doesNotMatch(text.out, /not yours; accepted/u, 'a timeout is not an identical accepted case');
 });
 
 test('pullboard test names the local runner it ran on, and every installed hook points at it [C7]', { timeout: 120_000 }, async () => { // budget: hang ceiling for real init, join and one local run; not a speed target.
