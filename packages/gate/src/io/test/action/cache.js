@@ -11,6 +11,7 @@
  * results once it exits, and for a landing only when the landing itself was green, since a landing can fail a file
  * whose process exited cleanly.
  */
+import { enforcePartsCap } from './prune.js';
 import { maintainPartsStore } from './prune.js';
 import {
   createHash,
@@ -301,6 +302,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
       tracked: reads.listing ? digest(index.sorted) : null, options: shared.options });
     keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '' });
   }
+  // Parts and lists were just written: the size cap holds now, not at the next ten-minute upkeep [C7].
+  enforcePartsCap(store, env);
   return keys;
   }, { prune: maintain });
 }
