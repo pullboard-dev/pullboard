@@ -334,7 +334,7 @@ export async function visit(context, { route, phone, bootstrap, localView = null
       // Dashboard. The board is witnessed above on Items; the notices are read here, from the tab that shows them.
       if (seen.board) {
         await page.evaluate(`document.querySelector('.tab[data-tab="dashboard"]')?.click()`);
-        const notices = await page.poll(`document.querySelector('#relay-notice')?.getClientRects().length ? (${READ_SCREEN}).words : ''`, 1_500);
+        const notices = await page.poll(`document.querySelector('#relay-notice')?.getClientRects().length ? (${READ_SCREEN}).words : ''`, 500);
         if (notices) seen.words = notices;
       }
       return { ...seen, ms, exceptions: page.exceptions.length,
