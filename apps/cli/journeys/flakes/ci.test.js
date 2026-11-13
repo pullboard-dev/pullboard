@@ -3,7 +3,6 @@ import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js'
 import { TITLE } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
-import '../../tests/fixtures/cases/quarantine.js';
 import { checkAtCommit } from '../../../runner/index.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
