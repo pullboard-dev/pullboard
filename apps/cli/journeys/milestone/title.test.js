@@ -54,6 +54,13 @@ function specTabButton(page) {
   return button;
 }
 
+/** The Spec count is a page fact written into each [data-nav-fact=spec] node (1586f48a53); stand one node in for the fake page and count its writes. */
+function specCount(page) {
+  page.run(`globalThis.navSpec = { shown: '', writes: 0 }; Object.defineProperty(navSpec, 'textContent', { get() { return this.shown; }, set(value) { this.shown = String(value); this.writes += 1; } });
+    { const find = document.querySelectorAll; document.querySelectorAll = (selector) => (selector === '[data-nav-fact="spec"]' ? [navSpec] : find(selector)); }`);
+  return { get text() { return page.run('navSpec.textContent'); }, get writes() { return page.run('navSpec.writes'); } };
+}
+
 test('clause 1: one function builds the title from the tab and board: remaining on Roadmap, Cost label on Cost, needs elsewhere (#3200) [N26,N38]', () => {
   const place = { shown: true, name: 'alpha', needs: 2, remaining: 3, cost: true };
   assert.equal(tabTitle({ ...place, tab: 'roadmap' }), '(3 remaining) alpha · Roadmap · Pullboard');
@@ -79,12 +86,12 @@ test('#6613 clause 3: the title and each badge count have exactly one writer in 
   assert.equal(writes(page).length, 1, 'one title write');
   assert.equal(page.match(/\$\('status-board'\)/gu).length, 1, 'one writer draws the status bar counts');
   assert.equal(page.match(/\$\('status-unread'\)/gu).length, 1, 'one writer fills the unread count');
-  assert.equal(page.match(/'Spec <b>'/gu).length, 1, 'one writer sets the Spec tab count');
+  assert.equal(page.match(/'\[data-nav-fact="' \+ page \+ '"\]'/gu).length, 1, 'one writer sets every page count, the Spec count included');
   assert.match(page, /function writeChrome\(\)/u, 'the chrome writer is one function');
-  assert.equal(page.match(/document\.title = next|\$\('status-board'\)|\$\('status-unread'\)|'Spec <b>'/gu).length, 4);
+  assert.equal(page.match(/document\.title = next|\$\('status-board'\)|\$\('status-unread'\)|'\[data-nav-fact="' \+ page \+ '"\]'/gu).length, 4);
   const chrome = page.slice(page.indexOf('function writeChrome()'));
   const body = chrome.slice(0, chrome.indexOf('\n}\n'));
-  for (const write of ['document.title = next', "$('status-board')", "$('status-unread')", "'Spec <b>'"]) assert.ok(body.includes(write), write + ' happens inside writeChrome');
+  for (const write of ['document.title = next', "$('status-board')", "$('status-unread')", 'drawNav(shown']) assert.ok(body.includes(write), write + ' happens inside writeChrome');
 });
 
 // budget: hang ceiling for native fixture setup and 24 in-process refreshes; no speed threshold.
@@ -95,25 +102,25 @@ test('clause 2: refreshing each tab three times shows the same title every time,
     const page = await openPage(view);
     page.run(`globalThis.titleWrites = []; { let shown = document.title; Object.defineProperty(document, 'title', {
       get: () => shown, set: (value) => { titleWrites.push(value); shown = value; } }); }`);
-    const spec = specTabButton(page);
+    const spec = specTabButton(page), count = specCount(page);
     const parts = watchParts(page, ['status-board', 'status-unread']);
     const seen = {};
     for (const tab of TABS) {
       page.run(`openTab(${JSON.stringify(tab)}); render()`);
       await page.run('refresh()');
       const before = page.run('titleWrites.length');
-      const written = { ...parts, spec: spec.writes };
+      const written = { ...parts, spec: spec.writes + count.writes };
       const titles = [], badges = [];
       for (let round = 0; round < 3; round++) {
         await page.run('refresh()');
         titles.push(page.run('document.title'));
-        badges.push([page.show('status-board'), page.show('status-unread'), page.element('status-unread').hidden, spec.innerHTML, spec.title]);
+        badges.push([page.show('status-board'), page.show('status-unread'), page.element('status-unread').hidden, count.text, spec.title]);
       }
       assert.deepEqual(titles, Array(3).fill(titles[0]), tab + ': the same title across three refreshes');
       assert.equal(page.run('titleWrites.length'), before, tab + ': a refresh that changes nothing writes no title');
       assert.deepEqual(badges, Array(3).fill(badges[0]), tab + ': the same badge counts across three refreshes');
-      assert.deepEqual({ ...parts, spec: spec.writes }, written, tab + ': a refresh that changes nothing writes no badge');
-      assert.match(spec.innerHTML, /^Spec <b>\d+<\/b>$/u, tab + ': the Spec count shows on every tab, not only on Spec');
+      assert.deepEqual({ ...parts, spec: spec.writes + count.writes }, written, tab + ': a refresh that changes nothing writes no badge');
+      assert.match(count.text, /^\d+$/u, tab + ': the Spec count shows on every tab, not only on Spec');
       assert.match(page.show('status-board'), /<b>2<\/b> items/u, tab + ': the status bar counts the board on every tab');
       seen[tab] = { title: titles[0], badges: badges[0] };
     }
