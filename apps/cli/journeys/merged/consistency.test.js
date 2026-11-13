@@ -47,8 +47,9 @@ function countPairs() {
   const needs = p.needs.reduce((total, row) => total + (row.kind === 'draft' ? row.count : 1), 0);
   if (view.tab !== 'roadmap') add('browser title/person calls', Number(/^\((\d+)\)/.exec(document.title)?.[1] || 0), needs);
   if (view.tab === 'items' && view.itemsView === 'list') {
-    const selected = document.querySelector('[data-filter-kind="state"][aria-checked="true"]');
-    add('Items/selected filter', number(selected?.querySelector('b')), all('#chain > [data-item]').length);
+    const shown = { active: active.length, all: items.length, verify: items.filter(item => item.status === 'submitted').length }[view.state];
+    if (shown !== undefined) add('Items/' + view.state + ' rows', all('#chain > [data-item]').length, shown);
+    add('Items/open fact in the sidebar', number(document.querySelector('[data-nav-fact="items"]')), active.length);
   }
   if (view.tab === 'items' && view.itemsView === 'pipeline') {
     for (const stage of all('#pipeline [data-pipeline-stage]')) {
@@ -253,15 +254,14 @@ async function sweep(chrome, phase) {
   for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
     await pane(chrome, tab, phase);
     if (tab === 'items') {
-      const states = await chrome.stable('[...document.querySelectorAll("[data-filter-kind=state]")].map(node => node.dataset.filterValue)');
+      const states = await chrome.stable('[...document.querySelectorAll("[data-page-ctl=state]")].map(node => node.dataset.value)');
       for (const state of states) {
-        await press(chrome, 'document.querySelector("#filter-toggle")');
-        await press(chrome, 'document.querySelector(' + JSON.stringify('[data-filter-choice="state:' + state + '"]') + ')');
+        await press(chrome, 'document.querySelector(' + JSON.stringify('[data-page-ctl=state][data-value="' + state + '"]') + ')');
         await checkCounts(chrome, phase + '/Items/' + state);
       }
-      await press(chrome, 'document.querySelector("[data-items-view=pipeline]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=view][data-value=pipeline]")');
       await checkCounts(chrome, phase + '/Pipeline');
-      await press(chrome, 'document.querySelector("[data-items-view=list]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=view][data-value=list]")');
     }
     if (tab === 'shouts') {
       for (const fold of ['idle']) {
