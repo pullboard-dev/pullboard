@@ -59,11 +59,6 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     // A shout lands while the page is closed: the reload counts it, and only it.
     box.run(alpha.web, 'shout', 'all', 'while you were away');
     const reloaded = await openPage(view, { store });
-    const dbg = () => reloaded.run('JSON.stringify({kept: localStorage.getItem("pb.seen." + view.root), shouts: data.project.shouts.map(x=>x.shout_id), unseen: data.project.unseen, html: document.getElementById("status-unread").innerHTML, early: typeof data.early})');
-    console.log('DBG1', await dbg());
-    console.log('DBG2', await dbg());
-    await reloaded.run('refresh()');
-    console.log('DBG3', await dbg());
     assert.equal(count(reloaded), '1', 'what was seen is remembered across a reload');
     await reloaded.click({ tab: 'shouts' });
     assert.equal(count(reloaded), '');
