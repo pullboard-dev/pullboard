@@ -3,6 +3,7 @@ import { missingFactIdentityIndexes } from "../../../../spec/index.js";
 import { ensureGrantActivationIndex } from "../../../../state/light.js";
 import { missingGrantActivationIndex } from "../../../../state/light.js";
 import { ensureJobTables } from "./jobs.js";
+import { JOB_INDEX_NAMES } from "./jobs.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { missingJobTables } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
@@ -71,7 +72,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', 'job_kind_item', 'test_result', 'test_result_key'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, 'test_result', 'test_result_key'].every(installed);
 }
 
 /** Create the hot and additive indexes and the job tables, each IF NOT EXISTS, moving and deleting no row [A5]. */
