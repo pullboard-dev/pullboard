@@ -25,7 +25,9 @@ export function activityFlow(project, events, { now, windowHours = 24, left = nu
   if (!Number.isFinite(now)) throw new TypeError('Activity projection requires an explicit clock reading');
   const MIN = 60_000, HOUR = 3_600_000;
   const NAMES = { ready: 'Ready', held: 'Held', build: 'Building', blk: 'Blocked', gate: 'Gate', pend: 'Pending review', rev: 'In review', land: 'Landing' };
-  const MINUTES = { ready: 30, build: 45, gate: 15, pend: 10, rev: 15, land: 8, ...(project.stageLimits ?? {}) };
+  // The board names its limits by stage (building, gate, pending review, in review, landing); a stage with no board limit has none here.
+  const BOARD = { building: 'build', gate: 'gate', 'pending review': 'pend', 'in review': 'rev', landing: 'land' };
+  const MINUTES = Object.fromEntries(Object.entries(project.stageLimits ?? {}).filter(([name]) => BOARD[name]).map(([name, minutes]) => [BOARD[name], minutes]));
   const limitOf = kind => (Number.isFinite(MINUTES[kind]) ? MINUTES[kind] : Infinity) * MIN;
   const GROUP = { ready: 'ready', build: 'building', blk: 'building', gate: 'gate', pend: 'pending', rev: 'pending', land: 'landing' };
   const REASONS = { TEST_FAILURE: 'tests failed', BEHAVIOR_MISMATCH: 'behavior did not match', INSUFFICIENT_EVIDENCE: 'not enough evidence', STALE_HEAD: 'source changed', OTHER: 'other reason', CRITERION_MET: 'criterion met' };
