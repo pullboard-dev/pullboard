@@ -70,7 +70,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
         const nowColumn = document.querySelector('#dashboard .dash-agent-axis > span:nth-child(3)').textContent.trim();
         const row = document.querySelector('#dashboard [data-dashboard-agent]');
         const waiting = [...panel.querySelectorAll('.dash-flight small')].find(label => label.textContent.includes('waiting for a reviewer'));
-        const held = panel.querySelector('[data-summary-state="held"]');
+        const held = panel.querySelector('[data-release-key="held"]');
         const group = document.querySelector('#dashboard .dash-agent-group');
         const first = document.querySelector('#dashboard > .dash-card').getBoundingClientRect();
         return {
@@ -78,8 +78,8 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
           documentWidth: document.documentElement.scrollWidth,
           dashboardLeft: first.left,
           contentLeft: document.querySelector('main').getBoundingClientRect().left + parseFloat(getComputedStyle(document.querySelector('main')).paddingLeft),
-          // Since 0ab202b994 the release card opens with the release's own name (an h2.release-name); any other visible h2 is a widget-name eyebrow.
-          visibleShippingHeading: [...panel.querySelectorAll('h2:not(.release-name)')].some(heading => heading.getClientRects().length > 0),
+          // Since #6646 the card opens with its Shipping now eyebrow, as in the approved mockup, then the release name.
+          shippingHeading: [...panel.querySelectorAll('h2')].filter(heading => heading.getClientRects().length > 0).map(heading => heading.textContent),
           shippingText: panel.textContent,
           agentSplitWidth: agentTime.getBoundingClientRect().width,
           agentContentWidth: cardRect.width - parseFloat(cardStyle.paddingLeft) - parseFloat(cardStyle.paddingRight) - 2,
@@ -92,15 +92,15 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
           waitingParentRect: waiting?.parentElement.getBoundingClientRect().toJSON(),
           heldText: held?.textContent.trim(), heldCount: held?.querySelector('b')?.textContent.trim(),
           heldAlign: held ? getComputedStyle(held).alignItems : null,
-          heldDot: held?.querySelector('.roadmap-summary-swatch')?.getBoundingClientRect().toJSON(),
-          heldLabel: held?.querySelector('span:last-child')?.getBoundingClientRect().toJSON(),
+          heldDot: held?.querySelector('i')?.getBoundingClientRect().toJSON(),
+          heldLabel: held?.querySelector('b')?.getBoundingClientRect().toJSON(),
         };
       })())`));
 
       assert.equal(dashboard.documentWidth, dashboard.viewport, `${width}/${scheme}: no horizontal page scroll`);
       assert.ok(Math.abs(dashboard.dashboardLeft - dashboard.contentLeft) < 1,
         `${width}/${scheme}: Dashboard cards use the same page edge as Items and Spec: ${JSON.stringify(dashboard)}`);
-      assert.equal(dashboard.visibleShippingHeading, false, `${width}/${scheme}: the release content has no widget-name eyebrow`);
+      assert.deepEqual(dashboard.shippingHeading, ['Shipping now'], `${width}/${scheme}: the card heads Shipping now, as in the mockup`);
       assert.ok(dashboard.shippingText.includes('Dashboard walk'), `${width}/${scheme}: the actual release remains visible`);
       assert.ok(Math.abs(dashboard.agentSplitWidth - dashboard.agentContentWidth) < 3,
         `${width}/${scheme}: the Agent time bar spans its card: ${JSON.stringify(dashboard)}`);
@@ -121,7 +121,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
         && dashboard.waitingRect.right <= dashboard.waitingParentRect.right + 1,
       `${width}/${scheme}: reviewer status wraps inside In review: ${JSON.stringify(dashboard)}`);
       assert.equal(dashboard.heldCount, '10', `${width}/${scheme}: key count comes from the ten held items`);
-      assert.equal(dashboard.heldAlign, 'baseline', `${width}/${scheme}: the held key dot aligns on the text baseline`);
+      assert.equal(dashboard.heldAlign, 'center', `${width}/${scheme}: the held key swatch centres on its text, as in the mockup`);
       await press(chrome, 'document.querySelector("[data-tab=items]")');
       await chrome.waitFor('view.tab === "items"');
       const itemsLeft = await chrome.stable('document.querySelector("#items-toolbar").getBoundingClientRect().left');
