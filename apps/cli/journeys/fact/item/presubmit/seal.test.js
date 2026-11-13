@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import * as store from '../../../../../../packages/store/index.js';
 import { openBoard } from '../../../../../lib/index.js';
 import { prepareItemPatchSubmit } from '../../../../../../packages/items/index.js';
@@ -57,7 +58,14 @@ test('coordinator removal during the actual gate prevents sealing its superseded
   const f = await fixture(t, { hold: true });
   await attach(f);
   // The pulled gate runs the held frozen check on a runner; the submit returns queued at once.
-  const queued = document(await run(f.box, f.builder, 'submit', String(f.id)));
+  // A launched child returns at once; the in-process runner of box.run would wait on the job, which waits on the held check.
+  const previous = f.box.env.CODEX_THREAD_ID;
+  f.box.env.CODEX_THREAD_ID = f.builder.session;
+  let child;
+  try { child = f.helpers.launch(f.box, f.builder.root, process.execPath,
+    [fileURLToPath(new URL('../../../../pullboard.js', import.meta.url)), 'submit', String(f.id), '--no-next', '--json']); }
+  finally { if (previous === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = previous; }
+  const queued = JSON.parse((await child.closed, child.stdoutText).trim().split('\n').at(-1));
   const pid = queued.localRunner?.pid;
   if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
   reviveFixtureLocalRunner(f.box.repo, f.box.env);
