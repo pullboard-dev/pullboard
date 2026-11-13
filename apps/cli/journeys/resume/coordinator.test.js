@@ -20,6 +20,7 @@ import { test } from 'node:test';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const sandboxes = [];
@@ -126,6 +127,8 @@ async function submitFile(box, cwd, id, row, path, text, subject) {
   const head = commit(box.git, cwd, `feat(web): ${subject} [${row}]`);
   const submitted = await box.inProcess(cwd, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  // A pull submit returns queued; the local runner's gate receipt must land before the journey verifies it.
+  await settledGateJob(box, id);
   return head;
 }
 

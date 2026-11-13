@@ -96,7 +96,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   const follow = script('follow.sh', ['grep -q "^- #1 Greet: web/page.js$" "$PULLBOARD_PACK" && echo "export const bye = \'Bye\';" >> web/page.js']);
   await addDiagnosedLight(box, 'Greet', '--route', 'mid', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
   const runner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
-  assert.match((await box.runLocal(runner, 'run', '--agent-light', greet, '--attempts', '1')).out, /submitted #1/);
+  assert.match((await box.runLocal(runner, 'run', '--agent-light', greet, '--attempts', '1')).out, /#1 is in the gate as job /);
   const firstCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', firstCommit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'emptied the page; the check failed')).out, /verified #1/);
@@ -106,7 +106,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   assert.equal(landed.code, 0, landed.err);
   await addDiagnosedLight(box, 'Say bye', '--route', 'mid', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
   const ran = (await box.runLocal(runner, 'run', '--agent-light', follow, '--attempts', '1'));
-  assert.match(ran.out, /submitted #2/, ran.out);
+  assert.match(ran.out, /#2 is in the gate as job /, ran.out);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', runner.split('/').at(-1), 'pullboard', 'packs');
   assert.match(readFileSync(join(packs, '2-light-1.md'), 'utf8'), /## Finished items that touched the same files\n- #1 Greet: web\/page.js\nFollow the patterns/);
 });
@@ -176,7 +176,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.equal(built.status, 0, built.stderr);
   const refused = await fixtureCommand(box, web, 'submit', '1', '--wait', '--no-next');
   // #1884 (b24440d3) intentionally replaced submit's raw TAP with a bounded failure summary and full run log.
-  assert.equal(refused.code, 1, refused.err);
+  assert.equal(refused.code, 1, refused.err + refused.out);
   assert.match(refused.err, /GATE_RED[\s\S]*the page renders a heading/);
   assert.ok(refused.err.trimEnd().split('\n').length < 40, 'the refusal stays bounded instead of repeating the TAP stream');
   const retained = /full log: ([^\n]+)/u.exec(refused.err);
@@ -201,7 +201,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
   assert.match((await box.runLocal(box.repo, 'refreeze', '1')).out, /refrozen/);
   (await box.runLocal(box.web, 'claim', '1'));
-  assert.match((await box.runLocal(box.web, 'submit', '1')).out, /submitted #1/);
+  assert.match((await box.runLocal(box.web, 'submit', '1')).out, /#1 is in the gate as job /);
 });
 
 test('spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', async () => {
