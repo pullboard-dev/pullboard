@@ -23,7 +23,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   searchFor,
-  chooseFilter,
+  chooseFilter as chooseFilterRaw,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
@@ -79,6 +79,7 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
   /** The page-controls strip's parts in order: Show, Lane, View, then New item [N26]. */
   const stripNames = () => ['state:active', 'state:building', 'state:verify', 'state:all', 'lane', 'view:list', 'view:pipeline', 'new'];
   const search = (words) => searchFor(chrome, words);
+  const chooseFilter = async (c, v) => { try { await chooseFilterRaw(c, v); } catch (e) { const d = await c.stable("JSON.stringify((() => { const el = document.querySelector('#page-controls [data-page-ctl=state]'); const r = el.getBoundingClientRect(); const h = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2); return {w: innerWidth, r: [r.x, r.y, r.width, r.height], hit: h && (h.tagName + '#' + h.id + '.' + h.className), sy: scrollY, view: view.tab + ' ' + view.item}; })())").catch((x) => String(x)); e.message += ' DIAG ' + d + ' ARG ' + v; throw e; } };
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 8 && data.project.shouts.length >= 2");
