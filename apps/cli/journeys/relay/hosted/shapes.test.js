@@ -819,7 +819,7 @@ test('a board over the size limit is named with its size and the limit, beside a
   assert.equal((await box.cliAtLocal(healthy, 'relay', 'on', '--url', box.origin)).code, 0);
   const mixed = await visit(paired, { route: front.route(session, null), phone: true }, true);
   assert.equal(mixed.board, true, 'the healthy sibling remains readable');
-  assert.match(mixed.words, /fixture\/repository[^.]*too (?:big|large)/iu, 'keep the size blocker beside the healthy board');
+  assert.match(mixed.words, /fixture\/repository[^.]*too (?:big|large)/iu, 'keep the size blocker beside the healthy board ' + mixed.dbg);
   assert.ok(mixed.words.includes(refusal.sealedBytes + ' bytes') && mixed.words.includes(refusal.limit + ' bytes'));
   box.legacySnapshotApi(false);
   assert.equal((await box.cliLocal('status')).code, 0, 'the offered bounded-snapshot upgrade actually resumes publication');
@@ -882,7 +882,7 @@ test('an excluded board is named as excluded with the step that includes it [H5,
     'an existing phone-approval notice cannot disclose an excluded name to an unwrapped browser');
   const named = await visit(paired, { route: front.route(session, null), phone: true }, true);
   assert.equal(named.board, true, 'the healthy board remains readable beside the exclusion');
-  assert.match(named.words, /fixture\/excluded-board[^.]*excluded/iu, 'only the device-wrapped browser decrypts the excluded name');
+  assert.match(named.words, /fixture\/excluded-board[^.]*excluded/iu, 'only the device-wrapped browser decrypts the excluded name ' + named.dbg);
   assert.match(named.words, /pullboard relay on/u, 'the named exclusion carries its include command');
   assert.equal((await box.cliAtLocal(excluded, 'relay', 'on', '--url', box.origin)).code, 0,
     'the offered ordinary command actually includes the excluded board');

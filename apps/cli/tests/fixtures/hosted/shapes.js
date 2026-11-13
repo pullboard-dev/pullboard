@@ -236,7 +236,7 @@ export const READ_SCREEN = `(() => {
   return { board: seen(chain) && chain.textContent.includes(${JSON.stringify(BOARD_ITEM)}),
     approval: [...document.querySelectorAll('.phone-approval button')].some(seen),
     screen: document.documentElement.dataset.relayScreen || '', note: document.querySelector('#local-note')?.dataset.state || '',
-    words: parts.join(' | ').slice(0, 1500), commands: [...new Set(commands)], signIn };
+    words: parts.join(' | ').slice(0, 1500), dbg: JSON.stringify({ body: document.body.className, rn: document.querySelector('#relay-notice')?.outerHTML.slice(0,600), rs: document.documentElement.dataset.relayScreen, main: (document.querySelector('main')?.innerText||'').slice(0,700) }), commands: [...new Set(commands)], signIn };
 })()`;
 
 /**
