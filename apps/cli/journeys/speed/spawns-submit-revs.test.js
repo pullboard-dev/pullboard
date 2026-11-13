@@ -16,13 +16,13 @@ function lines(log, name, rest = '') {
   return readFileSync(log, 'utf8').split('\n').filter(line => new RegExp(`\\sgit ${name}\\b.*${rest}`, 'u').test(line));
 }
 
-test('submit resolves revisions once [C7]', t => {
+test('submit resolves revisions once [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
   const log = join(box.dir, 'spawns.log');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Revisions once', diagnose: false, args: ['--specs', 'G1'] }).item_id;
-  const claim = box.run(box.web, 'claim', String(id), '--json');
+  const claim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claim.code, 0, claim.err + claim.out);
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'revs.js'), 'export const revs = 1;\n');
