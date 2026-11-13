@@ -30,7 +30,7 @@ test('clause 2: Roadmap marks are the sheet marks: 4 px, Blocked grey chip, dash
   assert.match(rows, /\[data-stage="blocked"\] \.stage-word \{[^}]*var\(--stage-blocked-soft\)/u, 'Blocked is the grey chip');
   assert.doesNotMatch(rows, /data-stage="blocked"\] \.stage-word \{[^}]*dashed/u, 'Blocked is not a dashed box');
   assert.match(rows, /\.milestone-item \.stage-mark \{[^}]*border-radius: var\(--radius-chip\)[^}]*var\(--mark-back-soft\)/u, 'the mark is a 4 px soft red mark');
-  assert.match(rows, /\.milestone-item \.stage-mark\.gate \{[^}]*border: 1px dashed var\(--line-strong\)/u, 'Held is dashed');
+  assert.match(rows, /\.milestone-item \.stage-mark\.gate \{[^}]*border: var\(--border-dashed-strong\)/u, 'Held is dashed');
   assert.match(rows, /\.milestone-item \.stage-mark\.gate::before/u, 'Held carries its pause icon');
   assert.doesNotMatch(rows, /radius-pill/u, 'no Roadmap mark or chip is a pill');
   assert.match(main, /--mark-back-soft: light-dark\(#fbe9e7,/u, 'the soft red ground is the sheet value');

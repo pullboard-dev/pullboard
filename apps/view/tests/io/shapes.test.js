@@ -32,7 +32,7 @@ test('clause 1: the shared tokens give cards 6 px corners and a 1 px #e5e5e5 bor
   assert.match(root(), /--radius-md: calc\(6px/u);
   assert.doesNotMatch(rule('.dash-live'), /--dash-card: var\(--radius-(?:md|lg)\)/u, 'the Dashboard reads the shared card token');
   const shadows = rules().map(([selector, body]) => [selector, decl(body, 'box-shadow')]).filter(([, value]) => value);
-  for (const [selector, value] of shadows.filter(([selector]) => !/^(?:from|to)$/u.test(selector))) assert.match(value, /^(?:none|var\(--shadow-float\)|inset .*|0 0 0 \d+px .*)$/u, `${selector}: ${value} is no card shadow`);
+  for (const [selector, value] of shadows.filter(([selector]) => !/^(?:from|to)$/u.test(selector))) assert.match(value, /^(?:none|var\(--shadow-float\)|var\(--(?:inset|ring)[\w-]*\)|inset .*|0 0 0 \d+px .*)$/u, `${selector}: ${value} is no card shadow`);
 });
 
 test('clause 2: chips and buttons have 4 px corners, only dots are round, and the selected Insights entry has no fill [N26]', () => {
