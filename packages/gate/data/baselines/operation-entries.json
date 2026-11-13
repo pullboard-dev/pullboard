@@ -80,5 +80,19 @@
     "packages/sandbox/src/io/regeneration.js",
     "packages/sandbox/src/io/verify.js",
     "packages/sync/src/io/main.js"
+  ],
+  "stop-process-tree": [
+    "apps/cli/src/io/scale.js",
+    "apps/cli/src/io/submit/handoff/worker.js",
+    "apps/runner/src/io/private/check/worker.js",
+    "apps/runner/src/io/private/privacy.js",
+    "apps/runner/src/io/worker/process.js",
+    "packages/drive/src/io/pull.js",
+    "packages/landing/src/io/shards.js",
+    "packages/landing/src/io/worker.js",
+    "packages/rigor/src/io/proof.js",
+    "packages/runners/src/io/run.js",
+    "packages/sandbox/src/io/captured.js",
+    "packages/seats/src/io/agent/hook.js"
   ]
 }
