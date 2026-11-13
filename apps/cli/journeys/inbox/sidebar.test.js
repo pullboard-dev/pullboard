@@ -164,7 +164,7 @@ test('the project list drops from the switcher at the top left, over a full-widt
   /** Read the top tier, the switcher, its list and the board as the person sees them. */
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const box = (s) => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height, shown: getComputedStyle(e).display !== 'none' && r.width > 0 }; };
-    return { width: document.documentElement.clientWidth, tier: box('.top-tier'), main: box('main'), switcher: box('#proj-switch'), list: box('#side-body'), theme: box('#theme'),
+    return { width: document.documentElement.clientWidth, tier: box('.top-tier'), main: box('main'), switcher: box('#proj-switch'), list: box('#side-body'), theme: box('#account-slot'),
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
   })())`));
   try {
