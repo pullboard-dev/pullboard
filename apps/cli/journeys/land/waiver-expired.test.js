@@ -32,11 +32,12 @@ async () => {
   acceptItem(box, entry);
   // The submit's green receipt would cover a landing on its own main, so move main past it and let the landing gate run [#3685].
   moveMainPastSubmit(box);
+  // The land job lands on the trunk remote, so it carries main's flaky test; the push's own hook sees it suppressed.
+  box.env.LAND_SUPPRESS_RED = '1';
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
   delete box.env.LAND_SUPPRESS_RED;
   const past = { now: () => new Date('2000-01-01T00:00:00Z') };
   onBoard(box, (board) => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'expired-example', test: FILES[0], until: '2000-01-02', reason: 'expired fixture approval' }), past);
-  // The land job lands on the trunk remote, so it carries main's flaky test.
-  box.git(box.repo, 'push', '-q', 'origin', 'main');
   const main = box.git(box.repo, 'rev-parse', 'main');
   // The expired waiver excuses nothing: the land job runs the gate, the flaky test holds it red and nothing lands.
   const held = await settleLand(box, json(box, box.repo, 'land'));
