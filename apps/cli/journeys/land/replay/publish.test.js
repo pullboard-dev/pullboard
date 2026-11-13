@@ -23,7 +23,7 @@ test('publish pushes only a head the whole suite passed and names every red [B3,
   await settleRecordedSourceWake(box, { waitFor });
   const head = box.git(box.repo, 'rev-parse', 'main');
   const start = calls(box).length;
-  const red = box.run(box.repo, 'publish', '--json');
+  const red = await box.runLocal(box.repo, 'publish', '--json');
   assert.equal(red.code, 1, 'a red head fails publish');
   const report = JSON.parse(red.out);
   assert.equal(report.published, false);
@@ -31,7 +31,7 @@ test('publish pushes only a head the whole suite passed and names every red [B3,
   assert.deepEqual(report.red.map((entry) => entry.file), [FILES[1]], 'every failing test is named from the one run');
   assert.deepEqual(report.red[0].items, [entries[1].item], 'the failing file names the landed item whose merge touched it');
   assert.equal(calls(box).length - start, 1, 'one whole-suite run');
-  const again = box.run(box.repo, 'publish', '--json');
+  const again = await box.runLocal(box.repo, 'publish', '--json');
   assert.equal(again.code, 0);
   assert.equal(JSON.parse(again.out).waiting, true, 'the same red head waits for a new head');
   assert.equal(calls(box).length - start, 1, 'waiting runs no tests');

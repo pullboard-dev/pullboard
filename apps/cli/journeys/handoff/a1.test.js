@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { openBoard } from '../../../lib/index.js';
-import { submitHandoffRecord } from '../../../lib/index.js';
+import { handoffRecord } from '../../../../packages/store/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../../packages/store/index.js';
 import { completeSubmitHandoff } from '../../../../packages/store/index.js';
@@ -77,7 +77,7 @@ test('clause 1: submitHandoff reads the record from the job [C7]', async (t) => 
       assert.equal(today.state, step);
       // The same record as today, and it is the record on the gate job's latest step.
       assert.deepEqual(submitHandoff(board, id), today);
-      assert.deepEqual(submitHandoffRecord(board.db, id), today);
+      assert.deepEqual(handoffRecord(board.db, id), today);
       const view = jobView(board.db, options.job);
       assert.equal(view.kind, 'gate');
       assert.equal(view.step, step);
@@ -121,7 +121,7 @@ test('clause 1: a hand-off record an older release left in board_meta moves onto
     board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`submit_handoff:${id}`, JSON.stringify(older));
     board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`submit_handoff_ended:${ended.id}`, JSON.stringify(ended));
     // Readers never look in board_meta: until the move, the item has no record.
-    assert.equal(submitHandoffRecord(board.db, id), undefined);
+    assert.equal(handoffRecord(board.db, id), undefined);
     assert.equal(missingJobTables(board.db), true, 'a waiting legacy record makes the owning open upgrade the board');
     assert.equal(adoptLegacyHandoffs(board.db), 2);
     assert.deepEqual(submitHandoff(board, id), older);

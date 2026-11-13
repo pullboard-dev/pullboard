@@ -239,7 +239,7 @@ async function pulledFreshnessCase(helpers) {
   submitItem(box, first);
   // The second item changes the first's checked file on its own branch, so its landing makes the first verdict stale.
   mkdirSync(join(second.path, 'web'), { recursive: true });
-  writeFileSync(join(second.path, FILES[0]), 'PASS changed\n');
+  writeFileSync(join(second.path, FILES[0]), '// PASS changed\n');
   submitItem(box, second);
   acceptItem(box, first);
   acceptItem(box, second);
