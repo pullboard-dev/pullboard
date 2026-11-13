@@ -59,6 +59,9 @@
   "apps/cli/journeys/init/http.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/verify/check-landing.test.js": {
+    "launch": 4
+  },
   "apps/cli/journeys/check-baseline/hold.test.js": {
     "launch": 16
   },
@@ -154,9 +157,6 @@
   },
   "apps/cli/journeys/fact/tests/cpu-registration-closure.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/verify/check.test.js": {
-    "launch": 5
   },
   "apps/cli/journeys/lifecycle/merge.test.js": {
     "launch": 1
@@ -287,9 +287,6 @@
   "apps/cli/journeys/init/origin/states.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/claim/complete.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/test/warning.test.js": {
     "launch": 2
   },
@@ -414,6 +411,9 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/compose.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/init/shards/stop.test.js": {
     "launch": 2
   },
   "packages/gate/tests/io/static/check/registry.test.js": {
@@ -653,6 +653,9 @@
   "apps/cli/journeys/submit/handoff/recovery/dead.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
+    "launch": 1
+  },
   "apps/cli/journeys/publish/usage/batch.test.js": {
     "launch": 3
   },
@@ -797,9 +800,6 @@
   "apps/cli/journeys/init/shards.test.js": {
     "launch": 8
   },
-  "apps/cli/journeys/init/shards/stop.test.js": {
-    "launch": 2
-  },
   "packages/landing/tests/hung.test.js": {
     "launch": 1
   },
@@ -902,6 +902,9 @@
   "apps/cli/journeys/milestone/text.test.js": {
     "launch": 2
   },
+  "packages/api/tests/io/handoff.test.js": {
+    "launch": 1
+  },
   "apps/cli/tests/io/verify.test.js": {
     "launch": 1
   },
@@ -936,9 +939,6 @@
     "launch": 1
   },
   "apps/cli/journeys/inbox/budget.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/reopen/landing/stale.test.js": {
     "launch": 1
   },
   "packages/resources/tests/io/runner/heal/drain.test.js": {
@@ -984,6 +984,9 @@
     "launch": 3
   },
   "apps/cli/journeys/fact/bound.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/verify/check-checked.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/lane/merged.test.js": {
@@ -1639,8 +1642,5 @@
   },
   "apps/cli/journeys/resume/plans.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
-    "launch": 1
   }
 }
