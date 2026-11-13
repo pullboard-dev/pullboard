@@ -28,7 +28,7 @@ export function recordLiveness(db, kind, row, detail = '') {
 let sweeper;
 function sweepStaleTests(db) {
   if (sweeper) sweeper.pass(db, recordLiveness);
-  else import('./stale-' + 'test-sweep.js').then(module => { sweeper = module.staleTestSweeper(); }).catch(() => {});
+  else import(new URL('./stale-test-sweep.js', import.meta.url).href).then(module => { sweeper = module.staleTestSweeper(); }).catch(() => {});
 }
 
 /**
