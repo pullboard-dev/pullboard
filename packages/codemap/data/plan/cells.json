@@ -2206,6 +2206,7 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->commits",
     "apps/cli->search",
     "apps/cli->state",
     "apps/lib->apps/runner",
