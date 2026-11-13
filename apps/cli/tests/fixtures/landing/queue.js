@@ -78,7 +78,9 @@ function withBaselineRunner(box, action) {
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH },
+  // A box that pinned its dispatch keeps it: a pull baseline has no puller on a box whose runner is this SSH stand-in.
+  const pinned = previous === null ? null : JSON.parse(String(previous)).gate?.runnerDispatch;
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH, ...(pinned ? { runnerDispatch: pinned } : {}) },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   try { return action(); }
   finally {
