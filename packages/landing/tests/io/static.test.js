@@ -4,6 +4,10 @@ import { test } from 'node:test';
 import { Refused } from '../../../kernel/index.js';
 import { itemRefusalText } from '../../src/logic/refusal.js';
 import { entriesTouching } from '../../src/io/static.js';
+import { scopedStaticConfig } from '../../src/io/static.js';
+import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { landingStaticRefusal } from '../../src/io/static.js';
 import { fixture } from '../fixtures/plan.js';
 import { git } from '../fixtures/plan.js';
@@ -53,4 +57,33 @@ test('clause 2: only the item that changed the red file is charged, so the rest 
   const { root, base, first, second } = repository(t);
   const entries = [{ id: 1, commit: first }, { id: 2, commit: second }];
   assert.deepEqual(entriesTouching(root, base, entries, ['web/b.txt']).map(entry => entry.id), [2]);
+});
+
+/** What a static command sees in PULLBOARD_STATIC_SCOPE when run in a checkout, or null when it is unset. */
+function seenScope(root, config) {
+  const ran = spawnSync('/bin/sh', ['-c', config.staticChecks], { cwd: root, encoding: 'utf8', env: { ...process.env, PULLBOARD_STATIC_SCOPE: '' } });
+  assert.equal(ran.status, 0, ran.stderr);
+  return ran.stdout === 'unset' ? null : JSON.parse(ran.stdout);
+}
+
+const PROBE = { staticChecks: `node -e "process.stdout.write(process.env.PULLBOARD_STATIC_SCOPE ? process.env.PULLBOARD_STATIC_SCOPE : 'unset')" && true` };
+
+test('clause 1: a one-item batch hands the static run the merged tree\'s changed paths through PULLBOARD_STATIC_SCOPE, nothing more [C7]', t => {
+  const { root, base, first } = repository(t);
+  git(root, 'checkout', '-q', first);
+  assert.deepEqual(seenScope(root, scopedStaticConfig(root, base, PROBE)), ['web/a.txt']);
+});
+
+test('clause 1: a two-item merged tree lists both items\' paths, sorted [C7]', t => {
+  const { root, base } = repository(t);
+  assert.deepEqual(seenScope(root, scopedStaticConfig(root, base, PROBE)), ['web/a.txt', 'web/b.txt']);
+});
+
+test('clause 1: a changed input every rule reads keeps the whole static run [C7]', t => {
+  const { root, base } = repository(t);
+  git(root, 'checkout', '-q', '-b', 'json', base);
+  writeFileSync(join(root, 'web/data.json'), '{}\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'feat: data');
+  assert.equal(seenScope(root, scopedStaticConfig(root, base, PROBE)), null);
 });
