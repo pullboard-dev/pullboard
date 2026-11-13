@@ -92,10 +92,7 @@ function machine() {
     fixtureJoinRoute(args, commandEnv.PULLBOARD_MODEL);
     fixtureAddRoute(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
-    const began = Date.now();
-    console.error('# in-process start: ' + args.slice(0, 3).join(' '));
     const result = await runCliInProcess(args, { cwd, env: commandEnv });
-    console.error('# in-process done ' + (Date.now() - began) + ' ms: ' + args.slice(0, 3).join(' '));
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };
