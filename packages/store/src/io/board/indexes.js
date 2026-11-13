@@ -71,7 +71,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', 'job_kind_item', 'test_result', 'test_result_key'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', 'job_kind_item', 'job_step_lease', 'test_result', 'test_result_key'].every(installed);
 }
 
 /** Create the hot and additive indexes and the job tables, each IF NOT EXISTS, moving and deleting no row [A5]. */
