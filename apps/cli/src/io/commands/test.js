@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { queuesTestRun } from '../../../../../packages/drive/index.js';
 import { testRunItem } from '../../../../../packages/drive/index.js';
@@ -13,9 +12,6 @@ import { headCommit } from '../../../../../packages/git/index.js';
 import { context } from '../context.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
-
-/** The CLI file a queued run's worker runs: this build, handed to the drive cell so it never names an app [C7,CD12]. */
-const CLI_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
 
 /**
  * The seat's live build claims: `item` is its sole claim, since ambiguous or absent ownership grants no item priority,
@@ -85,7 +81,7 @@ async function queueSeatRun(io, ctx, { agent, item, items, files, values }, pull
   }
   // A pulled run fetches only the committed source, so its refusal of an uncommitted change comes now, not through next [P7].
   if (pulledRun?.pullTestWanted(item, values)) await pulledRun.refuseUncommitted(ctx.info.root);
-  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true }, { entry: CLI_ENTRY });
+  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true });
   io.result?.({ queued: true, run: queued.id, status: queued.status, files: queued.files, log: queued.log });
   if (values.wait === true || process.env.PULLBOARD_TEST_WAIT === '1') io.say('a seat holding a claim never blocks on its own test run; it queues');
   io.say(`queued test run ${queued.id}; the board runs it and pullboard next brings the result; read it any time with pullboard test --status ${queued.id}; take your next item now: pullboard next --take`);

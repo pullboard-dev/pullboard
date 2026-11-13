@@ -7,7 +7,7 @@ import { fixture } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { openFixtureBoard } from '../../../tests/fixtures/cases/quarantine-submit.js';
-import { TITLE } from '../../../tests/fixtures/flakes/project.js';
+import { TITLE } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import * as store from '../../../../../packages/store/index.js';
 import { recordGateRun } from '../../../../../packages/flakes/index.js';
 import { requireSubmitDiagnosticAdmission } from '../../../../../packages/flakes/index.js';
