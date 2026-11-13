@@ -2,7 +2,7 @@ import { modelLabelRules } from "../cost/tab.js";
 import { projectSummary } from "../../logic/summary/project.js";
 /**
  * Read the private board's cost event history once per board and window, and again only after a usage, shared-usage
- * or merged event has arrived since the last read. The drawn numbers stay on screen while a new read is on its way.
+ * or merged event has arrived since the last read; a gap in the visible ids reads the event log for the missing ones. The drawn numbers stay on screen while a new read is on its way.
  * This function is serialized into the private page script and uses its page-local state.
  * @param {Record<string, any>} project - The current board state.
  * @param {boolean} [switching] - Whether a tab switch asks, which keeps analytics already read.
@@ -23,6 +23,30 @@ function readCostHistory(project, switching = false) {
     const oldest = events.length ? Math.min(...events.map(event => Number(event.event_id) || 0)) : seen;
     const costEvent = events.some(event => event.event_id > kept.seen && ['usage', 'shared-usage', 'merged'].includes(event.event_kind));
     if (!costEvent && oldest <= kept.seen + 1) return kept;
+    if (!costEvent && !kept.stale) {
+      // A gap of ids may hide a cost event, but a gap alone is not a reason to read cost-analytics: the missing
+      // events are read from the event log (cheap) once per gap, and only a cost-bearing one among them reads again.
+      if (kept.gapUpTo !== oldest) {
+        kept.gapUpTo = oldest;
+        const gapKey = key;
+        const scan = after => api(boardPath(root) + '/events?after=' + after).then(reply => {
+          const batch = Array.isArray(reply.events) ? reply.events : [];
+          const missing = batch.filter(event => event.event_id < oldest);
+          if (missing.some(event => ['usage', 'shared-usage', 'merged'].includes(event.event_kind))) throw { found: true };
+          const last = batch.length ? Number(batch[batch.length - 1].event_id) : oldest;
+          if (batch.length && last < oldest - 1) return scan(last);
+        });
+        scan(kept.seen).then(() => {
+          if (costHistory.get(gapKey) === kept) kept.seen = Math.max(kept.seen, oldest - 1);
+        }).catch(found => {
+          if (costHistory.get(gapKey) !== kept) return;
+          if (found && found.found) kept.stale = true;
+          else kept.gapUpTo = null;
+          if (kept.stale && view.tab === 'cost' && root === view.root) render();
+        });
+      }
+      return kept;
+    }
   }
   const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model), error: null, model: kept?.model ?? null };
   costHistory.set(key, entry);
@@ -268,6 +292,7 @@ function arrived(board, summary, shown, state) {
  */
 async function boardState(root, mark, fresh = null, shown = null) {
   const listed = await api('/api/v1/boards');
+  stateWorkerStopped = listed.stateWorker === 'stopped';
   if (!data) {
     // Names are already known: a slow board must not leave the project picker blank.
     const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
@@ -323,6 +348,8 @@ async function boardState(root, mark, fresh = null, shown = null) {
   };
 }
 
+// Whether the server's state worker has stopped, so the status bar says the view serves from the request thread.
+let stateWorkerStopped = false;
 // What each local board last sent this page, {state, sequence, version}: the base its next read asks to extend.
 const sentStates = new Map();
 // #552's delta applier, embedded as the server's own source, so the page applies a delta and recomputes nothing.
@@ -346,7 +373,8 @@ async function boardRead(board, seen) {
       return state;
     }
   }
-  const query = [mark, local ? 'items=compact' : ''].filter(Boolean).join('&');
+  // A first load takes the state the server keeps (kept=1): the stream's opening catch-up reads the delta to now [A2,C7].
+  const query = [mark, local ? 'items=compact' : '', local && !held ? 'kept=1' : ''].filter(Boolean).join('&');
   const reply = await api(path + (query && '?' + query));
   const state = expandItemSummaries(reply.state);
   if (local) sentStates.set(board.id, { state, sequence: state.sequence, version: reply.eventLogVersion });
