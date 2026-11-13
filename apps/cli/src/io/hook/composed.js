@@ -16,7 +16,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { scratchFolder } from '../../../../../packages/config/light.js';
+import { scratchFolder } from '../../../../../packages/config/index.js';
 import { TEST_FILE } from '../../../../../packages/codemap/light.js';
 import { gitSpawnSync } from '../../../../../packages/git/light.js';
 
