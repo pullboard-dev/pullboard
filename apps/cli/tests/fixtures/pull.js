@@ -90,8 +90,6 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: stand-in trusted tooling [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  // Bar readiness makes the gate compose the change with main, so the runner job runs the composition step [C7].
-  assert.equal(box.run(box.repo, 'bar', 'ready', 'on').code, 0);
   /** Add item n; every item after the first names the first as no duplicate. */
   const add = (n, first) => fixtureAdd(box.runAsync, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
   const ids = [];
@@ -112,11 +110,13 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
 
 /**
  * Claim, commit and submit one item from its own folder; the submit must return green at once.
- * `change` names the one file the item commits; by default a fresh web/<id>.txt.
+ * `change` names the one file the item commits; by default a fresh web/<id>.txt. `compose` turns bar readiness on after the
+ * claim (a bar frozen before activation stays claimable), so the gate composes the change with main on the runner [C7].
  */
-export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }) {
+export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }, { compose = false } = {}) {
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
+  if (compose) assert.equal(box.run(box.repo, 'bar', 'ready', 'on').code, 0);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
   const submitted = box.run(folder, 'submit', String(id), '--json');

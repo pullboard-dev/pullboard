@@ -12,7 +12,7 @@ import { submitOne } from '../../../tests/fixtures/pull.js';
 test('clause 2: authorization, doctrine, static checks, selection and tests all run inside the one runner job and post one receipt [P7]', async t => {
   const box = await pullProject(t, 1);
   const [id] = box.ids;
-  const { commit } = submitOne(box, id);
+  const { commit } = submitOne(box, id, undefined, { compose: true });
   const runner = await loopbackRunner(t, box);
   const job = await runner.take('runner-solo');
   assert.equal(job.input.candidate, commit);

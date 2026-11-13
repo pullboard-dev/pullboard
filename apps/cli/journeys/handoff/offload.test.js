@@ -19,7 +19,7 @@ test('clause 1: a submit copies no tooling and composes nothing; the runner job 
   const box = await pullProject(t, 1);
   const [id] = box.ids;
   const before = hostProcesses(box.dir);
-  const { folder, commit } = submitOne(box, id);
+  const { folder, commit } = submitOne(box, id, undefined, { compose: true });
   assert.equal(hostProcesses(box.dir), before, 'the submit left no process on the submitting machine');
   for (const place of [folder, box.web, box.repo]) assert.equal(existsSync(join(place, '.git', 'gate-steps.jsonl')), false, `no gate step ran in ${place}`);
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => jobQueueCall(current.db, body, { mode: 'pull', trunk: () => box.repo }) });
