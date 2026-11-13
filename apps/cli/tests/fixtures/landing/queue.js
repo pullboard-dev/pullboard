@@ -269,7 +269,7 @@ function offeredLandChecks(box) {
  * pulled land check is fixed at offer time from main's policy, so an item never judges itself by the policy it brings [Q1,B3,C7].
  */
 async function pulledPolicyCase(helpers) {
-  const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(helpers);
+  const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures(helpers);
   const box = landProject();
   // The project's own gate judges each land job (no affectedTests ledger proof), and the web lane owns its config.
   const configPath = join(box.repo, 'pullboard.json');
@@ -280,14 +280,14 @@ async function pulledPolicyCase(helpers) {
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: the project gate judges landings');
   box.git(box.repo, 'push', '-q', 'origin', 'main');
-  const first = itemWorktree(box, 1);
-  const second = itemWorktree(box, 2);
-  submitItem(box, first);
+  // In-process seats, claims, submits and verdicts: a node start-up per step was most of this case's time [B3].
+  const first = await itemWorktreeLocal(box, 1);
+  const second = await itemWorktreeLocal(box, 2);
   const itemConfig = JSON.parse(readFileSync(join(second.path, 'pullboard.json'), 'utf8'));
   fixtureProjectPolicy(second.path, { config: { ...itemConfig, gate: itemConfig.gate + ' --new-policy' } });
-  submitItem(box, second);
-  acceptItem(box, first);
-  acceptItem(box, second);
+  await Promise.all([first, second].map(entry => commitItemLocal(box, entry)));
+  for (const entry of [first, second]) await submitItemLocal(box, entry);
+  for (const entry of [first, second]) await acceptItemLocal(box, entry);
   // The submit gates also ran the gate; only the land jobs' runs count from here.
   writeFileSync(box.calls, '');
   readBoard(box, board => store.holdItem(board, first.item, { agentId: 'coordinator', reason: 'land the policy change first' }));
