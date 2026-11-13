@@ -140,6 +140,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_CLAIM_BEATER: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
+    // Fixture items carry numbered, near-identical titles, so the duplicate guard stays off here; its own journey turns it on (#6864).
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
     ...(process.env.PULLBOARD_TEST_RUNNER_PID ? { PULLBOARD_TEST_RUNNER_PID: process.env.PULLBOARD_TEST_RUNNER_PID } : {}),
   };

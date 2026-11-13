@@ -12,6 +12,8 @@ async function setup(t) {
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
   const box = helpers.project('true', isolated);
+  assert.equal(box.env.PULLBOARD_FIXTURE_ADD_DISTINCT, '1', 'the fixture box opts out by default');
+  delete box.env.PULLBOARD_FIXTURE_ADD_DISTINCT;
   const first = await fixtureAdd(box.inProcess, box.repo, 'web', 'Census reports stale seat claims', '--criterion', CRITERION, '--check', 'true');
   assert.equal(first.code, 0, `${first.out}${first.err}`);
   return box;
@@ -33,4 +35,16 @@ test('clause 2: --not-duplicate-of with a reason files the item and records the 
   assert.equal(again.code, 0, `${again.out}${again.err}`);
   const shown = await box.inProcess(box.repo, 'show', '2');
   assert.match(`${shown.out}${shown.err}`, /Not a duplicate of #1: this one covers the private board only/u);
+});
+
+test('clause 3: a fixture box files near-identical titles without refusal while real adds keep the guard [C7]', async (t) => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox());
+  const filed = [];
+  for (let n = 0; n < 2; n += 1) filed.push(await fixtureAdd(box.inProcess, box.repo, 'web', 'Census reports stale seat claims', '--criterion', CRITERION, '--check', 'true'));
+  assert.deepEqual(filed.map(r => r.code), [0, 0], filed.map(r => `${r.out}${r.err}`).join('\n'));
+  delete box.env.PULLBOARD_FIXTURE_ADD_DISTINCT;
+  const real = await fixtureAdd(box.inProcess, box.repo, 'web', 'Census reports stale seat claims', '--criterion', CRITERION, '--check', 'true');
+  assert.match(`${real.out}${real.err}`, /DUPLICATE_LIKELY/u);
 });
