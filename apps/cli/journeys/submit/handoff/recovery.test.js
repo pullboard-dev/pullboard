@@ -1,6 +1,5 @@
 /** A pulled gate job whose runner is stopped or dies mid-check keeps the gate's record and the builder's claim [V4,H16,E18,C7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import {
   existsSync,
@@ -18,8 +17,7 @@ import {
   fixture,
   state,
 } from '../../../tests/fixtures/submit/handoff.js';
-
-const BIN = join(import.meta.dirname, '../../../pullboard.js');
+import { startFixtureLocalRunner } from '../../../tests/fixtures/runner/local-start.js';
 
 /** The pids of this fixture's own frozen check processes that are still running, read from the process table. */
 function checkPids(box) {
@@ -57,16 +55,11 @@ function runnerPid(box) {
 }
 
 /**
- * Start a fresh local runner for the fixture's machine, as the next pull submit would, and stop it when the test ends.
- * Process-level: the real `pullboard runner local`, run as its own process with the machine's settings only.
+ * Start a fresh local runner for the fixture's machine, as the next pull submit would; the fixture removes it with the sandbox.
+ * Why the shared starter: it is never this test's own child, so a stop does not wait on an unreaped zombie (HOW TO MIGRATE 8a).
  */
-function freshRunner(t, box) {
-  const env = Object.fromEntries(Object.entries(box.env).filter(([key]) => !key.startsWith('PULLBOARD_') || ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'].includes(key)));
-  delete env.NODE_TEST_CONTEXT;
-  const child = spawn(process.execPath, [BIN, 'runner', 'local'], { cwd: box.repo, env, detached: true, stdio: 'ignore' });
-  child.unref();
-  t.after(() => { try { process.kill(child.pid, 'SIGKILL'); } catch { /* already gone */ } });
-  return child.pid;
+function freshRunner(box) {
+  return startFixtureLocalRunner(box.env, box.repo).pid;
 }
 
 /** Wait for a condition; a miss names the gate job and the runner log, so a stalled step says where it stopped. */
@@ -82,6 +75,8 @@ async function until(box, check, label, ms) {
 
 /** Submit the captured item and wait until its runner has the gate job and the captured check is running. */
 async function runningGate(box) {
+  // The gate holds on its release file until the test lets it go, so the submit command must not wait for the queue to settle.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
   await until(box, () => existsSync(box.started) && checkPids(box).length > 0, 'the captured check is running', 60000); // budget: observed gate start ceiling, not a timing assertion.
@@ -109,7 +104,7 @@ test('clause 1: a runner stopped mid-check stops its check and hands back the ga
   assert.deepEqual(transitions(stopped), [1, 0], 'the job keeps its one claim and records no result');
   assert.equal(state(box, box.id).item.item_status, 'claimed', 'the builder keeps the claim');
   writeFileSync(box.release, 'release\n');
-  freshRunner(t, box);
+  freshRunner(box);
   await submitted(box);
   const finished = gateJob(box);
   assert.equal(finished.id, job.id, 'the same job finished');
@@ -143,7 +138,7 @@ test('clause 1: a runner killed mid-check keeps the gate job lease until it laps
   board = openBoard(box.boardFile);
   try { board.db.prepare('UPDATE job SET job_lease_until = ? WHERE job_id = ?').run(Date.now() - 1, job.id); } finally { board.db.close(); }
   writeFileSync(box.release, 'release\n');
-  freshRunner(t, box);
+  freshRunner(box);
   await submitted(box);
   const finished = gateJob(box);
   assert.equal(finished.id, job.id, 'the same job finished');
