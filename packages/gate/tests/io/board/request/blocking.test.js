@@ -13,10 +13,10 @@ test('clause 1: the tree has no synchronous child process reachable from an API 
   assert.deepEqual(apiRequestIoProblems(sources).map(row => `${row.file}:${row.line} ${row.call} (${row.owner})`), []);
 });
 
-test('clause 1: every known violation names why, and the seeded set includes mainReceipts and the nearbyMainClass git log [C7]', () => {
+test('clause 1: every known violation names why, and the seeded set includes mainReceipts and the cached-candidate git log [C7]', () => {
   for (const [owner, why] of Object.entries(KNOWN_REQUEST_BLOCKERS)) assert.ok(why.length > 10, owner);
   assert.ok('packages/landing/src/io/main/red/receipt.js#treeOf' in KNOWN_REQUEST_BLOCKERS);
-  assert.ok('packages/landing/src/io/main/red/receipt.js#nearbyMainClass' in KNOWN_REQUEST_BLOCKERS);
+  assert.ok('packages/landing/src/io/main/red/receipt.js#unchangedDescendants' in KNOWN_REQUEST_BLOCKERS);
 });
 
 test('clause 1: a new spawnSync, execSync or gitSpawnSync call reached from a handler outside the list fails [C7]', () => {
