@@ -26,7 +26,8 @@ import {
   writeFileSync,
 } from '../../../tests/fixtures/scenarios/runners.js';
 
-test('review655 a registered runner honors the same live person waiver at landing [B3,R3,C7]', { timeout: 120_000 }, async (t) => {
+// The pulled equivalent is apps/cli/journeys/land/waiver-pull.test.js; this case drives gate --landing over the SSH stand-in (runOnRunnerAsync).
+test('review655 a registered runner honors the same live person waiver at landing [B3,R3,C7]', { timeout: 120_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async (t) => {
   const { createE2eHelpers } = await import('../../../tests/fixtures/e2e.js');
   const helper = createE2eHelpers();
   t.after(helper.cleanup);
