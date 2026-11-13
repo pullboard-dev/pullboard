@@ -40,7 +40,7 @@ test('Roadmap rows open their items across boards and update live [N26,N38]', { 
   /** Preserve which real fixture phase ran before a timeout, without changing its budget. */
   const phase = name => t.diagnostic('roadmap phase ' + name + ' ' + (Date.now() - phaseStarted) + 'ms');
   phase('start');
-  const { box, alpha, beacon } = roadmapStagesBoard(phase);
+  const { box, alpha, beacon } = await roadmapStagesBoard(phase);
   phase('states-ready');
   const view = await startView(box);
   phase('view-ready');

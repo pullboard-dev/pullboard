@@ -40,7 +40,7 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
   /** Preserve which real fixture phase ran before a timeout, without changing its budget. */
   const phase = name => t.diagnostic('roadmap phase ' + name + ' ' + (Date.now() - phaseStarted) + 'ms');
   phase('start');
-  const { box, beacon, titles } = roadmapStagesBoard(phase);
+  const { box, beacon, titles } = await roadmapStagesBoard(phase);
   // What the person reads on each row: the approved stage word; rejected work is a separate mark. Rows follow the
   // backend's queue order, queued items first by position (36add4ed61, f8e8ce444a), never re-sorted by stage (b83469ff53).
   const words = [
