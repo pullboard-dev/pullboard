@@ -1407,6 +1407,9 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 @media (max-width: 700px) {
   #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow: hidden; }
   #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #spec-chips .seg button, #doctrine-chips .seg button { display: flex; align-items: center; justify-content: center; }
+  #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #spec-chips .seg button b, #doctrine-chips .seg button b { flex: none; }
 }
 .spec-gate { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; color: var(--ink-muted); }
 .spec-gate code { font: var(--text-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
