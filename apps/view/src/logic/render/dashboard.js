@@ -34,6 +34,10 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   /** One row that opens its item: #id, the title to an ellipsis, a faint right-hand fact. */
   const row = (cls, entry, right, late = false) => '<button type="button" class="'+cls+'" data-go="item:'+entry.id+'"><span class="dash-id">#'+entry.id+'</span><span class="dash-t" title="'+esc(entry.title)+'">'+esc(entry.title)+'</span><span class="dash-age'+(late ? ' late' : '')+'">'+right+'</span></button>';
   const label = (text, count = '') => '<h2 class="dash-lbl">'+text+count+'</h2>';
+  /** Design sheet v1.1: a section's header sits on the ground above its card, label and window left, caption and link right. */
+  const section = (aria, cls, head, body, { id = '', cap = '', link = '' } = {}) => '<section class="dash-sec '+cls+'"'+(id ? ' id="'+id+'"' : '')+' aria-label="'+esc(aria)+'"><div class="dash-shd">'+head+(cap ? '<span class="dash-cap2">'+cap+'</span>' : '')+(link ? link : '')+'</div>'+body+'</section>';
+  /** A card's own sub-head: sans 12.5, never small capitals. */
+  const sub = (text, count = '') => '<h3 class="dash-ct">'+text+count+'</h3>';
   const f = m.flow;
   /** Whether a reviewer holds this submitted item now. */
   const reserved = entry => Boolean(entry.reviewer) && Date.parse(entry.reviewUntil) > m.now;
@@ -47,28 +51,28 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     stage('review', 'review', 'Review', 'review', rate(f.accepted + f.sentBack), '<b>'+num(f.accepted)+'</b> accepted · <b>'+num(f.sentBack)+'</b> sent back', num(f.waitingReview)+' wait for a reviewer'+(f.oldestWait === null ? '' : ' · oldest '+ago(f.oldestWait))),
     stage('land', 'merged', 'Land', 'landed', rate(f.landed), '<b>'+num(f.landed)+'</b> landed · <b>'+num(m.lists.accepted.length)+'</b> to land', f.lastLanded ? 'last '+ago(f.lastLanded)+' ago' : 'none yet', true),
   ].join('') : '<p class="dash-empty">Reading the board’s history…</p>';
-  const flowHtml = '<section class="dash-sec dash-flowsec" aria-label="How work moved"><div class="dash-cap">'+label('How work moved · last 4 hours')+'<span class="dash-r">Click a step or a number to open those items</span></div>'
-    + '<div class="dash-flow">'+flowCards+'</div>'
-    + (f ? '<p class="dash-loop" data-dashboard-loop>'+icon('back')+open(num(f.sentBack)+' sent back', 'sent-back', { cls: 'back' })+' to their builders in 4 h · a different agent reviews every item</p>' : '')+'</section>';
+  const flowHtml = section('How work moved', 'dash-flowsec', label('Flow · 4 h'), '<div class="dash-card dash-flowcard"><div class="dash-flow">'+flowCards+'</div>'
+    + (f ? '<p class="dash-loop" data-dashboard-loop>'+icon('back')+open(num(f.sentBack)+' sent back', 'sent-back', { cls: 'back' })+' to their builders in the last 4 hours · a different agent reviews every item</p>' : '')+'</div>');
 
   // 2. The Now line: where every item is, one dot, number and word per stage.
   const s = m.stages;
   const tile = (dot, value, word, list, title) => open('<i class="dash-dot '+dot+'"></i><b>'+num(value)+'</b>'+word, list, { cls: 'dash-tile', title });
-  const now = '<section class="dash-card dash-now" aria-label="Now">'+label('Now')+[
+  const now = section('Now', 'dash-nowsec', label('Now'), '<div class="dash-card dash-now">'+[
     tile('ready', s.ready, 'ready', 'next', 'Open, nothing waiting'), tile('waiting', s.waiting, 'waiting', 'gated', 'Waiting on other items'),
     tile('building', s.building, 'building', 'building', 'One item each'), tile('gated', s.gate, 'in the gate', 'gate', 'Submitted, the gate is checking'),
     tile('review', s.review, 'in review', 'review', 'Passed the gate, with or waiting for a reviewer'), tile('landing', s.toLand, 'to land', 'passed', 'Accepted, landing next'),
     tile('back', s.sentBack, 'sent back', 'sent-back', 'With their builders'), tile('held', s.held, 'held', 'held', 'Paused on purpose'),
-  ].join('<span class="dash-x" aria-hidden="true"></span>')+'</section>';
+  ].join('<span class="dash-x" aria-hidden="true"></span>')+open(num(s.active)+' open · Items ›', 'active', { cls: 'dash-tright' })+'</div>');
 
   // 3. Shipping now: the release card, its stage bar and legend, In flight, then three pace tiles.
   const shipping = (() => {
     const release = m.milestone, summary = release?.summary;
     const counted = key => Number.isInteger(summary?.[key]) && summary[key] >= 0;
-    if (!release || !counted('total') || !counted('left')) return '<section class="dash-card dash-ship" aria-label="Shipping now">'+label('Shipping now')+'<p class="dash-empty">No release is in progress.</p></section>';
+    const roadmap = '<button type="button" class="dash-lk" data-tab="roadmap">Roadmap ›</button>';
+    if (!release || !counted('total') || !counted('left')) return section('Shipping now', 'dash-shipsec', label('Release'), '<div class="dash-card dash-ship"><p class="dash-empty">No release is in progress.</p></div>', { link: roadmap });
     const named = /^(\d+(?:\.\d+)+)\s*:\s*(.+)$/u.exec(String(release.name ?? ''));
     const title = named ? '<span class="dash-ver">'+esc(named[1])+'</span>'+esc(named[2]) : esc(release.name);
-    const parts = [['landed','landed','landed'],['landing','passed, landing','passed'],['review','in review','review'],['building','building','building'],['waiting','waiting','gated'],['held','held','held']].filter(([key]) => counted(key));
+    const parts = [['landed','landed','landed'],['landing','landing','passed'],['review','in review','review'],['building','building','building'],['waiting','waiting','gated'],['held','held','held']].filter(([key]) => counted(key));
     let offset = 0;
     const gap = Math.max(0.002 * summary.total, 0);
     const bar = '<svg class="dash-sbar" viewBox="0 0 '+(summary.total || 1)+' 1" preserveAspectRatio="none" role="img" aria-label="'+esc(release.name+': '+parts.map(([key,word]) => summary[key]+' '+word).join(', '))+'">'+parts.filter(([key]) => summary[key]).map(([key,word]) => { const x = offset; offset += summary[key]; return '<rect class="dash-seg-'+key+'" data-release-segment="'+key+'" data-count="'+summary[key]+'" x="'+x+'" width="'+Math.max(0, summary[key]-gap)+'" height="1"><title>'+summary[key]+' '+word+'</title></rect>'; }).join('')+'</svg>';
@@ -84,17 +88,17 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const flight = (cls, symbol, name, entries, kind) => {
       const holder = entry => kind === 'claim' ? esc(entry.owner)+' · '+ago(m.last(entry,'claim')) : entry.reviewer && reserved(entry) ? esc(entry.reviewer)+' · '+ago(m.last(entry,'reserve')) : 'waiting for a reviewer';
       const rows = entries.map((entry, index) => (index === 4 ? '<details data-dashboard-disclosure="'+kind+'"><summary>Show '+(entries.length-4)+' more</summary>' : '')+row('dash-row', entry, holder(entry))).join('')+(entries.length > 4 ? '</details>' : '');
-      return '<div class="dash-ifcol '+cls+'"><h3>'+icon(symbol)+name+open(num(entries.length), kind === 'claim' ? 'building' : 'review', { cls: 'dash-faint' })+'</h3>'+rows+'</div>';
+      return '<div class="dash-ifcol '+cls+'"><h3 class="dash-ifh">'+icon(symbol)+name+open(num(entries.length), kind === 'claim' ? 'building' : 'review', { cls: 'dash-faint' })+'</h3>'+rows+'</div>';
     };
     const inflight = m.inFlight.building.length + m.inFlight.review.length;
-    return '<section class="dash-card dash-ship" aria-label="Shipping now"><div class="dash-ship-head"><div>'+label('Shipping now')+'<p class="dash-ship-name">'+title+'</p></div>'
+    return section('Shipping now', 'dash-shipsec', label('Release'), '<div class="dash-card dash-ship"><div class="dash-ship-head"><div><p class="dash-ship-name">'+title+'</p></div>'
       + '<p class="dash-togo"><b>'+open(num(summary.left)+' to go', 'next')+'</b><span>'+num(counted('landed') ? summary.landed : 0)+' of '+num(summary.total)+' landed</span></p></div>'
       + bar + keys
-      + '<div class="dash-inflight"><div class="dash-cap">'+label('In flight', pill(inflight, 'active'))+'<span class="dash-r">'+esc(named ? named[1] : release.name)+' items being built or checked now</span></div>'
+      + '<div class="dash-inflight"><div class="dash-cap">'+sub('In flight', pill(inflight, 'active'))+'<span class="dash-r">'+esc(named ? named[1] : release.name)+' items being built or checked now</span></div>'
       + '<div class="dash-ifcols">'+flight('building', 'build', 'Building', m.inFlight.building, 'claim')+flight('review', 'review', 'In review', m.inFlight.review, 'submit')+'</div></div>'
       + '<div class="dash-pace">'+stat('today', 'bolt', 'Today’s pace', measured ? (pace.last6h/6).toFixed(1) : '0.0', 'items an hour', (measured ? pace.last6h : 0)+' landed in the last 6 hours')
       + stat('now', 'clock', 'Right now', measured ? (pace.last2h/2).toFixed(1) : '0.0', 'items an hour', (measured ? pace.last2h : 0)+' landed in the last 2 hours')
-      + stat('eta', 'flag', 'Done at this pace', ranged ? (lo === hi ? lo : lo+'–'+hi)+' h' : 'Not yet', '', when)+'</div></section>';
+      + stat('eta', 'flag', 'Done at this pace', ranged ? (lo === hi ? lo : lo+'–'+hi)+' h' : 'Not yet', '', when)+'</div></div>', { link: roadmap });
   })();
 
   // 4. The strip: landed per hour over 24 h and how agent time split over the last four hours.
@@ -107,8 +111,8 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   let x0 = 0;
   const split = '<svg class="dash-split" viewBox="0 0 100 1" preserveAspectRatio="none" aria-label="Agent time split">'+times.map((value, index) => { const w = whole ? value/whole*100 : 0, x = x0; x0 += w; return '<rect class="dash-time-'+index+'" x="'+x+'" width="'+Math.max(0, w - (index < 2 && w ? 0.6 : 0))+'" height="1"/>'; }).join('')+'</svg>';
   const lastHour = m.bins.at(-1)?.count ?? 0, peak = Math.max(0, ...m.bins.map(bin => bin.count));
-  const strip = '<section class="dash-card dash-strip" aria-label="Pace and agent time"><span class="dash-grp">'+label('Landed per hour')+(m.complete ? spark+'<span>'+open('<b class="g">'+lastHour+'/h</b>', 'landed', { title: 'Landed in the last hour' })+' now · '+open('<b>'+num(m.totals.day)+'</b>', 'landed', { title: 'Landed in the last 24 hours' })+' in 24 h · peak <b>'+peak+'/h</b></span>' : '<span>Loading…</span>')+'</span>'
-    + '<span class="dash-vr" aria-hidden="true"></span><span class="dash-grp">'+label('Agent time')+(m.complete ? split+'<span>building <b>'+share(0)+'%</b> · reviewing <b>'+share(1)+'%</b> · idle <b>'+share(2)+'%</b></span>' : '<span>Loading…</span>')+'</span></section>';
+  const strip = section('Pace and agent time', 'dash-stripsec', label('Pace · 24 h'), '<div class="dash-card dash-strip"><span class="dash-grp">'+sub('Landed per hour')+(m.complete ? spark+'<span>'+open('<b class="g">'+lastHour+'/h</b>', 'landed', { title: 'Landed in the last hour' })+' now · '+open('<b>'+num(m.totals.day)+'</b>', 'landed', { title: 'Landed in the last 24 hours' })+' in the last 24 hours · peak <b>'+peak+'/h</b></span>' : '<span>Loading…</span>')+'</span>'
+    + '<span class="dash-vr" aria-hidden="true"></span><span class="dash-grp">'+sub('Agent time · 4 h')+(m.complete ? split+'<span>building <b>'+share(0)+'%</b> · reviewing <b>'+share(1)+'%</b> · idle <b>'+share(2)+'%</b></span>' : '<span>Loading…</span>')+'</span></div>');
 
   // 5. Agents: one 25 px line per agent with its thin four-hour timeline, the inline stage chip and its numbers.
   const W = 600, at = t => (t - m.start)/14_400_000*W;
@@ -135,25 +139,26 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   if (quiet.length && deferQuiet) deferQuiet(quietRows);
   const longest = quiet.length ? span(Math.max(...quiet.map(agent => m.now - agent.last))) : '';
   const axis = new Date(m.start).toLocaleTimeString(locale, { timeZone, hour: 'numeric', minute: '2-digit' })+' → now';
-  const agents = '<section class="dash-card dash-agents" id="dashboard-agents" aria-label="Agents"><div class="dash-agents-head">'+label('Agents', open(num(m.totals.working), 'building', { cls: 'dash-pill', title: 'Agents at work' }))
-    + ''+landingMarks+'<span class="dash-legend"><span><i class="build"></i>building</span><span><i class="review"></i>reviewing</span><span><i class="idle"></i>idle</span><span><i class="back"></i>sent back</span><span><i class="landed"></i>landed</span><span><i class="shout"></i>shout</span></span></div>'
+  const legend = '<span class="dash-legend"><span><i class="build"></i>building</span><span><i class="review"></i>reviewing</span><span><i class="idle"></i>idle</span><span><i class="back"></i>sent back</span><span><i class="landed"></i>landed</span><span><i class="shout"></i>shout</span></span>';
+  const agents = section('Agents', 'dash-agentsec', label('Agents', open(num(m.totals.working), 'building', { cls: 'dash-pill', title: 'Agents at work' })+' · 4 h'),
+    '<div class="dash-card dash-agents">'+landingMarks
     + '<div class="dash-scroll"><table class="dash-agt"><thead><tr><th>Agent</th><th>'+esc(axis)+'</th><th>Now</th><th class="r hide">Build</th><th class="r hide">Review</th><th class="r hide">Idle</th><th class="r hide">Shouts</th></tr></thead>'
     + '<tbody>'+group('Building', building, 'building')+group('Reviewing', reviewers, 'review')+'</tbody>'
     + (quiet.length ? '<tbody data-dashboard-quiet-rows hidden>'+(deferQuiet ? '' : quietRows())+'</tbody>' : '')+'</table></div>'
     + (quiet.length ? '<button type="button" class="dash-more" data-dashboard-quiet aria-expanded="false">▸ <b>'+quiet.length+'</b>&nbsp;between items · quiet up to '+longest+'</button>' : '')
-    + (!m.complete ? '<p class="dash-empty">Complete history is loading; the timelines fill in when it arrives.</p>' : '')+'</section>';
+    + (!m.complete ? '<p class="dash-empty">Complete history is loading; the timelines fill in when it arrives.</p>' : '')+'</div>', { id: 'dashboard-agents', cap: legend });
 
   // 6. The four lists: In the gate, In review, Accepted landing, Landed in 4 h.
   const late = 30 * 60_000;
-  const list = (name, n, listKey, note, rows, foot = '') => '<section class="dash-card dash-q" aria-label="'+esc(name)+'"><div class="dash-cap">'+label(esc(name), pill(n, listKey))+'</div>'+(note ? '<p class="dash-note">'+note+'</p>' : '')
-    + (rows.length ? rows.slice(0, 10).join('') : '<p class="dash-empty">Nothing '+esc(name.toLowerCase())+'.</p>')+(foot ? open(foot, listKey, { cls: 'dash-foot' }) : '')+'</section>';
+  const list = (name, n, listKey, note, rows, foot = '', empty = 'Nothing '+name.toLowerCase()+'.') => section(name, 'dash-qsec', label(esc(name), pill(n, listKey)),
+    '<div class="dash-card dash-q">'+(rows.length ? rows.slice(0, 10).join('') : '<p class="dash-empty">'+esc(empty)+'</p>')+'</div>', { cap: note, link: foot ? open(foot, listKey, { cls: 'dash-lk' }) : '' });
   const L = m.lists;
   const reviewed = L.review.filter(reserved).length;
   const queues = '<div class="dash-queues">'
     + list('In the gate', L.gate.length, 'gate', L.gate.length ? 'longest '+ago(m.last(L.gate[0], 'submit')) : '', L.gate.map(entry => row('dash-row', entry, 'gate '+ago(m.last(entry, 'submit')))))
     + list('In review', L.review.length, 'review', L.review.length ? reviewed+' being reviewed · '+(L.review.length - reviewed)+' wait for a reviewer' : '', L.review.map(entry => reserved(entry) ? row('dash-row', entry, 'reviewing '+ago(m.last(entry, 'reserve'))) : row('dash-row', entry, 'waiting '+ago(m.last(entry, 'submit')), m.now - m.last(entry, 'submit') > late)))
-    + list('Accepted, landing', L.accepted.length, 'passed', '', L.accepted.map((entry, index) => row('dash-row', entry, entry.landingBatchAt ? 'landing '+ago(Date.parse(entry.landingBatchAt) || m.now) : index ? 'next' : 'passed '+ago(m.last(entry, 'accept')))))
-    + list('Landed · 4 h', L.landed.length, 'landed', '', L.landed.filter(entry => entry.item).map(entry => row('dash-row', entry.item, ago(entry.at))), L.landed.length ? 'All '+L.landed.length+' landed ›' : '')
+    + list('Landing', L.accepted.length, 'passed', L.accepted.length ? L.accepted.length+' accepted, landing next' : '', L.accepted.map((entry, index) => row('dash-row', entry, entry.landingBatchAt ? 'landing '+ago(Date.parse(entry.landingBatchAt) || m.now) : index ? 'next' : 'passed '+ago(m.last(entry, 'accept')))))
+    + list('Landed · 4 h', L.landed.length, 'landed', '', L.landed.filter(entry => entry.item).map(entry => row('dash-row', entry.item, ago(entry.at))), L.landed.length ? 'All '+L.landed.length+' ›' : '', 'Nothing landed in the last 4 hours.')
     + '</div>';
 
   // 7. Your lanes: each lane's work now and its last four hours; the bar's width is capped by the busiest lane.
@@ -161,15 +166,15 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const mini = entry => { let x = 0; const seg = (value, cls) => { const w = value/widest*100; const out = value ? '<rect class="'+cls+'" x="'+x+'" width="'+Math.max(0.6, w - 0.4)+'" height="1"/>' : ''; x += w; return out; };
     return '<svg class="dash-mbar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect class="dash-mbar-bg" width="100" height="1"/>'+seg(entry.landed ?? 0, 'landed')+seg(entry.review, 'review')+seg(entry.building, 'building')+'</svg>'; };
   const laneCell = (value, listKey, laneName, cls = '') => '<td class="dash-num '+cls+(value ? '' : ' z')+'">'+(value === null ? '—' : open(num(value), listKey, { lane: laneName }))+'</td>';
-  const lanes = '<section class="dash-card dash-lanes" aria-label="Your lanes"><div class="dash-cap">'+label('Your lanes', pill(m.lanes.length, 'active'))+'<span class="dash-r">now · landed in 4 h</span></div>'
-    + '<table class="dash-tbl"><thead><tr><th>Lane</th><th class="r">Building</th><th class="r">Review</th><th class="r">Ready</th><th class="r">Landed</th><th class="r hide">Sent back</th><th class="mini"></th></tr></thead><tbody>'
+  const lanes = section('Your lanes', 'dash-lanesec', label('Lanes', pill(m.lanes.length, 'active')+' · 4 h'), '<div class="dash-card dash-lanes"><table class="dash-tbl"><thead><tr><th>Lane</th><th class="r">Building</th><th class="r">Review</th><th class="r">Ready</th><th class="r">Landed</th><th class="r hide">Sent back</th><th class="mini"></th></tr></thead><tbody>'
     + m.lanes.map(entry => '<tr><td class="ln">'+esc(entry.lane)+'</td>'+laneCell(entry.building, 'building', entry.lane)+laneCell(entry.review, 'review', entry.lane)+laneCell(entry.ready, 'next', entry.lane)+laneCell(entry.landed, 'landed', entry.lane, 'ink')+laneCell(entry.sentBack, 'sent-back', entry.lane, 'hide'+(entry.sentBack ? ' back' : ''))+'<td class="mini">'+mini(entry)+'</td></tr>').join('')
-    + '</tbody></table></section>';
+    + '</tbody></table></div>', { cap: 'Landed and sent back: 4 h; the rest now' });
 
   // 8. Runners: each runner's load and jobs, what the busiest one runs, and the runs in flight.
   const runners = (() => {
     const live = m.runners, list = Array.isArray(live?.runners) ? live.runners : [];
-    if (!list.length) return '<section class="dash-card dash-runners" aria-label="Runners"><div class="dash-l"><div class="dash-cap">'+label('Runners', '<span class="dash-pill static">0</span>')+'</div><p class="dash-empty">No runner reports to this board.</p></div></section>';
+    const settings = '<button type="button" class="dash-lk" data-tab="settings">Settings ›</button>';
+    if (!list.length) return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static">0</span>'), '<div class="dash-card dash-runners"><div class="dash-l"><p class="dash-empty">No runner reports to this board.</p></div></div>', { link: settings });
     const busy = list.filter(runner => runner.busy).length, jobs = list.reduce((sum, runner) => sum + runner.jobs.length, 0);
     const pick = list.toSorted((a, b) => b.jobs.length - a.jobs.length || (b.cpu ?? 0) - (a.cpu ?? 0))[0];
     const load = cpu => '<svg class="dash-load" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect class="bg" width="100" height="1"/>'+(Number.isFinite(cpu) ? '<rect class="'+(cpu >= 90 ? 'hot' : cpu >= 70 ? 'hi' : '')+'" width="'+Math.min(100, cpu)+'" height="1"/>' : '')+'</svg>';
@@ -180,12 +185,12 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const job = entry => '<div class="dash-j"><span class="dash-id">'+(entry.item ? '#'+entry.item : '—')+'</span><span class="dash-t">'+esc(entry.kind ?? 'job')+(entry.selected ? ' <small>· '+(entry.done ?? 0)+' of '+entry.selected+' files</small>' : '')+'</span><span class="dash-age'+(entry.failing ? ' late' : '')+'">'+(entry.failing ? entry.failing+' red' : entry.minutesLeft !== null && entry.minutesLeft !== undefined ? entry.minutesLeft+'m left' : '')+'</span></div>';
     const runs = Array.isArray(live.runs) ? live.runs : [];
     const kinds = kind => runs.filter(run => run.kind === kind).length;
-    return '<section class="dash-card dash-runners" aria-label="Runners"><div class="dash-l"><div class="dash-cap">'+label('Runners', '<span class="dash-pill static">'+list.length+'</span>')+'<span class="dash-r">'+busy+' busy</span></div>'
+    return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static">'+list.length+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
       + '<p class="dash-sub"><b>'+jobs+'</b> jobs on <b>'+busy+'</b> of '+list.length+' runners</p>'+table+'</div>'
       + '<div class="dash-node"><h3>Runner '+pick.runner+'<small>busiest</small></h3><p class="dash-facts"><b>'+pct(pick.cpu)+'</b> CPU · <b>'+pct(pick.ram)+'</b> RAM · <b>'+pick.jobs.length+'</b> jobs</p>'
-      + label('Running here · '+pick.jobs.length)+(pick.jobs.length ? pick.jobs.map(job).join('') : '<p class="dash-empty">Nothing running.</p>')
-      + label('In flight, all runners')+(runs.length ? runs.slice(0, 4).map(run => job({ ...run, item: run.item })).join('') : '<p class="dash-empty">No runs.</p>')+'</div>'
-      + '<div class="dash-rfoot"><span><b>'+kinds('gate')+'</b> gates<small>running now</small></span><span><b>'+kinds('landing')+'</b> landings<small>running now</small></span><span><b>'+(runs.length - kinds('gate') - kinds('landing'))+'</b> tests<small>running now</small></span></div></section>';
+      + sub('Running here · '+pick.jobs.length)+(pick.jobs.length ? pick.jobs.map(job).join('') : '<p class="dash-empty">Nothing running.</p>')
+      + sub('In flight, all runners')+(runs.length ? runs.slice(0, 4).map(run => job({ ...run, item: run.item })).join('') : '<p class="dash-empty">No runs.</p>')+'</div>'
+      + '<div class="dash-rfoot"><span><b>'+kinds('gate')+'</b> gates<small>running now</small></span><span><b>'+kinds('landing')+'</b> landings<small>running now</small></span><span><b>'+(runs.length - kinds('gate') - kinds('landing'))+'</b> tests<small>running now</small></span></div></div>', { cap: busy+' busy', link: settings });
   })();
 
   return '<div class="dash-live">'+flowHtml + now + shipping + strip + agents + queues + lanes + runners+'<p class="dash-footnote">Every number opens the items it counts.</p></div>';

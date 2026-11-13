@@ -124,7 +124,8 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
       if (quietOpen) showQuiet(true);
     }
     const wantsAgents = Boolean(agentsTable?.()) && !onFloor;
-    if (wantsAgents && !shownAgents) region.querySelector?.('#dashboard-agents')?.scrollIntoView?.({ block: 'start' });
+    // After the frame, so the page's own scroll restoring for an address never lands after it.
+    if (wantsAgents && !shownAgents) (globalThis.requestAnimationFrame ?? (step => step()))(() => region.querySelector?.('#dashboard-agents')?.scrollIntoView?.({ block: 'start' }));
     shownAgents = wantsAgents;
     for (const disclosure of region.querySelectorAll('details')) if (expanded.includes(disclosure.dataset.dashboardDisclosure)) disclosure.open = true;
     return behind;

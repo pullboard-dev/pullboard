@@ -72,7 +72,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
           viewport: document.documentElement.clientWidth,
           documentWidth: document.documentElement.scrollWidth,
           left: region.left - mainRect.left - parseFloat(mainStyle.paddingLeft), right: mainRect.right - parseFloat(mainStyle.paddingRight) - region.right, width: region.width,
-          shippingHeading: [...panel.querySelectorAll('h2')].filter(heading => heading.getClientRects().length > 0).map(heading => heading.textContent),
+          shippingHeading: [...panel.closest('section').querySelectorAll('h2, h3.dash-ct')].filter(heading => heading.getClientRects().length > 0).map(heading => heading.textContent.replace(/\\d+$/u, '')),
           shippingText: panel.textContent, heads,
           agentDurations: [...row.querySelectorAll('.dash-num')].map(cell => cell.textContent.trim()),
           group: { text: group.textContent.trim(), size: getComputedStyle(group).fontSize, transform: getComputedStyle(group).textTransform },
@@ -86,7 +86,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
       // The approved /live-style mockup (#6847) centres the Dashboard in a 1192 px column inside the page edges.
       assert.ok(dashboard.width <= 1192.5 && Math.abs(dashboard.left - dashboard.right) < 1.5 && dashboard.left > -1,
         `${width}/${scheme}: the Dashboard column is centred inside the page and at most 1192 px: ${JSON.stringify(dashboard)}`);
-      assert.deepEqual(dashboard.shippingHeading, ['Shipping now', 'In flight'], `${width}/${scheme}: the card heads Shipping now, as in the mockup`);
+      assert.deepEqual(dashboard.shippingHeading, ['Release', 'In flight'], `${width}/${scheme}: the Release header sits above the card and In flight inside it, as in the mockup`);
       assert.ok(dashboard.shippingText.includes('Dashboard walk'), `${width}/${scheme}: the actual release remains visible`);
       assert.deepEqual(dashboard.heads.slice(2), ['Now', 'Build', 'Review', 'Idle', 'Shouts'], `${width}/${scheme}: the table keeps its Now column and its numbers`);
       assert.match(dashboard.heads[1], /→ now$/u, `${width}/${scheme}: the timeline header runs from four hours back to now, as in the mockup`);

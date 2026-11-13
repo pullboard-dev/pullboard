@@ -143,7 +143,7 @@ function countPairs() {
       add('Dashboard/landing spark peak', Number(/peak (\d+)\/h/.exec(document.querySelector('#dashboard .dash-strip').textContent)?.[1]), Math.max(...bins));
     }
     for (const column of all('#dashboard .dash-ifcol')) add('Dashboard/in flight/' + column.querySelector('h3').textContent, number(column.querySelector('h3 .dash-n')), column.querySelectorAll('.dash-row').length);
-    for (const list of all('#dashboard .dash-q')) add('Dashboard/list/' + list.getAttribute('aria-label'), Math.min(10, number(list.querySelector('h2 .dash-pill'))), list.querySelectorAll('.dash-row').length);
+    for (const list of all('#dashboard .dash-qsec')) add('Dashboard/list/' + list.getAttribute('aria-label'), Math.min(10, number(list.querySelector('.dash-shd h2 .dash-pill'))), list.querySelectorAll('.dash-q .dash-row').length);
     const tile = list => number(document.querySelector('#dashboard [aria-label="Now"] [data-dashboard-list="' + list + '"] b'));
     add('Dashboard/Now/building', tile('building'), items.filter(item => item.status === 'claimed').length);
     add('Dashboard/Now/in the gate + in review', tile('gate') + tile('review'), items.filter(item => item.status === 'submitted').length);

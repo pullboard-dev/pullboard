@@ -59,5 +59,5 @@ test('clause 2: each count, card and chip opens Items narrowed to exactly what i
 test('clause 2: the Agents notch opens the Dashboard at its Agents table [N26]', () => {
   assert.match(pageActions(), /else if \(to === 'agents'\) openTab\('dashboard', 'agents'\);/u, 'the notch opens #dashboard/agents');
   const html = dashboardHtml(dashboardModel(board().project, board().events, { now, complete: true }));
-  assert.match(html, /<section class="dash-card dash-agents" id="dashboard-agents" aria-label="Agents">/u, 'the address has a table to scroll to');
+  assert.match(html, /<section class="dash-sec dash-agentsec" id="dashboard-agents" aria-label="Agents">/u, 'the address has a table to scroll to');
 });

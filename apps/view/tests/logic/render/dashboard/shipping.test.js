@@ -37,7 +37,7 @@ function shipping(html) {
 test('clause 1: SHIPPING NOW, the release name in the body face, N to go · M of T landed, one stage bar and its legend in the stage colours [N26]', () => {
   const { project, events } = board();
   const card = shipping(dashboardHtml(dashboardModel(project, events, { now, complete: true }), { locale: 'en-US', timeZone: 'UTC' }));
-  assert.match(card, /^aria-label="Shipping now"><div class="dash-ship-head"><div><h2 class="dash-lbl">Shipping now<\/h2>/u, 'the eyebrow comes first; CSS sets it in small capitals');
+  assert.match(card, /^aria-label="Shipping now"><div class="dash-shd"><h2 class="dash-lbl">Release<\/h2><button type="button" class="dash-lk" data-tab="roadmap">Roadmap ›<\/button><\/div><div class="dash-card dash-ship"><div class="dash-ship-head">/u, 'the Release header sits above the card, with its way to the Roadmap (sheet v1.1)');
   assert.match(card, /<p class="dash-ship-name"><span class="dash-ver">0\.9\.4<\/span>Restructure for Speed and Cost<\/p>/u,
     'the version is faint and the name is a sentence-case paragraph, not a mono capital heading');
   assert.doesNotMatch(card, /class="release-name|roadmap-left|release-header/u, 'the shared Roadmap header with its mono capitals is not used here');
@@ -46,7 +46,7 @@ test('clause 1: SHIPPING NOW, the release name in the body face, N to go · M of
   assert.deepEqual([...card.matchAll(/data-release-segment="(\w+)" data-count="(\d+)"/gu)].map(([, key, n]) => [key, Number(n)]),
     [['landed', 26], ['landing', 1], ['review', 11], ['building', 7], ['waiting', 98], ['held', 9]], 'segments in stage order, sized by their counts');
   assert.deepEqual([...card.matchAll(/data-dashboard-list="([\w-]+)"><i class="dash-sw dash-seg-(\w+)"><\/i><b>(\d+)<\/b> ([^<]+)<\/button>/gu)].map(([, list, key, n, label]) => [key, n, label, list]),
-    [['landed', '26', 'landed', 'landed'], ['landing', '1', 'passed, landing', 'passed'], ['review', '11', 'in review', 'review'], ['building', '7', 'building', 'building'], ['waiting', '98', 'waiting', 'gated'], ['held', '9', 'held', 'held']],
+    [['landed', '26', 'landed', 'landed'], ['landing', '1', 'landing', 'passed'], ['review', '11', 'in review', 'review'], ['building', '7', 'building', 'building'], ['waiting', '98', 'waiting', 'gated'], ['held', '9', 'held', 'held']],
     'the legend sits directly under the bar, one swatch per segment, each opening its list');
   assert.ok(card.indexOf('dash-sbar') < card.indexOf('dash-keys') && card.indexOf('dash-keys') < card.indexOf('dash-inflight'));
 });
@@ -54,8 +54,8 @@ test('clause 1: SHIPPING NOW, the release name in the body face, N to go · M of
 test('clause 2: In flight shows Building and In review side by side as one-line rows with no pills, then three pace tiles [N26]', () => {
   const { project, events } = board();
   const card = shipping(dashboardHtml(dashboardModel(project, events, { now, complete: true }), { locale: 'en-US', timeZone: 'UTC' }));
-  assert.match(card, /<div class="dash-inflight">[\s\S]*?In flight<button type="button" class="dash-n dash-pill" data-dashboard-list="active">3<\/button>[\s\S]*?<div class="dash-ifcols"><div class="dash-ifcol building">/u, 'two columns, Building first');
-  assert.match(card, /<div class="dash-ifcol review"><h3><svg[^]*?<\/svg>In review<button type="button" class="dash-n dash-faint" data-dashboard-list="review">1<\/button><\/h3>/u);
+  assert.match(card, /<div class="dash-inflight">[\s\S]*?<h3 class="dash-ct">In flight<button type="button" class="dash-n dash-pill" data-dashboard-list="active">3<\/button>[\s\S]*?<div class="dash-ifcols"><div class="dash-ifcol building">/u, 'two columns, Building first');
+  assert.match(card, /<div class="dash-ifcol review"><h3 class="dash-ifh"><svg[^]*?<\/svg>In review<button type="button" class="dash-n dash-faint" data-dashboard-list="review">1<\/button><\/h3>/u);
   const rows = [...card.matchAll(/<button type="button" class="dash-row" data-go="item:(\d+)"><span class="dash-id">#\1<\/span><span class="dash-t" title="[^"]*">([^<]+)<\/span><span class="dash-age">([^<]+)<\/span><\/button>/gu)]
     .map(([, id, title, holder]) => [Number(id), title, holder]);
   assert.deepEqual(rows, [[11, 'Builds the hero', 'view-1 · 14m'], [12, 'Builds the flow', 'view-2 · 30m'], [13, 'Checks the tiles', 'tests-1 · 9m']],

@@ -17,7 +17,7 @@ test('clause 1: How work moved, Now, Shipping now, the pace strip, Agents, the f
   const { project, events } = board();
   const html = dashboardHtml(dashboardModel(project, events, { now, complete: true }));
   const order = [...html.matchAll(/<section class="[^"]*" (?:id="[^"]*" )?aria-label="([^"]+)"/gu)].map(([, name]) => name);
-  assert.deepEqual(order, ['How work moved', 'Now', 'Shipping now', 'Pace and agent time', 'Agents', 'In the gate', 'In review', 'Accepted, landing', 'Landed · 4 h', 'Your lanes', 'Runners']);
+  assert.deepEqual(order, ['How work moved', 'Now', 'Shipping now', 'Pace and agent time', 'Agents', 'In the gate', 'In review', 'Landing', 'Landed · 4 h', 'Your lanes', 'Runners']);
   assert.doesNotMatch(html, /dash-hero|aria-label="Rulings"|The last two hours|window-comparison/u, 'the old hero, Rulings card and comparison are gone');
 
   // How work moved: Build, Gate, Review, Land, each with its four-hour rate.
@@ -30,7 +30,7 @@ test('clause 1: How work moved, Now, Shipping now, the pace strip, Agents, the f
     ['review', 'Review', '0/h', '0 accepted · 1 sent back'],
     ['land', 'Land', '0/h', '1 landed · 1 to land'],
   ]);
-  assert.match(flow, /1 sent back<\/button> to their builders in 4 h/u, 'the reject five hours ago is outside the window');
+  assert.match(flow, /1 sent back<\/button> to their builders in the last 4 hours/u, 'the reject five hours ago is outside the window');
 
   // The Now line: where every item is, one number per stage.
   const nowLine = [...section(html, 'Now').matchAll(/<b>(\d+)<\/b>([^<]+)<\/button>/gu)].map(([, n, word]) => word + ' ' + n);
@@ -53,7 +53,7 @@ test('clause 1: How work moved, Now, Shipping now, the pace strip, Agents, the f
   // The four lists and the lanes.
   assert.match(section(html, 'In the gate'), /data-go="item:6"/u);
   assert.match(section(html, 'In review'), /data-go="item:5"[\s\S]*reviewing 20m/u);
-  assert.match(section(html, 'Accepted, landing'), /data-go="item:7"/u);
+  assert.match(section(html, 'Landing'), /data-go="item:7"/u);
   assert.match(section(html, 'Landed · 4 h'), /data-go="item:8"[\s\S]*1h|data-go="item:8"[\s\S]*60m/u);
   const lanes = [...section(html, 'Your lanes').matchAll(/<td class="ln">(\w+)<\/td>/gu)].map(([, lane]) => lane);
   assert.deepEqual(lanes, ['web', 'tests'], 'the board lanes with work, never the coordinator');

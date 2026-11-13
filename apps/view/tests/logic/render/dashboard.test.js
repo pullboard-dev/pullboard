@@ -59,15 +59,15 @@ test('Dashboard renders the flow, the release, the strip, agents, the four lists
 
   const strip = section(html, 'Pace and agent time');
   assert.equal([...strip.matchAll(/<rect class="(?:now)?" x=/gu)].length, 24, 'the spark draws each hourly bin');
-  assert.match(strip, /in 24 h · peak <b>3\/h<\/b>/u, 'the strip reads the seeded landing bins');
+  assert.match(strip, /in the last 24 hours · peak <b>3\/h<\/b>/u, 'the strip reads the seeded landing bins');
   assert.match(strip, /building <b>\d+%<\/b> · reviewing <b>\d+%<\/b> · idle <b>\d+%<\/b>/u, 'agent time reports all three shares');
 
-  assert.match(section(html, 'Accepted, landing'), /data-go="item:4"[\s\S]*passed \d+m/u, 'the accepted item shows how long ago it passed');
+  assert.match(section(html, 'Landing'), /data-go="item:4"[\s\S]*passed \d+m/u, 'the accepted item shows how long ago it passed');
   const review = section(html, 'In review');
   assert.match(review, /1 being reviewed · 0 wait for a reviewer/u);
   assert.equal([...section(html, 'In the gate').matchAll(/class="dash-row"/gu)].length, 5, 'the submitted items no reviewer holds are in the gate');
   assert.equal([...section(html, 'Landed · 4 h').matchAll(/class="dash-row"/gu)].length, 3);
-  assert.match(section(html, 'Landed · 4 h'), /All 3 landed ›/u);
+  assert.match(section(html, 'Landed · 4 h'), /All 3 ›/u);
 
   const agents = section(html, 'Agents');
   assert.match(agents, /<th>Now<\/th><th class="r hide">Build<\/th><th class="r hide">Review<\/th><th class="r hide">Idle<\/th><th class="r hide">Shouts<\/th>/u, 'separate columns share the timeline header');

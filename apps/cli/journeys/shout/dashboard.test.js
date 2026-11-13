@@ -63,7 +63,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Now] [data-dashboard-list=building] b").textContent'),
       String(activeClaims.length), 'the Now line and agent work use the same live claims');
     // The approved /live-style order (#6847); the old hero, Rulings card and comparison card are gone from the Dashboard.
-    const order = ['How work moved', 'Now', 'Shipping now', 'Pace and agent time', 'Agents', 'In the gate', 'In review', 'Accepted, landing', 'Landed · 4 h', 'Your lanes', 'Runners'];
+    const order = ['How work moved', 'Now', 'Shipping now', 'Pace and agent time', 'Agents', 'In the gate', 'In review', 'Landing', 'Landed · 4 h', 'Your lanes', 'Runners'];
     assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#dashboard .dash-live > section, #dashboard .dash-queues > section")].map(node => node.getAttribute("aria-label")))')),
       order, 'the Dashboard draws the mockup sections in order');
     assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .dash-hero, #dashboard [aria-label=Rulings], #dashboard .window-comparison").length'), 0, 'removed sections stay removed');

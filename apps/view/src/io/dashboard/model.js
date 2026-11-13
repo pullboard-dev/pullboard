@@ -250,7 +250,8 @@ export function dashboardModel(project, history, { now, complete = true, fold = 
   const open = items.filter(item => item.status === 'open');
   const backItems = items.filter(item => ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT');
   const stages = { ready: next.length, waiting: open.filter(item => blocked(item) && !held(item)).length, building: claims.length,
-    gate: inGate.length, review: checked.length, toLand: landing.length, sentBack: backItems.length, held: open.filter(held).length };
+    gate: inGate.length, review: checked.length, toLand: landing.length, sentBack: backItems.length, held: open.filter(held).length,
+    active: items.filter(item => !['withdrawn', 'verified'].includes(item.status)).length };
   // Each lane's work now and its last four hours; the board's own lane list first, then any lane an item names.
   const sentBackItems = new Set(state.tail.filter(entry => ['reject', 'reopen'].includes(entry.kind)).map(entry => entry.item));
   const laneNames = [...new Set([...(project.lanes ?? []), ...items.filter(item => item.status !== 'withdrawn').map(item => item.lane)])].filter(lane => lane && lane !== 'coordinator');
