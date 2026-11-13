@@ -564,7 +564,7 @@ test('a digest keeps the lines that say why a test failed, and skips passing tes
   assert.match(digest, /# fail 1$/);
 });
 
-test('submit runs the gate itself: a stamp written by hand never stands in for a red gate [V16]', async () => {
+test('submit runs the gate itself: a stamp written by hand never stands in for a red gate [V16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = await repoWithGate('test ! -f RED');
   writeFileSync(join(box.repo, 'RED'), 'red\n');
   box.git('add', 'RED');
@@ -576,7 +576,7 @@ test('submit runs the gate itself: a stamp written by hand never stands in for a
   assert.equal(box.runs(), 1, 'submit ran the gate instead of trusting the stamp');
 });
 
-test('submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip [V16, C3]', async () => {
+test('submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip [V16, C3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = await repoWithGate('true');
   assert.equal((await box.runLocal('gate')).status, 0);
   assert.equal(box.runs(), 1);
@@ -588,7 +588,7 @@ test('submit runs the gate even on a tree an earlier run passed, which a plain g
   assert.equal(box.runs(), 2, 'submit ran the gate itself, stamp or no stamp');
 });
 
-test('submit refuses a tree its gate left changed: a new commit, or an edited tracked file [V16]', async () => {
+test('submit refuses a tree its gate left changed: a new commit, or an edited tracked file [V16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   for (const [moves, gate] of [
     ['a commit made during the gate', 'git commit -q --allow-empty -m "chore: moved under the gate"'],
     ['a tracked file edited during the gate', 'echo more >> SPEC.md'],
@@ -645,7 +645,7 @@ test('a piped gate fails on any red stage without changing its existing shell [V
   assert.equal((await ordinary.runLocal('gate')).status, 0, 'a plain passing gate needs no pipefail capability');
 });
 
-test('a piped gate fails safely while named-test item checks keep last-stage semantics [V16,C7]', async () => {
+test('a piped gate fails safely while named-test item checks keep last-stage semantics [V16,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = await repoWithGate('true');
   const fixture = join(box.dir, 'named-output.test.js');
   writeFileSync(fixture, `import {test} from 'node:test';
