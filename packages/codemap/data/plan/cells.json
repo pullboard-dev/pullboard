@@ -245,28 +245,33 @@
     },
     {
       "order": 46,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/46-app-view.json"
+      "name": "board",
+      "file": "packages/codemap/data/plan/46-board.json"
     },
     {
       "order": 47,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/47-app-runner.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/47-app-view.json"
     },
     {
       "order": 48,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/48-app-cli.json"
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/48-app-runner.json"
     },
     {
       "order": 49,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/49-app-lib.json"
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/49-app-cli.json"
     },
     {
       "order": 50,
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/50-app-lib.json"
+    },
+    {
+      "order": 51,
       "name": "app:relay",
-      "file": "packages/codemap/data/plan/50-app-relay.json"
+      "file": "packages/codemap/data/plan/51-app-relay.json"
     }
   ],
   "stays": [
@@ -2347,7 +2352,19 @@
     "apps/relay->outbox",
     "apps/relay->keys",
     "apps/relay->seats",
-    "search->store"
+    "search->store",
+    "board->git",
+    "board->items",
+    "board->jobs",
+    "board->kernel",
+    "board->moves",
+    "board->sandbox",
+    "board->seats",
+    "board->spec",
+    "board->state",
+    "board->store",
+    "board->verify",
+    "apps/lib->board"
   ],
   "upwardEdgesGrandfathered": [
     "apps/cli->apps/relay",
