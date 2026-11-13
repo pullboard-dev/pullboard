@@ -1,6 +1,6 @@
 /** Read source advances without changing submitted source, immutable verdicts or companion inputs [V4,H16]. */
-import { itemPatchDigest } from '../../../items/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { itemPatchDigest } from '../../../items/light.js';
+import { Refused } from '../../../kernel/light.js';
 
 /** Capture the native submission episode, including a repeated submit of the same source. */
 export function sourceAdvanceEpisode(board, id) {
