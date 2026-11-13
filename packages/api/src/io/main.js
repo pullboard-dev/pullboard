@@ -82,6 +82,11 @@ import {
   SUMMARY_KEYS,
   itemSummary,
 } from '../../../items/index.js';
+import { finishedCounts } from './items.js';
+import { finishedText } from './items.js';
+import { itemDetail } from './items.js';
+import { openOnly } from './items.js';
+import { searchText } from './items.js';
 import {
   compareFlowWindows,
   prepareFlowHistory,
@@ -482,19 +487,9 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   };
 }
 
-/** Everything a summary leaves out, with the latest verdict whole: laid over its summary, it is the full item. */
-function itemDetail(item) {
-  return Object.fromEntries(Object.entries(item).filter(([key]) => ['id', 'verdict', 'verdictState', 'withdrawnReason', 'withdrawnFrom'].includes(key) || !SUMMARY_KEYS.has(key)));
-}
-
-/** The text the view's search matches for an item, lowercased: its #id, title, lane, spec ids and criterion. */
-function searchText(item) {
-  return ('#' + item.id + ' ' + item.title + ' ' + item.lane + ' ' + item.specs.join(' ') + ' ' + (item.criterion || '')).toLowerCase();
-}
-
 /** One cached board build: the full state, its item summaries, its delta fingerprint and the lookups that serve them. */
 function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta = new Map(), itemMoveCounts = new Map(), clockWindow = null, comparisonHistory = null } = {}) {
-  const summary = { ...state, items: state.items.map(itemSummary) };
+  const summary = { ...state, items: state.items.map(itemSummary), finished: finishedCounts(state.items) };
   const reportValidator = { json: JSON.stringify(state.proofStats?.flow?.report), expiries: [...new Set(preparedFlow.items.flatMap(item =>
     item.state === 'claimed' ? [item.leaseUntil] : item.state === 'submitted' ? [item.reserve?.until] : []).filter(Number.isFinite))].sort((a, b) => a - b) };
   reportValidator.comparisonEvents = [...new Set((comparisonHistory ?? []).map(event => Date.parse(event.event_at)).filter(Number.isFinite))].sort((a, b) => a - b);
@@ -1075,9 +1070,11 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
         if (bases.length) deltas[since] = split(JSON.stringify(stateDelta(bases, entry.print, { ...entry.summary, ...stamped })));
       }
       const compact = entry.compact ??= compactItemSummaries(entry.summary);
+      const open = entry.open ??= compactItemSummaries(openOnly(entry.summary));
       return {
         cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, reportValidator,
         summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
+        open: variant(open, entry.openFields ??= prepareStateJson(open), '\0items:compact-open-v1'), finished: finishedText(entry, compactItemSummaries),
         full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
         search: entry.searchTexts ??= entry.state.items.map((item) => [item.id, searchText(item)]),
         shouts: Float64Array.from(withBoard(board.root, (current) => current.db.prepare('SELECT shout_id FROM shout ORDER BY shout_id').all().map((row) => row.shout_id), codeIsMain, boardOpeners)),
@@ -1167,18 +1164,18 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     deltaBases.set(entry.cacheId, kept);
   }
   /** Return item summaries or every item in full, as asked or by this server's default, and the JSON for either. */
-  function localState(board, seen, { detail = null, items = null } = {}) {
+  function localState(board, seen, { detail = null, items = null, finished = null } = {}) {
     const observedAt = now();
     const compact = items === 'compact';
     const full = !compact && (detail ?? stateDetail) === 'full';
     const sent = withSnapshot(board, (entry, cached) => {
-      const base = full ? entry.state : compact ? (entry.compact ??= compactItemSummaries(entry.summary)) : entry.summary;
+      const base = full ? entry.state : compact ? (finished === 'omit' ? (entry.open ??= compactItemSummaries(openOnly(entry.summary))) : (entry.compact ??= compactItemSummaries(entry.summary))) : entry.summary;
       const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary);
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
       const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state))
-        : compact ? (entry.compactFields ??= prepareStateJson(base)) : entry.summaryFields;
+        : compact ? (finished === 'omit' ? (entry.openFields ??= prepareStateJson(base)) : (entry.compactFields ??= prepareStateJson(base))) : entry.summaryFields;
       const reportValidator = reportValidation(entry, observedAt);
-      const validator = serializeState(state, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + (compact ? '\0items:compact-v1' : '');
+      const validator = serializeState(state, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + (compact ? (finished === 'omit' ? '\0items:compact-open-v1' : '\0items:compact-v1') : '');
       return { state, json: serializeState(state, fields), validator, reportValidator, entry };
     }, observedAt);
     // Only the build actually returned is sent; a delta extends summaries, never a full state.
@@ -1284,7 +1281,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       thread: store.itemThread(currentBoard, id),
     };
     onItemBuild?.({ board: board.id, itemId: id });
-    const detail = itemDetail(projected);
+    const detail = itemDetail(projected, SUMMARY_KEYS);
     // Missing Git objects can arrive with no event or trunk move, so an uncertain verdict is read again.
     if (!verdictState?.reason) {
       if (!details) {
@@ -1348,6 +1345,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
       return watched;
     },
+    finished: (board) => materialized(() => materializer.finishedJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => finishedText(entry, compactItemSummaries))))),
     summary: snapshots.summaryText && ((board) => materialized(() => materializer.summaryJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => snapshots.summaryText(entry)))))), delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
