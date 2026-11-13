@@ -343,7 +343,8 @@ async function runMain(argv, streams) {
         let eligible = true;
         try {
           const { landingLeaseState } = await import('../../../../../packages/store/index.js');
-          eligible = (await import('../../../../../packages/sandbox/index.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
+          const { openLandingJob } = await import('../../../../../packages/api/index.js');
+          eligible = (await import('../../../../../packages/sandbox/index.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState, openLandingJob,
             openBoardForRead: (await import('../context.js')).nativeBoardOpeners(io).openBoardForRead });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }

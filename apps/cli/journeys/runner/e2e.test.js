@@ -339,6 +339,7 @@ test('next takes work near your recent files; submit records them; show names re
   commitFile(box, box.repo, 'docs/notes.md', 'main moves on', 'docs: notes on main');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   assert.equal((await box.runLocal(box.web, 'submit', '2', '--no-next')).code, 0);
+  await settledGateJob(box, 2); // the pulled gate records the item's files when its receipt applies [C7,#7283]
   assert.equal(JSON.parse((await box.runLocal(box.web, 'show', '2', '--json')).out).item_files, 'web/header.html\nweb/nav.html', 'only the item\'s own commits, not the merge');
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   (await box.runLocal(box.repo, 'verify', '2', 'accept', '--no-next', '--note', 'emptied the header; the page lost it', '--as', 'coordinator'));
