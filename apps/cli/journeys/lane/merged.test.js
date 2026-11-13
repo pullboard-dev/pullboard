@@ -16,10 +16,13 @@ import { success } from '../../tests/fixtures/placement.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 async function mergedPlacement(t) {
   const box = await plannedProject(t, { companionLanes: true });
+  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   // The board's model table determines fixture seat routes since b95e1aa538.
