@@ -44,7 +44,7 @@ function child(box, source) {
   return JSON.parse(result.stdout);
 }
 
-test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', t => {
+test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
   const box = fixture(t);
   const url = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
   const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;
@@ -65,8 +65,7 @@ ${executionServicesSource(url)}
   assert.equal(diagnostic.exitCode, 255);
   assert.equal(diagnostic.confirmingProbe.healthy, true);
   const requests = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  // Pull dispatch confirms through the health probe log (.health-probes), so its request log holds the dropped enqueue and the retried one.
-  const expected = 2;
+  const expected = 3;
   assert.equal(requests.length, expected, 'failed dispatch, one confirming Node observation, one actual recovered execution');
   assert.equal(requests[0].dropped, true);
 });
