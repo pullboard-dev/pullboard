@@ -154,7 +154,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
     await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=questions]")');
     await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 1 && document.querySelector(".conversation-row").dataset.shoutThread === "item:3"');
     await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=all]")');
-    await chrome.waitFor('document.querySelector(\'[data-shout-thread="item:1"] .chip\')?.textContent === "2 messages"');
+    await chrome.waitFor('document.querySelector(\'[data-shout-thread="item:1"] .chip\')?.textContent === "2"');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
