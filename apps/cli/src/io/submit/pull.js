@@ -31,6 +31,7 @@ import { primaryCheckoutRoot } from '../worktree.js';
 import { exitLines } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
+import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
 
 /** The line a gate job prints its receipt on, the last line of its output; runner serve reads the same prefix. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
@@ -80,6 +81,7 @@ const keepOutput = (name, output) => {
   try { writeFileSync(join(keptFolder, name), output.length > ${KEPT_PHASE_BYTES} ? output.subarray(-${KEPT_PHASE_BYTES}) : output, { mode: 0o600 }); return name; } catch { return null; }
 };
 ${tapCaseErrors}
+${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
 ${fitReceipt}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
@@ -159,6 +161,9 @@ const runPhase = async (role, command, PATH) => {
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
   const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  // Each named case's diagnostic signature, as the controller signs it, so the board tells two failures of one case apart [V4,B3].
+  let failureSignatures = null;
+  try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
@@ -171,7 +176,7 @@ const runPhase = async (role, command, PATH) => {
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}) };
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}) };
 };
 if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath()));
 else {

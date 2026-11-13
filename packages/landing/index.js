@@ -41,7 +41,6 @@ export * from "./src/io/land/envelope.js";
 export * from "./src/io/completion.js";
 export * from "./src/io/docs.js";
 export * from "./src/logic/envelope.js";
-export * from "./src/logic/main/noise.js";
 export * from "./src/io/pause.js";
 export * from "./src/io/trainrecord.js";
 export * from "./src/io/train/receipt.js";

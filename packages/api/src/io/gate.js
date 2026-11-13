@@ -301,7 +301,7 @@ export function failingParts(receipt) {
  * @param {string} main - The accepted main the gate job was offered against.
  * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[] }) =>
  *   { classes: { file: string, owner: string, own: string[], receipt: unknown, job: string | null }[] } | null) | null} lookup
- * @returns {{ cases: { phase: string, file: string, name: string, onMain: boolean | null, receipt: string | null }[], jobs: string[] } | null}
+ * @returns {{ cases: { phase: string, file: string, name: string, signature: string | null, onMain: boolean | null, receipt: string | null }[], jobs: string[] } | null}
  *   null when the red is not only test cases (a job error, infrastructure, a refusal, a phase with no case account),
  *   when no lookup is given (gate.mainComparison off) or when main's receipts cannot be keyed.
  */
@@ -311,7 +311,9 @@ export function compareGateWithMain(board, receipt, main, lookup) {
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
   if (!red.length || red.some(phase => !Array.isArray(phase.failures) || !phase.failures.length
     || phase.failures.some(row => typeof row?.name !== 'string' || !row.name || !PROJECT_FILE.test(row?.file ?? '')))) return null;
-  const cases = red.flatMap(phase => phase.failures.map(({ file, name }) => ({ phase: String(phase.role), file, name })));
+  // Each case carries its diagnostic signature from the receipt; a receipt that predates them carries null [V4,B3].
+  const signed = (phase, index) => Array.isArray(phase.failureSignatures) && /^[0-9a-f]{64}$/u.test(phase.failureSignatures[index] ?? '') ? phase.failureSignatures[index] : null;
+  const cases = red.flatMap(phase => phase.failures.map(({ file, name }, index) => ({ phase: String(phase.role), file, name, signature: signed(phase, index) })));
   let found = null;
   try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })) }); } catch (error) { if (!error?.code) throw error; }
   const classes = new Map((found?.classes ?? []).map(row => [row.file, row]));
@@ -321,16 +323,22 @@ export function compareGateWithMain(board, receipt, main, lookup) {
     cases: cases.map(row => {
       const one = classes.get(row.file);
       const named = one.owner === 'unknown' ? null : keyedMainFailing(board.db, receiptId(one.receipt));
-      return { ...row, onMain: one.owner === 'unknown' ? null : named ? named.includes(row.name) : !one.own.includes(row.name), receipt: receiptId(one.receipt) };
+      // Main fails the same case only when it fails it the same way: the name and the diagnostic signature both match, and an
+      // unsigned case on either side differs, so a changed assertion is never excused by main's red of that name [V4,B3].
+      const same = named ? named.some(main => main.name === row.name && main.signature !== null && main.signature === row.signature)
+        : row.signature !== null && !one.own.includes(row.name);
+      const byName = named ? named.some(main => main.name === row.name) : !one.own.includes(row.name);
+      return { ...row, onMain: one.owner === 'unknown' ? null : same, ...(one.owner !== 'unknown' && byName && !same ? { differs: true } : {}), receipt: receiptId(one.receipt) };
     }),
     jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
   };
 }
 
 /**
- * The case names a main-test job's keyed receipt (step 0) records as failing on main; null when the id names no such
- * red receipt. Why: the comparison cache keeps a main-test red as the whole file with no case names, so without this
- * every case of a file a queued main-test job measured red would read as new (#6229).
+ * The cases a main-test job's keyed receipt (step 0) records as failing on main, each name with its diagnostic signature
+ * (null when the receipt has none, as a 0.9.3 receipt); null when the id names no such red receipt. Why: the comparison
+ * cache keeps a main-test red as the whole file with no case names, so without this every case of a file a queued
+ * main-test job measured red would read as new (#6229).
  */
 function keyedMainFailing(db, id) {
   if (typeof id !== 'string') return null;
@@ -338,7 +346,9 @@ function keyedMainFailing(db, id) {
     WHERE step.job_step_job = ? AND step.job_step_name = 'receipt' AND step.job_step_seq = 0 AND job.job_kind = ?`).get(id, MAIN_TEST_KIND);
   let keyed = null;
   try { keyed = row ? JSON.parse(row.job_step_payload) : null; } catch { keyed = null; }
-  return keyed?.verdict === 'red' && Array.isArray(keyed.failing) && keyed.failing.length ? keyed.failing : null;
+  if (keyed?.verdict !== 'red' || !Array.isArray(keyed.failing) || !keyed.failing.length) return null;
+  const signatures = Array.isArray(keyed.signatures) && keyed.signatures.length === keyed.failing.length ? keyed.signatures : [];
+  return keyed.failing.map((name, index) => ({ name, signature: /^[0-9a-f]{64}$/u.test(signatures[index] ?? '') ? signatures[index] : null }));
 }
 
 /**
@@ -347,9 +357,8 @@ function keyedMainFailing(db, id) {
  * against main's receipts the way the controller gate's main-owned verdict does, linking repairs and asking for the rest [V4,B3,C7].
  */
 function mainOwnership(board, id, compared, main) {
-  // A pulled receipt names each case but carries no diagnostics, so the signature keys the exact case on main.
-  const signed = (file, name) => createHash('sha256').update(JSON.stringify(['pulled-case', file, name])).digest('hex');
-  const failures = [...new Map(compared.cases.map(({ file, name }) => [`${file}\0${name}`, { file, name, signature: signed(file, name) }])).values()];
+  // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure.
+  const failures = [...new Map(compared.cases.map(({ file, name, signature }) => [`${file}\0${name}`, { file, name, signature }])).values()];
   const items = store.listItems(board, { all: true });
   const { clear } = store.splitAmbiguousMainReds({ main, failures }, items, id);
   const unowned = store.unownedMainReds(clear, items, id) ?? [];
@@ -367,9 +376,9 @@ function unownedShout(id, unowned, main) {
   return prefix + (detail.length > room ? detail.slice(0, Math.max(0, room - 1)).join('') + '…' : detail.join('')) + suffix;
 }
 
-/** One line per compared case, saying whether main fails it too. */
+/** One line per compared case, saying whether main fails it too, the same way. */
 function caseLines(compared) {
-  return compared.cases.map(row => `${row.onMain === true ? 'also fails on main' : row.onMain === false ? 'new' : 'main receipt missing'}: ${row.phase} ${row.file} (${row.name})`);
+  return compared.cases.map(row => `${row.onMain === true ? 'also fails on main' : row.differs ? 'fails differently on main' : row.onMain === false ? 'new' : 'main receipt missing'}: ${row.phase} ${row.file} (${row.name})`);
 }
 
 /**
