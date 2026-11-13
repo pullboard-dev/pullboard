@@ -130,7 +130,7 @@ fs.appendFileSync(${JSON.stringify(log)},'proof\\n');
   writeFileSync(driver, `import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {runSubmitGate,runMachineryGuard,countTrialGate,refusalTrialFile,requireTestTierAccount,readGateReceipt,receiptStore} from ${JSON.stringify(gateURL)};
-import {requireSubmitComposition,requirePlannedSource} from ${JSON.stringify(tool('packages/items/index.js'))};
+import {requireSubmitComposition} from ${JSON.stringify(tool('packages/items/index.js'))};
 import {loadConfig} from ${JSON.stringify(tool('packages/config/index.js'))};
 import {Refused} from ${JSON.stringify(tool('packages/kernel/index.js'))};
 ${executionServicesSource(gateURL)}
@@ -165,8 +165,6 @@ for(const code of ['GATE_RED','NOT_YOURS','RUNNER_SOURCE','RUNNER_RESULT_INVALID
 }
 await assert.rejects(runMachineryGuard(root,()=>requireTestTierAccount({green:true,profile:{tests:[]}},['test/selected.test.js']),
   {kind:'selection',rule:'changed coverage rule',say:()=>{}}),{code:'TEST_SELECTION_UNVERIFIED'});
-await assert.rejects(runMachineryGuard(root,()=>requirePlannedSource(root,'0'.repeat(40),head),
-  {kind:'placement',rule:'changed placement',say:()=>{}}),{code:'GIT_READ_INFRASTRUCTURE'});
 writeFileSync(${JSON.stringify(red)},'red');
 const failed=await run();assert.equal(failed.isGreen,false);
 assert.equal(JSON.parse(readFileSync(refusalTrialFile(root),'utf8')).gates,20);

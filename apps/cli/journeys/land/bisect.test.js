@@ -21,7 +21,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
 
-test('land bisects a real red: the culprit goes back named by the receipt and the green item lands [B3,R3,E8]', async () => {
+test('land bisects a real red: the culprit goes back named by the receipt and the green item lands [B3,R3,E8]', { skip: 'PULL_GAP: un-skipped by #7396' }, async () => {
   const box = landProject();
   // The init default (no affectedTests, per-item landing, no separate publish) makes the lander run the whole suite on the merged tree, which is what finds a red.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));

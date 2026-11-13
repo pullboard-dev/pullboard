@@ -46,13 +46,14 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     return new Set(flow.events.filter(entry => entry.kind === filter && entry.id !== null).map(entry => entry.id));
   })();
   const waterfall = (hour, big) => {
-    const PPM = big ? 3 : 1.05;
-    const topMin = (hour.h1 + (hour.h1 < now ? BLEED * MIN : 0)) / MIN, botMin = (hour.from - BLEED * MIN) / MIN, tall = Math.round((topMin - botMin) * PPM);
+    const topMin = (hour.h1 + (hour.h1 < now ? BLEED * MIN : 0)) / MIN, botMin = (hour.from - BLEED * MIN) / MIN;
+    // The current hour is drawn at least twice as tall as an older one, however few minutes of it have passed.
+    const PPM = big ? Math.max(3, 220 / (topMin - botMin)) : 1.05, tall = Math.round((topMin - botMin) * PPM);
     const W = width, y = ms => (topMin - ms / MIN) * PPM;
     const pitch = Math.max(2, Math.min(10, Math.floor((W - 64) / Math.max(flow.lanes, 1)))), bw = Math.max(2, Math.round(pitch * 0.55));
     let s = '<svg class="act-wfsvg" viewBox="0 0 ' + W + ' ' + tall + '" width="' + W + '" height="' + tall + '" shape-rendering="crispEdges" role="img" aria-label="' + esc(hourName(hour.h0)) + ' waterfall">';
     for (let q = 15; q < 60; q += 15) { const at = hour.h0 + q * MIN; if (at < hour.h1) s += '<line class="act-grid" x1="0" x2="' + W + '" y1="' + y(at) + '" y2="' + y(at) + '"/>'; }
-    const left = flow.since.at;
+    const left = leftKnown ? flow.since.at : null;
     if (left !== null && left >= hour.from && left < hour.h1) s += '<line class="act-lleft" x1="0" x2="' + W + '" y1="' + y(left) + '" y2="' + y(left) + '"/>';
     const lowMs = botMin * MIN, highMs = topMin * MIN;
     for (const item of flow.journeys) {
@@ -80,7 +81,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     s += edge('bottom');
     if (hour.h1 === now) s += '<line class="act-lnow" x1="0" x2="' + W + '" y1="0.5" y2="0.5"/>';
     // Labels are SVG text, so no element needs a style attribute.
-    for (const q of [15, 30, 45]) { const at = hour.h0 + q * MIN; if (at < hour.h1 - 4 * MIN && !(left !== null && Math.abs(at - left) <= 7 * MIN)) s += '<text class="act-tick" x="' + (W - 8) + '" y="' + (y(at) + 4) + '" text-anchor="end">:' + q + '</text>'; }
+    for (const q of [15, 30, 45]) { const at = hour.h0 + q * MIN; if (at < hour.h1 - 4 * MIN && !(hour.h1 === now && y(at) < 26) && !(left !== null && Math.abs(at - left) <= 7 * MIN)) s += '<text class="act-tick" x="' + (W - 8) + '" y="' + (y(at) + 4) + '" text-anchor="end">:' + q + '</text>'; }
     if (left !== null && left >= hour.from && left < hour.h1) s += '<text class="act-tick" x="' + (W - 40) + '" y="' + (y(left) - 4) + '" text-anchor="end">you left</text>';
     if (topMin * MIN > hour.h1) s += '<text class="act-bleed" x="10" y="12">:' + String(BLEED).padStart(2, '0') + ' · ' + esc(hourName(hour.h1)) + '</text>'; else s += '<text class="act-tick now" x="' + (W - 8) + '" y="13" text-anchor="end">now</text>';
     s += '<text class="act-bleed" x="10" y="' + (tall - 5) + '">:' + (60 - BLEED) + ' · ' + esc(hourName(hour.from - HOUR)) + '</text>';
@@ -99,7 +100,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     + (page * PAGE_ROWS < total ? '<a data-act-pg="' + h0 + '" data-to="' + (page + 1) + '">Next 10</a>' : '') + '<span>' + ((page - 1) * PAGE_ROWS + 1) + '–' + Math.min(page * PAGE_ROWS, total) + ' · ' + total + ' in this hour</span></div>' : '';
   const hourRows = (hour, matched) => {
     const page = Math.min(ui.pages?.[hour.h0] || 1, Math.max(1, Math.ceil(matched.length / PAGE_ROWS)));
-    const slice = matched.slice((page - 1) * PAGE_ROWS, page * PAGE_ROWS), left = flow.since.at;
+    const slice = matched.slice((page - 1) * PAGE_ROWS, page * PAGE_ROWS), left = leftKnown ? flow.since.at : null;
     let html = '', divided = false;
     slice.forEach((entry, index) => {
       if (!divided && left !== null && index > 0 && entry.at < left && slice[index - 1].at >= left) { html += '<div class="act-left"><span>since you left · ' + clock(left) + '</span></div>'; divided = true; }
@@ -200,6 +201,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
 
   // ---- Resources: the rail, and the four-cell band for narrow screens ----
   const R = flow.rail, A = R.agents, hot = R.runners.filter(runner => runner.cpu !== null && runner.cpu >= 90).length, jobs = R.runners.reduce((sum, runner) => sum + runner.jobs, 0);
+  const meanCpu = R.runners.length ? Math.round(R.runners.reduce((sum, runner) => sum + (runner.cpu ?? 0), 0) / R.runners.length) : 0;
   const splitBar = () => bars('split', [[A.building, 'b'], [A.reviewing, 'r'], [A.idle, 'i']]);
   const maxQueue = Math.max(1, ...R.queue.map(row => row.count));
   const sec = (head, body, margin = true) => '<section class="act-sec' + (margin ? '' : ' act-first') + '">' + head + body + '</section>';
@@ -220,8 +222,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   const cell = (index, name, value) => '<button type="button" class="rcell' + (openCell === index ? ' on' : '') + '" data-act-res="' + index + '"><span class="rh"><span class="lbl2">' + name + '</span><span class="chv">›</span></span>' + value + '</button>';
   const resband = '<section class="act-sec act-resec"><div class="act-shd"><p class="act-lbl">Resources</p><span class="act-cap">tap a cell for its rows</span></div><div class="act-card resband">'
     + cell(0, 'Agents', '<span class="rv">' + splitBar() + '<span><b>' + A.building + '</b> building · <b>' + A.reviewing + '</b> reviewing<span class="wide"> · <b>' + A.idle + '</b> idle</span></span></span>')
-    + cell(1, 'Runners', '<span class="rv">' + (() => { const heights = R.runners.slice(0, 8).map(runner => Math.max(8, runner.cpu ?? Math.round(runner.jobs / Math.max(1, ...R.runners.map(entry => entry.jobs)) * 100)));
-      return '<svg class="mini" viewBox="0 0 ' + heights.length * 10 + ' 16" width="' + heights.length * 10 + '" height="16" aria-hidden="true">' + heights.map((h, index) => '<rect class="' + (R.runners[index].cpu >= 90 ? 'hot' : '') + '" x="' + index * 10 + '" y="' + (16 - h * 0.16) + '" width="7" height="' + h * 0.16 + '"/>').join('') + '</svg>'; })() + '</span><span>' + (hot ? '<span class="hot">' + hot + '</span> hot · ' : '') + jobs + ' jobs</span></span>')
+    + cell(1, 'Runners', '<span class="rv">' + bars('load', [[meanCpu, meanCpu >= 90 ? 'hot' : meanCpu >= 70 ? 'hi' : 'lo'], [100 - meanCpu, 'bg']]) + '<span>' + (hot ? '<span class="hot">' + hot + '</span> hot · ' : '') + jobs + ' jobs</span></span>')
     + cell(2, 'Queue', '<span class="rv rvq"><span>' + R.queue.slice(0, 2).map(row => esc(row.name) + ' <b>' + row.count + '</b>').join(' · ') + '</span><span class="wide q2">' + esc(R.queue[2].name) + ' <b>' + R.queue[2].count + '</b></span></span>')
     + cell(3, 'Main', '<span class="rv"><span><span class="mdot' + (R.main.green ? '' : ' red') + '"></span><span class="' + (R.main.green ? 'g' : 'hot') + '">' + (R.main.green ? 'Green' : 'Red') + '</span>' + (R.main.at ? ' · ' + dur(now - R.main.at) : '') + (R.main.sha ? ' · <code>' + esc(R.main.sha.slice(0, 7)) + '</code>' : '') + '</span></span>')
     + (openCell === null ? '' : '<div class="resfull">' + cards[openCell].replace('class="act-card ', 'class="') + '</div>')
@@ -241,7 +242,8 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     + '<pattern id="act-p-sr" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="p-sra" width="4" height="4"/><rect class="p-srb" width="2" height="4"/></pattern>'
     + '<pattern id="act-p-held" width="6" height="6" patternUnits="userSpaceOnUse"><rect class="p-held" width="6" height="3.2"/></pattern></defs></svg>';
   const feed = '<div class="act-feedcol" aria-label="What happened, newest first">' + sinceHtml + bottlenecks + resband + '<div class="act-hours" id="act-hours">' + hoursHead + legend + hourSections + '</div>' + end + '</div>';
-  return defs + (controls ? '<div class="act-mfilters">' + controls + '</div>' : '') + '<div class="act-cols">' + feed + rail + '</div>';
+  // The zero-size pattern sprite comes last, so the page's first child is its own content, never a 0 x 0 box.
+  return (controls ? '<div class="act-mfilters">' + controls + '</div>' : '') + '<div class="act-cols">' + feed + rail + '</div>' + defs;
 }
 
 /**

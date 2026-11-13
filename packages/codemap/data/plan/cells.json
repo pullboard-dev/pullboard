@@ -1835,6 +1835,14 @@
         "apps/cli/src/io/documentation/events/submit_handoff_returned.json",
         "rule"
       ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/main-failure-noise.js",
+        "packages/landing/src/logic/main/noise.js",
+        "imports"
+      ]
     }
   ],
   "entries": [

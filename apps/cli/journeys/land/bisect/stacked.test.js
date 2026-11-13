@@ -1,4 +1,4 @@
-/** Land refuses an item stacked on an unverified ancestor, apart from bisect.test.js so each fits its file limit under pull [B3,R3,E8]. */
+/** Land refuses an item stacked on an unverified ancestor, apart from bisect.test.js so each fits its file limit under pull [B3,R3,E8,#7395]. */
 import assert from 'node:assert/strict';
 import {
   after,
@@ -15,8 +15,7 @@ after(e2e.cleanup);
 const { commitFile } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
 
-// PULL_GAP: the batch selection (selection.js STACKED_UNVERIFIED) refused an item whose stack holds an unverified ancestor; the pulled land offer takes it and merges the ancestor onto main (observed: landed [1,2], returned []). Needs its own item.
-test('land never takes an item whose stack holds an unverified ancestor [B3,R3,E8]', { skip: 'PULL_GAP: un-skipped by the follow-up item for pulled STACKED_UNVERIFIED' }, async () => {
+test('land never takes an item whose stack holds an unverified ancestor [B3,R3,E8]', async () => {
   const box = landProject();
   box.env.LAND_SUPPRESS_RED = '1';
   const entries = [itemWorktree(box, 1, FILES[0]), itemWorktree(box, 4, FILES[3])];
@@ -33,6 +32,6 @@ test('land never takes an item whose stack holds an unverified ancestor [B3,R3,E
   const result = await settleLand(box, json(box, box.repo, 'land'));
   assert.deepEqual(result.landed, [entries[0].item], JSON.stringify(result.landJob?.receipt ?? result));
   assert.equal(json(box, box.repo, 'show', String(entries[1].item)).item_merged_commit, null, 'the unverified stack never gets in');
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
+  assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip, 'the host trunk holds only the verified item');
   await drainOwnedProcesses(box.dir);
 });

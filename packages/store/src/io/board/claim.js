@@ -86,7 +86,7 @@ function runnerSlots(board) {
  * Why: a seat builds its next item while the last one's tests run; free test-run slots per live seat bound that.
  * perSeat is the claims.perSeat setting the claiming command read, so a replay reads the same number.
  */
-function claimsPerSeat(board, perSeat = null) {
+export function claimsPerSeat(board, perSeat = null) {
   if (Number.isSafeInteger(perSeat) && perSeat >= 1) return { n: perSeat, how: `claims.perSeat sets ${perSeat}` };
   const runners = runnerSlots(board);
   const slots = runners ?? availableParallelism();
@@ -113,6 +113,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
   // builder fixing what a verifier found need not drop its other work to do it.
   const isRework = (item) => item.item_verdict === 'REJECT' && item.item_built_by === agentId;
   let reworkRouting = null;
+  let seatN = null;
   let frozen = null;
   let policyRefreeze = null;
   let prepared = false;
@@ -213,6 +214,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
           if (itemFolder === true && found.item_parent_id === null && !isRework(found)) {
             const top = held.filter(row => row.item_parent_id === null && !isRework(row));
             const { n, how } = claimsPerSeat(board, perSeat);
+            seatN = n;
             if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`);
           }
         }
@@ -249,7 +251,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
     }),
   };
   return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
-    policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting };
+    policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting, seatN: () => seatN };
 }
 
 const PREPARED_CLAIMS = new WeakMap();
@@ -391,7 +393,7 @@ function commitClaim(board, id, prepared, binding, ports) {
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
+    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
       ...(!renewed && item.item_expected_build_minutes != null && (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? { buildBudgetMinutes: options.buildBudgetMinutes ?? 30, expectedBuildMinutes: item.item_expected_build_minutes ?? null } : {}),
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),
