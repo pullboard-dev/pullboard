@@ -42,19 +42,19 @@ function redAt(t, itemCommit) {
 
 test('a red at the item\'s current commit is shown at claim [C7]', async t => {
   await hopCheck('red-at-head', async () => {
-      const { board, id } = redAt(t, OLD);
-      const shown = returnedRecord(board, id);
-      assert.equal(shown?.gate?.code, 'GATE_RED', 'the red for the current commit is handed back');
-      assert.equal(shown.gate.commit, OLD);
+    const { board, id } = redAt(t, OLD);
+    const shown = returnedRecord(board, id);
+    assert.equal(shown?.gate?.code, 'GATE_RED', 'the red for the current commit is handed back');
+    assert.equal(shown.gate.commit, OLD);
     return { measured: 'the red for the current commit was handed back' };
   });
 });
 
 test('a red from an older head is not shown once the item moved to a new commit [C7]', async t => {
   await hopCheck('red-older-head', async () => {
-      const { board, id } = redAt(t, NEW);
-      assert.equal(returnedRecord(board, id), null, 'no red is handed back for a head the gate never ran');
-      assert.equal(gateAtHead(board, board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(id)), null, 'gateAtHead agrees');
+    const { board, id } = redAt(t, NEW);
+    assert.equal(returnedRecord(board, id), null, 'no red is handed back for a head the gate never ran');
+    assert.equal(gateAtHead(board, board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(id)), null, 'gateAtHead agrees');
     return { measured: 'no red was handed back for a head the gate never ran' };
   });
 });

@@ -47,26 +47,26 @@ function told(fixture, bounded) {
 
 test('a red notice for a live claim says it stays claimed until the lease [C7,SM13]', async t => {
   await hopCheck('red-notice-live', async () => {
-      const fixture = redClaim(t);
-      for (const bounded of [false, true]) {
-        const text = told(fixture, bounded);
-        assert.match(text, new RegExp(`#${fixture.id} stays claimed by you until ${fixture.lease}`, 'u'));
-        assert.doesNotMatch(text, /lapsed/u);
-      }
+    const fixture = redClaim(t);
+    for (const bounded of [false, true]) {
+      const text = told(fixture, bounded);
+      assert.match(text, new RegExp(`#${fixture.id} stays claimed by you until ${fixture.lease}`, 'u'));
+      assert.doesNotMatch(text, /lapsed/u);
+    }
     return { measured: 'the notice names the lease end, in both forms' };
   });
 });
 
 test('a red notice read after the lease ran out says the claim lapsed, never that it stays claimed [C7,SM13]', async t => {
   await hopCheck('red-notice-lapsed', async () => {
-      const fixture = redClaim(t);
-      fixture.clock.at = START + 10 * LEASE_MS;
-      for (const bounded of [false, true]) {
-        const text = told(fixture, bounded);
-        assert.match(text, new RegExp(`#${fixture.id} claim lapsed at ${fixture.lease}`, 'u'), 'it says the claim lapsed');
-        assert.match(text, /re-claim/u, 'it names the way back');
-        assert.doesNotMatch(text, /stays claimed/u, 'it never promises a claim that is gone');
-      }
+    const fixture = redClaim(t);
+    fixture.clock.at = START + 10 * LEASE_MS;
+    for (const bounded of [false, true]) {
+      const text = told(fixture, bounded);
+      assert.match(text, new RegExp(`#${fixture.id} claim lapsed at ${fixture.lease}`, 'u'), 'it says the claim lapsed');
+      assert.match(text, /re-claim/u, 'it names the way back');
+      assert.doesNotMatch(text, /stays claimed/u, 'it never promises a claim that is gone');
+    }
     return { measured: 'the notice says lapsed and names re-claim, in both forms' };
   });
 });
