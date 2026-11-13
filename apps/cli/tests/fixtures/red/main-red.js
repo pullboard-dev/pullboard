@@ -15,7 +15,6 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
-import { fixtureMachineSettings } from '../testkit.js';
 
 export const BIN = join(import.meta.dirname, '../../../pullboard.js');
 const roots = [];
@@ -72,14 +71,11 @@ export function fixture(t, { spec, source, affectedTests = 'node test/runner.js'
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.test',
     GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.test',
-    PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     PULLBOARD_MODEL: 'Fixture Model', MAIN_RED_RUNS: join(directory, 'main-runs.log'),
   };
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.NODE_TEST_CONTEXT;
-  // These submits settle their gate and main comparison in the submitting process, so the fixture pins controller dispatch (#6249).
-  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   assert.equal(cli(root, env, 'init').code, 0);
   put(root, 'pullboard.json', JSON.stringify({

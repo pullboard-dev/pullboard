@@ -50,6 +50,7 @@
     "apps/cli/journeys/init/geometry.test.js": 1,
     "apps/cli/journeys/init/home.test.js": 1,
     "apps/cli/journeys/init/origin.test.js": 1,
+    "apps/cli/journeys/init/perf/projects.test.js": 1,
     "apps/cli/journeys/init/perf.test.js": 1,
     "apps/cli/journeys/init/performance.test.js": 1,
     "apps/cli/journeys/init/provenance.test.js": 1,

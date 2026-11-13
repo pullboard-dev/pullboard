@@ -16,6 +16,7 @@ import { patchKeyedRows } from "../../logic/page/rows.js";
 import { navPages } from "../../logic/nav.js";
 import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
+import { readRoadmapPlace } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
 import { accountHtml } from "../../logic/nav.js";
 import { accountMenuHtml } from "../../logic/nav.js";
@@ -45,6 +46,7 @@ const needsActionsHtml = (${needsActionsHtml.toString()});
 ${navPages.toString()}
 ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
+${readRoadmapPlace.toString()}
 ${withPlaceQuery.toString()}
 ${accountHtml.toString()}
 ${accountMenuHtml.toString()}

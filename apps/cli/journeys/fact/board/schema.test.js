@@ -144,6 +144,9 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   await succeeds(box, box.web, 'claim', String(id));
   const accepted = choice(box, box.web, 'accepted');
   await succeeds(box, box.web, 'submit', String(id));
+  // A pulled submit returns queued; the item is submitted only once the gate job's receipt lands, so wait on the item itself [P7,C7].
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'submitted', `the pulled gate submits #${id}`, { signal: AbortSignal.timeout(150_000) });
   box.git(box.repo, 'switch', '-q', '--detach', accepted);
   try { await succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the accepted choice'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -152,7 +155,6 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   await succeeds(box, box.web, 'claim', String(id));
   assert.notEqual(box.tryGit(box.web, 'merge', '-q', '--no-edit', 'main').status, 0);
   const head = choice(box, box.web, 'resolved');
-  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   olderDeclaration(file);
   const before = observe(file);
   await succeeds(box, box.repo, 'status');

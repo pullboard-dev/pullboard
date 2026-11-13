@@ -51,7 +51,7 @@ export function releaseFixture(t, { previous = null, version = '0.8.7', changelo
   mkdirSync(repo);
   if (!freshSetup) writeFileSync(join(repo, 'SPEC.md'), '# Release fixture\n\n## N · Resume\n- N19 [approved, must] Resume announces released headlines once per checkout. | gate: review\n');
   symlinkSync(releaseCli(version, changelog), cli);
-  const env = { ...process.env, PATH: `${join(cli, 'bin')}:${process.env.PATH}`, PULLBOARD_HOME: join(root, 'home'), PULLBOARD_MACHINE_HOME: join(root, 'machine-home'),
+  const env = { ...process.env, PATH: `${join(cli, 'bin')}:${process.env.PATH}`, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(root, 'home'), PULLBOARD_MACHINE_HOME: join(root, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture',
     GIT_AUTHOR_EMAIL: 'fixture@example.com', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.com' };
   delete env.PULLBOARD_RELAY_TOKEN;

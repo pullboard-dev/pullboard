@@ -36,7 +36,7 @@ export function dashboardRecent(board, items, now) {
   }
   return {
     landed: landed.size,
-    passed: within('accept').length,
+    passed: new Set([...within('accept').map(row => row.item_id), ...landed]).size,
     sentBack: within('reject').length + within('reopen').length,
     shouts: within('shout').filter(row => detail(row).to === 'person').length,
     since, until: now,

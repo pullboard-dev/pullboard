@@ -31,6 +31,9 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { LANDING_LEASE_MS } from '../../../../../packages/store/index.js';
+import { makeLandProjectFixtures } from '../land/project.js';
+import { landJobs } from '../land/board.js';
+import { settleLand } from '../land/settle.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {
@@ -222,8 +225,41 @@ function landingPolicyCalls(box, batches, records) {
   return calls;
 }
 
+/**
+ * The freshness variant on pull: two accepted items, the second changing the first's checked file; the second lands
+ * alone (the first held), moving main under the first's verdict, and the next land reopens the first to its lane with
+ * STALE_VERDICT and offers no land job for it [B3,C7].
+ */
+async function pulledFreshnessCase(helpers) {
+  const { landProject, itemWorktree, submitItem, acceptItem, FILES } = makeLandProjectFixtures(helpers);
+  const box = landProject();
+  const first = itemWorktree(box, 1);
+  const second = itemWorktree(box, 2);
+  submitItem(box, first);
+  // The second item changes the first's checked file on its own branch, so its landing makes the first verdict stale.
+  mkdirSync(join(second.path, 'web'), { recursive: true });
+  writeFileSync(join(second.path, FILES[0]), 'PASS changed\n');
+  submitItem(box, second);
+  acceptItem(box, first);
+  acceptItem(box, second);
+  // Only the second lands now; the first keeps its accept behind a hold.
+  readBoard(box, board => store.holdItem(board, first.item, { agentId: 'coordinator', reason: 'land the second item first' }));
+  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  assert.deepEqual(landed.landed, [second.item], JSON.stringify(landed));
+  readBoard(box, board => store.releaseItemHold(board, first.item, { agentId: 'coordinator' }));
+  const jobs = landJobs(box).length;
+  const again = box.run(box.repo, 'land');
+  assert.equal(again.code, 0, again.err + again.out);
+  assert.match(again.out + again.err, /STALE_VERDICT #\d+ reopened to its lane/u);
+  assert.equal(readBoard(box, board => store.getItem(board, first.item).item_status), 'open', 'the stale item left verified for its lane');
+  assert.equal(readBoard(box, board => store.getItem(board, first.item).item_merged_commit), null);
+  assert.equal(landJobs(box).length, jobs, 'a stale verdict starts no land job');
+}
+
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
+  // Freshness survives under pull: the land offer rechecks each verdict against the main it lands onto [B3,C7].
+  if (staleAfterFirst) return pulledFreshnessCase(helpers);
   // Every variant is the controller's landing lease: a named waiting lander, its held batch, parent and guardian death. A pulled landing is a runner job with none of these; #6579 deletes the cases with the lease.
   t.skip('CONTROLLER_ONLY: deleted with #6579');
   return;
