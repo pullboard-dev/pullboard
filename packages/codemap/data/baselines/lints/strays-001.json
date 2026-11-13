@@ -97,7 +97,6 @@
     "apps/cli/journeys/shout/overlap.test.js": 1,
     "apps/cli/journeys/shout/prose.test.js": 1,
     "apps/cli/journeys/shout/references.test.js": 1,
-    "apps/cli/journeys/shout/search.test.js": 1,
     "apps/cli/journeys/shout/shouts.test.js": 1,
     "apps/cli/journeys/shout/toggle.test.js": 1,
     "apps/cli/journeys/show/policy/e2e.test.js": 1,
