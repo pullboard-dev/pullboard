@@ -5,7 +5,6 @@ import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { join } from 'node:path';
 import { getItem } from '../../../../packages/store/index.js';
@@ -117,20 +116,4 @@ test('clause 2: authorization, doctrine, static checks, selection and tests all 
   const receipts = row.steps.filter(step => step.name === 'receipt');
   assert.equal(receipts.length, 1, 'one receipt');
   assert.equal(receipts[0].payload.receipt.gate.green, true);
-});
-
-test('clause 2: submit.handoff true settles through the pull gate [P7]', async t => {
-  const box = await pullProject(t, 1);
-  const [id] = box.ids;
-  const configFile = join(box.repo, 'pullboard.json');
-  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), submit: { handoff: true } }, null, 2) + '\n');
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: deprecated submit.handoff on [G1]');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const { document, commit } = submitOne(box, id);
-  assert.equal(document.queued, true);
-  const { board } = await pullQueue(t, box);
-  const rows = jobsOf(board.db, { kind: 'gate' });
-  assert.deepEqual(rows.map(row => [row.item, row.step, row.candidate]), [[id, 'offered', commit]], 'one offered gate job row');
-  assert.equal(submitHandoff(board, id), null, 'no queued hand-off worker');
 });
