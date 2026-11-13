@@ -68,7 +68,23 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
   assert.deepEqual(expected.statsComparison, comparisonAt(expected), 'the live comparison matches its public reader at its observation clock');
   const actualComparison = comparisonAt(actual);
   assert.deepEqual(actual.statsComparison, actualComparison, 'the export comparison matches its public reader at its observation clock');
-  assert.deepEqual(actual, { ...expected, observedAt: actual.observedAt, proofStats: actualStatistics, statsComparison: actualComparison }, message);
+  /** The Dashboard hero's four-hour window ends at its own read clock, so it moves with each observation; its counts must not [N26]. */
+  const recentWindow = (observation, name) => {
+    assert.ok(observation.dashboardRecent.until <= Date.parse(observation.observedAt), `${name} four-hour window ends at or before its read stamp`);
+    assert.equal(observation.dashboardRecent.until - observation.dashboardRecent.since, 4 * 3_600_000, `${name} window spans four hours`);
+  };
+  recentWindow(expected, 'the live projection');
+  recentWindow(actual, 'the export projection');
+  assert.deepEqual(actual, {
+    ...expected,
+    observedAt: actual.observedAt,
+    proofStats: actualStatistics,
+    statsComparison: actualComparison,
+    dashboardRecent: actual.dashboardRecent,
+  }, message);
+  const { since, until, ...liveCounts } = expected.dashboardRecent;
+  const { since: exportSince, until: exportUntil, ...exportCounts } = actual.dashboardRecent;
+  assert.deepEqual(exportCounts, liveCounts, 'the hero counts match across the two reads');
 }
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 240_000 }, async (t) => { // budget: hang-only ceiling for fixture setup plus four real 1x/4x/16x replays on a loaded runner; no speed claim.
