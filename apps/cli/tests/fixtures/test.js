@@ -67,7 +67,9 @@ function cpuLoadShell(e2e, commonjs, stage) {
   command('runner', 'add', HOST, '--node', process.execPath, '--slots', '1', '--browser', commonjs ? '1' : '0');
   command('settings', 'gate.runnersFirst', 'off');
   // The gate runs in this process, so it pins controller dispatch; the default pull dispatch would need a committed runner controller the copied fixture runner lacks [P7].
-  command('settings', 'gate.runnerDispatch', 'controller');
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  writeFileSync(settingsFile, JSON.stringify({ ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } }));
   command('settings', 'gateSlots', '1');
   stage('runner-registered');
   const shell = { box, env, requests, standIn, remoteHome, remoteMachineHome, command, probeFile };
