@@ -206,7 +206,8 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 /** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
 export function apiHttpFixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // A pulled submit starts the loopback local runner in this machine home; it stops before the sandbox goes, or it keeps writing into it.
+  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true }); });
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
@@ -326,7 +327,6 @@ export async function submitSettled(t, box, move, id, agent) {
     fixtureProjectPolicy(box.root, { config: { ...config, landing: { ...config.landing, manualOverride: true } } });
     startFixtureLocalRunner(box.env, box.root);
     box.localRunnerStarted = true;
-    t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   }
   const result = await move({ verb: 'submit', item: id, agent });
   await whenRunnerSettles(box.env, async () => {
