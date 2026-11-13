@@ -19,6 +19,3 @@ test('the first and second unnamed reds still refuse LAND_DIAGNOSTIC; the third 
 test('a single-item batch with repeated unnamed reds still refuses, since there is nothing to split [C7,#2858]', async () => {
   await assert.rejects(diagnose(stateWith(3, [{ id: 1 }]), [], { logPath: 'x' }), { code: 'LAND_DIAGNOSTIC' });
 });
-
-// CONTROLLER_ONLY: the batch carries unnamed reds across lands (LAND_DIAGNOSTIC, --adopt) and splits on the third; a pulled land job runs once and returns its items, with no batch to adopt or split [C7,#2858].
-test('a real two-item batch red three times with no named file lands refusing twice, then splits and runs gates over single items [C7,#2858]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});

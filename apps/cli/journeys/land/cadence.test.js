@@ -122,6 +122,3 @@ test('cadence thresholds read native acceptance times at both exact clock bounda
   accepted(box, 'second');
   assertThresholds(box);
 });
-
-// CONTROLLER_ONLY: `land --due`, its cadence explanation and the recorded-repair no-op are the batch engine's scheduler; pulled landing offers a job when work is accepted and has no cadence gate [E30,E10,E29].
-test('land runs on cadence at either injected-clock boundary and lands all waiting acceptances [E30,E10,E29]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});
