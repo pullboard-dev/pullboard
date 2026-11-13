@@ -24,6 +24,7 @@ import { planRowChange } from '../../../../packages/commits/light.js';
 import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import {
   runFixtureChild,
   runFixtureChildAsync,
@@ -141,6 +142,11 @@ test('adding an owned new-file row cannot lend authority to editing an existing 
 
 test('native view submit validates its core companion placement on the composed source [C7,V4]', async t => {
   const box = await plannedProject(t, { companionLanes: true });
+  // Audited exception (#6821): the refusal-trial ledger this case completes and reads is kept only by the controller
+  // gate; the pulled gate judges in the runner's own checkout, so the fixture keeps controller dispatch until the
+  // pulled gate carries the ledger (0.9.5 remainder of #6821) [C7].
+  const machine = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...machine, gate: { ...machine.gate, runnerDispatch: 'controller' } });
   await completePlacementTrial(t, box);
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
