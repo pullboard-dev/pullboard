@@ -52,7 +52,10 @@ test('a red in a journey test the change edits turns the submit gate red [C7,CS4
   commit(box, entry.root, 'test(web): the journey asserts the wrong sign [G1]');
   const result = await box.runLocal(entry.root, 'submit', String(entry.id), '--no-next', '--json');
   const settled = await settleSubmit(t, box, JSON.parse(result.out));
-  console.log('PROBE7171', JSON.stringify(settled.gateJob).slice(0, 3000));
+  const proof = settled.gate.phases.find(phase => phase.role === 'proof');
+  assert.notEqual(settled.gate.green, true, 'a red edited journey must not submit green');
+  assert.equal(proof.status, 1, 'the proof phase of the pulled gate is red');
+  assert.ok(proof.failures.some(row => row.file === 'test/journey.test.js'), JSON.stringify(proof.failures));
   assert.ok(calls(box, 'journey').length >= 1, 'the edited journey ran at submit');
 });
 
