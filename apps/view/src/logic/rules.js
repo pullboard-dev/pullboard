@@ -9,6 +9,8 @@ export function ruleListModel(rows, { kind, filter, selectedId = null, addressed
   const undecidedIds = rows.filter(undecided).map(row => row.id);
   const labels = { decide: 'Rulings', ...(defaults.length ? { defaults: 'To review' } : {}),
     all: 'All rows', approved: 'Approved' };
+  /** At phone width a label is one whole word, so the full count always fits beside it (#7400). */
+  const shorts = { defaults: 'Review', all: 'All' };
   const counts = { decide: undecidedIds.length, defaults: defaults.length, all: rows.length,
     approved: rows.filter(row => row.status === 'approved').length };
   const shown = rows.filter(row => filter === 'all' || (filter === 'decide' ? undecided(row)
@@ -28,5 +30,5 @@ export function ruleListModel(rows, { kind, filter, selectedId = null, addressed
       sectionReviewCounts.set(key, (sectionReviewCounts.get(key) || 0) + 1);
   }
   const decisionTitle = undecidedIds.length + ' drafts';
-  return { decisionTitle, labels, counts, shown, nextSelectedId, feedbackId, sectionCounts, sectionReviewCounts, sectionKey, undecidedIds };
+  return { decisionTitle, labels, shorts, counts, shown, nextSelectedId, feedbackId, sectionCounts, sectionReviewCounts, sectionKey, undecidedIds };
 }
