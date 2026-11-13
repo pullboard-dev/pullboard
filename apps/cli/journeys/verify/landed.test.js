@@ -28,7 +28,7 @@ async function fixture(t) {
   const landing = box.git(box.repo, 'rev-parse', 'HEAD');
   const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Hand landed result', criterion: 'the result exists', check: 'test -f web/result.txt', run: box.runLocal });
   const id = item.item_id;
-  const merged = await box.runLocal(box.repo, 'merged', String(id), landing, '--forced', 'hand landed around the gate');
+  const merged = await box.runLocal(box.repo, 'merged', String(id), landing, '--forced', 'hand landed around the gate', '--waive-proof', 'fixture has no receipt');
   assert.equal(merged.code, 0, merged.out + merged.err);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, landing);

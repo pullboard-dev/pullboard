@@ -42,7 +42,7 @@ function handLanded() {
 
 test('clause 1: a forced merge of an on-main commit records in under 5 s and runs no check [C7]', { timeout: 180_000 }, async () => {
   const { box, head, run } = handLanded();
-  const forced = run('merged', '1', head, '--forced', 'landed by hand');
+  const forced = run('merged', '1', head, '--forced', 'landed by hand', '--waive-proof', 'fixture has no receipt');
   assert.equal(forced.status, 0, forced.stdout + forced.stderr);
   assert.ok(forced.ms < RECORD_LIMIT_MS, `merged --forced took ${Math.round(forced.ms)} ms`); // budget: declared ceiling, the 9 Nov 5 s target for recording a merge.
   assert.equal(JSON.parse(run('show', '1', '--json').stdout).item_merged_commit, head);
