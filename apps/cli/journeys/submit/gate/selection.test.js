@@ -19,9 +19,11 @@ import { put } from '../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../tests/fixtures/submit/gate.js';
 import { seedGraph } from '../../../tests/fixtures/submit/gate.js';
 
-/** Build a claimed submit fixture whose changed source selects a nested child-process test. */
-async function childFailureSubmitBox(t, testSource) {
+/** Build a claimed submit fixture whose changed source selects a nested child-process test; deniedFile names the path a Python-style denial reports. */
+async function childFailureSubmitBox(t, testSource, { deniedFile = null } = {}) {
   let box = privateRepo(t);
+  // Set before the first board command: that command starts the machine's local runner, whose jobs inherit only FIXTURE_ names.
+  if (deniedFile) box.env.FIXTURE_CHILD_PERMISSION_PATH = join(box.dir, deniedFile);
   // This fixture proves multiline TAP diagnostics; Node's default reporter varies by runtime.
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap', spec: 'SPEC.md' }));
   put(box.root, 'SPEC.md', SPEC);
@@ -115,10 +117,8 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t
   assert.equal(pythonSource.split(pythonExplanation).length - 1, 1, 'the bare Python counter changes exactly one parent message');
   const box = await childFailureSubmitBox(t, original);
   const bareBox = await childFailureSubmitBox(t, original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);'));
-  const pythonBox = await childFailureSubmitBox(t, pythonSource);
-  pythonBox.env.FIXTURE_CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
-  const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
-  barePythonBox.env.FIXTURE_CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
+  const pythonBox = await childFailureSubmitBox(t, pythonSource, { deniedFile: 'outside-python-denial.txt' });
+  const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'), { deniedFile: 'outside-bare-python-denial.txt' });
   // Each box has its own machine home and local runner, so the four pulled gates settle together, inside the file's time budget.
   const [result, bare, python, barePython] = await Promise.all([box, bareBox, pythonBox, barePythonBox].map(one => submitSettled(t, one, (...args) => one.run(...args))));
   const output = `${result.out}\n${result.err}`;
