@@ -141,7 +141,7 @@ export function sealItemPatchSubmit(board, id, options) {
     // A pulled gate's plan is the one main's tooling made on the runner, read from the receipt the board recorded;
     // re-planning here with this host's tooling would judge another plan than the one that ran [P7].
     const pulled = options.pulledPlan ?? null;
-    const plan = pulled ? { check: frozenCheck(item), proofFiles: pulled.proofFiles, selection: { full: false, files: [] }, deferred: false, deferSelection: false }
+    const plan = pulled ? { check: frozenCheck(item), proofFiles: pulled.proofFiles, selection: { full: false, files: pulled.deferredFiles ?? [] }, deferred: pulled.deferred === true, deferSelection: Array.isArray(pulled.deferredFiles) }
       : submitGatePlan(root, submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config),
         { base: item.item_claim_head, trunk: options.policyCommit, check: frozenCheck(item), commit: binding.commit });
     const phases = pulled ? pulled.phases.map(({ role, command }) => ({ role, command }))
