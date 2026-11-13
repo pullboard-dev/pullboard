@@ -1,6 +1,8 @@
 /** A runner reuses one checkout across its jobs, reset and cleaned for each, instead of preparing a fresh one (#5812) [P7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -105,3 +107,44 @@ test('a fresh and a reused checkout both resolve the trunk\'s release tags, whic
     assert.equal(receipts.length, 2, JSON.stringify(receipts));
     assert.deepEqual(receipts.map(receipt => field(receipt, 'RELEASE')), [first, first], receipts.map(receipt => receipt.tail).join('\n'));
   });
+
+/** One serve with no runner name, as `runner serve` starts it, over the shared cache, until the board has no job left. */
+async function serveUnnamed(cache, trunk, jobs) {
+  const board = fakeBoard(trunk, jobs);
+  const stop = new AbortController();
+  await serveRunner({ board: BOARD, capabilities: [], cache, jobs: 1, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => { stop.abort(); }, timing: { idleMs: 1 } });
+  return board.receipts;
+}
+
+test('after a runner serve restart, a job slot reuses the same checkout folder, keeping its warm files [P7]', { timeout: 60_000 }, // budget: as clause 1.
+  async t => {
+    const { cache, trunk, first, second } = trunkRepo(t);
+    const before = await serveUnnamed(cache, trunk, [{ id: 'j1', commit: first, run: job(true) }]);
+    // A file git ignores is what a warm test-action cache is; a restart that kept the folder would still reset it, so the folder is the proof.
+    const after = await serveUnnamed(cache, trunk, [{ id: 'j2', commit: second, run: job(false) }]);
+    assert.deepEqual([before.length, after.length], [1, 1]);
+    const folder = field(before[0], 'CWD');
+    assert.equal(field(after[0], 'CWD'), folder, 'the restarted serve runs in the first serve\'s slot folder');
+    assert.match(folder, /[\\/]work[\\/]runner-[^\\/]+-0$/u);
+    assert.doesNotMatch(folder, /-[0-9a-f]{6}-0$/u, 'no per-restart hash in the folder name');
+    assert.ok(existsSync(join(folder, 'second.txt')), 'the folder was adopted and reset to the new commit');
+    assert.deepEqual(slotLocks(cache), [], 'a finished serve gives its slot prefix back');
+  });
+
+test('a second live serve on one host and cache takes its own slot folders, never the first serve\'s [P7]', { timeout: 60_000 }, // budget: as clause 1.
+  async t => {
+    const { cache, trunk, first } = trunkRepo(t);
+    const folders = [];
+    const board = fakeBoard(trunk, [{ id: 'j1', commit: first, run: job(false) }, { id: 'j2', commit: first, run: job(false) }]);
+    const stop = new AbortController();
+    const inner = serveRunner({ board: BOARD, capabilities: [], cache, jobs: 1, once: true, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => {}, timing: { idleMs: 1 } });
+    const outer = serveRunner({ board: BOARD, capabilities: [], cache, jobs: 1, once: true, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => {}, timing: { idleMs: 1 } });
+    await Promise.all([inner, outer]);
+    for (const receipt of board.receipts) folders.push(field(receipt, 'CWD'));
+    assert.equal(new Set(folders).size, 2, folders.join('\n'));
+  });
+
+/** The slot-lock files left in a cache. */
+function slotLocks(cache) {
+  try { return readdirSync(join(cache, 'slots')); } catch { return []; }
+}

@@ -1,5 +1,9 @@
 /** A pull runner prunes old test results and dead job environment folders by age and a disk floor, each serve cycle [P7]. */
 import { lstatSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statfsSync } from 'node:fs';
@@ -119,4 +123,39 @@ export async function pruneStaleSlots({ cache, instance, graceMs = GRACE_MS, now
     }
   }
   return removed;
+}
+
+/** Slot-folder prefixes a serve in this process holds now. */
+const HELD = new Set();
+
+/** Whether a process id names a live process. */
+function alive(pid) {
+  try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
+/**
+ * Take the slot-folder prefix runner-<host> for one live serve, so a restart finds its slot folders (and the warm
+ * trees and test-action caches in them) under the same names. Why a lock: one live serve per slot folder, so a second
+ * serve on the same host and cache, or a dead serve's leftover claim, never lets two serves share a checkout. The
+ * holder is a pid file under <cache>/slots; a dead holder's file is taken over, since its folders are then adoptable
+ * (the checkout step verifies and resets each before use). A host whose prefix is held gets a unique one instead.
+ *
+ * @param {{ cache: string, host: string }} options
+ * @returns {{ prefix: string, release: () => void, shared?: boolean }} the slot-folder prefix and how to give it back; shared when another serve holds the host prefix
+ */
+export function claimSlotPrefix({ cache, host }) {
+  const prefix = `runner-${host}`, file = join(cache, 'slots', `${prefix}.pid`), mine = `${process.pid}:${randomBytes(4).toString('hex')}`;
+  const none = { prefix: `${prefix}-${randomBytes(3).toString('hex')}`, release: () => {}, shared: true };
+  try {
+    mkdirSync(join(cache, 'slots'), { recursive: true });
+    if (HELD.has(prefix)) return none;
+    let holder = '';
+    try { holder = readFileSync(file, 'utf8'); } catch { /* no holder */ }
+    const pid = Number(holder.split(':')[0]);
+    if (holder && Number.isInteger(pid) && pid !== process.pid && alive(pid)) return none;
+    writeFileSync(file, mine);
+    if (readFileSync(file, 'utf8') !== mine) return none;
+  } catch { return none; }
+  HELD.add(prefix);
+  return { prefix, release: () => { HELD.delete(prefix); try { if (readFileSync(file, 'utf8') === mine) rmSync(file, { force: true }); } catch { /* gone */ } } };
 }

@@ -34,6 +34,7 @@ import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
+import { claimSlotPrefix } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
@@ -534,7 +535,7 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @param {object} options
  * @param {string} options.board - The board's API URL.
  * @param {string} [options.key] - The board key, when the URL carries none.
- * @param {string} [options.runner] - This runner's id; default the host name plus a random suffix.
+ * @param {string} [options.runner] - This runner's id; default the host name plus a random suffix; its slot folders are named by host alone, so they outlive a restart.
  * @param {string[]} [options.capabilities] - What this runner can run; default hostCapabilities().
  * @param {string} [options.cache] - Where fetched history and checkouts live; default ~/.pullboard-runner/pull.
  * @param {boolean} [options.once] - Return after one job (posted or released), or at once when the queue is empty.
@@ -561,17 +562,19 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
-  const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
+  const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
+  const id = runner ?? `${host}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
   // One checkout folder per slot, reset for each job it runs, since a fresh one cost 14 s per job (#5812) [P7].
-  const jobs = [], waits = [], folders = `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`;
+  // A default-named serve keeps runner-<host> across restarts, so its warm trees and caches survive; one live serve holds it (#6705).
+  const jobs = [], waits = [], slotName = runner ? { prefix: `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`, release: () => {} } : claimSlotPrefix({ cache, host }), folders = slotName.prefix;
   let delay = firstMs;
   // Job environment folders a running job owns, which a prune never removes.
   const liveEnvironments = new Set();
   let prunedAt = 0;
-  // Earlier serves' slot folders are dead once this one starts, so they go before the first job [P7].
-  try { const gone = await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
+  // Earlier serves' slot folders are dead once this one starts, so they go before the first job [P7]; a serve beside the host's holder leaves its folders alone.
+  try { const gone = slotName.shared ? [] : await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
   /** Prune old results and dead environment folders at most once an interval; a failure never stops serving. */
   const prune = () => {
     if (Date.now() - prunedAt < PRUNE_INTERVAL_MS) return;
@@ -756,6 +759,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (once) { await task; break; }
   }
   await Promise.all(active);
+  slotName.release();
   if (failure) throw failure;
   return { jobs, waits, slots };
 }
