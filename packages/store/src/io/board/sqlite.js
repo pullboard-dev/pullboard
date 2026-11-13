@@ -7,6 +7,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
+import { RUN_SCHEMA_SQL } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./checkpoint.js";
 import { jobBlobsPending } from "./blobs.js";
@@ -125,6 +126,8 @@ export function openRunsStore(file, { boardId }) {
     if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
     db.exec('CREATE TABLE IF NOT EXISTS runs_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)');
     db.exec(JOB_SCHEMA_SQL);
+    // The inbox mark lives only in the runs file: set once the board has applied the job's receipt (S5).
+    if (!db.prepare('PRAGMA table_info(job)').all().some(column => column.name === 'job_applied')) db.exec('ALTER TABLE job ADD COLUMN job_applied INTEGER');
     db.exec('BEGIN IMMEDIATE');
     try {
       const owner = db.prepare("SELECT meta_value FROM runs_meta WHERE meta_key = 'board_id'").get()?.meta_value;
@@ -244,7 +247,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
-      const expected = expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL + LEDGER_SCHEMA_SQL, migrate, storeTriggers);
+      const expected = expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL + RUN_SCHEMA_SQL + LEDGER_SCHEMA_SQL, migrate, storeTriggers);
       // Code behind trunk refuses before any write: carrying on replayed newer caches under the lock for minutes (#5899).
       const ahead = sharedColumnsAhead(db, expected);
       if (ahead.length) {

@@ -200,28 +200,7 @@ async function assertRed(box, submission) {
   for (const event of events(box)) assert.equal(existsSync(event.cwd), false, 'temporary main checkouts are removed');
 }
 
-test('a shout completes while a submit compares with main [V4,C7,B7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
-  const box = fixture(t, 1);
-  const submission = launch(box, 'submit', String(box.item));
-  await comparisonStarted(box, submission, 'the real main comparison is waiting');
-  const shout = launch(box, 'shout', 'all', 'Comparison is still running');
-  await observed(() => shout.exitCode !== null || (rows(box.repoQueue,
-    "SELECT token FROM holder WHERE name LIKE 'checkout-session:%' AND pid=?", [submission.pid]).length > 0
-    && rows(box.repoQueue, "SELECT ticket FROM waiter WHERE name LIKE 'checkout-session:%'").length > 0),
-  'the shout completes or waits behind the submitting process');
-  assert.equal(shout.exitCode, 0, 'the same-seat shout completes before releasing the comparison');
-  assert.equal((await shout.closed).code, 0);
-  assert.equal(rows(box.board, "SELECT shout_text FROM shout WHERE shout_text='Comparison is still running'").length, 1);
-  const fact = cli(box, box.builder, 'fact', String(box.item), 'note', 'This fact lands during the comparison');
-  assert.equal(fact.status, 0, fact.stderr);
-  assert.equal(cli(box, box.builder, 'show', String(box.item)).status, 0, 'same-seat reads remain available');
-  assert.equal(submission.exitCode, null, 'diagnostics remain held until the explicit release');
-  assert.equal(events(box).filter(event => event.phase === 'finish').length, 0);
-  writeFileSync(join(box.control, 'a.release'), 'release');
-  await assertRed(box, submission);
-});
-
-test('a red submit reruns its failed files one slot at a time within the pool [V4,C7,Q4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
+test('a red submit reruns its failed files one slot at a time within the pool [V4,C7,Q4]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
   const box = fixture(t, 3, 2);
   const submission = launch(box, 'submit', String(box.item));
   await comparisonStarted(box, submission, 'the first exact-main comparison starts');
@@ -273,20 +252,7 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   assert.equal(mainReceipts(box).length, receiptCount, 'the identical red resubmit reuses completed exact-main results');
 });
 
-test('with gate.mainComparison off a red submit stays red and runs no main comparison [V4,C7,#5565]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
-  const box = fixture(t, 1);
-  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const saved = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify({ ...saved, gate: { ...saved.gate, mainComparison: 'off' } }));
-  const submission = launch(box, 'submit', String(box.item));
-  const result = await submission.closed;
-  assert.equal(result.code, 1, result.out + result.err);
-  assert.equal(JSON.parse(result.out).error.code, 'GATE_RED');
-  assert.equal(events(box).length, 0, 'no main comparison ran');
-  assert.equal(existsSync(join(box.root, '.git', 'pullboard', 'gate-receipts')) ? mainReceipts(box).length : 0, 0, 'no main-red receipt was recorded');
-});
-
-test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
+test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
   const box = fixture(t, 1);
   const saved = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
   assert.equal(saved.gate?.mainComparison, undefined, 'the fixture leaves the setting at its on-red default');
