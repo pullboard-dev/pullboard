@@ -2,10 +2,10 @@
 /** Generated-script adapter contract; Activity model/HTML assertions remain in activity-sentences.test.js. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pageRenderScript } from '../../../../index.js';
+import { pageScriptPart2 } from '../../../../index.js';
 
 test('Activity timestamp matching survives page-script generation [N26,C7]', () => {
-  const generated = pageRenderScript();
+  const generated = pageScriptPart2(new Proxy({}, { get: () => function stub() { return {}; } }));
   const literal = String.raw`/\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\b/gu`;
   assert.ok(generated.includes(literal), 'the generated script keeps regex escapes');
   const body = literal.slice(1, literal.lastIndexOf('/'));

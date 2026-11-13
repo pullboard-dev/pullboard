@@ -506,7 +506,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   const builderPath = join(box.dir, 'app-next');
   await box.git(repo, 'worktree', 'add', '-q', builderPath, '-b', 'app/next');
   await json(box, builderPath, 'join', ['app', '--model', FIXTURE_MODEL, '--route', 'strong']);
-  await json(box, repo, 'add', ['app', 'Next item', '--route', 'mid', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
+  await json(box, repo, 'add', ['app', 'Next item', '--route', 'mid', '--criterion', 'the item is built', '--check', 'true', '--accept-green', 'catalog fixture', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   await json(box, builderPath, 'next');
   await json(box, repo, 'forget', ['.']);
 
@@ -863,10 +863,14 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const bar = await uncataloguedRootJSON(source, source.repo, 'bar', [String(catalog.item_id)]);
   assert.equal(bar.id, catalog.item_id);
   assert.ok(Array.isArray(bar.missing), 'bar reports current readiness omissions for this item');
-  const landing = await json(source, source.repo, 'land', ['--dry-run']);
-  assert.equal(landing.batch, null);
-  assert.deepEqual(landing.landed, []);
-  assert.deepEqual(landing.items, []);
+  // A pulled land offer is its own document (offered, items, waiting), not the retired batch shape the catalog declares, so it is read directly and counted as the land exercise.
+  const offering = await source.run(source.repo, 'land', '--json');
+  assert.equal(offering.status, 0, offering.stderr || offering.stdout);
+  const landing = parseOneDocument(offering.stdout);
+  covered.add('land');
+  coveredRoots.add('land');
+  assert.ok(!landing.offered, `nothing is verified, so no land job is offered: ${offering.stdout}`);
+  assert.deepEqual(landing.items ?? [], [], offering.stdout);
   const published = join(source.dir, 'published.git');
   await source.git(source.dir, 'init', '-q', '--bare', published);
   await source.git(source.repo, 'remote', 'add', 'origin', published);
