@@ -618,7 +618,10 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
         store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });
-      } catch (error) { if (error?.code === undefined) throw error; }
+      } catch (error) {
+        // The submission is recorded above; a refused or failed shout is named on the thread, never thrown past it (#7495).
+        store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Main red decision shout not sent: ${error?.code ?? 'SHOUT_FAILED'}: ${error?.message ?? String(error)}; next: the coordinator reads pullboard show ${id}`.slice(0, 2000) });
+      }
       // A green gate is one real gate for every refusal on trial, counted once per receipt set, as the controller's own submit counts it [C7].
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
@@ -875,7 +878,13 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
     const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);
     const byFile = compared ? null : compareFilesWithMain(board, receipt, job_base, compareWithMain);
     if (compared ? compared.cases.some(row => row.onMain === null) : !byFile || byFile.unavailable || byFile.files.some(row => row.result === null)) continue;
-    if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
+    // The main-test receipt is already recorded, so a throw here would strand the item claimed with no word on its thread:
+    // an uncoded error is recorded as this re-apply's refusal instead, and the next waiting gate still settles (#7495).
+    try { if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job); }
+    catch (error) {
+      const why = error?.code ? `${error.code}: ${error.message}` : `GATE_REAPPLY_FAILED: ${error?.name ?? 'Error'}: ${error?.message ?? String(error)}`;
+      store.appendFact(board, item, { agentId: 'coordinator', kind: 'note', text: `Gate job ${job} was not re-applied after main-test job ${mainTest} recorded: ${why}; next: submit again`.slice(0, 2000) });
+    }
   }
   return settled;
 }

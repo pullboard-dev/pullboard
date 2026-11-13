@@ -55,15 +55,17 @@ if (runId) env.${TIMING_RUN_ID_ENV} = runId;
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
 const text = output.toString('utf8') + (ran.error ? String(ran.error.message) : '');
-let failures = null;
+let failures = null, cases = null;
 try {
   const rows = ran.status === 1 && light?.tapFailures ? light.tapFailures(text, root) : null;
-  if (Array.isArray(rows) && rows.length && rows.length <= ${CASES} && rows.every(row => row?.file && row.name)) failures = rows.map(({ file, name }) => ({ file, name: String(name).slice(0, 300) }));
-} catch { failures = null; }
+  if (Array.isArray(rows) && rows.length && rows.length <= ${CASES} && rows.every(row => row?.file && row.name)) cases = rows.map(({ file, name }) => ({ file, name: String(name) }));
+  failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 300) })) : null;
+} catch { failures = null; cases = null; }
 ${DIAGNOSTICS}
 // Each named case's diagnostic signature, as the gate job signs it, so a comparison tells two failures of one case apart [V4,C7].
 let failureSignatures = null;
-try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
+// Signed by the whole names, so a case the receipt clips still finds its own diagnostic (#7495).
+try { failureSignatures = cases ? caseSignatures(cases, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
 /** The run's case outcomes as [file, name, passed, skipped] rows from its frames under runId; null when none or malformed. */
 const framed = () => {
   const rows = [];
