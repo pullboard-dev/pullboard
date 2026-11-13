@@ -209,6 +209,42 @@ test('[A2,C7] an open page hears one change notice per write, and none from its 
   await pump;
 });
 
+test('#6850 clause 2 [A2,C7]: a page read answered from an older build hears, on its event stream, when the build that catches up lands', async (t) => {
+  const box = apiHttpFixture(t);
+  const ids = [];
+  for (const index of [1, 2]) ids.push((await cliLocal(box, 'add', 'app', `Landing item ${index}`, '--route', 'strong', '--criterion', `Detail ${index}`, '--brief', BRIEF)).item.item_id);
+  const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const builds = [];
+  const { api, read } = await materializedApi(t, box, builds);
+  const url = new URL(api.url);
+  const headers = { 'x-pullboard-key': url.searchParams.get('k') };
+  const id = (await (await fetch(url.origin + '/api/v1/boards', { headers })).json()).boards[0].id;
+  const first = await read();
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const response = await fetch(`${url.origin}/api/v1/boards/${id}/events`, { headers: { ...headers, accept: 'text/event-stream' }, signal: controller.signal });
+  const decoder = new TextDecoder();
+  let text = '';
+  const waiters = new Set();
+  /** Resolve once the stream text satisfies `ready`; the stream's own frames drive it, never a timer. */
+  const until = (ready) => new Promise((done) => { const check = () => { if (ready()) { waiters.delete(check); done(); } }; waiters.add(check); check(); });
+  const pump = (async () => {
+    try { for await (const chunk of response.body) { text += decoder.decode(chunk, { stream: true }); for (const check of [...waiters]) check(); } }
+    catch { /* The test aborts the stream. */ }
+  })();
+  const changes = () => text.split('event: changed').length - 1;
+  await until(() => text.includes(': API v1'));
+  appendLater(file, ids, 1, 90_000);
+  await until(() => changes() >= 1);
+  const kept = await read('items=compact&kept=1');
+  assert.equal(kept.document.state.sequence, first.document.state.sequence, 'the kept read answers from the build before the write, without waiting');
+  await until(() => changes() >= 2);
+  const caught = await read('items=compact&kept=1');
+  assert.equal(caught.document.state.sequence, first.document.state.sequence + 1, 'after the notice, the page read has the write');
+  controller.abort();
+  await pump;
+});
+
 test('[A2,C7] a state worker that cannot start never fails a read: the server builds on the request thread', async (t) => {
   const box = apiHttpFixture(t);
   const { api, read } = await materializedApi(t, box, [], 'data:text/javascript,throw new Error("no state ports here")');
