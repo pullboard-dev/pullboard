@@ -16,7 +16,7 @@ import { commit } from '../../tests/fixtures/red/main-red.js';
 import { fixture } from '../../tests/fixtures/red/main-red.js';
 import { put } from '../../tests/fixtures/red/main-red.js';
 
-test("a red submit's comparisons keep FIFO and release between files [V4,C7]", async t => {
+test("a red submit's comparisons keep FIFO and release between files [V4,C7]", { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST });
   const control = join(box.directory, 'control');
   mkdirSync(control);

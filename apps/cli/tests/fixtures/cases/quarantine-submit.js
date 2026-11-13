@@ -11,7 +11,8 @@ import { flakyProject } from '../../../../../packages/git/tests/fixtures/flakes.
 import { TITLE } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import { copyCommittedPackageFiles } from '../copy.js';
 import { runFixtureGit } from '../child.js';
-import { fixtureSettledMachine } from '../testkit.js';
+import { startFixtureLocalRunner } from '../runner/local-start.js';
+import { whenRunnerSettles } from '../runner/local-start.js';
 import { openBoard } from '../../../../lib/index.js';
 import { flakeQuarantines } from '../../../../lib/index.js';
 import { gateRuns } from '../../../../lib/index.js';
@@ -31,8 +32,6 @@ export function fixture(t, deterministic = false, companion = false) {
     writeFileSync(listing, JSON.stringify(cells, null, 2) + '\n');
     return join(root, 'apps/cli/pullboard.js');
   } });
-  // The flake fixture's own machine settings pin controller dispatch (#7178); these cases run on the pull path [P7,#6249].
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/', 'packages/controlled/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
@@ -55,6 +54,8 @@ export function fixture(t, deterministic = false, companion = false) {
   const cli = (...args) => box.cliAt(root, ...args);
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   if (!deterministic) writeFileSync(box.counter, 'run\n'); // Baseline executes a genuine pass; no legacy one-pair quarantine is seeded.
+  // The baseline and every Submit gate are pulled jobs on the machine's loopback local runner; the scratch teardown stops it [P7,C7].
+  startFixtureLocalRunner(box.env, box.root);
   const added = box.cli('add', 'core', 'Controlled native Submit', '--route', 'strong', '--criterion', 'Retain the actual initial failure.', '--brief', 'Files:\n- packages/controlled/src/behavior.js\n- test/alternating.test.mjs\nTest:\n- the controlled Submit receipt retains the real initial failure and paired pass', '--check', 'true', '--wait');
   assert.equal(added.code, 0, JSON.stringify(added.document));
   assert.equal(added.document.item.item_check, 'true', JSON.stringify(added.document));
@@ -75,9 +76,7 @@ export function fixture(t, deterministic = false, companion = false) {
     const attached = box.cli('patch', 'attach', String(id), patchFile, '--key', 'controlled-companion', '--author', author, '--source', git('rev-parse', 'HEAD'));
     assert.equal(attached.code, 0, JSON.stringify(attached.document));
   }
-  const runnerPids = [];
-  t.after(() => { for (const pid of runnerPids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } } });
-  return { ...box, builder: { root, cli, git }, id, runnerPids };
+  return { ...box, builder: { root, cli, git }, id };
 }
 
 /** Open this journey's real private fixture board, shared with its actual native CLI processes; the caller closes it. */
@@ -96,17 +95,19 @@ export function snapshot(box) {
 /** Begin another actual Submit admission with the controlled case failing on its initial body. */
 export function submit(box) {
   writeFileSync(box.counter, '');
-  const result = box.builder.cli('submit', String(box.id), '--infra', 'private controlled native fixture', '--no-next');
-  if (result.code !== 0 || !result.document?.queued) return result;
-  // A pull submit returns queued; the loopback local runner's gate job settles it and its receipt's gate answers as an inline submit did [P7,#6249].
-  const pid = result.document.localRunner?.pid;
-  if (pid) box.runnerPids?.push(pid);
-  const deadline = Date.now() + 180_000;
-  for (;;) {
-    const job = box.builder.cli('show', String(box.id), '--no-next').document?.gateJob;
-    // An inline submit exited 1 on a red gate (GATE_RED); the settled receipt's verdict maps to the same exit code.
-    if (job?.step === 'done') return { ...result, code: job.gate?.green === false ? 1 : 0, document: { ...result.document, gate: job.gate, gateJob: job } };
-    assert.ok(Date.now() < deadline, `gate for #${box.id} did not settle (last step ${job?.step ?? 'none'})`);
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
-  }
+  return box.builder.cli('submit', String(box.id), '--infra', 'private controlled native fixture', '--no-next');
+}
+
+/**
+ * Begin a Submit and await its pulled gate job's receipt: code 1 while the red keeps the item with its builder, 0 once
+ * the board submitted it. Why: a pulled Submit returns as soon as its gate job is queued, so its verdict is the receipt's [P7,C7].
+ */
+export async function settledSubmit(box) {
+  const queued = submit(box);
+  assert.equal(queued.code, 0, JSON.stringify(queued.document));
+  const shown = await whenRunnerSettles(box.env, () => {
+    const document = box.cli('show', String(box.id)).document;
+    return document?.gateJob?.step === 'done' ? document : null;
+  }, { deadlineMs: 180_000, what: `the gate for #${box.id}` });
+  return { code: shown.item_status === 'submitted' ? 0 : 1, document: shown };
 }

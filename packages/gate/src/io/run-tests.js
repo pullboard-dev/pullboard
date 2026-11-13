@@ -1225,7 +1225,7 @@ async function main(args) {
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
         // The CLI records the receipt in its own process, so this entry never imports the native board.
-        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), 'apps/cli/pullboard.js'), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
+        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).bin.pullboard), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
       }
     }

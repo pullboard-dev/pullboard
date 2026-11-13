@@ -11,7 +11,7 @@ import { commitCandidate } from '../../../../packages/git/tests/fixtures/flakes.
 import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 
-test('a red submit records diagnostics without submitting the item [C7,V4,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
+test('a red submit records diagnostics without submitting the item [C7,V4,H16]', async t => {
   const box = flakyProject(t);
   const id = checkedItem(box);
   const builder = privateBuilder(box);

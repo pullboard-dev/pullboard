@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 import { policyFixtures } from '../../tests/fixtures/lanes-policy.js';
 import { assertWaitsOnOwner } from '../../tests/fixtures/lanes-policy.js';
 import { reassignedPathFixture } from '../../tests/fixtures/lanes-policy.js';
@@ -29,7 +30,7 @@ test('refreeze picks up a lane change made after the claim [V2,L3]', async () =>
   assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
   const submitted = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const item = JSON.parse((await box.runLocal(box.web, 'show', '1', '--json')).out);
+  const item = await settledOnSubmit(box);
   assert.equal(item.item_status, 'submitted');
   assert.equal(item.item_frozen_digest, refrozen.item_frozen_digest, 'reclaim and submission keep the bar digest');
 });
@@ -85,7 +86,7 @@ test('submit and patch attach share frozen ownership and move together on refree
   assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
   const submitted = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const item = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
+  const item = await settledOnSubmit(box);
   assert.equal(item.item_status, 'submitted');
   assert.equal(JSON.parse(item.item_frozen).policy, undefined, 'the bar carries no policy pin [B4]');
   const attached = await box.runLocal(box.repo, 'patch', 'attach', '1', patchFile,
@@ -93,3 +94,11 @@ test('submit and patch attach share frozen ownership and move together on refree
   assert.equal(attached.code, 0, attached.err + attached.out);
   assert.equal(JSON.parse(attached.out).changed, true, 'the same author now owns this path under the refrozen policy');
 });
+
+/** The board applies the pulled gate receipt just after its job row closes, so settle on the item leaving its claim [P7]. */
+function settledOnSubmit(box) {
+  return whenRunnerSettles(box.env, async () => {
+    const row = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
+    return row.item_status !== 'claimed' ? row : null;
+  }, { deadlineMs: 120_000, what: 'the pulled gate of #1 to apply' });
+}
