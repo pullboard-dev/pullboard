@@ -14,7 +14,7 @@ import { lifecycleEvent } from '../../../items/index.js';
 import { withdrawnFrom } from '../../../items/index.js';
 import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { codeAt } from './code.js';
-import { startHandlerPool } from './pool.js';
+import { startHandlerPool } from './pool.js'; import { readPoolHandlers } from './pool/reads.js';
 import { counterProofStats } from '../../../verify/index.js';
 import { proofStats } from '../../../stats/index.js';
 import { isProofAgent } from '../../../stats/index.js';
@@ -114,7 +114,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
-import { registeredBoard } from './registered.js';
+import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -353,7 +353,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   let externalNextExpiry = null;
   let externalReferences = null;
   let registryMarker = null;
-  let notifications;
+  let notifications, revisionMs = 0; // what the last revision cost: the file waiter spaces its wakes by it (#6768)
   const listeners = new Set();
   let expiryTimer;
   /** Rebind named inputs and schedule only the earliest real lease/proof-window expiry. */
@@ -374,7 +374,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   try {
-    notifications = fileChangeWaiter([dbPath, dbPath + '-wal']);
+    notifications = fileChangeWaiter([dbPath, dbPath + '-wal'], { weight: () => revisionMs });
     dbMarker = fileMarkerForPath(dbPath);
     fileMarkers = files.map(fileMarker);
     fileContent = files.map(fileRevision);
@@ -473,7 +473,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   return {
-    revision,
+    revision() { const began = Date.now(); try { return revision(); } finally { revisionMs = Date.now() - began; } },
     subscribe(listener) {
       listeners.add(listener);
       const unsubscribe = notifications.subscribe(listener);
@@ -755,14 +755,14 @@ export function apiBoards(projects = listApiProjects, isMain, boardOpeners) {
  * @param {() => { root: string, name: string, project: string, added: string }[]} projects
  * @returns {{ boards: object[], warnings: object[] }}
  */
-export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument, boardOpeners) {
+export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument, boardOpeners, summaries = false) {
   requireBoardOpeners(boardOpeners);
   if (typeof refusalDocument !== 'function') throw new TypeError('apiBoardListing needs the caller\'s refusalDocument renderer');
   const boards = [];
   const warnings = [];
   for (const project of projects()) {
     try {
-      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }), isMain, boardOpeners));
+      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board), ...(summaries ? { summaryVersion: 1 } : {}) }), isMain, boardOpeners));
     } catch (cause) {
       const error = ['EVENT_LOG_VERSION', 'UNMERGED_SCHEMA', 'BOARD_UNAVAILABLE'].includes(cause.code) ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
       warnings.push({ ...project, error: refusalDocument(error) });
@@ -954,7 +954,7 @@ function isLiteralIPv4(host) {
  */
 export function createStateSnapshots({ projects = listApiProjects, scope, isMain, onStateBuild, onItemBuild, now = () => Date.now(), boardOpeners, viewPorts } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
-  const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
+  const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createStateSnapshots needs view projection ports');
   const projectScope = apiProjectScope(projects, scope);
   const apiProjects = projectScope.projects;
@@ -1076,7 +1076,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
         cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, reportValidator,
         summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
         open: variant(open, entry.openFields ??= prepareStateJson(open), '\0items:compact-open-v1'), finished: finishedText(entry, compactItemSummaries),
-        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas,
+        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
         search: entry.searchTexts ??= entry.state.items.map((item) => [item.id, searchText(item)]),
         shouts: Float64Array.from(withBoard(board.root, (current) => current.db.prepare('SELECT shout_id FROM shout ORDER BY shout_id').all().map((row) => row.shout_id), codeIsMain, boardOpeners)),
       };
@@ -1099,7 +1099,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     const { commonDir } = repoInfo(board.root);
     return { cacheId: commonDir + '\0' + board.id, folder: join(commonDir, 'pullboard', 'state-cache') };
   }
-  return { withSnapshot, materialize, carry, restore, snapshotPlace, formats: `${store.SCHEMA_VERSION}:${store.EVENT_LOG_VERSION}`, stateCache, codeIsMain };
+  return { withSnapshot, materialize, summaryText: typeof projectSummary === 'function' ? (entry) => summaryTextOf(entry, projectSummary) : null, carry, restore, snapshotPlace, formats: `${store.SCHEMA_VERSION}:${store.EVENT_LOG_VERSION}`, stateCache, codeIsMain };
 }
 
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
@@ -1140,14 +1140,14 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
   const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
-    onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads now build on the request thread\n`) }) : null;
+    onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads are refused until the API restarts\n`) }) : null;
   /**
    * Serve a read from the worker while it runs, and from a direct build once it has stopped, including the reads
    * that were waiting on it: a failed worker never fails a read. A refusal from a running worker's build stands.
    */
   function materialized(fromWorker, direct) {
-    if (!materializer?.alive) return direct();
-    return fromWorker().catch((error) => { if (materializer.alive) throw error; return direct(); });
+    if (!materializer || materializer.alive) return materializer ? fromWorker() : direct();
+    return Promise.reject(new Refused('STATE_WORKER_STOPPED', 'the state worker stopped, so this read is refused rather than built on the request thread; restart pullboard serve'));
   }
   // With handlerPorts, the runner job queue runs in a worker pool and never on this thread, even when the pool is full [A2,C7].
   const pool = handlerPorts ? startHandlerPool({ portsModule: handlerPorts, isMain: codeIsMain, Refused, onFailure: (error) => process.stderr.write(`pullboard: an API handler worker stopped (${error?.message ?? error}); it was replaced\n`) }) : null;
@@ -1334,9 +1334,9 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
-    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
+    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners, typeof viewPorts?.projectSummary === 'function')); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
-    board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
+    board: (id) => pool ? pool.call('board', { id, projects: apiProjects().map(({ root, name, project }) => ({ root, name, project })) }, { route: `GET /api/v1/boards/${id}` }) : withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
     stateJson: (board, who, seen, options) => materialized(() => materializer.stateJson(board, seen, { ...options, stateDetail }), () => projectRead(board, () => {
       const sent = localState(board, seen, options);
@@ -1349,7 +1349,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return watched;
     },
     finished: (board) => materialized(() => materializer.finishedJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => finishedText(entry, compactItemSummaries))))),
-    delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
+    summary: snapshots.summaryText && ((board) => materialized(() => materializer.summaryJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => snapshots.summaryText(entry)))))), delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
       catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
@@ -1370,10 +1370,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced });
     },
-    events: (board, after, _who, limit) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
+    events: (board, after, _who, limit) => pool ? pool.call('events', { root: board.root, after, limit }, { route: `GET /api/v1/boards/${board.id}/events` }) : withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
-    move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
-    request: (board, body) => createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
+    move: (board, body) => pool ? pool.call('move', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/moves` }) : executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
+    request: (board, body) => pool && !relayLinked(board.root) ? pool.call('request', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/requests` }) : createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem, say() {}, err() {} }),
   }, { tagState: true });
@@ -1393,9 +1393,9 @@ function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
  * The handlers a pool worker runs, composed by the ports module inside the worker [A2,C7]: the runner job queue, and
  * the stall record, an api_stall event on the served board the route names (every served board when it names none).
  */
-export function poolHandlers({ boardOpeners }, { isMain } = {}) {
+export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
-  return { jobs: (call) => boardJobsCall(call, isMain, boardOpeners), stall({ projects, by, board = null, route, lagMs }) {
+  return { ...readPoolHandlers({ findBoard, afterEvents, createRequest, executeMove }, { isMain, boardOpeners, runCommand, refusalDocument }), jobs: (call) => boardJobsCall(call, isMain, boardOpeners), stall({ projects, by, board = null, route, lagMs }) {
     const failed = [];
     let recorded = 0;
     for (const { root } of projects) {
