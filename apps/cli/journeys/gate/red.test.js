@@ -17,13 +17,17 @@ const CHECK = 'node test/runner.js test/affected.test.js';
 
 /** File an open repair for the shared file whose criterion names one case, or none. */
 function repair(box, criterion) {
-  const result = cli(box, box.root, 'add', 'core', `Main red: ${criterion}`, '--specs', 'G1', '--criterion', criterion,
-    '--check', CHECK, '--brief', 'Files: test/affected.test.js\nTest: shared cases');
+  const args = ['add', 'core', `Main red: ${criterion}`, '--specs', 'G1', '--criterion', criterion,
+    '--check', CHECK, '--brief', 'Files: test/affected.test.js\nTest: shared cases'];
+  let result = cli(box, box.root, ...args);
+  // The second repair reads like the first by design: answer the near-duplicate guard with the nearest id it names.
+  const nearest = /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.stdout + result.stderr)?.[1];
+  if (result.status !== 0 && nearest) result = cli(box, box.root, ...args, '--not-duplicate-of', `${nearest} each repair owns a different case`);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }
 
-test('a check case red on main with two candidate repairs is reported as known-main and the gate passes [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
+test('a check case red on main with two candidate repairs is reported as known-main and the gate passes [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7373' }, t => {
   const box = fixture(t, { affected: SHARED, check: CHECK });
   const alpha = repair(box, "The case 'alpha case' passes on main.");
   const shared = repair(box, 'The shared file passes on main.');
@@ -37,7 +41,7 @@ test('a check case red on main with two candidate repairs is reported as known-m
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
 
-test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
+test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7372' }, t => {
   const box = fixture(t, { affected: SHARED, check: CHECK });
   repair(box, "The case 'alpha case' passes on main.");
   repair(box, 'The shared file passes on main.');

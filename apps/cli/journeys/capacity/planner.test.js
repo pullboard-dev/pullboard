@@ -62,6 +62,10 @@ function seededProject(t, { messy = false } = {}) {
     const stale = accept(6);
     store.logEvent(board, 'coordinator', 'reopen', stale.id, { commit: stale.commit, note: 'verdict stale: web/history-6.js changed on main',
       cause: 'refusal:REOPENED', causeDerivation: { kind: 'reopen-category', coarse: true } });
+    // A failed landing whose repair was never rebuilt leaves no landing-test build sample: it must not void the board.
+    const redLanding = accept(8);
+    store.logEvent(board, 'coordinator', 'reopen', redLanding.id, { commit: redLanding.commit, note: 'Synthetic landing gate failure.',
+      landingFailure: { tests: [{ file: 'web/history-8.test.js', name: 'red on main' }] } });
     const loose = accept(7);
     store.logEvent(board, 'coordinator', 'reopen', loose.id, { commit: '9'.repeat(40), note: 'Synthetic return naming another commit.' });
   }
@@ -137,9 +141,10 @@ test('waiting items, file-less items and failed landings still yield a number fr
   const planner = JSON.parse(result.out).capacityForecast;
   assert.equal(planner.available, true, planner.unknown.join('; '));
   assert.ok(planner.agents.recommended > 0);
+  assert.ok(planner.binding.kind !== 'unknown' && /limits useful concurrency/u.test(planner.binding.text), 'a named binding constraint, not unknown');
   assert.equal(planner.waiting, 3, 'held, person-waiting and blocked items lower supply as waiting work');
   assert.equal(planner.needsYou.length, 1);
-  assert.ok(!planner.unknown.some(text => /held|needs a person|dependency|file collision|unmeasured|unclassified/u.test(text)), planner.unknown.join('; '));
+  assert.ok(!planner.unknown.some(text => /held|needs a person|dependency|file collision|unmeasured|unclassified|repair build service/u.test(text)), planner.unknown.join('; '));
   assert.equal(planner.staffing.measuredLive, true, 'seats come from presence heartbeats');
   assert.ok(planner.staffing.seats >= 2, 'both heartbeating seats count as live');
   const text = (await box.runLocal(box.repo, 'status'));
