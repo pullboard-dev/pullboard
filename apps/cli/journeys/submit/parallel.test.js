@@ -1,5 +1,6 @@
 /** Concurrent submit phases overlap within 20% overhead and keep independent raw receipts [V4,C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { project } from '../../tests/fixtures/submit/parallel.js';
@@ -12,6 +13,7 @@ test('submit overlaps two slow checks within 20% of the slower one and preserves
   const { box, observations } = project(t, SLOW_MS);
   const { result, started, wallMs, receipts } = submit(box, 'green');
   assert.equal(result.code, 0, result.err + result.out);
+  assert.ok(existsSync(observations), `the checks ran and recorded their intervals: ${result.out}${result.err}`);
   const runs = readFileSync(observations, 'utf8').trim().split('\n').map(line => JSON.parse(line)).slice(-2);
   assert.deepEqual(new Set(runs.map(run => run.role)), new Set(['criterion', 'proof']));
   assert.ok(Math.max(...runs.map(run => run.start)) < Math.min(...runs.map(run => run.end)), 'the real child intervals overlap');
