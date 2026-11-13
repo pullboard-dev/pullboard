@@ -12,4 +12,3 @@ export { parseProcessCensus } from './src/logic/census.js';
 export { engineBindings } from './src/logic/engine-declarations.js';
 export { childEnvironment } from './src/logic/environment.js';
 export { proofEventDetail } from './src/logic/detail.js';
-export { pipelineCauseType } from './src/logic/cause.js';
