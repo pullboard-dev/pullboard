@@ -56,13 +56,33 @@ export function installsHooks(source) {
  * path expression (join, resolve or new URL) points at apps/cli/pullboard.js. A plain data string that only mentions the path
  * launches nothing [C7].
  */
-export function spawnsCli(source) {
-  const paths = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*(?:bin|apps\/cli)\/pullboard\.js/gu)].map(m => m[1]);
+export function spawnsCli(source, { relative = false } = {}) {
+  const paths = relative ? cliPathNames(source) : legacyPathNames(source);
   for (const call of source.matchAll(SPAWN)) {
     if (/(?:bin|apps\/cli)\/pullboard\.js/u.test(call[1])) return true;
     if (paths.some(name => new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'u').test(call[1]))) return true;
   }
   return false;
+}
+
+/** The bin/ or apps/cli/ path variables the cell-test rule has always followed; a cell test's findings are ratcheted on this reading. */
+function legacyPathNames(source) {
+  return [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*(?:bin|apps\/cli)\/pullboard\.js/gu)].map(m => m[1]);
+}
+
+/**
+ * The names a source binds to the CLI entry's path, read for a listed pure helper: a variable set from a path call naming pullboard.js, a function that
+ * returns one (a relative `../pullboard.js` counts, as a fixture beside the entry has no bin/ or apps/cli/ in its text),
+ * and a variable set from a call to either name, so `const BIN = resolveBin()` follows `resolveBin` [C7,#4621].
+ */
+function cliPathNames(source) {
+  const names = new Set([...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*pullboard\.js\b/gu)].map(m => m[1]));
+  for (const m of source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{[^}]*pullboard\.js\b[^}]*\}/gu)) names.add(m[1]);
+  for (let size = -1; size !== names.size;) {
+    size = names.size;
+    for (const m of source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*\(/gu)) if (names.has(m[2])) names.add(m[1]);
+  }
+  return [...names];
 }
 
 /**
@@ -198,7 +218,7 @@ function importFacts(root, cache) {
   return file => {
     if (!memo.has(file)) {
       const source = readFileSync(resolve(root, file), 'utf8');
-      const read = () => ({ specifiers: importSpecifiers(source).map(row => row.specifier), launches: spawnsCli(source) || installsHooks(source) });
+      const read = () => ({ specifiers: importSpecifiers(source).map(row => row.specifier), launches: spawnsCli(source, { relative: true }) || installsHooks(source) });
       memo.set(file, cache ? cache.get(file, blobOid(source), read) : read());
     }
     return memo.get(file);
@@ -212,7 +232,7 @@ function impurity(root, path, facts) {
     const file = queue[at];
     if (file !== path && CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
     const { specifiers, launches } = facts(file);
-    if (file.startsWith('test/') && launches) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
+    if ((file.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(file)) && launches) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
     for (const specifier of specifiers) {
       const target = posix.normalize(posix.join(posix.dirname(file), specifier));
       if (!seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
