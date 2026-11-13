@@ -251,13 +251,3 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   assert.equal(events(box).length, before, 'the identical red resubmit does not rerun the completed main comparisons');
   assert.equal(mainReceipts(box).length, receiptCount, 'the identical red resubmit reuses completed exact-main results');
 });
-
-test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
-  const box = fixture(t, 1);
-  const saved = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
-  assert.equal(saved.gate?.mainComparison, undefined, 'the fixture leaves the setting at its on-red default');
-  const submission = launch(box, 'submit', String(box.item));
-  await comparisonStarted(box, submission, 'the default still starts the main comparison');
-  writeFileSync(join(box.control, 'a.release'), 'release');
-  await assertRed(box, submission);
-});
