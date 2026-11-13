@@ -7,9 +7,8 @@ import { submit } from '../../../tests/fixtures/submit/parallel.js';
 for (const role of ['criterion', 'proof']) {
   test(`a red ${role} refuses submit and retains both independent raw receipts [V4,C7]`, async t => {
     const { box } = project(t, 25);
-    const { result, receipts } = await submit(t, box, `fail-${role}`);
-    assert.notEqual(result.code, 0, result.out);
-    assert.match(result.err + result.out, /GATE_RED/u);
+    const { gate, receipts } = await submit(t, box, `fail-${role}`);
+    assert.equal(gate?.green, false, `the pulled gate ends red: ${JSON.stringify(gate)}`);
     assert.equal(receipts.length, 2, 'the passing sibling also finishes and records its result');
     assert.deepEqual(receipts.map(receipt => receipt.exitCode).toSorted(), [0, 1]);
     assert.equal(new Set(receipts.map(receipt => receipt.id)).size, 2);

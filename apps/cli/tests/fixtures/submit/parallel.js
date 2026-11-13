@@ -6,10 +6,13 @@ import { builderRepo } from './gate.js';
 import { commitAll } from './gate.js';
 import { put } from './gate.js';
 import { settleSubmit } from './settle.js';
+import { fixtureSettledMachine } from '../testkit.js';
 
 /** A real CLI submission with independently timed criterion and final-proof child commands. */
 export function project(t, delay) {
   const main = privateRepo(t);
+  // The local runner takes a second job only under its load share; a loaded host would run the two checks one after the other.
+  fixtureSettledMachine(main.env.PULLBOARD_MACHINE_HOME, { gate: { localLoadShare: 1000 } });
   const observations = join(main.dir, 'observations.jsonl');
   const command = role => `PARALLEL_ROLE=${role} PARALLEL_DELAY=${delay} PARALLEL_OBSERVATIONS='${observations}' node --test --test-reporter=./test/reporter.mjs test/check.test.mjs`;
   put(main.root, 'pullboard.json', JSON.stringify({ gate: command('proof'), shared: ['pullboard.json'], submit: { handoff: false } }));
