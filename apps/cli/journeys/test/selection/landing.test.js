@@ -21,6 +21,7 @@ import {
   build,
   accept,
 } from '../../../tests/fixtures/test/selection.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 test('hiding a real broken package from the supplied selection fails the run [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'beta', 'broken');
