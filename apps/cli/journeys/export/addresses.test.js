@@ -323,7 +323,7 @@ test('back, forward and reload keep the place [N38,N26]', { timeout: 180_000 }, 
       ['[data-tab="spec"]', '/spec', 'spec'], ['[data-row="spec:G2"]', '/spec/G2', 'spec'],
       ['[data-tab="doctrine"]', '/doctrine', 'doctrine'], ['[data-row="doctrine:PB1"]', '/doctrine/PB1', 'doctrine'],
       ['[data-tab="activity"]', '/activity', 'activity'], ['[data-tab="roadmap"]', '/roadmap', 'roadmap'],
-      ['[data-tab="items"]', '/items/pipeline', 'items'], ['[data-items-view="list"]', '/items', 'items'],
+      ['[data-tab="items"]', '/items/pipeline', 'items'], ['[data-page-ctl="view"][data-value="list"]', '/items', 'items'],
       ['#chain .row[data-item="2"]', '/items/2', 'items'],
     ];
     for (const [selector, address, pane] of steps) {
