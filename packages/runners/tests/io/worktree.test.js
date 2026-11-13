@@ -18,7 +18,7 @@ import { returnHostedBranch } from '../../index.js';
 import { runInHostedItemFolder } from '../../index.js';
 import { cachedTrunkPack } from '../../src/io/worktree.js';
 import { checkoutCandidate } from '../../../drive/index.js';
-import { pullGit } from '../../../../apps/cli/src/io/runner/git.js';
+import { testGit as pullGit } from '../fixtures/git.js';
 import { boardEndpoint } from '../../../drive/index.js';
 import { boardTrunkPack } from '../../../drive/index.js';
 import { createApiHandler } from '../../../api/index.js';
