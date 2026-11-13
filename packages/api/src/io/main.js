@@ -1085,11 +1085,14 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
   /** What the next build of a board extends: its latest build's items, their metadata and the inputs it read. */
   function carry(cacheId) {
     const entry = stateCache.get(cacheId);
-    return entry ? { cacheId, sequence: entry.sequence, items: entry.items, itemMeta: entry.itemMeta, itemMoveCounts: entry.itemMoveCounts, inputs: entry.inputs, uncertain: entry.uncertain ?? [] } : null;
+    return entry ? { cacheId, sequence: entry.sequence, items: entry.items, itemMeta: entry.itemMeta, itemMoveCounts: entry.itemMoveCounts, inputs: entry.inputs, uncertain: entry.uncertain ?? [], print: entry.print } : null;
   }
-  /** Resume from a carried build: never served as current, only extended by the next build's events. */
+  /** Resume from a carried build: never served as current, only extended by the next build's events; its print stays a delta base, so a page that loaded it catches up by delta (#6850). */
   function restore(value) {
-    if (!stateCache.has(value.cacheId)) stateCache.set(value.cacheId, { ...value, revision: null, clockWindow: null });
+    if (stateCache.has(value.cacheId)) return;
+    stateCache.set(value.cacheId, { ...value, revision: null, clockWindow: null });
+    const kept = builtPrints.get(value.cacheId) ?? { builds: [], forgottenThrough: -1 };
+    if (value.print && !kept.builds.some((build) => build.sequence === value.sequence)) builtPrints.set(value.cacheId, { ...kept, builds: [...kept.builds, { sequence: value.sequence, print: value.print }] });
   }
   /**
    * Where a board's saved build lives: a derived cache beside the board, named by the board, that a missing or
@@ -1345,16 +1348,9 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     watchRevision: (board, who, { signals = true } = {}) => {
       if (!signals) return projectRead(board, () => watchEventSignals(board));
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
-      // A build landing after a read was answered from an older one is a change the page has not read yet (#6850).
-      const landed = materializer?.alive ? materializer.landed(board) : null;
+      const landed = materializer?.alive ? materializer.landed(board) : null; // a build landing after a read answered from an older one is a change the page has not read (#6850)
       const watched = { ...watcher, revision: () => { const revision = projectRead(board, () => watcher.revision()); return landed ? revision + '\0landed:' + landed.count() : revision; } };
-      if (landed && typeof watcher.subscribe === 'function') {
-        watched.subscribe = (listener) => {
-          const files = watcher.subscribe(listener);
-          const builds = landed.subscribe(() => listener());
-          return () => { builds(); if (typeof files === 'function') files(); };
-        };
-      }
+      if (landed && typeof watcher.subscribe === 'function') watched.subscribe = (listener) => { const files = watcher.subscribe(listener), builds = landed.subscribe(() => listener()); return () => { builds(); files?.(); }; };
       return watched;
     },
     finished: (board) => materialized(() => materializer.finishedJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => finishedText(entry, compactItemSummaries))))),

@@ -209,6 +209,24 @@ test('[A2,C7] an open page hears one change notice per write, and none from its 
   await pump;
 });
 
+test('#6850 clause 1 [A2,C7]: after a restart, a page that loaded the restored build catches up through a delta, not a fresh snapshot', async (t) => {
+  const { box, file, ids } = await largeBoard(t);
+  const first = await materializedApi(t, box, []);
+  const sequence = (await first.read()).document.state.sequence;
+  await first.api.close();
+  appendLater(file, ids, 1, 95_000);
+  const builds = [];
+  const again = await materializedApi(t, box, builds);
+  const kept = await again.read('items=compact&kept=1');
+  assert.equal(kept.document.state.sequence, sequence, 'the kept read answers from the restored build, from before the write');
+  const caught = await again.read();
+  assert.equal(caught.document.state.sequence, sequence + 1, 'the build after the restart has the write');
+  const delta = await again.read(`since=${sequence}`);
+  assert.equal(delta.status, 200);
+  assert.ok(delta.document.delta, `a delta from the restored build is answered, not reset: ${JSON.stringify(delta.document.reset)}`);
+  assert.equal(delta.document.sequence, sequence + 1);
+});
+
 test('#6850 clause 2 [A2,C7]: a page read answered from an older build hears, on its event stream, when the build that catches up lands', async (t) => {
   const box = apiHttpFixture(t);
   const ids = [];
