@@ -93,3 +93,8 @@ test('#6756 clause 2: a callback list the check cannot find fails instead of pas
     .filter(row => row.stale && /viewPorts/u.test(row.call));
   assert.equal(rows.length, 1);
 });
+
+test('clause 2: every known violation is listed by file and function, and the check finds no blocker beyond them [C7]', () => {
+  for (const owner of Object.keys(KNOWN_REQUEST_BLOCKERS)) assert.match(owner, /^[\w./-]+\.js#[\w$]+$/u, owner);
+  assert.deepEqual(apiRequestIoProblems(sources), []);
+});
