@@ -12,7 +12,10 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { MACHINE } from '../../../../packages/state/index.js';
-import { seedNativeOrdinary } from '../../tests/fixtures/cockpit/lifecycle/seed/ordinary.js';
+import {
+  seedNativeOrdinary,
+  drawLifecycleFigure,
+} from '../../tests/fixtures/cockpit/lifecycle/seed/ordinary.js';
 import {
   nativeRareJourneys,
   seedRareLifecycleJourneys,
@@ -63,7 +66,7 @@ test('browser replay and timeline retain Building through a corrected claim and 
 });
 
 /** Verify exact visible labels against a board built through real native commands. */
-test('Activity starts on its feed and remembers the plain lifecycle toggle in Chrome at desktop and phone widths [N26]', {
+test('Activity has no lifecycle toggle and the page renderer draws the real move counts in Chrome at desktop and phone widths [N26]', {
   timeout: 180_000, // budget: hang ceiling for seven native items, a real browser and two viewport/reload journeys.
 }, async () => {
   const executable = chromeExecutable();
@@ -93,49 +96,36 @@ test('Activity starts on its feed and remembers the plain lifecycle toggle in Ch
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!data?.project && !!document.querySelector("[data-tab=activity]")');
     await press(chrome, "document.querySelector('[data-tab=activity]')");
-    await chrome.waitFor('!document.querySelector("[data-pane=activity]").hidden && !!document.querySelector("#activity .activity-events")');
-    assert.equal(await chrome.stable('document.querySelector("#flow-panel").hidden'), true, 'no stored choice starts with the feed');
-    assert.equal(await chrome.stable('document.querySelector("#flow svg") === null'), true, 'the hidden chart does not render');
+    await chrome.waitFor('!document.querySelector("[data-pane=activity]").hidden && !!document.querySelector("#activity .act-card")');
+    // The redesigned Activity (#6916) draws hour cards and has no lifecycle figure: the ghost button, its panel, the stored
+    // choice and the figure's place above the feed are retired. The counts the figure drew are still drawn by the page's own
+    // renderer from the board's moveCounts, so each width draws that renderer's output and reads it as before.
+    assert.equal(await chrome.stable('document.querySelector("#flow-show, #flow-panel, #flow") === null'), true, 'Activity has no lifecycle toggle, panel or figure');
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
-      const toggle = "document.querySelector('#flow-show')";
-      assert.equal(await chrome.stable(toggle + '.textContent.trim()'), 'How work moves');
-      await press(chrome, toggle);
-      await chrome.waitFor('!document.querySelector("#flow-panel").hidden && !!document.querySelector("#flow svg")');
-      assert.equal(await chrome.stable(toggle + '.getAttribute("aria-expanded")'), 'true');
+      await drawLifecycleFigure(chrome);
       const actual = JSON.parse(await chrome.stable(`JSON.stringify({
         stages: [...document.querySelectorAll('[data-lifecycle-stage]')].map(node => [node.querySelector('.name').textContent, node.querySelector('.n').textContent, node.querySelector('.sub').textContent]),
         routes: [...document.querySelectorAll('[data-lifecycle-route]')].map(node => node.querySelector('.tag').textContent),
         tips: [...document.querySelectorAll('[data-lifecycle-route] title')].map(node => node.textContent),
         rareOpen: document.querySelector('.lifecycle-rare').open,
-        withdrawnHeight: document.querySelector('#flow .box.withdrawn').getBBox().height,
-        panelBeforeFeed: !!(document.querySelector('#flow-panel').compareDocumentPosition(document.querySelector('#activity')) & Node.DOCUMENT_POSITION_FOLLOWING),
+        withdrawnHeight: document.querySelector('#lifecycle-figure .box.withdrawn').getBBox().height,
         text: document.querySelector('.lifecycle-notes').textContent,
-        toggleVisible: document.querySelector('#flow-show').getBoundingClientRect().width > 0,
         overflow: document.documentElement.scrollWidth > innerWidth
       })`));
       assert.deepEqual(actual.stages, [['Ready', '3', '1 of them sent back'], ['Building', '1', 'one agent each'], ['In review', '1', 'a different agent checks'], ['Verified', '1', 'passed review']], width + ': real board state counts');
       assert.deepEqual(actual.routes, ['5 taken', '3 submitted', '1 passed', '1 handed back', '1 sent back by a reviewer', '0 reopened after passing'], width + ': real board event counts');
       assert.ok(actual.tips.every(title => title.includes('moves.')), 'every route explains its count');
-      assert.equal(actual.withdrawnHeight, 44, 'withdrawn SVG geometry stays independent of the sidebar');
+      assert.equal(actual.withdrawnHeight, 44, 'withdrawn SVG geometry stays independent of the page width');
       assert.equal(actual.rareOpen, false, 'rare routes are not drawn or disclosed by default');
-      assert.equal(actual.panelBeforeFeed, true, 'chart opens in place above the feed');
-      assert.equal(actual.toggleVisible, true);
       assert.equal(actual.overflow, false, width + ': chart does not widen the page');
       assert.match(actual.text, /1 claimed again while building/u);
       await press(chrome, "document.querySelector('.lifecycle-rare summary')");
       assert.equal(await chrome.stable('document.querySelector(".lifecycle-rare").open'), true, 'rare-route disclosure works');
       await proofShot(chrome, 'lifecycle-chart', width);
-      await chrome.send('Page.reload');
-      await chrome.waitFor('!!data?.project && !document.querySelector("#flow-panel").hidden && !!document.querySelector("#flow svg")');
-      await press(chrome, toggle);
-      assert.equal(await chrome.stable('document.querySelector("#flow-panel").hidden'), true, 'the same ghost button closes the chart');
-      await chrome.send('Page.reload');
-      await chrome.waitFor('!!data?.project && !!document.querySelector("#activity .activity-events")');
-      assert.equal(await chrome.stable('document.querySelector("#flow-panel").hidden'), true, 'closed choice survives a reload');
     }
-    assert.deepEqual(chrome.exceptions, [], 'chart and toggles produce no page exceptions');
+    assert.deepEqual(chrome.exceptions, [], 'the page and the drawn chart produce no page exceptions');
   } finally {
     await closeSnapshotChrome(chrome);
     await view.stop();
@@ -189,11 +179,11 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
     }
     await press(chrome, "document.querySelector('[data-tab=activity]')");
     await chrome.waitFor('!document.querySelector("[data-pane=activity]").hidden');
-    await press(chrome, "document.querySelector('#flow-show')");
-    await chrome.waitFor('!!document.querySelector(".lifecycle-rare")');
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
+      await drawLifecycleFigure(chrome);
+      await chrome.waitFor('!!document.querySelector(".lifecycle-rare")');
       assert.equal(await chrome.stable('document.querySelector(".lifecycle-rare").open'), false);
       assert.equal(await chrome.stable('document.querySelector(".lifecycle-rare summary").textContent'), '5 rare routes');
       await press(chrome, "document.querySelector('.lifecycle-rare summary')");
