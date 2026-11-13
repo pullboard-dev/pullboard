@@ -264,3 +264,7 @@ test('#7003 clause 1: a stemless templated store-file name is found, and no site
 test('#7012 clause 1: no store-file site under packages/runners builds its name from a stemless template [CD2]', () => {
   assert.deepEqual(stemlessIn('packages/runners/'), [], 'name each file from the runners registry const storeName(key)');
 });
+
+test('#7014 clause 1: no store-file site under packages/landing builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/landing/'), [], 'name each file from the landing registry const storeName(key)');
+});
