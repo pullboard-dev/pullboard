@@ -44,7 +44,6 @@ export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupP
 export { committedRunnerController, archivedToolingSource } from './src/io/tooling/committed.js';
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/tooling/dirty.js';
 export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/io/handoff/capacity.js';
-export { staleDispatcherTools, dispatcherPass, handOver } from './src/io/handoff/handover.js';
 export { installRunnerService, runnerServiceProblems, runnerServiceRecords, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
 export { localNetworkHost, serviceForm } from './src/logic/service.js';
 export { expandTestFolders } from "./src/io/pull/folders.js";
