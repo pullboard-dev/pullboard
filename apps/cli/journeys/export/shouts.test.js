@@ -48,7 +48,7 @@ import {
 } from '../../tests/fixtures/cockpit/addresses.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-test.skip('a shout address opens an old shout [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for real writes and both viewport journeys.
+test('a shout address opens an old shout [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for real writes and both viewport journeys.
   const box = machine(), alpha = addressBoard(box, 'old-shout-alpha');
   await box.inProcess(alpha.repo, 'shout', 'person', 'OLD ADDRESSED SHOUT, unique body.');
   await withBrowser(box, async (chrome, server) => {
@@ -84,7 +84,7 @@ async function shoutLayout(chrome, id) {
   })())`));
 }
 
-test.skip('an addressed shout is highlighted without changing its layout [N26,N38]', { timeout: 180_000 }, async (t) => { // budget: hang-only ceiling for four real Chrome viewport and theme checks.
+test('an addressed shout is highlighted without changing its layout [N26,N38]', { timeout: 180_000 }, async (t) => { // budget: hang-only ceiling for four real Chrome viewport and theme checks.
   const box = machine(), alpha = addressBoard(box, 'shout-layout');
   const text = 'Shout whose address must not change its layout.';
   await box.inProcess(alpha.repo, 'shout', 'person', text);
@@ -122,7 +122,7 @@ test.skip('an addressed shout is highlighted without changing its layout [N26,N3
   });
 });
 
-test.skip('grouped repos each get their own address [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for grouped repo switching and a separate one-repo machine.
+test('grouped repos each get their own address [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for grouped repo switching and a separate one-repo machine.
   const box = machine(), alpha = addressBoard(box, 'alpha', 'same-suite'), beta = addressBoard(box, 'beta', 'same-suite');
   await withBrowser(box, async (chrome, server) => {
     for (const [repo, name] of [[alpha, 'alpha'], [beta, 'beta']]) {
@@ -157,7 +157,7 @@ test.skip('grouped repos each get their own address [N38,N26]', { timeout: 180_0
 });
 
 
-test.skip('an older relay shout keeps its address and explains retained history [N38,H5]', {
+test('an older relay shout keeps its address and explains retained history [N38,H5]', {
   // budget: three fixture work ceilings bound setup, browser pairing and the addressed read; no speed assertion.
   timeout: relayWorkBudgetMs() * 3,
 }, async t => {
@@ -214,7 +214,7 @@ Server.prototype.listen = function (port, host) {
   return file;
 }
 
-test.skip('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for six short CLI refusals.
+test('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for six short CLI refusals.
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-view-sandbox-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const port = await chooseViewPort();
@@ -271,56 +271,4 @@ test.skip('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120
       for (const text of [plain.stderr, json.stdout]) assert.doesNotMatch(text, /service owner/iu, `${where}: the step points somewhere real`);
     }
   }
-});
-
-/** Navigate with a watcher that prints outstanding requests and whether the server answers node directly. */
-const everPending = new Map();
-async function watched(chrome, server, address, log, events) {
-  const pending = everPending;
-  const onMessage = ({ data }) => {
-    let message; try { message = JSON.parse(String(data)); } catch { return; }
-    if (message.method) events.set(message.method, (events.get(message.method) || 0) + 1);
-    if (message.method === 'Page.backForwardCacheNotUsed') log.push('bfcache-not-used ' + JSON.stringify(message.params.notRestoredExplanations?.map(e => e.reason)));
-    if (message.method === 'Network.requestWillBeSent') pending.set(message.params.requestId, address + ' -> ' + new URL(message.params.request.url).pathname + new URL(message.params.request.url).search.slice(0, 40) + ' ' + (message.params.request.headers?.accept || '').slice(0, 20) + ' ' + (message.params.request.keepalive ? 'KEEPALIVE ' : '') + message.params.type + ' ' + (message.params.initiator?.type || ''));
-    else if (message.method === 'Network.loadingFinished') pending.delete(message.params.requestId);
-    else if (message.method === 'Network.loadingFailed') { log.push('failed ' + pending.get(message.params.requestId) + ' ' + message.params.errorText + (message.params.canceled ? ' canceled' : '')); pending.delete(message.params.requestId); }
-  };
-  chrome.socket.addEventListener('message', onMessage);
-  const started = Date.now();
-  const probe = setTimeout(async () => {
-    const t0 = Date.now();
-    let direct;
-    try { const r = await fetch(new URL(address, server.link) + server.link.search, { signal: AbortSignal.timeout(5000) }); direct = r.status + ' in ' + (Date.now() - t0) + 'ms'; } catch (e) { direct = 'node fetch failed: ' + e.message; }
-    log.push(`HANG ${address}: node direct ${direct}; pending in chrome ${JSON.stringify([...pending.values()])}; events ${JSON.stringify([...events])}`);
-  }, 8000);
-  try {
-    await chrome.send('Page.navigate', { url: 'about:blank' });
-    log.push(`${address} blank in ${Date.now() - started}ms`);
-    const target = new URL(address, server.link); target.search = server.link.search;
-    await chrome.send('Page.navigate', { url: target.href });
-    log.push(`${address} nav in ${Date.now() - started}ms; still pending ${pending.size}`);
-    await settled(chrome, SCRIPT);
-  } finally { clearTimeout(probe); chrome.socket.removeEventListener('message', onMessage); }
-}
-
-for (const bypass of [false, true]) test(`diag: repeated navigations ${bypass ? 'with history reset' : 'plain'} [N38]`, { timeout: 170_000 }, async (t) => {
-  const box = machine(), alpha = addressBoard(box, 'alpha', 'same-suite'), beta = addressBoard(box, 'beta', 'same-suite');
-  const log = [], events = new Map();
-  try {
-    await withBrowser(box, async (chrome, server) => {
-      await chrome.send('Network.enable');
-      await chrome.send('Page.enable');
-      for (let round = 0; round < 3; round += 1) {
-        for (const name of ['alpha', 'beta']) {
-          for (const suffix of ['/items/1', '/spec/G2', '/doctrine/PB1']) {
-            if (bypass) await chrome.send('Page.resetNavigationHistory');
-            await watched(chrome, server, `/${name}${suffix}`, log, events);
-          }
-          await onePlace(chrome, 'document.querySelector(\'[data-tab="shouts"]\')', `/${name}/shouts`, 'shouts', (name === 'alpha' ? alpha : beta).repo);
-          log.push(`${name} shouts tab clicked`);
-        }
-      }
-    });
-  } finally { for (const line of log) t.diagnostic(line); }
-  assert.ok(true);
 });
