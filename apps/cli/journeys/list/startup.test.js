@@ -201,3 +201,11 @@ test('a read command loads only its own modules [C7]', async (t) => {
 test('startup budget keeps fresh read medians under 100 ms [C7]', async (t) => {
   await assertStartupBudgets(t);
 });
+
+test('offline status loads its measured module set and starts no Git beyond the board read [C7]', async (t) => {
+  const box = fixture(t);
+  const status = box.run('status', '--json');
+  assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
+  assert.deepEqual(status.gitCalls, [], `status started Git: ${status.gitCalls.join(' | ')}`);
+  assert.equal(status.modules.length, 0, `status loaded ${status.modules.length} repository modules; heavy: ${heavyBeyondRow('status', status.modules).join(', ')}`);
+});
