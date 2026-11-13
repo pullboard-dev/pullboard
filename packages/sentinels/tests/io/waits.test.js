@@ -314,3 +314,15 @@ test('waits record files a mid item add accepts: Files: naming the holder\'s sou
   const bare = { by: 'coordinator', lane: 'core', title: 'bare', criterion: '1. It holds. [test]', brief: 'no sections', route: 'mid', check: item.item_check };
   assert.throws(() => addItem(m.board, bare), /NO_BRIEF|Files:/u, 'a brief without Files: and Test: is the refusal this guards against');
 });
+
+test('a runner-held gate that renews its lease through a six-minute claim is not over its progress budget [C7]', async t => {
+  const m = machine(t);
+  const now = Date.now();
+  // #6121's gate: claimed by a runner, no step or span for 5.5 minutes while its phases ran, lease renewed a moment ago.
+  m.board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run('gate:6121:ae14aa8fd0f8:x', 'gate', 6121, 'claimed', 'auxiliary-53-anvil-50f9f9', now + 110_000, now - 6 * MINUTE, now);
+  m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
+  const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
+  assert.equal(gate.breach, false, `a live lease is progress: ${gate.ageMs} ms old`);
+  assert.ok(gate.ageMs < 60_000, 'its age counts from the last renewal');
+});
