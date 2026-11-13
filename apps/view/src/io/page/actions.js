@@ -1032,7 +1032,7 @@ document.addEventListener('click', (event) => {
   }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
-  if (!event.target.closest('.side, #proj-switch')) fold(false);
+  if (!event.target.closest('.side, #proj-switch, #proj-menu')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const control = event.target.closest('button[data-page-ctl]');
   if (control) { pageControl(control); return; }
@@ -1042,8 +1042,8 @@ document.addEventListener('click', (event) => {
   if (!t) return;
   // A pick in the project list's tools (Settings) closes the list, as a board pick does.
   if (t.dataset.tab && event.target.closest('.side')) fold(false);
-  if (t.id === 'proj-switch' && projectMenuToggle()) return;
-  if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
+  if (t.id === 'proj-switch' && $('side').classList.contains('open')) { fold(false); return; }
+  if (t.id === 'proj-switch') { projectMenuToggle(); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costWindow) { view.costWindow = t.dataset.costWindow; view.costOpen = null; render(); return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costCopy !== undefined) { navigator.clipboard?.writeText('Add model prices to Pullboard'); t.textContent = 'Copied'; return; }
