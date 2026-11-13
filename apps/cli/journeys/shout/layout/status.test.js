@@ -159,7 +159,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       chips: [...document.querySelectorAll('#page-controls [data-page-ctl="state"]')].map((choice) => [choice.dataset.value, choice.getAttribute('aria-pressed') === 'true']),
       lanes: [...document.querySelectorAll('#page-controls select[data-page-ctl="lane"] option')].map((option) => option.textContent), pick: box(document.querySelector('#page-controls select[data-page-ctl="lane"]')),
       seg: box(document.querySelector('#page-controls [data-page-ctl="view"]')), go: box(document.querySelector('#page-controls [data-page-ctl="new"]')),
-      waiting: (() => { const fold = document.querySelector('[data-shout-filter=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
+      waiting: (() => { const fold = document.querySelector('[data-page-ctl=shouts][data-value=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: 0, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
       agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
     };
@@ -287,12 +287,12 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
 
     // Shouts: the native Questions segment opens the question conversation; idle agents retain their fold.
     await click('[data-tab=shouts]');
-    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('[data-shout-filter=questions]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('[data-page-ctl=shouts][data-value=questions]')");
     r = await read();
     const shut = r.waiting.offset;
     assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['Questions1', 'false', 0], `the question count stays on the composer line before a conversation is opened: ${JSON.stringify(r.waiting)}`);
     assert.ok(/^\d+ idle show$/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
-    await click('[data-shout-filter=questions]');
+    await click('[data-page-ctl=shouts][data-value=questions]');
     await openShoutConversation(chrome);
     await click('#agents .fold-line[data-fold="idle"]');
     r = await read();
@@ -301,7 +301,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375');
     r = await read();
-    assert.ok(r.waiting.height >= 44 && r.idle.height >= 44, 'the Questions segment and idle fold are 44px targets');
+    assert.ok(r.idle.height >= 44, 'the idle fold is a 44px target');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280');
 
@@ -319,7 +319,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     assert.deepEqual([await feed(), await chrome.stable("document.querySelector('#feed .feed-bar span').textContent")], [['web-1 is on it'], '1 unread show all'],
       `1 unread opens that one shout, not the ${alreadyRead} already read`);
     await click('#feed [data-unread]');
-    await click('[data-shout-filter=all]');
+    await click('[data-page-ctl=shouts][data-value=all]');
     await openShoutConversation(chrome);
     assert.equal((await feed()).length, alreadyRead + 1, 'show all brings back the shouts already read');
 

@@ -626,6 +626,7 @@ function render({ tab: switching = false } = {}) {
   const initials = (id) => { const [name, rest = ''] = String(id).split(/[-_ ]/); const digits = rest.replace(/\\D/g, ''); return (name.slice(0, digits ? 1 : 2) + digits.slice(0, 3)).toUpperCase(); };
   const questions = [...p.decisions, ...p.asked, ...(p.decisionQueue || [])];
   const open = new Set(questions.map((d) => d.shout_id));
+  view.shoutQuestions = open.size;
   const answerOf = new Map(p.shouts.filter((y) => y.shout_answers).map((y) => [y.shout_answers, y]));
   const band = (x) => !x.shout_decision ? '' : open.has(x.shout_id) ? '<div class="band">Decision needed</div>'
     : '<div class="band done">Answered' + (answerOf.has(x.shout_id) ? ' by ' + esc(agentName(answerOf.get(x.shout_id).shout_from)) + ': <a href="#shout-' + answerOf.get(x.shout_id).shout_id + '">see the answer</a>' : '') + '</div>';
@@ -704,16 +705,14 @@ function render({ tab: switching = false } = {}) {
   const threads = [...conversations.values()].map(thread => ({ ...thread,
     messages: thread.messages.sort((a, b) => a.shout_id - b.shout_id) })).sort((a, b) => b.messages.at(-1).shout_id - a.messages.at(-1).shout_id);
   const filter = view.shoutFilter || 'all';
-  store.paint($('asks-slot'), segmentedToggle({ label: 'Shouts filter', attribute: 'data-shout-filter', value: filter,
-    options: [{ value: 'all', label: 'All' }, { value: 'questions', label: 'Questions', count: open.size }, { value: 'you', label: 'To you' }] })
-    + (view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : ''));
+  store.paint($('asks-slot'), view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : '');
   const selected = view.shout !== null ? threads.find(thread => thread.messages.some(message => message.shout_id === view.shout))
     : threads.find(thread => thread.key === view.shoutThread);
   /** Render one item conversation as a real button with bounded title and preview columns. */
   const conversationRow = thread => {
     const last = thread.messages.at(-1), title = thread.item ? titles.get(String(thread.item)) : 'No item';
-    return '<button class="conversation-row" data-shout-thread="' + esc(thread.key) + '" type="button"><span class="conversation-copy"><span class="conversation-title">'
-      + (thread.item ? '<code>#' + esc(thread.item) + '</code> ' : '') + esc(title || 'Item #' + thread.item) + '</span><span class="conversation-preview">' + esc(last.shout_from + ': ' + messageText(last)) + '</span></span><span class="conversation-meta"><time class="long" data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + agoLong(last.shout_at) + '</time><span class="chip' + (thread.open ? ' warn' : '') + '">' + (thread.open ? 'Question open' : thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages')) + '</span></span></button>';
+    return '<button class="conversation-row" data-shout-thread="' + esc(thread.key) + '" type="button"><code class="conversation-id">' + (thread.item ? '#' + esc(thread.item) : '') + '</code><span class="conversation-title">'
+      + esc(title || (thread.item ? 'Item #' + thread.item : '')) + '</span><span class="conversation-preview"><b>' + esc(last.shout_from) + '</b>: ' + esc(messageText(last)) + '</span><span class="chip' + (thread.open ? ' warn' : '') + '" title="' + (thread.open ? 'Question open, ' : '') + thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages') + '">' + thread.messages.length + '</span><time class="conversation-time" data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + agoLong(last.shout_at) + '</time></button>';
   };
   const rows = threads.filter(thread => filter === 'all' || (filter === 'questions' ? thread.open : thread.toYou));
   const missingAddress = view.shout !== null && !selected ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';

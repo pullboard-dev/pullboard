@@ -222,7 +222,7 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.deepEqual(labels(pageControlsHtml({ tab: 'items', state: 'ids' })), ['Open', 'Building', 'In review', 'All', 'From Pipeline', 'List', 'Pipeline', 'New item'], 'Items opened from a Pipeline count says so, and only then');
   assert.match(pageControlsHtml({ tab: 'items', state: 'ids' }), /data-value="ids" class="on"/u);
   assert.equal(pageControlsHtml({ tab: 'progress' }), '', 'Progress is gone: no controls');
-  assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'All'], 'Shouts: For you and All');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'Questions', 'All'], 'Shouts: For you, Questions and All');
   assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'roadmap' })), ['Show shipped'], 'Roadmap: Show shipped');
   assert.deepEqual(labels(pageControlsHtml({ tab: 'cost' })), ['Today', '7 days', '30 days'], 'Cost: its window sits in the strip');
