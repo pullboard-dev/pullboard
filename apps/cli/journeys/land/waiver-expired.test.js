@@ -13,7 +13,7 @@ after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-test('land stops again with an expired waiver, and a changed test on main releases the held batch [B3,R3]', () => {
+test('land stops again with an expired waiver, and a changed test on main releases the held batch [B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, () => {
   const box = landProject();
   box.env.LAND_SUPPRESS_RED = '1';
   assert.equal(commitFile(box, box.repo, FILES[0], 'FLAKE\n', 'chore: install a flaky fixture test').status, 0);

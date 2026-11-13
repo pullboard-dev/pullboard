@@ -73,7 +73,7 @@ function strictPrePush(box) {
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }
 
-test('clause 1: with no affectedTests a red at landing returns the item to its builder with its failing case; main and origin stay untouched [C7,#6270]', { timeout: 180_000 }, // budget: one real submit, accept, landing and resubmit; hang ceiling only.
+test('clause 1: with no affectedTests a red at landing returns the item to its builder with its failing case; main and origin stay untouched [C7,#6270]', { skip: 'CONTROLLER_ONLY: deleted with #6579', timeout: 180_000 }, // budget: one real submit, accept, landing and resubmit; hang ceiling only.
 async () => {
   const box = defaultProject();
   const entry = acceptedRedItem(box);
@@ -92,7 +92,7 @@ async () => {
   await fixAndResubmit(box, entry);
 });
 
-test('clause 2: a pre-push hook red returns the item the same way instead of parking LAND_PUSH [C7,#6270]', { timeout: 180_000 }, // budget: one real submit, accept, landing push and resubmit; hang ceiling only.
+test('clause 2: a pre-push hook red returns the item the same way instead of parking LAND_PUSH [C7,#6270]', { skip: 'CONTROLLER_ONLY: deleted with #6579', timeout: 180_000 }, // budget: one real submit, accept, landing push and resubmit; hang ceiling only.
 async () => {
   const box = defaultProject();
   const entry = acceptedRedItem(box);
