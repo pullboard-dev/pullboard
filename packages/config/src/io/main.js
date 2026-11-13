@@ -383,6 +383,10 @@ export function configProblems(config) {
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
+  if (config.withdraw !== undefined && (typeof config.withdraw !== 'object' || config.withdraw === null || Array.isArray(config.withdraw)
+    || Object.keys(config.withdraw).some(key => key !== 'review') || typeof config.withdraw.review !== 'boolean')) {
+    problems.push('"withdraw" is { "review": true or false }: true makes a withdrawal wait for another seat to confirm it');
+  }
   if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
     || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
