@@ -4,3 +4,4 @@ export { isObjectId, bundleName } from "./src/logic/names.js";
 export { writeToolingPin, toolingPin, toolingFor } from "./src/io/tooling.js";
 export { cachePath, cacheFor, sweepCaches } from "./src/io/cache.js";
 export { keyedResultPath, saveKeyedResult, loadKeyedResult, savedKeyedResults, pruneKeyedResults } from "./src/io/keyed.js";
+export { checkoutCandidate } from "./src/io/checkout.js";
