@@ -11,7 +11,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../../tests/fixtures/testkit.js';
 import {
   machine,
@@ -22,17 +21,6 @@ import {
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
-
-/**
- * A machine whose gate settings pin controller dispatch: build() submits here and expects the gate held in the
- * submitting process, but with pull as the default (#6182-#6185) submit only queues a job and the item stays claimed.
- */
-function pinnedMachine() {
-  const box = machine();
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  return box;
-}
 
 /**
  * web-1 builds an item as the shared build() does, claiming and submitting through this process: the Git work and its
@@ -83,7 +71,7 @@ async function sendBack(box, p, id, note) {
 async function blockedRoadmap(t, stage) {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the roadmap blocker check.');
-  const box = pinnedMachine(), alpha = project(box, 'blocked-roadmap');
+  const box = machine(), alpha = project(box, 'blocked-roadmap');
   await box.inProcess(alpha.repo, 'add', 'web', 'Base work', '--specs', 'G1', '--criterion', 'Base is ready.');
   await box.inProcess(alpha.repo, 'add', 'web', 'Waits on base', '--specs', 'G1', '--criterion', 'Use #1 and #3 <em>literally</em>. More detail stays in Items.', '--after', '1');
   await box.inProcess(alpha.repo, 'add', 'web', 'Free work', '--specs', 'G1', '--criterion', 'Ready.');
