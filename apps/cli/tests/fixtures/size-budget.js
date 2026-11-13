@@ -54,8 +54,8 @@ function seatOnRealSizeBoard(box) {
   return dir;
 }
 
-/** File one web item; the diagnosis fact is not needed to be claimed, so the fixture skips that process. */
-function file(box, title) { return fileFixtureItem(box, box.repo, { lane: 'web', title, diagnose: false }).item_id; }
+/** File one diagnosed web item, so next offers it ahead of the seeded rows. */
+function file(box, title) { return fileFixtureItem(box, box.repo, { lane: 'web', title }).item_id; }
 
 /** Measure next, next --take and next --verify; the claimed item is released, untimed, before the next round. */
 export function measureNext(box) {
