@@ -17,6 +17,7 @@ import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { parseProcessCensus } from "../../../../../kernel/light.js";
 import { recordBoardHold } from "../hold/log.js";
+import { storeName } from '../../store-names.js';
 
 const pending = new WeakMap();
 let ownIdentity;
@@ -91,7 +92,7 @@ export function prepareBoardWriteMarker(db, context = {}) {
     const directory = file + '.write-holders';
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     if (!lstatSync(directory).isDirectory()) return null;
-    const marker = join(directory, `${process.pid}-${randomUUID()}.json`);
+    const marker = join(directory, `${process.pid}-${storeName(randomUUID())}`);
     const labels = contextFor(db, context);
     const detail = { version: 1, pid: process.pid, started: ownIdentity.started, processSha256: ownIdentity.processSha256,
       command: labels.command, seat: labels.seat, acquiredAt: Date.now(), contender: true };
