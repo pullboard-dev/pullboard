@@ -1,56 +1,57 @@
-/** @pullboard-module-loads apps/view/index.js */
+/** @pullboard-module-loads packages/board/src/io/seal.js */
 import { createRequire } from 'node:module';
-import { claimedItemRoot } from '../../../../../packages/items/index.js';
-import { recordFamilyDeclareActivation } from '../../../../../packages/items/light.js';
-import { withDerivedFamily } from '../../../../../packages/items/light.js';
+import { Refused } from '../../../kernel/index.js';
+import { claimedItemRoot } from '../../../items/index.js';
+import { recordFamilyDeclareActivation } from '../../../items/light.js';
+import { withDerivedFamily } from '../../../items/light.js';
 import {
   nativeProofBlockingGreen,
   receiptBlockingGreen,
-} from '../../../../../packages/verify/index.js';
-import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
+} from '../../../verify/index.js';
+import { reviewPatchAuthors } from '../../../verify/index.js';
 import {
   localDependencyIds,
   dependencyLabel,
-} from '../../../../../packages/items/index.js';
-import { itemFileCollisions } from '../../../../../packages/items/index.js';
-import { warmFamilyProjection } from '../../../../../packages/items/index.js';
-import { familyProjectionCurrent } from '../../../../../packages/items/index.js';
-import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
-import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
-import { PIPELINE_CAUSE_ENGINE } from '../../../../../packages/state/light.js';
-import { SUBMIT_HANDOFF_ENGINE } from '../../../../../packages/state/light.js';
-import { firstRefusalDetail } from '../../../../../packages/items/index.js';
-import { itemPatchDigest } from '../../../../../packages/items/index.js';
+} from '../../../items/index.js';
+import { itemFileCollisions } from '../../../items/index.js';
+import { warmFamilyProjection } from '../../../items/index.js';
+import { familyProjectionCurrent } from '../../../items/index.js';
+import { withLocalSeatPresence } from '../../../store/index.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
+import { PIPELINE_CAUSE_ENGINE } from '../../../state/light.js';
+import { SUBMIT_HANDOFF_ENGINE } from '../../../state/light.js';
+import { firstRefusalDetail } from '../../../items/index.js';
+import { itemPatchDigest } from '../../../items/index.js';
 /** Supply current native engine thresholds without duplicating their values. */
 function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE }; }
 
 /** Provide exact native engine thresholds for typed pipeline observations. */
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
-import { shadowSubmitHandoff } from '../../../../../packages/jobs/index.js';
-import { reserveReview as reserveReviewLease } from '../../../../../packages/jobs/index.js';
-import { renewReview } from '../../../../../packages/jobs/index.js';
-import { reclaimLapsedReviews } from '../../../../../packages/jobs/index.js';
-import { releaseReview } from '../../../../../packages/jobs/index.js';
+import { shadowSubmitHandoff } from '../../../jobs/index.js';
+import { reserveReview as reserveReviewLease } from '../../../jobs/index.js';
+import { renewReview } from '../../../jobs/index.js';
+import { reclaimLapsedReviews } from '../../../jobs/index.js';
+import { releaseReview } from '../../../jobs/index.js';
 import {
   MOVE_REGISTRY,
   MOVE_OPERATIONS,
   minimumMoveEngine,
   declaredMoveActor,
   withMoveNextSteps,
-} from '../../../../../packages/moves/light.js';
+} from '../../../moves/light.js';
 import {
   sealItemPatchSubmit,
   sealItemPatchFollow,
-} from '../../../../../packages/items/index.js';
-import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/index.js';
-import { guardLandingWrite } from '../../../../../packages/store/index.js';
+} from '../../../items/index.js';
+import { DEFAULT_NEXT_STEPS } from '../../../state/index.js';
+import { guardLandingWrite } from '../../../store/index.js';
 
-import { recordRowVerification as applyRowVerification } from '../../../../../packages/spec/index.js';
-import { decideSpecRevisions as applySpecRevisionDecisions } from '../../../../../packages/spec/index.js';
-import { draftSpecRow as applySpecRowDraft } from '../../../../../packages/spec/index.js';
+import { recordRowVerification as applyRowVerification } from '../../../spec/index.js';
+import { decideSpecRevisions as applySpecRevisionDecisions } from '../../../spec/index.js';
+import { draftSpecRow as applySpecRowDraft } from '../../../spec/index.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
-import * as store from '../../../../../packages/store/index.js';
+import * as store from '../../../store/index.js';
 import {
   addMilestone,
   editMilestone,
@@ -60,52 +61,52 @@ import {
   removeMilestone,
   roadmap,
   shipMilestone,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 
-import { boardEnginePorts } from '../../../../../packages/store/index.js';
+import { boardEnginePorts } from '../../../store/index.js';
 import {
   guardStore,
   refreshStoreDeclarations,
   repairDrift,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 import {
   storeTriggers,
-} from '../../../../../packages/state/index.js';
+} from '../../../state/index.js';
 import {
   atomic,
   logEvent,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 import {
   ensureProofCounters,
   currentProofCounters,
   proofCounter,
-} from '../../../../../packages/verify/index.js';
-import { ensureHotIndexes } from '../../../../../packages/store/index.js';
-import { missingAdditiveIndexes } from '../../../../../packages/store/index.js';
-import { ensureAdditiveIndexes } from '../../../../../packages/store/index.js';
+} from '../../../verify/index.js';
+import { ensureHotIndexes } from '../../../store/index.js';
+import { missingAdditiveIndexes } from '../../../store/index.js';
+import { ensureAdditiveIndexes } from '../../../store/index.js';
 import {
   configureBoardJournal,
   closeBoardWrites,
-} from '../../../../../packages/store/index.js';
-import { sharedSchemaOwner } from '../../../../../packages/store/index.js';
-import { expectedBoardSchema } from '../../../../../packages/store/index.js';
-import { sharedSchemaDiagnostic } from '../../../../../packages/store/index.js';
-import { reportSharedSchema } from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
+import { sharedSchemaOwner } from '../../../store/index.js';
+import { expectedBoardSchema } from '../../../store/index.js';
+import { sharedSchemaDiagnostic } from '../../../store/index.js';
+import { reportSharedSchema } from '../../../store/index.js';
 import {
   boardStanding,
   migrate,
   recordSchemaStamp,
   reportDrift,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 import {
   openBoardReadOnly,
   readEventLogVersion,
-} from '../../../../../packages/store/index.js';
-import { migrateEventLogVersion } from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
+import { migrateEventLogVersion } from '../../../store/index.js';
 import {
   boardNotWritable,
   boardBusyError,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 import {
   now,
   agentAt,
@@ -119,34 +120,34 @@ import {
   acceptedVerdict,
   verdictReviewProblem,
   boardId,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 import {
   committedItemAuthors,
   twoTierReviews,
   strictReviewProblem,
   reviewPolicyChange,
   saveItemReviewPolicy,
-} from '../../../../../packages/verify/index.js';
-import { holdUntilKind } from '../../../../../packages/store/index.js';
-import { forgetHoldMaintenance } from '../../../../../packages/store/index.js';
-import { rememberHoldCondition } from '../../../../../packages/store/index.js';
+} from '../../../verify/index.js';
+import { holdUntilKind } from '../../../store/index.js';
+import { forgetHoldMaintenance } from '../../../store/index.js';
+import { rememberHoldCondition } from '../../../store/index.js';
 import {
   STALE_STATE_ENGINE,
-} from '../../../../../packages/state/light.js';
+} from '../../../state/light.js';
 import {
   readReceivedBoardState,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 import {
   verdictWithdrawalTarget,
-} from '../../../../../packages/verify/index.js';
+} from '../../../verify/index.js';
 import {
   firstRefusal,
-} from '../../../../../packages/store/index.js';
+} from '../../../store/index.js';
 import {
   itemReviewPolicy,
-} from '../../../../../packages/verify/index.js';
+} from '../../../verify/index.js';
 
-import { normalizeReviewDefaults } from '../../../../../packages/verify/index.js';
+import { normalizeReviewDefaults } from '../../../verify/index.js';
 
 const requireModule = createRequire(import.meta.url);
 
@@ -156,18 +157,18 @@ function onDemand(load) { let loaded = null; return () => loaded ??= load(); }
 /** Named functions that load their package at their first call: a write that never calls one never pays for its modules [C7]. */
 function deferred(load, names) { return Object.fromEntries(names.map(name => [name, { [name](...args) { return load()[name](...args); } }[name]])); }
 
-const seal = onDemand(() => requireModule('../../io/seal.js'));
-const healthPackage = onDemand(() => requireModule('../../../../../packages/health/index.js'));
-const gatePackage = onDemand(() => requireModule('../../../../../packages/gate/index.js'));
-const sandboxPackage = onDemand(() => requireModule('../../../../../packages/sandbox/index.js'));
-const flakesPackage = onDemand(() => requireModule('../../../../../packages/flakes/index.js'));
-const personPackage = onDemand(() => requireModule('../../../../../packages/person/index.js'));
-const linkPackage = onDemand(() => requireModule('../../../../../packages/link/index.js'));
-const blueprintsPackage = onDemand(() => requireModule('../../../../../packages/blueprints/index.js'));
-const sentinelsPackage = onDemand(() => requireModule('../../../../../packages/sentinels/index.js'));
-const githubPackage = onDemand(() => requireModule('../../../../../packages/github/index.js'));
-const landingPackage = onDemand(() => requireModule('../../../../../packages/landing/index.js'));
-const rigorPackage = onDemand(() => requireModule('../../../../../packages/rigor/index.js'));
+const seal = onDemand(() => requireModule('../io/seal.js'));
+const healthPackage = onDemand(() => requireModule('../../../health/index.js'));
+const gatePackage = onDemand(() => requireModule('../../../gate/index.js'));
+const sandboxPackage = onDemand(() => requireModule('../../../sandbox/index.js'));
+const flakesPackage = onDemand(() => requireModule('../../../flakes/index.js'));
+const personPackage = onDemand(() => requireModule('../../../person/index.js'));
+const linkPackage = onDemand(() => requireModule('../../../link/index.js'));
+const blueprintsPackage = onDemand(() => requireModule('../../../blueprints/index.js'));
+const sentinelsPackage = onDemand(() => requireModule('../../../sentinels/index.js'));
+const githubPackage = onDemand(() => requireModule('../../../github/index.js'));
+const landingPackage = onDemand(() => requireModule('../../../landing/index.js'));
+const rigorPackage = onDemand(() => requireModule('../../../rigor/index.js'));
 
 const { sealOwnershipWait } = deferred(seal, ['sealOwnershipWait']);
 const { claimHealthSnapshot, conditionalHoldFloor } = deferred(healthPackage, ['claimHealthSnapshot', 'conditionalHoldFloor']);
@@ -184,9 +185,17 @@ const { newRigorNotices, rigorNoticeText, deriveRigorCause, recordAutomaticRigor
 /** The landing checks the native board calls through nativePorts.landingEnvironment, loading landing at the first one. */
 const landingEnvironment = Object.freeze(deferred(landingPackage, ['requireVerdict', 'requireBatch', 'requireRevision', 'requireTrunk', 'requireStoredBatch']));
 
+let boundView = () => null;
 let viewModule = null;
-/** The view app, loaded on the first projection call: next and other board moves never pay for its modules [C7]. */
-function view() { return viewModule ??= requireModule('../../../../view/index.js'); }
+/** Read the host's view loader through this getter; the board root hands it over when it first loads this file [C7]. */
+export function useBoardView(read) { boundView = read; }
+/** The view app, loaded through the loader the app above this package binds, on the first projection call: next and other board moves never pay for its modules [C7]. */
+function view() {
+  if (viewModule) return viewModule;
+  const load = boundView();
+  if (typeof load !== 'function') throw new Refused('BOARD_VIEW_UNBOUND', 'open the board through apps/lib, which binds the view app, or call bindBoardView first');
+  return viewModule = load();
+}
 /** Project the board state through the view app, loading it at this call. */
 function projectState(...args) { return view().projectState(...args); }
 /** The agents the view shows as active, loading the view app at this call. */
