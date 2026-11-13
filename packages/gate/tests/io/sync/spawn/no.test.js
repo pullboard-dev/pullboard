@@ -8,7 +8,7 @@ import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/c
 import { syncCallsIn } from '../../../../../codemap/index.js';
 import { syncSpawnProblems } from '../../../../../codemap/index.js';
 import { syncSpawnReport } from '../../../../../codemap/index.js';
-import { STATIC_CHECKS } from '../../../../index.js';
+import { STATIC_CHECKS } from '../../../../heavy.js';
 
 const REPO = join(import.meta.dirname, '../../../../../..');
 const made = [];
