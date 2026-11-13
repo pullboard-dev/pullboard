@@ -163,7 +163,7 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
       target: null,
       ref: 'relay',
       title: `relay${text}`,
-      need: nextStep,
+      need: 'Keep working; your moves wait here until the connection to your phone is back.',
       action: 'Inspect',
       hasAge: true,
     }, 'Items shows an age-stamped inspection step and does not turn the health alert into a shouts/hold link');
@@ -278,7 +278,7 @@ test('a person-only block shows in Rulings with its one step [N26]', async () =>
     assert.equal(state.blocks[0].audience, 'person');
     const entries = needEntries(page.show('needs'));
     assert.deepEqual(entries, [[null, 'blocked', 'Pullboard stopped a request that only you can clear: this terminal belongs to an agent',
-      state.blocks[0].step, 'Next step']], 'the view shows the plain reason and the exact API step without a bogus release action');
+      'Ask your coordinator to take the next step.', 'Next step']], 'the view shows the plain reason and the exact API step without a bogus release action');
     assert.doesNotMatch(page.show('needs'), /B26_PERSON_CHANNEL|--as|pullboard answer/u,
       'the view does not expose the rule code or refused command');
 
@@ -489,7 +489,7 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
     const style = await styleOf(view);
     // The shared summary keeps its reference and one-line title, with context below and action at the right.
     assert.match(style, /\.needs-copy b, \.needs-copy small \{[^}]*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'both summary lines truncate within the phone width');
-    assert.deepEqual(needEntries(page.show('needs')), [['spec:G3', 'G3', 'Should a greeting with a title long enough to need the room wrap?', 'pullboard spec answer G3 &quot;&lt;choice&gt;&quot;', 'Review']]);
+    assert.deepEqual(needEntries(page.show('needs')), [['spec:G3', 'G3', 'Should a greeting with a title long enough to need the room wrap?', 'Answer it in the Spec tab.', 'Review']]);
   } finally {
     await view.stop();
   }
@@ -558,7 +558,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         // The full Needs panel keeps every call, oldest first, in its shared two-line summary.
         assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Rulings is the head of the Items list, not a card of its own`);
         assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
-          ['spec', 'G3', 'G3Should the greeting name the visitor?', 'pullboard spec answer G3 "<choice>"', 'Review'],
+          ['spec', 'G3', 'G3Should the greeting name the visitor?', 'Answer it in the Spec tab.', 'Review'],
           ['decide', '#2', 'Which colour…', 'Asked by coordinator', 'Your decision'],
           ['tab', 'web', 'webFreeze for the demo', 'lane held by coordinator', 'Review'],
           ['tab', null, '2 draft spec rows to approve or drop', 'In the Spec tab, one by one or a section at a time', 'Review'],
