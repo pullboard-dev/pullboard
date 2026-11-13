@@ -105,10 +105,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
-    <div id="activity-compare"></div>
-    <div class="activity-toolbar"><div id="activity-filters"></div><button class="ghost flow-show" id="flow-show" type="button" aria-controls="flow-panel" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13V8h3v5m2 0V3h3v10m2 0V6h2v7"/></svg>How work moves</button></div>
-    <figure class="card-panel flow" id="flow-panel" hidden><div id="flow"></div><figcaption>Every item on the board, since the start. Hover a number for what it means.</figcaption></figure>
-    <div class="card-panel feed" id="activity"></div>
+    <div class="act-live"><div id="activity" aria-label="Activity"></div><div class="act-tip" id="act-tip" hidden></div></div>
   </section>
   ${settingsMarkup()}
   <section data-pane="roadmap" class="roadmap-layout" id="roadmap" aria-label="Roadmap"></section>
