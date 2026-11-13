@@ -995,7 +995,7 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   await restoreInventories();
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
   assert.equal(freshRefusal.status, 1);
-  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
+  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED', JSON.stringify(freshRefusal.document.error));
   assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
   assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
   const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
