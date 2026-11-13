@@ -95,5 +95,5 @@ test('clause 1: a landing after an unrelated main move reruns 0 proven files, th
   offerLandingJob(board.db, { items: [{ id: 1, commit: item, ref: 'refs/heads/item/1' }], expect: box.seed, config: { trunk: { remote: box.remote }, affectedTests: 'node bin/proof.mjs' } });
   const taken = await takeLandingJob({ call: body => jobQueueCall(board.db, body, { mode: 'pull' }), runner: 'r-land', workdir: join(box.root, 'runners', 'r-land'), env });
   assert.equal(taken.receipt.outcome, 'landed', taken.receipt.detail ?? '');
-  assert.deepEqual(taken.receipt.proof, { files: 2, reused: 2, ran: 0 }, 'the proof keyed both files under the gate\'s context class, so none reran');
+  assert.deepEqual(taken.receipt.proof, { files: 2, reused: 2, ran: 0 }, `the proof keyed both files under the gate's context class, so none reran: ${JSON.stringify(taken.receipt)} ${JSON.stringify(board.db.prepare('select payload from jobs').all()).slice(0, 3000)}`);
 });
