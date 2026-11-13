@@ -59,6 +59,8 @@ import {
 import { serveApi } from '../../../../../packages/api/index.js';
 import { refusalDocument } from '../../../index.js';
 import { main } from '../native.js';
+import { settleSubmit } from '../submit/settle.js';
+import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import {
   appliedSequence,
   checkpointSequence,
@@ -288,7 +290,7 @@ export async function threeReplicaFixture(t, timing) {
   for (const tool of ['sh', 'tar', 'ps', 'lsof']) symlinkSync(realpathSync(toolDirs.map((entry) => join(entry, tool)).find(existsSync)), join(privateBin, tool));
   symlinkSync(resolve(import.meta.dirname, '../../../pullboard.js'), join(privateBin, 'pullboard'));
   const envs = homes.map((home) => {
-    const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
+    const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), PATH: privateBin };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
     for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[key];
     for (const key of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[key];
@@ -297,6 +299,8 @@ export async function threeReplicaFixture(t, timing) {
       GIT_AUTHOR_NAME: 'Relay Clone Test', GIT_AUTHOR_EMAIL: 'relay-clone@example.com',
       GIT_COMMITTER_NAME: 'Relay Clone Test', GIT_COMMITTER_EMAIL: 'relay-clone@example.com',
     });
+    mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true, mode: 0o700 });
+    t.after(() => stopFixtureLocalRunner(env.PULLBOARD_MACHINE_HOME));
     return env;
   });
 
@@ -426,7 +430,7 @@ export async function threeReplicaFixture(t, timing) {
   assert.equal(uploaded.status, 200, await timing.wait('read an unexpected initial snapshot-upload response', () => uploaded.text()));
 
   const replicaFiles = clones.map((clone, index) => join(commonDir(clone, envs[index]), 'pullboard', 'board.sqlite'));
-  return { scratch, clones, worktrees, envs, gitAt, commonDir, auth, relay, person, key, boardId, replicaFiles };
+  return { t, scratch, clones, worktrees, envs, gitAt, commonDir, auth, relay, person, key, boardId, replicaFiles };
 }
 
 /** Preserve the competing CLI claims, durable refusals, registration and local API ordering checks. */
@@ -945,6 +949,7 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   const baseSubmit = await timing.wait('submit the stack base item', () => cliResult(worktrees[1], envs[1], 'submit', String(stackedA)));
   assert.equal(baseSubmit.status, 0, baseSubmit.stderr);
   assert.equal(baseSubmit.document.commit, firstRecoveryCommit);
+  await timing.wait('settle the stack base submission gate', () => settleReplicaSubmit(fixture, 1, baseSubmit.document));
 
   await timing.wait('sync clone C before checking its fabricated receiptless descriptor', () => cli(clones[2], envs[2], 'status'));
   const freshLinkFile = join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json');
@@ -993,6 +998,19 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
   finally { store.closeBoard(freshAfter); }
   await restoreOutboxDefault();
+}
+
+/**
+ * Settle one replica's pulled submit: its machine's loopback runner takes the gate job and the receipt makes the item submitted [P7,C7].
+ * Why: a pulled submit returns queued, so the item stays claimed until the receipt lands.
+ */
+export function settleReplicaSubmit(fixture, index, submitted) {
+  const { t, worktrees, envs } = fixture;
+  const run = async (_root, ...args) => {
+    const ran = await cliResult(worktrees[index], envs[index], ...args.filter(arg => arg !== '--json'));
+    return { code: ran.status, out: JSON.stringify(ran.document), err: ran.stderr };
+  };
+  return settleSubmit(t, { repo: worktrees[index], env: envs[index], run }, submitted);
 }
 
 /** Reject the future engine move after all three replicas have recovered their ordered prefix. */
