@@ -592,14 +592,6 @@
       "cells": 7,
       "deep": 0
     },
-    "apps/cli/src/io/submit/handoff.js": {
-      "cells": 11,
-      "deep": 0
-    },
-    "apps/cli/src/io/submit/handoff/sweep.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/src/io/submit/handoff/worker.js": {
       "cells": 6,
       "deep": 0

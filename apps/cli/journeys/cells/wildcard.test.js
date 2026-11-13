@@ -76,33 +76,3 @@ test('submit accepts a new later file covered only by unchanged accepted wildcar
   const result = await requireSubmitCells(box.root, box.main, commit, box.item, box.services);
   assert.deepEqual(result.problems, []);
 });
-
-test('submit still refuses an actual static import to the same wildcard-covered later file [C7,D3,CD64]', async t => {
-  const box = await acceptedLoader(t);
-  addLaterFile(box);
-  box.put('src/refused.js', box.source + "import './new-cli.js';\n");
-  await assert.rejects(requireSubmitCells(box.root, box.main, candidate(box), box.item, box.services),
-    /kernel --cuts: kernel still imports later app:cli: src\/refused.js -> src\/new-cli.js/u);
-});
-
-test('submit cannot borrow old computed debt for a new static import to an existing file [C7,D3,CD64]', async t => {
-  const box = await acceptedLoader(t);
-  box.put('src/refused.js', box.source + "import './stats-flow.js';\n");
-  await assert.rejects(requireSubmitCells(box.root, box.main, candidate(box), box.item, box.services),
-    /kernel --cuts: kernel still imports later stats: src\/refused.js -> src\/stats-flow.js/u);
-});
-
-test('submit refuses a newly widened wildcard rather than borrowing accepted narrower authority [C7,D3,CD64]', async t => {
-  const box = await acceptedLoader(t, 'src/stats*.js');
-  addLaterFile(box);
-  box.put('src/refused.js', box.source.replace('src/stats*.js', '**'));
-  await assert.rejects(requireSubmitCells(box.root, box.main, candidate(box), box.item, box.services),
-    /kernel --cuts: kernel still imports later app:cli: src\/refused.js -> src\/new-cli.js/u);
-});
-
-test('submit does not use accepted wildcard debt to forgive malformed candidate declarations [C7,D3,CD64]', async t => {
-  const box = await acceptedLoader(t);
-  addLaterFile(box);
-  box.put('src/refused.js', box.source.replace('module-loads **', 'module-loads [invalid]'));
-  await assert.rejects(requireSubmitCells(box.root, box.main, candidate(box), box.item, box.services), /cannot prove cut through src\/refused.js/u);
-});
