@@ -68,7 +68,7 @@ function strictPrePush(box) {
   mkdirSync(hooks, { recursive: true });
   for (const name of readdirSync(source)) if (!name.endsWith('.sample')) { copyFileSync(join(source, name), join(hooks, name)); chmodSync(join(hooks, name), 0o755); }
   copyFileSync(join(source, 'pre-push'), join(hooks, 'pre-push.real'));
-  writeFileSync(join(hooks, 'pre-push'), '#!/bin/sh\nunset LAND_SUPPRESS_RED\nrm -f "$(git rev-parse --git-path pullboard-gate-green)"\nexec "$(dirname "$0")/pre-push.real" "$@"\n');
+  writeFileSync(join(hooks, 'pre-push'), `#!/bin/sh\nunset LAND_SUPPRESS_RED\nrm -f '${join(box.dir, 'flag-LAND_SUPPRESS_RED')}'\nrm -f "$(git rev-parse --git-path pullboard-gate-green)"\nexec "$(dirname "$0")/pre-push.real" "$@"\n`);
   chmodSync(join(hooks, 'pre-push'), 0o755);
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }

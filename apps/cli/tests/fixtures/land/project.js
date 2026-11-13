@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -26,14 +27,15 @@ function gateFixture(box) {
   writeFileSync(gate, [
     "const fs = require('node:fs'); const path = require('node:path');",
     `const calls = ${JSON.stringify(callPath)}; const hold = ${JSON.stringify(hold)}; const entered = ${JSON.stringify(entered)}; const release = ${JSON.stringify(release)}; const trace = ${JSON.stringify(trace)};`,
+    `const flagDir = ${JSON.stringify(box.dir)}; const flag = name => fs.existsSync(path.join(flagDir, 'flag-' + name));`,
     "const root = process.cwd(); const args = process.argv.slice(2); fs.appendFileSync(calls, JSON.stringify(args) + '\\n');",
     "const alone = args.includes('--alone'); const web = path.join(root, 'web'); const files = alone ? args.filter(a => a !== '--alone') : (fs.existsSync(web) ? fs.readdirSync(web).filter(n => /^land-\\d+\\.test\\.js$/.test(n)).map(n => 'web/' + n) : []);",
     "fs.appendFileSync(trace, JSON.stringify({ alone, files }) + '\\n'); const fullRuns = fs.readFileSync(trace, 'utf8').trim().split('\\n').map(line => JSON.parse(line)).filter(row => !row.alone).length;",
     "if (!alone && fs.existsSync(hold) && (fs.readFileSync(hold, 'utf8') === 'armed' || Number(fs.readFileSync(hold, 'utf8')) === fullRuns)) { fs.writeFileSync(entered, root); const end = Date.now() + 20000; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); if (!fs.existsSync(release)) process.exit(24); }",
-    "if (process.env.LAND_UNNAMED_RED === '1' && !alone && files.length > 1) { console.log('TAP version 13'); console.log('1..0'); process.exit(1); }",
+    "if (flag('LAND_UNNAMED_RED') && !alone && files.length > 1) { console.log('TAP version 13'); console.log('1..0'); process.exit(1); }",
     "console.log('TAP version 13'); let failed = 0;",
-    "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = process.env.LAND_SUPPRESS_RED !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
-    "const cancelled = process.env.LAND_CANCEL === '1' && !alone && failed > 0 ? 1 : 0; if (cancelled) { console.log('# Subtest: cancelled fixture'); console.log('not ok ' + (files.length + 1) + ' - cancelled fixture'); console.log('  ---'); console.log('  location: ' + path.resolve(root, files[0]) + ':2:1'); console.log('  failureType: cancelledByParent'); console.log('  error: Promise resolution is still pending but the event loop has already resolved'); console.log('  ...'); }",
+    "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = !flag('LAND_SUPPRESS_RED') && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
+    "const cancelled = flag('LAND_CANCEL') && !alone && failed > 0 ? 1 : 0; if (cancelled) { console.log('# Subtest: cancelled fixture'); console.log('not ok ' + (files.length + 1) + ' - cancelled fixture'); console.log('  ---'); console.log('  location: ' + path.resolve(root, files[0]) + ':2:1'); console.log('  failureType: cancelledByParent'); console.log('  error: Promise resolution is still pending but the event loop has already resolved'); console.log('  ...'); }",
     "console.log('1..' + (files.length + cancelled)); console.log('# tests ' + (files.length + cancelled)); console.log('# pass ' + (files.length - failed)); console.log('# fail ' + failed); console.log('# cancelled ' + cancelled); process.exitCode = failed || cancelled ? 1 : 0;",
   ].join('\n'));
   writeFileSync(checks, "const fs = require('node:fs'); const file = process.argv[2]; if (!fs.existsSync(file) || !fs.readFileSync(file, 'utf8').trim()) process.exit(1);\n");
@@ -59,7 +61,28 @@ function landProject({ withWorktree = true } = {}) {
   fixture.git(fixture.repo, 'remote', 'add', 'origin', remote);
   const pushed = fixture.tryGit(fixture.repo, 'push', '-q', '-u', 'origin', 'main');
   assert.equal(pushed.status, 0, pushed.stderr);
-  return { ...fixture, ...commands, remote };
+  return { ...fixture, env: landFlagEnv(fixture.env, box.dir), ...commands, remote };
+}
+
+/**
+ * The fixture environment with the gate's switches (LAND_SUPPRESS_RED, LAND_UNNAMED_RED, LAND_CANCEL) mirrored to files.
+ * Why: a pulled gate runs in the machine's long-lived local runner, which keeps the environment it started with, so the
+ * fixture gate reads these switches from files the test toggles through box.env as before [C7,#5821].
+ */
+function landFlagEnv(env, dir) {
+  const names = new Set(['LAND_SUPPRESS_RED', 'LAND_UNNAMED_RED', 'LAND_CANCEL']);
+  return new Proxy(env, {
+    set(target, key, value) {
+      target[key] = value;
+      if (names.has(key)) { if (String(value) === '1') writeFileSync(join(dir, `flag-${key}`), '1'); else rmSync(join(dir, `flag-${key}`), { force: true }); }
+      return true;
+    },
+    deleteProperty(target, key) {
+      delete target[key];
+      if (names.has(key)) rmSync(join(dir, `flag-${key}`), { force: true });
+      return true;
+    },
+  });
 }
 
 /** Give one private item a distinct canonical lane identity and an independent main base. */
