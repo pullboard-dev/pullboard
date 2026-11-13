@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/logic/grammar.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `253` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `254` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -370,6 +370,20 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step` | `job_step_seq` | `INTEGER` | `NOT NULL`; `DEFAULT 0`; `UNIQUE` |
 | `job_step` | `job_step_payload` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
 | `job_step` | `job_step_at` | `INTEGER` | `NOT NULL` |
+| `run` | `run_job` | `TEXT` | `PRIMARY KEY` |
+| `run` | `run_kind` | `TEXT` | `NOT NULL` |
+| `run` | `run_item` | `INTEGER` | `nullable` |
+| `run` | `run_candidate` | `TEXT` | `nullable` |
+| `run` | `run_base` | `TEXT` | `nullable` |
+| `run` | `run_state` | `TEXT` | `NOT NULL` |
+| `run` | `run_attempt` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `run` | `run_outcome` | `TEXT` | `nullable` |
+| `run` | `run_summary` | `TEXT` | `nullable` |
+| `run` | `run_record` | `TEXT` | `nullable` |
+| `run` | `run_lease_owner` | `TEXT` | `nullable` |
+| `run` | `run_lease_until` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `run` | `run_created` | `INTEGER` | `NOT NULL` |
+| `run` | `run_updated` | `INTEGER` | `NOT NULL` |
 | `shout` | `shout_id` | `INTEGER` | `PRIMARY KEY` |
 | `shout` | `shout_from` | `TEXT` | `NOT NULL` |
 | `shout` | `shout_to` | `TEXT` | `NOT NULL` |
@@ -424,6 +438,8 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
 | `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
 | `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
+| `run_item_kind` | `run` | `run_item`, `run_kind` | no |
+| `run_open` | `run` | `run_state` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
