@@ -20,6 +20,9 @@ import { MAIN_TEST_KIND } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 
+/** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
+const RECEIPT_EXT = '.json';
+
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
@@ -118,7 +121,7 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
     const body = receiptBody(run);
     if (!body) continue;
     mkdirSync(folder, { recursive: true, mode: 0o700 });
-    writeFileSync(join(folder, `${run.id}.json`), body, { mode: 0o600, flag: 'wx' });
+    writeFileSync(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
     store.recordProofRun(board, { agentId: submit.agentId, itemId: id, receiptId: run.id });
     ids.push({ id: run.id, role: submitPhase, command: run.command });
   }
