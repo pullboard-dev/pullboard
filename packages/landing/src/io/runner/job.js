@@ -32,6 +32,20 @@ export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD',
   return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? push([]) : pushed;
 }
 
+/**
+ * After a landing into the board host's checkout, push the landed tip on to that checkout's own upstream (its origin),
+ * fast-forward only, with the landing permit; returns the receipt fields it adds. Why: with no trunk remote of record the
+ * job lands into the host checkout, and the Mac engine also published the tip to origin, so origin must not lag [B3,C7,#7398].
+ */
+export function publishUpstream(root, { payload, trunk, tip, options = [] }) {
+  if (typeof payload.upstream !== 'string' || !payload.upstream) return {};
+  const push = extra => tryGit(root, ['push', '--porcelain', '--quiet', ...extra, payload.upstream, `${tip}:${trunk}`]);
+  const first = push(options.flatMap(option => ['-o', option]));
+  const pushed = options.length && first.status !== 0 && NO_PUSH_OPTIONS.test(first.stderr) ? push([]) : first;
+  if (pushed.status === 0) return { published: tip };
+  return { published: null, detail: `landed on the board host's trunk, but its upstream refused ${tip.slice(0, 12)}: ${(pushed.stderr || pushed.stdout).slice(0, 240)}` };
+}
+
 /** Run git in the runner's landing checkout; throw with git's own words when it fails. */
 export function must(root, args) {
   const result = tryGit(root, args);
@@ -220,8 +234,9 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
  *
- * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string, header?: string, trailers?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, publish?: string, proof?: object, waivers?: object[] }} payload - checks: each item's own check by id; checkout:
- *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7]; waivers: the person's live waivers the proof may honour [#655].
+ * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string, header?: string, trailers?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, upstream?: string, publish?: string, proof?: object, waivers?: object[] }} payload - checks: each item's own check by id; checkout:
+ *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7]; upstream: that checkout's own remote, which then takes the
+ *   landed tip fast-forward [#7398]; waivers: the person's live waivers the proof may honour [#655].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, diagnose?: Function | null, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * `diagnose` (from the runner's handler setup, since packages never import apps) reads a red's failing cases and pairs them: ({ root, base, output, role, flakes, head, tree }) => the receipt's `red` record, or null.
@@ -252,7 +267,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     receipt.already = already;
     // A returned item stays out of every later attempt: it goes back to its builder, or parks, whatever trunk does next.
     const waiting = items.filter(entry => !already.includes(entry.id) && !receipt.returned.some(row => row.id === entry.id));
-    if (waiting.length === 0) return done(receipt.returned.length ? receipt.returned[0].reason : 'landed', { trunk: base, landed: [] });
+    if (waiting.length === 0) return receipt.returned.length ? done(receipt.returned[0].reason, { trunk: base, landed: [] })
+      : done('landed', { trunk: base, landed: [], ...publishUpstream(root, { payload, trunk, tip: base, options: pushOptions() }) });
     must(root, ['checkout', '-q', '--detach', '--force', base]);
     must(root, ['clean', '-q', '-fd']);
     // A sibling that collides goes back alone, as in 0.9.3: the items that merge cleanly still land [P7].
@@ -291,7 +307,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });
-    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id) });
+    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: (pushed.stderr || pushed.stdout).slice(0, 300) });
   }
