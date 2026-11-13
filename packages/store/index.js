@@ -100,6 +100,8 @@ export { HEALTH_SENTINEL_ENGINE } from "../state/light.js";
 export { HEALTH_CAP_ENGINE } from "../state/light.js";
 export { RECURRING_JOB_ENGINE } from "../state/light.js";
 export { RIGOR_NOTICE_ENGINE } from "../state/light.js";
+export { KNOWN_MAIN_RECEIPT_ENGINE } from "../state/light.js";
+export { ENGINE_VERSION } from "../state/light.js";
 
 export { rejectionReturnEnabled } from './src/logic/rework.js';
 

@@ -83,7 +83,9 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   ].join('\n'));
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...(cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'packages/codemap/data/plan/'] } } } : {}) }, null, 2) + '\n');
+  // A cells refusal can return the item to a plain claim before the test claims its second build, so a cells seat holds two.
+  const cellsPolicy = cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'packages/codemap/data/plan/'] } }, claims: { releaseGone: false, releaseCooldownMinutes: 30, ...config.claims, perSeat: 2 } } : {};
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...cellsPolicy }, null, 2) + '\n');
   if (cells) {
     mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
     writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { sharedToolsTarget } from '../../src/io/submit/handoff.js';
+import { sharedToolsTarget } from '../../src/io/toolsnapshot.js';
 import { scratchFolder } from '../../../../packages/config/index.js';
 import { removeJobToolSnapshot } from '../../../../packages/items/index.js';
 import { sweepToolTrees } from '../../../../packages/items/index.js';
