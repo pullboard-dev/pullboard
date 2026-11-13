@@ -1,6 +1,5 @@
 /** The land job's static guard: the project's staticChecks on the merged tree, as the batch landing ran it [C7,#7492]. */
 import { tryGit } from '../../../../git/index.js';
-import { commandCheck } from './job.js';
 
 // The gate's static scope variable and whole-repo inputs (packages/gate STATIC_SCOPE_ENV, analysisScope), named here so
 // the runner bundle stays free of the gate package, which reaches the CLI.
@@ -35,10 +34,12 @@ function scopedGuard(root, base, command) {
  * guard, so an accepted item with a red guard landed as verified; the inline lander refused it LAND_STATIC_RED [C7].
  *
  * @param {unknown} command - The board config's staticChecks command, carried on the job.
+ * @param {(argv: string[]) => (context: { root: string }) => Promise<{ ok: boolean, detail: string | null, output?: string }>} commandCheck - job.js's
+ *   command runner, passed in so this module reaches nothing job.js loads.
  * @returns {((context: { root: string, base: string }) => Promise<{ ok: boolean, detail: string | null, guard?: string }>) | null} null when the job names no guard;
  *   guard: the config row that went red, so the board returns the item to its builder even under separate publish.
  */
-export function staticGuardCheck(command) {
+export function staticGuardCheck(command, commandCheck) {
   const guard = typeof command === 'string' && command.trim() && !/\0/u.test(command) ? command.trim() : null;
   if (!guard) return null;
   return async ({ root, base }) => {
