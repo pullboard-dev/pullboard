@@ -435,6 +435,18 @@ async function typeKey(chrome, value) {
   await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: value, code, windowsVirtualKeyCode: keyCode });
 }
 
+/** Scroll the Items list so a row far down is drawn: the list draws only the rows near the screen (#6676), as a person would scroll to it. */
+async function scrollRowIntoView(chrome, id) {
+  await chrome.stable(`(() => {
+    const index = itemsList.shown.findIndex(item => item.id === ${id});
+    if (index < 0) throw new Error('item ${id} is not in the shown Items list');
+    const chain = document.querySelector('#chain');
+    window.scrollTo(0, Math.max(0, chain.getBoundingClientRect().top + window.scrollY + index * itemsPitch - innerHeight / 3));
+    return true;
+  })()`);
+  await chrome.waitFor(`!!document.querySelector('#chain .row[data-item="${id}"]')`);
+}
+
 /** Begin measuring the next native input of the requested type without including setup waits. */
 async function beginAction(chrome, name, eventType) {
   await chrome.stable(`window.__pb606Begin(${JSON.stringify(name)}, ${JSON.stringify(eventType)})`);
@@ -501,6 +513,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
         `document.querySelector('.tab.on')?.dataset.tab === ${JSON.stringify(tab)}`));
     }
 
+    await scrollRowIntoView(chrome, board.smallItemId);
     const smallRow = `document.querySelector('#chain .row[data-item="${board.smallItemId}"]')`;
     await beginAction(chrome, 'openSmallItem', 'mousedown');
     await press(chrome, smallRow);
@@ -508,6 +521,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     actions.push(await waitPaintedAndStable(chrome, network, 'openSmallItem', '#detail .item-panel',
       `view.item === ${board.smallItemId} && document.querySelector('#detail .item-panel-head h2')?.textContent.includes(${JSON.stringify(board.smallItemTitle)})`));
 
+    await scrollRowIntoView(chrome, board.longestHistoryItemId);
     const longRow = `document.querySelector('#chain .row[data-item="${board.longestHistoryItemId}"]')`;
     await beginAction(chrome, 'openLongestHistoryItem', 'mousedown');
     await press(chrome, longRow);
