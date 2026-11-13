@@ -15,14 +15,14 @@ import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures(e2e);
 
 /** Add a placeholder engine so the landing must amend its verified merge commit. */
 function unlandedEngine(name) {
   return `import { unassignedEngine } from './engine-next.js';\nexport const ${name.toUpperCase()}_ENGINE = unassignedEngine();\n`;
 }
 
-test('an automatic landing amends through the real hook while an ordinary worktree stays refused [C7]', { timeout: 240_000 }, () => { // budget: real Git, native submit/review and a complete hooked landing batch.
+test('an automatic landing amends through the real hook while an ordinary worktree stays refused [C7]', { timeout: 240_000 }, async () => { // budget: real Git, native submit/review and a complete hooked landing batch.
   // This case opens its own item worktree; an unused default seat would add an unrelated join-output contract.
   const box = landProject({ withWorktree: false });
   box.env.PULLBOARD_MODEL = 'Landing hook fixture';
@@ -40,11 +40,12 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   assert.equal(configured.status, 0, configured.stderr);
   box.git(box.repo, 'push', '-q', 'origin', 'main');
 
-  const entry = itemWorktree(box, 1, 'web/land-1.test.js');
+  const entry = await itemWorktreeLocal(box, 1, 'web/land-1.test.js');
   mkdirSync(join(entry.path, 'packages/state/src/logic/engines'), { recursive: true });
   writeFileSync(join(entry.path, 'packages/state/src/logic/engines/alpha-engine.js'), unlandedEngine('alpha'));
-  submitItem(box, entry);
-  acceptItem(box, entry);
+  await commitItemLocal(box, entry);
+  await submitItemLocal(box, entry);
+  await acceptItemLocal(box, entry);
 
   const before = box.git(entry.path, 'rev-parse', 'HEAD').trim();
   const unauthorized = box.tryGit(entry.path, 'commit', '--allow-empty', '--amend', '-m',
@@ -53,11 +54,10 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   assert.match(unauthorized.stderr, /verified item in the landing checkout/u);
   assert.equal(box.git(entry.path, 'rev-parse', 'HEAD').trim(), before, 'the refusal leaves the verified commit intact');
 
+  // Pull dispatch offers the landing as a runner job; the spawned command returns once the loopback runner has settled it.
   const result = box.run(box.repo, 'land', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
-  const landed = JSON.parse(result.out);
-  assert.deepEqual(landed.landed, [entry.item], landed.batch?.refusal?.message ?? JSON.stringify(landed));
-  const shown = box.run(box.repo, 'show', String(entry.item), '--json');
+  const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
   assert.equal(shown.code, 0, shown.err);
   const item = JSON.parse(shown.out);
   assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', item.item_merged_commit).split(' ').length, 3,
@@ -65,6 +65,6 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:packages/state/src/logic/engines/alpha-engine.js`), /ALPHA_ENGINE = 81;/u,
     "the installed commit-msg hook allowed the landing's verified item trailer");
   assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:docs/formats.md`), /`move engine` \| `81`/u);
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), item.item_merged_commit, 'the amended merge reaches actual main');
+  assert.equal(box.git(box.repo, 'rev-parse', 'main').trim(), item.item_merged_commit, 'the amended merge reaches actual main');
   assert.ok(readFileSync(join(box.repo, '.githooks/commit-msg'), 'utf8').includes('hook commit-msg'), 'the real hook remains installed');
 });

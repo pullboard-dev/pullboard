@@ -170,7 +170,8 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/icons/pullboard.svg', ['image/svg+xml', readFileSync(new URL('../icons/pullboard.svg', import.meta.url), 'utf8')]],
     ['/icons/pullboard-192.png', ['image/png', readFileSync(new URL('../icons/pullboard-192.png', import.meta.url))]],
     ['/icons/pullboard-512.png', ['image/png', readFileSync(new URL('../icons/pullboard-512.png', import.meta.url))]],
-    ...[...modules].map(([path, source]) => [path, ['text/javascript', source]]),
+    // A JSON module (an import with { type: 'json' }) must be answered as JSON, or Chrome refuses the whole graph that reaches it [H5,H15].
+    ...[...modules].map(([path, source]) => [path, [path.endsWith('.json') ? 'application/json' : 'text/javascript', source]]),
   ]);
   return async function handleBrowser(req, res) {
     const path = new URL(req.url, 'http://localhost').pathname;

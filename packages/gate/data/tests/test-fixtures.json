@@ -168,7 +168,7 @@
     "model": 1,
     "hand-policy": 1
   },
-  "apps/cli/tests/fixtures/flakes/project.js": {
+  "packages/git/tests/fixtures/flakes.js": {
     "tempdir": 2,
     "env-spread": 1,
     "model": 1
