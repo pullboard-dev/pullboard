@@ -8,6 +8,9 @@ import { rejectionClauseProblem } from "../../../../verify/index.js";
 import { requireSourceAdvanceReview } from "../../../../verify/index.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/light.js";
 import { itemPatchReviewProblem } from "../../../../items/index.js";
+import { vendorOfModel } from "../../../../items/index.js";
+import { familyName } from "../../../../verify/index.js";
+import { seatFamily } from "../../../../verify/index.js";
 import { outsideSandboxProblem } from "../../../../items/index.js";
 import { outsideSource } from "../../../../items/index.js";
 import { saveOutsideSource } from "../../../../items/index.js";
@@ -52,6 +55,25 @@ import { ROUTE_CALIBRATION_ENGINE } from "../../../../state/light.js";
 import { listAgents } from './query.js';
 import { measureBoardWritePhase } from './write/lock.js';
 import { endReviewLease } from './review/lease.js';
+
+/**
+ * The item with its builder family read from its claim events when it never recorded a builder or a family.
+ * Why: forced landings leave item_built_by empty, so verify.family require could not tell the builder's family and
+ * refused every reviewer. A reviewer whose family is among the claimers' families is checked against that family, so the
+ * same-family refusal holds; otherwise any claimer's family stands in [V1].
+ */
+function withClaimedBuilderFamily(board, item, agentId) {
+  if (item.item_built_by || String(item.item_builder_family ?? '').trim()) return item;
+  const families = [];
+  for (const event of events(board, { itemId: item.item_id })) {
+    if (event.event_kind !== 'claim') continue;
+    const family = vendorOfModel(JSON.parse(event.event_detail || '{}').model);
+    if (family && !families.includes(family)) families.push(family);
+  }
+  const reviewer = familyName(seatFamily(board, agentId));
+  const family = families.includes(reviewer) ? reviewer : families[0];
+  return family ? { ...item, item_builder_family: family } : item;
+}
 
 /**
  * The evidence a verdict names: known-main failures and a quarantine proof. With `enforce` false the slow reads (every item,
@@ -198,8 +220,9 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
       && events(board, { itemId: id }).some(event => event.event_kind === 'merged' && JSON.parse(event.event_detail || '{}').forced === true);
     if (!forced) throw new Refused('NOT_LANDED', `item #${id} is ${found?.item_status}, not landed by a forced merge: pullboard show ${id}`);
     const checks = reviewerChecks(board, { agentId, policy, familyPolicy });
+    const judged = withClaimedBuilderFamily(board, found, agentId);
     for (const guard of ['notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree']) {
-      const refusal = checks[guard](found);
+      const refusal = checks[guard](judged);
       if (refusal) throw refusal;
     }
     if (reason && reason !== ACCEPT_REASON) throw new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`);

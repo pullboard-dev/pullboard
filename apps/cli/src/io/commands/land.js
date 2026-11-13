@@ -33,6 +33,7 @@ import { quarantineVerdictSnapshot } from '../../../../../packages/flakes/index.
 import { validateQuarantineGate } from '../../../../../packages/flakes/index.js';
 import { validateQuarantineLandingProof } from '../../../../../packages/flakes/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
+import { pairPrefix } from '../../../../../packages/flakes/index.js';
 import { postLandSuitePorts } from '../ports/suite.js';
 import { parseProcessCensus } from '../../../../../packages/kernel/index.js';
 import { fileURLToPath } from 'node:url';
@@ -125,7 +126,7 @@ export async function run(io, { first, second, rest, values }) {
 
 /** Offer a runner land job from the main checkout (pull.js's offerPulledLanding), loaded only when a landing is offered. */
 async function offerLanding(ctx, root, options = {}) {
-  return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit, badgeDocuments: board => badgeDocuments(badgeCounts(board)) }, options);
+  return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, pairPrefix, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit, badgeDocuments: board => badgeDocuments(badgeCounts(board)) }, options);
 }
 
 /**

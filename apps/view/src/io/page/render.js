@@ -235,8 +235,9 @@ function paintItemsWindow() {
     itemsNodes = done.nodes;
     itemsDrawn = done.drawn;
   }
-  chain.style.paddingTop = windowed && at.start ? at.start * itemsPitch + 'px' : '';
-  chain.style.paddingBottom = windowed && at.end < rows.length ? (rows.length - at.end) * itemsPitch + 'px' : '';
+  const above = windowed && at.start ? at.start * itemsPitch : 0, below = windowed && at.end < rows.length ? (rows.length - at.end) * itemsPitch : 0;
+  chain.dataset.geo = 'items-chain';
+  geometry('items-chain', above || below ? { 'padding-top': above + 'px', 'padding-bottom': below + 'px' } : null);
 }
 
 // The parts that scroll on their own: each keeps its place through any draw (#6613).

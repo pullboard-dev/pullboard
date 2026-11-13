@@ -62,8 +62,8 @@ function projectMenuDraw() {
   document.body.insertAdjacentHTML('beforeend', projectMenuHtml(rows, esc, projectMenu.adding));
   const box = switcher.getBoundingClientRect();
   const menu = projectMenu.node = document.getElementById('proj-menu');
-  menu.style.top = Math.round(box.bottom + 4) + 'px';
-  menu.style.left = Math.round(box.left) + 'px';
+  menu.dataset.geo = 'project-menu';
+  geometry('project-menu', { top: Math.round(box.bottom + 4) + 'px', left: Math.round(box.left) + 'px' });
   switcher.setAttribute('aria-expanded', 'true');
 }
 /** The switcher's hook: open or close the menu, in the top and the sidebar layout alike; it always answers the press. */
