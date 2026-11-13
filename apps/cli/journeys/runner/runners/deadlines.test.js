@@ -18,7 +18,7 @@ test('the runner round trip deadline resets per attempt and still catches a stuc
     await assertAttemptDeadlineReset(PAIRED_RERUN_FIXTURE);
     await assertRedispatchDeadlineAccounting(PAIRED_RERUN_FIXTURE);
     assertFixtureGroupEpermControls();
-    await t.test('a permanently held result return remains a named bounded failure [C7]', async child => {
+    await t.test('a permanently held result return remains a named bounded failure [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async child => {
       await runPairedRerun(child, 'paired-no-load', PAIRED_RERUN_FIXTURE, { hold: 'return' });
     });
   });

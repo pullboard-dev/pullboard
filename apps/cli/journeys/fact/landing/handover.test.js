@@ -17,7 +17,6 @@ import {
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { onBoard } from '../../../tests/fixtures/land/board.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -73,10 +72,8 @@ test('a stale lander reason names both code commits and fits the landing_lease e
   assert.equal(staleLanderReason(loaded, null), null);
 });
 
-test('clause 1 and clause 2: a waiting lander started before main changed its code releases its place naming the change and a fresh lander takes over and lands [C7,#3467]', { timeout: 300_000 }, async t => { // budget: one real submit, a 30 s code watch, a real replacement lander and its landing; hang ceiling only.
+test('clause 1 and clause 2: a waiting lander started before main changed its code releases its place naming the change and a fresh lander takes over and lands [C7,#3467]', { skip: 'CONTROLLER_ONLY: deleted with #6579', timeout: 300_000 }, async t => { // budget: one real submit, a 30 s code watch, a real replacement lander and its landing; hang ceiling only.
   const box = landProject();
-  // The waiting lander is the controller's own automatic lander; a pull machine offers a runner land job instead (#6249).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   t.after(() => stopLanders(box));
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
