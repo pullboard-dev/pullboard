@@ -105,7 +105,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
           pageWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
         };
       })())`));
-      assert.deepEqual(rendered.eventIds.toSorted((a, b) => a - b), expectedIds, `${width}px: every rendered row retains its exact API event identities; missing ${JSON.stringify(expected.filter((entry) => !rendered.eventIds.includes(entry.eventId)).map((entry) => [entry.eventId, entry.type, entry.kind, entry.by, entry.at]))}`);
+      assert.deepEqual(rendered.eventIds.toSorted((a, b) => a - b), expectedIds, `${width}px: every rendered row retains its exact API event identities`);
       assert.ok(rendered.ids[0] > rendered.ids.at(-1), `${width}px: history is shown newest first`);
       assert.equal(rendered.eventIds.length, expected.length, `${width}px: each API event appears exactly once, folded moves included`);
       assert.ok(rendered.rows <= expected.length && rendered.rows === rendered.ids.length, `${width}px: each row carries its event ids`);
@@ -215,7 +215,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
           const chip = document.querySelector('#detail .item-panel-status .item-stage'), listed = document.querySelector('#chain .row[data-item="${row.id}"] .row-side .item-stage');
           const word = chip.querySelector('.stage-word'), listedWord = listed.querySelector('.stage-word'), seat = listed.querySelector('.item-seat');
           const paint = (node) => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color, getComputedStyle(node).outlineStyle];
-          return { chip: chip.getAttribute('aria-label'), samePaint: listedWord ? JSON.stringify(paint(word)) === JSON.stringify(paint(listedWord)) : null, paints: [paint(word), listedWord ? paint(listedWord) : null], seat: seat?.textContent.trim(), seatStage: seat?.getAttribute('aria-label'), seatVisible: seat ? seat.getClientRects().length > 0 : false };
+          return { chip: chip.querySelector('.stage-detail') ? word.textContent.trim() + ': ' + chip.querySelector('.stage-detail').textContent.trim() : chip.getAttribute('aria-label'), samePaint: listedWord ? JSON.stringify(paint(word)) === JSON.stringify(paint(listedWord)) : null, paints: [paint(word), listedWord ? paint(listedWord) : null], seat: seat?.textContent.trim(), seatStage: seat?.getAttribute('aria-label'), seatVisible: seat ? seat.getClientRects().length > 0 : false };
         })())`));
         if (detail.seat) {
           assert.ok(detail.seatVisible && detail.seatStage.startsWith(row.stage + ': '), `${width}: ruling 49037 keeps the visible seat and accessible stage: ${JSON.stringify(detail)}`);
