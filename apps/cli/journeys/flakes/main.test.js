@@ -8,7 +8,6 @@ import * as nativeBoard from '../../../lib/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 import { selectAffectedTests } from '../../../../packages/gate/index.js';
 import { selectTestTreeGuards } from '../../../../packages/gate/index.js';
-import '../../tests/fixtures/cases/quarantine.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
 import assert from 'node:assert/strict';

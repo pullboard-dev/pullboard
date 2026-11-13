@@ -1,5 +1,5 @@
 /** Coordinator-owned timing declarations, frozen with the check rather than supplied by its executor [C7,V4]. */
-import { Refused } from "../../../../kernel/light.js";
+import { Refused } from "../../../../kernel/browser.js";
 import { CHECK_TIMING_ENGINE } from "../../../../state/light.js";
 import { ENGINE_VERSION } from "../../../../state/light.js";
 

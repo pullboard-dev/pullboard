@@ -28,7 +28,7 @@ const CLI_NAME = /pullboard(?:Bin|Cli|Entry)|\b(?:BIN|CLI|CLI_ENTRY|ENTRY|cli|bi
 /** Any call on a box (`box` is the kit's own name); the member counts only when its helper starts a process. */
 const BOX_CALL = /(?<![\w$.])box\s*\.\s*([\w$]+)\s*\(/gu;
 /** The kit box members that run the CLI as a child process (apps/cli/tests/fixtures/e2e.js), for a box the test file does not build itself. */
-const KIT_LAUNCH = new Set(['run', 'runAs', 'cli', 'cliAt', 'runGate', 'launch']);
+const KIT_LAUNCH = new Set(['run', 'runAs', 'cli', 'cliAt', 'launch']);
 /** A bare call of a name, not a member call; the name is the helper a local closure may define. */
 const BARE_CALL = /(?<![\w$.])([\w$]+)\s*\(/gu;
 
