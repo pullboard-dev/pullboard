@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openBoard } from '../../../lib/index.js';
+import { openBoard } from '../../../../lib/index.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { submitFixture } from '../board/submit.js';
 import { installSshStandIn } from '../runner/ssh.js';
