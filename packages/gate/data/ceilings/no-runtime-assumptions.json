@@ -22,9 +22,6 @@
     "apps/cli/src/io/submit/gate.js": {
       "binSh": 1
     },
-    "apps/cli/src/io/submit/handoff.js": {
-      "binSh": 1
-    },
     "apps/cli/src/io/tour.js": {
       "testFile": 3,
       "nodeTest": 6,
