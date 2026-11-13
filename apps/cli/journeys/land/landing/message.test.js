@@ -91,7 +91,7 @@ async function buildAndAccept(box, entry, header = `feat(web): build ${entry.fil
   box.git(box.repo, 'switch', '-q', '--detach', head);
   try {
     const verdict = await box.runLocal(box.repo, 'verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', `${entry.file} exists at the submitted commit`);
-    assert.equal(verdict.code, 0, verdict.err);
+    assert.equal(verdict.code, 0, `${verdict.err}\nsubmit said: ${submitted.out}${submitted.err}`);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
 
