@@ -134,7 +134,7 @@ export function testRunItem({ named, folder = null, claims = [] }) {
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
  * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
  * @param {{ launch?: typeof spawn, now?: number, bin?: string }} [options] - `bin`: the CLI entry the worker runs, the build
- *   that queued it; the caller names it so this package never reaches into apps/ [C7]. Defaults to the running entry.
+ *   that queued it; the caller names it so this package names no app [C7]. Defaults to the running entry.
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
  */
 export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.now(), bin = process.argv[1] } = {}) {
