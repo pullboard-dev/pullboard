@@ -129,6 +129,7 @@ async function openNavMenuFor(chrome, find) {
     return side && !side.classList.contains('open') && getComputedStyle(target).display !== 'none' && target.getBoundingClientRect().width === 0 ? '#proj-switch' : null;
   } catch { return null; } })()`);
   if (button) await press(chrome, `document.querySelector(${JSON.stringify(button)})`, { native: false });
+  if (button === '#proj-switch') await press(chrome, 'document.querySelector("[data-proj-all]")', { native: false });
 }
 
 /**
