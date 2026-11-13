@@ -396,11 +396,13 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     assert.equal(page.element('proj-name').textContent, 'gam<i>ma');
     assert.ok(!page.html.includes('proj-elsewhere'), 'the folded button carries no count: what needs the person in each project is in the list it opens');
 
-    await page.click({ id: 'proj-switch', classes: 'switch-btn side' });
-    assert.ok(page.element('side').classList.contains('open'), 'the project button opens the list');
-    assert.equal(page.element('proj-switch').getAttribute('aria-expanded'), 'true');
-    await page.click({ classes: 'row' });
-    assert.ok(!page.element('side').classList.contains('open'), 'a click outside the sidebar folds it again');
+    // Where the sidebar is docked the project button opens the project menu; on a phone it still folds the list open.
+    const phone = await openPage(view, { width: 800 });
+    await phone.click({ id: 'proj-switch', classes: 'switch-btn side' });
+    assert.ok(phone.element('side').classList.contains('open'), 'the project button opens the list');
+    assert.equal(phone.element('proj-switch').getAttribute('aria-expanded'), 'true');
+    await phone.click({ classes: 'row' });
+    assert.ok(!phone.element('side').classList.contains('open'), 'a click outside the sidebar folds it again');
   } finally {
     await view.stop();
   }
