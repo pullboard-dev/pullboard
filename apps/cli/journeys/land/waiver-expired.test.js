@@ -61,7 +61,7 @@ async () => {
   assert.equal(commitFile(box, box.repo, FILES[0], 'PASS\n', 'chore: correct the flaky test').status, 0);
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   assert.equal((await box.runLocal(entry.path, 'claim', String(entry.item))).code, 0);
-  submitItem(box, entry, 'PASS again\n');
+  submitItem(box, entry, '// PASS again\n');
   await submittedAt(entry);
   acceptItem(box, entry);
   const landed = await settleLand(box, json(box, box.repo, 'land'));
