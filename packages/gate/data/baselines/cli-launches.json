@@ -1281,7 +1281,7 @@
     "launch": 3
   },
   "apps/cli/journeys/hold/demo.test.js": {
-    "launch": 12
+    "launch": 1
   },
   "apps/runner/tests/io/agent.test.js": {
     "launch": 1
