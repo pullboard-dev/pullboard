@@ -129,7 +129,7 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("!!data?.project");
     await press(chrome, "document.querySelector('[data-tab=items]')");
-    await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary')");
+    try { await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary')"); } catch (e) { throw new Error('PROBE ' + await chrome.stable("JSON.stringify({keys:Object.keys(data||{}),pk:Object.keys(data?.project||{}),root:data?.project?.root,stats:Object.keys(data||{}).filter(k=>/stat/i.test(k)),tab:document.querySelector('[data-tab=items]')?.className,err:document.body.innerText.slice(0,300)})")); }
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats-summary')`);
     await press(chrome, "document.querySelector('[data-tab=items]')");
