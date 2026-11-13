@@ -186,7 +186,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
       activeTab: typeof view !== 'undefined' ? view.tab : null,
       itemTitles: typeof data !== 'undefined' && Array.isArray(data?.project?.items) ? data.project.items.slice(0, 5).map(item => item.title) : [],
       notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800),
-    }))()`)));
+    }))()`)) + ' probe ' + JSON.stringify(await chrome.stable(`(async () => { const out = {}; try { const mod = await import('/relay/client.js'); out.client = 'loads ' + Object.keys(mod).join(','); } catch (e) { out.client = String(e?.stack ?? e).slice(0, 500); } out.scripts = [...document.scripts].map(s => s.src || 'inline:' + s.textContent.length); out.slow = performance.getEntriesByType('resource').filter(r => r.responseStatus !== 200).map(r => r.name + ':' + r.responseStatus).slice(0, 10); out.transport = typeof transport !== 'undefined' ? typeof transport : null; out.dataNull = typeof data !== 'undefined' ? String(data === null) : 'undefined'; return out; })()`).catch(String)));
     throw error;
   }
   await chrome.click(`document.querySelector('[data-tab="items"]')`);

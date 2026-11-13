@@ -256,7 +256,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   await chrome.navigate(box.origin);
   try { await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('pair this browser')"); }
   catch (error) {
-    error.message += '; page state: ' + JSON.stringify(await chrome.evaluate("({ errors: window.__relayPageErrors, notice: document.querySelector('#relay-notice')?.textContent, url: location.href, title: document.title })").catch(String));
+    error.message += '; probe ' + JSON.stringify(await chrome.evaluate(`(async () => { const out = {}; try { const mod = await import('/relay/client.js'); out.client = 'loads ' + Object.keys(mod).join(','); } catch (e) { out.client = String(e?.stack ?? e).slice(0, 500); } out.scripts = [...document.scripts].map(s => s.src || 'inline:' + s.textContent.length); out.slow = performance.getEntriesByType('resource').filter(r => r.responseStatus !== 200).map(r => r.name + ':' + r.responseStatus).slice(0, 10); out.transport = typeof transport !== 'undefined' ? typeof transport : null; out.dataNull = typeof data !== 'undefined' ? String(data === null) : 'undefined'; return out; })()`).catch(String)) + '; page state: ' + JSON.stringify(await chrome.evaluate("({ errors: window.__relayPageErrors, notice: document.querySelector('#relay-notice')?.textContent, url: location.href, title: document.title })").catch(String));
     throw error;
   }
   assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(firstTitle) + ')'), false);
