@@ -256,6 +256,7 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   assert.equal(events(box).length, before, 'the identical red resubmit does not rerun the completed main comparisons');
   assert.equal(mainReceipts(box).length, receiptCount, 'the identical red resubmit reuses completed exact-main results');
 });
+
 test('with gate.mainComparison off a pulled red that also fails on main stays red and offers no main-test job [V4,C7,#7490]', async t => {
   const box = knownMain(t);
   const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
