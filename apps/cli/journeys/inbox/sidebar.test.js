@@ -179,6 +179,8 @@ test('the project list drops from the switcher at the top left, over a full-widt
     assert.ok(closed.theme.right >= closed.width - 24 && closed.theme.top >= closed.tier.top && closed.theme.bottom <= closed.tier.bottom, 'the account slot sits at the right end of the top tier');
 
     await chrome.click('document.querySelector("#proj-switch")');
+    assert.ok(await chrome.stable('!!document.querySelector("#proj-menu .row")') && !(await read()).list.shown, 'the switcher opens the project menu first');
+    await chrome.click('document.querySelector("[data-proj-all]")');
     const dropdown = await read();
     assert.ok(dropdown.list.shown && dropdown.list.top >= dropdown.tier.bottom - 0.5 && dropdown.list.right <= dropdown.width, `the switcher opens the project list as a dropdown: ${JSON.stringify(dropdown.list)}`);
     await chrome.click('document.querySelector("#proj-switch")');
@@ -187,6 +189,7 @@ test('the project list drops from the switcher at the top left, over a full-widt
     await chrome.click('document.querySelector("main")');
     assert.equal((await read()).list.shown, false, 'a click outside closes it');
     await chrome.click('document.querySelector("#proj-switch")');
+    await chrome.click('document.querySelector("[data-proj-all]")');
     await chrome.click(`document.querySelector('#proj-list [data-root="${other.repo}"]')`);
     await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'collapse-other'`);
     assert.equal((await read()).list.shown, false, 'a pick closes it and shows that project');
