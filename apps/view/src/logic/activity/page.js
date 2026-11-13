@@ -137,8 +137,8 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
         + (seg.over && w > 140 ? '<tspan class="j-over" dx="6">' + esc(dur(seg.over)) + ' past limit</tspan>' : '') + '</text>';
     }
     s += '<line class="j-rule" x1="0" x2="' + Wc + '" y1="104" y2="104"/><text class="j-tk" x="0" y="118">' + clock(item.start) + '</text><text class="j-tk" x="' + Wc + '" y="118" text-anchor="end">' + (item.landed ? clock(item.end) : 'now') + '</text>';
-    const step = span > (narrow ? 90 : 180) * MIN ? 30 * MIN : 15 * MIN, edge = (narrow ? 14 : 7) / 100 * Wc;
-    for (let t = Math.ceil(item.start / step) * step; t < item.end; t += step) if (pct(t) > edge * 2.2 && pct(t) < Wc - edge * 2.2 && (!narrow || (t / MIN) % 30 === 0)) s += '<text class="j-tk mid" x="' + pct(t) + '" y="118" text-anchor="middle">' + clockShort(t) + '</text>';
+    const step = ([15, 30, 60, 120, 180, 360, 720, 1440].find(minutes => span / (minutes * MIN) <= (narrow ? 4 : 7)) ?? 1440) * MIN, edge = (narrow ? 14 : 7) / 100 * Wc;
+    for (let t = Math.ceil(item.start / step) * step; t < item.end; t += step) if (pct(t) > edge * 2.2 && pct(t) < Wc - edge * 2.2 && (!narrow || (t / step) % 1 === 0)) s += '<text class="j-tk mid" x="' + pct(t) + '" y="118" text-anchor="middle">' + clockShort(t) + '</text>';
     s += '</svg>';
     const mine = flow.events.filter(entry => entry.id === item.id);
     return '<div class="act-ip">' + s + '<div class="act-ipe">' + mine.slice(0, PAGE_ROWS).map(entry => rowHtml(entry, false)).join('')
