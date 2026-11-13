@@ -295,6 +295,11 @@ export async function verifyHere(ctx, id, { second, values }) {
     const earlier = earlierHolderProblem(board, item, me.id);
     if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
+    // The builder is always refused on its own forced landing, whatever the commit authors say: the claim history names it [V1,H16].
+    if (item.item_status === 'withdrawn' && item.item_merged_commit &&
+        (item.item_built_by === me.id || store.events(board, { itemId: id }).some(event => event.event_kind === 'claim' && event.event_by === me.id))) {
+      throw new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
+    }
     // A forced-landed item takes one verdict: a second one, by any seat, is refused before the move [V1,H16].
     if (item.item_status === 'withdrawn' && item.item_merged_commit && item.item_verdict) {
       throw new Refused('NOT_LANDED', `item #${id} already has a ${item.item_verdict} verdict by ${item.item_verified_by ?? 'another seat'}; a forced-landed item takes one verdict`);
