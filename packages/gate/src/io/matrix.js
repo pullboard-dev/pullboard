@@ -34,7 +34,7 @@ const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
 export const HARNESS_FILES = Object.freeze({
   'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
-  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a',
+  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
   'ready-budget': 'budget', 'runner-spec': 'spec', 'stale-dispatcher': 'dispatcher',
 });
 
@@ -93,6 +93,8 @@ export const HOPS = Object.freeze([
     invariant: 'An item reopened between selection and merge drops out of the landing batch: main never takes its commit and it records no merge.' },
   { id: 'shout-scope', stage: 'All', hop: 'a shout names an item this seat cannot act on', harness: 'shout-scope',
     invariant: 'A shout ends next --wait only for an item open in the seat\'s lane, claimed by it or reservable by it; any other shout is printed and the wait goes on.' },
+  { id: 'next-claim-fresh', stage: 'All', hop: 'next resumes a claim that changed in the same moment', harness: 'next-claim-fresh',
+    invariant: 'next prints you hold #N only after re-reading, in the read that prints, that the seat holds #N with a live lease; a lapsed lease selects again.' },
   { id: 'merged-twice', stage: 'Land', hop: 'pullboard merged run twice', harness: 'merged-twice',
     invariant: 'A second merged for a recorded item appends nothing and names the record; a different commit is refused MERGED_ALREADY.' },
   { id: 'command-latency', stage: 'All', hop: 'board command latency', harness: 'board-commands',

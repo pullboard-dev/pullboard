@@ -76,7 +76,7 @@ export default async function* report(events) {
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 const CRITERION = 'The page shows a greeting. The greeting names the visitor by first name. Old browsers fall back to plain text.';
 
-test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000, todo: 'pulled gate receipts carry no per-case outcomes, so the packet maps no clause to a run: 0.9.5 follow-up to #7007' }, () => {
+test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -200,7 +200,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
     'the accept records which clauses it read');
 });
 
-test('a test clause with no case of its own is proved by the item\'s check cases the gate ran; a clause whose own case was skipped is not [V4,C7]', { timeout: 240_000, todo: 'pulled gate receipts carry no per-case outcomes, so the packet maps no clause to a run: 0.9.5 follow-up to #7007' }, () => {
+test('a test clause with no case of its own is proved by the item\'s check cases the gate ran; a clause whose own case was skipped is not [V4,C7]', { timeout: 240_000 }, () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;

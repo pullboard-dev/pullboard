@@ -428,6 +428,10 @@
       "kind": "json",
       "owner": "apps/cli/src/io/landing/budget.js"
     },
+    "board-compaction.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/worktree/maintenance/compaction.js"
+    },
     "board-hold-baseline.json": {
       "kind": "json",
       "owner": "packages/store/src/io/board/hold/ratchet.js"
@@ -794,7 +798,7 @@
     },
     "pullboard.json": {
       "kind": "repo-data",
-      "owner": "packages/config/src/logic/config-file.js"
+      "owner": "packages/kernel/src/logic/config-file.js"
     },
     "pure-roots.json": {
       "kind": "repo-data",
