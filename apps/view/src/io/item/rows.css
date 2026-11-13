@@ -18,7 +18,7 @@
 .row.item-row .dot.open { --stage: var(--stage-ready); background: radial-gradient(circle, var(--stage) 0 3.5px, color-mix(in oklab, var(--stage) 16%, var(--surface)) 4px); box-shadow: none; }
 .row.item-row.gated .dot.open { --stage: var(--stage-gated); }
 .row.item-row.on { background: var(--surface-2); }
-.row.item-row .row-side .chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: none; padding: var(--space-0) var(--space-3); border-radius: var(--radius-pill); font-size: var(--text-xs); line-height: 1.3; letter-spacing: normal; }
+.row.item-row .row-side .chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: none; padding: var(--space-0) var(--space-3); border-radius: var(--radius-chip); font-size: var(--text-xs); line-height: 1.3; letter-spacing: normal; }
 .row.item-row .item-seat.building { background: color-mix(in oklab, var(--stage-building) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-building) 60%, var(--ink)); }
 .row.item-row .item-seat.back { background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); }
 .row.item-row .item-seat.verify { background: color-mix(in oklab, var(--stage-review) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-review) 60%, var(--ink)); }
