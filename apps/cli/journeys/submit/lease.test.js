@@ -168,8 +168,9 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 180_000 /*
     assert.equal(takeoverResult.code, 0, takeover.failure ?? takeover.stderrText);
     assert.equal(existsSync(intent), false, 'takeover removes its intent when it ends');
     assert.equal(project.git(project.web, 'rev-parse', 'HEAD'), expectedHead, 'submit leaves the originally submitted HEAD unchanged');
-    assert.equal(project.git(project.repo, 'rev-parse', `refs/pullboard/items/1/${expectedHead.slice(0, 12)}`), expectedHead,
-      'the submit receipt pins exactly the original HEAD');
+    // Under pull the candidate is pinned by the gate's own ref, not by the controller's per-item receipt ref.
+    assert.ok(project.git(project.repo, 'for-each-ref', '--format=%(objectname)', 'refs/pullboard/').split('\n').includes(expectedHead),
+      'the submitted gate pins exactly the original HEAD');
     assert.equal(boardState(database).item[0].item_status, 'submitted');
     assert.deepEqual(helpers.gateEvents(gate), ['start', 'end']);
 
