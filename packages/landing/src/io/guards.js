@@ -19,6 +19,7 @@ import { getItem } from '../../../store/index.js';
 import { itemPatches } from '../../../store/index.js';
 import { join } from 'node:path';
 import { scratchRoot } from '../../../config/index.js';
+import { storeName } from './store-names.js';
 
 const graphs = new Map();
 /** Imports of each source; a source that does not compile imports nothing provable, as the seal graph also treats it (#2438). */
@@ -257,7 +258,7 @@ function recordedMoves(root, commit) {
 function shardFor(to) {
   const parts = to.split('/');
   const name = (parts[0] === 'packages' || parts[0] === 'apps') && parts[1] ? parts[1] : 'untangle';
-  return `${SHARDS}${name}.json`;
+  return SHARDS + storeName(name);
 }
 
 /**
