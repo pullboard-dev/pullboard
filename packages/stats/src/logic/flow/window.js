@@ -238,12 +238,14 @@ function gapReach(index, gap, to, end) {
 
 /** Preserve the Dashboard's event-observed seat cohort and union overlapping work, with building first. */
 function seatWindow(history, bounds, gone = new Map()) {
-  const joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
+  const advisors = new Set(), joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
   const index = historyIndex(history);
   for (const { event, at } of index.joins) {
     if (!(at <= bounds.end) || joined.has(event.event_by) || ['coordinator', 'board', 'person', 'clock'].includes(event.event_by)) continue;
     const detail = proofEventDetail(event);
-    if (detail.lane && detail.lane !== 'coordinator') joined.set(event.event_by, at);
+    // An advisor reads and drafts; it is never a builder, so it leaves the idle cohort and is counted on its own.
+    if (detail.lane === 'advisor') advisors.add(event.event_by);
+    else if (detail.lane && detail.lane !== 'coordinator') joined.set(event.event_by, at);
   }
   for (const agent of joined.keys()) {
     let latest = -Infinity;
@@ -362,7 +364,7 @@ function seatWindow(history, bounds, gone = new Map()) {
     }
   }
   const idleMilliseconds = Math.max(0, budget - occupied), measured = unknownSeats.size === 0;
-  return { observedSeats: seats, unmeasuredSeats: unknownSeats.size,
+  return { observedSeats: seats, advisorSeats: advisors.size, unmeasuredSeats: unknownSeats.size,
     agentHours: measured ? budget / HOUR : null, idleHours: measured ? idleMilliseconds / HOUR : null,
     idleShare: measured ? comparisonRatio(idleMilliseconds, budget) : null,
     idleReasonHours: Object.fromEntries(IDLE_REASONS.map(reason => [reason, measured ? reasons[reason] / HOUR : null])),
