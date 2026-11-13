@@ -372,6 +372,20 @@ function mappedProducer(identity) {
   };
 }
 
+/**
+ * Supply several producers at once: a producer that re-exports another (session.js re-exports binding.js's leaf) needs
+ * both bodies read. Why: the fixture bar still reads only actual imported producer source.
+ */
+function mappedProducers(identities) {
+  const readers = identities.map(identity => mappedProducer(identity));
+  return file => {
+    for (const read of readers) {
+      try { return read(file); } catch { /* another producer owns this file */ }
+    }
+    return assert.fail(`no producer supplies ${file}`);
+  };
+}
+
 /** Read exact regular committed producer bytes from this source-only test checkout, never machine state. */
 const sourceSnapshot = file => mappedProducer('packages/seats/src/io/projects.js')(file);
 
@@ -610,7 +624,7 @@ test('session path producers prove a fixed leaf without granting authority to th
     valid.replace('return join', "if (info) return info.file; return join"),
   ]) assert.ok(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(source) }).problems.length, source);
   const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../packages/seats/index.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
-  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: mappedProducer('packages/seats/src/io/agent/session.js') }), { edits: [], problems: [] });
+  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: mappedProducers(['packages/seats/src/io/agent/session.js', 'packages/seats/src/io/agent/binding.js']) }), { edits: [], problems: [] });
 });
 
 test('a producer moved into a package behind its shim resolves its deep relative imports and keeps its exact bar [C7]', () => {
