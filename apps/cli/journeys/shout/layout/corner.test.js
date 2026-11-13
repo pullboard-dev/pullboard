@@ -99,26 +99,29 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     assert.ok(collapsed.logo.right <= collapsed.name.left && Math.abs(middle(collapsed.logo) - middle(collapsed.name)) <= 2, `the logo, then the name, in one row: ${JSON.stringify([collapsed.logo, collapsed.name])}`);
     assert.deepEqual([collapsed.mode, collapsed.arrow], ['collapsed', true], 'the name opens a list, so it carries the arrow');
 
-    /** Read whether the Settings and GitHub project tools are visible in their sidebar container. */
+    /** Read whether the GitHub project tool is visible in its sidebar container; Settings moved to the account menu (#6648, 961749a883). */
     const footer = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
-      const bar = document.querySelector('.side-footer'), settings = bar?.querySelector('[data-tab="settings"]'), github = bar?.querySelector('a[href]');
+      const bar = document.querySelector('.side-footer'), github = bar?.querySelector('a[href]');
       const shown = (element) => { const style = element && getComputedStyle(element), rect = element?.getBoundingClientRect(); return !!element && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0; };
-      return { bottomSibling: bar === document.querySelector('#side').lastElementChild && !bar.closest('#side-body'), settings: shown(settings), settingsText: settings?.textContent.trim(), github: shown(github), githubText: github?.textContent.trim(), footer: shown(bar) };
+      return { bottomSibling: bar === document.querySelector('#side').lastElementChild && !bar.closest('#side-body'), github: shown(github), githubText: github?.textContent.trim(), footer: shown(bar) };
     })())`));
-    assert.deepEqual(await footer(), { bottomSibling: true, settings: false, settingsText: 'Settings', github: false, githubText: 'GitHub ↗', footer: false }, 'collapsed, project tools leave the short logo row without shrinking it');
+    assert.deepEqual(await footer(), { bottomSibling: true, github: false, githubText: 'GitHub ↗', footer: false }, 'collapsed, the project tool leaves the short logo row without shrinking it');
     await click('#proj-switch');
     await chrome.waitFor("!!document.querySelector('#proj-menu .row')");
     await click('[data-proj-all]');
     await chrome.waitFor("document.querySelector('#side').classList.contains('open') && getComputedStyle(document.querySelector('.side-footer')).display === 'flex'");
-    assert.deepEqual(await footer(), { bottomSibling: true, settings: true, settingsText: 'Settings', github: true, githubText: 'GitHub ↗', footer: true }, 'the collapsed desktop popover exposes both project tools as visible controls');
+    assert.deepEqual(await footer(), { bottomSibling: true, github: true, githubText: 'GitHub ↗', footer: true }, 'the collapsed desktop popover exposes the project tool as a visible control');
     assert.equal(await chrome.stable(`(() => {
       const tools = document.querySelector('.side-footer').getBoundingClientRect();
       const project = document.querySelector('#proj-list .proj').getBoundingClientRect();
       return tools.bottom <= project.top && tools.right <= document.documentElement.clientWidth;
-    })()`), true, 'the collapsed tools fit above the project choices without covering them');
-    await click('.side-footer [data-tab="settings"]');
+    })()`), true, 'the collapsed tool fits above the project choices without covering them');
+    // Settings lives in the account menu now, and opens its pane from there.
+    await click('#account');
+    await chrome.waitFor("!document.querySelector('#account-menu').hidden");
+    await click('#account-menu [data-tab="settings"]');
     await chrome.waitFor("document.querySelector('#settings-pane') && !document.querySelector('#settings-pane').hidden");
-    assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), false, 'the Settings action opens its pane from the collapsed desktop popover');
+    assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), false, 'the Settings row opens its pane from the account menu');
 
     // The theme is a row in the account menu (#6648): it starts from the system's, each press switches light and dark,
     // the row says which the person kept, a reload keeps it; collapsed, the account control still sits centred in the top bar.
