@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/submit/gate.js */
 /** @pullboard-world-pin reads the submit gate source to prove its result move crosses volumes through moveAcross. */
 /** The CLI's shadow-batch and trusted-main folders are created under the scratch root, and submit's result move survives another volume [C7]. */
 import assert from 'node:assert/strict';
