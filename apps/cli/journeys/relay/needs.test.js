@@ -151,9 +151,10 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     await chrome.click(`document.querySelector('#feed [data-shout-thread="none"]')`);
     await chrome.waitFor("!!document.querySelector('#feed .conversation-heading') && document.querySelector('#feed').textContent.includes('Should the read-only fixture ship?')");
     assert.equal(await chrome.stable(`document.querySelectorAll('[data-go^="decide:"]').length`), 0, 'the open read-only decision conversation renders no Answer control');
-    const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]'];
+    const actionSelectors = ['#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]'];
     const actionMatches = JSON.parse(await chrome.stable(`JSON.stringify(${JSON.stringify(actionSelectors)}.map((selector) => ({ selector, count: document.querySelectorAll(selector).length, visible: [...document.querySelectorAll(selector)].some((node) => !node.hidden && getComputedStyle(node).display !== 'none') })))`));
     assert.ok(actionMatches.every((entry) => entry.count > 0), 'the seeded item, decision and hold exercise every action selector');
+    assert.equal(await chrome.stable(`document.querySelectorAll('button[data-page-ctl="new"]').length`), 0, 'read-only mode does not render the page New item control');
     assert.deepEqual(actionMatches.filter((entry) => entry.visible).map((entry) => entry.selector), [], 'read-only mode hides every match for every action control');
 
     const refusedAction = JSON.parse(await chrome.stable(`(async () => JSON.stringify({ result: await act('shout', { to: 'all', text: 'blocked' }), message: document.querySelector('#console').textContent }))()`));
