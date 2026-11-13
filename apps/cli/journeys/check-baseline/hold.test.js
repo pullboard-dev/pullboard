@@ -173,7 +173,9 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const submitted = box.run(box.web, ['submit', id, '--json']);
   assert.equal(submitted.status, 0, `a red new baseline lifts the hold: ${submitted.stdout}${submitted.stderr}`);
 
-  const second = addChecked(box, 'Render the quarterly ledger export', fileCheck('green', 'second-check-marker.txt')).item;
+  const secondAdd = box.run(box.repo, ['add', 'web', 'Render the quarterly ledger export', '--specs', 'G1', '--criterion', 'the ledger export renders', '--check', fileCheck('green', 'second-check-marker.txt'), '--not-duplicate-of', `${id} a second, unrelated item`, '--wait', '--json']);
+  assert.equal(secondAdd.status, 0, `${secondAdd.stdout}${secondAdd.stderr}`);
+  const second = JSON.parse(secondAdd.stdout).item;
   const nextHeld = box.run(box.web, ['next', '--json']);
   assert.equal(nextHeld.status, 0, `plain next ends the turn on the second held item: ${nextHeld.stdout}${nextHeld.stderr}`);
   assert.equal(JSON.parse(nextHeld.stdout).item, null, 'next hands out nothing for the second held item');
