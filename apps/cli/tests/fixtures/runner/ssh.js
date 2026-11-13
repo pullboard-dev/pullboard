@@ -192,7 +192,7 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
     if (hold === 'return') setInterval(() => {}, 60_000);
     cancelDropWait();
     record({ workerStarted: true, code, signal, stdinBytes, stdinSha256: stdinHash.digest('hex'),
-      agentOut: pullEnqueue && existsSync(home + '/agent.out') ? readFileSync(home + '/agent.out', 'utf8').slice(-1200) : null, agentLoad: existsSync(home + '/.pullboard-runner/load'), agents,
+      agentOut: pullEnqueue && existsSync(home + '/agent.out') ? readFileSync(home + '/agent.out', 'utf8').slice(-1200) : null, agentLoad: existsSync(home + '/.pullboard-runner/load'), agents, agentCtx: pullEnqueue && !skipAgent ? remoteCommand.slice(Math.max(0, remoteCommand.indexOf('nohup') - 120), remoteCommand.indexOf('nohup') + 60) + ' ...... ' + remoteCommand.slice(-500) : null,
       droppedAfterSetup,
       secretInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_RUNNER_FIXTURE_SECRET'),
       localPoolMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_POOL'),
