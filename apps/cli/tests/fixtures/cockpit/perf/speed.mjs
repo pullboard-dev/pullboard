@@ -119,7 +119,11 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
       env: { HOME: profile, PATH: process.env.PATH ?? '/usr/bin:/bin' } }));
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     await chrome.navigate(server.link.href);
-    await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')");
+    try { await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')"); }
+    catch (error) {
+      const seen = await chrome.evaluate("JSON.stringify({ text: document.body.innerText.slice(0, 400), loading: document.body.className, data: typeof data })").catch(e => e.message);
+      throw new Error(`DIAG ${seen} :: ${error.message.slice(0, 200)}`);
+    }
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     const hangs = [], hung = new Set();
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
