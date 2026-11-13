@@ -61,7 +61,6 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     const reloaded = await openPage(view, { store });
     const dbg = () => reloaded.run('JSON.stringify({kept: localStorage.getItem("pb.seen." + view.root), shouts: data.project.shouts.map(x=>x.shout_id), unseen: data.project.unseen, html: document.getElementById("status-unread").innerHTML, early: typeof data.early})');
     console.log('DBG1', await dbg());
-    await reloaded.run('new Promise((d) => setTimeout(d, 1500))');
     console.log('DBG2', await dbg());
     await reloaded.run('refresh()');
     console.log('DBG3', await dbg());
