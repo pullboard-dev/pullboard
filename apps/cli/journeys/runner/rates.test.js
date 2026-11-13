@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input docs-tree */
 /** @pullboard-world-pin reads docs/formats.md to prove it names the rate card form. */
 /** A runner's rate card is stored in settings and validated, and the CLI sets it [C7]. */
 import assert from 'node:assert/strict';
