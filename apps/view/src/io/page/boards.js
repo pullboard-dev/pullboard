@@ -278,6 +278,7 @@ function arrived(board, summary, shown, state) {
  */
 async function boardState(root, mark, fresh = null, shown = null) {
   const listed = await api('/api/v1/boards');
+  stateWorkerStopped = listed.stateWorker === 'stopped';
   if (!data) {
     // Names are already known: a slow board must not leave the project picker blank.
     const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
@@ -318,6 +319,8 @@ async function boardState(root, mark, fresh = null, shown = null) {
   };
 }
 
+// Whether the server's state worker has stopped, so the status bar says the view serves from the request thread.
+let stateWorkerStopped = false;
 // What each local board last sent this page, {state, sequence, version}: the base its next read asks to extend.
 const sentStates = new Map();
 // #552's delta applier, embedded as the server's own source, so the page applies a delta and recomputes nothing.
