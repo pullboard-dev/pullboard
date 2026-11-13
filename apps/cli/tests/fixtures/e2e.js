@@ -65,7 +65,8 @@ const SETTLE_MS = 180_000;
  * @param {object} env - The fixture environment.
  */
 function settlePulledJobs(cwd, args, env) {
-  if (!JOB_OFFERING.has(args[0]) || args.includes('--help')) return;
+  // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
+  if (!JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
   if (common.status !== 0) return;
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
