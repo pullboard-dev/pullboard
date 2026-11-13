@@ -5,12 +5,13 @@ import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fixture } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
-import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
+import { settledSubmit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 
 test('clause 1: twenty clean runs lift the quarantine two Submit pairs filed [C7,H16]', async t => {
   const box = fixture(t, false, false);
-  assert.equal(submit(box).code, 1);
-  assert.equal(submit(box).code, 0); // the active quarantine lets the computed verdict through
+  // Each Submit is a pulled gate job: its red pairs on the runner, and the board files the quarantine from that pair [P7,C7].
+  assert.equal((await settledSubmit(box)).code, 1);
+  assert.equal((await settledSubmit(box)).code, 0); // the active quarantine lets the computed verdict through
   const cleanIds = new Set();
   for (let index = 0; index < 20; index += 1) {
     writeFileSync(box.counter, 'run\n'); // The real next controlled body passes.
