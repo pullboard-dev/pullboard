@@ -200,3 +200,18 @@ test('clause 2: the store-homes recount under --ratchet raises no per-file ceili
   assert.deepEqual(storeBaselineGrowth(recount, baseline), []);
   assert.equal(recount['packages/api/src/io/main.js']?.['board.sqlite'], undefined, 'the API server asks the store for the path');
 });
+
+test('#6746 clause 1: build.js is the one home of writeTimer and the maintenance scheduler imports it [CD2]', () => {
+  const read = file => readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8');
+  const build = read('apps/cli/src/io/tool/build.js');
+  const scheduler = read('apps/cli/src/io/worktree/maintenance/scheduler.js');
+  assert.match(build, /export function writeTimer\(/u);
+  assert.doesNotMatch(scheduler, /function (?:writeTimer|readTimer|timerFiles)\(/u, 'no second definition');
+  assert.match(scheduler, /import \{ writeTimer \} from '\.\.\/\.\.\/tool\/build\.js';/u);
+});
+
+test('#6746 clause 2: the store-homes baseline drops the scheduler timer rows, 2 of 4 [CD2]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  assert.equal(baseline['apps/cli/src/io/worktree/maintenance/scheduler.js'], undefined);
+  assert.deepEqual(baseline['apps/cli/src/io/tool/build.js'], { 'timer.guard.sqlite': 1, 'timer.json': 1 });
+});
