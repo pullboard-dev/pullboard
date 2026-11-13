@@ -1,0 +1,49 @@
+/** @pullboard-test-input source-tree */
+/** @pullboard-world-pin reads cost.css and main.css to prove the width rules the page ships. */
+/** Cost draws its frame and last known numbers at once, and Cost and Settings use the page's full width [N26]. */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import { costOverviewHtml } from '../../../src/io/cost/overview.js';
+import { pageScriptPart3 } from '../../../src/io/page/boards.js';
+
+const css = name => readFileSync(new URL('../../../src/io/' + name, import.meta.url), 'utf8');
+
+/** The page script's Cost reader and pane, run against a request that never answers and an in-memory keep(). */
+function costPage(stored = {}) {
+  const script = pageScriptPart3({ applyStateDelta: function applyStateDelta() {}, expandItemSummaries: function expandItemSummaries() {}, costPrices: null, costTabScript: () => '', privateCost: true });
+  const names = ['privateCost', 'snapshot', 'hosted', 'readOnly', 'data', 'view', 'keep', 'api', 'boardPath', 'render', 'modelTables', 'costOverviewHtml'];
+  const kept = new Map(Object.entries(stored));
+  const calls = { api: 0, render: 0 };
+  const values = [true, false, {}, false, { projects: [{ root: '/repo', ok: true, id: 'b1' }] }, { root: '/repo', tab: 'cost', costWindow: '7d' },
+    (name, value) => { if (value === undefined) return kept.get(name) ?? null; kept.set(name, value); return value; },
+    () => { calls.api += 1; return new Promise(() => {}); }, root => '/boards/' + root, () => { calls.render += 1; }, { vendorClasses: [] }, costOverviewHtml];
+  const page = new Function(...names, script + '\nreturn { readCostHistory, costPaneHtml };')(...values);
+  return { ...page, kept, calls };
+}
+
+test('clause 1: Cost with nothing read yet draws its heading and period buttons at once, not a blank Loading page [N26]', () => {
+  const { readCostHistory, costPaneHtml, calls } = costPage();
+  const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
+  assert.equal(calls.api, 1, 'the read starts');
+  assert.match(html, /<h1>Cost<\/h1>[^]*data-cost-window="today"[^]*data-cost-window="7d" aria-pressed="true"[^]*data-cost-window="30d"/u, 'the frame is there');
+  assert.match(html, /class="cost-card cost-waiting" role="status">Reading cost history…/u, 'the numbers say they are on their way, in place');
+  assert.doesNotMatch(html, /Loading cost history/u, 'no blank loading page');
+});
+
+test('clause 1: Cost draws the last numbers this browser read while the fresh read is on its way [N26]', () => {
+  const last = { window: '7d', totals: { agentMs: 7_200_000, itemCount: 12 }, days: [], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 12 };
+  const { readCostHistory, costPaneHtml, calls } = costPage({ 'pb.cost./repo\n7d': JSON.stringify(last) });
+  const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
+  assert.equal(calls.api, 1, 'a fresh read still starts');
+  assert.match(html, /<p class="cost-big">2<small>hours<\/small>/u, 'the remembered agent time is drawn at once');
+  assert.match(html, /class="cost-updating" role="status">Updating…/u, 'and says it is updating');
+  assert.doesNotMatch(html, /cost-waiting|Loading cost history/u);
+  assert.doesNotMatch(costOverviewHtml(last, null, { updating: false }), /cost-updating/u, 'a settled page says nothing');
+});
+
+test('clause 2: Cost and Settings take the page width and the Agent time card ends with its content [N26]', () => {
+  assert.doesNotMatch(css('cost.css'), /\.cost-page\s*\{[^}]*max-width/u, 'Cost has no width cap');
+  assert.match(css('cost.css'), /\.cost-summary\s*\{[^}]*align-self: start/u, 'the Agent time card is not stretched to the chart beside it');
+  assert.doesNotMatch(css('main.css'), /#settings-pane\s*\{[^}]*(?:max-width|margin-inline)/u, 'Settings has no width cap and is not centred');
+});
