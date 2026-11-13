@@ -1062,6 +1062,14 @@ document.addEventListener('click', (event) => {
 });
 // The viewport's scroll is fired at the document; the tests' stand-in document has no window.
 document.addEventListener('scroll', updateRoadmapPanel, { passive: true });
+// Items draws only the rows near the screen (#6676): scrolling or resizing moves that slice, once a frame.
+let itemsWindowFrame = 0;
+function moveItemsWindow() {
+  if (view.tab !== 'items' || itemsWindowFrame) return;
+  itemsWindowFrame = (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => setTimeout(next, 0))(() => { itemsWindowFrame = 0; if (view.tab === 'items') paintItemsWindow(); });
+}
+document.addEventListener('scroll', moveItemsWindow, { passive: true });
+if (typeof addEventListener === 'function') addEventListener('resize', moveItemsWindow, { passive: true });
 /** Close the expanded stats card and return focus to the list's summary control on Escape. */
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || !view.statsOpen || view.tab !== 'items' || document.querySelector('[data-pane="items"]')?.hidden) return;
