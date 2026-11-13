@@ -29,7 +29,6 @@
   "src/landing-completion.js": "packages/landing/src/io/completion.js",
   "src/landing-docs.js": "packages/landing/src/io/docs.js",
   "src/landing-envelope.js": "packages/landing/src/logic/envelope.js",
-  "src/main-failure-noise.js": "packages/landing/src/logic/main/noise.js",
   "src/publish-pause.js": "packages/landing/src/io/pause.js",
   "src/record-train-landing.js": "packages/landing/src/io/trainrecord.js",
   "src/train-landing-receipt.js": "packages/landing/src/io/train/receipt.js",
