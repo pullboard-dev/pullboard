@@ -19,7 +19,7 @@ export const policyFixtures = createE2eHelpers();
 export async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
   const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
-  try { const { readdirSync: rd } = await import('node:fs'); for (const f of rd(box.dir, { recursive: true })) if (String(f).endsWith('.debug')) console.error('APPLY', f, readFileSync(join(box.dir, f), 'utf8').slice(0, 4000)); console.error('APPLY scanned', box.dir); } catch (error) { console.error('APPLY none', error.message); }
+  for (const dir of [process.env.TMPDIR ?? '/tmp', join(box.dir, '..'), box.dir, box.env.TMPDIR ?? '']) { try { console.error('APPLY', dir, readFileSync(join(dir, 'ownerhold.debug'), 'utf8').slice(-3000)); } catch (error) { console.error('APPLY none', dir); } }
   console.error('DEBUG', JSON.stringify((item.thread ?? []).filter(row => row.type === 'fact').map(row => row.text)).slice(-4000));
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
