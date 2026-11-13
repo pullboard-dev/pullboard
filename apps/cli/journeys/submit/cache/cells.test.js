@@ -38,7 +38,10 @@ test('clause 1: on this repository, a runner job whose main moved since the cach
   const repository = fileURLToPath(new URL('../../../../..', import.meta.url));
   const cellFile = 'packages/landing/src/io/step/failures.js';
   const first = freshJob(t, repository), mainA = git(first, 'rev-parse', 'HEAD').trim();
+  const sourceA = commitOn(first, mainA, cellFile, `${readFileSync(join(first, cellFile), 'utf8')}// probe ${randomUUID()}\n`, 'a cell changes');
   // main A: the producer runs once, inside the first job's own cells stage, so the cache it warms is the one main B starts from.
+  const warmup = remoteCells(first, mainA, sourceA);
+  t.diagnostic(`main A job: ${warmup.toFixed(1)} s`);
 
   // A later job: a new checkout, main's tools archived into a new temporary folder, and main one changed file ahead.
   const later = freshJob(t, repository);
