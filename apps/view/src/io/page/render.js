@@ -431,9 +431,8 @@ function render({ tab: switching = false } = {}) {
   /** An item's heading: its id, title, state, lane and route, all of which its summary holds. */
   /** The opened item's header, drawn the same while its detail loads and once it has arrived: lane, size and milestone as chips, then its state and holder as chips (#6769). */
   const panelHead = (item, more = '') => {
-    const holder = holderOf(item) || reviewerOf(item), agent = holder ? p.agents.find(entry => entry.agent_id === holder) : null;
-    const model = [agent?.model, agent?.agent_model].find(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'unknown');
-    const holderChip = holder ? '<span class="chip holder" title="' + esc(agentName(holder) + (model ? ' (' + model + ')' : '')) + '">' + esc(agentName(holder)) + (model ? ' · ' + esc(model) : '') + '</span>' : '';
+    const holder = holderOf(item) || reviewerOf(item);
+    const holderChip = holder ? '<span class="chip holder" title="' + esc((stateOf(item) === 'verify' ? 'Reviewing: ' : 'Building: ') + agentName(holder)) + '">' + esc(agentName(holder)) + '</span>' : '';
     const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
     return '<header class="item-panel-head"><div class="item-panel-where">' + where.map(part => '<span class="chip">' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">'
       + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p), false, false, Boolean(holderChip)) + holderChip + more + '</div></header>';
