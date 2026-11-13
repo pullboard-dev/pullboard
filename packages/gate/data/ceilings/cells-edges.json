@@ -1072,10 +1072,6 @@
       "cells": 5,
       "deep": 1
     },
-    "apps/lib/src/io/submit/handoff.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/lib/src/io/submit/requeue.js": {
       "cells": 5,
       "deep": 0
