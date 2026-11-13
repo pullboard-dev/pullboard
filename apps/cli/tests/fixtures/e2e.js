@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
 import { runFixtureChild } from './child.js';
-import { runFixtureGit } from './child.js';
+import { runFixtureSetupGit } from './child.js';
 import { performance } from 'node:perf_hooks';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -107,7 +107,7 @@ function sandbox({ declareFamilies = false } = {}) {
   delete env.PULLBOARD_RELAY_TOKEN;
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
-  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
+  const git = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const declaredFamilies = new Map();
   /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
