@@ -22,7 +22,7 @@ import {
   heldCheck,
   cleanupFixtures,
 } from '../../tests/fixtures/check-baseline.js';
-import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
+import { fixtureRunnerFolder } from '../../tests/fixtures/runner/local-start.js';
 
 after(cleanupFixtures);
 
@@ -67,9 +67,8 @@ test('[V2,H3,H16] baseline comes from committed main while manual check uses the
   const locations = readFileSync(observations, 'utf8').trim().split('\n');
   assert.equal(locations.length, 1, 'the newly supplied check runs exactly once');
   assert.ok(locations[0] !== box.repo && locations[0] !== box.web, 'it runs in neither live checkout');
-  // The runner removes its temporary checkout just after it records the result.
-  await whenRunnerSettles(box.env, () => !existsSync(locations[0]), { deadlineMs: 60_000, what: 'the baseline checkout removal' });
-  assert.equal(existsSync(locations[0]), false, 'the temporary checkout is removed after recording the result');
+  // A pulled baseline runs in the local runner's own work folder, which the runner keeps and reuses (no per-job temporary clone to remove).
+  assert.ok(locations[0].startsWith(fixtureRunnerFolder(box.env)), `it runs in the local runner's folder: ${locations[0]}`);
 
   const manual = box.run(box.web, ['check', String(item.item_id), '--yes', '--json']);
   assert.equal(manual.status, 0, `${manual.stdout}${manual.stderr}`);
