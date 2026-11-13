@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { userInfo } from 'node:os';
@@ -53,6 +54,17 @@ function repath(value, from, to) {
  */
 export function stressCacheRoot() { return join(userInfo().homedir, '.pullboard-runner', 'cache', 'stress-boards'); }
 
+/** Point the small text files that name the board's old path (the project registry, setup records) at the copy. */
+function repathFiles(dir, from, to) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) { repathFiles(path, from, to); continue; }
+    if (!entry.isFile() || /\.sqlite/.test(entry.name) || statSync(path).size > 1_000_000) continue;
+    const text = readFileSync(path, 'utf8');
+    if (text.includes(from)) writeFileSync(path, text.split(from).join(to));
+  }
+}
+
 /** Same result as generateStressBoard, but copied from the runner's cache; removeStressBoard cleans the copy. */
 export function cachedStressBoard(inputs) {
   const cache = join(stressCacheRoot(), cacheKey(inputs));
@@ -71,5 +83,6 @@ export function cachedStressBoard(inputs) {
   const manifest = JSON.parse(readFileSync(join(workspace, 'stress-board.json'), 'utf8'));
   const env = JSON.parse(readFileSync(join(workspace, 'env.json'), 'utf8'));
   rmSync(join(workspace, 'env.json'));
+  for (const part of ['home', 'machine-home', join('board', '.git', 'pullboard')]) repathFiles(join(workspace, part), built, workspace);
   return { ...repath(manifest, built, workspace), parent: tmpdir(), workspace, env: repath(env, built, workspace) };
 }
