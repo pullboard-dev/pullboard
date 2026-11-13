@@ -16,10 +16,8 @@ import {
   settledSubmit,
 } from '../../../../tests/fixtures/init/known-frozen.js';
 
-/** The pulled gate does not yet judge a frozen red against main's receipts (mainOwnedGate runs only in the controller submit), so these journeys wait for it [V4,B3,C7]. */
-const PULLED_MAIN_OWNED = 'pending: the pulled gate records no main-owned verdict; remainder is #7104 (filed from #7045)';
 
-test('verify accepts an identical owned main red and records its exact case [V4,B3]', { skip: PULLED_MAIN_OWNED }, async t => {
+test('verify accepts an identical owned main red and records its exact case [V4,B3]', async t => {
   const box = fixture(t), repair = fileMainRed(box);
   const settled = await settledSubmit(t, box);
   assert.equal(settled.gate.green, true, 'the pulled gate ends green: ' + JSON.stringify(settled.gate));
@@ -48,7 +46,7 @@ test('verify refuses a frozen failure that is green on main [V4,B3]', t => {
   assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
 });
 
-test('verify refuses an identical main failure without an open repair owner [V4,B3]', { skip: PULLED_MAIN_OWNED }, async t => {
+test('verify refuses an identical main failure without an open repair owner [V4,B3]', async t => {
   const box = fixture(t);
   const settled = await settledSubmit(t, box);
   assert.equal(settled.gate.green, true, 'the pulled gate ends green: ' + JSON.stringify(settled.gate));
@@ -58,7 +56,7 @@ test('verify refuses an identical main failure without an open repair owner [V4,
   assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
 });
 
-test('a frozen case red identically on main with no owner records a green gate listing it main-owned, shouts, and files nothing [V4,B3,C7]', { skip: PULLED_MAIN_OWNED }, async t => {
+test('a frozen case red identically on main with no owner records a green gate listing it main-owned, shouts, and files nothing [V4,B3,C7]', async t => {
   const box = fixture(t);
   const report = await settledSubmit(t, box);
   // Since #3534 the gate records green over main's own reds and names them, instead of a builder fact.
@@ -72,7 +70,7 @@ test('a frozen case red identically on main with no owner records a green gate l
   assert.equal(asked.length, 1, 'exactly one decision shout reaches the coordinator: ' + JSON.stringify(shouts));
 });
 
-test('an open Main red repair is linked, not duplicated [V4,B3]', { skip: PULLED_MAIN_OWNED }, async t => {
+test('an open Main red repair is linked, not duplicated [V4,B3]', async t => {
   const box = fixture(t);
   const repair = fileMainRed(box);
   const report = await settledSubmit(t, box);
