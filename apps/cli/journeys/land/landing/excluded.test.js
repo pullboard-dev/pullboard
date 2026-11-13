@@ -7,6 +7,7 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 import { json } from '../../../tests/fixtures/land/board.js';
 import {
   fileFixtureItem,
@@ -38,7 +39,8 @@ const opaque = box => file => `node ${JSON.stringify(box.checks)} ${JSON.stringi
 async function landAll(box, entries) {
   for (const entry of entries) submitItem(box, entry);
   for (const entry of entries) acceptItem(box, entry);
-  return box.runLocal(box.repo, 'land', '--json');
+  const landed = await box.runLocal(box.repo, 'land', '--json');
+  return { ...landed, result: await settleLand(box, JSON.parse(landed.out)) };
 }
 
 test('items with no check or an unreadable check land with a literal-plan item, with no LAND_DIAGNOSTIC [C7,#2897]', { timeout: 300_000 }, // budget: three real submits, accepts and one landing; hang ceiling only.
@@ -48,7 +50,7 @@ async () => {
   const landed = await landAll(box, entries);
   assert.equal(landed.code, 0, landed.out + landed.err);
   assert.doesNotMatch(landed.out + landed.err, /LAND_DIAGNOSTIC/u);
-  const result = JSON.parse(landed.out);
+  const { result } = landed;
   assert.equal(result.batch?.state, 'landed', landed.out);
   assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map(entry => entry.item), 'all three items land');
   for (const entry of entries) assert.ok(json(box, box.repo, 'show', String(entry.item)).item_merged_commit, `#${entry.item} recorded its merge`);
@@ -60,7 +62,7 @@ async () => {
   const entries = [await item(box, 1, opaque(box)), await item(box, 2, opaque(box))];
   const landed = await landAll(box, entries);
   assert.equal(landed.code, 0, landed.out + landed.err);
-  const result = JSON.parse(landed.out);
+  const { result } = landed;
   assert.equal(result.batch?.state, 'landed', landed.out);
   assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map(entry => entry.item));
 });
