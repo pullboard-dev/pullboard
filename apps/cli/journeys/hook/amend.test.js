@@ -46,6 +46,11 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   await commitItemLocal(box, entry);
   await submitItemLocal(box, entry);
   await acceptItemLocal(box, entry);
+  // A second verified item the landing is not offered: its trailer must stay no authority, and it must not land with the first [C7].
+  const sibling = await itemWorktreeLocal(box, 2, 'web/land-2.test.js');
+  await commitItemLocal(box, sibling);
+  await submitItemLocal(box, sibling);
+  await acceptItemLocal(box, sibling);
 
   const before = box.git(entry.path, 'rev-parse', 'HEAD').trim();
   const unauthorized = box.tryGit(entry.path, 'commit', '--allow-empty', '--amend', '-m',
@@ -55,7 +60,7 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   assert.equal(box.git(entry.path, 'rev-parse', 'HEAD').trim(), before, 'the refusal leaves the verified commit intact');
 
   // Pull dispatch offers the landing as a runner job; the spawned command returns once the loopback runner has settled it.
-  const result = box.run(box.repo, 'land', '--json');
+  const result = box.run(box.repo, 'land', '--max', '1', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
   assert.equal(shown.code, 0, shown.err);
@@ -66,5 +71,13 @@ test('an automatic landing amends through the real hook while an ordinary worktr
     "the installed commit-msg hook allowed the landing's verified item trailer");
   assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:docs/formats.md`), /`move engine` \| `81`/u);
   assert.equal(box.git(box.repo, 'rev-parse', 'main').trim(), item.item_merged_commit, 'the amended merge reaches actual main');
+  // The job's authority is its own offered item: the sibling stays verified and unmerged, and its trailer is still no authority in its ordinary worktree.
+  const other = JSON.parse((await box.runLocal(box.repo, 'show', String(sibling.item), '--json')).out);
+  assert.equal(other.item_status, 'verified', 'the landing job did not take the item it was not offered');
+  assert.equal(other.item_merged_commit, null);
+  const borrowed = box.tryGit(sibling.path, 'commit', '--allow-empty', '--amend', '-m',
+    `feat(merge): claim the verified item\n\nPullboard-Item: #${sibling.item}`);
+  assert.notEqual(borrowed.status, 0, "the sibling's verified trailer is no authority after the job landed another item");
+  assert.match(borrowed.stderr, /verified item in the landing checkout/u);
   assert.ok(readFileSync(join(box.repo, '.githooks/commit-msg'), 'utf8').includes('hook commit-msg'), 'the real hook remains installed');
 });

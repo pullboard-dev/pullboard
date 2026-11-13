@@ -137,6 +137,7 @@ test('cell-lints --check passes an unrelated item while main carries non-shim de
 test('cell-lints --check refuses only the debt the item adds over main, naming its file [C7]', t => {
   const box = staleLintMain(t);
   box.put('item-stray.js', 'void 0;\n');
+  box.git('add', '-A'); // the cell inventory reads tracked files only
   const checked = box.check();
   assert.notEqual(checked.status, 0);
   assert.match(checked.stderr, /strays:item-stray\.js/u);

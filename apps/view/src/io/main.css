@@ -483,6 +483,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .seg { display: inline-flex; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; height: var(--tap); gap: var(--space-0); padding: var(--space-0); border-radius: var(--radius-md); background: var(--surface-2); }
 .seg button { position: relative; flex: none; height: calc(var(--tap) - var(--space-1)); min-height: 0; border: 0; background: none; padding: 0 var(--space-4); border-radius: var(--radius-sm); color: var(--ink-muted); cursor: pointer; font: var(--text-sm) var(--sans); white-space: nowrap; }
 /* Transparent edge targets fill the track padding without enlarging the visible option. */
+.seg-short { display: none; }
 .seg-hit { position: absolute; left: 0; right: 0; height: var(--space-0); }
 .seg-hit-top { top: calc(var(--space-0) * -1); }
 .seg-hit-bottom { bottom: calc(var(--space-0) * -1); }
@@ -1403,12 +1404,15 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 :is(#spec-list, #doctrine-list) .spec-record .meta { min-width: 0; overflow: hidden; }
 :is(#spec-list, #doctrine-list) .spec-record .meta > * { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :is(#spec-list, #doctrine-list) .spec-record a.ref { display: inline; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Each label is one whole word beside its full count, so no tab needs a cut; a tab never ends in an ellipsis (#7400). */
 @media (max-width: 700px) {
   #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow: hidden; }
-  #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); white-space: nowrap; }
   #spec-chips .seg button, #doctrine-chips .seg button { display: flex; align-items: center; justify-content: center; }
-  #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  #spec-chips .seg button b, #doctrine-chips .seg button b { flex: none; }
+  #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: visible; }
+  #spec-chips .seg-full, #doctrine-chips .seg-full { display: none; }
+  #spec-chips .seg-short, #doctrine-chips .seg-short { display: inline; }
+  #spec-chips .seg button b, #doctrine-chips .seg button b { flex: none; margin-left: var(--space-1); }
 }
 .spec-gate { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; color: var(--ink-muted); }
 .spec-gate code { font: var(--text-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1459,7 +1463,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .set-groups { display: grid; gap: var(--space-5); margin-top: var(--space-5); }
 .set-sect { min-width: 0; }
 .set-group { background: var(--surface); border: var(--border); border-radius: var(--radius-card); overflow: hidden; }
-.set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
+.set { display: grid; grid-template-columns: minmax(0, 1fr) auto 28px; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
 .set.has-copy { grid-template-columns: minmax(0, 1fr) auto 28px; }
 .set + .set { border-top: var(--border); }
 .set .name { min-width: 0; }
