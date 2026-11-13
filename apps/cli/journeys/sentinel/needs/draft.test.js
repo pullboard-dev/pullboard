@@ -19,6 +19,7 @@ import {
   closeSnapshotChrome,
   press,
   proofShot,
+  openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
 test('clause 1: sentinel draft Command, Directory and Schedule labels never overlap long values in Dashboard or Items at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
@@ -41,6 +42,7 @@ test('clause 1: sentinel draft Command, Directory and Schedule labels never over
       await chrome.waitFor('innerWidth === ' + width);
       for (const [tab, root] of [['dashboard', '#dashboard'], ['items', '#needs']]) {
         await press(chrome, 'document.querySelector("#tabs [data-tab=' + tab + ']")');
+        if (tab === 'items') await openItemsNeeds(chrome);
         const selector = root + ' [data-sentinel-draft] details';
         await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
         const disclosure = 'document.querySelector(' + JSON.stringify(selector) + ')';
