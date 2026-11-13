@@ -111,8 +111,8 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
       }).filter(rect => rect.width > 0 && (rect.right > document.documentElement.clientWidth + 1 || rect.left < -1)).slice(0, 16))`);
       assert.equal(fits, true, `${scheme} at ${width}px has no sideways page scroll; overflow: ${overflow}`);
       assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs > [data-tab], #tabs .tab-group-btn')).every(button => {
-        const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
-      })`), true, 'every retained tab is accessible inside the viewport');
+        const rect = button.getBoundingClientRect(), strip = button.closest('.strip'); return rect.width > 0 && (strip && getComputedStyle(strip).overflowX === 'auto' ? rect.left >= 0 : rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1);
+      })`), true, 'every retained tab is on screen, or reachable by sideways scroll');
       const title = await chrome.stable(`(() => {
         const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-flight-row b');
         const rect = element.getBoundingClientRect(); return { text: element.textContent.trim(), width: rect.width };
