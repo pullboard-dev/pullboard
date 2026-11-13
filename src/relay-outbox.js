@@ -471,8 +471,13 @@ async function reapply(link, outbox, entry) {
   const { move } = resolveMove(entry, outbox, { local: true });
   entry.sequences = localRecords(root, rowCounters);
   const applied = await captureBoardChanges(() => localRecords(root, (board) => {
+    // Reconstitute the local history, not a new execution now: renewing old leases here strands later claims.
+    // This never sets a relay receipt or changes the timestamp used by the authoritative ordered engine.
+    const clock = board.clock;
+    board.clock = { now: () => new Date(entry.queuedAt) };
     try { return store.atomic(board, () => store[move.operation](board, ...executableArgs(move, board))); }
     catch (error) { if (!(error instanceof Refused)) throw error; return null; }
+    finally { board.clock = clock; }
   }));
   entry.changes = encodeChanges(applied.changes);
   return applied.result;
@@ -627,6 +632,10 @@ async function rebuild(link, key, pulled) {
   if (outbox.baseSequence !== pulled.baseSequence) return true;
   // Nothing new from the relay: the board already shows the base and every queued move on top.
   if (!pulled.checkpoint && !pulled.events.length && outbox.restored !== true) return true;
+  // Fail before undo/restore rather than inventing a new clock for unacknowledged local history.
+  if (outbox.moves.some(entry => typeof entry.queuedAt !== 'string' || !Number.isFinite(Date.parse(entry.queuedAt)))) {
+    throw new Refused('RELAY_OUTBOX', 'a queued move has no valid original time; keep the outbox and ask for help before rebuilding this board');
+  }
   // Back to the relay's order: the relay's checkpoint, an older outbox's image, or the queued moves taken back.
   if (pulled.checkpoint) restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence, pulled.checkpoint.reconstructed === true);
   else if (outbox.base) restoreBase(link, outbox.base, outbox.baseSequence);

@@ -10,12 +10,12 @@ import { applyRelayMove, appliedSequence, checkpointSequence, engineReceipt, pre
 import { exportBoard } from '../src/exchange.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { relayOrdering } from '../src/relay-ordering.js';
-import { flushOutbox, outboxFile, queueMove, readOutbox } from '../src/relay-outbox.js';
+import { flushOutbox, outboxFile, queueMove, readOutbox, writeOutbox } from '../src/relay-outbox.js';
 import { undoQueued } from '../src/relay-outbox-undo.js';
 import { seal, unseal } from '../src/seal.js';
 
 /** Real SQLite, native changesets and sealed queue; the only remote is an in-process ordered fixture. */
-async function fixture(t, { partialReapply = false } = {}) {
+async function fixture(t, { partialReapply = false, setup, pending } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-rebuild-recovery-'));
   const names = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN'];
   const prior = Object.fromEntries(names.map(name => [name, process.env[name]]));
@@ -27,6 +27,7 @@ async function fixture(t, { partialReapply = false } = {}) {
   const board = store.openBoard(':memory:', { now: () => new Date('2026-10-24T00:00:00Z') });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: directory, sessionDigest: 'a'.repeat(64) });
+  const extra = setup?.(board, directory);
   checkpointSequence(board, 1);
   const id = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value;
   const key = randomBytes(32);
@@ -69,6 +70,7 @@ async function fixture(t, { partialReapply = false } = {}) {
   const third = move(3), fourth = move(4);
   for (const next of [third, fourth]) await queueMove(link, { operation: next.operation, args: next.args, move: next,
     quiet: true, applyLocally: () => store.atomic(board, () => store.shout(board, ...next.args)) });
+  await pending?.({ board, link, key, id, extra });
   const queued = await readOutbox(outboxFile(file), key, id);
   assert.equal(queued.version, 3); assert.equal(queued.baseSequence, 2);
   assert.equal(undoQueued(board, queued.moves), null);
@@ -78,7 +80,7 @@ async function fixture(t, { partialReapply = false } = {}) {
   // This is the actual failure cut: ordered prefix committed, sealed queue still describes the prior local rows.
   assert.equal(appliedSequence(board), 3);
   const receipt = engineReceipt(board, third.id);
-  return { board, link, key, id, checkpoint, records, posts, reads, errors, receipt, third, fourth, ordering };
+  return { board, link, key, id, checkpoint, records, posts, reads, errors, receipt, third, fourth, ordering, extra };
 }
 
 for (const mode of ['ordered-only', 'partial-reapply', 'paged']) test(`interrupted rebuild restores local pending work without resending accepted moves (${mode}) [H16,H21]`, async t => {
@@ -122,5 +124,63 @@ for (const kind of ['gap', 'short', 'foreign-board', 'receipt-mismatch', 'engine
   await assert.rejects(flushOutbox(f.link), error => error.code === codes[kind]);
   assert.deepEqual(exportBoard(f.board), native, 'failed recovery does not publish a partial replica');
   assert.deepEqual(readFileSync(outboxFile(f.link.file)), queued, 'the original sealed outbox is retained byte for byte');
+  assert.deepEqual(f.posts, []);
+});
+
+/** Rebuild two genuinely queued claims made after the preceding lease expired, with no relay send. */
+async function leaseFixture(t) {
+  const start = Date.parse('2026-10-24T00:00:00Z');
+  t.mock.timers.enable({ apis: ['Date'], now: start });
+  const f = await fixture(t, {
+    setup(board, directory) {
+      const actor = store.register(board, { lane: 'core', path: join(directory, 'builder'), route: 'mid' });
+      const items = [1, 2].map(n => store.addItem(board, { by: 'coordinator', lane: 'core', title: `lease-${n}`,
+        criterion: 'a later claim must not renew an earlier lease', check: 'true', route: 'mid',
+        brief: 'Files: src/relay-outbox.js\nTest: preserves historical local lease expiry' }));
+      return { actor, items, leases: [], moves: [] };
+    },
+    async pending({ board, link, extra }) {
+      board.clock = store.systemClock;
+      for (const [index, item] of extra.items.entries()) {
+        t.mock.timers.setTime(start + 10_000 + index * 2_000);
+        const args = [item, { agentId: extra.actor, lane: 'core', leaseMs: 1_000,
+          freeze: found => ({ text: found.item_title, digest: `digest:${found.item_title}` }) }];
+        const move = prepareEngineMove(board, 'claim', args, { id: `queued-claim-${index}`, actor: extra.actor });
+        const result = await queueMove(link, { operation: 'claim', args, move, quiet: true,
+          applyLocally: () => store.claim(board, ...args) });
+        extra.leases.push(result.leaseUntil); extra.moves.push(move);
+      }
+      t.mock.timers.setTime(start + 100_000);
+    },
+  });
+  f.link.postPending = async () => { throw Object.assign(new Error('qualification stops before transport'), { code: 'NO_SEND' }); };
+  return f;
+}
+
+test('local reconstitution preserves expired claim leases without changing authoritative replay time [H21,B4,B5,H16]', async t => {
+  const f = await leaseFixture(t);
+  await assert.rejects(flushOutbox(f.link), error => error.code === 'NO_SEND');
+  const rows = f.extra.items.map(id => f.board.db.prepare('SELECT item_owner,item_lease_until FROM item WHERE item_id=?').get(id));
+  assert.deepEqual(rows.map(row => row.item_owner), [f.extra.actor, f.extra.actor]);
+  assert.deepEqual(rows.map(row => row.item_lease_until), f.extra.leases, 'reconstitution is not a new lease renewal');
+  assert.equal(f.board.clock, store.systemClock, 'the caller clock is restored');
+  assert.deepEqual((await readOutbox(outboxFile(f.link.file), f.key, f.id)).moves.slice(-2).map(entry => entry.move), f.extra.moves);
+  assert.equal(engineReceipt(f.board, f.extra.moves[0].id), null, 'local reconstitution is not an ordered receipt');
+  const at = new Date().toISOString();
+  assert.equal(applyRelayMove(f.board, f.extra.moves[0], { sequence: 4, at, kind: 'move',
+    sender: { kind: 'agent', userId: 'fixture', agent: f.extra.actor } }).error, undefined);
+  assert.equal(applyRelayMove(f.board, f.extra.moves[1], { sequence: 5, at, kind: 'move',
+    sender: { kind: 'agent', userId: 'fixture', agent: f.extra.actor } }).error.code, 'ONE_CLAIM', 'real ordering still uses the relay time and records its conflict');
+});
+
+test('missing queued clock refuses before changing a board or its sealed outbox [H21,B4]', async t => {
+  const f = await leaseFixture(t), file = outboxFile(f.link.file);
+  const outbox = await readOutbox(file, f.key, f.id);
+  delete outbox.moves.at(-1).queuedAt;
+  await writeOutbox(file, f.key, f.id, outbox);
+  const native = exportBoard(f.board), queued = readFileSync(file);
+  await assert.rejects(flushOutbox(f.link), error => error.code === 'RELAY_OUTBOX');
+  assert.deepEqual(exportBoard(f.board), native);
+  assert.deepEqual(readFileSync(file), queued);
   assert.deepEqual(f.posts, []);
 });
