@@ -21,7 +21,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { largeSelectionProject, deferredLandingLogs } = makeDeferralFixtures(e2e, store);
 
-test('a pre-test native policy refusal is not reported as deferred files red [C7]', { skip: 'PULL_GAP: the pulled gate and land jobs have no deferred-selection path (gate.deferred, submissionProof.deferredFiles, deferred files run at landing); needs its own item' }, async t => {
+test('a pre-test native policy refusal is not reported as deferred files red [C7]', async t => {
 const project = largeSelectionProject(t, 20, { inline: true });
 const missing = join(project.box.dir, 'uncommitted-policy');
 mkdirSync(missing);

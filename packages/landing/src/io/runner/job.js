@@ -142,7 +142,7 @@ async function landingGuards({ root, base }) {
  * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
 async function landingCheck(payload, env) {
-  const prove = payload.proof ? (await import('./proof.js')).ledgerProofCheck : null;
+  const prove = payload.proof || payload.deferred ? (await import('./proof.js')).ledgerProofCheck : null;
   return async context => {
     const merged = new Set(context.items);
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
@@ -150,6 +150,12 @@ async function landingCheck(payload, env) {
     const parts = [['check', landingGuards], ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
       ...(payload.check ? [['proof', commandCheck(payload.check)]] : []),
       ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]] : [])];
+    // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
+    const deferred = payload.deferred && typeof payload.deferred.runner === 'string' ? payload.deferred : null;
+    if (deferred && prove) for (const entry of payload.items.filter(row => merged.has(row.id))) {
+      const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
+      if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]);
+    }
     let proof = null, waived = null;
     for (const [role, part] of parts) {
       const result = await part(context);

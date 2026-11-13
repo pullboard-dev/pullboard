@@ -41,6 +41,22 @@ async function landingTrunk(root, remote, main) {
 }
 
 /**
+ * The deferred files each item's latest submission recorded, by item id; null when no item deferred any.
+ * Why: the pulled gate records them in the submission proof, and only the landing job can run them on the merged tree [C7].
+ */
+function deferredFilesOf(db, items) {
+  const found = {};
+  for (const entry of items) {
+    const row = db.prepare("SELECT event_detail FROM event WHERE item_id = ? AND event_kind = 'submit' ORDER BY event_id DESC LIMIT 1").get(entry.id);
+    let proof = null;
+    try { proof = JSON.parse(row?.event_detail ?? 'null')?.submissionProof; } catch { /* an unreadable detail defers nothing */ }
+    // The files the submit ran (its invariants) run again beside the deferred ones, on the merged tree.
+    if (Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...proof.deferredFiles, ...(Array.isArray(proof.files) ? proof.files : [])])];
+  }
+  return Object.keys(found).length ? found : null;
+}
+
+/**
  * What a land job's runner does with a red: pair its failing cases when accepted main turns flakes.rerun on, with the
  * runner prefix of the item's check and of the proof command; with it off, still name them, so the board records an
  * unclassified observation. Null when the board's policy reads cannot name a prefix.
@@ -101,9 +117,11 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     }
     const listed = tryGit(root, ['ls-remote', '--', remote, TRUNK]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
+    // Each item's submit may have deferred test files to this landing; the job runs them on the merged tree [C7].
+    const deferred = deferredFilesOf(board.db, items);
     // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
     const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen[0], items[0].commit, pairPrefix) : null;
-    const job = offerLandingJob(board.db, { items, expect, trunk: TRUNK, forced, flakes, badges: badgeDocuments?.(board) ?? [],
+    const job = offerLandingJob(board.db, { items, expect, trunk: TRUNK, forced, deferred, flakes, badges: badgeDocuments?.(board) ?? [],
       ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true } : { config: policy.config }) });
     ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${items.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
     return { offered: job.id, items: items.map(entry => entry.id), waiting: false, ...(forced ? { forced } : {}) };

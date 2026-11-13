@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/view */
 /** @pullboard-world-pin reads the private Cost stylesheet beside the shared ones to prove the phone rules. */
 /** At a 390 px phone the Items rows, the search box and the Cost models table stay inside the screen [U94,#6930]. */
 import assert from 'node:assert/strict';
