@@ -279,17 +279,25 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     rmSync(profile, { recursive: true, force: true });
   }
 });
+/** The one two-item board the two place cases share; each only adds its own shout, so one build serves both. */
+let placesBoard;
+/** Build the places board once and hand the same machine and project to each case. */
+function sharedPlaces() {
+  placesBoard ??= (async () => { const box = machine(); return { box, alpha: await addressBoardLocal(box, 'history-alpha') }; })();
+  return placesBoard;
+}
+
 test('every place in the view has its own address [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for the complete direct-address matrix.
-  const box = machine(), alpha = await addressBoardLocal(box, 'alpha');
+  const { box, alpha } = await sharedPlaces();
   await box.inProcess(alpha.repo, 'shout', 'person', 'Address target shout.');
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'Address target shout.');
     assert.ok(shout?.shout_id);
     const direct = [
-      ['/items/1', 'items', '#detail', '#1', 'alpha first address item'],
+      ['/items/1', 'items', '#detail', '#1', 'history-alpha first address item'],
       ['/items/pipeline', 'items'], ['/shouts', 'shouts'], [`/shouts/${shout.shout_id}`, 'shouts'],
-      ['/spec', 'spec'], ['/spec/G2', 'spec', '#spec-detail', 'G2', 'alpha distinct specification row'],
-      ['/doctrine', 'doctrine'], ['/doctrine/PB1', 'doctrine', '#doctrine-detail', 'PB1', 'alpha distinct practice rule'],
+      ['/spec', 'spec'], ['/spec/G2', 'spec', '#spec-detail', 'G2', 'history-alpha distinct specification row'],
+      ['/doctrine', 'doctrine'], ['/doctrine/PB1', 'doctrine', '#doctrine-detail', 'PB1', 'history-alpha distinct practice rule'],
       ['/activity', 'activity'], ['/roadmap', 'roadmap'],
     ];
     for (const [address, pane, selector, id, text] of direct) {
@@ -322,7 +330,7 @@ test('every place in the view has its own address [N38,N26]', { timeout: 180_000
 });
 
 test('back, forward and reload keep the place [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for real clicks, stack traversal and fresh-document reloads.
-  const box = machine(), alpha = await addressBoardLocal(box, 'history-alpha');
+  const { box, alpha } = await sharedPlaces();
   await box.inProcess(alpha.repo, 'shout', 'person', 'History journey shout.');
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'History journey shout.');
