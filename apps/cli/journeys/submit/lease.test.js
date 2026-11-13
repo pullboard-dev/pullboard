@@ -62,6 +62,7 @@ function launchAs(box, cwd, command, args, session) {
   finally { delete box.env.CODEX_SESSION_ID; }
 }
 
+/** Under pull the submit's gate is a job the machine's local runner holds; `submit --wait` keeps the submitting writer alive until that job posts its receipt [P7]. */
 test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, async () => {
   const box = helpers.sandbox();
   const gate = helpers.holdingGate(box);
@@ -90,8 +91,9 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
   let missingBindingSession;
   let wrongSession;
   let takeover;
+  let localRunnerPid = null;
   try {
-    submit = launchAs(project, project.web, process.execPath, [helpers.BIN, 'submit', '1'], owner);
+    submit = launchAs(project, project.web, process.execPath, [helpers.BIN, 'submit', '1', '--wait', '--json'], owner);
     children.push(submit);
     await waitFor(() => helpers.gateEvents(gate).includes('start'), 'submit to enter its held gate');
     assert.equal(submit.exitCode, null, 'submit remains active inside the gate');
@@ -160,7 +162,9 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     writeFileSync(gate.release, 'released');
     const [submitResult, takeoverResult] = await Promise.all([submit.closed, takeover.closed]);
     assert.equal(submitResult.code, 0, submit.failure ?? submit.stderrText);
-    assert.match(submit.stdoutText, /submitted #1/u);
+    const submitted = JSON.parse(submit.stdoutText);
+    localRunnerPid = submitted.localRunner?.pid ?? null;
+    assert.equal(submitted.item ?? submitted.id, 1, 'the waited submit reports its item');
     assert.equal(takeoverResult.code, 0, takeover.failure ?? takeover.stderrText);
     assert.equal(existsSync(intent), false, 'takeover removes its intent when it ends');
     assert.equal(project.git(project.web, 'rev-parse', 'HEAD'), expectedHead, 'submit leaves the originally submitted HEAD unchanged');
@@ -179,6 +183,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     assert.deepEqual(boardState(database), beforeOldOwner, 'takeover leaves the previous session unable to append a shout');
   } finally {
     writeFileSync(bindingFile, originalBinding);
+    if (localRunnerPid) { try { process.kill(localRunnerPid, 'SIGKILL'); } catch { /* already gone */ } }
     writeFileSync(gate.release, 'released');
     for (const child of children) if (child.exitCode === null) child.kill('SIGTERM');
     if (submit?.exitCode === null) submit.kill('SIGTERM');
