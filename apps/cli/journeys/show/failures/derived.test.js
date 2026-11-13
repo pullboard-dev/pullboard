@@ -10,7 +10,8 @@ test('a derived main-red repair keeps the actual first error line and show print
   const box = fixture(t, { autoFileMainReds: true });
   await settledSubmit(t, box);
   const repairs = rows(box, "SELECT * FROM item WHERE item_title LIKE 'Main red:%'");
-  assert.equal(repairs.length, 1);
+  const thread = () => runFixtureChild('pullboard', ['show', String(box.item), '--json'], { cwd: box.root, env: box.env, encoding: 'utf8' }).stdout;
+  assert.equal(repairs.length, 1, thread());
   const shown = runFixtureChild('pullboard', ['show', String(repairs[0].item_id)], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(shown.status, 0, shown.stderr);
   assert.match(shown.stdout, /main red: affected case \[G1\]:/u);
