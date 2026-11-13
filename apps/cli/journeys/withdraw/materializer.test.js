@@ -32,13 +32,23 @@ async function cliLocal(box, ...args) {
 }
 
 /** A fixture board with `items` items filed through the CLI and `events` events in all, the rest edits spread over the items. */
+/**
+ * Add numbered fixture items: each after the first says why it is not a duplicate of the one before, since add refuses a
+ * likely duplicate of an open item (#6475) and these differ only by number.
+ */
+async function addNumbered(box, name, count) {
+  const ids = [];
+  for (let index = 0; index < count; index += 1) {
+    const differs = ids.length ? ['--not-duplicate-of', `${ids.at(-1)} a separate numbered fixture item`] : [];
+    ids.push((await cliLocal(box, 'add', 'app', `${name} ${index + 1}`, '--route', 'strong', '--criterion', `Detail ${index + 1}`, '--brief', BRIEF, ...differs)).item.item_id);
+  }
+  return ids;
+}
+
 async function largeBoard(t, { items = 24, events = 12_000 } = {}) {
   const box = apiHttpFixture(t);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
-  const ids = [];
-  for (let index = 0; index < items; index += 1) {
-    ids.push((await cliLocal(box, 'add', 'app', `Large item ${index + 1}`, '--route', 'strong', '--criterion', `Detail ${index + 1}`, '--brief', BRIEF)).item.item_id);
-  }
+  const ids = await addNumbered(box, 'Large item', items);
   const db = new DatabaseSync(file);
   try { appendEdits(db, ids, events - db.prepare('SELECT COUNT(*) AS n FROM event').get().n); } finally { db.close(); }
   return { box, file, ids };
@@ -171,8 +181,7 @@ test('[A2,C7] a read with no write starts no build, and a read after a write ret
 
 test('[A2,C7] an open page hears one change notice per write, and none from its own reads', async (t) => {
   const box = apiHttpFixture(t);
-  const ids = [];
-  for (const index of [1, 2]) ids.push((await cliLocal(box, 'add', 'app', `Notice item ${index}`, '--route', 'strong', '--criterion', `Detail ${index}`, '--brief', BRIEF)).item.item_id);
+  const ids = await addNumbered(box, 'Notice item', 2);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const builds = [];
   const { api, read } = await materializedApi(t, box, builds);
@@ -229,8 +238,7 @@ test('#6850 clause 1 [A2,C7]: after a restart, a page that loaded the restored b
 
 test('#6850 clause 2 [A2,C7]: a page read answered from an older build hears, on its event stream, when the build that catches up lands', async (t) => {
   const box = apiHttpFixture(t);
-  const ids = [];
-  for (const index of [1, 2]) ids.push((await cliLocal(box, 'add', 'app', `Landing item ${index}`, '--route', 'strong', '--criterion', `Detail ${index}`, '--brief', BRIEF)).item.item_id);
+  const ids = await addNumbered(box, 'Landing item', 2);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const builds = [];
   const { api, read } = await materializedApi(t, box, builds);
