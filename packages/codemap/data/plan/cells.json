@@ -1814,6 +1814,22 @@
         "packages/landing/src/io/history.js",
         "rule"
       ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit-handoff.json",
+        "apps/cli/src/io/documentation/events/submit/handoff.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit_handoff_returned.json",
+        "apps/cli/src/io/documentation/events/submit_handoff_returned.json",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2190,6 +2206,7 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->commits",
     "apps/cli->search",
     "apps/cli->state",
     "apps/lib->apps/runner",
@@ -2270,7 +2287,6 @@
     "apps/cli->sentinels",
     "apps/cli->config",
     "apps/cli->resources",
-    "state->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",

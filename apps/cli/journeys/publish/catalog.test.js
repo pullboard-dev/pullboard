@@ -1081,6 +1081,13 @@ catalogCase('[A1,C7] red explain reports absent evidence through the catalog', a
   assert.equal(result.unavailable, 'no recorded red on main history');
 });
 
+catalogCase('[A1,C7] compact reports a dry run through the catalog', async () => {
+  const box = await project();
+  const report = await json(box, box.repo, 'compact', ['--dry-run']);
+  assert.equal(report.dryRun, true);
+  assert.equal(report.rows, 0, 'a new board has no old finished steps to archive');
+});
+
 test('[A1] every catalog command and subcommand has a real CLI exercise', { concurrency: true }, async (t) => {
   // Every private scenario finishes before the final catalog and root coverage assertions.
   const completed = await Promise.allSettled(catalogCases.map(({ name, run }) => t.test(name, run)));

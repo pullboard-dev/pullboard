@@ -156,9 +156,9 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       bar: [...document.querySelectorAll('.status [data-status]')].filter((part) => !part.hidden).map((part) => ({ to: part.dataset.status, text: part.textContent.replace(/\\s+/g, ' ').trim(), height: part.getBoundingClientRect().height })),
       barShown: getComputedStyle(status).display !== 'none', barBox: box(status), barTint: rgb(getComputedStyle(status).backgroundColor), barBlur: getComputedStyle(status).backdropFilter,
       rows, warn, reject, gatedEdge, state: view.state, lane: view.lane, tab: view.tab,
-      chips: [...document.querySelectorAll('[data-filter-kind="state"]')].map((choice) => [choice.dataset.state, choice.querySelector('b').textContent, choice.getAttribute('aria-checked') === 'true']),
-      lanes: [...document.querySelectorAll('[data-filter-kind="lane"]')].map((choice) => choice.querySelector('.filter-option-label').textContent + (choice.querySelector('b') ? ' · ' + choice.querySelector('b').textContent : '')), pick: box(document.querySelector('#filter-toggle')),
-      seg: box(document.querySelector('.items-view-switch')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
+      chips: [...document.querySelectorAll('#page-controls [data-page-ctl="state"]')].map((choice) => [choice.dataset.value, choice.getAttribute('aria-pressed') === 'true']),
+      lanes: [...document.querySelectorAll('#page-controls select[data-page-ctl="lane"] option')].map((option) => option.textContent), pick: box(document.querySelector('#page-controls select[data-page-ctl="lane"]')),
+      seg: box(document.querySelector('#page-controls [data-page-ctl="view"]')), go: box(document.querySelector('#page-controls [data-page-ctl="new"]')),
       waiting: (() => { const fold = document.querySelector('[data-shout-filter=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
       agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
@@ -168,10 +168,10 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   const number = (p) => Number(/^(\d+)/.exec(p?.text ?? '')?.[1] ?? NaN);
   const click = async (selector) => chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
   const settle = () => chrome.stable('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
-  /** Choose a filter through the real menu. */
-  const filter = async (kind, value) => { await click('#filter-toggle'); await click(`[data-filter-choice="${kind}:${value}"]`); await settle(); };
-  /** Choose a lane through the filter menu. */
-  const lane = async (name) => filter('lane', name);
+  /** Choose a Show state from the strip's buttons, as a person does (bc76548477 moved the filter menu there). */
+  const filter = async (kind, value) => { await click(`#page-controls [data-page-ctl="${kind}"][data-value="${value}"]`); await settle(); };
+  /** Choose a lane in the strip's Lane select. */
+  const lane = async (name) => { await chrome.stable(`(() => { const select = document.querySelector('#page-controls select[data-page-ctl="lane"]'); select.value = ${JSON.stringify(name)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`); await settle(); };
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 7 && !!document.querySelector('.status [data-status=\"items\"]')");
@@ -188,7 +188,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
         // The header carries the tabs and nothing else: no counts, no clock.
-        assert.deepEqual(r.tabs.map((label) => label.split(' · ')[0]), ['Progress', 'Items', 'Shouts', 'Roadmap', 'Rules', 'Insights'], `${at}: the strip carries no counts`);
+        assert.deepEqual(r.tabs.map((label) => label.split(' · ')[0]), ['Items', 'Shouts', 'Roadmap', 'Rules', 'Insights'], `${at}: the strip carries no counts`);
         assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
         // On a phone the bar stays out of the way while the board is live.
         if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);
@@ -226,10 +226,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
           assert.ok(row['5'].edges && gr > gb + 30 && gg > gb + 20, `${at}: in dark it has a gold outline too: ${row['5'].border}`);
         }
         // The view toggle, Filter and New item stay on one line at both widths.
-        await click('#filter-toggle');
-        const menu = await read();
-        assert.deepEqual(menu.lanes, ['All lanes', 'web · 5', 'api · 1'], `${at}: each lane with its count under Active`);
-        await click('#filter-toggle');
+        assert.deepEqual(r.lanes, ['All lanes', 'web · 5', 'api · 1'], `${at}: each lane with its count under Active`);
         const centre = (b) => b.top + b.height / 2;
         assert.ok(Math.abs(centre(r.seg) - centre(r.pick)) <= 4 && Math.abs(centre(r.pick) - centre(r.go)) <= 4, `${at}: one line: ${JSON.stringify([r.seg, r.pick, r.go])}`);
       }
@@ -248,18 +245,14 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       await chrome.waitFor(`view.tab === 'items' && view.state === '${state}'`);
       await settle();
       r = await read();
-      await click('#filter-toggle');
-      r = await read();
-      const on = r.chips.find(([, , isOn]) => isOn);
-      assert.deepEqual([on?.[0], Number(on?.[1]), r.rows.length], [state, n, n], `${to}: the bar's ${n} opens ${label}, which counts and lists the same ${n}: ${JSON.stringify(r.chips)}`);
-      await click('#filter-toggle');
+      assert.deepEqual([r.state, r.rows.length], [state, n], `${to}: the bar's ${n} opens ${label}, which lists the same ${n}: ${JSON.stringify(r.chips)}`);
       if (to === 'gated') assert.ok(r.rows.every((x) => x.gated), 'every row it opens is a gated row');
     }
     await click('[data-tab=items]');
     await filter('state', 'active');
     await click('.notch [data-status="agents"]');
-    await chrome.waitFor("view.tab === 'dashboard' && view.addressDetail === 'floor'");
-    assert.ok(Number(await chrome.stable("document.querySelector('.notch [data-notch=agents]').textContent")) > 0, 'the notch\'s agents open the agent floor they count');
+    await chrome.waitFor("view.tab === 'dashboard' && view.addressDetail === 'agents'");
+    assert.ok(Number(await chrome.stable("document.querySelector('.notch [data-notch=agents]').textContent")) > 0, 'the notch\'s agents open the Dashboard\'s Agents table they count (#6847)');
     // The release part opens the Roadmap on that release alone: its rows are the ones it counts.
     await click('.status [data-status="release"]');
     await chrome.waitFor("view.tab === 'roadmap'");
@@ -279,19 +272,15 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await filter('state', 'active');
     await lane('api');
     r = await read();
-    await click('#filter-toggle');
-    r = await read();
-    assert.deepEqual([r.lane, r.rows.map((x) => x.id), r.chips.find(([name]) => name === 'active')[1], r.chips.find(([name]) => name === 'verified')[1]], ['api', ['4'], '1', '0'], 'api narrows the list and the state counts');
-    await click('#filter-toggle');
+    assert.deepEqual([r.lane, r.rows.map((x) => x.id)], ['api', ['4']], 'api narrows the list and the state counts');
     await lane('');
     await click('[data-tab=items]');
-    await filter('state', 'verified');
+    // The strip's Show has no Verified button now (bc76548477); Verified is reached by the address and the Dashboard's lists, so set it as they do.
+    await chrome.stable("(() => { view.state = 'verified'; drawPageControls(); address(); render(); })()");
+    await settle();
     await lane('web');
     r = await read();
-    await click('#filter-toggle');
-    r = await read();
     assert.deepEqual([r.lane, r.rows.map((x) => x.id), r.lanes], ['web', ['7'], ['All lanes', 'web · 1']], 'under Verified the lanes count what is verified');
-    await click('#filter-toggle');
     await lane('');
     await click('[data-tab=items]');
     await filter('state', 'active');

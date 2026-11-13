@@ -161,12 +161,12 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       entry.timer = setTimeout(() => { entry.timer = null; request(entry); }, entry.waiters.length ? 0 : BUILD_GAP_MS);
     }
   });
-  /** Stop serving from the worker for good: every waiting read fails over to the request thread's own build. */
+  /** Stop serving from the worker for good: every waiting read is refused STATE_WORKER_STOPPED by name, as a read after it is, never built on the request thread and never a generic service error [A2,C7]. */
   function stopped(error) {
     if (failure || closing) return;
     failure = error;
     onFailure?.(error);
-    for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(error); entry.waiters = []; }
+    for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(new Refused('STATE_WORKER_STOPPED', 'the state worker stopped, so this read is refused rather than built on the request thread; restart pullboard serve')); entry.waiters = []; }
   }
   worker.on('error', stopped);
   worker.on('exit', (code) => stopped(new Error(`the state worker exited with code ${code}`)));

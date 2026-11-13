@@ -6,7 +6,7 @@ import { claim } from '../../index.js';
 import { editItem } from '../../index.js';
 import { getItem } from '../../index.js';
 import { heartbeatSeat } from '../../index.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from './submit.js';
 import { cellBoard } from './cell.js';
 import { cellItem } from './cell.js';
 import { cellProject } from './cell.js';

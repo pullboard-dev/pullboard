@@ -258,7 +258,10 @@ function render({ tab: switching = false } = {}) {
   $('products').hidden = !p || !p.products.length;
   renderReleaseNotes(group ? null : p);
   renderHostedReleaseNote(p);
-  renderPersonRequests(p);
+  const grew = renderPersonRequests(p);
+  // The page scroll is put back at the end of this draw; a panel that grew above the view moves that mark with it.
+  const page = scrolled.find(([element]) => element === document.scrollingElement);
+  if (page && grew) page[1] += grew;
   renderCredentials();
   // A board's Settings pane still refreshes the shared status counts; machine-only Settings has no board to render.
   if (view.tab === 'settings' && !p) { $('group-view').hidden = true; showTab(); return; }

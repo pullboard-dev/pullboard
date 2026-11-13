@@ -55,7 +55,7 @@ test('a machine with no board says how to start one [N26]', async () => {
     assert.deepEqual(classes(early), ['loading'], 'and stays so while the first answer is on its way');
     await early.release();
     assert.deepEqual(classes(early), ['boardless'], 'then the message takes the place of the board');
-    assert.match(page.html, /<main>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
+    assert.match(page.html, /<main>\n {2}<div class="page-title" id="page-title"><h2 id="page-title-text"><\/h2><\/div>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
     assert.equal(page.show('proj-list'), '<div class="empty">None yet.</div>');
     assert.equal(page.element('products').hidden, true);
 
