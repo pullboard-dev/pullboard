@@ -135,8 +135,8 @@ test('clause 2: every filter and search has its own address, a default leaves no
   assert.equal(withPlaceQuery('?k=secret&state=verify&q=old', []), '?k=secret', 'leaving a place drops its keys and keeps the rest');
   assert.equal(withPlaceQuery('', []), '');
   assert.deepEqual(readPlaceQuery('?k=secret&state=verify&lane=web&q=greeting+card&rows=all&shouts=mine&activity=landed&shipped=1&by=coordinator'),
-    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed', shipped: '1', by: 'coordinator' });
-  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null, shipped: null, by: null });
+    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed', shipped: '1', by: 'coordinator', win: null });
+  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null, shipped: null, by: null, win: null });
   for (const place of [{ tab: 'items', state: 'gated', lane: 'core' }, { tab: 'items', state: 'all', q: '#12' }, { tab: 'doctrine', rows: 'repo', rowsDefault: 'all' }, { tab: 'shouts', shouts: 'mine' }]) {
     const read = readPlaceQuery(at(place));
     assert.deepEqual(placeQuery({ ...place, ...Object.fromEntries(Object.entries(read).filter(([, value]) => value !== null)) }), placeQuery(place), `${JSON.stringify(place)} reads back as itself`);
@@ -224,7 +224,7 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'roadmap' })), ['Show shipped'], 'Roadmap: Show shipped');
   assert.match(pageControlsHtml({ tab: 'roadmap', shipped: true }), /aria-pressed="true">Hide shipped</u);
-  assert.deepEqual(labels(pageControlsHtml({ tab: 'activity', people: ['agent-1', 'coordinator', 'person'] })), ['Everyone', 'agent-1', 'The coordinator', 'You'], 'Activity: a person filter');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'activity', people: ['agent-1', 'coordinator', 'person'] })), ['All', 'Landed', 'Sent back', 'Held', 'Blocked', 'Pending review', 'Rulings', 'Shouts', 'Everyone', 'agent-1', 'The coordinator', 'You', '6 h', '12 h', '24 h'], 'Activity: the event filters, a person filter and the window');
   assert.match(pageControlsHtml({ tab: 'activity', by: 'coordinator', people: ['coordinator'] }), /<option value="coordinator" selected>/u);
   for (const tab of ['spec', 'doctrine', 'dashboard', 'cost', 'settings', null]) assert.equal(pageControlsHtml({ tab }), '', `${tab}: nothing to control shows nothing`);
 
