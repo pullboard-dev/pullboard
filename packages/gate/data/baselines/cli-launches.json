@@ -753,7 +753,7 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/search.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/roadmap/card.test.js": {
     "launch": 4
