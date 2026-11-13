@@ -1678,5 +1678,8 @@
   },
   "apps/cli/journeys/sentinel/scratch-cli.test.js": {
     "launch": 1
+  },
+  "packages/gate/tests/app-edges-run.test.js": {
+    "launch": 1
   }
 }
