@@ -5,6 +5,7 @@ import { notchPreview } from '../../../src/logic/notch/preview.js';
 import { notchPreviewData } from '../../../src/logic/notch/preview.js';
 import { notchPreviewHtml } from '../../../src/logic/notch/preview.js';
 import { notchRulings } from '../../../src/logic/notch/preview.js';
+import { notchFloor } from '../../../src/logic/notch/preview.js';
 
 const floor = { numbers: { live: 62, building: 43, reviewing: 6, between: 11, landed: 636, sentBack: 6 },
   time: { build: 65, review: 14, idle: 21 }, bins: Array.from({ length: 24 }, (_, i) => ({ count: i === 23 ? 5 : i + 1 })) };
@@ -151,4 +152,13 @@ test('notchRulings: the page\'s calls become list rows with the button the Needs
   assert.equal(out.items.length, 2, 'the draft count is not a ruling');
   assert.deepEqual([out.items[0].title, out.items[0].action, out.items[0].go, out.items[1].go], ['Split the board?', 'Decide', 'decide:12', 'spec:S1.2']);
   assert.equal(out.oldest, '10 h');
+});
+
+test('notchFloor: the notch\'s numbers from a Dashboard model, with the notch\'s own agents total [N26,#6651]', () => {
+  const state = { agents: [{ group: 'building', build: 5, review: 0, idle: 1 }, { group: 'reviewing', build: 0, review: 4, idle: 2 }, { group: 'between items', build: 1, review: 1, idle: 3 }, { group: 'quiet', build: 0, review: 0, idle: 9 }],
+    totals: { day: 636, sentBack: 6 }, bins: [{ count: 2 }] };
+  const out = notchFloor(state, 3);
+  assert.deepEqual(out.numbers, { live: 3, building: 1, reviewing: 1, between: 1, landed: 636, sentBack: 6 });
+  assert.deepEqual(out.time, { build: 6, review: 5, idle: 15 });
+  assert.equal(out.bins.length, 1);
 });

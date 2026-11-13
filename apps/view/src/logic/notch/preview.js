@@ -102,6 +102,21 @@ export function notchPreviewData({ floor, rulings = [], oldest = '' }) {
 }
 
 /**
+ * The notch's floor numbers from a Dashboard model alone: agents by state, agent time, landed per hour. It is agentFloorModel's
+ * headline without its event sort, which costs hundreds of milliseconds on a big board, so a hover answers at once.
+ *
+ * @param {object} state - What dashboardModel returned.
+ * @param {number} live - The notch's own agents number, so the preview's header agrees with it.
+ * @returns {{ numbers: object, time: object, bins: object[] }} The shape notchPreviewData reads.
+ */
+export function notchFloor(state, live) {
+  const count = key => state.agents.filter(agent => agent.group === key).length;
+  const sum = key => state.agents.reduce((total, agent) => total + (agent[key] || 0), 0);
+  return { numbers: { live, building: count('building'), reviewing: count('reviewing'), between: count('between items'), landed: state.totals.day, sentBack: state.totals.sentBack },
+    time: { build: sum('build'), review: sum('review'), idle: sum('idle') }, bins: state.bins };
+}
+
+/**
  * The person's calls (the page's personNeeds rows) as the rulings list the notch previews: a plain title, its kind, what it
  * is about, the button's words and where the button goes. Reading it never touches the board.
  *

@@ -19,7 +19,7 @@ import { notchPreview } from "../../logic/notch/preview.js";
 import { notchPreviewData } from "../../logic/notch/preview.js";
 import { notchPreviewHtml } from "../../logic/notch/preview.js";
 import { notchRulings } from "../../logic/notch/preview.js";
-import { agentFloorModel } from "../../logic/agent/floor/model.js";
+import { notchFloor } from "../../logic/notch/preview.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -44,7 +44,7 @@ ${notchPreviewHtml.toString()}
 ${notchPreviewData.toString()}
 ${notchPreview.toString()}
 ${notchRulings.toString()}
-const notchFloorModel = (${agentFloorModel.toString()});
+${notchFloor.toString()}
 let notchHover = null, notchBoard = null, notchAgents = 0;
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
@@ -141,10 +141,10 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0 } = 
   // The preview reads what this page holds when the pointer arrives, never the board: the project, its recent events and its calls [#6651].
   notchBoard = p; notchAgents = agents;
   if (!notchHover && $('notch')) notchHover = notchPreview($('notch'), () => {
-    const board = notchBoard, kept = dashboardView.held(board.root), events = kept ? kept.events : board.events || [];
-    const floor = notchFloorModel(kept ? kept.state : dashboardModel(board, events, { now: Date.now(), complete: false }), events);
-    floor.numbers.live = notchAgents;
-    return notchPreviewData({ floor, ...notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago) });
+    const board = notchBoard, kept = dashboardView.held(board.root);
+    const state = kept ? kept.state : dashboardModel(board, board.events || [], { now: Date.now(), complete: false });
+    const { items, oldest } = notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago);
+    return notchPreviewData({ floor: notchFloor(state, notchAgents), rulings: items, oldest });
   });
   text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
   text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
