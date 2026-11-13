@@ -68,7 +68,7 @@ test('next offers new work while the gate is queued or running, and the red item
     if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
     assert.equal(queued.queued, true, `the real submit queues its gate for the local runner: ${JSON.stringify(queued)}`);
     const gateStep = async () => (await cli(box, seat.path, ['show', String(first), '--no-next'])).document?.gateJob?.step;
-    assert.equal(await gateStep(), 'running', 'the observed gate belongs to a running pulled gate job');
+    assert.ok(['claimed', 'progress'].includes(await gateStep()), 'the observed gate belongs to a pulled gate job a runner holds');
   const offered = await cli(box, seat.path, ['next', '--build']);
   assert.equal(offered.code, 0, offered.out + offered.err);
   assert.equal(offered.document.item.item_id, second, 'a running gate does not hold the seat idle');

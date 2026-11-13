@@ -381,13 +381,14 @@ function knownMainReds(root, failures, main) {
   try { return redsAreMains(failures, cachedMainComparison(root, main, failures.map(row => row.file)), main); } catch { return false; }
 }
 
-/** Stop unchanged third red submissions while naming the two test failures that need repair. */
-function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
+/** Stop unchanged third red submissions, queued or pulled, while naming the two test failures that need repair. */
+function requireRedSubmitProgress(root, board, id, digest, candidate, main, pulledReds = () => []) {
   // A gate whose every red is a case main fails by the same name is main's red, not the item's code, so it is no loop [C7].
-  const red = redSubmitTestRuns(board, id, digest, root).filter(row => !knownMainReds(root, row.failures, main));
+  const red = [...redSubmitTestRuns(board, id, digest, root), ...pulledReds(board, id)].sort((a, b) => a.eventId - b.eventId).filter(row => !knownMainReds(root, row.failures, main));
   if (red.length < 2) return;
   const latest = red.slice(-2);
-  const latestFact = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind='fact'").get(id).id;
+  // A pulled gate writes its own notes and red facts; only a fact that is not the gate's own counts as the holder's progress.
+  const latestFact = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind='fact' AND COALESCE(json_extract(event_detail,'$.text'),'') NOT LIKE 'Gate job %'").get(id).id;
   if (latestFact > latest.at(-1).eventId) return;
   const candidateHash = itemChangeHash(root, candidate, main);
   const hashes = latest.map(row => itemChangeHash(root, row.commit, main));
@@ -608,7 +609,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
-  authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit)));
+  const { itemPulledReds: pulledReds } = await import('../submit/pull.js');
+  authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit, pulledReds)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
     text: `Builder ${held.item_owner} automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
   const barWarning = await authorizationStep('bar-warning', () => withBoard(ctx, async board => {

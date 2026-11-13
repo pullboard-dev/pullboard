@@ -120,7 +120,9 @@ test('a claim with a running queued gate survives the idle release and the lapse
   const queued = JSON.parse(submit.stdout);
   assert.equal(queued.queued, true, submit.context);
   box.runnerPid = queued.localRunner?.pid;
-  const running = () => read(box, box.gated).job?.step === 'running' && existsSync(box.gate.started);
+  // A runner holding the job leaves it at its claimed step, or a progress step once it reports one.
+  const held = job => ['claimed', 'progress'].includes(job?.step);
+  const running = () => held(read(box, box.gated).job) && existsSync(box.gate.started);
   try { await box.helpers.waitFor(running, 'the queued gate is running', 60000); } // budget: hang ceiling for the local runner to start its gate; no elapsed-time assertion.
   catch (error) { throw new Error(`${error.message}: job ${JSON.stringify(read(box, box.gated).job)}, check started ${existsSync(box.gate.started)}\n${runnerLog(box)}`); }
   const claimed = read(box, box.gated).item, other = read(box, box.idle).item;
@@ -129,7 +131,7 @@ test('a claim with a running queued gate survives the idle release and the lapse
   // The sentinel's idle release: 45 minutes with no commit or file change, lease still live.
   const idleAt = { now: () => new Date(Date.now() + 45 * MINUTE) };
   assert.ok(idleAt.now().toISOString() < claimed.item_lease_until, 'the idle case keeps a live lease');
-  assert.equal(read(box, box.gated).job.step, 'running', JSON.stringify(read(box, box.gated).job));
+  assert.ok(held(read(box, box.gated).job), JSON.stringify(read(box, box.gated).job));
   const idleRows = maintain(box, idleAt);
   assert.ok(!idleRows.some(row => row.id === box.gated), 'the idle release never selects a claim whose gate is running');
   assert.equal(read(box, box.gated, idleAt).item.item_status, 'claimed');
@@ -138,7 +140,7 @@ test('a claim with a running queued gate survives the idle release and the lapse
   const lapsedAt = { now: () => new Date(Math.max(Date.parse(claimed.item_lease_until), Date.parse(other.item_lease_until)) + limit + MINUTE) };
   maintain(box, lapsedAt);
   const gated = read(box, box.gated, lapsedAt);
-  assert.equal(gated.job.step, 'running', JSON.stringify(gated.job));
+  assert.ok(held(gated.job), JSON.stringify(gated.job));
   assert.equal(gated.item.item_status, 'claimed', 'the lapsed-lease sweep keeps a claim whose gate is running');
   assert.equal(gated.item.item_owner, claimed.item_owner);
   assert.equal(read(box, box.idle, lapsedAt).item.item_status, 'open', 'a claim with no gate still lapses');
