@@ -230,7 +230,8 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     const expired = await assertFreshFullState('eventless claim lease expiry');
     assert.equal(leaseUntil(ids[299]), lease, 'advancing the test clock leaves the persisted lease deadline unchanged');
     const lateEvents = readBoard((current) => current.db.prepare('SELECT event_id, event_by, event_kind, item_id, event_at FROM event WHERE event_id > ?').all(sequenceBeforeExpiry));
-    assert.equal(expired.sequence, sequenceBeforeExpiry, `lease expiry appends no board event: ${JSON.stringify(lateEvents)}`);
+    // A seat's own itemless usage checkpoint can land after its claim returns; expiry itself appends nothing else.
+    assert.deepEqual(lateEvents.filter((event) => event.event_kind !== 'usage'), [], 'lease expiry appends no board event');
     assert.equal(expired.items.find((item) => item.id === ids[299]).status, 'open');
     assert.deepEqual(builds, [ids[299]], 'eventless lease expiry recomputes only the expired claim');
 
