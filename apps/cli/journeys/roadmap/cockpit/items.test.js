@@ -46,7 +46,9 @@ async function build(box, p, id, file) {
   box.git(p.web, 'add', '-A');
   // The commit-msg, pre-commit and post-commit hooks are three Node launches per commit; this journey tests the roadmap page, not the hooks.
   box.git(p.web, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
-  await box.inProcess(p.web, 'submit', String(id), '--no-next');
+  const out = await box.inProcess(p.web, 'submit', String(id), '--no-next');
+  const shown = await box.inProcess(p.web, 'show', String(id));
+  if (!/submitted/u.test(shown.split('\n')[0])) throw new Error('PROBE ' + out + '\n' + shown.slice(-2500));
 }
 
 /** The coordinator accepts an item from a checkout of its submitted commit, as the shared accept() does. */
