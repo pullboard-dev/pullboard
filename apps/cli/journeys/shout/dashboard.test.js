@@ -64,7 +64,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     await chrome.waitFor('!!document.querySelector("#dashboard [data-dashboard-stat=building]")');
     assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=building]").dataset.value'),
       String(activeClaims.length), 'the headline and agent work use the same live claims');
-    for (const section of ['Needs you', 'Shipping now', 'Landed per hour', 'Agent time', 'Agents', 'Landing now', 'Just landed', 'In review', 'Next up']) {
+    for (const section of ['Rulings', 'Shipping now', 'Landed per hour', 'Agent time', 'Agents', 'Landing now', 'Just landed', 'In review', 'Next up']) {
       assert.equal(await chrome.stable(`!!document.querySelector('#dashboard [aria-label=${JSON.stringify(section)}]')`),
         true, `${section} is rendered`);
     }
@@ -115,7 +115,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
         const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
       })`), true, 'every retained tab is accessible inside the viewport');
       const title = await chrome.stable(`(() => {
-        const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-item b');
+        const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-flight-row b');
         const rect = element.getBoundingClientRect(); return { text: element.textContent.trim(), width: rect.width };
       })()`);
       assert.equal(title.text, 'A task in flight', 'the building row retains the actual task title');
@@ -141,6 +141,14 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
       for (let index = 0; index < chunks; index++) console.log('# dashboard-image ' + JSON.stringify({ scheme, width, index, chunks, data: capture.data.slice(index * chunkSize, (index + 1) * chunkSize) }));
     }
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents]").textContent.includes("web-1")'), true, 'the live summary holder appears in Agents');
+    // Where the work is: each of the five step cards opens Items filtered to its own step (#6645).
+    for (const [step, state] of [['ready', 'ready'], ['building', 'building'], ['review', 'verify'], ['passed', 'passed'], ['landed', 'landed']]) {
+      await press(chrome, `document.querySelector('#dashboard [data-dashboard-step="${step}"]')`);
+      await chrome.waitFor(`view.tab === "items" && view.state === ${JSON.stringify(state)}`);
+      if (step === 'building') assert.match(await chrome.stable('document.querySelector("#chain").textContent'), /A task in flight/u, 'the Building card lists the item being built');
+      await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+      await chrome.waitFor('view.tab === "dashboard"');
+    }
     await press(chrome, 'document.querySelector("#dashboard [data-dashboard-list=review]")');
     await chrome.waitFor('view.tab === "items" && view.state === "verify"');
     await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
@@ -150,7 +158,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
     await chrome.waitFor('view.tab === "dashboard"');
     box.run(alpha.repo, 'shout', 'person', 'Which release wording should we use?', '--decision');
-    await chrome.waitFor(`document.querySelector('#dashboard [aria-label="Needs you"]').textContent.includes('Which release wording')`);
+    await chrome.waitFor(`document.querySelector('#dashboard [aria-label="Rulings"]').textContent.includes('Which release wording')`);
     await press(chrome, 'document.querySelector("[data-tab=items]")');
     await chrome.waitFor('view.tab === "items"');
     assert.equal(await chrome.stable('view.state'), 'ready', 'Items preserves the filter chosen by the Dashboard link');

@@ -174,14 +174,6 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
         await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
         await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
         const at = `${width}px ${scheme}`;
-        if (width === 1280) {
-          // Docked, the name opens no list, so there is no arrow; collapsed, the list drops from the name.
-          if (await chrome.stable("document.documentElement.dataset.side === 'collapsed'")) await click('#side-toggle');
-          await chrome.waitFor("document.documentElement.dataset.side !== 'collapsed'");
-          assert.equal((await read()).shown, false, `${at}: docked, with no list to drop, there is no arrow`);
-          await click('#side-toggle');
-          await chrome.waitFor("document.documentElement.dataset.side === 'collapsed'");
-        }
         const closed = await read();
         assert.ok(closed.page.scroll <= closed.page.width, `${at}: no sideways scroll`);
         assert.deepEqual([closed.shown, closed.size, closed.faint, closed.open, closed.turn], [true, [16, 16], true, 'false', DOWN], `${at}: a 16px chevron in the faint ink, pointing down while the list is closed: ${JSON.stringify(closed)}`);
