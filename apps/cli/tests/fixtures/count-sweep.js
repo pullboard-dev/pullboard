@@ -92,7 +92,7 @@ export function countPairs() {
     for (const head of list.querySelectorAll('.spec-section-head')) {
       let rows = 0, node = head.nextElementSibling;
       while (node && !node.matches('.spec-section-head')) { if (node.matches('[data-row]')) rows++; node = node.nextElementSibling; }
-      add(kind + '/section/' + head.querySelector('h4').textContent, number(head.querySelector('.section-count')), rows);
+      add(kind + '/section/' + head.querySelector('.hd2').firstChild.textContent.trim(), number(head.querySelector('.section-count')), rows);
       const approve = head.querySelector('[data-section-approve]');
       if (approve) add('Spec/section decisions', Number(/Approve all (\d+)/.exec(approve.textContent)?.[1]), p.spec.filter(row => row.section === approve.dataset.sectionApprove && (['pending', 'draft'].includes(row.status) && !row.decision || row.staleDecision)).length);
     }
