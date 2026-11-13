@@ -45,7 +45,7 @@ export function replayClient(root, env, ...args) {
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
       try { return JSON.parse(withoutDiagnostics(result.stdout)); }
-      catch { throw new Error(result.failure ?? result.context); }
+      catch { throw new Error(`${result.failure ?? result.context}\nstdout (${result.stdout.length} chars, not one JSON document): ${result.stdout.slice(0, 300)} ... ${result.stdout.slice(-200)}`); }
     });
 }
 
@@ -121,7 +121,7 @@ export function replayResult(root, env, ...args) {
     .then((result) => {
       if (result.error) throw new Error(result.failure);
       try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
-      catch { throw new Error(result.failure ?? result.context); }
+      catch { throw new Error(`${result.failure ?? result.context}\nstdout (${result.stdout.length} chars, not one JSON document): ${result.stdout.slice(0, 300)} ... ${result.stdout.slice(-200)}`); }
     });
 }
 /** Link one private fixture to a real relay with an engine-99 blocker at sequence one. */
