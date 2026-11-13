@@ -506,7 +506,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   const builderPath = join(box.dir, 'app-next');
   await box.git(repo, 'worktree', 'add', '-q', builderPath, '-b', 'app/next');
   await json(box, builderPath, 'join', ['app', '--model', FIXTURE_MODEL, '--route', 'strong']);
-  await json(box, repo, 'add', ['app', 'Next item', '--route', 'mid', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
+  await json(box, repo, 'add', ['app', 'Next item', '--route', 'mid', '--criterion', 'the item is built', '--check', 'true', '--accept-green', 'catalog fixture', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   await json(box, builderPath, 'next');
   await json(box, repo, 'forget', ['.']);
 
