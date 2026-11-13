@@ -1,3 +1,4 @@
+/** @pullboard-module-loads apps/cli/src/io/commands/serve.js */
 /**
  * One handler pool worker: it runs one call at a time on its own board connections and posts the value or the error
  * back by the call's id [A2,C7]. The ports module composes the board openers and the gate's providers here, since a
