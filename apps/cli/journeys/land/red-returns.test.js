@@ -42,7 +42,7 @@ function defaultProject() {
 function acceptedRedItem(box) {
   const entry = itemWorktree(box, 1);
   box.env.LAND_SUPPRESS_RED = '1';
-  try { submitItem(box, entry, 'RED\n'); acceptItem(box, entry); } finally { delete box.env.LAND_SUPPRESS_RED; }
+  try { submitItem(box, entry, 'RED\n'); const dbg = box.run(box.repo, 'show', String(entry.item)); process.stderr.write('DEBUG-SHOW ' + dbg.out + dbg.err + '\nRUNNERLOG ' + (() => { try { return readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log'), 'utf8').slice(-4000); } catch (e) { return String(e); } })() + '\n'); acceptItem(box, entry); } finally { delete box.env.LAND_SUPPRESS_RED; }
   return entry;
 }
 
