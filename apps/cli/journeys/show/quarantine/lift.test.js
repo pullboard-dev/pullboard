@@ -5,12 +5,16 @@ import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fixture } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
-import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
+import { settledSubmit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 
-test('clause 1: twenty clean runs lift the quarantine two Submit pairs filed [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
+test('clause 1: twenty clean runs lift the quarantine two Submit pairs filed [C7,H16]', async t => {
   const box = fixture(t, false, false);
-  assert.equal(submit(box).code, 1);
-  assert.equal(submit(box).code, 0); // the active quarantine lets the computed verdict through
+  // Each Submit is a pulled gate job: its red pairs on the runner, and the board files the quarantine from that pair [P7,C7].
+  const first = await settledSubmit(box);
+  assert.equal(first.code, 1, JSON.stringify({ thread: first.document.thread?.map(row => [row.eventId, row.kind, row.by, row.at, String(row.text ?? row.detail?.receipt?.submitPhase ?? '').slice(0, 200)]), gateJob: first.document.gateJob, quarantines: snapshot(box).quarantines }));
+  const second = await settledSubmit(box);
+  // The active quarantine lets the computed verdict through; a failure names the thread and the quarantines it saw.
+  assert.equal(second.code, 0, JSON.stringify({ thread: second.document.thread?.slice(-4), quarantines: snapshot(box).quarantines }));
   const cleanIds = new Set();
   for (let index = 0; index < 20; index += 1) {
     writeFileSync(box.counter, 'run\n'); // The real next controlled body passes.

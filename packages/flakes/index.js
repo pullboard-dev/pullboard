@@ -6,3 +6,4 @@ export * from "./src/io/quarantine.js";
 export * from "./src/io/command.js";
 export * from "./src/io/native/receipts.js";
 export { flakeRatchet, flakePairs, pairedFlakeObservations, quarantinesAt, legacyFlakeObservations } from './src/logic/ratchet.js';
+export { caseResults, namePattern, pairReds, pairTargets } from './src/io/pair.js';
