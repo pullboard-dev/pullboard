@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/runners/src/io/dispatch.js packages/runners/src/io/pull/delegate.js packages/gate/data/ceilings/cells-edges.json */
 /** @pullboard-world-pin: clause 1 reads the dispatch and pull delegate sources and the committed ceiling to prove no apps/ path remains. */
 /** Runner dispatch and the pull delegate name no apps/ path, so their package-to-app ceiling rows are gone [C7]. */
 import assert from 'node:assert/strict';
