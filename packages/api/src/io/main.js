@@ -3,7 +3,9 @@ import { claimHealthSnapshot } from '../../../health/index.js';
 import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
-import { costAnalytics } from '../../../stats/index.js';
+import { readCostAnalytics } from './cost.js';
+import { costAnalyticsSliced } from '../../../stats/index.js';
+import { costWindowStart } from '../../../stats/index.js';
 import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
 import { pendingFit } from '../../../blueprints/index.js';
@@ -1304,6 +1306,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   function projectRead(board, read) {
     return withProjectGitTimeout(board.root, () => withGitReadFacts(read));
   }
+  const costAnswers = new Map(); // cost analytics answers by board, window and newest event, so a repeat read of an unchanged board is free [6663]
   const handler = createApiHandler({
     refusalDocument,
     authenticate: (req) => {
@@ -1327,7 +1330,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
-    boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)),
+    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
@@ -1359,10 +1362,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     jobs: (board, body) => withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now: now(), drained: drainedRunnerHosts, reserve: jobReserve, trunk: () => trunkRemote(board.root) ?? board.root }), codeIsMain, boardOpeners),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
-      return projectRead(board, () => withReadBoard(board.root, current => costAnalytics({
-      items: store.listItems(current, { all: true }), agents: store.listAgents(current), events: store.events(current),
-      window, now: new Date(now()), modelPresentation: costModelPresentation,
-      }), codeIsMain, boardOpeners));
+      return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced });
     },
     events: (board, after, _who, limit) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,

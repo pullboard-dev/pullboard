@@ -172,6 +172,15 @@ main { padding: var(--space-5) var(--space-6) var(--space-9); }
 .first code { font: 600 var(--text-sm) var(--mono); color: var(--ink); }
 .boardless .first { display: block; }
 .loading .top, .loading [data-pane], .boardless .top, .boardless [data-pane] { display: none; }
+/* The current screen's frame while its board state is on its way (#6589): the screen's cards, empty, where the board
+ * fills them in. A two-column screen keeps its detail column; the rest show one column. */
+.board-frame { display: grid; gap: var(--space-5); align-items: start; }
+.board-frame[hidden], .loading .board-frame, .boardless .board-frame { display: none; }
+.board-frame .frame-primary { display: grid; gap: var(--space-5); min-width: 0; }
+.frame-card { min-height: 56px; }
+.frame-card.frame-list { min-height: 360px; }
+.frame-card.frame-detail { min-height: 240px; }
+.board-frame:not(.two) .frame-detail { display: none; }
 a { color: var(--accent-strong); text-underline-offset: 2px; }
 a.go, a.ghost { display: inline-flex; align-items: center; text-decoration: none; }
 a.ghost { color: var(--ink); }
@@ -1471,6 +1480,11 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .needs-card .home-needs { margin: 0; padding: 0; border: 0; }
 .needs-card .needs-call summary { padding-block: var(--space-3); min-height: var(--tap); }
 .needs-card .needs-call:last-child { border-bottom: 0; margin-bottom: 0; }
+.needs-quiet { display: flex; align-items: center; gap: 10px; padding: 10px var(--space-4); list-style: none; }
+.needs-card.needs-quiet { padding: 10px var(--space-5); }
+.needs-quiet-badge { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--accent-strong); }
+.needs-quiet p { margin: 0; font-size: var(--text-sm); }
+.needs-quiet-note { color: var(--ink-muted); }
 .spec-fact .spec-citing { border: 0; background: none; padding: 0; }
 
 /* Settings: a header card, then one card per group of one-height rows (N26). */
@@ -1578,3 +1592,4 @@ body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }
 .focus-batch { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-4); }
 .focus-batch p { margin: var(--space-1) 0; overflow-wrap: anywhere; }
 .focus-batch small { color: var(--muted, inherit); }
+/* @pullboard-palette-styles */

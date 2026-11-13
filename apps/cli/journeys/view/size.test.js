@@ -122,7 +122,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0, var
   const listing = await request('/api/v1/boards');
   assert.equal(listing.status, 200);
   const path = '/api/v1/boards/' + encodeURIComponent(listing.document.boards[0].id);
-  return { request, path, agents, fullStats, forgetReport, rebuildReport, builds: () => builds, advance: ms => { now += ms; } };
+  return { request, path, agents, board, ids, tick: ms => { at += ms; }, fullStats, forgetReport, rebuildReport, builds: () => builds, advance: ms => { now += ms; } };
 }
 
 test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authenticated state with complete summaries', async t => {
@@ -292,6 +292,34 @@ test('[N26,A2] compact state preserves ordinary delta bases and rejects incompat
   for (const suffix of ['items=unknown', 'items=compact&detail=full', 'items=compact&since=0']) {
     assert.equal((await box.request(box.path + '/state?' + suffix)).status, 400, suffix);
   }
+});
+
+test('[C7] a later build with no item event resends no item and no milestone, whatever the clock', async t => {
+  const box = await fixture(t, { items: 6, seats: 2 });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First fixture release', note: 'Delta fixture only', items: box.ids.slice(0, 3) });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Second fixture release', note: 'Delta fixture only', items: box.ids.slice(3) });
+  const before = await box.request(box.path + '/state');
+  box.tick(7 * 60_000);
+  store.shout(box.board, { from: box.agents[0], to: 'coordinator', text: 'A later event that touches no item', lanes: ['web'] });
+  const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
+  assert.ok(delta.document.delta, 'a later build answers with a delta');
+  assert.equal(delta.document.delta.merge.items, undefined, 'minutes of idleness are the page\'s to derive, not a reason to resend an item');
+  assert.equal(delta.document.delta.merge.milestones, undefined);
+  assert.equal(JSON.stringify(before.document.state.items).includes('idleMinutes'), false);
+  assert.equal(JSON.stringify(before.document.state.milestones).includes('idleMinutes'), false);
+  assert.ok(before.document.state.items.every(item => typeof item.progress.lastActivity === 'string'), 'the page derives age from lastActivity');
+});
+
+test('[C7] a delta after one event on one item merges that item and the milestone holding it', async t => {
+  const box = await fixture(t, { items: 6, seats: 2 });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First fixture release', note: 'Delta fixture only', items: box.ids.slice(0, 3) });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Second fixture release', note: 'Delta fixture only', items: box.ids.slice(3) });
+  const before = await box.request(box.path + '/state');
+  box.tick(7 * 60_000);
+  store.claim(box.board, box.ids[1], { agentId: box.agents[0], lane: 'web', leaseMs: 3_600_000, freeze: item => ({ text: item.item_criterion, digest: 'digest:delta-fixture' }) });
+  const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
+  assert.deepEqual(delta.document.delta.merge.items.set.map(item => item.id), [box.ids[1]]);
+  assert.deepEqual(delta.document.delta.merge.milestones.set.map(milestone => milestone.name), ['First fixture release']);
 });
 
 /** Retain old wire compatibility while refusing malformed columns and preserving JSON ownership. */
