@@ -31,6 +31,9 @@ process.emitWarning = (warning, ...rest) => {
   emitWarning.call(process, warning, ...rest);
 };
 
+// The gate package runs a timed shell it does not name: this app hands it the runner app's entry, which every child inherits [C7].
+process.env.PULLBOARD_TIMED_SHELL ??= new URL('../runner/src/io/shell.js', import.meta.url).pathname;
+
 // A reader that stops early, like head, closes the pipe, and the rest of the output has nowhere to
 // go: end quietly, as other command-line tools do, rather than print a stack trace (N24).
 process.stdout.on('error', (error) => {
