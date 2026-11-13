@@ -5,6 +5,22 @@ export function recoverySummary(state) {
   return { pending: skip > 0, skip, next: skip > 0 ? `pullboard relay recover --skip ${skip}` : '' };
 }
 
+/** The one command that resolves a parked move: it publishes this board's checkpoint under the same board id (#6693). */
+export const RECOVER_COMMAND = 'pullboard relay recover';
+
+/** The queued moves the relay refused for good and the outbox parked, from a link or its status summary. */
+export function parkedMoves(state) {
+  return (state?.outbox?.moves ?? state?.outbox ?? []).filter((move) => move?.parked);
+}
+
+/** Say a board with parked moves is not healthy and name the command; a drained queue reads as the round trips do (#6693). */
+export function parkedHealth(health, state) {
+  const parked = parkedMoves(state);
+  if (!parked.length || !health) return health;
+  return { ...health, status: 'degraded', parked: parked.length,
+    text: `relay degraded: ${parked.length} ${parked.length === 1 ? 'move is' : 'moves are'} parked after the relay refused ${parked.length === 1 ? 'it' : 'them'}; run ${RECOVER_COMMAND}` };
+}
+
 /** Preserve the unlinked status document, including a deleted-copy notice when present. */
 export function unlinkedRelayStatus(deleted = null) {
   return { linked: false, board: deleted?.board ?? '', url: deleted?.url ?? '', link: '', sequence: 0, behind: 0, recovery: recoverySummary(null),
