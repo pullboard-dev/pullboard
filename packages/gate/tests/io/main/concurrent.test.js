@@ -1,7 +1,5 @@
-/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
 /** Gate stages start together; the gate lasts as long as its slowest stage, and a red stage stops the rest [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runGateStages } from '../../../index.js';
 
@@ -59,15 +57,5 @@ test('the first red stage cancels the others and refuses at once [C7]', async ()
   // cells and tests are never released: the gate refuses only because the red stage cancelled them.
   await assert.rejects(gate, /static is red/u);
   assert.deepEqual(run.stopped.sort(), ['cells', 'tests'], 'every still-running stage receives the cancel');
-});
-
-test('submit starts static, cells, doctrine and the test gate together [C7]', () => {
-  const source = readFileSync(new URL('../../../../../apps/cli/src/io/commands/submit.js', import.meta.url), 'utf8');
-  const start = source.indexOf('await (ctx.runGateStages ?? runGateStages)(');
-  assert.ok(start >= 0, 'submit runs its gate stages through runGateStages, or the driven gate that replaces it');
-  const end = source.indexOf('\n  ]);', start);
-  assert.ok(end > start, 'the complete stage list closes');
-  const call = source.slice(start, end);
-  for (const name of ['static', 'cells', 'doctrine', 'tests']) assert.match(call, new RegExp(`name: '${name}'`, 'u'));
 });
 

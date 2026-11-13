@@ -48,3 +48,12 @@ test('clause 2: Cost and Settings take the page width and the Agent time card en
   assert.match(css('cost.css'), /\.cost-summary\s*\{[^}]*align-self: start/u, 'the Agent time card is not stretched to the chart beside it');
   assert.doesNotMatch(css('main.css'), /#settings-pane\s*\{[^}]*(?:max-width|margin-inline)/u, 'Settings has no width cap and is not centred');
 });
+
+test('clause 2: the Agent time card is not stretched by its column, so no blank area sits under the Sent back bar [N26]', () => {
+  assert.match(css('cost.css'), /\.cost-col > \.cost-summary\s*\{[^}]*flex: none/u, 'the column flex:1 on cards does not apply to the summary card');
+});
+
+test('clause 1: an opened item scrolls to just below the two-row phone nav, so its chips are not cut under it [N26]', () => {
+  const top = Number(/#detail \{ scroll-margin-top: (\d+)px; \}/u.exec(css('main.css'))?.[1]);
+  assert.ok(top >= 88, 'the margin clears the sticky two-row nav (about 72 px) with room for a gap, not the old 60 px');
+});

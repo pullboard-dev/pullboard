@@ -141,7 +141,7 @@ i.dash-seg-held { background: none; border: var(--border-held-thin); }
 .dash-stat-v { display: flex; align-items: baseline; gap: var(--space-2); margin-top: var(--space-0); }
 .dash-stat-v b { font-size: 17px; line-height: 1.3; font-variant-numeric: tabular-nums; } .dash-stat-v span { font-size: 12.5px; color: var(--ink-muted); }
 .dash-stat small { display: block; font-size: 11.5px; color: var(--ink-faint); }
-.dash-stat.eta { background: var(--surface); box-shadow: var(--inset-line); } .dash-stat.eta b { color: var(--accent); }
+.dash-stat.eta { background: var(--surface); border: var(--border); } .dash-stat.eta b { color: var(--accent); }
 
 /* 4. Pace and agent time */
 .dash-strip { display: flex; align-items: center; gap: 22px; padding: var(--space-3) 14px !important; font-size: var(--text-xs); color: var(--ink-muted); white-space: nowrap; overflow: hidden; }
@@ -193,7 +193,8 @@ i.dash-seg-held { background: none; border: var(--border-held-thin); }
 .dash-more:hover { color: var(--ink) !important; background: var(--hover) !important; }
 
 /* 6. The four lists */
-.dash-queues { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.dash-queues { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); align-items: start; } /* each card is as tall as its rows, never stretched to its neighbour (#7403) */
+.dash-qquiet { align-self: start; } .dash-qquiet .dash-shd { margin: 0; flex-wrap: wrap; white-space: normal; } .dash-qquiet .dash-cap2 { margin-left: 0; }
 .dash-q { padding: var(--space-2) var(--space-4) !important; }
 .dash-q > .dash-cap { margin-bottom: var(--space-2); }
 .dash-live .dash-note { margin: -2px 0 var(--space-2); font-size: 11.5px; color: var(--ink-faint); }
@@ -247,7 +248,7 @@ i.dash-seg-held { background: none; border: var(--border-held-thin); }
   .dash-strip { flex-wrap: wrap; white-space: normal; gap: var(--space-3) 18px; } .dash-vr { display: none; } }
 @media (max-width: 700px) {
   .dash-live .dash-loop { display: block; white-space: normal; } .dash-loop .dash-icon { vertical-align: -2px; }
-  .dash-cap2 { display: none; } .dash-shd > .dash-lk { margin-left: auto; }
+  .dash-sec:not(.dash-qquiet) .dash-cap2 { display: none; } .dash-shd > .dash-lk { margin-left: auto; }
   .dash-now .dash-x { display: none; }
   .dash-stage { padding: var(--space-3) 10px !important; } .dash-stage-a, .dash-stage-b { white-space: normal; } .dash-stage-b { margin-top: 1px; }
   .dash-grp { flex-wrap: wrap; gap: var(--space-1) 10px; width: 100%; } .dash-grp > .dash-lbl { width: 100%; } .dash-spark, .dash-split { width: 120px; }

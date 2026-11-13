@@ -16,7 +16,7 @@ import { openCellBoard } from '../../../../../../packages/store/tests/fixtures/c
  * (decisions), a raw verdict row with no event (items), and a raw event row with no store call (events). The control
  * read with no write keeps the derived fields.
  */
-test('every kind of board write shows in the next state read, and a read with no write keeps the fields [N26,C7]', t => {
+test('clause 3: every kind of board write shows in the next state read, and a read with no write keeps the fields [N26,C7]', t => {
   const project = cellProject(t);
   const board = cellBoard(t, project.boardFile);
   const read = () => projectState(project.repo, { board });
