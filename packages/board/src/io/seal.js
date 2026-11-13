@@ -1,6 +1,5 @@
 /** Seal an owner wait only at the authenticated native source origin [B3,L1,V4]. */
 import { createHash } from 'node:crypto';
-import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import {
   repoInfo,
@@ -9,27 +8,28 @@ import {
   isClean,
   tryGit,
   contains,
-} from '../../../../packages/git/index.js';
+} from '../../../git/index.js';
 import {
   itemPolicy,
   submissionPaths,
   dependencySnapshots,
   policyGit,
   mainPolicy,
-} from '../../../../packages/sandbox/index.js';
-import { laneOf } from '../../../../packages/seats/index.js';
+} from '../../../sandbox/index.js';
+import { laneOf } from '../../../seats/index.js';
 import {
   getItem as itemById,
   boundProofReceipt,
   submitHandoff,
-} from '../../../../packages/store/index.js';
-import { Refused } from '../../../../packages/kernel/index.js';
+  boardFilePath,
+} from '../../../store/index.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Derive routing data from the board's repository and the same strict lane refusal, never supplied paths. */
 export function sealOwnershipWait(board, id, request) {
   const item = itemById(board, id), root = request?.root;
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
-  if (typeof root !== 'string' || !file || realpathSync(resolve(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)
+  if (typeof root !== 'string' || !file || realpathSync(boardFilePath(repoInfo(root).commonDir)) !== realpathSync(file)
     || headCommit(root) !== request.commit || headTree(root) !== request.tree || !isClean(root)) {
     throw new Refused('OWNERSHIP_WAIT_SOURCE', 'ownership routing must seal the clean proved source in this board\'s native item context');
   }

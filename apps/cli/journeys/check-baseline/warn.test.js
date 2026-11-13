@@ -18,6 +18,7 @@ import {
   cleanupFixtures,
   withBoard,
 } from '../../tests/fixtures/check-baseline.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 import { exportBoard } from '../../../../packages/store/index.js';
 
 after(cleanupFixtures);
@@ -63,8 +64,11 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   const submitted = await box.runLocal(box.web, ['submit', String(item.item_id)]);
   assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
 
-  const review = await box.runLocal(box.review, ['next', '--verify']);
-  assert.equal(review.status, 0, `${review.stdout}${review.stderr}`);
+  // The pulled gate settles on the machine's local runner; the item becomes reviewable only then.
+  const review = await whenRunnerSettles(box.env, async () => {
+    const read = await box.runLocal(box.review, ['next', '--verify']);
+    return read.status === 0 ? read : null;
+  }, { deadlineMs: 120_000, what: `the gate for #${item.item_id}` });
   assert.match(review.stdout, /CRITERION_PROVES_NOTHING/u);
 });
 
