@@ -99,7 +99,7 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
   const accept = async (root, id, head) => {
     const reviewer = await reviewerFor(root);
     box.git(reviewer, 'switch', '-q', '--detach', head);
-    json(reviewer, 'verify', String(id), 'accept', '--note',
+    await json(reviewer, 'verify', String(id), 'accept', '--note',
       'The actual frozen fixture command passed.', '--no-next');
   };
   /** Generate exact native companion bytes from a clean private Git index, then restore that index. */
