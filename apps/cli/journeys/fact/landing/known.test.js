@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
+/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
 /** Known-main red accounting: cancellation accounting and the failing-file isolation the landing diagnosis uses [B3,C7]. */
 import assert from 'node:assert/strict';
 import {

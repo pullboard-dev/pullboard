@@ -24,7 +24,6 @@
     "packages/blueprints/src/io/main.js",
     "packages/blueprints/src/io/set.js",
     "packages/land/src/io/runs.js",
-    "packages/landing/src/io/candidates.js",
     "packages/landing/src/io/runner/job.js",
     "packages/landing/src/io/shards.js",
     "packages/landing/src/io/smoke.js",

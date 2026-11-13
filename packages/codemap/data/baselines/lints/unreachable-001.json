@@ -150,7 +150,6 @@
     "packages/gate/src/io/test/inputs.js": 1,
     "packages/gate/src/io/test/names.js": 1,
     "apps/cli/src/io/landing/advance.js": 1,
-    "apps/lib/src/io/landing/candidate.js": 1,
     "packages/landing/src/io/verify/release.js": 1,
     "packages/state/data/history/152.json": 1,
     "packages/state/data/history/153.json": 1,
