@@ -112,19 +112,19 @@ test('a checkout lease held past budget while commands wait is filed once, then 
   assert.ok(dead.reclaimed.some(line => /pruned/u.test(line)));
 });
 
-test('a board writer holding past two seconds is a breach and a dead writer marker is removed [C7]', async t => {
+test('a board writer holding past ten seconds is a breach and a dead writer marker is removed [C7]', async t => {
   const m = machine(t);
   const directory = `${m.paths.boardFile}.write-holders`;
   mkdirSync(directory, { recursive: true });
   const live = m.sleeper();
   await waitForCondition(() => !gone(live.pid), 'the writer runs');
   writeFileSync(join(directory, `${live.pid}-00000000-0000-0000-0000-000000000001.json`), JSON.stringify({ version: 1, pid: live.pid,
-    started: '', processSha256: 'a'.repeat(64), command: 'merged', seat: 'coordinator', acquiredAt: Date.now() - 5_000, contender: true }));
+    started: '', processSha256: 'a'.repeat(64), command: 'merged', seat: 'coordinator', acquiredAt: Date.now() - 11_000, contender: true }));
   const deadMarker = join(directory, '4194301-00000000-0000-0000-0000-000000000002.json');
   writeFileSync(deadMarker, JSON.stringify({ version: 1, pid: 4194301, started: 'x', processSha256: 'b'.repeat(64), command: 'add', seat: 'core-2', acquiredAt: Date.now() - 60_000 }));
   const snapshot = await m.snapshot();
   const row = snapshot.rows.find(entry => entry.surface === 'board-write' && entry.pid === live.pid);
-  assert.equal(row.breach, true, 'five seconds against a two second database budget');
+  assert.equal(row.breach, true, 'eleven seconds against the ten second audited board-write row');
   assert.equal(row.holder, 'merged by coordinator');
   const recorded = await recordWaits(snapshot, m.ports());
   assert.equal(existsSync(deadMarker), false, 'the dead pid\'s marker is reclaimed at once');
@@ -347,4 +347,14 @@ test('a runner unavailable for 279 s is inside the audited runnerUnavailableMs r
   assert.equal(inside.breach, false);
   assert.equal(inside.budgetName, 'runnerUnavailableMs');
   assert.equal(past.breach, true);
+});
+
+test('a board write held 5.1 s is inside the audited boardWriteMs row; one past 10 s still breaches, and resource writes keep 2 s [C7]', () => {
+  const budgets = waitBudgets();
+  assert.equal(budgets.boardWriteMs, 10_000);
+  const row = (surface, ageMs) => ({ surface, key: 'k', holder: 'h', pid: null, ageMs, waiters: [] });
+  const [board, slow, resource] = judgeWaits([row('board-write', 5_100), row('board-write', 10_500), row('resource-write', 5_100)], budgets);
+  assert.equal(board.breach, false);
+  assert.equal(slow.breach, true);
+  assert.equal(resource.breach, true, 'the resource write queue keeps databaseMs');
 });
