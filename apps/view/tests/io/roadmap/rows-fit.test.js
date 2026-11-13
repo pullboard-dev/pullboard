@@ -1,6 +1,6 @@
 /**
  * #7303: Roadmap rows fit: after chips end in an ellipsis, only the chosen release lists items, a phone repeats no counts [N26].
- * @pullboard-test-input apps/view/src/io/stage.css apps/view/src/io/main.css apps/view/src/io/roadmap/render.js apps/view/src/logic/summary/roadmap.js apps/view/src/io/styles.js apps/view/src/io/cockpit/roadmap.js
+ * @pullboard-test-input source-cell apps/view
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
