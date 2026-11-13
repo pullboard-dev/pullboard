@@ -1,7 +1,5 @@
-/**
- * #7311: Shouts rows keep the shout text on a phone and align the text column in every row [N26].
- * @pullboard-test-input source-cell apps/view
- */
+/** @pullboard-test-input source-cell apps/view */
+/** #7311: Shouts rows keep the shout text on a phone and align the text column in every row [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { composeViewStyles } from '../../src/io/styles.js';
