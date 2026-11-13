@@ -45,7 +45,8 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   // A Submit leaves detached diagnostics and workers that still write under the scratch; wait for them before removing it.
   t.after(() => {
     // The pattern rides in the environment so the waiting shell's own arguments never match it; capped at 90 s.
-    runFixtureChild('/bin/sh', ['-c', 'n=0; while pgrep -f "$PB_SCRATCH" >/dev/null && [ $n -lt 180 ]; do sleep 0.5; n=$((n+1)); done'],
+    // The ssh stand-in's agent host never exits on its own, so it is stopped first: waiting on it always cost the whole cap.
+    runFixtureChild('/bin/sh', ['-c', 'pkill -f "$PB_SCRATCH/baseline-bin/[.]agent-host-"; n=0; while pgrep -f "$PB_SCRATCH" >/dev/null && [ $n -lt 180 ]; do sleep 0.5; n=$((n+1)); done'],
       { env: { ...process.env, PB_SCRATCH: scratch }, encoding: 'utf8' });
     rmSync(scratch, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
