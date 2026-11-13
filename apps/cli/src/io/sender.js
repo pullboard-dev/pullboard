@@ -1,4 +1,3 @@
-/** @pullboard-module-loads apps/cli/src/io/submit/handoff/worker.js */
 /** CLI-owned composition and process launch for the machine relay sender [H21,H16,C7]. */
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -54,9 +53,8 @@ export async function relaySenderIo(root, io = {}) {
   const { relayOutboxSetting } = await import('./entry.js');
   const loadNativeBoard = () => import('../../../lib/index.js');
   const hookWorker = fileURLToPath(new URL('./hook/work.js', import.meta.url));
-  const submitHandoffWorker = fileURLToPath(new URL('./submit/handoff/worker.js', import.meta.url));
   const nativeBoard = await loadNativeBoard();
-  return { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };;
+  return { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };;
 }
 
 /** Send and pull one board under its relay lock, then run the person's waiting requests. True when nothing waits. */
@@ -64,14 +62,13 @@ async function serve(root, file, io) {
   const { syncRelay } = await import('../../../../packages/link/index.js');
   const loadNativeBoard = () => import('../../../lib/index.js');
   const hookWorker = fileURLToPath(new URL('./hook/work.js', import.meta.url));
-  const submitHandoffWorker = fileURLToPath(new URL('./submit/handoff/worker.js', import.meta.url));
   const boardIo = await relaySenderIo(root, io);
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('../../../../packages/link/index.js');
     const { main } = await import('./main.js');
     /** Retain the sender process's explicit native capabilities in person commands. */
-    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, submitHandoffWorker, launchRelaySender, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
+    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, launchRelaySender, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
     const { nativePersonRequestPorts } = await import('./context.js');
     await executePersonRequests(root, boardIo, runCommand, nativePersonRequestPorts(boardIo));
   } catch (error) { io.err(`person requests not run: ${error.message}`); }

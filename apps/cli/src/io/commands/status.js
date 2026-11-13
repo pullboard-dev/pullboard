@@ -40,7 +40,6 @@ import { bindProofRunner } from '../../../../../packages/verify/index.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
 import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
-import { handoffCapLine } from '../../../../../packages/resources/index.js';
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
@@ -158,8 +157,6 @@ export async function run(io, { values }) {
   else for (const run of summary.runnerDeadlines) io.say(`${run.agent}${run.item ? ` #${run.item}` : ''}${run.repo ? ` in ${run.repo}` : ''}: ${runnerDeadlineLine(run)}`);
   for (const hold of summary.longestHolds ?? []) io.say(`board hold ${hold.at}: ${hold.heldMs} ms in ${hold.move ?? 'unknown move'}${hold.step ? `, slowest step ${hold.step} ${hold.stepMs ?? '?'} ms` : ''}`);
   for (const line of diskLines(summary.disk)) io.say(line);
-  const handoffCap = handoffCapLine();
-  if (handoffCap) io.say(handoffCap);
   for (const proposal of summary.submitInvariantProposals) io.say(submitInvariantLine(proposal));
   for (const need of summary.needs.filter(need => need.kind === 'agent-approved')) io.say(`${need.text}; ${need.what}`);
   if (!summary.relay.linked && !originRepository(ctx.info.root, { optional: true })) {
