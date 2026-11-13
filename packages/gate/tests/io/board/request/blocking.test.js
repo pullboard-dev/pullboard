@@ -121,3 +121,12 @@ test('clause 2: the known set holds the current Atomics.wait and readdirSync sit
   const rows = apiRequestIoProblems(sources, { known: {} }).map(row => row.call);
   assert.ok(rows.includes('global:Atomics#wait') && rows.includes('node:fs#readdirSync'));
 });
+
+test('clause 1: Atomics.wait and readdirSync are listed as blocking calls, and a local Atomics binding is not the global one [C7]', () => {
+  const entry = 'packages/api/src/io/main.js', row = sources.find(found => found.file === entry);
+  const inject = text => [...sources.filter(found => found.file !== entry), { ...row, source: row.source + "\nimport { helper } from './added.js';\nexport function addedHandler() { return helper(); }\n" }, { file: 'packages/api/src/io/added.js', source: text }];
+  const owners = text => apiRequestIoProblems(inject(text)).filter(found => found.owner === 'packages/api/src/io/added.js#helper').map(found => found.call);
+  assert.deepEqual(owners("import { readdirSync } from 'node:fs';\nexport function helper() { return readdirSync('.'); }"), ['node:fs#readdirSync']);
+  assert.deepEqual(owners("export function helper() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5); }"), ['global:Atomics#wait']);
+  assert.deepEqual(owners("import { Atomics } from './mine.js';\nexport function helper() { return Atomics.wait(1); }"), []);
+});
