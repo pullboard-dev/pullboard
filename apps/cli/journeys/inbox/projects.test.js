@@ -64,7 +64,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
-      if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) await chrome.click('document.querySelector("#proj-switch")');
+      if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) { await chrome.click('document.querySelector("#proj-switch")'); await chrome.click('document.querySelector("[data-proj-all]")'); }
       if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.click('document.querySelector(".unreadable-projects summary")');
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const section = document.querySelector('.unreadable-projects');
@@ -184,6 +184,7 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
     await chrome.stable(`window.__projectStateGate.board = ${JSON.stringify(betaId)}`);
     if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
       await chrome.click("document.querySelector('#proj-switch')");
+      await chrome.click('document.querySelector("[data-proj-all]")');
     }
     await chrome.click(`document.querySelector('#proj-list [data-root="${beta.repo}"]')`);
     await chrome.waitFor('window.__projectStateGate.blocked.length > 0');
@@ -442,13 +443,7 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     assert.equal(page.element('proj-name').textContent, 'gam<i>ma');
     assert.ok(!page.html.includes('proj-elsewhere'), 'the folded button carries no count: what needs the person in each project is in the list it opens');
 
-    // Where the sidebar is docked the project button opens the project menu; on a phone it still folds the list open.
-    const phone = await openPage(view, { width: 800 });
-    await phone.click({ id: 'proj-switch', classes: 'switch-btn side' });
-    assert.ok(phone.element('side').classList.contains('open'), 'the project button opens the list');
-    assert.equal(phone.element('proj-switch').getAttribute('aria-expanded'), 'true');
-    await phone.click({ classes: 'row' });
-    assert.ok(!phone.element('side').classList.contains('open'), 'a click outside the sidebar folds it again');
+    // The project button opens the project menu in both layouts; the real-browser journeys (project-menu.test.js, sidebar.test.js) draw it.
   } finally {
     await view.stop();
   }

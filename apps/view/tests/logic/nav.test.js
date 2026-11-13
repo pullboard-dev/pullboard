@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cockpitMarkup } from '../../index.js';
 import { composeViewStyles } from '../../src/io/styles.js';
+import { accountHtml } from '../../src/logic/nav.js';
+import { accountMenuHtml } from '../../src/logic/nav.js';
 import { navPages } from '../../src/logic/nav.js';
 import { navStripHtml } from '../../src/logic/nav.js';
 import { notchHtml } from '../../src/logic/nav.js';
@@ -250,4 +252,27 @@ test('clause 2: each control\'s state is in the page address, and the address pu
     assert.deepEqual(placeQuery({ tab: place.tab, ...back(search) }), placeQuery(place), `${place.tab}: refresh, back and forward read it back`);
   }
   assert.equal(withPlaceQuery('', placeQuery({ tab: 'items' })), '', 'Open, the default, leaves the address plain');
+});
+
+test('clause 1: the top right is one account control, the person\'s initial when signed in and Sign in when not, and its menu holds who they are, Settings, Theme, and Pair a phone; the Sign out row stays hidden until the view has a real sign-out [N26,#6648]', () => {
+  assert.match(accountHtml({ signedIn: true, login: 'coreyolson' }), />C<\/button>$/u, 'the initial, upper-cased');
+  assert.match(accountHtml({ signedIn: false }), />Sign in<\/button>$/u);
+  const text = (html) => [...html.matchAll(/<(?:b|small|button)[^>]*>(.*?)<\/(?:b|small|button)>/gu)].map((m) => m[1].replace(/<[^>]+>/gu, ''));
+  const signedIn = accountMenuHtml({ signedIn: true, login: 'coreyolson', theme: 'dark' });
+  assert.deepEqual(text(signedIn), ['@coreyolson', 'GitHub', 'Settings,', 'ThemeDark', 'Pair a phone']);
+  const signedOut = accountMenuHtml({ signedIn: false });
+  assert.match(signedOut, /Not signed in/u);
+  assert.match(signedOut, /data-account-signin>Sign in with GitHub</u);
+  assert.doesNotMatch(signedIn + signedOut, /Sign out/u, 'no Sign out row: the view has no real sign-out yet, and relay off is destructive');
+  for (const html of [signedIn, signedOut]) for (const word of ['Settings', 'Theme', 'Pair a phone']) assert.match(html, new RegExp(word, 'u'));
+  assert.match(accountHtml({ signedIn: true, login: '<b>' }), /&lt;|>B</u, 'a login is text, never markup');
+});
+
+test('clause 2: the page carries no sign-in banner, and Settings is reached from the account menu only [N26,#6648]', () => {
+  const html = cockpitMarkup({ repositoryAttribute: 'https://example.test', cssAttribute: 'view.css', hostedLocal: true, snapshot: false, readOnly: false, requestMode: false, privateCost: false, hostedMarkup: () => '', signIn: '', settingsMarkup: () => '', starMarkup: () => '' });
+  assert.doesNotMatch(html, /Open your boards on any device|share-note|share-again/u, 'no banner and no second invitation');
+  assert.doesNotMatch(html, /id="theme"|machine-settings-entry/u, 'the bare theme button and the machine Settings entry are gone');
+  assert.equal([...html.matchAll(/data-tab="settings"/gu)].length, 0, 'Settings is not a fixed button anywhere in the page shell; the menu draws it');
+  assert.match(html, /id="account-slot">.*id="account"[^>]*data-account/su, 'the account control sits in its slot');
+  assert.match(accountMenuHtml({}), /data-tab="settings"/u, 'the menu holds Settings');
 });
