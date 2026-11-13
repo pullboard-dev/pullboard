@@ -91,7 +91,7 @@ test('no box carries a coloured edge [N26]', async () => {
     // Every border drawn on one side of a box is nothing, or a 1px divider in the neutral line colour.
     const sides = [...style.matchAll(/border-(?:top|bottom|left|right|inline|block)[a-z-]*:\s*([^;}]+)/g)].map((match) => match[0].trim());
     assert.ok(sides.length > 0);
-    assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|1px solid var\(--line(?:-soft)?\))$/.test(side)), [], 'no coloured or thick bar on one edge');
+    assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|var\(--border(?:-row)?\))$/.test(side)), [], 'no coloured or thick bar on one edge');
     assert.doesNotMatch(style, /box-shadow:[^;}]*inset -?\d+(?:\.\d+)?px 0 0/, 'and no stripe drawn by a shadow');
 
     await page.click({ go: 'item:1' });

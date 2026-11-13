@@ -94,7 +94,7 @@ test('clause 1: the strip is plain text: active ink, bold and a green dot; hover
   const on = rule(`${strip}.on, :root[data-nav="top"] .tab-group-btn.on`);
   assert.deepEqual(on.split(';').map(part => part.trim()).filter(Boolean).sort(), ['background: none', 'color: var(--ink)', 'font-weight: 600'], 'active is ink and bold, with no fill');
   const dot = rule(`${strip}.on::before, :root[data-nav="top"] .tab-group-btn.on::before`);
-  for (const part of ['width: 5px', 'height: 5px', 'border-radius: 50%', 'background: var(--accent)']) assert.ok(dot.includes(part), `the active mark is a small green dot: ${part}`);
+  for (const part of ['width: 5px', 'height: 5px', 'border-radius: var(--radius-dot)', 'background: var(--accent)']) assert.ok(dot.includes(part), `the active mark is a small green dot: ${part}`);
   const navRules = css.slice(css.indexOf(':root[data-nav] {'));
   assert.doesNotMatch(navRules.match(/:root\[data-nav="top"\] \.tabs > \.tab[^{]*\{[^}]*\}/gu).join('\n'), /underline|border-bottom|box-shadow|radius-pill/u, 'no underline, inset block or pill on a tab');
   // The prototype's neutral ground, the notch's grey and the two tiers' heights.
@@ -158,7 +158,7 @@ test('clause 1: the sidebar lists the same pages in 28 px rows, each with its on
   const rule = (selector) => { const at = css.indexOf(selector + ' {'); assert.ok(at >= 0, `the stylesheet has ${selector}`); return css.slice(at + selector.length + 2, css.indexOf('}', at)); };
   assert.match(rule(':root[data-nav="side"] .side-row'), /height: 28px/u, '28 px rows');
   assert.match(rule(':root[data-nav="side"] .side-row.on'), /color: var\(--ink\); font-weight: 600/u, 'active is ink and bold');
-  assert.match(rule(':root[data-nav="side"] .side-row.on::before'), /width: 5px; height: 5px; border-radius: 50%; background: var\(--accent\)/u, 'with the small green dot');
+  assert.match(rule(':root[data-nav="side"] .side-row.on::before'), /width: 5px; height: 5px; border-radius: var\(--radius-dot\); background: var\(--accent\)/u, 'with the small green dot');
   assert.doesNotMatch(rule(':root[data-nav="side"] .side-row') + rule(':root[data-nav="side"] .side-row:hover') + rule(':root[data-nav="side"] .side-row.on'), /underline|box-shadow|radius-pill|background: var\(--(?!accent)/u, 'no fill, underline or pill on a row');
   assert.match(rule(':root[data-nav="side"] .side-row .f.a'), /color: var\(--warn\)/u, 'amber when it needs the person');
   assert.match(rule(':root[data-nav="side"] .side-row .f'), /color: var\(--ink-faint\)/u, 'muted otherwise');
