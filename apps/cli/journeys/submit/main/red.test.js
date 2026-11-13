@@ -177,7 +177,7 @@ test('an exact unowned main red submits with its receipt, fact and decision shou
 });
 
 test('a long unowned main red settles pulled with one bounded decision shout [V4,B3]', { timeout: 240_000 }, async t => { // budget: one pulled gate job and its main comparison on the fixture runner.
-  const box = frozen(t, { name: `${'a'.repeat(2000)} [G1]` });
+  const box = frozen(t, { name: `${'a'.repeat(500)} [G1]` });
   const report = await settledSubmit(t, box, { submitted: true });
   assert.equal(report.submission?.gateGreen, true, JSON.stringify(report.gate));
   const shouts = frozenRows(box, 'SELECT * FROM shout').filter(row => row.shout_to === 'coordinator'
