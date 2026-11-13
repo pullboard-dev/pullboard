@@ -114,6 +114,26 @@ function itemStageMarks(item, project) {
   return marks;
 }
 
+/**
+ * Draw the page's frame while the shown board's state is on its way: the tabs, the current tab marked, and the
+ * current screen's cards, empty. The board list has already answered, so a machine with no board never flashes it.
+ * Its two-column screens keep their detail column, so the frame does not jump when the board fills it in (#6589).
+ */
+function drawFrame() {
+  const group = String(view.root || '').startsWith('group:');
+  document.body.classList.remove('loading', 'boardless');
+  $('tabs').hidden = group;
+  document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
+  const frame = $('board-frame');
+  frame.dataset.screen = group ? 'group' : view.tab;
+  frame.classList.toggle('two', !group && ['items', 'shouts', 'spec', 'doctrine'].includes(view.tab));
+  frame.classList.toggle('narrow', !group && view.tab === 'shouts');
+  frame.hidden = false;
+  $('project-loading').hidden = false;
+  $('live').textContent = '';
+}
+
+
 // The Items rows drawn last, and the slice of them on screen (#6676).
 let itemsList = null;
 let itemsPitch = 0;
@@ -165,9 +185,13 @@ function render({ tab: switching = false } = {}) {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
     for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
-    $('live').textContent = 'Loading project…';
+    $('status-board').innerHTML = '';
+    // The tabs and the screen's empty cards stand while its board state is on its way, never a blank page (#6589).
+    if (data.projects.some((entry) => entry.ok)) drawFrame();
+    else $('live').textContent = 'Loading project…';
     return;
   }
+  $('board-frame').hidden = true;
   $('proof-stats').hidden = true;
   if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
