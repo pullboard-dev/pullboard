@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/view */
 /** Every page takes the design sheet's shapes: 6 px cards, 4 px chips, round dots only, shadows only on floating panels [N26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
