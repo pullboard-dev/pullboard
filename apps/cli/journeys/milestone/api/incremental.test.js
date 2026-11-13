@@ -28,6 +28,7 @@ import { jobQueueEmpty } from '../../../tests/fixtures/api/milestone.js';
 test('one move recomputes only the items it touched [A2,N26]', async (t) => {
   const box = settledProject();
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: seed the fixture board the real served API then reads.
   const board = openBoard(boardFile, undefined, { isMain: true });
   const ids = [];
   try {
@@ -125,6 +126,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
 
   /** Run one read against the fixture board without changing its event cursor. */
   function readBoard(read) {
+    // @pullboard-board-file journey: read the fixture board the real served API holds, without moving its event cursor.
     const current = openBoard(boardFile, undefined, { isMain: true });
     try { return read(current); }
     finally { closeBoard(current); }
@@ -236,6 +238,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     assert.equal(expired.items.find((item) => item.id === ids[299]).status, 'open');
     assert.deepEqual(builds, [ids[299]], 'eventless lease expiry recomputes only the expired claim');
 
+    // @pullboard-board-file journey: read the board file the real served API incrementally projected.
     const queryBoard = openBoard(boardFile, undefined, { isMain: true });
     try {
       const queries = [];
@@ -287,6 +290,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     // persistent indexes on the repository-shared board by supplying isMain: true.
     const privateLegacy = join(box.dir, 'index-migration.sqlite');
     cpSync(boardFile, privateLegacy);
+    // @pullboard-board-file migration: open a private legacy copy to prove the index migration.
     const migrated = openBoard(privateLegacy);
     try {
       const restored = migrated.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all().map(({ name }) => name);

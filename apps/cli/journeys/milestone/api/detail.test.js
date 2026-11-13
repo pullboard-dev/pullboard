@@ -17,6 +17,7 @@ import { WRITER } from '../../../tests/fixtures/api/milestone.js';
 test('[N26,A2] an item detail answers under 20 ms on a large board', async (t) => {
   const box = project();
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: seed 1000 items into the fixture board the real served API then reads.
   const board = openBoard(boardFile, undefined, { isMain: true });
   const ids = [];
   try {
