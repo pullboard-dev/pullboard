@@ -12,6 +12,7 @@ import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { jobQueueCall } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { pullGit } from '../../../src/io/runner/git.js';
 
 test('a serve claim carries jobs, cores and RAM in its claimed step and stats runners --json reports them per serve [C7,#6135]', { timeout: 60_000 }, // budget: one private init, one claim and one CLI call.
 async t => {
@@ -31,7 +32,7 @@ async t => {
     jobQueueCall(db, body, { mode: 'pull' });
     return new Response(JSON.stringify({ claim: null }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
-  await serveRunner({ board: `${box.origin}${box.path}?k=${box.key}`, runner: 'serve-a', capabilities: [], cache: join(box.dir, 'cache-a'), once: true, fetchImpl, timing: { idleMs: 10 }, trunkPack: async () => null });
+  await serveRunner({ git: pullGit, board: `${box.origin}${box.path}?k=${box.key}`, runner: 'serve-a', capabilities: [], cache: join(box.dir, 'cache-a'), once: true, fetchImpl, timing: { idleMs: 10 }, trunkPack: async () => null });
   assert.equal(bodies.length, 1);
   assert.deepEqual([bodies[0].jobs, bodies[0].cores, bodies[0].ram], [1, availableParallelism(), totalmem()]);
   // A second serve on a smaller runner claims through the queue call with its own figures.

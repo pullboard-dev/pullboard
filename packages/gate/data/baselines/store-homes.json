@@ -505,7 +505,6 @@
     "table:holder": 4
   },
   "packages/resources/src/io/main.js": {
-    "resources.sqlite": 2,
     "table:runner_unavailable": 1
   },
   "packages/resources/src/io/renewal.js": {

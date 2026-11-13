@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
+import { pullGit } from '../../../../../apps/cli/src/io/runner/git.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
@@ -74,7 +75,7 @@ async function serveAll(t, jobs) {
   const board = fakeBoard(trunk, jobs({ first, second }));
   const stop = new AbortController();
   const sleep = async () => { stop.abort(); };
-  await serveRunner({ board: BOARD, runner: 'r-reuse', capabilities: [], cache, jobs: 1, signal: stop.signal, fetchImpl: board.fetchImpl, sleep, timing: { idleMs: 1 } });
+  await serveRunner({ git: pullGit, board: BOARD, runner: 'r-reuse', capabilities: [], cache, jobs: 1, signal: stop.signal, fetchImpl: board.fetchImpl, sleep, timing: { idleMs: 1 } });
   return { ...board, first, second };
 }
 

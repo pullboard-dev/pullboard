@@ -28,6 +28,8 @@ import {
   staleStateLimits,
 } from "./state/policy.js";
 import { planStaleState } from "./state/maintenance.js";
+import { writeBoardMeta } from '../../../io/board/meta.js';
+import { deleteBoardMeta } from '../../../io/board/meta.js';
 
 /** A malformed observation is a refusal, never permission to make a best-effort release. */
 function invalid() {
@@ -180,7 +182,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
       const heldAt = staleInstant(row.heldAt, Date.parse(snapshot.observedAt));
       const remaining = snapshot.limits.hold - (Date.parse(snapshot.observedAt) - heldAt);
       if (heldAt === null || remaining <= 0 || remaining > snapshot.limits.warning) invalid();
-      board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, String(row.holdEventId));
+      writeBoardMeta(board.db, key, String(row.holdEventId));
       notice(agentId, `Hold on #${row.id} expires within one hour: ${shortReason(row.reason)}. Renew or lift it with pullboard hold ${row.id}.`, row.id);
       result.warnings.push(row.id);
     }
@@ -227,7 +229,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         return { row, item, leaseMs };
       });
       result.claims = [];
-      board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES('lapsed_claim_scan_cursor',?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value").run(String(snapshot.claimScan.next));
+      writeBoardMeta(board.db, 'lapsed_claim_scan_cursor', String(snapshot.claimScan.next));
       result.claimScan = snapshot.claimScan;
       for (const { row, item, leaseMs } of claims) {
         const window = { builder: item.item_owner, until: new Date(board.clock.now().getTime() + leaseMs).toISOString() };
@@ -245,7 +247,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
       for (const { row, item } of idle) {
         if (row.idle === 'stall') {
           // Told once per claim episode: the holder's lane lead, or the coordinator when the lane has none.
-          board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(`claim_stalled:${row.id}`, String(row.episodeEventId));
+          writeBoardMeta(board.db, `claim_stalled:${row.id}`, String(row.episodeEventId));
           const minutes = Math.floor(row.idleMs / 60_000);
           logEvent(board, agentId, 'claim_stalled', row.id, { holder: row.actor, lastActivity: row.workActivity, idleMinutes: minutes, observedAt: snapshot.observedAt });
           notice(laneLead(board, item.item_lane), `#${row.id} (${row.actor}) is stalled: no commit, file change, running check or item move for ${minutes} minutes; it is released automatically at 40.`, row.id);
@@ -273,8 +275,8 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
             ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
-        board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`claim_stalled:${row.id}`);
-        if (row.idle === 'waiting') board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(`claim_waiting:${row.id}`, JSON.stringify(row.waitingOn));
+        deleteBoardMeta(board.db, `claim_stalled:${row.id}`);
+        if (row.idle === 'waiting') writeBoardMeta(board.db, `claim_waiting:${row.id}`, JSON.stringify(row.waitingOn));
         notice(row.actor, `Released your claim on #${row.id}: ${reason}`, row.id);
         if (row.idle === 'dependency') for (const dependent of dependencyWaiters(board, row.id)) {
           notice(dependent.item_owner ?? laneLead(board, dependent.item_lane), `Dependency #${row.id} of #${dependent.item_id} was released as stale and is available again at its rank; a new builder can claim it.`, dependent.item_id);
