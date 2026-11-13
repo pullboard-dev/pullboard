@@ -3,6 +3,13 @@ import { callGraph } from './write.js';
 
 /** Where a request enters: every function of the API's own modules, plus the ports `pullboard serve` hands the API. */
 const API_FILE = /^packages\/api\/src\/io\/[^/]+\.js$/u;
+// The other HTTP servers: the view's server, the relay's handler and the transport pull server each answer requests on the event loop.
+export const HTTP_SERVERS = Object.freeze([
+  'apps/view/src/io/serve.js#serveView',
+  'apps/relay/src/io/service.js#createRelayHandler',
+  'apps/relay/src/io/service.js#serveRelay',
+  'packages/transport/src/io/pull/http.js#pullServer',
+]);
 // `pullboard serve` installs these as request-time callbacks, so each is an entry although no api module names it.
 const SERVE_PORTS = Object.freeze([
   'apps/cli/src/io/submit/receipt.js#criterionMainReceipts',
@@ -87,7 +94,7 @@ export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS }
   for (const [file, model] of modules) {
     if (API_FILE.test(file)) for (const name of model.functions.keys()) walk(file, name, []);
   }
-  for (const port of SERVE_PORTS) walk(port.slice(0, port.indexOf('#')), port.slice(port.indexOf('#') + 1), []);
+  for (const port of [...SERVE_PORTS, ...HTTP_SERVERS]) walk(port.slice(0, port.indexOf('#')), port.slice(port.indexOf('#') + 1), []);
   const lost = [];
   for (const { file, list, what } of CALLBACK_LISTS) {
     const names = list.exec(modules.get(file)?.source ?? '')?.[1];
