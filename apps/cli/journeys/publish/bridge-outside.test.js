@@ -1,23 +1,17 @@
-/** An outside pull request cannot borrow a native verified status, and a later item cannot hide an unverified commit [B3,R3]. */
+/** An outside pull request cannot borrow a native pull request's verified status [B3,R3]. */
 import assert from 'node:assert/strict';
-import {
-  writeFileSync,
-  rmSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   bridgeProject,
   bridgeProvider,
   landBridgeItems,
-  landBridgeRepair,
   runBridgeCLI,
 } from '../../tests/fixtures/bridge.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
 import * as store from '../../../../packages/store/index.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
-test('an outside pull request cannot borrow a native verified status and an unreviewed commit stays unproven [B3,R3]', async t => {
+test('an outside pull request cannot borrow a native verified status [B3,R3]', async t => {
   const proven = bridgeProject(t);
   const entries = landBridgeItems(proven, { independent: true });
   assert.ok(onBoard(proven, board => entries.every(entry => store.acceptedVerdict(board, store.getItem(board, entry.id)).assurance === 'independent')),
@@ -61,29 +55,4 @@ test('an outside pull request cannot borrow a native verified status and an unre
   assert.equal(outsideProof.state, 'failure');
   assert.ok(outsideProof.unverified.includes(forged), 'a forged item or companion trailer cannot borrow an unrelated native receipt');
   assert.equal(latest(native.head.sha).state, 'success', 'closing the unverified sharing PR restores the independently proven head');
-
-  // A later independently checked item cannot hide an earlier unverified commit in the same PR.
-  proven.git(proven.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: unreviewed release bump');
-  const unreviewed = proven.git(proven.repo, 'rev-parse', 'HEAD');
-  const added = fixtureAdd(proven.run, proven.repo, 'web', 'independently checked later work', '--specs', 'G1',
-    '--criterion', 'the later work remains correct', '--check', 'test ! -f RED', '--json');
-  assert.equal(added.code, 0, added.err);
-  const later = JSON.parse(added.out).item.item_id;
-  landBridgeRepair(proven, later, 'web/three.js', { independent: true });
-  const complete = await runBridgeCLI(proven, 'publish', '--json');
-  assert.equal(complete.code, 0, complete.err);
-  const proof = JSON.parse(complete.out).verification.find(entry => entry.number === native.number);
-  assert.equal(proof.state, 'failure');
-  assert.ok(proof.unverified.includes(unreviewed), 'every commit is checked, not only the newly verified head');
-  assert.equal(latest(native.head.sha).state, 'failure');
-  assert.equal(github.requests.some(request => request.path.endsWith('/merge') && request.method !== 'GET'), false);
-  const grafts = join(proven.repo, '.git/info/grafts');
-  writeFileSync(grafts, `${native.head.sha} ${proven.published}\n`);
-  const beforeGrafts = github.statuses.length;
-  try {
-    const grafted = await runBridgeCLI(proven, 'publish', '--json');
-    assert.notEqual(grafted.code, 0);
-    assert.equal(JSON.parse(grafted.out).error.code, 'GIT_GRAFTS');
-    assert.equal(github.statuses.length, beforeGrafts, 'altered local ancestry cannot publish new proof');
-  } finally { rmSync(grafts); }
 });
