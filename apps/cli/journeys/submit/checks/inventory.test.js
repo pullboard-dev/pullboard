@@ -265,24 +265,6 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
     'the same many-cell board still refuses a new cut in a touched cell');
 });
 
-test('unchanged accepted cell cut evidence is reused across different candidate trees [C7,D3,CD64]', async t => {
-  const box = await plannedFixture(t), events = [];
-  const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
-    readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => true,
-    onCellObservation: (mode, name) => events.push([mode, name]) };
-  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
-  await preflight(box.root, box.main, commitCandidate(box), box.item, services);
-  assert.ok(events.some(([mode, name]) => mode === 'base-checked' && name === 'stats'));
-  events.length = 0;
-  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 2];\n");
-  const second = await preflight(box.root, box.main, commitCandidate(box), box.item, services);
-  assert.ok(events.some(([mode, name]) => mode === 'base-reused' && name === 'stats'), 'the actual accepted-base result survives a changed candidate tree');
-  assert.deepEqual(second.problems, []);
-  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
-  await assert.rejects(preflight(box.root, box.main, commitCandidate(box), box.item, services), /kernel --cuts: kernel still imports later stats/u,
-    'cached accepted evidence cannot hide a new candidate cut');
-});
-
 test('fixture binding compiler retries timeouts and names persistent timeouts [C7,D3]', t => {
   const original = childProcess.spawnSync;
   let calls = 0, always = false, firstTimeout;

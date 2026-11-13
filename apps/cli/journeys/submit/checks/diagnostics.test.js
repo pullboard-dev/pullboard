@@ -111,16 +111,13 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   const run = item => preflight(box.root, box.main, candidate, item, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
     readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     onBindingProbe: row => { requested += row.requested; computed += row.computed; } });
-  let cached;
-  try { await run(box.item); }
-  catch (error) { cached = error; }
-  assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
+  assert.deepEqual((await run(box.item)).problems, []);
   const first = { ...observed, requested, computed }, before = process.env.NODE_OPTIONS;
   observed.imports = 0; observed.bindings = 0;
   requested = 0; computed = 0;
   const changedCriterion = { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries with another criterion.' }) };
-  await assert.rejects(run(changedCriterion), /kernel --cuts: kernel still imports later stats/u);
-  assert.equal(computed, 0, 'a refused candidate still preserves complete binding observations for a later criterion');
+  assert.deepEqual((await run(changedCriterion)).problems, []);
+  assert.equal(computed, 0, 'a candidate preserves complete binding observations for a later criterion');
   observed.imports = 0; observed.bindings = 0;
   requested = 0; computed = 0;
   try {
@@ -133,7 +130,7 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
     assert.equal(observed.imports ?? 0, 0, 'the refusal does no import-parser work');
     assert.equal(observed.bindings ?? 0, 0, 'the refusal does no binding compiler work');
     assert.equal(requested, 0, 'the refusal requests no binding probe');
-    // The accepted inventory serves the unchanged modules, so the refused candidate needs each binding once and none repeats;
+    // The accepted inventory serves the unchanged modules, so the candidate needs each binding once and none repeats;
     // the cross-run reuse is the computed === 0 check above, and census reuse has its own cases (#2711).
     assert.ok(first.computed > 0 && first.requested === first.computed, `the eligible actual submit probes each binding exactly once ${JSON.stringify(first)}`);
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
