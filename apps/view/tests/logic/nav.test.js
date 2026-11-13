@@ -219,6 +219,8 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.match(pageControlsHtml({ tab: 'items', state: 'verify' }), /<button type="button" data-page-ctl="state" data-value="verify" class="on" aria-pressed="true">In review<\/button>/u, 'the shown state is the pressed one');
   assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/data-page-ctl="state"[^>]* class="on"/gu) || []).length, 1, 'one state at a time');
   assert.doesNotMatch(pageControlsHtml({ tab: 'items', writable: false }), /New item/u, 'a read-only view offers no New item');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'items', state: 'ids' })), ['Open', 'Building', 'In review', 'All', 'From Pipeline', 'List', 'Pipeline', 'New item'], 'Items opened from a Pipeline count says so, and only then');
+  assert.match(pageControlsHtml({ tab: 'items', state: 'ids' }), /data-value="ids" class="on"/u);
   assert.equal(pageControlsHtml({ tab: 'progress' }), '', 'Progress is gone: no controls');
   assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'All'], 'Shouts: For you and All');
   assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);

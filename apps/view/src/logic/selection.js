@@ -10,7 +10,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   const stateOf = item => observations.get(item.id)?.state;
   const gatedOf = item => observations.get(item.id)?.gated === true;
   const mergedOf = item => observations.get(item.id)?.merged === true;
-  const matching = (query ? items : items.filter(item => item.status !== 'withdrawn'))
+  // A search looks through every state, and so does a list of named items: landed work is withdrawn once met, and a count of it must still open.
+  const matching = (query || state === 'ids' ? items : items.filter(item => item.status !== 'withdrawn'))
     .filter(item => !query || matched.has(item.id));
 
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
