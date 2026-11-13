@@ -12,7 +12,6 @@ import { createHash } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   realpathSync,
   readFileSync,
   renameSync,
@@ -26,7 +25,6 @@ import {
   resolve,
   sep,
 } from 'node:path';
-import { tmpdir } from 'node:os';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
@@ -70,6 +68,8 @@ import { browserFreeChecksEnabled } from '../../../../config/index.js';
 import { loadMachineSettings } from '../../../../config/index.js';
 import { gateRunnerAdmission } from '../../../../config/index.js';
 import { recentReceipts } from '../../../../gate/index.js';
+import { scratchFolder } from '../../../../config/index.js';
+import { scratchRoot } from '../../../../config/index.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
 // Version 2 drops results cached while comparisons ran in a checkout without accepted main (#2950).
@@ -180,7 +180,7 @@ function gitCall(cwd, args, env) {
  */
 export async function withMainCheckout(root, commit, run, { onMainBranch = false } = {}) {
   // The real temp path: a runner reports realpath locations (macOS /private/var), which must resolve inside the checkout.
-  const directory = join(realpathSync(tmpdir()), `pullboard-main-red-${randomUUID()}`);
+  const directory = join(realpathSync(scratchRoot()), `pullboard-main-red-${randomUUID()}`);
   mkdirSync(directory, { mode: 0o700 });
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
@@ -221,7 +221,7 @@ export function mainRunnerSource(root, commit, trunkCommit = commit) {
 export function committedNeedsGui(root, commit, path) {
   const blob = gitCall(root, ['show', `${commit}:${path}`], cleanGitEnvironment());
   if (blob.status !== 0) return false;
-  const directory = mkdtempSync(join(realpathSync(tmpdir()), 'pullboard-main-gui-'));
+  const directory = realpathSync(scratchFolder('pullboard-main-gui-'));
   try {
     mkdirSync(dirname(join(directory, path)), { recursive: true });
     writeFileSync(join(directory, path), blob.stdout);
