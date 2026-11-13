@@ -19,6 +19,6 @@ export function machineHome({ override, accountHome, osHome }) {
 export function processMachineHome() {
   const { PULLBOARD_MACHINE_HOME: override, PULLBOARD_ACCOUNT_HOME: accountHome, PULLBOARD_TEST_RUNNER_PID: runner } = process.env;
   if (!override && !accountHome && runner) return join(tmpdir(), `pullboard-test-machine-${runner}`);
-  // The OS account is read only when no override names the home: a sandbox that denies process-info traps the lookup (exit 133).
+  // The OS account is read only without an override: a sandbox denying process-info traps the lookup (exit 133).
   return machineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir });
 }
