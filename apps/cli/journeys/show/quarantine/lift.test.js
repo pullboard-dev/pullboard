@@ -7,7 +7,7 @@ import { fixture } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 
-test('clause 1: twenty clean runs lift the quarantine two Submit pairs filed [C7,H16]', async t => {
+test('clause 1: twenty clean runs lift the quarantine two Submit pairs filed [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = fixture(t, false, false);
   assert.equal(submit(box).code, 1);
   assert.equal(submit(box).code, 0); // the active quarantine lets the computed verdict through

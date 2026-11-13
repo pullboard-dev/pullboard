@@ -187,7 +187,7 @@ function stateDetail(value) {
 }
 
 /** Create the common API router; an adapter controls authorization and board storage. */
-export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {}) {
+export function createApiHandler(adapter, { pollMs = 200, tagState = false, bodyBytes = {} } = {}) {
   if (!Number.isInteger(pollMs) || pollMs < 10 || pollMs > 60_000) throw new Refused('API_POLL', 'use a poll interval from 10 to 60000 milliseconds');
   if (typeof adapter?.refusalDocument !== 'function') throw new TypeError('createApiHandler needs the caller\'s refusalDocument renderer');
   /** Render one refusal with the injected renderer. */
@@ -496,7 +496,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
           ...(warnings.length ? { warning: warnings[0], ...(warnings.length > 1 ? { warnings: warnings.slice(1) } : {}) } : {}) });
       }
       if (req.method === 'POST' && route[2] === 'moves') {
-        const moved = await adapter.move(board, await readBody(req, { moveRefusal: true }), who);
+        const moved = await adapter.move(board, await readBody(req, { moveRefusal: true, ...(bodyBytes.moves ? { maxBytes: bodyBytes.moves } : {}) }), who);
         return json(res, moved.status, moved.body);
       }
       if (route[2] === 'jobs') {
@@ -504,7 +504,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
         if (req.method !== 'POST' || typeof adapter.jobs !== 'function') throw new Refused('JOBS_NOT_AVAILABLE', 'POST one job queue call (claim, renew, release or receipt) to a board that serves its runner job queue');
         return json(res, 200, await adapter.jobs(board, await readBody(req), who));
       }
-      if (req.method === 'POST' && route[2] === 'requests') return json(res, 200, await adapter.request(board, await readBody(req), who));
+      if (req.method === 'POST' && route[2] === 'requests') return json(res, 200, await adapter.request(board, await readBody(req, bodyBytes.requests ? { maxBytes: bodyBytes.requests } : undefined), who));
       return json(res, 400, refusal(new Refused('BAD_REQUEST', 'use GET for reads and POST for moves and requests')));
     } catch (error) {
       const status = apiStatus(error);

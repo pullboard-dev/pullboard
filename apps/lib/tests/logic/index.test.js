@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import * as front from '../../index.js';
 import * as provider0 from '../../src/logic/index.js';
 import * as provider1 from '../../src/logic/native.js';
+import * as boardPackage from '../../../../packages/board/index.js';
 
 const surfaces = [
   ['src/index.js', 'apps/lib/src/core/index.js', ['Refused', 'STANDARD_VERSION', 'blockedPaths', 'board', 'citedIds', 'commitMsgProblems', 'defaultConfig', 'frozenCriterion', 'laneNames', 'laneOf', 'lintSpec', 'listResources', 'loadConfig', 'loadDoctrine', 'outOfLane', 'parseSpec', 'secretsIn', 'standardDoctrine', 'takeResource'], provider0],
@@ -19,4 +20,9 @@ test('the lib front door binds every provider export by identity [C7,CD60]', () 
 
 test('the package entry re-exports the native board binding [C7,CD60]', () => {
   assert.equal(front.board, provider1.board);
+});
+
+test('clause 1: the library openBoard and every native board export is the packages/board binding itself [C7]', () => {
+  for (const name of Object.keys(provider1)) assert.equal(provider1[name], boardPackage[name], name);
+  assert.equal(front.openBoard, boardPackage.openBoard);
 });

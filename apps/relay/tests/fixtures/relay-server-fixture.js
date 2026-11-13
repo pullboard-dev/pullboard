@@ -19,7 +19,7 @@ import { SEALED_SNAPSHOT_BYTES } from '../../../../packages/link/index.js';
  * beforeClose for any work that must finish before the relay stops (the client fixture stops its sender there).
  * The relay polls each live stream at its production 200 ms; a case that needs a faster poll passes pollMs by name.
  */
-export async function relayServerFixture(t, { accountStorageBytes, pollMs = 200, host = '127.0.0.1', scratch, beforeClose } = {}) {
+export async function relayServerFixture(t, { accountStorageBytes, moveBodyBytes, pollMs = 200, host = '127.0.0.1', scratch, beforeClose } = {}) {
   const provider = await githubFixture(t);
   provider.state.deviceAuthorized = true;
   const authDatabase = join(scratch, 'auth.sqlite');
@@ -343,7 +343,7 @@ export async function relayServerFixture(t, { accountStorageBytes, pollMs = 200,
   const origin = 'http://' + host + ':' + relayPort;
   auth = createRelayAuth({ database: authDatabase, github: createGitHubClient({ ...provider.config, callbackURL: origin + '/auth/github/callback' }), now: () => Date.now() + authOffsetMs });
   signIn = createAuthHandler({ auth, publicOrigin: origin });
-  api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs, maintenanceMs: 0, accountStorageBytes, now: () => Date.now() + timeOffsetMs });
+  api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs, maintenanceMs: 0, accountStorageBytes, moveBodyBytes, now: () => Date.now() + timeOffsetMs });
   /** Sign a separate phone in over actual OAuth HTTP; its person session stays only in fixture RAM. */
   async function phoneSession() {
     if (phone) return phone;
