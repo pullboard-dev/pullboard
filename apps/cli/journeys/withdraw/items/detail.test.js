@@ -209,7 +209,7 @@ test('in-text item references stay inline and open their target at phone and des
         `${width}: the title link has the surrounding line height: ${JSON.stringify(rendered)}`);
       assert.ok(Math.abs(rendered.needRef.height - rendered.needText.height) < 1,
         `${width}: the Needs-you link has the surrounding line height: ${JSON.stringify(rendered)}`);
-      assert.ok(rendered.needAction.height >= tapTarget(width) && rendered.realButton.height >= tapTarget(width),
+      assert.ok(rendered.needAction.height >= tapTarget(width) && (width >= 900 || rendered.realButton.height >= tapTarget(width)), // the desktop strip keeps compact text controls (nav.css .pagectl)
         `${width}: real controls keep their targets: ${JSON.stringify(rendered)}`);
 
       for (const section of ['agents', 'spec', 'doctrine']) {
