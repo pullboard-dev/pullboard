@@ -78,7 +78,7 @@ import {accountedFailures} from './tooling/packages/landing/index.js';
 import {checkAtCommit} from './tooling/apps/runner/index.js';
 import * as store from './tooling/packages/store/index.js';
 import * as nativeBoard from './tooling/apps/lib/index.js';
-const P=name=>(process.env.QUARANTINE_PHASES||'').split(',').includes(name),ran=[];
+const P=name=>(process.env.QUARANTINE_PHASES||'').split(',').includes(name),ran=[],T0=Date.now(),marks=[['base-start',0]];
 let only,receipt,gateRecord,native,nativeReceipt,savedBatch,nativeBoardReceipt,checkedItem,privateReceipt;
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 const io={cwd:root,nativeBoard,say(){},err(){},gateWaitReporter:()=>()=>{}};
@@ -100,7 +100,7 @@ const quarantines=snapshot();assert.equal(quarantines.length,1);
 await withBoard(ctx,board=>ordered(ctx,board,'refreeze',[quarantines[0].item,{agentId,freeze:freezer(ctx,{board})}]));
 const item=withBoard(ctx,board=>store.getItem(board,quarantines[0].item));
 const proofContext={item:item.item_id,frozenDigest:item.item_frozen_digest,seat:agentId,kind:'submit'};
-if(P('gate')){ran.push('gate');
+if(P('gate')){ran.push('gate');marks.push(['gate',Date.now()-T0]);
 only=await gate('red',quarantines);
 assert.equal(only.isGreen,true,only.output);assert.equal(only.exitCode,1);
 receipt=readGateReceipt(receiptStore(root),only.receiptId);
@@ -112,7 +112,7 @@ gateRecord={...only,tree:receipt.tree};
 withBoard(ctx,board=>validateQuarantineGate(board,gateRecord));
 withBoard(ctx,board=>assert.throws(()=>validateQuarantineGate(board,{...gateRecord,isGreen:false}),error=>error.code==='PROOF_RUN_UNBOUND'));
 }
-if(P('mixed')){ran.push('mixed');
+if(P('mixed')){ran.push('mixed');marks.push(['mixed',Date.now()-T0]);
 const mixed=await gate('mixed',quarantines);
 assert.equal(mixed.exitCode,1);assert.equal(mixed.isGreen,false,'a second unquarantined case still blocks');
 assert.equal(mixed.blockingVerdict.green,false);
@@ -129,7 +129,7 @@ const exit2=await runGate(root,{...config,gate:config.gate+'; exit 2'},
 assert.equal(exit2.isGreen,false);assert.equal(exit2.exitCode,2);assert.equal(exit2.blockingVerdict,undefined);
 process.env.PULLBOARD_QUARANTINE_CASE_MODE='red';
 }
-if(P('native')){ran.push('native');
+if(P('native')){ran.push('native');marks.push(['native',Date.now()-T0]);
 native=await withGateSlot(root,lease=>{
  lease.quarantines=quarantines;lease.proof=proofContext;
  lease.signatureCapture={version:MAIN_FAILURE_SIGNATURE_VERSION,derive:(run,root)=>failureSignatures(run,root,{raw:true})};
@@ -184,7 +184,7 @@ withBoard(ctx,board=>{
  assert.equal(sourceAdvanceProblem(board,candidate,{...proof,phases:[{...proof.phases[0],receipt:raw}]}).code,'SOURCE_ADVANCE_PROOF');
 });
 }
-if(P('land')){ran.push('land');
+if(P('land')){ran.push('land');marks.push(['land',Date.now()-T0]);
 process.env.PULLBOARD_QUARANTINE_CASE_MODE='red';// the native phase leaves red set; later phases start from it too
 const land=await runGate(root,config,{trustStamp:false,landing:true,agent:agentId,quarantines,onFailure:observer,executionServices});
 assert.equal(land.isGreen,true,JSON.stringify({output:land.output,stages:land.stages,profile:land.profile,receiptId:land.receiptId}));assert.equal(land.exitCode,1);
@@ -192,7 +192,7 @@ const landReceipt=readGateReceipt(receiptStore(root),land.receiptId);
 assert.equal(checkTrainLandingReceipt(landReceipt,landReceipt.head).green,false);
 withBoard(ctx,board=>assert.equal(readTrainLandingReceipt(root,board,landReceipt.id,landReceipt.head).id,landReceipt.id));
 }
-if(P('batch')){ran.push('batch');
+if(P('batch')){ran.push('batch');marks.push(['batch',Date.now()-T0]);
 
 await withBoard(ctx,async board=>{
  const commit=git(root,['rev-parse','HEAD']);
@@ -215,7 +215,7 @@ await withBoard(ctx,async board=>{
  assert.ok(move.engine>=QUARANTINE_VERDICT_ENGINE);
 });
 }
-if(P('guard')){ran.push('guard');
+if(P('guard')){ran.push('guard');marks.push(['guard',Date.now()-T0]);
 const guards=await runLocalLandingGuard(root,config,{files:['test/control.test.js'],directory:root+'/../logs',label:'guard',onFailure:observer,
  quarantines,proofContext:{...proofContext,kind:'land'}});
 assert.equal(guards.isGreen,true);assert.equal(guards.exitCode,1);
@@ -224,7 +224,7 @@ const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'nod
  {directory:root+'/../logs',quarantines,proofContext:{...proofContext,kind:'land'}});
 assert.equal(deferred.isGreen,true);assert.equal(deferred.exitCode,1);assert.ok(deferred.proofReceiptId);
 }
-if(P('private')){ran.push('private');
+if(P('private')){ran.push('private');marks.push(['private',Date.now()-T0]);
 process.env.PULLBOARD_QUARANTINE_CASE_MODE='red';// the native phase leaves red set; later phases start from it too
 checkedItem=await withBoard(ctx,async board=>{
  const id=store.addItem(board,{by:agentId,lane:'web',title:'Quarantined actual private criterion',
@@ -247,7 +247,7 @@ await withBoard(ctx,async board=>{
  assert.ok(verifyMove.minimumEngine([checkedItem.item_id,{quarantineProofId:privateReceipt.id}],board)>=QUARANTINE_VERDICT_ENGINE);
 });
 }
-if(P('submit')){ran.push('submit');
+if(P('submit')){ran.push('submit');marks.push(['submit',Date.now()-T0]);
 const submit=await runSubmitGate(root,{...config,staticChecks:'',submitGate:'landing',submitInvariants:[],registryGuards:[],affectedTests:null},
  {base:git(root,['rev-parse','HEAD^']),trunk:git(root,['rev-parse','HEAD']),check:config.gate,agent:agentId,
   proofContext:{item:checkedItem.item_id,frozenDigest:checkedItem.item_frozen_digest,seat:agentId,quarantines},onFailure:observer,executionServices});
@@ -255,7 +255,7 @@ assert.equal(submit.isGreen,true);assert.equal(submit.check.green,true);
 assert.equal(submit.check.rawExitCode,1);assert.equal(submit.phaseVerdicts[0].blockingVerdict.green,true);
 assert.equal(readGateReceipt(receiptStore(root),submit.proofReceiptIds[0]).proof.exitCode,1);
 }
-if(P('companion')){ran.push('companion');
+if(P('companion')){ran.push('companion');marks.push(['companion',Date.now()-T0]);
 // Real companion bytes produce a different commit; only that actually executed composition grants authority.
 const source=git(root,['rev-parse','HEAD']),builderRoot=root+'-quarantine-builder';
 git(root,['worktree','add','--detach',builderRoot,source]);
@@ -305,7 +305,7 @@ try {
  });
 } finally {git(root,['worktree','remove',builderRoot]);}
 }
-if(P('tail')){ran.push('tail');
+if(P('tail')){ran.push('tail');marks.push(['tail',Date.now()-T0]);
 const unchanged=receiptBody(nativeReceipt);
 assert.equal(receiptFields({...nativeReceipt,blockingVerdict:null}),null);
 assert.equal(receiptFields({...nativeReceipt,proof:{...nativeReceipt.proof,exitCode:0}}),null);
@@ -334,7 +334,7 @@ withBoard(ctx,board=>{
 });
 assert.equal(receiptBody(readGateReceipt(receiptStore(root),nativeReceipt.id)),unchanged);
 }
-console.log(JSON.stringify({phases:ran}));
+marks.push(['end',Date.now()-T0]);console.log(JSON.stringify({phases:ran,marks}));
 `;
 
 /** Run the listed driver phases in one private project and return the phases the driver reports it executed. */
@@ -342,5 +342,5 @@ export async function runQuarantinePhases(t, phases) {
   const box = quarantineProject(t, { phases });
   const result = await runFixtureChildAsync(process.execPath, ['quarantine-driver.mjs'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr + result.stdout);
-  return JSON.parse(result.stdout.trim().split('\n').at(-1)).phases;
+  const rep = JSON.parse(result.stdout.trim().split('\n').at(-1)); assert.fail(JSON.stringify(rep.marks)); return rep.phases;
 }
