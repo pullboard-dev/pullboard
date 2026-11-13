@@ -768,13 +768,12 @@ function render({ tab: switching = false } = {}) {
     let section = null;
     let listHtml = shownRows.length ? shownRows.map((r) => {
       const currentSection = kind === 'spec' ? r.section : sectionKey(r);
-      const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && currentSection !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
       const sectionCount = sectionCounts.get(currentSection);
       const standard = kind === 'doctrine' && r.origin === 'standard';
       const reviewNeeded = standard && ['pending', 'draft'].includes(r.status);
       const sectionName = standard ? 'PB · Pullboard rules' : r.section;
-      const sectionAction = standard ? '<span class="doctrine-review-count">' + (sectionReviewCounts.get(currentSection) || 0) + ' to review</span>' : sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" title="All rows needing your decision in this Spec section, including rows hidden by the current filter" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '';
-      const head = currentSection !== section ? '<div class="spec-section-head doctrine-section-head"><h4>' + esc(sectionName) + ' <span class="section-count">' + sectionCount + '</span></h4>' + sectionAction + '</div>' : '';
+      const sectionAction = standard ? '<span class="doctrine-review-count">' + (sectionReviewCounts.get(currentSection) || 0) + ' to review</span>' : '';
+      const head = currentSection !== section ? '<div class="spec-section-head doctrine-section-head"><h3 class="hd2">' + esc(sectionName) + ' <span class="section-count">' + sectionCount + '</span></h3>' + sectionAction + '</div>' : '';
       section = currentSection;
       const declined = kind === 'doctrine' && r.status === 'wont';
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);

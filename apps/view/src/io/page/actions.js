@@ -676,19 +676,6 @@ function askConfirmNeeds(value, anchor) {
   openModal($('spec-approve-dialog'),$('spec-approve-submit'));
 }
 
-function askApproveAll(section) {
-  const pending = ruleListModel(data.project.spec, { kind: 'spec', filter: 'decide', approvalIds: personNeeds(data.project).filter(row => row.kind === 'agent-approved').map(row => row.id) });
-  const ids = pending.shown.filter(row => row.section === section).map(row => row.id);
-  // Every row was decided after the last redraw; this one drops the stale control.
-  if (!ids.length) { render(); return; }
-  // The confirmation belongs to the board it was opened on: its rows are that board's, and only that board records them.
-  view.approvingAll = { root: view.root, section, ids };
-  $('spec-approve-title').textContent = 'Approve all ' + ids.length + (ids.length === 1 ? ' undecided row in “' : ' undecided rows in “') + section + '”?';
-  $('spec-approve-rows').textContent = 'Rows: ' + ids.join(', ');
-  $('spec-approve-submit').textContent = 'Approve ' + ids.length + (ids.length === 1 ? ' row' : ' rows');
-  openModal($('spec-approve-dialog'), $('spec-approve-submit'));
-}
-
 /**
  * Close the Approve all confirmation. Cancelled, focus returns to the section control that opened it; approved, to the
  * list, since the section's control leaves once its rows are decided. Closed because the page left its board, focus
@@ -700,8 +687,7 @@ function closeApproveAll(approved = false, left = false) {
   closeModal($('spec-approve-dialog'));
   if (left) return asked;
   if (asked?.needs) { (asked.anchor?.isConnected && !approved ? asked.anchor : $('needs')).focus({preventScroll:true}); return asked; }
-  const control = !approved && asked && [...$('spec-list').querySelectorAll('[data-section-approve]')].find((button) => button.dataset.sectionApprove === asked.section);
-  (control || $('spec-list')).focus({ preventScroll: true });
+  $('spec-list').focus({ preventScroll: true });
   return asked;
 }
 
@@ -1034,7 +1020,7 @@ document.addEventListener('click', (event) => {
     itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
     return;
   }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side, #proj-switch, #proj-menu')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const control = event.target.closest('button[data-page-ctl]');
@@ -1136,7 +1122,6 @@ document.addEventListener('click', (event) => {
     if (t.dataset.sentinelDecision === 'approve') act('sentinel-approve', { name, digest }, $('needs'));
     else askDecline('sentinel', name, 'needs', digest, t);
   }
-  else if (t.dataset.sectionApprove) askApproveAll(t.dataset.sectionApprove);
   else if (t.dataset.shoutId && !event.target.closest('button,a,input,textarea,select')) { go('shout:' + t.dataset.shoutId); }
   else if (t.dataset.row) {
     const [kind, id] = t.dataset.row.split(':');
