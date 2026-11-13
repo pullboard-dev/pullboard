@@ -36,7 +36,7 @@ function projectOverRatchet() {
 function stage(box, file, source) {
   writeFileSync(join(box.repo, file), source);
   box.git(box.repo, 'add', file);
-  return spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', CHECKER, '--staged-hook'],
+  return spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER, '--staged-hook'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
 }
 
