@@ -208,13 +208,13 @@ function overviewHelp(groups, firstRun = false) {
 }
 
 /** The settings forms settingsCommand dispatches with a value; each gets its own help, from this list (N2). */
-export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses']);
+export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses', 'runnerRates']);
 
 /** Help for each settings form the printed usage did not already name, so each form is covered (N2). */
 function settingFormHelp(commands) {
   return Object.fromEntries(SETTING_FORMS.filter((form) => !commands[`settings ${form}`]).map((form) => [`settings ${form}`, Object.freeze({
-    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<spend>/day|week' : '<n>'}`], flags: [`${WHY_FLAG} — ${WHY_EXPLANATION}`],
-    example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
+    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<spend>/day|week' : form === 'runnerRates' ? '<runner> <price> <months> <watts> <kwhPrice>' : '<n>'}`], flags: [`${WHY_FLAG} — ${WHY_EXPLANATION}`],
+    example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : form === 'runnerRates' ? 'studio.local 1200 36 85 0.14' : '2'}`, notes: [],
   })]));
 }
 
