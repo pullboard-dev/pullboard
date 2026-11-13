@@ -1,5 +1,6 @@
 import { FIXTURE_GATE_DISPATCH } from '../testkit.js';
 import { fixtureMachineSettings } from '../testkit.js';
+import { fixtureProjectPolicy } from '../testkit.js';
 import { HOST } from '../runner/ssh.js';
 import { installSshStandIn } from '../runner/ssh.js';
 /** Public, real-Git landing contention fixture; no private drill data is used [B3,R3,Q1,Q2,E8]. */
@@ -256,10 +257,57 @@ async function pulledFreshnessCase(helpers) {
   assert.equal(landJobs(box).length, jobs, 'a stale verdict starts no land job');
 }
 
+/** The gate arguments each offered land job carries, read from its offered step, in offer order. */
+function offeredLandChecks(box) {
+  return readBoard(box, board => board.db.prepare("SELECT job_step_payload AS payload FROM job_step JOIN job ON job_id = job_step_job WHERE job_kind = 'land' AND job_step_name = 'offered' ORDER BY job_created, job_id").all()
+    .map(row => JSON.parse(row.payload).payload?.check ?? null));
+}
+
+/**
+ * The admitted-policy variant on pull: the second item changes the project's gate args and lands first, on the policy
+ * main accepted before it; the first item's land job, offered after, checks with the new args main now holds. Why: the
+ * pulled land check is fixed at offer time from main's policy, so an item never judges itself by the policy it brings [Q1,B3,C7].
+ */
+async function pulledPolicyCase(helpers) {
+  const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(helpers);
+  const box = landProject();
+  // The project's own gate judges each land job (no affectedTests ledger proof), and the web lane owns its config.
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  delete config.affectedTests;
+  config.lanes.web.owns.push('pullboard.json');
+  fixtureProjectPolicy(box.repo, { config });
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: the project gate judges landings');
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
+  const first = itemWorktree(box, 1);
+  const second = itemWorktree(box, 2);
+  submitItem(box, first);
+  const itemConfig = JSON.parse(readFileSync(join(second.path, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(second.path, { config: { ...itemConfig, gate: itemConfig.gate + ' --new-policy' } });
+  submitItem(box, second);
+  acceptItem(box, first);
+  acceptItem(box, second);
+  // The submit gates also ran the gate; only the land jobs' runs count from here.
+  writeFileSync(box.calls, '');
+  readBoard(box, board => store.holdItem(board, first.item, { agentId: 'coordinator', reason: 'land the policy change first' }));
+  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  assert.deepEqual(landed.landed, [second.item], JSON.stringify(landed));
+  assert.match(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'), /--new-policy/u, 'main now holds the new gate args');
+  readBoard(box, board => store.releaseItemHold(board, first.item, { agentId: 'coordinator' }));
+  const after = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  assert.deepEqual(after.landed, [first.item], JSON.stringify(after));
+  const gate = config.gate.trim();
+  assert.deepEqual(offeredLandChecks(box), [['sh', '-c', gate], ['sh', '-c', `${gate} --new-policy`]], 'each land job carries the gate main accepted when it was offered');
+  const calls = readFileSync(box.calls, 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(args => !args.includes('--alone'));
+  assert.deepEqual(calls, [[], ['--new-policy']], 'the policy change lands on the old args; the next land job ran the new ones');
+}
+
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
   // Freshness survives under pull: the land offer rechecks each verdict against the main it lands onto [B3,C7].
   if (staleAfterFirst) return pulledFreshnessCase(helpers);
+  if (policyAfterFirst) return pulledPolicyCase(helpers);
   // Every variant is the controller's landing lease: a named waiting lander, its held batch, parent and guardian death. A pulled landing is a runner job with none of these; #6579 deletes the cases with the lease.
   t.skip('CONTROLLER_ONLY: deleted with #6579');
   return;
