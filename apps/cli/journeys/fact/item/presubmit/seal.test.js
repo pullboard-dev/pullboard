@@ -93,7 +93,8 @@ test('companion phases preserve zero, criterion-only deferred and blank-check pr
     assert.equal(store.getItem(f.board, f.id).item_status, 'submitted', JSON.stringify(mode) + ' ' + JSON.stringify(store.itemThread(f.board, f.id).slice(-3)));
     const detail = JSON.parse(store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1).event_detail);
     assert.deepEqual(detail.companion.phases.map(phase => phase.role), mode.deferred && mode.check === '' ? [] : [mode.deferred ? 'criterion' : 'proof']);
-    const options = { ...detail, agentId: f.builder.id, pulledPlan: { phases: detail.companion.phases, proofFiles: detail.submissionProof.files } };
+    const options = { ...detail, agentId: f.builder.id, pulledPlan: { phases: detail.companion.phases, proofFiles: detail.submissionProof.files,
+      deferred: detail.submissionProof.deferred, deferredFiles: detail.submissionProof.deferredFiles } };
     assert.equal(sealItemPatchSubmit(f.board, f.id, options), options);
   }
 });
