@@ -44,7 +44,7 @@ const host=args[divider+1], command=args[divider+2];
 const workers=${JSON.stringify(box.workers)};
 const worker=workers[host];
 if(divider<0 || !worker || typeof command!=='string') process.exit(255);
-const env={PATH:process.env.PATH,HOME:worker.home,PULLBOARD_HOME:worker.home,
+const env={PATH:process.env.PATH,HOME:worker.home,PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:worker.home,
  PULLBOARD_MACHINE_HOME:worker.machine,TMPDIR:process.env.TMPDIR,LANG:'C',LC_ALL:'C',TZ:'UTC'};
 const child=spawn('/bin/sh',['-c',command],{cwd:worker.root,env,stdio:['pipe','pipe','pipe']});
 child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);process.stdin.pipe(child.stdin);
@@ -86,7 +86,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
     writeFileSync(join(worker.machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
     box.workers[host] = worker;
   }
-  box.env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
+  box.env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
     PATH: `${box.bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Private Release Fixture', GIT_AUTHOR_EMAIL: 'release@example.invalid',
     GIT_COMMITTER_NAME: 'Private Release Fixture', GIT_COMMITTER_EMAIL: 'release@example.invalid' };

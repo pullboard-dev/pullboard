@@ -76,7 +76,7 @@ export function fixture() {
     GIT_AUTHOR_EMAIL: 'queue@example.invalid',
     GIT_COMMITTER_NAME: 'Queue Test',
     GIT_COMMITTER_EMAIL: 'queue@example.invalid',
-    PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   // Submits here settle in the command under controller dispatch, so no fixture waits on a pull runner it never starts [P7].
