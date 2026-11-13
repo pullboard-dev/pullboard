@@ -78,7 +78,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   const home = join(dir, 'home'), machine = join(home, '.pullboard');
   for (const path of [box.repo, box.bin, box.marks, machine, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false, runnerDispatch: 'controller' } }));
+    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false } }));
   for (let i = 0; i < hosts; i++) {
     const host = `synthetic-release-host-${i + 1}`;
     const worker = { home: join(dir, host, 'home'), machine: join(dir, host, 'home', '.pullboard'), root: join(dir, host, 'worker') };
@@ -163,7 +163,7 @@ ${checks}
 /**
  * Register actual worker-protocol controls; the importing wrapper decides when the native test gate may run them.
  * Each journey file installs one group (native, red, count1 or count7) so every file stays inside its 120 s budget [C7,V4].
- * The fixture pins controller dispatch: its fake SSH capsules are registered runners that never pull a board job.
+ * Pull dispatch is the default; the producer drives the release gate directly over its fake SSH capsules.
  */
 export function installReleaseProducerCases(group) {
   if (group === 'native') test('native private release producer covers eight simulated executors and binds stored bytes to current source [C7,V4]',
