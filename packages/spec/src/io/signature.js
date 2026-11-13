@@ -20,7 +20,7 @@ import {
 import { spawnSync } from 'node:child_process';
 import { gitConfig } from '../../../git/light.js';
 import { Refused } from '../../../kernel/light.js';
-import { scratchRoot } from '../../../config/light.js';
+import { scratchRoot } from '../../../config/index.js';
 
 export const SIGNERS_FILE = '.pullboard/signers';
 export const FIRST_COMMIT_FILE = '.pullboard/first-commit';
