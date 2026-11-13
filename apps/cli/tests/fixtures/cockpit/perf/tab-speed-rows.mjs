@@ -6,7 +6,8 @@
  */
 export const TAB_SPEED_GOAL_MS = 100;
 export const TAB_SPEED_ROWS = {
-  spec: { first: 570, repeat: 250 },
+  spec: { first: 570, repeat: 290 },
   doctrine: { first: 270, repeat: 230 },
-  items: { first: 330, repeat: 340 },
+  items: { first: 330, repeat: 350 },
+  dashboard: { hang: true },
 };

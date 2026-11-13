@@ -123,9 +123,10 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
     await chrome.navigate(server.link.href);
     await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')");
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
-    const hangs = [];
+    const hangs = [], hung = new Set();
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
       for (const tab of tabs) {
+        if (hung.has(tab)) continue; // a tab that hung once is not measured again; its hang is the record
         try {
           // Rules and Insights pages sit in a menu; open it first, outside the measured click [N26].
           if (MENU_OF[tab]) await press(chrome, `document.querySelector('[data-nav-group="${MENU_OF[tab]}"]')`);
@@ -145,6 +146,7 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
         } catch (error) {
           // A page that never answers is recorded as a hang, not thrown, so the audit row can name it [N26].
           if (error?.code !== 'CDP_TIMEOUT') throw error;
+          hung.add(tab);
           hangs.push({ tab, mode: mode.repeat ? 'repeat' : mode.isolation ? 'isolation' : 'first', message: error.message });
         }
       }
