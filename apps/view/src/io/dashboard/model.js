@@ -2,7 +2,7 @@ import { itemStageKey } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 
 /** Project the Dashboard from one authoritative item snapshot and its complete ordered event prefix [N26]. */
-export function dashboardModel(project, history, { now, complete = true, fold = null } = {}) {
+export function dashboardModel(project, history, { now, complete = true, working = null, fold = null } = {}) {
   if (!Number.isFinite(now)) throw new TypeError('Dashboard projection requires an explicit clock reading');
   const hour = 3_600_000, start = now - 4 * hour;
   const landingAt = new Map((project.landingBatches ?? []).flatMap(batch => (batch.items || []).map(entry => [entry.id, batch.startedAt])));
@@ -200,8 +200,9 @@ export function dashboardModel(project, history, { now, complete = true, fold = 
     }
     agent.segments = union;
     agent.idle = Math.max(0, now - (agent.start ?? start) - agent.build - agent.review);
-    agent.group = agent.current.some(entry => entry.kind === 'build') ? 'building'
-      : agent.current.length ? 'reviewing' : agent.last > now - 20 * 60_000 ? 'between items' : 'quiet';
+    // Who is at work is the notch's list when the page passes it (every count of agents at work reads that one list); alone, the model's own reading.
+    const atWork = Array.isArray(working) ? working.includes(agent.id) : agent.current.length > 0 || agent.last > now - 20 * 60_000;
+    agent.group = !atWork ? 'quiet' : agent.current.some(entry => entry.kind === 'build') ? 'building' : agent.current.length ? 'reviewing' : 'between items';
   }
   // The server's own four-hour counts stand in while the browser's history is incomplete; never a guess from a partial log.
   const recent = project.dashboardRecent && typeof project.dashboardRecent === 'object' ? project.dashboardRecent : null;

@@ -1046,11 +1046,36 @@
     "raw-cli": 1,
     "model": 1
   },
-  "apps/cli/journeys/withdraw/items.test.js": {
-    "raw-cli": 38,
-    "raw-board": 4,
-    "tempdir": 10,
+  "apps/cli/journeys/withdraw/items/detail.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/detail-phone.test.js": {
+    "tempdir": 2,
     "model": 1
+  },
+  "apps/cli/journeys/withdraw/items/pipeline.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/pipeline-click.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/withdraw/items/baseline.test.js": {
+    "raw-board": 2
+  },
+  "apps/cli/journeys/withdraw/items/list.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/sentback.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/toolbar.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/toolbar-open.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/withdraw/items/toolbar-wide.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/export/lan.test.js": {
     "raw-cli": 1,
@@ -1276,7 +1301,7 @@
   },
   "apps/cli/journeys/roadmap/cockpit/items.test.js": {
     "raw-cli": 9,
-    "tempdir": 2
+    "tempdir": 1
   },
   "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
     "raw-cli": 1,
@@ -1299,7 +1324,6 @@
     "tempdir": 4
   },
   "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
-    "raw-cli": 1,
     "tempdir": 1
   },
   "apps/cli/journeys/milestone/component.test.js": {
@@ -2140,9 +2164,6 @@
   "apps/cli/journeys/fact/landing/red.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/reopen/landing/stale.test.js": {
-    "model": 1
-  },
   "apps/cli/journeys/gate/landing/stop.test.js": {
     "hand-policy": 1
   },
@@ -2317,9 +2338,6 @@
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "raw-board": 1
-  },
-  "packages/landing/tests/io/plan/check/merged.test.js": {
-    "tempdir": 2
   },
   "apps/cli/tests/fixtures/drill.js": {
     "model": 1
@@ -4177,5 +4195,17 @@
     "tempdir": 1,
     "model": 2,
     "hand-policy": 3
+  },
+  "apps/cli/journeys/roadmap/cockpit/items-blocked.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/roadmap-stages.js": {
+    "raw-cli": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/pipeline.js": {
+    "raw-board": 2
   }
 }

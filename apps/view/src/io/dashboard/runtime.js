@@ -3,7 +3,7 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, agentsTable = null }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null }) {
   const histories = new Map();
   // The Agents table's between-items rows stay open across live redraws once the person opens them (#6847).
   let quietOpen = false;
@@ -84,12 +84,12 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const observedAt = Date.parse(project.observedAt);
     const now = Number.isFinite(observedAt) ? observedAt : Date.now();
     // Native snapshots are JSON; include every field so changed live data or an observation clock always invalidates.
-    const projectKey = JSON.stringify(project), cached = held.modelCache;
+    const projectKey = JSON.stringify(project), cached = held.modelCache, atWork = working ? working(project) : null, atWorkKey = atWork ? atWork.join('|') : '';
     const fresh = cached && cached.projectKey === projectKey && cached.events === held.events && cached.version === held.version
-      && cached.prefix === prefix && cached.complete === complete && cached.now === now;
+      && cached.prefix === prefix && cached.complete === complete && cached.now === now && cached.atWorkKey === atWorkKey;
     const behind = !fresh && quick && Boolean(cached?.state);
-    const state = fresh || behind ? cached.state : model(project, upTo(held.events, prefix), { complete, now, fold: held.fold ??= {} });
-    if (!behind) held.modelCache = { projectKey, events: held.events, version: held.version, prefix, complete, now, state };
+    const state = fresh || behind ? cached.state : model(project, upTo(held.events, prefix), { complete, now, working: atWork, fold: held.fold ??= {} });
+    if (!behind) held.modelCache = { projectKey, events: held.events, version: held.version, prefix, complete, now, atWorkKey, state };
     const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const progress = state.milestone ? summary(state.milestone, { now, locale, timeZone })?.header ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.

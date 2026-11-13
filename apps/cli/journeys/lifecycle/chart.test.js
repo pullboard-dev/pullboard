@@ -158,7 +158,7 @@ test('native rare lifecycle routes retain source receipts and render in Chrome a
   let view, chrome;
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-lifecycle-rare-chrome-'));
   try {
-    const ordinary = seedNativeOrdinary(box, demo, { includeForward: true, keepClaim: false });
+    const ordinary = await seedNativeOrdinary(box, demo, { includeForward: true, keepClaim: false });
     view = await startView(box);
     /** Read the authenticated full native state, including the exact events used by its counts. */
     const readNativeProject = async () => {
