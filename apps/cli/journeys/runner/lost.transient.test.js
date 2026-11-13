@@ -29,7 +29,7 @@ function fixture(t, { dropFirst = true } = {}) {
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
     gateSlots: 0, browserSlots: 0, runners: [runner],
     // Live-load ranking probes each runner over SSH before admission, which the holding stand-ins below would stall past the deadline.
-    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: 'pull' },
+    gate: { runnersFirst: true, loadAwareDispatch: false },
   }));
   return { ...box, requests, starts, runner };
 }
