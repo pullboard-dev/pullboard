@@ -1,7 +1,6 @@
 /** Measure real input-to-painted tab changes with the #606 Chrome input boundary [N26]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   findChromeExecutable,
@@ -125,14 +124,7 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     await chrome.navigate(server.link.href);
     // First load of the 40000-shout state is setup, not a measured click: give a loaded runner a minute [N26].
-    try { await chrome.waitFor(LOADED, firstLoadMs()); }
-    catch (error) {
-      const seen = await chrome.stable("JSON.stringify({ text: document.body.innerText.slice(0, 600), cls: document.body.className, data: typeof data, root: typeof view === 'object' ? view.root : null, project: typeof data === 'object' && data ? Object.keys(data) : null, err: window.__err })").catch(e => e.message);
-      const { readFileSync, existsSync, readdirSync } = await import('node:fs');
-      let reg; try { reg = readFileSync(join(board.env.PULLBOARD_HOME, 'projects.json'), 'utf8'); } catch (e) { reg = `ERR ${e.message}`; }
-      const extra = JSON.stringify({ pre: board.pre.slice(0, 40), diag: board.diag, view: (() => { try { return readFileSync(join(board.env.PULLBOARD_HOME, 'view.json'), 'utf8').slice(0, 300); } catch (e) { return e.message; } })(), root: board.root, rootExists: existsSync(board.root), ws: board.workspace, home: board.env.PULLBOARD_HOME, homeFiles: existsSync(board.env.PULLBOARD_HOME) ? readdirSync(board.env.PULLBOARD_HOME) : null, reg });
-      throw new Error(`DIAG ${extra} ${seen} :: ${error.message.slice(0, 100)} :: ${server.stderr()}`);
-    }
+    await chrome.waitFor(LOADED, firstLoadMs());
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     const hangs = [], hung = new Set();
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
@@ -175,7 +167,6 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
 /** One split file's whole contract: generate the real large board, click each of `tabs` first, again and isolated, and hold the 100 ms bar [N26]. */
 export async function checkTabSpeed(t, tabs) {
   const board = await awaitStressBoard({ seed: 'tab-speed-1600', size: 1600, agents: 1150, shouts: 40000 });
-  try { board.pre = readFileSync(join(board.env.PULLBOARD_HOME, 'projects.json'), 'utf8'); } catch (e) { board.pre = `ERR ${e.message}`; }
   try {
     assert.equal(board.agentCount, 1150);
     assert.equal(board.shoutCount, 40000);

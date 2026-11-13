@@ -311,9 +311,7 @@ export async function openNetworkCapture(profile, localOrigin, targetId) {
           startMs: relative - startMs, durationMs: request.durationMs ?? null };
       }).filter(Boolean);
       const requestBytes = requests.reduce((sum, request) => sum + (Number.isSafeInteger(request.responseBytes) ? request.responseBytes : 0), 0);
-      try { assertRequiredNetworkEvidence(name, requests, requestBytes); } catch (e) {
-        throw new Error(`${e.message} DIAG ${JSON.stringify({ startMs, endMs, n: records.length, last: records.slice(-12).map(r => ({ p: r.path, t: r.type, s: Math.round(r.startWallTimeMs - timeOrigin), f: Math.round(r.finishedWallTimeMs - timeOrigin), c: r.chunks.length, rb: r.responseBytes, ok: r.complete })) })}`);
-      }
+      assertRequiredNetworkEvidence(name, requests, requestBytes);
       return { requests, requestBytes,
         incompleteRequests: requests.filter((request) => !request.complete).length };
     },
