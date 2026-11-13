@@ -76,7 +76,7 @@ export function loadPercents(load) {
 }
 
 /**
- * A pull runner's lease owner without its per-session suffix: `auxiliary-51-mill-2cbb55` and `auxiliary-51-mill-2d74dc` are one runner
+ * A pull runner's lease owner without its per-session suffix: `pool-51-mill-2cbb55` and `pool-51-mill-2d74dc` are one runner
  * that restarted, so the card numbers it once.
  */
 const runnerBase = name => typeof name === 'string' ? name.replace(/-[0-9a-f]{6}$/u, '') : name;
