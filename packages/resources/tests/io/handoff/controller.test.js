@@ -28,7 +28,7 @@ test('clause 2: resources exports no dispatch entry and no resources source laun
   for (const name of ['drainHandoffQueue', 'ensureHandoffDispatcher', 'recoverHandoffDispatcher', 'handoffDispatcherMayBeDead', 'finishRunningWorkers', 'repeatingSweep']) {
     assert.equal(name in resources, false, `resources still exports ${name}`);
   }
-  assert.equal(existsSync(join(REPO, 'packages/resources/src/io/handoff/recovery.js')), false);
+  for (const file of ['packages/resources/src/io/handoff/recovery.js']) assert.equal(existsSync(join(REPO, file)), false, `${file} still exists`);
   const launchers = /gate\/drive\.js|handoff\/dispatcher\.js|worker\/detach\.js/u;
   const offenders = resourceSources()
     .filter(file => !file.endsWith('worker/detach.js'))
