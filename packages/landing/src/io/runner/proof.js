@@ -73,6 +73,30 @@ export function waivedRed(failures, waivers, now) {
   return covered.every(row => typeof row.waiver === 'string') ? covered : null;
 }
 
+/**
+ * The test files a red run's TAP names as failing, sorted, and each failing case's `not ok` line: what a reopened item's
+ * builder reads and the durable landing log keeps. Lenient where accountedRed is strict: a file it cannot place is skipped.
+ *
+ * @param {string} output - The run's whole stdout and stderr.
+ * @param {string} root - The merged checkout the run judged.
+ * @returns {{ files: string[], cases: string[] }}
+ */
+export function redSummary(output, root) {
+  let real = root;
+  try { real = realpathSync(root); } catch { /* the given root stands */ }
+  const files = new Set(), cases = [];
+  let waiting = false;
+  for (const line of output.split('\n')) {
+    if (NOT_OK.test(line)) { waiting = true; cases.push(line.trim()); continue; }
+    const location = waiting ? /^\s*location:\s*['"]?(.+?):\d+(?::\d+)?['"]?\s*$/u.exec(line) : null;
+    if (!location) continue;
+    waiting = false;
+    const file = isAbsolute(location[1]) ? [root, real].map(base => relative(base, location[1])).find(row => row && !row.startsWith('../') && !isAbsolute(row)) : location[1].replace(/^\.\//u, '');
+    if (file) files.add(file);
+  }
+  return { files: [...files].sort(), cases };
+}
+
 /** Quote one word for the shell the runner command runs in. */
 function shellWord(word) {
   return /^[\w./@:=+-]+$/u.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
@@ -100,6 +124,7 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
     child.stdin.end(JSON.stringify(proof.ledger ?? { contexts: [], files: [] }));
     // The whole TAP (stdout) is kept only when waivers could cover a red, to account every failure.
     let all = '';
+    const keepAll = () => all.length < 400_000;
     let tail = '', reused = 0, mainRed = 0, pending = '', errPending = '';
     // The first refusal wins over any failing test; a failing test keeps its name and the error lines after it.
     let refusal = null, failure = null, closed = false;
@@ -114,7 +139,7 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       pending = lines.pop();
       for (const line of lines) { if (REUSED.test(line)) reused++; if (MAIN_RED.test(line)) mainRed++; cause(line); }
       tail = (tail + chunk.toString('utf8')).slice(-2000);
-      if (projected.length) all += chunk.toString('utf8');
+      if (keepAll()) all += chunk.toString('utf8');
     };
     child.stdout.on('data', read);
     child.stderr.on('data', chunk => {
@@ -136,7 +161,10 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       if (waived) return finish(true, null, waived);
       cause(pending); cause(errPending);
       const first = (refusal ?? failure?.join('\n') ?? '').trim().slice(0, CAUSE_CHARS);
-      finish(false, `landing proof exited ${code ?? signal}: ${first ? `${first}\n… ` : ''}${tail.slice(-300)}`);
+      // A red names its failing files first, so the reopen note and the landing log say which file broke [C7].
+      const red = refusal ? { files: [], cases: [] } : redSummary(all, root);
+      const named = red.files.length ? `red in ${red.files.slice(0, 5).join(', ')}${red.files.length > 5 ? ` (+${red.files.length - 5} more)` : ''}; ` : '';
+      finish(false, `landing proof exited ${code ?? signal}: ${named}${first ? `${first}\n… ` : ''}${tail.slice(-300)}${red.cases.length ? `\nfailing cases:\n${red.cases.join('\n').slice(0, 4000)}` : ''}`);
     });
   });
 }

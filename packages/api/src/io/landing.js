@@ -1,5 +1,10 @@
 /** The board side of a runner landing job: one queue row naming the accepted items and the trunk sha expected [P7]. */
 import { createHash } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { ledgerFiles } from '../../../store/index.js';
 import { ledgerHits } from '../../../store/index.js';
@@ -157,4 +162,27 @@ export function landingProof(db, items, runner, main) {
  */
 export function openLandingJob(db) {
   return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_step <> 'done' ORDER BY job_created LIMIT 1").get(LANDING_JOB_KIND)?.job_id ?? null;
+}
+
+/**
+ * Keep a red land job's receipt as a durable log under the repo's pullboard/landings folder, where the inline engine
+ * kept its batch log and users read it. Why: a pulled runner works in its own checkout and writes no log on this machine,
+ * so the board, which holds the receipt, writes it [C7].
+ *
+ * @param {any} board
+ * @param {string} job
+ * @param {{ outcome?: string, detail?: string | null, returned?: { id: number, reason: string, detail: string }[] }} receipt
+ * @returns {string | null} the log's path, or null when the board has no repo folder or nothing red to keep
+ */
+export function keepLandingLog(board, job, receipt) {
+  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+  const folder = file && basename(dirname(file)) === 'pullboard' ? join(dirname(file), 'landings', String(job).replace(/[^\w.-]+/gu, '_').slice(0, 120)) : null;
+  const rows = (receipt.returned ?? []).filter(row => typeof row?.detail === 'string');
+  if (!folder || (!rows.length && !receipt.detail)) return null;
+  try {
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    const body = [`land job ${job}: ${receipt.outcome ?? 'red'}`, ...rows.map(row => `#${row.id} ${row.reason}:\n${row.detail}`), ...(rows.length ? [] : [String(receipt.detail)])].join('\n\n');
+    writeFileSync(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
+    return join(folder, 'runner.log');
+  } catch { return null; }
 }

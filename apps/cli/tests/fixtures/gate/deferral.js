@@ -66,7 +66,7 @@ export function makeDeferralFixtures(e2e, store) {
     const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
     /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
     const submitChange = async (value, { cwd = box.web, files = [] } = {}) => {
-      const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
+      const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--accept-green', 'the source check stays as a guard', '--wait', '--json');
       assert.equal(added.code, 0, added.err);
       const id = JSON.parse(added.out).item.item_id;
       const claimed = box.run(cwd, 'claim', String(id));

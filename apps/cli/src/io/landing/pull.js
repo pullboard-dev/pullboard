@@ -47,9 +47,10 @@ function deferredFilesOf(db, items) {
   const found = {};
   for (const entry of items) {
     const row = db.prepare("SELECT event_detail FROM event WHERE item_id = ? AND event_kind = 'submit' ORDER BY event_id DESC LIMIT 1").get(entry.id);
-    let files = null;
-    try { files = JSON.parse(row?.event_detail ?? 'null')?.submissionProof?.deferredFiles; } catch { /* an unreadable detail defers nothing */ }
-    if (Array.isArray(files) && files.length) found[String(entry.id)] = files;
+    let proof = null;
+    try { proof = JSON.parse(row?.event_detail ?? 'null')?.submissionProof; } catch { /* an unreadable detail defers nothing */ }
+    // The files the submit ran (its invariants) run again beside the deferred ones, on the merged tree.
+    if (Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...proof.deferredFiles, ...(Array.isArray(proof.files) ? proof.files : [])])];
   }
   return Object.keys(found).length ? found : null;
 }
