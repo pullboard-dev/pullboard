@@ -36,6 +36,7 @@ import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
+import { provideComparisonStart } from '../../../../../packages/api/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
 import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
@@ -93,6 +94,7 @@ export async function serveHere(io, values) {
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
+  provideComparisonStart(startPulledComparison);
   traceServeStartup('serve-listen-start');
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
@@ -146,6 +148,16 @@ function sameServe(port) {
 }
 
 /**
+ * Detach a green pulled submission's background comparison, as the inline green submit does; false when
+ * gate.mainComparison is off. The worker loads with the first green gate, so a board that never compares pays nothing [C7,V4].
+ * @param {{ root: string, item: number, source: string, digest: string }} request
+ */
+function startPulledComparison(request) {
+  if (mainComparisonMode() === 'off') return false;
+  return import('./verify.js').then(module => module.launchPulledComparison(request)).catch(() => { /* A comparison is observation only. */ });
+}
+
+/**
  * The board API on loopback for the boards `projects` lists, composed as `pullboard serve` composes it, for the local
  * runner [P7]. boards() names each board's id, read once per board.
  *
@@ -158,6 +170,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
+  provideComparisonStart(startPulledComparison);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -188,6 +201,7 @@ export function boardHandlerPorts({ isMain } = {}) {
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
+  provideComparisonStart(startPulledComparison);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');

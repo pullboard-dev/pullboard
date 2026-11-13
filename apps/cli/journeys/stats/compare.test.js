@@ -32,7 +32,7 @@ async function cli(root, clock, args) {
 test('two adjacent event windows report every hand-computed figure and absolute change [R1,R2]', async t => {
   const box = fixture(t), before = box.history();
   const result = compareFlowWindows(before, { now: BASE + 120 * 60_000, windowMinutes: 60, complete: true });
-  const previous = { since: at(0), until: at(60), landed: 2, observedSeats: 2, unmeasuredSeats: 0,
+  const previous = { since: at(0), until: at(60), landed: 2, observedSeats: 2, advisorSeats: 0, unmeasuredSeats: 0,
     agentHours: 2, idleHours: 72 / 60, idleShare: 72 / 120,
     idleReasonHours: { 'nothing-eligible': 0, held: 25 / 60, 'review-family': 20 / 60, 'main-red': 0, focus: 0, unknown: 27 / 60 },
     idleReasons: { 'nothing-eligible': 0, held: 25 / 120, 'review-family': 20 / 120, 'main-red': 0, focus: 0, unknown: 27 / 120 },
@@ -40,7 +40,7 @@ test('two adjacent event windows report every hand-computed figure and absolute 
     stageShares: { build: 35 / 119, rework: 15 / 119, reviewWait: 30 / 119, review: 23 / 119, land: 16 / 119 },
     unknownStageHours: 0, submissions: 3, submittedItems: 2, submitsPerItem: 1.5, rejections: 1,
     rejectRate: 1 / 3, coordinatorShouts: 4, shoutsPerLanding: 2 };
-  const current = { since: at(60), until: at(120), landed: 1, observedSeats: 2, unmeasuredSeats: 0,
+  const current = { since: at(60), until: at(120), landed: 1, observedSeats: 2, advisorSeats: 0, unmeasuredSeats: 0,
     agentHours: 2, idleHours: 90 / 60, idleShare: 90 / 120,
     idleReasonHours: { 'nothing-eligible': 45 / 60, held: 15 / 60, 'review-family': 0, 'main-red': 30 / 60, focus: 0, unknown: 0 },
     idleReasons: { 'nothing-eligible': 45 / 120, held: 15 / 120, 'review-family': 0, 'main-red': 30 / 120, focus: 0, unknown: 0 },

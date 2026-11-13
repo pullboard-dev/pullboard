@@ -174,7 +174,7 @@ function comparisonRatio(value, denominator) { return denominator > 0 && value !
 /** The event kinds that open, renew, close or explain a seat's held work, the only ones a seat window replays. */
 const SEAT_KINDS = new Set(['claim', 'renew', 'reserve', 'submit', 'lapse', 'withdraw', 'reopen', 'release', 'accept', 'reject', 'patch', 'next-idle']);
 /** The event kinds a comparison window counts. */
-const COUNTED_KINDS = new Set(['submit', 'reject', 'shout']);
+const COUNTED_KINDS = new Set(['submit', 'accept', 'reject', 'shout']);
 /** Each indexed history's facts, by its first event row: the indexes of the histories that row starts, newest first. */
 const indexes = new WeakMap();
 
@@ -378,6 +378,7 @@ function comparisonWindow(history, prepared, bounds, stageReport, gone) {
   const submittedItems = new Set(submissions.map(event => event.item_id).filter(id => id !== null && id !== undefined)).size;
   const landed = prepared.items.filter(item => item.mergeAt > bounds.start && item.mergeAt <= bounds.end).length;
   const rejections = selected.filter(event => event.event_kind === 'reject').length;
+  const accepted = selected.filter(event => event.event_kind === 'accept').length;
   const coordinatorShouts = selected.filter(event => event.event_kind === 'shout' && proofEventDetail(event).to === 'coordinator').length;
   const seats = seatWindow(history, bounds, gone);
   const stageMilliseconds = Object.fromEntries(Object.entries(COMPARE_STAGES).map(([name, key]) => [name, stageReport.milliseconds[key]]));
@@ -388,7 +389,9 @@ function comparisonWindow(history, prepared, bounds, stageReport, gone) {
     stageShares: Object.fromEntries(Object.entries(stageMilliseconds).map(([key, value]) => [key, comparisonRatio(value, measuredStageMilliseconds)])),
     unknownStageHours: stageReport.unknownMilliseconds / HOUR,
     submissions: submissions.length, submittedItems, submitsPerItem: comparisonRatio(submissions.length, submittedItems),
-    rejections, rejectRate: comparisonRatio(rejections, submissions.length), coordinatorShouts,
+    rejections,
+    // The share of the reviews finished in the window that were sent back: every verdict is an accept or a reject.
+    rejectRate: comparisonRatio(rejections, rejections + accepted), coordinatorShouts,
     shoutsPerLanding: comparisonRatio(coordinatorShouts, landed) };
 }
 

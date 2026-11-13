@@ -12,6 +12,7 @@
   --stage-merged: light-dark(#067a50, #30ad79); --stage-review: light-dark(#d4a020, #b38529); --stage-building: light-dark(#285c99, #3a6ab0);
   --stage-ready: light-dark(#a383e6, #9d80e0); --stage-gated: light-dark(#8a968f, #5d6b64); --mark-back: light-dark(#c4473a, #d26059);
   --mark-held: light-dark(#6f7d75, #8a978f);
+  --stage-gate: light-dark(#1f2933, #d6dbe0); --stage-gate-soft: light-dark(#eceef0, #1c2226); --stage-blocked-soft: light-dark(#eef0ef, #1b2420); --stage-blocked-ink: light-dark(#5f6b64, #9caba3); --mark-back-soft: light-dark(#fbe9e7, #2a1714);
   --stage-stripe: repeating-linear-gradient(135deg, var(--stage-merged) 0 2px, color-mix(in oklab, var(--stage-merged) 35%, var(--surface)) 2px 4px);
   --icon-you: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='8' cy='5.5' r='2.5'/%3E%3Cpath d='M3 13.5c.8-2.4 2.7-3.5 5-3.5s4.2 1.1 5 3.5'/%3E%3C/svg%3E");
   --blue: light-dark(#3f6f9e, #6ba7d6); --blue-soft: light-dark(#e1eaf3, #142231); --violet: light-dark(#6b4fc8, #ab9cf2); --violet-soft: light-dark(#ebe6fa, #1e1934);
@@ -283,13 +284,18 @@ a.ghost { color: var(--ink); }
 .roadmap-mobile-shipping { display: none; }
 .roadmap-release-index { min-width: 0; }
 .roadmap-releases { display: grid; gap: var(--space-1); min-width: 0; }
-.roadmap-release { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 4px; align-items: center; gap: var(--space-2) var(--space-3); width: 100%; min-width: 0; min-height: var(--tap); padding: var(--space-2) var(--space-3); border: 1px solid transparent; border-radius: var(--radius-lg); background: none; color: var(--ink); text-align: left; cursor: pointer; }
-.roadmap-release:hover, .roadmap-release[aria-current="location"] { background: var(--surface-2); }
-.roadmap-release[aria-current="location"] { border-color: var(--line); font-weight: 600; }
-.roadmap-release > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.roadmap-release > b { flex: none; color: var(--ink-muted); font: var(--text-2xs) var(--mono); }
-.roadmap-release-progress { grid-column: 1 / -1; display: block; width: 100%; height: 4px; border-radius: var(--radius-pill); background: var(--line-soft); }
-.roadmap-release-progress rect { fill: var(--accent); }
+.roadmap-release { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 20px 3px; align-items: center; gap: 0 var(--space-3); width: 100%; min-width: 0; padding: var(--space-1) var(--space-3) var(--space-2); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink-muted); font-size: var(--text-sm); text-align: left; cursor: pointer; }
+.roadmap-release:hover { color: var(--ink); }
+/* The open release is marked as the navigation marks its page: ink, semibold, the accent dot before it; no box. */
+.roadmap-release[aria-current="location"] { color: var(--ink); font-weight: 600; }
+.roadmap-release[aria-current="location"] .roadmap-release-version::before { content: ""; display: inline-block; width: 5px; height: 5px; margin-right: var(--space-2); border-radius: 50%; background: var(--accent); vertical-align: middle; }
+.roadmap-release-version { flex: none; white-space: nowrap; font-weight: 600; }
+.roadmap-release-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+.roadmap-release > b { flex: none; color: var(--ink-faint); font: 400 var(--text-2xs) var(--mono); }
+.roadmap-release-progress { grid-column: 1 / -1; display: block; width: 100%; height: 3px; margin-top: var(--space-0); border-radius: var(--radius-xs); background: var(--line-soft); }
+.roadmap-release-progress .landed { fill: var(--stage-merged); } .roadmap-release-progress .landing { fill: color-mix(in oklab, var(--stage-merged) 40%, var(--surface)); }
+.roadmap-release-progress .review { fill: var(--stage-review); } .roadmap-release-progress .building { fill: var(--stage-building); }
+.roadmap-release-progress .waiting, .roadmap-release-progress .held { fill: var(--stage-gated); }
 .roadmap-next-release { margin: calc(var(--space-0) * -1) 0 var(--space-4); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .roadmap-stage-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }
 .roadmap-stage-counts > div { display: flex; justify-content: space-between; gap: var(--space-2); padding: var(--space-3) var(--space-3); border-radius: var(--radius-lg); background: var(--surface-2); }
@@ -365,7 +371,7 @@ a.ghost { color: var(--ink); }
   .roadmap-panel { grid-column: 1; grid-row: 1; position: static; max-height: none; overflow: visible; padding: var(--space-4); }
   .roadmap-list { grid-column: 1; grid-row: 2; max-width: none; }
   .roadmap-releases { display: flex; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; gap: var(--space-2); padding-bottom: var(--space-1); }
-  .roadmap-release { flex: 0 0 auto; width: auto; max-width: 220px; border-color: var(--line); }
+  .roadmap-release { flex: 0 0 auto; width: auto; max-width: 220px; }
   .roadmap-desktop-shipping { display: none; }
   .roadmap-list .roadmap-mobile-shipping { display: grid; gap: var(--space-4); padding: 0 var(--space-5) var(--space-4); }
   .roadmap-stage-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -488,7 +494,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .row > div { display: contents; }
 .row > .dot { grid-area: dot; }
 .row .t { grid-area: t; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .t code { white-space: nowrap; }
+.row .t code, .row .t code.inline.long { white-space: nowrap; overflow-wrap: normal; }
 .row .t span { color: var(--ink-faint); font: 500 var(--text-xs) var(--mono); margin-right: var(--space-2); }
 .meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); color: var(--ink-muted); font-size: var(--text-xs); margin-top: var(--space-0); }
 .row .meta { grid-area: meta; min-width: 0; margin-top: 0; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
@@ -1425,6 +1431,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .set { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
 .set + .set { border-top: 1px solid var(--line); }
 .set .name { min-width: 0; }
+.set .name .set-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .set .name b { font-weight: 600; }
 .set .name .k { font: var(--text-xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-3); }
 .setting-root { margin-left: var(--space-3); font-size: var(--text-xs); color: var(--ink-faint); }

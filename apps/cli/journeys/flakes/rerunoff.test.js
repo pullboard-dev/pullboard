@@ -8,7 +8,7 @@ import { readyLanding } from '../../tests/fixtures/flakes/landing.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('landing with reruns off keeps its original red and runs nothing further [C7,H16]', async t => {
+test('landing with reruns off keeps its original red and runs nothing further [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
   const box = await readyLanding(t, false);
   const result = await cliLocal(box, box.root, 'land');
   assert.equal(result.code, 1, JSON.stringify(result.document)); // a batch whose every candidate is a culprit exits 1 (#4265)
