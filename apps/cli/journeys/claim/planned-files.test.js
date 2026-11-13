@@ -1,26 +1,40 @@
 /** A brief path missing from main and owned by no lane is a planned file of the item's lane [C7]. */
 import assert from 'node:assert/strict';
+import {
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { coordinatorPaths } from '../../src/io/commands/add.js';
+import { onTrunk } from '../../src/io/item/bar.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 
-/** File a web item as the coordinator (which may name any path) with the given brief, and try the web seat's claim. */
-async function claimWithBrief(t, brief) {
+const config = { lanes: { web: { owns: ['web/'] } } };
+
+/** A fixture project whose main holds web/page.html and src/board.js, so the claim's own trunk reader sees them. */
+function repoOnMain(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Planned file', criterion: 'The page renders.', brief, args: ['--specs', 'G1'] });
-  return box.runLocal(box.web, 'claim', '1');
+  mkdirSync(join(box.repo, 'web'));
+  mkdirSync(join(box.repo, 'src'));
+  writeFileSync(join(box.repo, 'web/page.html'), 'page\n');
+  writeFileSync(join(box.repo, 'src/board.js'), 'board\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'base files');
+  return box.repo;
 }
 
-test('claiming an item whose brief names a file missing on main and owned by no lane succeeds [C7]', async t => {
-  const claimed = await claimWithBrief(t, 'Files: web/page.html, test/new-thing.test.js.');
-  assert.equal(claimed.code, 0, claimed.err || claimed.out);
-  assert.match(claimed.out, /claimed #1/u);
+test('a brief file missing on main and owned by no lane is no coordinator path, so the claim succeeds [C7]', t => {
+  const root = repoOnMain(t);
+  const item = { lane: 'web', brief: 'Files:\n- web/page.html\n- test/new-thing.test.js\n' };
+  assert.deepEqual(coordinatorPaths(config, item), ['test/new-thing.test.js'], 'without the trunk reader it is still unowned');
+  assert.deepEqual(coordinatorPaths(config, item, { present: onTrunk(root) }), []);
 });
 
-test('a brief path that exists on main outside the item lane still refuses CROSS_OWNERSHIP [C7]', async t => {
-  const claimed = await claimWithBrief(t, 'Files: web/page.html, SPEC.md.');
-  assert.notEqual(claimed.code, 0);
-  assert.match(claimed.err + claimed.out, /CROSS_OWNERSHIP/u);
+test('a brief path that exists on main outside the item lane still refuses CROSS_OWNERSHIP [C7]', t => {
+  const root = repoOnMain(t);
+  const item = { lane: 'web', brief: 'Files:\n- web/page.html\n- src/board.js\n- test/new-thing.test.js\n' };
+  assert.deepEqual(coordinatorPaths(config, item, { present: onTrunk(root) }), ['src/board.js']);
 });
