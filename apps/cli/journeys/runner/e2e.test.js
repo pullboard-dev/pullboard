@@ -77,9 +77,6 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
     const configured = (await box.runLocal(box.repo, 'settings', key, value));
     assert.equal(configured.code, 0, configured.err || configured.out);
   }
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const kept = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  writeFileSync(settingsFile, JSON.stringify({ ...kept, gate: { ...kept.gate, runnerDispatch: 'controller' } }));
 
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
