@@ -6063,9 +6063,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/src/io/matrix.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/clone.js": [
       "apps/cli"
     ],

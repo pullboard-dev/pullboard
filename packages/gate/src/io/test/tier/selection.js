@@ -500,12 +500,18 @@ export function testTierReport(plan, { names = true } = {}) {
   return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}${audit}`;
 }
 
-/** A green exit with no observed test account cannot prove a selected unit or journey. */
+/**
+ * A green exit with no observed test account cannot prove a selected unit or journey. The refusal names the selected
+ * files the run gave no account for, so a runner that ignored them is found by name, on the controller and on a pulled gate.
+ */
 export function requireTestTierAccount(run, files) {
   const green = run.isGreen === true || run.green === true || run.state === 'pass';
   const outcomes = testOutcomeFields(run.profile?.testOutcomes) ?? testOutcomeFields(run.testOutcomes);
-  const accounted = outcomes
-    ? files.every(file => outcomes.some(row => row.file === posix.normalize(file)))
-    : Boolean(run.profile?.tests?.length);
-  if (green && files.length && !accounted) throw new Refused('TEST_SELECTION_UNVERIFIED', 'selected test files produced no test account; make the focused runner execute and report the selected tests');
+  const missing = outcomes
+    ? files.filter(file => !outcomes.some(row => row.file === posix.normalize(file)))
+    : run.profile?.tests?.length ? [] : [...files];
+  if (green && files.length && missing.length) {
+    const named = missing.slice(0, 20).join(', ') + (missing.length > 20 ? ` and ${missing.length - 20} more` : '');
+    throw new Refused('TEST_SELECTION_UNVERIFIED', `selected test files produced no test account (${missing.length} of ${files.length} unreported: ${named}); make the focused runner execute and report the selected tests`);
+  }
 }
