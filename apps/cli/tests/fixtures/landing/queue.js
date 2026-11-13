@@ -104,7 +104,7 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(withBaselineRunner(box, () => run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
       '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--brief',
-      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json')));
+      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--not-duplicate-of', '0 a fixture item, not a real duplicate', '--json')));
     const id = added.item.item_id;
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
