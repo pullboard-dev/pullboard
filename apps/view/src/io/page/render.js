@@ -101,12 +101,12 @@ function stageOfItem(item, project = {}, gated = false, gateDetail = '') {
 }
 
 /** Render the approved item stage, its plain detail and any explanatory marks. */
-function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false, roadmap = false) {
+function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false, roadmap = false, brief = false) {
   const stage = stageOfItem(item, project, gated, gateDetail);
   // A Roadmap row names only the stage, with Landed for Merged; the route and holder stay in the title for hover and readers [N26].
   const word = roadmap && stage.stage === 'Merged' ? 'Landed' : stage.stage;
   return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.detail) + '" aria-label="' + esc(stage.stage + ': ' + stage.detail) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(word) + '</b>' + (compact ? '</span>' : '')
-    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
+    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap || brief ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
 }
 
 /** Make a mark's reason available on hover and to assistive readers while the row remains tappable. */
@@ -701,7 +701,8 @@ function render({ tab: switching = false } = {}) {
     return { id: item.id, status: item.status, holder: holderOf(item), reviewer: reviewerOf(item), builtBy: item.builtBy,
       state, since: item.since, ageHtml: item.since ? '<time data-ago="' + esc(item.since) + '">' + ago(item.since) + '</time>' : '', stale: Boolean(stale), titleTextHtml: esc(item.title), titleHtml: rich(item.title, titles),
       stateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)),
-      briefStateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)) };
+      // The agent's row already names the agent, so its stage chip drops the "by <agent>" detail; hover still carries it.
+      briefStateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p), false, false, true) };
   });
   const agentRows = p.agents.map((agent) => {
     const isLead = lead(agent.agent_id);
