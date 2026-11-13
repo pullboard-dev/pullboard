@@ -11,9 +11,9 @@ import { after } from 'node:test';
 import { before } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
-import { accept } from '../../tests/fixtures/cockpit/harness.js';
+import { acceptLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { boardId } from '../../tests/fixtures/cockpit/harness.js';
-import { build } from '../../tests/fixtures/cockpit/harness.js';
+import { buildLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { earlier } from '../../tests/fixtures/cockpit/harness.js';
@@ -51,34 +51,34 @@ before(async () => {
   const titles = ['Landed one', 'Landed two', 'Accepted, waiting to land', 'In review with a reviewer', 'In review, nobody yet',
     'Sent back once', 'Ready one', 'Ready two', 'Ready three'];
   for (const title of titles) {
-    box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture row shows on the agent floor.',
+    await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture row shows on the agent floor.',
       '--check', 'test -d web/', '--wait');
   }
   for (const id of [1, 2]) {
-    build(box, alpha, id, `landed-${id}.txt`);
-    accept(box, alpha, id);
+    await buildLocal(box, alpha, id, `landed-${id}.txt`);
+    await acceptLocal(box, alpha, id);
     box.git(alpha.repo, 'merge', '--no-ff', '-m', `chore: land floor item ${id}`, alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
-    box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
+    await box.inProcess(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
-  build(box, alpha, 3, 'accepted.txt');
-  accept(box, alpha, 3);
-  build(box, alpha, 4, 'review-4.txt');
-  build(box, alpha, 5, 'review-5.txt');
-  build(box, alpha, 6, 'sent-back.txt');
+  await buildLocal(box, alpha, 3, 'accepted.txt');
+  await acceptLocal(box, alpha, 3);
+  await buildLocal(box, alpha, 4, 'review-4.txt');
+  await buildLocal(box, alpha, 5, 'review-5.txt');
+  await buildLocal(box, alpha, 6, 'sent-back.txt');
   const reviewer = join(box.dir, 'agent-floor-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/agent-floor-reviewer', reviewer, 'main');
-  box.run(reviewer, 'join', 'tests', '--model', 'Floor reviewer');
+  await box.inProcess(reviewer, 'join', 'tests', '--model', 'Floor reviewer');
   // The reviewer sends #6 back from its submitted commit, so the red mark sits on the reviewer's own line.
   box.git(reviewer, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:6`));
-  box.run(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back', '--no-next');
+  await box.inProcess(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back', '--no-next');
   box.git(reviewer, 'switch', '-q', '--detach', 'main');
   earlier(alpha.repo, Date.now(), board => store.reserveReview(board, 4, { agentId: 'tests-1', leaseMs: 3 * 60 * MINUTE, policy: 'any' }));
   // web-1 claims its next ready item, which it is building now.
-  box.run(alpha.web, 'claim', '7');
+  await box.inProcess(alpha.web, 'claim', '7');
   for (const index of [1, 2]) {
     const path = join(box.dir, `agent-floor-quiet-${index}`);
     box.git(alpha.repo, 'worktree', 'add', '-q', '-b', `tests/agent-floor-quiet-${index}`, path, 'main');
-    box.run(path, 'join', 'quiet', '--model', `Floor seat ${index}`);
+    await box.inProcess(path, 'join', 'quiet', '--model', `Floor seat ${index}`);
     seeded[`quiet${index}`] = path;
   }
   const clockBase = Date.now();
