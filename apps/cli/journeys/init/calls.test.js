@@ -40,7 +40,7 @@ import { refusalDocument } from '../../index.js';
 import { pathToFileURL } from 'node:url';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/runners/index.js')).href;
@@ -306,8 +306,7 @@ test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
   writeFileSync(agent, '#!/bin/sh\nmkdir -p src\nprintf result > src/result.txt\n');
   chmodSync(agent, 0o700);
   // No detached review comparison: it keeps writing into the fixture, and the cleanup then retries past the file budget [C7].
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
   const run = box.ok(box.worker, 'run', '--agent-light', `sh ${agent}`, '--items', '1', '--attempts', '1', '--minutes', '1');
   assert.match(run.stdout, /submitted #1/u);
   const current = box.git(box.worker, 'rev-parse', 'HEAD');
