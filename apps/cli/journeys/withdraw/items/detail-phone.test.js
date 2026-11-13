@@ -71,6 +71,9 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
     await chrome.waitFor('document.querySelectorAll("#detail .tl .tl-fact").length === ' + expected.filter((entry) => entry.type === 'fact').length);
     await chrome.click("document.querySelector('#detail [data-item-panel-tab=history]')");
     await chrome.waitFor("!document.querySelector('#detail [data-item-panel-panel=history]').hidden");
+    // The history folds to its newest five rows; the earlier note and the capture sit past the fold until the list is opened.
+    await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
+    await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
     const expectedIds = expected.map((entry) => entry.eventId);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
@@ -229,7 +232,12 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     config.agents = { names: 'prefix' };
     writeFileSync(configPath, JSON.stringify(config, null, 2));
-    await box.inProcess(demo.web, 'join', 'web', '--model', 'claude-opus-designer-on-a-long-review-model-name');
+    // The fixture's own worktree is already joined, so a second worktree takes the long-model seat and the build of #5.
+    const longSeat = join(box.dir, 'row-shape-long');
+    box.git(demo.repo, 'worktree', 'add', '-q', longSeat, '-b', 'web/rowshapelong');
+    await box.inProcess(longSeat, 'join', 'web', '--model', 'claude-opus-designer-on-a-long-review-model-name');
+    await box.inProcess(demo.web, 'release', '5', '--reason', 'OTHER', '--note', 'The long-model seat takes over the build.');
+    await box.inProcess(longSeat, 'claim', '5');
     await chrome.stable('refresh()');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
