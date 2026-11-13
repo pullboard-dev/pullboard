@@ -10,6 +10,7 @@ import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,14 +55,14 @@ export function cachedStressBoard(inputs) {
     mkdirSync(staging, { recursive: true });
     const made = generateStressBoard({ ...inputs, parent: staging });
     writeFileSync(join(made.workspace, 'env.json'), JSON.stringify(made.env));
-    writeFileSync(join(staging, 'complete'), `${made.workspace.slice(staging.length + 1)}\n`);
+    writeFileSync(join(staging, 'complete'), `${made.workspace}\n`);
     try { renameSync(staging, cache); } catch { rmSync(staging, { recursive: true, force: true }); }
   }
-  const name = readFileSync(marker, 'utf8').trim(), source = join(cache, name);
+  const built = readFileSync(marker, 'utf8').trim(), source = join(cache, basename(built));
   const workspace = join(tmpdir(), `pullboard-stress-${randomUUID()}`);
   cpSync(source, workspace, { recursive: true });
   const manifest = JSON.parse(readFileSync(join(workspace, 'stress-board.json'), 'utf8'));
   const env = JSON.parse(readFileSync(join(workspace, 'env.json'), 'utf8'));
   rmSync(join(workspace, 'env.json'));
-  return { ...repath(manifest, source, workspace), parent: tmpdir(), workspace, env: repath(env, source, workspace) };
+  return { ...repath(manifest, built, workspace), parent: tmpdir(), workspace, env: repath(env, built, workspace) };
 }
