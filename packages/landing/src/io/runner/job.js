@@ -138,7 +138,7 @@ async function landingGuards({ root, base }) {
 
 /**
  * The land job's check of the items merged so far: the landing guards, each merged item's own check, the job's command,
- * then the ledger proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a
+ * the ledger proof over the proved files the merged tree holds, then the contracts, stopping at the first red. Why the file filter: a
  * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
 async function landingCheck(payload, env) {
@@ -156,6 +156,9 @@ async function landingCheck(payload, env) {
       const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
       if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]);
     }
+    // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
+    const contracts = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
+    if (contracts) parts.push(['proof', contracts]);
     let proof = null, waived = null;
     for (const [role, part] of parts) {
       const result = await part(context);

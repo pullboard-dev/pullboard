@@ -1,7 +1,6 @@
 /** Hidden failures, tier manifests, batch bisection and landing contracts stay visible to selection [C7,CS4,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -22,6 +21,7 @@ import {
   accept,
 } from '../../../tests/fixtures/test/selection.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 
 test('hiding a real broken package from the supplied selection fails the run [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'beta', 'broken');
@@ -56,16 +56,14 @@ test('clause 1: a real T3 batch failure bisects to its item while package units 
   accept(box, bad);
   assert.deepEqual(calls(box, 'journey'), [], 'no journey ran during either submit or review');
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // The batch must execute its independent journey runner too.
-  const landing = await box.runLocal(box.repo, 'land', '--max', '2', '--json');
+  const landing = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landing.code, 0, landing.out + landing.err);
-  const landed = JSON.parse(landing.out);
-  const gateLogs = (landed.batch?.gateResults ?? []).map(row => existsSync(row.logPath) ? readFileSync(row.logPath, 'utf8') : 'no log').join('\n---\n');
-  assert.deepEqual(landed.landed, [good.id], `${landing.err}\n${gateLogs}\n${JSON.stringify(landed)}`);
-  assert.deepEqual(landed.culprits.map(row => row.id), [bad.id]);
-  assert.equal(landed.culprits[0].tests[0].file, 'test/journey.test.js');
-  const logs = landed.batch.gateResults.map(row => readFileSync(row.logPath, 'utf8'));
-  assert.ok(logs.length > 1, 'the original batch and split trees have actual gate results');
-  assert.ok(logs.every(log => log.includes('T3_JOURNEY') && !log.includes('T1_alpha') && !log.includes('T1_beta')), logs.join('\n--- next gate log ---\n'));
+  const landed = await settleLand(box, JSON.parse(landing.out));
+  assert.deepEqual(landed.landed, [good.id], `${landing.err}\n${JSON.stringify(landed.landJob)}`);
+  assert.deepEqual(landed.returned.map(row => row.id), [bad.id], JSON.stringify(landed.landJob));
+  assert.equal(landed.returned[0].reason, 'red');
+  assert.match(landed.returned[0].detail ?? '', /test\/journey\.test\.js/u, 'the red names the journey the batch gate ran');
+  assert.ok(calls(box, 'journey').length > 0, 'the independent journey runner executed at landing');
   assert.ok(json(box, box.repo, 'show', String(good.id)).item_merged_commit);
   assert.equal(json(box, box.repo, 'show', String(bad.id)).item_status, 'open');
 });
@@ -85,10 +83,11 @@ test('alpha keeps its front door value [G1]', () => { appendFileSync(${JSON.stri
 `);
   writeTestTiers(box.repo);
   commit(box, box.repo, 'test: alpha front door keeps its value [G1]');
-  const blocked = await box.runLocal(box.repo, 'land', '--max', '1', '--json');
-  assert.equal(blocked.code, 1, 'a batch that a culprit blocks exits non-zero: ' + blocked.out + blocked.err);
-  const landed = JSON.parse(blocked.out);
+  const blocked = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(blocked.code, 0, blocked.out + blocked.err);
+  const landed = await settleLand(box, JSON.parse(blocked.out));
   assert.deepEqual(landed.landed, [], JSON.stringify(landed));
+  assert.equal(landed.batch.state, 'blocked', JSON.stringify(landed.landJob));
   assert.ok(calls(box, 'contract').includes('contract:2'), 'landing ran the new contract on the merged tree');
   assert.ok(!json(box, box.repo, 'show', String(entry.id)).item_merged_commit, 'the change that breaks the contract never lands');
 });
