@@ -66,8 +66,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
     await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
     await chrome.click(`document.querySelector('#detail [data-item-panel-history]')`);
-    // The long note is the one row that offers Show all; the add also records a short not-a-duplicate note.
-    const noteSelector = '#detail .tl-fact[data-timeline-kind="note"]:has([data-timeline-more]) .tl-note';
+    // Other notes sit around it (the add records a short one), so the long note is found by its first line.
+    const noteKey = await chrome.stable(`[...document.querySelectorAll('#detail .tl-note')].find(note => note.textContent.includes('Line 1: the complete note')).querySelector('[data-timeline-more]').dataset.timelineMore`);
+    const noteSelector = '#detail .tl-note:has([data-timeline-more=' + JSON.stringify(noteKey) + '])';
     const bodySelector = noteSelector + ' .tl-body';
     assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(bodySelector)})).webkitLineClamp`), '3');
     assert.equal(await chrome.stable(`(() => { const body = document.querySelector(${JSON.stringify(bodySelector)}), style = getComputedStyle(body); return body.getBoundingClientRect().height <= parseFloat(style.lineHeight) * 3 + 1; })()`), true, 'the note is clamped to three visible lines');

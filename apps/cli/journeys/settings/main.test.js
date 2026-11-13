@@ -101,7 +101,7 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
     await chrome.waitFor('view.tab === "settings" && !document.querySelector("#settings-pane").hidden');
     const footer = await chrome.stable(`(() => {
       const button = document.querySelector('#side [data-tab="settings"]');
-      return { menu: Boolean(button?.closest('#account-menu')),
+      return { menu: Boolean(document.querySelector('#account-menu [data-tab="settings"]')),
         github: Boolean(document.querySelector('#side').lastElementChild.matches('.side-footer') && document.querySelector('#side .side-footer a[href*="github.com"]')),
         top: Boolean(document.querySelector('.side-body [data-tab="settings"]')) };
     })()`);
