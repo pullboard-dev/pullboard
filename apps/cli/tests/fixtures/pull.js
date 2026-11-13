@@ -31,7 +31,6 @@ import { resolve } from 'node:path';
 export function record(root, step) { appendFileSync(process.env.PULLBOARD_FIXTURE_STEPS ?? join(root, '.git', 'gate-steps.jsonl'), JSON.stringify({ step, job: process.env.PULLBOARD_FIXTURE_JOB ?? null, pid: process.pid }) + '\\n'); }
 `,
   'packages/items/index.js': `import { record } from '../../bin/record.js';
-export function requirePlannedSource(root) { record(root, 'placement'); }
 export function requireSubmitComposition(root) { record(root, 'composition'); }
 `,
   'packages/gate/index.js': `import { record } from '../../bin/record.js';

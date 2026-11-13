@@ -21,7 +21,7 @@ test('clause 2: authorization, doctrine, static checks, selection and tests all 
   const result = await runner.run(job);
   const steps = readFileSync(join(job.folder, '.git', 'gate-steps.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
   const names = new Set(steps.map(step => step.step));
-  for (const part of ['authorization', 'doctrine', 'static', 'placement', 'cells', 'selection', 'admission', 'proof']) assert.ok(names.has(part), `${part} ran in the runner job`);
+  for (const part of ['authorization', 'doctrine', 'static', 'composition', 'cells', 'selection', 'admission', 'proof']) assert.ok(names.has(part), `${part} ran in the runner job`);
   assert.ok(steps.every(step => step.job === job.held.job && step.pid !== process.pid), 'every part ran in the job\'s own process tree, none on the submitting host');
   assert.equal(existsSync(join(box.web, '.git', 'gate-steps.jsonl')), false);
   assert.equal(result.gate.green, true, JSON.stringify(result.gate));
