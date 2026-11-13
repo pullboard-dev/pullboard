@@ -7,7 +7,6 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { driverRecord } from '../../../tests/fixtures/gate/driver.js';
 import { spendDriverRelaunches } from '../../../tests/fixtures/gate/driver.js';
 import { RUNNING_RELAUNCH_LIMIT } from '../../../src/io/submit/handoff.js';
@@ -17,13 +16,6 @@ import {
   state,
 } from '../../../tests/fixtures/submit/handoff.js';
 import { INFRASTRUCTURE_RETRY_LIMIT } from '../../../../../packages/store/index.js';
-
-/** The submit fixture on the controller dispatch: a worker that dies is a controller's detached gate process, which pull dispatch has none of (#6249, gate.runnerDispatch controller until 2026-12-31). */
-function controllerFixture(t) {
-  const box = fixture(t);
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  return box;
-}
 
 /** Whether a process is gone; any other signal error leaves it presumed alive. */
 function gone(pid) {
@@ -58,7 +50,7 @@ async function runningJob(box) {
 }
 
 test('clause 1: a worker killed mid-gate is requeued from its exact candidate and finishes with no builder command [C7,V4]', async t => {
-  const box = controllerFixture(t);
+  const box = fixture(t);
   assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   await box.helpers.waitFor(() => existsSync(box.started), 'the gate started', 120000); // budget: observed gate start ceiling, no timing assertion.
   const job = await runningJob(box);
@@ -78,7 +70,7 @@ test('clause 1: a worker killed mid-gate is requeued from its exact candidate an
 
 test('clause 2: a candidate whose workers die three times stops and the sentinel shouts once, naming it [C7,V4]', async t => {
   assert.equal(INFRASTRUCTURE_RETRY_LIMIT, 3);
-  const box = controllerFixture(t);
+  const box = fixture(t);
   assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   let job = await runningJob(box);
   const commit = job.commit;
@@ -108,7 +100,7 @@ test('clause 2: a candidate whose workers die three times stops and the sentinel
 });
 
 test('clause 3 reproduction: a stall that kills the worker and its first two requeues leaves no gate needing a builder resubmit [C7,V4]', async t => {
-  const box = controllerFixture(t);
+  const box = fixture(t);
   assert.equal(document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'))).queued, true);
   let job = await runningJob(box);
   // The stall: the worker and its first two requeues die; the machine is healthy again for the next requeue.
