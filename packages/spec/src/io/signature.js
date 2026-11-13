@@ -21,8 +21,8 @@ import {
   resolve,
 } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { gitConfig } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { gitConfig } from '../../../git/light.js';
+import { Refused } from '../../../kernel/light.js';
 
 export const SIGNERS_FILE = '.pullboard/signers';
 export const FIRST_COMMIT_FILE = '.pullboard/first-commit';
