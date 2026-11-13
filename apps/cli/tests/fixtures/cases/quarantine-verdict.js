@@ -193,6 +193,7 @@ assert.equal(checkTrainLandingReceipt(landReceipt,landReceipt.head).green,false)
 withBoard(ctx,board=>assert.equal(readTrainLandingReceipt(root,board,landReceipt.id,landReceipt.head).id,landReceipt.id));
 }
 if(P('batch')){ran.push('batch');
+process.env.PULLBOARD_QUARANTINE_CASE_MODE='red';
 
 await withBoard(ctx,async board=>{
  const commit=git(root,['rev-parse','HEAD']);
