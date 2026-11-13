@@ -21,7 +21,7 @@ import {
   SPEC,
   machine,
   project,
-  build,
+  buildLocal,
   startView,
   boardOf,
   chromeExecutable,
@@ -45,17 +45,20 @@ import {
 } from '../../tests/fixtures/cockpit/addresses.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-/** Create accepted and open items whose real prose, dependency and activity rows cite one another. */
-function linkedItems(box, name) {
+/**
+ * Create accepted and open items whose real prose, dependency and activity rows cite one another.
+ * Why: every call is awaited in this process, because a launch per call cost over half of each case's time on a loaded runner.
+ */
+async function linkedItems(box, name) {
   const alpha = project(box, name, SPEC, { practice: 'DOCTRINE.md' });
   writeFileSync(join(alpha.repo, 'DOCTRINE.md'), `# Local rules\n\n## Team\n- PB1 [approved, must] ${name} practice rule. | gate: review\n`);
-  box.run(alpha.repo, 'add', 'web', 'Address target', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Text points to #1', '--specs', 'G1', '--criterion', 'criterion cites #1 and `#1`', '--brief', 'brief cites #1 and #999, with literal `#1`');
-  box.run(alpha.repo, 'add', 'web', 'Waits on #2', '--specs', 'G1', '--criterion', 'waits', '--after', '2');
-  box.run(alpha.repo, 'shout', 'all', 'Activity cites #1 and waits on #2.');
-  build(box, alpha, 1, 'target.txt');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Address target', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Text points to #1', '--specs', 'G1', '--criterion', 'criterion cites #1 and `#1`', '--brief', 'brief cites #1 and #999, with literal `#1`');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Waits on #2', '--specs', 'G1', '--criterion', 'waits', '--after', '2');
+  await box.inProcess(alpha.repo, 'shout', 'all', 'Activity cites #1 and waits on #2.');
+  await buildLocal(box, alpha, 1, 'target.txt');
   box.git(alpha.repo, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:1`));
-  box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'The notes cite #2 and literal `#2`.', '--as', 'coordinator');
+  await box.inProcess(alpha.repo, 'verify', '1', 'accept', '--note', 'The notes cite #2 and literal `#2`.', '--as', 'coordinator');
   box.git(alpha.repo, 'switch', '-q', 'main');
   return alpha;
 }
@@ -75,7 +78,7 @@ async function targetForHref(profile, href) {
 }
 
 test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for the real API, Chrome navigation and linked prose checks.
-  const box = machine(), alpha = linkedItems(box, 'item-text-links');
+  const box = machine(), alpha = await linkedItems(box, 'item-text-links');
   await withBrowser(box, async (chrome, server) => {
     await openAddress(chrome, server, '/items/2');
     const refs = JSON.parse(await chrome.stable(`JSON.stringify({
@@ -127,7 +130,7 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
 });
 
 test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for Chrome startup and native modified-click targets.
-  const box = machine(), alpha = linkedItems(box, 'modified-item-link');
+  const box = machine(), alpha = await linkedItems(box, 'modified-item-link');
   const server = await startView(box);
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove native modified-click behavior');
@@ -190,7 +193,7 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
 test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { timeout: 90_000 }, async () => { // budget: hang ceiling for export, replay, click and reload.
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove exported address reloads');
-  const box = machine(), alpha = linkedItems(box, 'snapshot-item-address');
+  const box = machine(), alpha = await linkedItems(box, 'snapshot-item-address');
   const folder = join(box.dir, 'snapshot');
   box.run(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
