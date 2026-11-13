@@ -71,7 +71,6 @@
   ],
   "fetch-runner-code": [
     "apps/runner/src/io/worker/git.js",
-    "packages/drive/src/io/pull.js",
     "packages/gate/src/io/board/write.js",
     "packages/github/src/io/intake.js",
     "packages/github/src/io/pr/publish.js",

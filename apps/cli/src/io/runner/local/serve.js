@@ -16,6 +16,7 @@ import { localBoards } from '../../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../../packages/drive/index.js';
 import { processAlive } from '../../../../../../packages/drive/index.js';
 import { serveLocalRunner } from '../../../../../../packages/drive/index.js';
+import { pullGit } from '../git.js';
 import { Refused } from '../../../../../../packages/kernel/index.js';
 import { runLandingJob } from '../../../../../../packages/landing/index.js';
 import { loopbackBoardApi } from '../../commands/serve.js';
@@ -44,7 +45,7 @@ async function serveLocal(io) {
   try {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
-      capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, signal: stop.signal, say,
+      capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
       admit: ({ running }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running }) });
     if (!served.served) say(`a local runner already runs on this machine (pid ${served.pid})`);
     return 0;

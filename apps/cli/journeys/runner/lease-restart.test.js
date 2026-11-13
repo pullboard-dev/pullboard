@@ -9,6 +9,7 @@ import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { jobView } from '../../../../packages/jobs/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
+import { pullGit } from '../../src/io/runner/git.js';
 import { realGitAdapter } from '../../../../packages/git/src/io/adapter.js';
 import { withGitAdapter } from '../../../../packages/git/src/io/adapter.js';
 import { withProjectGitTimeout } from '../../../../packages/git/src/io/adapter.js';
@@ -52,7 +53,7 @@ async (t) => {
     return fetch(url, init);
   };
   const lines = [];
-  const served = await serveRunner({ board: `${box.origin}${box.path}?k=${box.key}`, runner: 'r-gap', capabilities: [], cache: join(box.dir, 'cache'), once: true, fetchImpl, say: line => lines.push(line),
+  const served = await serveRunner({ git: pullGit, board: `${box.origin}${box.path}?k=${box.key}`, runner: 'r-gap', capabilities: [], cache: join(box.dir, 'cache'), once: true, fetchImpl, say: line => lines.push(line),
     timing: { renewMs: 100, renewRetryMs: 50, leaseMs: 60_000, idleMs: 10 } });
   assert.ok(gap && renews >= 4, `renewals kept retrying through the gap (${renews})`);
   assert.deepEqual(served.jobs.map(job => [job.job, job.outcome]), [['gate:restart', 'posted']]);
