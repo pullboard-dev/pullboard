@@ -10,6 +10,7 @@ import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { userInfo } from 'node:os';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -46,12 +47,18 @@ function repath(value, from, to) {
   return value;
 }
 
+/**
+ * The runner's own cache folder: a test run's TMPDIR is deleted with the run, so the cache lives beside the runner's other
+ * caches under the real home (HOME is remapped inside test runs).
+ */
+export function stressCacheRoot() { return join(userInfo().homedir, '.pullboard-runner', 'cache', 'stress-boards'); }
+
 /** Same result as generateStressBoard, but copied from the runner's cache; removeStressBoard cleans the copy. */
 export function cachedStressBoard(inputs) {
-  const cache = join(tmpdir(), 'pullboard-stress-cache', cacheKey(inputs));
+  const cache = join(stressCacheRoot(), cacheKey(inputs));
   const marker = join(cache, 'complete');
   if (!existsSync(marker)) {
-    const staging = join(tmpdir(), 'pullboard-stress-cache', `building-${process.pid}-${Date.now()}`);
+    const staging = join(stressCacheRoot(), `building-${process.pid}-${Date.now()}`);
     mkdirSync(staging, { recursive: true });
     const made = generateStressBoard({ ...inputs, parent: staging });
     writeFileSync(join(made.workspace, 'env.json'), JSON.stringify(made.env));
