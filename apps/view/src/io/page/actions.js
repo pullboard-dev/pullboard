@@ -1183,7 +1183,29 @@ function flipTheme() {
   keep('pb.theme', next);
   theme(next);
 }
-$('theme').addEventListener('click', flipTheme);
+/** Close the account menu. */
+function closeAccount() { const menu = $('account-menu'); if (menu.hidden) return; menu.hidden = true; $('account')?.setAttribute('aria-expanded', 'false'); }
+document.addEventListener('click', (event) => {
+  const menu = $('account-menu');
+  if (event.target.closest('[data-account]')) {
+    if (!menu.hidden) { closeAccount(); return; }
+    menu.innerHTML = accountMenuHtml({ signedIn: account.linked, login: account.login, theme: keep('pb.theme') || 'system' });
+    menu.hidden = false; $('account').setAttribute('aria-expanded', 'true');
+    return;
+  }
+  const row = event.target.closest('#account-menu [role="menuitem"]');
+  if (!row) { closeAccount(); return; }
+  if (row.hasAttribute('data-theme-flip')) { flipTheme(); return; }
+  closeAccount();
+  if (row.hasAttribute('data-account-signin') || row.hasAttribute('data-account-pair')) $('share-start')?.click();
+  else if (row.hasAttribute('data-account-signout')) { $('share-panel').hidden = false; $('share-status').textContent = 'To sign out, run pullboard relay off in a terminal inside each linked board. That also removes the board\'s copy on pullboard.dev.'; }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('account-menu').hidden) { closeAccount(); $('account')?.focus({ preventScroll: true }); return; }
+  // "," opens Settings from anywhere but a field.
+  if (event.key !== ',' || event.metaKey || event.ctrlKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable]')) return;
+  event.preventDefault(); openTab('settings'); render();
+});
 $('ob-theme').addEventListener('click', flipTheme);
 // Each search has its own address; typing replaces the entry rather than adding one a keystroke.
 $('q').addEventListener('input', () => { search(); address(false); view.foundAt = 0; showFound(); });

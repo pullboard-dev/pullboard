@@ -15,6 +15,8 @@ import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
 import { progressHtml } from "../../logic/nav.js";
+import { accountHtml } from "../../logic/nav.js";
+import { accountMenuHtml } from "../../logic/nav.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -35,6 +37,8 @@ ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
 ${progressHtml.toString()}
+${accountHtml.toString()}
+${accountMenuHtml.toString()}
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {

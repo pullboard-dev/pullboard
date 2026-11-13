@@ -135,3 +135,35 @@ export function progressHtml({ agents = null, perHour = null, landedDay = null, 
   ].filter(Boolean);
   return '<section class="card-panel progress-words"><h1>Progress</h1>' + lines.map(line => '<p>' + line + '</p>').join('') + '</section>';
 }
+
+/**
+ * The account control at the top right (Corey, 12 Nov: "good call"): the person's initial when signed in, "Sign in" when not.
+ * One control, no banner in the page. The page embeds this function's source, so it uses only its argument.
+ *
+ * @param {{ signedIn?: boolean, login?: string }} [account]
+ * @returns {string}
+ */
+export function accountHtml({ signedIn = false, login = '' } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const initial = (String(login).match(/[A-Za-z0-9]/u) || ['·'])[0].toUpperCase();
+  return signedIn
+    ? '<button class="acct" id="account" type="button" data-account aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu" title="Account">' + esc(initial) + '</button>'
+    : '<button class="signin" id="account" type="button" data-account aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu">Sign in</button>';
+}
+
+/**
+ * The account menu: who you are, Settings, Theme, Pair a phone and Sign out; signed out it offers Sign in with GitHub in
+ * place of a name and has no Sign out. The page embeds this function's source, so it uses only its argument.
+ *
+ * @param {{ signedIn?: boolean, login?: string, theme?: string }} [account] - theme is what the person kept: light, dark or system.
+ * @returns {string}
+ */
+export function accountMenuHtml({ signedIn = false, login = '', theme = 'system' } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const row = (attribute, label, hint = '') => '<button type="button" role="menuitem" ' + attribute + '>' + label + (hint ? '<span>' + hint + '</span>' : '') + '</button>';
+  const who = signedIn
+    ? '<div class="who"><b>' + (login ? '@' + esc(login) : 'Signed in') + '</b><small>GitHub</small></div>'
+    : '<div class="who"><b>Not signed in</b><small>Sign in to open your boards on any device</small></div>' + row('data-account-signin', 'Sign in with GitHub');
+  return who + row('data-tab="settings"', 'Settings', ',') + row('data-theme-flip', 'Theme', '<i data-theme-label>' + (theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System') + '</i>')
+    + row('data-account-pair', 'Pair a phone') + (signedIn ? row('data-account-signout', 'Sign out') : '');
+}
