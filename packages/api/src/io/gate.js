@@ -28,6 +28,8 @@ import { judgePulledFlakes } from './flakes.js';
 import { recordLandedRed } from './flakes.js';
 import { ownershipOnly } from './owner.js';
 import { routePulledOwnership } from './owner.js';
+import { compareFilesWithMain } from './gate/files.js';
+import { fileMainLines } from './gate/files.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -543,7 +545,10 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     ...(claimBase && !mainOnly && compared.cases.every(row => row.onMain === true) ? (atClaim ? caseLines(atClaim) : compared.cases.map(row => `main receipt missing: ${row.phase} ${row.file} (${row.name})`)).map(line => `at claim base ${claimBase.slice(0, 12)}, ${line}`) : []),
     ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : [...trials.refused, ...failingParts(receipt)];
   if (routed?.refused) parts.push(`ownership routing refused: ${routed.refused}`);
-  const jobs = [...new Set([...(compared?.jobs ?? []), ...(atClaim?.jobs ?? [])])];
+  // A red whose phases name failed files but no cases (Node's spec reporter) is compared with main by file [V1,C7].
+  const byFile = compared || green || waived ? null : compareFilesWithMain(board, receipt, main, compareWithMain);
+  if (byFile) parts.push(...fileMainLines(byFile));
+  const jobs = [...new Set([...(compared?.jobs ?? []), ...(atClaim?.jobs ?? []), ...(byFile?.jobs ?? [])])];
   if (jobs.length) parts.push(`main-test job ${jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
   if (green || mainOnly || waived || excused && !trials.refused.length) {
     const files = pulledProofFiles(receipt);
@@ -828,10 +833,11 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
     const receipt = postedReceipt(db, job)?.receipt;
     const gate = receipt?.gate;
     if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || latestGateJob(db, item) !== job) continue;
-    if (!(gate.phases ?? []).some(phase => phase.status !== 0 && (phase.failures ?? []).some(row => row?.file === file))) continue;
+    if (!(gate.phases ?? []).some(phase => phase.status !== 0 && ((phase.failures ?? []).some(row => row?.file === file) || (phase.failedFiles ?? []).includes(file)))) continue;
     if (store.getItem(board, item)?.item_status !== 'claimed') continue;
     const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);
-    if (!compared || compared.cases.some(row => row.onMain === null)) continue;
+    const byFile = compared ? null : compareFilesWithMain(board, receipt, job_base, compareWithMain);
+    if (compared ? compared.cases.some(row => row.onMain === null) : !byFile || byFile.files.some(row => row.result === null)) continue;
     if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
   }
   return settled;

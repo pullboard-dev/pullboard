@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
+import { settleSubmit } from '../submit/settle.js';
 
 export const BIN = join(import.meta.dirname, '../../../pullboard.js');
 const roots = [];
@@ -129,6 +130,27 @@ export function builder(box) {
   assert.equal(made.code, 0, made.err || made.out);
   const root = JSON.parse(made.out).path;
   return { root, run: (...args) => cli(root, box.env, ...args) };
+}
+
+/**
+ * Submit a claimed item through its pulled gate and wait until the board has applied the gate's receipt and `until`
+ * accepts the shown item. Why: a pull submit returns queued at once and the gate's result is the item's thread, not
+ * the submit's own refusal; a red compared with main by file settles once main's receipt records [P7,C7].
+ *
+ * @returns {Promise<{ shown: object, job: { id: string, gate: object | null } }>}
+ */
+export async function settledRed(t, box, submitter, item, { args = [], until = () => true } = {}) {
+  const submitted = submitter.run('submit', String(item), ...args, '--json', '--no-next');
+  assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  let shown = null;
+  const run = (cwd, ...rest) => cli(cwd, box.env, ...rest);
+  const settled = await settleSubmit(t, { repo: submitter.root, env: box.env, run }, JSON.parse(submitted.out), { until: doc => { shown = doc; return until(doc); } });
+  return { shown, job: settled.gateJob };
+}
+
+/** The text of every fact the board recorded for one gate job's result, oldest first. */
+export function gateFacts(shown, job) {
+  return (shown?.thread ?? []).map(entry => String(entry.text ?? '')).filter(text => text.startsWith(`Gate job ${job} `));
 }
 
 /** Assert the public refusal identifies both next steps and excludes false unique attribution. */

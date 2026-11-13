@@ -20,9 +20,10 @@ import { builder } from '../../tests/fixtures/red/main-red.js';
 import { cli } from '../../tests/fixtures/red/main-red.js';
 import { commit } from '../../tests/fixtures/red/main-red.js';
 import { fixture } from '../../tests/fixtures/red/main-red.js';
-import { inheritedMessage } from '../../tests/fixtures/red/main-red.js';
+import { gateFacts } from '../../tests/fixtures/red/main-red.js';
 import { put } from '../../tests/fixtures/red/main-red.js';
 import { runCount } from '../../tests/fixtures/red/main-red.js';
+import { settledRed } from '../../tests/fixtures/red/main-red.js';
 
 test('executor-pinned main comparisons run afresh, preserve generic cache and refuse another runtime [V4,C7]', t => {
   const box = fixture(t, {
@@ -178,11 +179,11 @@ ${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../../../p
   }
 });
 
-test('an inherited red reads native spec reporter failure locations [V1]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
+test('a pulled red reads native spec reporter failure files and compares them with main [V1,C7]', async t => {
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST, reporter: 'spec', requireInfraNote: true });
   delete box.env.NO_COLOR;
   box.env.FORCE_COLOR = '1';
-  const [rework, submitItem] = addItems(box, [
+  const [, submitItem] = addItems(box, [
     { title: 'Repair spec-reported failure', specId: 'G1' },
     { title: 'Unrelated submit', specId: 'G2' },
   ]);
@@ -191,10 +192,17 @@ test('an inherited red reads native spec reporter failure locations [V1]', { ski
   put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
   commit(submitter.root, box.env, 'test(core): select spec-reported red [G2]');
   const before = runCount(box);
-  const red = submitter.run('submit', String(submitItem));
-  inheritedMessage(red, { row: 'G1', item: rework });
-  const refusedItem = JSON.parse(submitter.run('show', String(submitItem), '--json').out);
-  assert.equal(refusedItem.thread.some(entry => entry.kind === 'submit'), false, 'a red gate records no successful submit or infra note');
+  // The first result names main's missing receipt and queues its main-test job; the gate settles again once it records.
+  const compared = shown => shown?.thread?.some(entry => /also red on main: test\/inherited\.test\.js/u.test(String(entry.text ?? '')));
+  const { shown, job } = await settledRed(t, box, submitter, submitItem, { args: ['--infra', 'append a candidate-only test marker to exercise spec reporter failure files'], until: compared });
+  const proof = job.gate?.phases?.find(phase => phase.role === 'proof');
+  assert.deepEqual(proof?.failedFiles, ['test/inherited.test.js'], JSON.stringify(job.gate?.phases));
+  assert.equal(proof.failures, null, 'the spec reporter prints no TAP account, so no case is named');
+  const facts = gateFacts(shown, job.id);
+  assert.match(facts.at(-1), /^Gate job \S+ red at /u);
+  assert.match(facts.at(-1), /also red on main: test\/inherited\.test\.js/u);
+  assert.equal(shown.item_status, 'claimed', 'a red compared with main still goes back to its builder');
+  assert.equal(shown.thread.some(entry => entry.kind === 'submit'), false, 'a red gate records no submission');
   assert.equal(runCount(box), before + 2,
     'the unchanged spec reporter command runs once on the candidate and once on exact main');
 });
