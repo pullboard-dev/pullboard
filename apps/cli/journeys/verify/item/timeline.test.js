@@ -118,8 +118,9 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
     await chrome.waitFor("!document.querySelector('#detail [data-item-panel-panel=history]').hidden");
     for (const [width, mobile] of [[1440, false], [375, true]]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
+      // The pulled gate writes its own note fact; the clamp checks read the fixture's long note [P7].
       const result = await chrome.stable(`(() => {
-        const rows = [...document.querySelectorAll('#detail .tl > li')], note = rows.find(row => row.dataset.timelineKind === 'note');
+        const rows = [...document.querySelectorAll('#detail .tl > li')], note = rows.find(row => row.dataset.timelineKind === 'note' && row.textContent.includes('Line 0:'));
         const text = note.querySelector('.tl-body'), rect = text.getBoundingClientRect(), style = getComputedStyle(text);
         return { sentences: rows.map(row => { const sentence = row.querySelector('.tl-sentence').cloneNode(true); for (const kind of sentence.querySelectorAll('.tl-kind,.tl-kind-type')) kind.remove(); return sentence.textContent.trim(); }),
           body: (() => { const copy = text.cloneNode(true); for (const ref of copy.querySelectorAll('[data-code]')) ref.replaceWith(ref.dataset.code); for (const hash of copy.querySelectorAll('code.sha')) hash.replaceWith(hash.title); for (const time of copy.querySelectorAll('time[datetime]')) time.replaceWith(time.getAttribute('datetime')); return copy.textContent; })(), clamp: style.webkitLineClamp, height: rect.height, lineHeight: parseFloat(style.lineHeight),
