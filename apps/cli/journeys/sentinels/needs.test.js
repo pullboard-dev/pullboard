@@ -627,10 +627,10 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     assert.match(await chrome.stable("document.querySelector('#feed .feed-bar').textContent"), /^\d+ unread\s*show all$/, 'narrowed to the unread shouts, the feed carries its bar with show all');
     await click('#feed [data-unread]');
     assert.equal((await read()).feedBar, false, 'show all brings back every shout and clears the bar');
-    // Under Verified, or a lane, the list is narrowed and Rulings steps aside.
+    // Under In review, or a lane, the list is narrowed and Rulings steps aside.
     await click('[data-tab=items]');
-    await chooseFilter(chrome, 'state:verified');
-    assert.equal((await read()).needsShown, false, 'under Verified, Rulings steps aside');
+    await chooseFilter(chrome, 'state:verify');
+    assert.equal((await read()).needsShown, false, 'under In review, Rulings steps aside');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:active');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
