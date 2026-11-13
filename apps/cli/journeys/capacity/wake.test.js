@@ -45,6 +45,8 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   // The submit offers its gate as a pulled job; wait for the loopback runner's receipt before reading the item.
   settlePulledJobs(box.web, ['submit'], box.env);
+  // The runner stamped the submission with the real clock, so the injected clock starts from there.
+  at = Math.max(at, Date.now());
   const output = join(box.dir, 'wake-arguments.jsonl');
   const executable = join(box.dir, 'reviewer-wake.mjs');
   writeFileSync(executable, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(output)},JSON.stringify(process.argv.slice(2))+'\\n');\nprocess.exitCode=${fails ? 1 : 0};\n`);
