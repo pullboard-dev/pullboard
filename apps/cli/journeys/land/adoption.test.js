@@ -7,7 +7,6 @@ import { events } from '../../tests/fixtures/land/board.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { startInterruptedLanding } from '../../tests/fixtures/land/board.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 /** Exercise landing adoption against real private Git worktrees [B3,R3]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -29,8 +28,6 @@ async function verifiedFourLocal(box) {
 
 test('land adoption recovers an interrupted gate and keeps one receipt under a new coordinator [B3,R3]', async (t) => {
   const box = landProject();
-  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const entries = await verifiedFourLocal(box);
   writeFileSync(box.hold, 'armed');
   const { child, closed, waitForGate } = startInterruptedLanding(box, BIN, t);
