@@ -219,7 +219,9 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     const claimed = await assertFreshFullState('claim before lease expiry');
     assert.equal(claimed.items.find((item) => item.id === ids[299]).status, 'claimed');
     const lease = leaseUntil(ids[299]);
-    const sequenceBeforeExpiry = claimed.sequence;
+    // A seat may append itemless usage events after its claim returns, so the baseline is read right before the clock moves.
+    await jobQueueEmpty(box);
+    const sequenceBeforeExpiry = (await fullState(api, 'sequence before lease expiry')).sequence;
     clockOffsetMs += Date.parse(lease) - Date.now() + 1;
     setTestClock();
     builds.length = 0;
