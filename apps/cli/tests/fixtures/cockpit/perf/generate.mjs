@@ -283,7 +283,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     mkdirSync(machineHome, { recursive: true });
     const canonicalRoot = realpathSync(root);
     // #851: cleanEnvironment drops every PULLBOARD_ variable, including the fixture opt-out, so init would start a background view.
-    const env = { ...cleanEnvironment(), HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_VIEW_BACKGROUND: '0',
+    const env = { ...cleanEnvironment(), HOME: home, PULLBOARD_HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_VIEW_BACKGROUND: '0',
       GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Stress fixture',
       GIT_AUTHOR_EMAIL: 'stress@pullboard.invalid', GIT_COMMITTER_NAME: 'Stress fixture', GIT_COMMITTER_EMAIL: 'stress@pullboard.invalid',
       GIT_AUTHOR_DATE: FIXED_NOW.toISOString(), GIT_COMMITTER_DATE: FIXED_NOW.toISOString() };
