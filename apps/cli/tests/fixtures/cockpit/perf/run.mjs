@@ -435,6 +435,18 @@ async function typeKey(chrome, value) {
   await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: value, code, windowsVirtualKeyCode: keyCode });
 }
 
+/** Scroll the Items list so a row far down is drawn: the list draws only the rows near the screen (#6676), as a person would scroll to it. */
+async function scrollRowIntoView(chrome, id) {
+  await chrome.stable(`(() => {
+    const index = itemsList.shown.findIndex(item => item.id === ${id});
+    if (index < 0) throw new Error('item ${id} is not in the shown Items list');
+    const chain = document.querySelector('#chain');
+    window.scrollTo(0, Math.max(0, chain.getBoundingClientRect().top + window.scrollY + index * itemsPitch - innerHeight / 3));
+    return true;
+  })()`);
+  await chrome.waitFor(`!!document.querySelector('#chain .row[data-item="${id}"]')`);
+}
+
 /** Begin measuring the next native input of the requested type without including setup waits. */
 async function beginAction(chrome, name, eventType) {
   await chrome.stable(`window.__pb606Begin(${JSON.stringify(name)}, ${JSON.stringify(eventType)})`);
@@ -481,20 +493,13 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     if (projects > 1) {
       const other = listed.find(project => project.root !== measuredRoot);
       if (!other) throw new Error('the project-switch sample needs another registered board');
-      if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
-        await press(chrome, "document.querySelector('#proj-switch')");
-        await press(chrome, 'document.querySelector("[data-proj-all]")');
-      }
+      // press reaches a row in the closed project list through the switcher itself, as a person does.
       /** Find the listed project without interpolating fixture paths into a CSS selector. */
       const row = root => `[...document.querySelectorAll('#proj-list .repo[data-root]')].find(node => node.dataset.root === ${JSON.stringify(root)})`;
       await beginAction(chrome, 'switchProjectSetup', 'mousedown');
       await press(chrome, row(other.root));
       await waitPaintedAndStable(chrome, network, 'switchProjectSetup', '#status-board',
         `view.root === ${JSON.stringify(other.root)} && data?.root === ${JSON.stringify(other.root)}`);
-      if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
-        await press(chrome, "document.querySelector('#proj-switch')");
-        await press(chrome, 'document.querySelector("[data-proj-all]")');
-      }
       await beginAction(chrome, 'switchProject', 'mousedown');
       await press(chrome, row(measuredRoot));
       actions.push(await waitPaintedAndStable(chrome, network, 'switchProject', '#chain .row',
@@ -508,6 +513,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
         `document.querySelector('.tab.on')?.dataset.tab === ${JSON.stringify(tab)}`));
     }
 
+    await scrollRowIntoView(chrome, board.smallItemId);
     const smallRow = `document.querySelector('#chain .row[data-item="${board.smallItemId}"]')`;
     await beginAction(chrome, 'openSmallItem', 'mousedown');
     await press(chrome, smallRow);
@@ -515,6 +521,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     actions.push(await waitPaintedAndStable(chrome, network, 'openSmallItem', '#detail .item-panel',
       `view.item === ${board.smallItemId} && document.querySelector('#detail .item-panel-head h2')?.textContent.includes(${JSON.stringify(board.smallItemTitle)})`));
 
+    await scrollRowIntoView(chrome, board.longestHistoryItemId);
     const longRow = `document.querySelector('#chain .row[data-item="${board.longestHistoryItemId}"]')`;
     await beginAction(chrome, 'openLongestHistoryItem', 'mousedown');
     await press(chrome, longRow);
@@ -527,8 +534,10 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       await typeKey(chrome, character);
       await pause(90); // budget: reproduce the measured person's 90ms key cadence; the search sample starts at the first keydown.
     }
-    actions.push(await waitPaintedAndStable(chrome, network, 'search', '#find-results [data-find]',
-      `document.querySelector('#q').value === 'Small' && !document.querySelector('#find-results').hidden`));
+    // Search opens the command palette (f3505cc3a2): the typed words land in #pal-q and its rows are the results.
+    actions.push(await waitPaintedAndStable(chrome, network, 'search', '#pal-overlay .pal-r',
+      `document.querySelector('#pal-q')?.value === 'Small' && !!document.querySelector('#pal-overlay .pal-r')`));
+    await chrome.stable("(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()");
 
     await beginAction(chrome, 'idleSetup', 'mousedown');
     await press(chrome, "document.querySelector('[data-tab=\"shouts\"]')");
