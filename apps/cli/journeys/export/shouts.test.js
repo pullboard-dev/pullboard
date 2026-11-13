@@ -272,3 +272,53 @@ test('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120_000 
     }
   }
 });
+
+/** Navigate with a watcher that prints outstanding requests and whether the server answers node directly. */
+async function watched(chrome, server, address, log, events) {
+  const pending = new Map();
+  const onMessage = ({ data }) => {
+    let message; try { message = JSON.parse(String(data)); } catch { return; }
+    if (message.method) events.set(message.method, (events.get(message.method) || 0) + 1);
+    if (message.method === 'Page.backForwardCacheNotUsed') log.push('bfcache-not-used ' + JSON.stringify(message.params.notRestoredExplanations?.map(e => e.reason)));
+    if (message.method === 'Network.requestWillBeSent') pending.set(message.params.requestId, new URL(message.params.request.url).pathname + ' ' + (message.params.request.headers?.accept || '').slice(0, 20));
+    else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') pending.delete(message.params.requestId);
+  };
+  chrome.socket.addEventListener('message', onMessage);
+  const started = Date.now();
+  const probe = setTimeout(async () => {
+    const t0 = Date.now();
+    let direct;
+    try { const r = await fetch(new URL(address, server.link) + server.link.search, { signal: AbortSignal.timeout(5000) }); direct = r.status + ' in ' + (Date.now() - t0) + 'ms'; } catch (e) { direct = 'node fetch failed: ' + e.message; }
+    log.push(`HANG ${address}: node direct ${direct}; pending in chrome ${JSON.stringify([...pending.values()])}; events ${JSON.stringify([...events])}`);
+  }, 8000);
+  try {
+    await chrome.send('Page.navigate', { url: 'about:blank' });
+    log.push(`${address} blank in ${Date.now() - started}ms`);
+    const target = new URL(address, server.link); target.search = server.link.search;
+    await chrome.send('Page.navigate', { url: target.href });
+    log.push(`${address} nav in ${Date.now() - started}ms; still pending ${pending.size}`);
+    await settled(chrome, SCRIPT);
+  } finally { clearTimeout(probe); chrome.socket.removeEventListener('message', onMessage); }
+}
+
+for (const bypass of [false, true]) test(`diag: repeated navigations ${bypass ? 'with history reset' : 'plain'} [N38]`, { timeout: 170_000 }, async (t) => {
+  const box = machine(), alpha = addressBoard(box, 'alpha', 'same-suite'), beta = addressBoard(box, 'beta', 'same-suite');
+  const log = [], events = new Map();
+  try {
+    await withBrowser(box, async (chrome, server) => {
+      await chrome.send('Network.enable');
+      await chrome.send('Page.enable');
+      for (let round = 0; round < 3; round += 1) {
+        for (const name of ['alpha', 'beta']) {
+          for (const suffix of ['/items/1', '/spec/G2', '/doctrine/PB1']) {
+            if (bypass) await chrome.send('Page.resetNavigationHistory');
+            await watched(chrome, server, `/${name}${suffix}`, log, events);
+          }
+          await onePlace(chrome, 'document.querySelector(\'[data-tab="shouts"]\')', `/${name}/shouts`, 'shouts', (name === 'alpha' ? alpha : beta).repo);
+          log.push(`${name} shouts tab clicked`);
+        }
+      }
+    });
+  } finally { for (const line of log) t.diagnostic(line); }
+  assert.ok(true);
+});
