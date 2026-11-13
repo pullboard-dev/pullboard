@@ -1808,9 +1808,6 @@
   "packages/runners/tests/io/handoff/capacity/line.test.js": {
     "hand-policy": 1
   },
-  "packages/resources/tests/io/handoff/worker/dispatcher/capacity.test.js": {
-    "tempdir": 1
-  },
   "apps/cli/journeys/handoff/orphan.test.js": {
     "tempdir": 1,
     "model": 1,
@@ -3717,9 +3714,6 @@
   "apps/cli/journeys/submit/handoff/recovery.test.js": {
     "raw-board": 3
   },
-  "packages/resources/tests/io/handoff/worker/cap/exit.test.js": {
-    "tempdir": 1
-  },
   "apps/cli/journeys/submit/handoff.test.js": {
     "raw-board": 3
   },
@@ -4099,13 +4093,6 @@
   },
   "packages/store/tests/logic/board/gap.test.js": {
     "raw-board": 4
-  },
-  "packages/resources/tests/io/handoff/worker/dispatcher/reuse.test.js": {
-    "tempdir": 1
-  },
-  "packages/store/tests/io/board/handoff/open/urgent.test.js": {
-    "tempdir": 1,
-    "raw-board": 2
   },
   "packages/api/tests/claim.test.js": {
     "raw-board": 5

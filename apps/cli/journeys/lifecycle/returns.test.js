@@ -9,7 +9,10 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { seedNativeOrdinary } from '../../tests/fixtures/cockpit/lifecycle/seed/ordinary.js';
+import {
+  seedNativeOrdinary,
+  drawLifecycleFigure,
+} from '../../tests/fixtures/cockpit/lifecycle/seed/ordinary.js';
 import {
   machine,
   project,
@@ -37,10 +40,10 @@ test('native release, escalation, retained and expired refreezes and lapse retai
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(demo.repo));
     await press(chrome, "document.querySelector('[data-tab=activity]')");
-    await press(chrome, "document.querySelector('#flow-show')");
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor('innerWidth === ' + width + ' && !!document.querySelector("#flow svg")');
+      await chrome.waitFor('innerWidth === ' + width);
+      await drawLifecycleFigure(chrome); // the redesigned Activity has no figure toggle (#6916); the page's renderer draws it.
       const visibleCounts = JSON.parse(await chrome.stable('JSON.stringify(data.project.moveCounts)'));
       for (const [route, count] of Object.entries(expected)) assert.equal(visibleCounts[route], count, width + ': browser retains exact native route ' + route);
       const words = await chrome.stable('document.querySelector(".lifecycle-notes").textContent');

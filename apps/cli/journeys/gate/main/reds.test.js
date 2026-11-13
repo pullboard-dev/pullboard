@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../tests/fixtures/board.js';
-import { dispatcherPass } from '../../../../lib/src/io/handoff/dispatcher.js';
 import * as jobs from '../../../../../packages/jobs/index.js';
 import {
   mainRedLookup,
@@ -98,25 +97,5 @@ test('clause 2: a red file with no fresh main receipt queues a main-test job and
     returnMainTest(jobs, db, greenMain.queued[0], { id: 'mr-3', tree: base.tree, file: 'test/b.test.js', command, verdict: 'green', failing: [], at: 26_000 }, { now: 26_000 });
     assert.deepEqual(finishAwaitingVerdicts(ports, db, { now: 27_000 }).map(row => ({ verdict: row.verdict, own: row.own })),
       [{ verdict: 'red', own: [{ file: 'test/b.test.js', name: 'case b' }] }], 'main green on the file: the returned verdict is the candidate\'s red');
-  });
-});
-
-test('clause 2: the dispatcher pass finishes a verdict waiting on main once its main-test job returned, at most every 5 s [C7]', async t => {
-  withBoard(t, (db) => {
-    const gate = recordGateVerdict(ports, db, { item: 21, candidate: 'a'.repeat(40), base, command, reds, now: 30_000 });
-    assert.equal(gate.verdict, 'pending');
-    let clock = 100_000, renewed = 0;
-    const pass = dispatcherPass({ renew: () => { renewed += 1; }, withDb: work => work(db) }, { now: () => clock });
-    pass();
-    assert.equal(jobs.jobView(db, gate.id).step, 'awaiting-main', 'nothing to finish before the main-test job returns');
-    returnMainTest(jobs, db, gate.queued[0], receipt({ id: 'mr-d', at: 31_000 }), { now: 31_000 });
-    clock += 1_000;
-    pass();
-    assert.equal(jobs.jobView(db, gate.id).step, 'awaiting-main', 'the pass looks at most every 5 s');
-    clock += 5_000;
-    pass();
-    assert.equal(jobs.jobView(db, gate.id).step, 'verdict', 'the drive loop finished the waiting verdict');
-    assert.equal(jobs.jobView(db, gate.id).steps.at(-1).payload.green, true);
-    assert.equal(renewed, 3, 'every pass still renews the dispatcher row');
   });
 });

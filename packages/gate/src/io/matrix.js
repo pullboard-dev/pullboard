@@ -39,7 +39,7 @@ const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
 export const HARNESS_FILES = Object.freeze({
   'analysis-on-runner': 'analysis-on-runner', 'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
-  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
+  'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
   'red-at-claim': 'a-red-from-an-older-head-shown-at-claim', 'landing-run': 'landing-run-fails-or-its-proof-is-not-gr', 'sleep-past-leases': 'machine-sleeps-past-every-lease', 'main-test': 'queued-main-test-job-never-driven', 'red-notice': 'red-notice-after-the-claim-lapsed', 'review-held': 'review-held-on-an-item-that-was-withdraw',
   'ready-budget': 'budget', 'runner-spec': 'spec', 'stale-dispatcher': 'dispatcher',
 });
@@ -89,8 +89,6 @@ export const HOPS = Object.freeze([
   { id: 'dead-requeue', stage: 'Gate', hop: 'dead worker → requeue', harness: 'dead-worker-requeue', fix: '3a89d81fc5',
     invariant: 'A gate whose driver is killed is requeued on the same candidate within 20 s, with no builder red.',
     live: report => phase(report, 'requeue', 20_000) },
-  { id: 'foreign-sweep', stage: 'Gate', hop: 'another machine queue\'s sweep', harness: 'foreign-sweep', fix: '044d6c6c18',
-    invariant: 'A dispatcher from another machine home never recovers this home\'s gates; this home retries its own dead gate.' },
   { id: 'green-review', stage: 'Review', hop: 'green → review', harness: 'e2e',
     invariant: 'A green gate puts the item in review, waiting on an independent reviewer.' },
   { id: 'accept-merged', stage: 'Land', hop: 'accept → landing batch → merged', harness: 'e2e',

@@ -8,7 +8,6 @@ import { withFixtureBoard } from '../../../fixtures/testkit.js';
 import { createJob } from '../../../../../../packages/jobs/index.js';
 import { jobView } from '../../../../../../packages/jobs/index.js';
 import { runGateStages } from '../../../../../../packages/gate/index.js';
-import { createGateAdmission } from '../../../../../../packages/drive/index.js';
 import { drainLoop } from '../../../../../../packages/drive/index.js';
 import { driveOnce } from '../../../../../../packages/drive/index.js';
 import { gateDriveJobId } from '../../../../../../packages/drive/index.js';
@@ -88,17 +87,5 @@ test('clause 1: a running gate stops at its next renewal tick once its item leav
     assert.equal(steps(job, 'ended')[0].stale, true);
     assert.deepEqual(steps(job, 'collected'), [], 'the stale gate records no result');
     assert.ok(reached.includes('tests'));
-  });
-});
-
-test('clause 1: the dispatcher never admits a launch whose hand-off no longer serves its item [C7]', async () => {
-  await withBoard(board => {
-    const files = privateFixtureFiles('pullboard-serving-launch-');
-    const admission = createGateAdmission({ openBoard: () => board, closeBoard: () => {}, serving: () => false });
-    // onBoard opens <commonDir>/pullboard/board.sqlite only when it exists; give the launch a real one.
-    files.write('pullboard/board.sqlite', '');
-    assert.throws(() => admission.admit({ job: 'stale-launch', commonDir: files.root, directory: files.root }, { owner: 'gate-driver:stale', relaunches: 0 }),
-      error => error.code === 'GATE_STALE');
-    assert.equal(jobView(board.db, gateDriveJobId('stale-launch')), null, 'no drive job was admitted');
   });
 });

@@ -70,7 +70,7 @@ async function withBusyRunner(action) {
   }
 }
 
-test('runner-only named and affected tests refuse a busy runner without starting idle local capacity [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
+test('runner-only named and affected tests refuse a busy runner without starting idle local capacity [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => {
   await withBusyRunner(box => {
     for (const args of [['test/ordinary.test.js'], ['--affected']]) {
       const result = box.run(box.repo, 'test', ...args, '--json');
@@ -84,7 +84,7 @@ test('runner-only named and affected tests refuse a busy runner without starting
   });
 });
 
-test('turning runner-only off retains local execution while the same runner is busy [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
+test('turning runner-only off retains local execution while the same runner is busy [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => {
   await withBusyRunner(box => {
     writeFileSync(box.settingsFile, JSON.stringify({ ...box.settings, gate: { ...box.settings.gate, runnersOnly: false } }));
     const result = box.run(box.repo, 'test', 'test/ordinary.test.js', '--json');
@@ -112,7 +112,7 @@ catch(error) { console.error(error.message); process.exitCode=error.code==='RUNN
   });
 });
 
-test('a remote red test keeps main comparisons runner-only under the same captured deadline [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
+test('a remote red test keeps main comparisons runner-only under the same captured deadline [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => {
   await withBusyRunner(box => {
     box.releaseRunner();
     const paths = Object.fromEntries(['ssh-bin', 'worker', 'remote-home', 'remote-machine'].map(name => [name, join(box.dir, name)]));

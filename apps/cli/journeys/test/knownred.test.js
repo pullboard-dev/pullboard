@@ -98,7 +98,7 @@ test('an unsigned generic red cache cannot suppress an executor-bound comparison
   assert.equal(result.known[0].result, 'red');
 });
 
-test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => { // budget: one real child process driver.
+test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => { // budget: one real child process driver.
   const box = await redProject();
   const gate = new URL('../../../../packages/gate/index.js', import.meta.url).href;
   const landing = new URL('../../../../packages/landing/index.js', import.meta.url).href;
