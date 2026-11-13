@@ -84,7 +84,6 @@ export function cachedStressBoard(inputs) {
     if (fresh) {
       const child = spawn(process.execPath, [join(HERE, 'stress-cache-build.mjs'), JSON.stringify(inputs), cache, lock], { detached: true, stdio: 'ignore' });
       pending = new Promise(resolve => child.once('exit', resolve));
-      child.unref();
     } else {
       pending = new Promise(resolve => { const watcher = watch(stressCacheRoot(), () => { if (existsSync(marker)) { watcher.close(); resolve(); } }); });
     }
