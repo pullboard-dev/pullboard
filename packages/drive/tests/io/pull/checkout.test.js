@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
-import { pullGit } from '../../../../../apps/cli/src/io/runner/git.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
@@ -126,7 +126,7 @@ test('#6681: slots checking out one commit at once fetch it once and each reuse 
     const ids = [0, 1, 2, 3].map(index => ({ id: `s${index}`, commit: index % 2 ? first : second, run: job(true) }));
     const board = fakeBoard(trunk, [...ids, ...ids.map(one => ({ ...one, id: `${one.id}b` }))]);
     const stop = new AbortController();
-    await serveRunner({ board: BOARD, runner: 'r-slots', capabilities: [], cache, jobs: 4, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => { if (board.receipts.length >= 8) stop.abort(); else await new Promise(resolve => setImmediate(resolve)); }, timing: { idleMs: 1 } });
+    await serveRunner({ git: pullGit, board: BOARD, runner: 'r-slots', capabilities: [], cache, jobs: 4, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => { if (board.receipts.length >= 8) stop.abort(); else await new Promise(resolve => setImmediate(resolve)); }, timing: { idleMs: 1 } });
     assert.equal(board.receipts.length, 8, JSON.stringify(board.receipts.map(receipt => receipt.tail)));
     assert.deepEqual(board.receipts.map(receipt => receipt.status), Array(8).fill(0));
     assert.ok(board.receipts.every(receipt => receipt.startup.totalMs < 10_000), JSON.stringify(board.receipts.map(receipt => receipt.startup)));

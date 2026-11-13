@@ -29,7 +29,6 @@ import { capacityAtRead } from '../../../stats/index.js';
 import { nativeStateClockMatches } from '../../../store/index.js';
 import {
   dependencyValues,
-  localDependencyIds,
 } from '../../../items/index.js';
 /** The local API v1: the CLI's moves, persistent board identities and live events (A2). */
 import {
@@ -81,12 +80,10 @@ import {
   ruleProofWindow,
 } from '../../../verify/index.js';
 import {
-  SUMMARY_KEYS,
   itemSummary,
 } from '../../../items/index.js';
 import { finishedCounts } from './items.js';
 import { finishedText } from './items.js';
-import { itemDetail } from './items.js';
 import { openOnly } from './items.js';
 import { searchText } from './items.js';
 import {
@@ -94,12 +91,15 @@ import {
   prepareFlowHistory,
   projectFlowStats,
 } from '../../../stats/index.js';
-import {
-  projectItemSpecApprovals,
-  specApprovalState,
-} from '../../../spec/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { projectItemSpecApprovals } from '../../../spec/index.js';
+import { specApprovalState } from '../../../spec/index.js';
 import { verdictProjector } from '../../../verify/index.js';
+import { localDependencyIds } from '../../../items/index.js';
+import { SUMMARY_KEYS } from '../../../items/index.js';
+import { fileMarker } from './detail.js';
+import { fileMarkerForPath } from './detail.js';
+import { itemDetailReader } from './detail.js';
+import { Refused } from '../../../kernel/index.js';
 import { trunkRevisionReader } from '../../../git/index.js';
 import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './http.js';
@@ -195,28 +195,6 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
   const revision = stateRevision(inputs);
   return { cacheId: info.commonDir + '\0' + id, revision, event: local.event, milestones: local.externalMilestones,
     inputs: { ...inputs, leases: local.leases }, cacheable: true };
-}
-
-/** Cheap file identity for an event-stream poll; content is read only after this marker changes. */
-function fileMarker(file) {
-  try {
-    const stat = statSync(file.path);
-    return [file.name, stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
-  } catch (error) {
-    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return [file.name, null];
-    throw error;
-  }
-}
-
-/** Capture a marker for a single absolute path, including an explicit missing-file value. */
-function fileMarkerForPath(path) {
-  try {
-    const stat = statSync(path);
-    return JSON.stringify([stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]);
-  } catch (error) {
-    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return 'missing';
-    throw error;
-  }
 }
 
 /** Invalidate only this local API state when its private canary record or queued link changes. */
@@ -505,10 +483,10 @@ function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta 
 const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
 /** The state lists a delta merges entry by entry, and the field that names each entry. */
 const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
+/** The sibling-cell functions an item detail reads, given to its reader on each thread. */
+const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector };
 /** How many recent builds of each board a server keeps as possible delta bases. */
 const DELTA_BASES = 24;
-/** How many item details a server keeps for each board: past a board our size, the least recently read go first. */
-const DETAIL_CACHE_ITEMS = 4096;
 
 /** A digest of one value's JSON, which is what a client holds of it. */
 function jsonDigest(value) {
@@ -1152,9 +1130,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   }
   // With handlerPorts, the runner job queue runs in a worker pool and never on this thread, even when the pool is full [A2,C7].
   const pool = handlerPorts ? startHandlerPool({ portsModule: handlerPorts, isMain: codeIsMain, Refused, onFailure: (error) => process.stderr.write(`pullboard: an API handler worker stopped (${error?.message ?? error}); it was replaced\n`) }) : null;
-  // Each board's item details by item id, and each board's spec-approval view (#1040).
-  const detailCache = new Map();
-  const approvalCache = new Map();
+  const localItem = itemDetailReader({ withReadBoard, projectItemState, isMain: codeIsMain, boardOpeners, onItemBuild, cells: DETAIL_CELLS });
   // The fingerprints of the summary states each board's clients were sent, least recently sent
   // first, and the latest sequence a forgotten one had. A build only read for an item, a search or
   // a reset was never sent, so no client holds it and it is never a base.
@@ -1212,92 +1188,6 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const sent = withSnapshot(board, (entry, cached) => ({ entry, answer: answerFor(entry, cached) }), observedAt);
     if (sent.answer.delta) keepSentBase(sent.entry);
     return Object.defineProperty(sent.answer, 'reportValidator', { value: reportValidation(sent.entry, observedAt) });
-  }
-  /**
-   * The spec-approval view one board's details share, kept while the files, HEAD and board records it
-   * reads hold: it reads every row decision and sign-off, so building it per detail cost most of one.
-   */
-  function approvalFor(root, currentBoard, info) {
-    const config = loadConfig(root);
-    const meta = currentBoard.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key IN ('row_decisions', 'spec_approval_baseline') ORDER BY meta_key").all();
-    const key = JSON.stringify([stateFileInputs(info.root, config, { fitFile }).map(fileMarker), fileMarkerForPath(join(info.root, '.mailmap')), resolveCommit(info.root, 'HEAD'), meta]);
-    const cacheId = JSON.stringify([info.commonDir, root]);
-    const cached = approvalCache.get(cacheId);
-    if (cached?.key === key) return cached.approval;
-    const approval = specApprovalState(root, { board: currentBoard, config }, { store, verifiedPasskeyRowDecision });
-    approvalCache.delete(cacheId);
-    approvalCache.set(cacheId, { key, approval });
-    while (approvalCache.size > 32) approvalCache.delete(approvalCache.keys().next().value);
-    return approval;
-  }
-  /**
-   * One item's detail, or null when the board has no such item. It reads only that item's rows by
-   * index, and its detail is kept by the item's last event id with the few facts beyond its own
-   * events that a detail shows: its row and live leases, its prerequisites' statuses, the trunk and
-   * the spec-approval inputs (#1040).
-   */
-  function localItem(board, id) {
-    return withReadBoard(board.root, (currentBoard, info) => {
-      currentBoard.db.exec('BEGIN');
-      try {
-        const detail = itemDetailIn(board, currentBoard, info, id);
-        currentBoard.db.exec('COMMIT');
-        return detail;
-      } catch (error) {
-        try { currentBoard.db.exec('ROLLBACK'); } catch { /* Preserve the projection failure. */ }
-        throw error;
-      }
-    }, codeIsMain, boardOpeners);
-  }
-  /** Serve an item's cached detail while its key holds, building and keeping it when the key moved. */
-  function itemDetailIn(board, currentBoard, info, id) {
-    const { db } = currentBoard;
-    const row = db.prepare('SELECT * FROM item WHERE item_id = ?').get(id);
-    if (!row) return null;
-    const now = currentBoard.clock.now().toISOString();
-    const status = new Map();
-    for (const dependency of localDependencyIds(row)) {
-      const dependent = db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(dependency);
-      if (dependent) status.set(dependency, dependent.item_status);
-    }
-    for (const ref of store.foreignDependencyStates(currentBoard, row)) status.set(`${ref.repo}#${ref.id}`, ref.status);
-    // Detail reads need no new Git process while the trunk holds.
-    const tip = trunkRevisionReader(info)();
-    const approval = approvalFor(board.root, currentBoard, info);
-    const key = JSON.stringify([row, row.item_status === 'claimed' && (row.item_lease_until ?? '') > now,
-      row.item_status === 'submitted' && Boolean(row.item_review_by) && (row.item_review_until ?? '') > now,
-      db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id = ?').get(id).id,
-      db.prepare('SELECT MAX(verdict_id) AS id FROM verdict WHERE item_id = ?').get(id).id,
-      [...status], db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`item_check_baseline_${id}`)?.meta_value ?? null, tip]);
-    const cacheId = JSON.stringify([info.commonDir, board.id]);
-    let details = detailCache.get(cacheId);
-    const cached = details?.get(id);
-    if (cached?.key === key && cached.approval === approval) return cached.detail;
-    const source = store.getItem(currentBoard, id);
-    const base = projectItemSpecApprovals(projectItemState(currentBoard, source, status), approval);
-    // The projector owns this transaction's connection; only derived values cross requests.
-    const verdictState = verdictProjector(board.root, currentBoard, { main: tip }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(source);
-    const projected = {
-      ...base,
-      ...(verdictState ? { verdictState } : {}),
-      check: source.item_check,
-      ...(source.item_check_baseline ? { checkBaseline: source.item_check_baseline } : {}),
-      thread: store.itemThread(currentBoard, id),
-    };
-    onItemBuild?.({ board: board.id, itemId: id });
-    const detail = itemDetail(projected, SUMMARY_KEYS);
-    // Missing Git objects can arrive with no event or trunk move, so an uncertain verdict is read again.
-    if (!verdictState?.reason) {
-      if (!details) {
-        details = new Map();
-        detailCache.set(cacheId, details);
-        while (detailCache.size > 32) detailCache.delete(detailCache.keys().next().value);
-      }
-      details.delete(id);
-      details.set(id, { key, approval, detail });
-      while (details.size > DETAIL_CACHE_ITEMS) details.delete(details.keys().next().value);
-    }
-    return detail;
   }
   /** The ids of the items the view's search would show for this text, in board-state order. */
   function localSearch(board, text) {
@@ -1359,7 +1249,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!proof) throw new Refused('ITEM_NOT_AVAILABLE', 'this item exists, but its proof report is unavailable; run a normal writable board command to rebuild the derived report, then retry');
       return proof;
     }, codeIsMain, boardOpeners)),
-    item: (board, id) => projectRead(board, () => localItem(board, id)),
+    item: (board, id) => pool ? pool.call('item', { root: board.root, id: board.id, itemId: id }, { route: `GET /api/v1/boards/${board.id}/items/${id}` }) : projectRead(board, () => localItem(board, id)),
     search: (board, text) => materialized(() => materializer.search(board, text), () => projectRead(board, () => localSearch(board, text))),
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
@@ -1396,7 +1286,8 @@ function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
  */
 export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
-  return { ...readPoolHandlers({ findBoard, afterEvents, createRequest, executeMove }, { isMain, boardOpeners, runCommand, refusalDocument }), jobs: (call) => boardJobsCall(call, isMain, boardOpeners), stall({ projects, by, board = null, route, lagMs }) {
+  const itemDetail = itemDetailReader({ withReadBoard, projectItemState, isMain, boardOpeners, cells: DETAIL_CELLS });
+  return { ...readPoolHandlers({ findBoard, afterEvents, createRequest, executeMove, itemDetail }, { isMain, boardOpeners, runCommand, refusalDocument }), jobs: (call) => boardJobsCall(call, isMain, boardOpeners), stall({ projects, by, board = null, route, lagMs }) {
     const failed = [];
     let recorded = 0;
     for (const { root } of projects) {
