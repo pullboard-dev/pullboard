@@ -6,6 +6,8 @@ import { styleSources } from '../../../../../codemap/index.js';
 import { apiRequestIoProblems } from '../../../../src/io/board/request.js';
 import { HTTP_SERVERS } from '../../../../src/io/board/request.js';
 import { KNOWN_REQUEST_BLOCKERS } from '../../../../src/io/board/request.js';
+import { candidateKnownBlockers } from '../../../../src/io/board/request.js';
+import { STATIC_TREE_CHECKS } from '../../../../src/io/static/registry.js';
 
 const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
 const sources = styleSources(root);
@@ -129,4 +131,25 @@ test('clause 1: Atomics.wait and readdirSync are listed as blocking calls, and a
   assert.deepEqual(owners("import { readdirSync } from 'node:fs';\nexport function helper() { return readdirSync('.'); }"), ['node:fs#readdirSync']);
   assert.deepEqual(owners("export function helper() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5); }"), ['global:Atomics#wait']);
   assert.deepEqual(owners("import { Atomics } from './mine.js';\nexport function helper() { return Atomics.wait(1); }"), []);
+});
+
+test('#7340 clause 1: a candidate tree that removes a blocker together with its known row gates clean, and removing only the row still fails [C7]', () => {
+  const owner = 'packages/landing/src/io/main/red/receipt.js#treeOf';
+  const check = STATIC_TREE_CHECKS.find(row => row.name === 'api-request-io');
+  const requestFile = 'packages/gate/src/io/board/request.js';
+  const receipt = 'packages/landing/src/io/main/red/receipt.js';
+  const source = file => sources.find(entry => entry.file === file).source;
+  const withRow = source(requestFile);
+  const line = withRow.split('\n').find(text => text.startsWith(`  '${owner}': `));
+  assert.deepEqual(candidateKnownBlockers(sources), { ...KNOWN_REQUEST_BLOCKERS }, 'the tree list reads back whole');
+  assert.ok(line, 'the row is in the tree');
+  const withoutRow = withRow.replace(`${line}\n`, '');
+  const edit = changes => sources.map(entry => entry.file in changes ? { ...entry, source: changes[entry.file] } : entry);
+  // The candidate drops the row and the synchronous calls that fired it, so the stale-row check reads its own list.
+  const fixedReceipt = source(receipt).replace(/const result = gitSpawnSync\(\['--no-replace-objects', 'rev-parse'[^\n]*/u, 'const result = { status: 1 };');
+  assert.notEqual(fixedReceipt, source(receipt), 'treeOf was found');
+  const mentions = rows => rows.filter(text => text.includes('treeOf'));
+  assert.ok(mentions(check.run(root, edit({ [requestFile]: withoutRow }))).length > 0, 'a dropped row with the blocker still present fails');
+  assert.deepEqual(mentions(check.run(root, edit({ [requestFile]: withoutRow, [receipt]: fixedReceipt }))), [], 'removing the blocker with its row gates clean');
+  assert.ok(mentions(check.run(root, edit({ [receipt]: fixedReceipt }))).length > 0, 'removing only the blocker leaves a stale row');
 });
