@@ -12,6 +12,7 @@ import {
   fixture,
   cli,
 } from '../../tests/fixtures/next/take.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { shout } from '../../../../packages/store/index.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
@@ -33,7 +34,6 @@ async function seatWithClaim(t, { heldGate = false } = {}) {
     const configFile = join(box.root, 'pullboard.json');
     const config = JSON.parse(readFileSync(configFile, 'utf8'));
     config.gate = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
-    config.submit = { ...config.submit, handoff: true };
     writeFileSync(configFile, JSON.stringify(config));
     box.git(box.root, 'add', 'pullboard.json');
     box.git(box.root, 'commit', '-q', '-m', 'chore: configure held gate [G1]');
@@ -69,8 +69,12 @@ test('next offers new work while the gate is queued or running, and the red item
   const submitted = runFixtureChildAsync(process.execPath, [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), 'submit', String(first), '--no-next', '--json'], { cwd: seat.path, env: { ...process.env }, encoding: 'utf8' });
   try {
     await waitForCondition(() => existsSync(gate.entered), 'the real submit gate enters', { signal: AbortSignal.timeout(60_000) }); // Budget: runaway ceiling for a real runner gate to start.
-    const running = store.submitHandoff(box.board, first);
-    assert.equal(running?.state, 'running', `the observed gate belongs to a running submit handoff: ${JSON.stringify(running)}`);
+    const queued = JSON.parse((await submitted).stdout ?? '{}');
+    const pid = queued.localRunner?.pid;
+    if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
+    assert.equal(queued.queued, true, `the real submit queues its gate for the local runner: ${JSON.stringify(queued)}`);
+    const gateStep = async () => (await cli(box, seat.path, ['show', String(first), '--no-next'])).document?.gateJob?.step;
+    assert.equal(await gateStep(), 'running', 'the observed gate belongs to a running pulled gate job');
   const offered = await cli(box, seat.path, ['next', '--build']);
   assert.equal(offered.code, 0, offered.out + offered.err);
   assert.equal(offered.document.item.item_id, second, 'a running gate does not hold the seat idle');
@@ -79,7 +83,8 @@ test('next offers new work while the gate is queued or running, and the red item
   const release = await cli(box, seat.path, ['release', String(second), '--reason', 'ROUTED_ELSEWHERE', '--no-next']);
   assert.equal(release.code, 0, release.out + release.err);
   writeFileSync(gate.release, 'release');
-  await waitForCondition(() => store.submitHandoff(box.board, first)?.state === 'red', 'the real submit gate reports red', { signal: AbortSignal.timeout(60_000) }); // Budget: runaway ceiling for the owned worker to finish.
+  const red = await settledGateJob({ repo: seat.path, env: process.env, run: (cwd, ...args) => cli(box, cwd, args) }, first, { deadlineMs: 60_000 }); // Budget: runaway ceiling for the local runner to finish the gate.
+  assert.equal(red.gate?.green, false, 'the pulled gate reports red');
   const back = await cli(box, seat.path, ['next', '--build']);
   assert.equal(back.code, 0, back.out + back.err);
   assert.equal(back.document.item.item_id, first, 'the red item returns before any new work');
