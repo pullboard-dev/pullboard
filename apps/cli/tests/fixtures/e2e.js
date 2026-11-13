@@ -28,6 +28,7 @@ import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
+import { jobsOf } from '../../../../packages/jobs/index.js';
 import { runCliInProcess } from './process.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
@@ -58,18 +59,6 @@ const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'shi
 const SETTLE_MS = 180_000;
 
 /**
- * Whether the fixture machine pins gate.runnerDispatch to controller; an absent or unreadable settings file is the pull default.
- * Why: only a pull gate is a job the loopback local runner settles, so only pull has a queue worth waiting for.
- *
- * @param {object} env - The fixture environment.
- * @returns {boolean}
- */
-function controllerDispatch(env) {
-  try { return JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gate?.runnerDispatch === 'controller'; }
-  catch { return false; /* No settings file: the product default, pull. */ }
-}
-
-/**
  * Wait until the fixture board's runner job queue holds no unfinished job, so a journey reads a settled gate or landing.
  * Why: under pull dispatch a submit offers its gate as a job the loopback local runner takes and returns at once; the
  * journeys assert what the gate decided, so the fixture command returns once the queue is done [P7,#5821].
@@ -81,9 +70,8 @@ function controllerDispatch(env) {
 function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
   // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
-  // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
-  // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
-  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || controllerDispatch(env) || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
+  // Every submit offers its gate as a job whatever gate.runnerDispatch says (#6832), so a controller pin settles here too.
+  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
   if (common.status !== 0) return;
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
@@ -99,6 +87,34 @@ function settlePulledJobs(cwd, args, env) {
     if (!open || Date.now() >= deadline) return;
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
+}
+
+/**
+ * A settled queued submit's --json output with its gate job's receipt gate under `gate`, the shape the inline gate printed.
+ * Why: #6832 deleted the inline gate, so a journey that reads `gate` from its submit reads the pulled gate's verdict here,
+ * from the job row the loopback runner wrote, instead of each journey re-reading it.
+ *
+ * @param {string} cwd - Where the submit ran.
+ * @param {string[]} args - The command's arguments.
+ * @param {object} env - The fixture environment.
+ * @param {string} out - The submit's stdout.
+ * @returns {string} The output, with `gate` added when the settled job has a receipt.
+ */
+function settledSubmitOutput(cwd, args, env, out) {
+  if (args[0] !== 'submit' || !args.includes('--json') || env.PULLBOARD_FIXTURE_UNSETTLED === '1') return out;
+  let doc;
+  try { doc = JSON.parse(out); } catch { return out; }
+  if (!doc?.queued || !doc.gateJob || doc.gate) return out;
+  const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
+  const file = common.status === 0 ? join(common.stdout.trim(), 'pullboard', 'board.sqlite') : '';
+  if (!file || !existsSync(file)) return out;
+  // @pullboard-board-file journey: a read-only look at the receipt step the loopback runner posted.
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    const job = jobsOf(db, { kind: 'gate', item: doc.item }).find(row => row.id === doc.gateJob);
+    const gate = job?.steps.find(step => step.name === 'receipt')?.payload?.receipt?.gate;
+    return gate ? JSON.stringify({ ...doc, gate }) + '\n' : out;
+  } catch { return out; } finally { db.close(); }
 }
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
@@ -189,14 +205,16 @@ function sandbox({ declareFamilies = false } = {}) {
     prepare(cwd, args);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
+    const out = result.status === 0 ? settledSubmitOutput(cwd, args, env, result.stdout) : result.stdout;
+    return { code: result.status, out, err: result.failure ?? result.stderr, failure: result.failure };
   };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
     prepare(cwd, args);
     const result = await runCliInProcess(args, { cwd, env });
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
+    const out = result.status === 0 ? settledSubmitOutput(cwd, args, env, result.stdout) : result.stdout;
+    return { code: result.status, out, err: result.stderr, failure: null, status: result.status, stdout: out, stderr: result.stderr };
   };
   return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
 }
