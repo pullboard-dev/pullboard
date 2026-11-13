@@ -14,6 +14,7 @@ import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
+import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
@@ -63,6 +64,8 @@ const RECEIPT_FIT_BYTES = 56 * 1024;
 const PLAN_ROWS = 200;
 const PLAN_COMMAND_CHARS = 2000;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
+/** Where the browser journeys look for Chrome (apps/cli/tests/fixtures/chrome.js), besides PULLBOARD_CHROME. */
+const KNOWN_BROWSERS = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
@@ -193,6 +196,17 @@ const changedRunner = command => {
   const script = proofScript(command), trusted = script ? importsOf(join(tools, script)) : null;
   return trusted && JSON.stringify(importsOf(join(root, script))) !== JSON.stringify(trusted) ? script : null;
 };
+/**
+ * The selected files this runner cannot prove for want of a browser: every file of a full selection, else each whose first
+ * line declares one; none when PULLBOARD_CHROME names one or Chrome sits where the journeys look, unless it is none.
+ * Why: a browser journey skips itself without Chrome, and a proof of skipped journeys read green [C7].
+ */
+const browserless = (files, full) => {
+  const named = process.env.PULLBOARD_CHROME;
+  if (named !== 'none' && [named, ...${JSON.stringify(KNOWN_BROWSERS)}].some(path => path && existsSync(path))) return [];
+  return full ? ['the full suite'] : (Array.isArray(files) ? files : []).filter(file => { try { return readFileSync(join(root, file), 'utf8').replace(/^\\uFEFF/u, '').split(/\\r?\\n/u, 1)[0].trimEnd() === ${JSON.stringify(BROWSER_MARKER)}; } catch { return false; } });
+};
+const browserRefusal = files => 'this runner offers no browser, so ' + files.slice(0, 20).join(', ') + ' would skip to green; next: serve the gate on a runner with Chrome';
 /** Run one phase as written, inside the candidate checkout, as the controller does; the files and the frozen check are the candidate's own. */
 // The board's ledger hits for this job's files: written once, named to the proof phase only, never to the item's own check.
 const ledger = (shard ? shard.ledger : input.ledger) ?? null;
@@ -259,7 +273,9 @@ const runPhase = async (role, command, PATH, selected = null) => {
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
     ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
-if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
+const shardBrowserless = shard ? browserless(shard.files, false) : [];
+if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
+else if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
 else {
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
 writeFileSync(entry, input.analysisEntry, { flag: 'wx', mode: 0o600 });
@@ -288,6 +304,8 @@ else {
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
     message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
+  const unbrowsed = !refusals.length && analysis.plan?.proofCommand ? browserless(analysis.plan.proofFiles, analysis.plan.selection?.full === true) : [];
+  if (unbrowsed.length) refusals.push({ part: 'proof', code: 'BROWSER_UNAVAILABLE', paths: unbrowsed.slice(0, 200), message: browserRefusal(unbrowsed) });
   if (!refusals.length && !receipt.analysis.infra) {
     const PATH = cliPath(), before = checkoutState();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
