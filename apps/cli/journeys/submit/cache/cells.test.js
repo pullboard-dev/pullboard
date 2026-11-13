@@ -35,7 +35,7 @@ function remoteCells(job, main, source) {
 }
 
 test('clause 1: on this repository, a runner job whose main moved since the cached one runs the cells stage in under 30 s [C7]', { timeout: 590_000 }, async t => {
-  const repository = fileURLToPath(new URL('../../../..', import.meta.url));
+  const repository = fileURLToPath(new URL('../../../../..', import.meta.url));
   const cellFile = 'packages/landing/src/io/step/failures.js';
   const first = freshJob(t, repository), mainA = git(first, 'rev-parse', 'HEAD').trim();
   const sourceA = commitOn(first, mainA, cellFile, `${readFileSync(join(first, cellFile), 'utf8')}// probe ${randomUUID()}\n`, 'a cell changes');
