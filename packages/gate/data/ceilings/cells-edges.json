@@ -812,10 +812,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/generated/handoff.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/http.js": {
       "cells": 1,
       "deep": 0
@@ -6088,9 +6084,6 @@
   },
   "packageApps": {
     "packages/drive/src/io/queue.js": [
-      "apps/cli"
-    ],
-    "packages/flakes/src/io/native.js": [
       "apps/cli"
     ],
     "packages/gate/src/io/check/baseline/worker.js": [
