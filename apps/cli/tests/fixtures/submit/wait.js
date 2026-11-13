@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
+import { fixtureMachineSettings } from '../testkit.js';
 
 /** Bind the kit to the caller's store module so this fixture stays free of package imports. */
 export function waitKit(store) {
@@ -22,6 +23,7 @@ export function waitKit(store) {
   /** Submit through the public CLI, then independently record a real verdict for queue-return tests. */
   async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
     const box = helpers.project('true');
+    fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } }); // This journey reads a gate settled in the submit's own process (#6249).
     assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Wait for the verdict', '--specs', 'G1', '--route', 'mid',
       '--brief', 'Files:\n- web/wait.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
       '--criterion', 'The fixture check passes.', '--check', 'true')).code, 0);
