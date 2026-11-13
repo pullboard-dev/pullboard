@@ -105,7 +105,7 @@ function pythonChildTap(path, { traceback = true, frame = true, prefixMarker = f
   ].join('\n');
 }
 
-// A pulled gate runs on the runner, whose receipt names a sandbox refusal; the gate job's receipt carries SANDBOX_BLOCKED [C7,B26].
+// A pulled gate runs on the runner, whose receipt names a sandbox refusal and whose jobs receive the shim through a FIXTURE_ name; the gate job's receipt carries SANDBOX_BLOCKED [C7,B26].
 test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t) => {
   const box = await childFailureSubmitBox(t, childListenerTestSource());
   const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
