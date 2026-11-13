@@ -885,7 +885,7 @@ function foldShouts() {
 }
 
 function tickAges() {
-  document.querySelectorAll('[data-ago]').forEach((node) => { node.textContent = node.classList.contains('long') ? agoLong(node.dataset.ago) : ago(node.dataset.ago); });
+  document.querySelectorAll('[data-ago]').forEach((node) => { node.textContent = node.classList.contains('long') || node.classList.contains('conversation-time') ? agoLong(node.dataset.ago) : ago(node.dataset.ago); });
   tickDays();
 }
 
@@ -1157,7 +1157,8 @@ document.addEventListener('click', (event) => {
     else askDecline('sentinel', name, 'needs', digest, t);
   }
   else if (t.dataset.shoutId && !event.target.closest('button,a,input,textarea,select')) { go('shout:' + t.dataset.shoutId); }
-  else if (t.dataset.row) {
+  // A spec or doctrine row is 'kind:id'; an Activity row carries a bare item number and is the Activity page's own to handle.
+  else if (t.dataset.row?.includes(':')) {
     const [kind, id] = t.dataset.row.split(':');
     view.row[kind] = id;
     view.addressDetail = id;
