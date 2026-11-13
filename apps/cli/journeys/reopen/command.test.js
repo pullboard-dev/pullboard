@@ -208,7 +208,8 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   assert.equal(withdrawn, true, 'the returned accept reads as withdrawn');
   assert.equal(withdrawal.acceptEventId, originalAccept.eventId);
   assert.deepEqual(acceptNow, originalAccept, 'returning the item does not rewrite its earlier accept event');
-  assert.deepEqual(returned.verdicts, initial.verdicts, 'the prior verdict receipt stays byte-for-byte unchanged');
+  // The same projection marks the receipt withdrawn; its recorded fields stay byte-for-byte.
+  assert.deepEqual(returned.verdicts.map(({ withdrawal, withdrawn, ...recorded }) => recorded), initial.verdicts, 'the prior verdict receipt stays byte-for-byte unchanged');
   const landingNote = automaticReopen.detail.note;
 
   const firstClaim = (await fixtureCommand(box, item.cwd, 'claim', String(item.id)));
