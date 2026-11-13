@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readFileSync,
 } from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import { gunzipSync } from 'node:zlib';
 import {
   decodeBoardKey,
@@ -15,12 +16,29 @@ import { settleSubmit } from '../submit/settle.js';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 
 /**
- * Fetch from a loopback fixture relay on a fresh connection each time.
- * Why: the default pool keeps an idle socket for the relay's 5 s keep-alive; on a loaded runner the test's event loop
- * misses the relay's close, reuses the dead socket, and the case fails with 'fetch failed' (ECONNRESET) [H16].
+ * Fetch from a loopback fixture relay on a socket of its own, never one from the global fetch pool.
+ * Why: the pool keeps idle sockets by host and port; fixtures come and go on ephemeral ports, so a later fixture can
+ * inherit a dead socket from an earlier one and its first request fails with 'fetch failed' (ECONNRESET) [H16].
+ * An unpooled node:http request (agent: false) cannot reuse anything, and redirects stay manual as the callers expect.
  */
 export function closingFetch(url, init = {}) {
-  return fetch(url, { ...init, headers: { ...init.headers, connection: 'close' } });
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(url, { method: init.method ?? 'GET', headers: init.headers ?? {}, agent: false }, response => {
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('error', reject);
+      response.on('end', () => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          for (const one of Array.isArray(value) ? value : [value]) headers.append(name, one);
+        }
+        const empty = [204, 205, 304].includes(response.statusCode);
+        resolve(new Response(empty ? null : Buffer.concat(chunks), { status: response.statusCode, headers }));
+      });
+    });
+    request.on('error', reject);
+    request.end(init.body);
+  });
 }
 
 /** Start the private relay fixture; its pulled gates run on the machine's loopback local runner, stopped when the test ends [P7]. */
