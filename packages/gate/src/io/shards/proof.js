@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { machineHome } from '../../../../resources/index.js';
 import { runShellAsync } from '../run/shell.js';
 import { DatabaseSync } from 'node:sqlite';
+import { storeName } from '../store-names.js';
 
 /** How long a shard waits for its own runner slot before it runs on the gate's first lease instead. */
 export const SHARD_ADMIT_MS = 30_000;
@@ -55,7 +56,7 @@ const TREE = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
  */
 export function shardPassStore(tree, command, { folder = join(machineHome(), 'shard-passes'), now = Date.now, tooling = null } = {}) {
   if (typeof tree !== 'string' || !TREE.test(tree) || typeof command !== 'string') return null;
-  const file = join(folder, `${createHash('sha256').update(JSON.stringify([tree, command])).digest('hex')}.json`);
+  const file = join(folder, storeName(createHash('sha256').update(JSON.stringify([tree, command])).digest('hex')));
   /** The passes on disk for exactly this tree and command; anything unreadable or foreign reads as none. */
   const read = () => {
     try {
