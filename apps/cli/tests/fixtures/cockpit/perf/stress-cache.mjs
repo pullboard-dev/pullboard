@@ -1,6 +1,7 @@
 /** Reuse one generated stress board per generator version, so only the first run on a runner pays the generation time [N26]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -9,6 +10,7 @@ import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { userInfo } from 'node:os';
@@ -65,17 +67,28 @@ function repathFiles(dir, from, to) {
   }
 }
 
+/** What a cold call waits on: the detached build's exit, or the marker appearing from another run's build. */
+let pending = null;
+
 /** Same result as generateStressBoard, but copied from the runner's cache; removeStressBoard cleans the copy. */
 export function cachedStressBoard(inputs) {
+  // Returns null while a cold build runs; the caller waits with awaitStressBoard.
   const cache = join(stressCacheRoot(), cacheKey(inputs));
   const marker = join(cache, 'complete');
   if (!existsSync(marker)) {
-    const staging = join(stressCacheRoot(), `building-${process.pid}-${Date.now()}`);
-    mkdirSync(staging, { recursive: true });
-    const made = generateStressBoard({ ...inputs, parent: staging });
-    writeFileSync(join(made.workspace, 'env.json'), JSON.stringify(made.env));
-    writeFileSync(join(staging, 'complete'), `${made.workspace}\n`);
-    try { renameSync(staging, cache); } catch { rmSync(staging, { recursive: true, force: true }); }
+    // A cold runner builds the board in a detached process: a test run killed at its file budget must not kill the build,
+    // so the next run finds the cache. This run waits for it as long as it can.
+    const lock = `${cache}.lock`;
+    let fresh = false;
+    try { mkdirSync(lock); fresh = true; } catch { fresh = Date.now() - statSync(lock).mtimeMs > 600_000; }
+    if (fresh) {
+      const child = spawn(process.execPath, [join(HERE, 'stress-cache-build.mjs'), JSON.stringify(inputs), cache, lock], { detached: true, stdio: 'ignore' });
+      pending = new Promise(resolve => child.once('exit', resolve));
+      child.unref();
+    } else {
+      pending = new Promise(resolve => { const watcher = watch(stressCacheRoot(), () => { if (existsSync(marker)) { watcher.close(); resolve(); } }); });
+    }
+    return null;
   }
   const built = readFileSync(marker, 'utf8').trim(), source = join(cache, basename(built));
   const workspace = join(tmpdir(), `pullboard-stress-${randomUUID()}`);
@@ -85,4 +98,24 @@ export function cachedStressBoard(inputs) {
   rmSync(join(workspace, 'env.json'));
   for (const part of ['home', 'machine-home', join('board', '.git', 'pullboard')]) repathFiles(join(workspace, part), built, workspace);
   return { ...repath(manifest, built, workspace), parent: tmpdir(), workspace, env: repath(env, built, workspace) };
+}
+
+/** Build the cache from a detached process; node:test's per-file budget cannot kill it. */
+export function buildStressCache(inputs, cache) {
+  const staging = join(stressCacheRoot(), `building-${process.pid}-${Date.now()}`);
+  mkdirSync(staging, { recursive: true });
+  const made = generateStressBoard({ ...inputs, parent: staging });
+  writeFileSync(join(made.workspace, 'env.json'), JSON.stringify(made.env));
+  writeFileSync(join(staging, 'complete'), `${made.workspace}\n`);
+  try { renameSync(staging, cache); } catch { rmSync(staging, { recursive: true, force: true }); }
+}
+
+/** The cached board, waiting (while a cold build runs) until the runner's file budget would end the test anyway. */
+export async function awaitStressBoard(inputs) {
+  const board = cachedStressBoard(inputs);
+  if (board) return board;
+  await pending;
+  const built = cachedStressBoard(inputs);
+  if (!built) throw new Error('Refused(STRESS_BOARD_COLD, the stress board cache build did not finish; rerun this file)');
+  return built;
 }

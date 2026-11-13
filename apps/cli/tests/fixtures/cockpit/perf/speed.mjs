@@ -11,7 +11,7 @@ import {
   stableChrome,
 } from '../stable.js';
 import { removeStressBoard } from './generate.mjs';
-import { cachedStressBoard } from './stress-cache.mjs';
+import { awaitStressBoard } from './stress-cache.mjs';
 import {
   TAB_SPEED_GOAL_MS,
   TAB_SPEED_ROWS,
@@ -170,7 +170,7 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
 
 /** One split file's whole contract: generate the real large board, click each of `tabs` first, again and isolated, and hold the 100 ms bar [N26]. */
 export async function checkTabSpeed(t, tabs) {
-  const board = cachedStressBoard({ seed: 'tab-speed-1600', size: 1600, agents: 1150, shouts: 40000 });
+  const board = await awaitStressBoard({ seed: 'tab-speed-1600', size: 1600, agents: 1150, shouts: 40000 });
   try {
     assert.equal(board.agentCount, 1150);
     assert.equal(board.shoutCount, 40000);
