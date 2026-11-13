@@ -56,3 +56,9 @@ export async function readyLanding(t, rerun) {
   writeFileSync(box.counter + '.mode', 'paired');
   return { ...box, remote, base, id };
 }
+
+/** Wait for the offered land job's receipt to settle the item (a red returns it to its builder) and return the item's row [P7,C7]. */
+export async function settleLand(box) {
+  await whenRunnerSettles(box.env, async () => (await cliLocal(box, box.root, 'show', String(box.id))).document?.item_status !== 'verified', { deadlineMs: 180_000, what: `the land job for #${box.id}` });
+  return (await cliLocal(box, box.root, 'show', String(box.id))).document;
+}

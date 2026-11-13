@@ -11,4 +11,4 @@
 .doctrine-standard-note { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--surface-2); color: var(--ink-muted); font-size: var(--text-xs); }
 #doctrine-detail h2 { margin: 0; font-size: var(--text-spec-title); line-height: 1.5; }
 #doctrine-detail .tier-must, #doctrine-detail .tier-aim { background: none; color: var(--ink-muted); }
-#doctrine-detail .tier-must { border: 1px solid var(--line-strong); }
+#doctrine-detail .tier-must { border: var(--border-strong); }
