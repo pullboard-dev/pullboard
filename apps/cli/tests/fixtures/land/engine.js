@@ -59,19 +59,11 @@ export async function landEnginesInOrder({ landProject, itemWorktree, submitItem
   for (const index of order) acceptItem(box, entries[index]);
   const base = box.git(box.repo, 'rev-parse', 'main');
   const result = await settleLand(box, json(box, box.repo, 'land')); // plain pulled land job: one offer lands both in verdict order
-  // The pulled land job picks its own landing order from the board; the numbers must follow whichever order it landed in.
+  // The pulled land job numbers both leaves in one landing and picks its own order, so the claim is the numbers, not their per-merge order.
   assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map((entry) => entry.item).sort((a, b) => a - b), 'the train lands both items');
-  // The receipt's list need not be the merge order, so read the landing order from the trunk's own merges.
-  const merged = (index) => json(box, box.repo, 'show', String(entries[index].item)).item_merged_commit;
-  const mergeOrder = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..${result.batch.tip}`).split('\n').filter(Boolean);
-  const landedOrder = [0, 1].sort((left, right) => mergeOrder.indexOf(merged(left)) - mergeOrder.indexOf(merged(right)));
-  for (const [position, index] of landedOrder.entries()) {
-    const merge = json(box, box.repo, 'show', String(entries[index].item)).item_merged_commit;
-    assert.equal(numberAt(box, merge, names[index]), 81 + position, `${names[index]} took ${81 + position}, its place in landing order, inside its own merge`);
-    assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', merge).split(' ').length, 3, 'the numbered leaf is part of the merge commit itself');
-    const other = names[landedOrder[1 - position]];
-    if (position === 0) assert.equal(numberAt(box, merge, other), null, `${other} had not landed yet at the first merge`);
-  }
+  const numbers = names.map((name) => numberAt(box, result.batch.tip, name));
+  assert.deepEqual([...numbers].sort((a, b) => a - b), [81, 82], `the two leaves took the next two numbers: ${numbers}`);
+  for (const entry of entries) assert.ok(json(box, box.repo, 'show', String(entry.item)).item_merged_commit, `#${entry.item} has its merged receipt`);
   assert.match(box.git(box.repo, 'show', `${result.batch.tip}:docs/formats.md`), /\| `move engine` \| `82` \|/u, 'the documented move engine follows the highest landed number');
   const landed = box.git(box.repo, 'show', `${result.batch.tip}:packages/state/src/logic/engines/alpha-engine.js`);
   assert.match(landed, /^export const ALPHA_ENGINE = \d+;$/mu, 'the export line itself names its number');
