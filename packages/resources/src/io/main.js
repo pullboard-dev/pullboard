@@ -446,18 +446,21 @@ function livenessPids(db) {
   catch { /* An older table or damaged identity only leaves that PID to the cache. */ }
   return pids;
 }
-/** Remove a view-port definition only after its last lease has left the resource queue. */
+/** Resource definitions that exist only for one lease or loan, so they leave with their last holder. */
+const TRANSIENT_RESOURCE_PREFIXES = ['view-port-', 'test-file-loan:'];
+
+/** Remove a transient definition (a view port or a per-file test loan) only after its last lease has left the queue. */
 function removeEmptyViewPortResource(db, name) {
-  if (!name.startsWith('view-port-')) return;
+  if (!TRANSIENT_RESOURCE_PREFIXES.some(prefix => name.startsWith(prefix))) return;
   db.prepare(`DELETE FROM resource WHERE name = ?
     AND NOT EXISTS (SELECT 1 FROM holder WHERE name = ?)
     AND NOT EXISTS (SELECT 1 FROM waiter WHERE name = ?)`)
     .run(name, name, name);
 }
 
-/** Sweep only empty view-port definitions after callers have pruned dead lease rows. */
+/** Sweep only empty transient definitions after callers have pruned dead lease rows, so expired loans leave too. */
 function removeEmptyViewPortResources(db) {
-  db.exec(`DELETE FROM resource WHERE name GLOB 'view-port-*'
+  db.exec(`DELETE FROM resource WHERE (name GLOB 'view-port-*' OR name GLOB 'test-file-loan:*')
     AND NOT EXISTS (SELECT 1 FROM holder WHERE holder.name = resource.name)
     AND NOT EXISTS (SELECT 1 FROM waiter WHERE waiter.name = resource.name)`);
 }
