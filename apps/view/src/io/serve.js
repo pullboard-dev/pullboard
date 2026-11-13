@@ -2,6 +2,7 @@ import { activeViewAgents } from "../logic/summary/state.js";
 import { viewProofSummary } from "../logic/summary/state.js";
 import { compactItemSummaries } from "../logic/summary/state.js";
 import { viewFlowSummary } from "../logic/summary/state.js";
+import { projectSummary } from "../logic/summary/project.js";
 import { modelPresentation } from "./cost/tab.js";
 import { noLinkPage } from "./no-link.js";
 import { NO_LINK_CSS } from "./no-link.js";
@@ -90,6 +91,7 @@ import {
 import { fetchLocal } from "../../../../packages/sync/index.js";
 import { Refused } from "../../../../packages/kernel/index.js";
 import { relayLinkAvailability } from "../../../../packages/link/index.js";
+import { relayMachineContext } from "../../../../packages/link/index.js";
 import { personNeeds } from "../../../../packages/spec/index.js";
 import { rigorDraftNeeds } from "../../../../packages/rigor/index.js";
 import { sentinelDraftNeeds } from "../../../../packages/sentinels/index.js";
@@ -200,7 +202,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
   }
   const { serveApi } = source ? {} : await import("../../../../packages/api/index.js");
-  const api = source ? { url: 'http://stand-in.invalid/?k=stand-in', close: async () => {} } : await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
+  const api = source ? { url: 'http://stand-in.invalid/?k=stand-in', close: async () => {} } : await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
   let wrote = false;
   try {
     const address = new URL(api.url);
@@ -310,6 +312,27 @@ export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
   // The machine's runner leases sit beside its settings file, in the machine home.
   return publicLiveRunners(commonDir, { resources: join(dirname(machineSettingsFile()), 'resources.sqlite'), configured: loadMachineSettings().runners ?? [],
     openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
+}
+
+/** The last runner read per board, so a burst of state reads opens the machine's lease records once. */
+const runnerReads = new Map();
+
+/**
+ * The Dashboard's runner card (#6847): the same anonymous runner progress /live/data.json carries, read at most once
+ * every fifteen seconds per board. A machine with no runner records, or one that cannot be read now, shows none.
+ *
+ * @param {string} root - The board's checkout root.
+ * @param {string} commonDir - The board's git common folder, which keys the kept read.
+ * @param {number} now - The snapshot clock in milliseconds.
+ * @returns {{ runners: object[], runs: object[] } | null}
+ */
+function dashboardRunners(root, commonDir, now) {
+  const kept = runnerReads.get(commonDir);
+  if (kept && now >= kept.at && now - kept.at < 15_000) return kept.value;
+  let value = null;
+  try { value = publicLiveSnapshot(root, { now }); } catch { value = null; }
+  runnerReads.set(commonDir, { at: now, value });
+  return value;
 }
 
 /** The CLI may offer --public only when this implementation checks every retained export value. */
@@ -532,6 +555,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       // The hero's four-hour counts, so a board whose full history the browser never finishes reading still shows numbers.
       dashboardRecent: dashboardRecent(board, new Map(all.map(item => [item.item_id, item])), now),
       dashboardLanded: fields.dashboardLanded,
+      // The Dashboard's Runners card: this machine's runners, numbered and anonymous as on /live (#6847).
+      dashboardRunners: dashboardRunners(info.root, info.commonDir, now),
       landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: fields.holds,
@@ -544,6 +569,26 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const projected = projectSpecRevisions({ ...state, ...derived.late }, derived.rowDrafts, derived.rowDecisions);
     return { ...projected, needs: personNeeds(projected) };
   }, providedBoard, boardOpeners);
+}
+
+/**
+ * The items whose current merge was recorded in the last 24 hours, each with its commit: what the Dashboard's landing
+ * bars and lists match against its events. The older landings are not listed; the page counts them from its items.
+ *
+ * @param {any} board
+ * @param {any[]} all Every item row.
+ * @param {number} now
+ * @returns {{ id: number, commit: string }[]}
+ */
+function recentLandings(board, all, now) {
+  const landed = new Map(all.filter(item => item.item_merged_commit).map(item => [item.item_id, item.item_merged_commit]));
+  const recent = new Map();
+  for (const event of store.eventsOfKinds(board, ['merged'])) {
+    const commit = landed.get(event.item_id);
+    if (commit === undefined || recent.has(event.item_id) || Date.parse(event.event_at) <= now - 24 * 3_600_000) continue;
+    try { if (JSON.parse(event.event_detail).commit === commit) recent.set(event.item_id, commit); } catch { /* A malformed receipt lists nothing. */ }
+  }
+  return [...recent].map(([id, commit]) => ({ id, commit }));
 }
 
 /**
@@ -585,8 +630,8 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
     asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
     events: store.recentEvents(board, 80),
     dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-    dashboardLanded: all.filter(item => item.item_merged_commit)
-      .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
+    // Only the landings the Dashboard draws (the last 24 hours): every older landing is an item whose stage the page already holds (#6666).
+    dashboardLanded: recentLandings(board, all, now),
     landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
       .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
     holds: store.laneHolds(board),
@@ -730,7 +775,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -856,7 +901,12 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       return json(res, 403, refusalDocument(new Refused('VIEW_SIGN_IN_AUTH', 'open the view link and send its session key in the x-pullboard-key header only')));
     }
     try {
-      if (req.method === 'GET') return json(res, 200, { version: 1, available: sharingAvailable() });
+      if (req.method === 'GET') {
+        // Whether any board is linked, and as whom: the account control's initial and menu. The login is display text only.
+        const linked = listApiProjects().filter(project => relayLinkAvailability(project.root).linked);
+        const login = linked.map(project => relayMachineContext(project.root)?.login).find(name => typeof name === 'string' && name) || '';
+        return json(res, 200, { version: 1, available: sharingAvailable(), linked: linked.length > 0, login });
+      }
       if (req.method !== 'POST') return json(res, 405, refusalDocument(new Refused('VIEW_SIGN_IN_METHOD', 'use GET for the invitation or a JSON POST for sign-in')));
       if (projectRoot !== undefined) throw new Refused('VIEW_SIGN_IN_SCOPE', 'open the full machine view to link every registered board');
       const body = await sharingBody(req);
@@ -969,7 +1019,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

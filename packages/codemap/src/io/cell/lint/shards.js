@@ -20,6 +20,7 @@ import {
   pathMapFromFiles,
 } from '../../../logic/path/map.js';
 import { Refused } from '../../../../../kernel/index.js';
+import { storeName } from '../../store-names.js';
 
 const MAP_DIRECTORY = 'packages/codemap/data/plan/path-map';
 const SHARD_DIRECTORY = 'packages/codemap/data/baselines/lints/cells';
@@ -42,7 +43,7 @@ export function cellLintCells(root) {
 /** Read each cell's explicit old-to-new path identities without consulting live board state. */
 function cellMaps(root, cells) {
   return new Map(cells.map(cell => {
-    const value = JSON.parse(cellReadFileSync(join(root, MAP_DIRECTORY, `${cell}.json`), 'utf8'));
+    const value = JSON.parse(cellReadFileSync(join(root, MAP_DIRECTORY, `${storeName(cell)}`), 'utf8'));
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Refused('CELL_BASELINE', `invalid ${cell} path-map shard`);
     return [cell, value];
   }));
@@ -90,7 +91,7 @@ export function cellLintCellFiles(root, base, target) {
     const metrics = edits.get(cell);
     for (const row of Object.values(metrics)) row.remove.sort();
     const payload = { version: 1, cell, baseSha256, metrics };
-    return [`${SHARD_DIRECTORY}/${cell}.json`, encode({ ...payload, sha256: digest(encode(payload)) })];
+    return [`${SHARD_DIRECTORY}/${storeName(cell)}`, encode({ ...payload, sha256: digest(encode(payload)) })];
   }));
 }
 /** Combine all expected cell deltas, refusing omissions, changed bytes or overlapping edits. */
@@ -98,10 +99,10 @@ export function readCellLintCellBaseline(root, base) {
   const cells = cellLintCells(root);
   if (!cells.length) return base;
   const directory = join(root, SHARD_DIRECTORY), actual = cellExistsSync(directory) ? cellReaddirSync(directory).filter(name => name !== '.write-lock').sort() : [];
-  const missing = cells.filter(cell => !actual.includes(`${cell}.json`));
+  const missing = cells.filter(cell => !actual.includes(`${storeName(cell)}`));
   const accepted = missing.length ? acceptedShards(root) : new Set();
   if (actual.some(name => !cells.includes(name.slice(0, -5)) || !name.endsWith('.json'))
-    || missing.some(cell => accepted.has(`${SHARD_DIRECTORY}/${cell}.json`))) throw new Refused('CELL_BASELINE', 'restore the complete accepted per-cell baseline shard set');
+    || missing.some(cell => accepted.has(`${SHARD_DIRECTORY}/${storeName(cell)}`))) throw new Refused('CELL_BASELINE', 'restore the complete accepted per-cell baseline shard set');
   const baseSha256 = digest(cellReadFileSync(join(root, DESCRIPTOR)));
   const baseline = { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
     count: base.metrics[metric].count,
@@ -109,8 +110,8 @@ export function readCellLintCellBaseline(root, base) {
   }])) };
   const touched = new Set();
   for (const cell of cells) {
-    if (!actual.includes(`${cell}.json`)) continue;
-    const document = JSON.parse(cellReadFileSync(join(root, SHARD_DIRECTORY, `${cell}.json`), 'utf8'));
+    if (!actual.includes(`${storeName(cell)}`)) continue;
+    const document = JSON.parse(cellReadFileSync(join(root, SHARD_DIRECTORY, `${storeName(cell)}`), 'utf8'));
     if (!document || Object.keys(document).sort().join() !== 'baseSha256,cell,metrics,sha256,version') throw new Refused('CELL_BASELINE', `invalid ${cell} baseline document`);
     const { sha256, ...payload } = document;
     if (payload.version !== 1 || payload.cell !== cell || payload.baseSha256 !== baseSha256

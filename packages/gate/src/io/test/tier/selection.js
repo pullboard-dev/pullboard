@@ -22,6 +22,7 @@ import { checkSkippedSeals } from '../../seals.js';
 import { refusalFloor } from '../../refusal/floor.js';
 import { cellReadPathMap } from '../../../../../codemap/index.js';
 import { codeMapGraph } from '../../affected/tests.js';
+import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
 import { writeTierSnapshot } from './cache.js';
 
@@ -282,7 +283,11 @@ function confinementOf(root, base, commit, actual, sealedCells) {
 
 /** A cell's own plan shard (`bin/cells-plan/NN-<cell>.json`); the index, path maps and transition file are not shards. */
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
-const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE]);
+/** The generated fixture registry: one row per test file naming the fixtures it uses. */
+const [FIXTURE_REGISTRY] = BASELINE_TABLES;
+const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE, FIXTURE_REGISTRY]);
+/** The fixture registry keys each row by the test file it serves, so a row is a cell's own when that file lies in the cell (#4638). */
+const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
 /**
  * The listing sections a tool regenerates from the tree (`--write`), by file; `true` means every section. A static check
  * and the tests that read the file compare them with a fresh run, so a hand edit or a raised ratchet is caught there and
@@ -349,7 +354,7 @@ function listingIsOwn(file, roots, read) {
   const [was, now] = [listingRows(before), listingRows(after)];
   const generated = section => GENERATED_SECTIONS[file] === true || GENERATED_SECTIONS[file]?.has(section);
   return [...new Set([...was.keys(), ...now.keys()])].filter(key => was.get(key) !== now.get(key))
-    .every(key => generated(key.slice(0, key.indexOf('\0'))) || owns(key.slice(key.indexOf('\0') + 1)));
+    .every(key => { const section = key.slice(0, key.indexOf('\0')); return generated(section) || owns(key.slice(section.length + 1)) || FILE_KEYED.has(file) && owns(section); });
 }
 
 /**

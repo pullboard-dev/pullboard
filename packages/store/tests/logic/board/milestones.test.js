@@ -25,7 +25,7 @@ import { workQueue } from '../../../../items/index.js';
 import { milestoneRoadmap } from '../../../../roadmap/index.js';
 import { listApiProjects } from '../../../../seats/index.js';
 import { eligibilityProblem } from '../../../../verify/index.js';
-import { submitFixture } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../fixtures/submit.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';

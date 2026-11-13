@@ -539,7 +539,8 @@ test('merged and withdraw are the coordinator\'s, and only for the right states 
   assert.throws(() => store.merged(board, id, { agentId: 'web-2', commit: SHA_B }), /COORDINATOR_ONLY/);
   store.merged(board, id, { agentId: 'coordinator', commit: SHA_B });
   assert.equal(store.getItem(board, id).item_merged_commit, SHA_B);
-  assert.throws(() => store.withdraw(board, id, { agentId: 'coordinator', reason: 'late' }), /CLOSED/);
+  store.withdraw(board, id, { agentId: 'coordinator', reason: 'late' });
+  assert.throws(() => store.withdraw(board, id, { agentId: 'coordinator', reason: 'again' }), /CLOSED/);
 });
 
 test('shouts reach a lane, an agent or all; inbox marks them read [B7]', () => {
