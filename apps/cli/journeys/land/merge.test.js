@@ -141,10 +141,17 @@ test('a valid JavaScript union is checked without executing its top-level body [
   land(box, "throw new Error('inspection must not execute this');\nexport const added = true;\nexport {};\n");
 });
 
-test('generated lifecycle is classified without executing item code and regenerated only by landing [B3,R3,C7]', () => {
-  const box = fixture('docs/lifecycle.md', 'old\n', 'left\n', 'right\n', {
+/** A docs/api.md whose three generated tables hold the given cell, so only their tables differ between versions. */
+function generatedApi(cell) {
+  return ['# API', '', ...['api-command-shapes', 'api-refusal-shapes', 'api-http-shapes'].flatMap(name =>
+    [`<!-- ${name}:start -->`, `| shape |`, `| ${cell} |`, `<!-- ${name}:end -->`, '']), 'End.', ''].join('\n');
+}
+
+test('a generated doc is classified without executing item code and regenerated only by landing [B3,R3,C7]', () => {
+  // The lifecycle doc is no longer generated (#5309); docs/api.md is, by docs/tools/update-docs.js --print <path>.
+  const box = fixture('docs/api.md', generatedApi('old'), generatedApi('left'), generatedApi('right'), {
     'package.json': '{"type":"module"}\n',
-    'apps/cli/pullboard.js': "import {writeFileSync} from 'node:fs'; writeFileSync('executed', 'yes'); console.log('regenerated');\n",
+    'docs/tools/update-docs.js': "import {writeFileSync} from 'node:fs'; writeFileSync('executed', 'yes'); process.stdout.write('regenerated\\n');\n",
   });
   inspect(box, []);
   assert.equal(box.git('status', '--porcelain'), '', 'inspection never runs the candidate generator');
@@ -202,7 +209,7 @@ function accepted(box, number, files, { verify = true } = {}) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
   json(box, builder, 'join', 'web');
   const id = json(box, box.repo, 'add', 'web', `Mechanical contribution ${number}`, '--specs', 'G1',
-    '--criterion', 'retain the actual contributed file contents', '--check', 'true').item.item_id;
+    '--criterion', 'retain the actual contributed file contents', '--check', 'true', '--accept-green', 'fixture check keeps passing').item.item_id;
   json(box, builder, 'claim', String(id));
   for (const [path, source] of Object.entries(files)) writeFileSync(join(builder, path), source);
   box.git(builder, 'add', '-A');
@@ -269,7 +276,7 @@ test('version-one conflict replay keeps its original Git meaning while fresh mec
   assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).at(-1).event_detail).computedConflict, historical);
 });
 
-test('a failing lifecycle generator blocks landing without reopening accepted work [B3,R3,C7]', async () => {
+test('a failing doc generator blocks landing without reopening accepted work [B3,R3,C7]', async () => {
   const box = boardFixture();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('apps/');
@@ -279,11 +286,11 @@ test('a failing lifecycle generator blocks landing without reopening accepted wo
   mkdirSync(join(box.repo, 'docs/tools'), { recursive: true });
   writeFileSync(join(box.repo, 'apps/cli/src/io/generated/docs.js'), '// generated-docs boundary\n');
   writeFileSync(join(box.repo, 'docs/tools/update-docs.js'), 'process.exit(7);\n');
-  writeFileSync(join(box.repo, 'docs/lifecycle.md'), 'base\n');
+  writeFileSync(join(box.repo, 'docs/api.md'), generatedApi('base'));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure failing private generator');
-  const left = accepted(box, 1, { 'docs/lifecycle.md': 'left\n' });
-  const right = accepted(box, 2, { 'docs/lifecycle.md': 'right\n' });
+  const left = accepted(box, 1, { 'docs/api.md': generatedApi('left') });
+  const right = accepted(box, 2, { 'docs/api.md': generatedApi('right') });
   const before = box.git(box.repo, 'rev-parse', 'main');
   const result = await box.runLocal(box.repo, 'land', '--max', '2', '--json');
   assert.equal(result.code, 1, `${result.out}\n${result.err}`);
