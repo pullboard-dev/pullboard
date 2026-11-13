@@ -49,9 +49,17 @@ export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
     ? !Number.isSafeInteger(row.item) || row.item < 1 : row.item !== undefined)) {
     throw new Refused('SUBMISSION_PROOF', 'known main failure repair links need positive item ids on a supporting engine; historical receipts keep their original format');
   }
+  // Cases red on main with several candidate repairs never fail the gate; the proof names each with its candidates (#2528, #7373).
+  const ambiguous = value.knownMainAmbiguous;
+  if (ambiguous !== undefined && (engine < KNOWN_MAIN_REWORKS_ENGINE || !Array.isArray(ambiguous) || !ambiguous.length || ambiguous.some(row => !projectFile(row?.file)
+    || typeof row.name !== 'string' || !row.name || row.name.length > 8192 || !Array.isArray(row.candidates) || row.candidates.length < 2
+    || row.candidates.some(item => !Number.isSafeInteger(item) || item < 1)))) {
+    throw new Refused('SUBMISSION_PROOF', 'known main cases with several candidate repairs need their project test file, name and two or more positive repair ids on a supporting engine');
+  }
   return { version: 1, files: [...new Set(value.files)].sort(), full: value.full,
     deferred: value.deferred, reason: value.reason, ...(value.deferredFiles ? { deferredFiles: [...new Set(value.deferredFiles)].sort() } : {}),
     ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item, ran, firstError, stable, stableData }) => ({ file, name, signature,
-      ...failureDetails({ firstError, stable, stableData }, engine), ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}) })) } } : {}) };
+      ...failureDetails({ firstError, stable, stableData }, engine), ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}) })) } } : {}),
+    ...(ambiguous ? { knownMainAmbiguous: ambiguous.map(({ file, name, candidates }) => ({ file, name, candidates: [...candidates] })) } : {}) };
 }
 
