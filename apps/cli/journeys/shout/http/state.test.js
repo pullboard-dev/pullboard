@@ -357,9 +357,9 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   }
   const note = 'The page shows no greeting.\nThe second line stays in the detail.';
   const rejected = await submitted('Rejected item');
-  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note, clause: 'shows a greeting', 'no-next': true } });
+  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note, clause: 'shows a greeting' } });
   const accepted = await submitted('Accepted item');
-  await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'The page greets by name.\nChecked twice.', 'no-next': true } });
+  await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'The page greets by name.\nChecked twice.' } });
 
   const summaries = new Map((await box.call(box.path + '/state')).document.state.items.map((item) => [item.id, item]));
   assert.deepEqual(summaries.get(rejected).verdict, { decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', note: 'The page shows no greeting.' },
@@ -367,6 +367,8 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   assert.deepEqual(summaries.get(accepted).verdict, { decision: 'ACCEPT', reason: 'CRITERION_MET' }, 'an accepted item carries no note');
   assert.equal((await box.call(box.path + '/items/' + rejected)).document.item.verdict.note, note, 'the whole note stays in the detail');
 
+  // A verdict hands the verifier the next build, which is the item it just sent back; the builder takes it from there.
+  await move({ verb: 'release', item: rejected, agent: verifier.agent, args: { reason: 'ROUTED_ELSEWHERE' } });
   await move({ verb: 'claim', item: rejected, agent: builder.agent });
   const reworked = (await box.call(box.path + '/state')).document.state.items.find((item) => item.id === rejected);
   assert.equal(reworked.verdict.note, 'The page shows no greeting.', 'a row being reworked still says why');
@@ -523,6 +525,7 @@ test('[A2, N26] local milestone item status refreshes after an item event', asyn
 
   const before = await box.call(box.path + '/state');
   assert.equal(builds, 1);
+  assert.ok(before.document.state.milestones[0].items[0].progress, JSON.stringify(before.document.state.milestones[0]).slice(0, 1500));
   const { progress: beforeProgress, ...beforeItem } = before.document.state.milestones[0].items[0];
   assert.equal(beforeProgress.stage, 'open');
   assert.deepEqual(beforeItem, {
