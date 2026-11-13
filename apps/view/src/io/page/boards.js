@@ -261,14 +261,17 @@ async function boardState(root, mark, fresh = null) {
       return { ...board, ok: false, error: String(error.message || error) };
     }
   };
-  // The opened project, a board or each repo of a group, reads its state first. Then a board its milestones name
-  // reads its state too, since its Roadmap shows that board's items; every other listed board reads its summary.
+  // The opened project, a board or each repo of a group, reads its state. Every other listed board reads its summary at
+  // the same time, so the sidebar fills in without waiting for the opened board. A board the opened project's
+  // milestones name then reads its state too, since its Roadmap shows that board's items.
   const opened = (board) => board.root === root || Boolean(board.project && root === 'group:' + board.project);
-  const first = await Promise.all(listed.boards.map((board) => opened(board) ? read(board, true) : null));
+  const first = listed.boards.map((board) => opened(board) ? read(board, true) : null);
+  const rest = listed.boards.map((board, n) => first[n] ?? read(board, false));
+  await Promise.all(first);
   const names = new Set([...states.values()].flatMap((state) => (state.milestones || []).flatMap((milestone) => milestone.items || []))
     .map((entry) => /^(.+)#[1-9]\\d*$/.exec(String(entry.id))?.[1]).filter(Boolean));
   const named = (board) => names.has(board.name) || names.has(String(board.root).split('/').pop());
-  const projects = await Promise.all(listed.boards.map((board, n) => first[n] ?? read(board, named(board))));
+  const projects = await Promise.all(listed.boards.map((board, n) => first[n] ? first[n] : named(board) ? read(board, true) : rest[n]));
   projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
     warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));
   const groups = projectGroups(projects);
