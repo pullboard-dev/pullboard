@@ -7,10 +7,13 @@ import { createJob } from '../../../../packages/jobs/index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
 /** A scratch board with one gate job queued `ageMs` ago and unclaimed, and the machine's runners as given. */
 function boxWithQueuedGate(helpers, ageMs, runners) {
   const box = helpers.privateCheckSubmission({ check: 'true' });
+  // The fixture's own submit started a loopback runner; stop it so only the settings decide whether a runner is live.
+  stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { runners });
   const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'));
   try { createJob(db, { id: 'gate:1:abc123', kind: 'gate', item: 1, now: Date.now() - ageMs }); } finally { db.close(); }
