@@ -103,6 +103,8 @@ export function apiFixtureEnvironment(directory, bin) {
   const env = {
     ...process.env, HOME: join(directory, 'home'), PULLBOARD_HOME: join(directory, 'home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
+    // Fixture items carry near-identical titles; the duplicate check at add would refuse them.
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
     PATH: bin + ':' + process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'HTTP Agent', GIT_AUTHOR_EMAIL: 'agent@example.invalid',
     GIT_COMMITTER_NAME: 'HTTP Agent', GIT_COMMITTER_EMAIL: 'agent@example.invalid',
