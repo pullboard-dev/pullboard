@@ -59,3 +59,37 @@ test('clause 1: a blocker reached from the view, relay or transport pull server 
     assert.deepEqual(apiRequestIoProblems(injected).map(found => found.owner), [`${folder}/added.js#helper`], file);
   }
 });
+
+/** The tree's sources with `file` rewritten, and one added module whose `helper` makes a synchronous child process. */
+function withCallback(file, rewrite) {
+  const added = { file: 'packages/jobs/src/io/callback-added.js', source: "import { spawnSync } from 'node:child_process';\nexport function addedBlocker() { return spawnSync('ls'); }\n" };
+  const edited = sources.map(row => row.file === file ? { ...row, source: rewrite(row.source) } : row);
+  return [...edited, added];
+}
+/** The import of the added module, written relative to the rewritten file. */
+const importAdded = file => `import { addedBlocker } from '${'../'.repeat(file.split('/').length - 1)}packages/jobs/src/io/callback-added.js';\n`;
+
+test('#6756 clause 1: a spawnSync reached through a function in the viewPorts handed to the board API fails the check [C7]', () => {
+  const rows = apiRequestIoProblems(withCallback('apps/view/src/io/ports.js',
+    source => importAdded('apps/view/src/io/ports.js') + source.replace('Object.freeze({ ', 'Object.freeze({ addedBlocker, '))).filter(row => row.owner === 'packages/jobs/src/io/callback-added.js#addedBlocker');
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].chain[0], /viewPorts/u);
+});
+
+test('#6756 clause 2: a blocker reached through a settings provider or through runCommand fails the check [C7]', () => {
+  const owner = row => row.owner === 'packages/jobs/src/io/callback-added.js#addedBlocker';
+  const provider = apiRequestIoProblems(withCallback('apps/cli/src/io/commands/serve.js',
+    source => importAdded('apps/cli/src/io/commands/serve.js') + source.replace('settingsProviders: { ', 'settingsProviders: { addedBlocker, '))).filter(owner);
+  assert.equal(provider.length, 1);
+  assert.match(provider[0].chain[0], /settingsProviders/u);
+  const command = apiRequestIoProblems(withCallback('apps/cli/src/io/main.js',
+    source => importAdded('apps/cli/src/io/main.js') + source.replace('export async function main(argv, streams) {', 'export async function main(argv, streams) {\n  addedBlocker();'))).filter(owner);
+  assert.equal(command.length, 1);
+  assert.equal(command[0].chain[0], 'apps/cli/src/io/main.js#main');
+});
+
+test('#6756 clause 2: a callback list the check cannot find fails instead of passing silently [C7]', () => {
+  const rows = apiRequestIoProblems(sources.map(row => row.file === 'apps/view/src/io/ports.js' ? { ...row, source: row.source.replace('viewApiPorts', 'renamedPorts') } : row))
+    .filter(row => row.stale && /viewPorts/u.test(row.call));
+  assert.equal(rows.length, 1);
+});

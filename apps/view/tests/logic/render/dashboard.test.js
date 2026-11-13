@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardHtml } from '../../../src/logic/render/dashboard.js';
+import { comparisonHtml } from '../../../src/logic/render/comparison.js';
 import { dashboardModel } from '../../../src/io/dashboard/model.js';
 import { roadmapSummary } from '../../../src/logic/summary/roadmap.js';
 import { dashboardData } from '../../fixtures/cockpit/data.js';
@@ -39,7 +40,7 @@ test('Dashboard time and number labels depend on supplied locale and zone, not t
   assert.equal(JSON.stringify(model), before, 'formatting never changes its model');
 });
 
-test('Dashboard renders release, charts, agents, landings and capped lists from plain input [N26]', () => {
+test('Dashboard renders release, charts and agents from plain input [N26]', () => {
   const input = dashboardData({ populated: true });
   const { clockBase } = input;
     const quietModel = dashboardModel(input.project, input.events, { now: clockBase + 21 * 60_000, complete: true });
@@ -72,27 +73,6 @@ test('Dashboard renders release, charts, agents, landings and capped lists from 
     assert.equal([...chart.matchAll(/<title>/gu)].length, 25, 'each hour and the six-hour pace line expose a tooltip');
     assert.match(chart, /class="dash-pace-line"[\s\S]*?<title>0\.5 items an hour over the last 6 hours<\/title>/u);
 
-    const landing = section(html, 'Landing now');
-    assert.match(landing, /Accepted, waiting to land/u);
-    assert.match(landing, /web-1/u);
-    const acceptedAt = Date.parse(input.events.findLast(event => event.event_kind === 'accept' && event.item_id === 4).event_at);
-    const acceptedBy = input.events.findLast(event => event.event_kind === 'accept' && event.item_id === 4).event_by;
-    const ageMinutes = Math.floor((now - acceptedAt) / 60_000);
-    const acceptedAge = ageMinutes < 60 ? `${ageMinutes}m` : `${(ageMinutes / 60).toFixed(1)}h`;
-    assert.ok(landing.includes(acceptedBy), 'the accepted item names the actual verifier from board history');
-    assert.ok(landing.includes(`passed ${acceptedAge} ago`), 'the accepted item shows its actual elapsed time');
-
-    const inReview = section(html, 'In review');
-    assert.equal(itemRows(inReview), 6);
-    assert.match(inReview, /class="dash-old"/u, 'reviews over an hour old receive the overdue treatment');
-    assert.match(inReview, /All in review, oldest first/u);
-    const nextUp = section(html, 'Next up');
-    assert.equal(itemRows(nextUp), 8, 'the ready list is capped at eight rows');
-    assert.match(nextUp, /All ready, in rank order/u);
-    const justLanded = section(html, 'Just landed');
-    assert.equal(itemRows(justLanded), 3);
-    assert.match(justLanded, /All landed in Activity/u);
-
     const agents = section(html, 'Agents');
     assert.match(agents, /<span>Now<\/span><span>Build<\/span><span>Review<\/span><span>Shouts<\/span>/u, 'separate columns share the timeline header');
     assert.match(agents, /BUILDING · 1/u, 'uppercase mono group labels include the real group count');
@@ -118,7 +98,7 @@ test('Dashboard renders release, charts, agents, landings and capped lists from 
 });
 
 
-test('Dashboard consumes labelled API comparison scalars without rebuilding their history [N26,R1,R2]', () => {
+test('Activity comparison consumes labelled API comparison scalars without rebuilding their history [N26,R1,R2]', () => {
   const input = dashboardData({ populated: true });
   const current = { since:'2026-10-28T10:00:00.000Z', until:'2026-10-28T12:00:00.000Z', landed:2, agentHours:4, agentHoursPerLanding:2, idleShare:0.5, submitsPerItem:1.5, rejectRate:0.25, shoutsPerLanding:1,
     idleReasons:{'nothing-eligible':0.1,held:0.1,'review-family':0.1,'main-red':0.1,unknown:0.1}, stageShares:{build:0.2,rework:0.2,reviewWait:0.2,review:0.2,land:0.2} };
@@ -129,7 +109,7 @@ test('Dashboard consumes labelled API comparison scalars without rebuilding thei
   const before = JSON.stringify(input.project.statsComparison);
   const model = dashboardModel(input.project, [], { now:input.clockBase,complete:false });
   assert.strictEqual(model.comparison,input.project.statsComparison,'API comparison remains authoritative even while browser history is loading');
-  const html = section(dashboardHtml(model),'Window comparison');
+  const html = section(comparisonHtml(model.comparison),'Window comparison');
   assert.match(html,/data-stats-as-of="2026-10-28T12:00:00.000Z"/u);
   assert.ok(html.includes(new Date(current.until).toLocaleTimeString('en-US', { timeZone:'UTC', hour:'numeric', minute:'2-digit' })), 'canonical observation time uses the supplied display zone');
   assert.match(html,/120-minute windows/u);
@@ -147,11 +127,12 @@ test('Dashboard consumes labelled API comparison scalars without rebuilding thei
 test('Dashboard preserves unavailable comparison reasons and never turns missing evidence into zero [N26]', () => {
   const input = dashboardData({ populated: true });
   input.project.statsComparison = { version:1, available:false, reason:'No recorded seat intervals <yet>' };
-  const html = section(dashboardHtml(dashboardModel(input.project, input.events, { now:input.clockBase, complete:true })), 'Window comparison');
+  const html = section(comparisonHtml(input.project.statsComparison), 'Window comparison');
   assert.match(html,/No recorded seat intervals &lt;yet&gt;/u);
   assert.doesNotMatch(html,/data-stats-comparison=/u);
   delete input.project.statsComparison;
-  assert.doesNotMatch(dashboardHtml(dashboardModel(input.project,input.events,{ now:input.clockBase,complete:true })),/aria-label="Window comparison"/u);
+  assert.equal(comparisonHtml(input.project.statsComparison), '', 'a board with no comparison draws nothing');
+  assert.doesNotMatch(dashboardHtml(dashboardModel(input.project,input.events,{ now:input.clockBase,complete:true })),/aria-label="Window comparison"/u, 'and the Dashboard never draws it');
 });
 
 
@@ -184,7 +165,7 @@ test('seeded event windows reach Dashboard rows through the canonical comparison
   assert.equal(comparison.change.shoutsPerLanding,1);
   assert.equal(comparison.current.idleReasons.unknown,comparison.current.idleShare,'unrecorded historical reasons remain unknown');
   input.project.statsComparison = comparison;
-  const html = section(dashboardHtml(dashboardModel(input.project,history,{now:input.clockBase,complete:true})),'Window comparison');
+  const html = section(comparisonHtml(comparison),'Window comparison');
   const metrics = [
     ...['landed','agentHours','agentHoursPerLanding','idleShare','submitsPerItem','rejectRate','shoutsPerLanding'].map(key => [key,null]),
     ...['nothing-eligible','held','review-family','main-red','unknown'].map(key => [key,'idleReasons']),
@@ -198,7 +179,7 @@ test('seeded event windows reach Dashboard rows through the canonical comparison
   assert.equal(JSON.stringify(history),original,'the pure renderer does not change recorded inputs');
 });
 
-test('Dashboard has no Pipeline section and prints no raw milliseconds; The last two hours stays [N26]', () => {
+test('Dashboard shows the mockup sections in order, and the sections that moved are gone [N26]', () => {
   const input = dashboardData({ populated: true });
   const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
   const current = { since:'2026-10-28T10:00:00.000Z', until:'2026-10-28T12:00:00.000Z', landed:2, agentHours:4, agentHoursPerLanding:2, idleShare:0.5, submitsPerItem:1.5, rejectRate:0.25, shoutsPerLanding:1,
@@ -212,7 +193,14 @@ test('Dashboard has no Pipeline section and prints no raw milliseconds; The last
   assert.ok(!/dash-pipeline|data-pipeline/u.test(html), 'no Pipeline detail section, even when the API supplies the data');
   assert.equal([...html.matchAll(/aria-label="Pipeline"/gu)].length, 0, 'no Pipeline section; Where the work is shows the steps');
   assert.ok(!/\d\s?ms\b|milliseconds/u.test(html), 'no duration is printed in raw milliseconds');
-  assert.match(html, /<h2>The last two hours<\/h2>/u, 'the approved window card remains');
+  const order = ['dash-hero', 'aria-label="Rulings"', 'aria-label="Shipping now"', 'aria-label="Where the work is"', 'aria-label="Landed per hour"', 'aria-label="Agent time"', 'aria-label="Agents"'].map(mark => html.indexOf(mark));
+  assert.ok(order.every(at => at >= 0) && order.every((at, n) => n === 0 || at > order[n - 1]), 'hero, Rulings, Shipping now, Where the work is, Landed per hour, Agent time, Agents, in that order: '+order);
+  assert.ok(!/Needs you/u.test(html), 'the person\'s decisions are called Rulings');
+  for (const gone of ['The last two hours', 'Where item time went', 'Landing now', 'Just landed', 'Next up', 'Your rules', 'Useful agents', 'New item', 'Lanes', 'dashboard-rules', 'dashboard-capacity', 'Window comparison'])
+    assert.ok(!html.includes(gone), gone+' is not on the Dashboard');
+  assert.equal([...html.matchAll(/aria-label="In review"/gu)].length, 0, 'In review is an Items filter, not a Dashboard section');
+  assert.match(comparisonHtml(model.comparison), /<h2>The last two hours<\/h2>/u, 'The last two hours lives in Activity');
+  assert.match(comparisonHtml(model.comparison), /<h3 class="window-time-heading">Where item time went<\/h3>/u, 'and so does Where item time went');
 });
 
 test('Dashboard strip counts a verified item in a live landing batch as Landing, like Items Pipeline [N38]', () => {

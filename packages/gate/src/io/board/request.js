@@ -17,6 +17,14 @@ const SERVE_PORTS = Object.freeze([
   'packages/landing/src/io/main/red/receipt.js#nearbyMainClass',
   'apps/cli/src/io/commands/serve.js#boardStatePorts',
 ]);
+// `pullboard serve` also hands the API functions as arguments, which no api module names: the view's projections
+// (`viewPorts`), the settings providers, and the CLI entry the move handlers run (`runCommand`) [#6756]. Each list is
+// read from the source that composes it, so a function added to one is walked without editing this check.
+const CALLBACK_LISTS = Object.freeze([
+  { file: 'apps/view/src/io/ports.js', list: /viewApiPorts\s*=\s*Object\.freeze\(\{([^}]*)\}\)/u, what: 'viewPorts' },
+  { file: 'apps/cli/src/io/commands/serve.js', list: /settingsProviders:\s*\{([^}]*)\}/u, what: 'settingsProviders' },
+]);
+const RUN_COMMAND = 'apps/cli/src/io/main.js#main';
 // Calls that block the event loop until a child exits; `gitSpawnSync` is git's own wrapper over spawnSync.
 const BLOCKING = /^(?:(?:node:)?child_process#(?:spawnSync|execSync|execFileSync)|.*#(?:gitSpawnSync|gitExecFileSync))$/u;
 
@@ -31,6 +39,7 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/activity/src/io/inbox.js#activityWorkingFiles': 'state read asks git for each claim worktree status',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
   'packages/api/src/io/main.js#boardStateRevision': 'state revision request reads the trunk ref with synchronous git',
+  'apps/view/src/io/serve.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
   'packages/items/src/io/claim.js#itemFolderIdentity': 'gate-receipt submit finds an item folder with synchronous git',
   'packages/items/src/io/patch/compose.js#git': 'gate-receipt submit composes item patches through a synchronous git helper',
   'packages/items/src/io/patch/compose.js#mergeFromOrigin': 'gate-receipt submit merges main with synchronous git',
@@ -86,7 +95,16 @@ export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS }
     if (API_FILE.test(file)) for (const name of model.functions.keys()) walk(file, name, []);
   }
   for (const port of [...SERVE_PORTS, ...HTTP_SERVERS]) walk(port.slice(0, port.indexOf('#')), port.slice(port.indexOf('#') + 1), []);
-  const rows = [...found.values()].filter(row => !(row.owner in known));
+  const lost = [];
+  for (const { file, list, what } of CALLBACK_LISTS) {
+    const names = list.exec(modules.get(file)?.source ?? '')?.[1];
+    if (names === undefined) { lost.push({ file, line: 1, call: `no ${what} list found`, owner: file + '#' + what, chain: [file], stale: true }); continue; }
+    for (const name of names.split(',').map(part => part.trim()).filter(Boolean)) {
+      for (const target of targets(file, name)) if (target.file) walk(target.file, target.name, [file + '#' + what]);
+    }
+  }
+  walk(RUN_COMMAND.slice(0, RUN_COMMAND.indexOf('#')), RUN_COMMAND.slice(RUN_COMMAND.indexOf('#') + 1), []);
+  const rows = [...lost, ...[...found.values()].filter(row => !(row.owner in known))];
   const owners = new Set([...found.values()].map(row => row.owner));
   for (const owner of Object.keys(known)) {
     if (!owners.has(owner)) rows.push({ file: owner.slice(0, owner.indexOf('#')), line: 1, call: 'stale known violation', owner, chain: [owner], stale: true });
