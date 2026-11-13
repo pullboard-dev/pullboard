@@ -25,6 +25,7 @@ import { censusShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
 import { parseShardHeader } from '../../logic/census.js';
 import { shardRows } from '../../logic/census.js';
+import { storeName } from '../store-names.js';
 
 /** Tracked test entry files at HEAD, the way the gate lists them for a full suite. */
 async function trackedTests(root) {
@@ -54,7 +55,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run = 
   const sha = cleanHead(root);
   const files = (await trackedTests(root)).filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
   if (!files.length) throw new Refused('NO_TEST_FILE', 'no tracked test files match this census', 'run the census from a repository checkout, with path prefixes that name tracked test files');
-  const out = resolve(root, values.out ?? join('.git', 'pullboard', 'census', `${sha.slice(0, 10)}.jsonl`));
+  const out = resolve(root, values.out ?? join('.git', 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, '');
   const count = Math.min(shards ?? censusShardCount(loadMachineSettings().runners), files.length);

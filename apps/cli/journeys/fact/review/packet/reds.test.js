@@ -17,7 +17,7 @@ function packetDir(box) {
   return join(box.root, '.git', 'pullboard', 'review-packets', String(box.item));
 }
 
-test("clause 1: a submit red only on main's named reds gets a review packet [V4,C7]", { timeout: 240_000 }, t => {
+test("clause 1: a submit red only on main's named reds gets a review packet [V4,C7]", { skip: 'CONTROLLER_ONLY: deleted with #6832', timeout: 240_000 }, t => {
   const box = fixture(t);
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
@@ -50,7 +50,7 @@ test("clause 1: a submit red only on main's named reds gets a review packet [V4,
   assert.match(text, /failures at head: none/u, 'the item itself shows no failure of its own');
 });
 
-test('clause 2: any other red still has no packet [V4,C7]', { timeout: 240_000 }, t => {
+test('clause 2: any other red still has no packet [V4,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832', timeout: 240_000 }, t => {
   const box = fixture(t, { candidate: source('shared failure [G1]') + source('new item failure [G1]').split('\n').slice(2).join('\n') });
   const refused = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(refused.status, 1, refused.stdout + refused.stderr);

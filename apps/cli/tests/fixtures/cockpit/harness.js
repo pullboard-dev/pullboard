@@ -313,7 +313,8 @@ function target({ id = '', classes = '', ...data }) {
   const matches = (selector) => {
     if (selector.startsWith('#')) return selector.slice(1) === id;
     if (selector.startsWith('.')) return classes.split(' ').includes(selector.slice(1));
-    const attribute = /^\[data-([a-z-]+)\]$/.exec(selector);
+    // A click target is never the root element, so a `:not(:root)` guard on a data selector always holds.
+    const attribute = /^\[data-([a-z-]+)\](?::not\(:root\))?$/.exec(selector);
     return attribute ? attribute[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) in data : false;
   };
   const self = { id, dataset: data, hasAttribute: name => matches('[' + name + ']'), closest: (selectors) => (selectors.split(',').some((selector) => matches(selector.trim())) ? self : null) };
@@ -416,6 +417,9 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
       return answer;
     },
   });
+  // The page reads window.scrollY to keep the reading position; this page never scrolls.
+  context.scrollY = 0;
+  context.window = context;
   vm.runInContext(script, context);
   if (!hold) await settle(inflight);
   return {

@@ -317,6 +317,13 @@ function catchUp() {
   });
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && catchWhenShown) { catchWhenShown = false; catchUp(); } });
+// A page the browser keeps in its back-forward cache keeps its open fetches, and each held stream takes one of the six
+// connections a host gets: six pages left behind took them all, and the next page never loaded. A page leaving closes
+// its stream, and one shown again from the cache follows its boards anew and reads what changed meanwhile.
+if (typeof addEventListener === 'function') {
+  addEventListener('pagehide', () => unfollow());
+  addEventListener('pageshow', (event) => { if (event.persisted && data && !snapshot) { catchEvery = true; follow(); } });
+}
 
 `;
 }

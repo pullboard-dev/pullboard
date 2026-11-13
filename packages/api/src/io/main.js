@@ -117,6 +117,9 @@ import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
 import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
 
+/** Native file events arrive in real time, so their coalescing timer keeps the real clock captured at load even when a caller mocks the global one [A2,N26]. */
+const FILE_CLOCK = { schedule: setTimeout, cancel: clearTimeout, now: Date.now };
+
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
   'identity', 'head', 'trunk', 'files', 'event', 'agents', 'leases', 'requestReceipts', 'milestones', 'externalRoadmap', 'eventLogVersion', 'ruleProofWindow', 'localRelayMarker',
@@ -353,7 +356,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   try {
-    notifications = fileChangeWaiter([dbPath, dbPath + '-wal'], { weight: () => revisionMs });
+    notifications = fileChangeWaiter([dbPath, dbPath + '-wal'], { weight: () => revisionMs, ...FILE_CLOCK });
     dbMarker = fileMarkerForPath(dbPath);
     fileMarkers = files.map(fileMarker);
     fileContent = files.map(fileRevision);
@@ -1121,8 +1124,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
     onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads are refused until the API restarts\n`) }) : null;
   /**
-   * Serve a read from the worker while it runs, and from a direct build once it has stopped, including the reads
-   * that were waiting on it: a failed worker never fails a read. A refusal from a running worker's build stands.
+   * Serve a read from the worker while it runs. Once it has stopped, a read, including one that was waiting on it,
+   * is refused STATE_WORKER_STOPPED by name and never built on the request thread. A refusal from a running worker's build stands.
    */
   function materialized(fromWorker, direct) {
     if (!materializer || materializer.alive) return materializer ? fromWorker() : direct();

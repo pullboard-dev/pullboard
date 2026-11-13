@@ -10,7 +10,7 @@ import { milestones } from "./read/shouts.js";
 import { milestonePriorities } from "./read/shouts.js";
 import { lineOrderEnabled } from "../../../../seats/index.js";
 import { lineBuildOrder } from "../../../../seats/index.js";
-import { barReadyForOrder } from "../../../../seats/index.js";
+import { barReadyProblem } from "../../../../verify/index.js";
 import { listItems } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { ROUTES } from "../../../../seats/index.js";
@@ -19,7 +19,7 @@ import { workOrderCompare } from "../../../../items/index.js";
 import { foreignBlockers } from "../board.js";
 
 /** Share milestone policy, primary computed order and equal-score path ties across queue and health. */
-export function buildOrder(board, { warm = [], agentId, readiness = barReadyForOrder, releasedClaims = [], tierFirst = false, priority } = {}) {
+export function buildOrder(board, { warm = [], agentId, readiness = (found, item) => barReadyProblem(found, item) === null, releasedClaims = [], tierFirst = false, priority } = {}) {
   const milestonePriority = priority ?? milestonePriorities(board);
   const items = listItems(board, { all: true });
   const rank = milestoneRanks(board, milestonePriority, { milestones });

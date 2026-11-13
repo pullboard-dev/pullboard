@@ -19,6 +19,7 @@ import { Refused } from '../../../../../kernel/index.js';
 
 import { CELL_BASELINE_DESCRIPTOR } from '../../../logic/path/map.js';
 import { CELL_BASELINE_DIRECTORY } from '../../../logic/path/map.js';
+import { storeName } from '../../store-names.js';
 export { CELL_BASELINE_DESCRIPTOR };
 export { CELL_BASELINE_DIRECTORY };
 const DIRECTORY = CELL_BASELINE_DIRECTORY, DESCRIPTOR = CELL_BASELINE_DESCRIPTOR;
@@ -40,7 +41,7 @@ export function cellLintFiles(baseline) {
     descriptor.metrics[metric] = { count: row.count, shards: [] };
     for (let start = 0; start < entries.length; start += 400) {
       const bytes = encode({ version: 1, metric, allowances: Object.fromEntries(entries.slice(start, start + 400)) });
-      const hash = digest(bytes), file = `${DIRECTORY}/${metric}-${String(start / 400 + 1).padStart(3, '0')}.json`;
+      const hash = digest(bytes), file = `${DIRECTORY}/${metric}-${storeName(String(start / 400 + 1).padStart(3, '0'))}`;
       files.set(file, bytes);
       descriptor.metrics[metric].shards.push({ file, sha256: hash });
     }
@@ -59,7 +60,7 @@ function readLegacyCellLintBaseline(root) {
       const row = descriptor.metrics[metric], allowances = Object.create(null);
       if (!Array.isArray(row?.shards)) throw new Error('missing shard list');
       for (const [index, reference] of row.shards.entries()) {
-        if (!/^[a-f0-9]{64}$/u.test(reference.sha256) || reference.file !== `${DIRECTORY}/${metric}-${String(index + 1).padStart(3, '0')}.json` || seen.has(reference.file)) throw new Error('invalid shard reference');
+        if (!/^[a-f0-9]{64}$/u.test(reference.sha256) || reference.file !== `${DIRECTORY}/${metric}-${storeName(String(index + 1).padStart(3, '0'))}` || seen.has(reference.file)) throw new Error('invalid shard reference');
         seen.add(reference.file);
         const bytes = cellReadFileSync(join(root, reference.file)), shard = JSON.parse(bytes);
         if (digest(bytes) !== reference.sha256 || shard?.version !== 1 || shard.metric !== metric || !shard.allowances || Array.isArray(shard.allowances)) throw new Error('unbound shard');
@@ -95,7 +96,7 @@ export function storedCellLintFiles(root) {
   readCellLintBaseline(root);
   const descriptor = cellReadFileSync(join(root, DESCRIPTOR)), parsed = JSON.parse(descriptor);
   const legacy = [[DESCRIPTOR, descriptor], ...Object.values(parsed.metrics).flatMap(row => row.shards.map(({ file }) => [file, cellReadFileSync(join(root, file))]))];
-  const cells = cellLintCells(root).map(cell => `${DIRECTORY}/cells/${cell}.json`).filter(file => cellExistsSync(join(root, file)));
+  const cells = cellLintCells(root).map(cell => `${DIRECTORY}/cells/${storeName(cell)}`).filter(file => cellExistsSync(join(root, file)));
   return new Map([...legacy, ...cells.map(file => [file, cellReadFileSync(join(root, file))])]);
 }
 

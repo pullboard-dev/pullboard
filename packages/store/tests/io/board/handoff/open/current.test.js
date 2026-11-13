@@ -13,7 +13,7 @@ import { release } from '../../../../../index.js';
 import { startSubmitHandoff } from '../../../../../index.js';
 import { submitHandoff } from '../../../../../index.js';
 import { writeBoardCommand } from '../../../../../index.js';
-import { submitFixture } from '../../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../../fixtures/submit.js';
 import { cellBoard } from '../../../../fixtures/cell.js';
 import { cellClaim } from '../../../../fixtures/cell.js';
 import { cellItem } from '../../../../fixtures/cell.js';

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
-import { policyRepository } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { policyRepository } from '../../store/tests/fixtures/submit.js';
 import { fixtureMachineSettings } from '../../../apps/cli/tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../../apps/cli/tests/fixtures/testkit.js';
 import { executionServices } from '../../../apps/cli/tests/fixtures/gate/execution.js';
@@ -67,7 +67,7 @@ function runnerFixture(t) {
   runFixtureGit(['add', '-A'], { cwd: paths.repo, env });
   runFixtureGit(['commit', '-qm', 'test: pin a failing main case'], { cwd: paths.repo, env });
   const runners = [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: remoteRoot }];
-  fixtureMachineSettings(paths.machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, runnerDispatch: 'controller' }, runners });
+  fixtureMachineSettings(paths.machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false }, runners });
   const requests = join(directory, 'ssh-requests.jsonl');
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths['remote-home'], machineHome: remoteMachine, requests, nodeCommand: process.execPath });
   return { ...paths, env, requests, main: runFixtureGit(['rev-parse', 'HEAD'], { cwd: paths.repo, env }).trim() };

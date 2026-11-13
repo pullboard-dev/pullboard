@@ -468,6 +468,8 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     await chrome.stable("(() => { sessionStorage.clear(); return true; })()");
     await openState(chrome, '?blocked', 'blocked');
     await chrome.stable("(() => { window.__access = 'granted'; return true; })()");
+    // The page's own round trip to the view starts a new document, which resets the click count; the one click comes after it.
+    await chrome.waitFor("document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for the next re-check and the round trip.
     await openItems(chrome);
     await chrome.waitFor(opened, 30_000); // budget: hang ceiling for the next re-check and the first board read.
     assert.equal(await chrome.stable('window.__clicks'), 1, 'only the Items click was made on the page');
