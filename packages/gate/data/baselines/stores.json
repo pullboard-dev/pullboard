@@ -1057,7 +1057,7 @@
     },
     "stores.json": {
       "kind": "repo-data",
-      "owner": "packages/gate/src/io/store-registry.js"
+      "owner": "packages/gate/src/io/stores.js"
     },
     "submission.json": {
       "kind": "json",

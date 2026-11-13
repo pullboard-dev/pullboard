@@ -17,7 +17,7 @@ import {
   runnerRate,
   validateRunnerRates,
 } from '../../../../packages/config/src/logic/runner-rates.js';
-import { runnerMinutes } from '../../../../packages/stats/index.js';
+import { runnerMinutes } from '../../../../packages/stats/src/logic/runners/minutes.js';
 
 const CARD = { price: 1200, months: 36, watts: 85, kwhPrice: 0.14 };
 
