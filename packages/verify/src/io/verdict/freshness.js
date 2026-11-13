@@ -5,7 +5,6 @@ import {
   mainCheckout,
 } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/light.js';
-import { trunkRevisionReader } from '../../../../git/light.js';
 import { gitSpawnSync } from '../../../../git/light.js';
 
 /** A freshness failure that carries its own reason text, so each cause names the step the person takes [C7]. */
@@ -256,7 +255,8 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
 const PRESENTATION_VERDICTS = new Map();
 
 /** Reuse derived presentation values, never a closed board connection or mutable native row. */
-export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId }) {
+export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId, trunkRevisionReader }) {
+  // The caller's reader keeps the trunk watcher out of this light module; an unknown tip lets the projector resolve the trunk itself.
   const tip = trunkRevisionReader(info)();
   const event = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
   const key = JSON.stringify([info.commonDir, boardId(board)]);
@@ -268,7 +268,7 @@ export function cachedVerdictStates(root, board, info, { events, acceptedVerdict
     PRESENTATION_VERDICTS.set(key, cached);
     while (PRESENTATION_VERDICTS.size > 32) PRESENTATION_VERDICTS.delete(PRESENTATION_VERDICTS.keys().next().value);
   }
-  const projector = verdictProjector(root, board, { main: tip }, { events, acceptedVerdict, verdictReviewProblem });
+  const projector = verdictProjector(root, board, { main: tip ?? undefined }, { events, acceptedVerdict, verdictReviewProblem });
   /** Refresh only a changed item; unchanged sealed presentations start no new Git process. */
   return item => {
     const raw = JSON.stringify(item);
