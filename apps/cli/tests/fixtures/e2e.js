@@ -82,7 +82,7 @@ function controllerDispatch(env) {
  * @param {string[]} args - The command's arguments.
  * @param {object} env - The fixture environment.
  */
-function settlePulledJobs(cwd, args, env) {
+export function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job and must not hold the command; a journey serving its own runner returns at once (#6660).
   // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
   // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
