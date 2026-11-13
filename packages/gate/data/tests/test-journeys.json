@@ -1681,6 +1681,24 @@
         "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
       ]
     },
+    "apps/cli/journeys/withdraw/items/reason.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
     "apps/cli/journeys/withdraw/items/list.test.js": {
       "cells": [
         "app:lib",
@@ -1736,6 +1754,24 @@
       ]
     },
     "apps/cli/journeys/withdraw/items/pipeline.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/pipeline-click.test.js": {
       "cells": [
         "app:lib",
         "gate",
