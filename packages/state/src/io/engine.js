@@ -12,7 +12,7 @@ import { recordedRefusal } from '../logic/recorded/refusal.js';
 import { PEOPLE_ENGINE } from '../logic/engines/people-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 import { ENGINE_MOVE_STEPS } from './engine/move/steps.js';
 
 /** Require the explicit runtime ports supplied by the board owner, never a receiver-local loader. */

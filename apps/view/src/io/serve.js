@@ -91,6 +91,7 @@ import {
 import { fetchLocal } from "../../../../packages/sync/index.js";
 import { Refused } from "../../../../packages/kernel/index.js";
 import { relayLinkAvailability } from "../../../../packages/link/index.js";
+import { relayMachineContext } from "../../../../packages/link/index.js";
 import { personNeeds } from "../../../../packages/spec/index.js";
 import { rigorDraftNeeds } from "../../../../packages/rigor/index.js";
 import { sentinelDraftNeeds } from "../../../../packages/sentinels/index.js";
@@ -877,7 +878,12 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       return json(res, 403, refusalDocument(new Refused('VIEW_SIGN_IN_AUTH', 'open the view link and send its session key in the x-pullboard-key header only')));
     }
     try {
-      if (req.method === 'GET') return json(res, 200, { version: 1, available: sharingAvailable() });
+      if (req.method === 'GET') {
+        // Whether any board is linked, and as whom: the account control's initial and menu. The login is display text only.
+        const linked = listApiProjects().filter(project => relayLinkAvailability(project.root).linked);
+        const login = linked.map(project => relayMachineContext(project.root)?.login).find(name => typeof name === 'string' && name) || '';
+        return json(res, 200, { version: 1, available: sharingAvailable(), linked: linked.length > 0, login });
+      }
       if (req.method !== 'POST') return json(res, 405, refusalDocument(new Refused('VIEW_SIGN_IN_METHOD', 'use GET for the invitation or a JSON POST for sign-in')));
       if (projectRoot !== undefined) throw new Refused('VIEW_SIGN_IN_SCOPE', 'open the full machine view to link every registered board');
       const body = await sharingBody(req);

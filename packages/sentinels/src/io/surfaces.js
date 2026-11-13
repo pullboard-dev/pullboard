@@ -17,6 +17,9 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { elapsedMs } from '../logic/budgets.js';
 
+// Budget: the job lease a runner's renewal extends (the jobs cell's LEASE_MS, two minutes), so a lease's last renewal is its end minus this.
+const LEASE_RENEW_WINDOW_MS = 120_000;
+
 /** Whether a pid names a running process; EPERM is someone else's live process. */
 export function pidAlive(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) return false;
@@ -242,7 +245,7 @@ export function readJobs(boardFile, spanFolder, now, census) {
   if (!db) return [];
   try {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job'").get()) return [];
-    const jobs = db.prepare(`SELECT job_id, job_kind, job_item, job_step, job_lease_owner, job_created,
+    const jobs = db.prepare(`SELECT job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created,
       (SELECT MAX(job_step_at) FROM job_step WHERE job_step_job = job_id) AS last_step
       FROM job WHERE job_kind IN ('gate', 'gate-drive', 'landing-run') AND job_lease_until > ?`).all(now);
     const spans = jobs.some(job => job.job_kind !== 'landing-run') ? lastSpanEnds(spanFolder, now) : new Map();
@@ -254,7 +257,10 @@ export function readJobs(boardFile, spanFolder, now, census) {
           context: pid ? doing(census, pid) : null, detail: `lease owner ${job.job_lease_owner} (${owner})`, waiters: [], evidence: `${boardFile} job '${job.job_id}'` };
       }
       const bare = job.job_id.replace(/^(?:gate-drive:|handoff-drive-)/u, '');
-      const progress = Math.max(job.last_step ?? 0, spans.get(job.job_id) ?? 0, spans.get(bare) ?? 0) || job.job_created;
+      // A runner holding a gate renews its lease every few seconds while the gate's own phases (static, cells, selection) run
+      // with no step or span of their own, so the renewal is its progress; the runner-job row budgets how long it may run (#6724).
+      const renewed = !pid && job.job_kind === 'gate' && job.job_lease_owner ? job.job_lease_until - LEASE_RENEW_WINDOW_MS : 0;
+      const progress = Math.max(job.last_step ?? 0, spans.get(job.job_id) ?? 0, spans.get(bare) ?? 0, renewed) || job.job_created;
       return { surface: 'gate', key: `gate:#${job.job_item ?? '?'}:${job.job_kind}`, holder: `#${job.job_item ?? '?'} ${job.job_kind} ${job.job_step}`, pid,
         ageMs: Math.max(0, now - progress), context: pid ? doing(census, pid) : null,
         detail: `job ${job.job_id}; lease owner ${job.job_lease_owner} (${owner}); last progress ${new Date(progress).toISOString()}`,
