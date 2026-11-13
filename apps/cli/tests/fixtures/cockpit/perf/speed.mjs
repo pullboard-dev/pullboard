@@ -1,4 +1,5 @@
 /** Measure real input-to-painted tab changes with the #606 Chrome input boundary [N26]. */
+import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -10,9 +11,16 @@ import {
   stableChrome,
 } from '../stable.js';
 import {
+  generateStressBoard,
+  removeStressBoard,
+} from './generate.mjs';
+import {
   startView,
   stopView,
 } from './run.mjs';
+
+/** Every tab the speed contract measures, in strip order; files split them to stay inside the 120 s file budget. */
+export const ALL_TABS = ['spec', 'doctrine', 'items', 'roadmap', 'dashboard'];
 
 /** The strip menu each page lives in; Work's pages are plain tabs. */
 const MENU_OF = { spec: 'rules', doctrine: 'rules', dashboard: 'insights' };
@@ -96,8 +104,8 @@ function inputScript() {
   })()`;
 }
 
-/** Measure first and repeated switches on one real generated board; always drain owned Chrome and server. */
-export async function measureTabSpeed(board) {
+/** Measure first and repeated switches of `tabs` on one real generated board; always drain owned Chrome and server. */
+export async function measureTabSpeed(board, tabs = ALL_TABS) {
   const executable = findChromeExecutable();
   if (!executable) throw new Error('Chrome is required for the tab speed contract');
   const profile = join(board.workspace, 'tab-speed-chrome');
@@ -112,7 +120,7 @@ export async function measureTabSpeed(board) {
     await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')");
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
-      for (const tab of ['spec', 'doctrine', 'items', 'roadmap', 'dashboard']) {
+      for (const tab of tabs) {
         // Rules and Insights pages sit in a menu; open it first, outside the measured click [N26].
         if (MENU_OF[tab]) await press(chrome, `document.querySelector('[data-nav-group="${MENU_OF[tab]}"]')`);
         await chrome.stable(`window.__tabSpeed.next = ${JSON.stringify(mode)}`, `document.querySelector('[data-tab="${tab}"]')`);
@@ -137,4 +145,31 @@ export async function measureTabSpeed(board) {
     try { if (chrome) await chrome.close(); }
     finally { if (server) await stopView(server); }
   }
+}
+
+/** One split file's whole contract: generate the real large board, click each of `tabs` first, again and isolated, and hold the 100 ms bar [N26]. */
+export async function checkTabSpeed(t, tabs) {
+  const board = generateStressBoard({ seed: 'tab-speed-1600', size: 1600, agents: 1150, shouts: 40000 });
+  try {
+    assert.equal(board.agentCount, 1150);
+    assert.equal(board.shoutCount, 40000);
+    const report = await measureTabSpeed(board, tabs);
+    t.diagnostic(JSON.stringify({ population: { items: board.size, agents: board.agentCount, shouts: board.shoutCount }, ...report }));
+    assert.equal(report.items, 1600);
+    assert.equal(report.actions.length, tabs.length * 2);
+    assert.ok(report.parse.length > 0, 'actual state body bytes and JSON parse time are observed');
+    assert.ok(report.fetch.length > 0, 'actual browser fetch time is observed');
+    assert.ok(report.render.length >= tabs.length * 2, 'every click retains its real render duration');
+    assert.equal(report.isolation.length, tabs.length);
+    for (const sample of report.isolation) {
+      assert.deepEqual(sample.hiddenMutations, [], `${sample.tab} does not rebuild another tab's data`);
+      assert.equal(sample.ready, true, `${sample.tab} isolation control reaches its real content`);
+    }
+    for (const sample of report.actions) {
+      assert.equal(sample.ready, true, `${sample.tab} paints its actual content after the click`);
+      assert.ok(Number.isFinite(sample.end), `${sample.tab} has a real painted timestamp`);
+      assert.ok(sample.end - sample.start < 100,
+        `${sample.tab} ${sample.repeat ? 'repeat' : 'first'} click painted in ${sample.end - sample.start} ms (bar <100 ms)`);
+    }
+  } finally { removeStressBoard(board); }
 }

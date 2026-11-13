@@ -376,6 +376,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "adapter",
     "reason": "tab-speed: existing source/VM/transport contract, not a pure-render witness"
   },
+  "apps/cli/journeys/init/origin/speed.test.js": {
+    "kind": "adapter",
+    "reason": "tab-speed: existing source/VM/transport contract, not a pure-render witness"
+  },
   "apps/view/tests/logic/main.test.js": {
     "kind": "logic",
     "reason": "view-pure.test.js: seeded data invokes actual pure render/model exports without native fixtures"
