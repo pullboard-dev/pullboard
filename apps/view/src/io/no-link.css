@@ -1,7 +1,7 @@
 /* The no-link page: the view's own tokens (prepended from main.css) on one calm card [N26]. */
 html { background: var(--ground); color: var(--ink); font: var(--text-md)/var(--leading-body) var(--sans); -webkit-font-smoothing: antialiased; }
 body { box-sizing: border-box; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: var(--space-5); }
-.no-link { box-sizing: border-box; width: 100%; max-width: 440px; padding: var(--space-8) var(--space-7); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow); }
+.no-link { box-sizing: border-box; width: 100%; max-width: 440px; padding: var(--space-8) var(--space-7); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .no-link-brand { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-7); font-weight: 700; font-size: var(--text-lg); }
 .no-link-brand svg { flex: none; width: 22px; height: 22px; }
 .no-link-brand .no-link-bar { fill: var(--accent); }

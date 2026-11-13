@@ -9,7 +9,7 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/logic/needs/actions.js', names: ['agentApprovalActionsHtml', 'needsActionsHtml'], tests: ['apps/view/tests/logic/needs/actions.test.js'] },
   { module: 'apps/view/src/io/roadmap/render.js', names: ['readMilestoneModel', 'roadmapRemainingCount', 'milestoneRowHtml', 'roadmapCardsHtml'], tests: ['apps/view/tests/logic/summary/roadmap/pure.test.js'] },
   { module: 'apps/view/src/logic/render/verdict.js', names: ['verdictHtml', 'visibleVerdictNote'], tests: ['apps/view/tests/logic/render/verdict.test.js'] },
-  { module: 'apps/view/src/logic/pipeline/model.js', names: ['replayItem', 'pipelineStage', 'pipelineSince', 'itemListFields', 'withdrawnFromStatus', 'itemStagePresentation', 'itemStageKey'], tests: ['apps/view/tests/logic/pipeline/model.test.js'] },
+  { module: 'apps/view/src/logic/pipeline/model.js', names: ['replayItem', 'pipelineStage', 'pipelineSince', 'itemListFields', 'withdrawnFromStatus', 'itemStagePresentation', 'itemStageKey', 'stageSentence'], tests: ['apps/view/tests/logic/pipeline/model.test.js'] },
   { module: 'apps/view/src/logic/render/group.js', names: ['groupActivityModel', 'groupNeedsHtml', 'groupEventHtml'], tests: ['apps/view/tests/logic/render/group.test.js'] },
   { module: 'apps/view/src/logic/settings/render.js', names: ['settingsMarkup', 'settingsContentHtml'], tests: ['apps/view/tests/logic/hosted/render.test.js'] },
   { module: 'apps/view/src/logic/render/star.js', names: ['starHtml'], tests: ['apps/view/tests/logic/hosted/render.test.js'] },

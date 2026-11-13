@@ -11,6 +11,7 @@ import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
+import { machineRead } from "./pipeline/machine.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
 /**
@@ -296,6 +297,9 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
   }
   return { path: output };
 }
+/** The machine's runner and gate lease records, beside its settings file: one place names it, for the Dashboard's runners and the Pipeline page. */
+function machineResourcesFile() { return join(dirname(machineSettingsFile()), 'resources.sqlite'); }
+
 /**
  * The anonymous runner progress /live/data.json carries for this repo's board: Runner 1..N, kinds, item ids, counts,
  * per-file state and minutes left, from this machine's runner leases and settings; nothing that names the machine [N26].
@@ -310,7 +314,7 @@ export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
   let privateBoard;
   try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
   // The machine's runner leases sit beside its settings file, in the machine home.
-  return publicLiveRunners(commonDir, { resources: join(dirname(machineSettingsFile()), 'resources.sqlite'), configured: loadMachineSettings().runners ?? [],
+  return publicLiveRunners(commonDir, { resources: machineResourcesFile(), configured: loadMachineSettings().runners ?? [],
     openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
 }
 
@@ -894,6 +898,21 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
   }
 
+  /** This machine's CPU by part, gate workers, queues and runner slots for the Pipeline page, behind the same key as the rest of the API. */
+  async function machineRequest(req, res, url) {
+    const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
+    if ((!credentialMatches(given, key) && !cookieMatches(req)) || url.search || req.headers.authorization !== undefined) {
+      return json(res, 403, refusalDocument(new Refused('VIEW_SIGN_IN_AUTH', 'open this view and send its session key in the x-pullboard-key header only')));
+    }
+    if (req.method !== 'GET') return json(res, 405, refusalDocument(new Refused('BAD_REQUEST', 'read this machine with a GET')));
+    const home = dirname(machineSettingsFile());
+    try {
+      return json(res, 200, { version: 1, machine: await machineRead({ resourcesFile: machineResourcesFile(), queueDirectory: join(home, 'handoff-queue'), repoRoot: home }) });
+    } catch {
+      return json(res, 200, { version: 1, machine: null });
+    }
+  }
+
   /** Run only the existing person-channel adapter, with per-view intent ownership and header authentication. */
   async function sharingRequest(req, res, url) {
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
@@ -992,6 +1011,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
         return json(res, 403, { error: 'from https://app.pullboard.dev, send the session secret in the x-pullboard-key header only' });
       }
       if (url.pathname === '/api/v1/view-link') return sharingRequest(req, res, url);
+      if (url.pathname === '/api/v1/machine') return machineRequest(req, res, url);
       if (projectRoot === undefined && url.pathname === '/api/v1/projects/forget-unreadable') return forgetUnreadableRequest(req, res, url);
       return apiHandler(req, res);
     }
@@ -1019,7 +1039,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

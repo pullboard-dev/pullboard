@@ -3,7 +3,7 @@
 .item-panel-head { padding: var(--space-5) var(--space-5) var(--space-4); border-bottom: 1px solid var(--line-soft); display: grid; gap: var(--space-2); }
 .item-panel-where { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; color: var(--ink-muted); font-size: var(--text-xs); }
 /* Lane, size, milestone, state and holder are one family of pills on two aligned rows (#6769). */
-.item-panel-where .chip, .item-panel-status > .chip { display: inline-flex; align-items: center; padding: var(--space-0) var(--space-3); border-radius: var(--radius-pill); font: 600 var(--text-xs)/var(--leading-body) var(--sans); letter-spacing: 0; text-transform: none; }
+.item-panel-where .chip, .item-panel-status > .chip { display: inline-flex; align-items: center; padding: var(--space-0) var(--space-3); border-radius: var(--radius-chip); font: 600 var(--text-xs)/var(--leading-body) var(--sans); letter-spacing: 0; text-transform: none; }
 .item-panel-status { min-height: var(--space-6); }
 .item-panel-head h2 { margin: 0; font-size: var(--text-xl); line-height: 1.3; }
 .item-panel-head .id { margin-right: var(--space-2); color: var(--ink-faint); font: 500 var(--text-sm) var(--mono); }
@@ -17,7 +17,7 @@
 .item-panel-count { margin-left: auto; color: var(--ink-faint); font-size: var(--text-xs); }
 .item-panel-latest { min-width: 0; }
 .item-panel-latest .verdict { min-width: 0; margin: 0; }
-.item-panel-latest .item-panel-verdict-label { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-0) var(--space-3); border-radius: var(--radius-pill); background: var(--reject-soft); color: var(--reject); font-size: var(--text-xs); }
+.item-panel-latest .item-panel-verdict-label { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-0) var(--space-3); border-radius: var(--radius-chip); background: var(--reject-soft); color: var(--reject); font-size: var(--text-xs); }
 .item-panel-latest .verdict.yes .item-panel-verdict-label { background: var(--accent-soft); color: var(--accent-strong); }
 .item-panel-latest .verdict .note { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
 .item-panel-latest.expanded .verdict .note { display: block; -webkit-line-clamp: unset; }

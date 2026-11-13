@@ -39,7 +39,7 @@ export function agentFloorModel(model, history) {
   const agents = model.agents.map(agent => ({ ...agent, shoutTimes: shoutsBy.get(agent.id) ?? [],
     holding: agent.current.map(held => ({ ...held, ...heldSince(held) })) }))
     .sort((a, b) => order[a.group] - order[b.group] || b.current.length - a.current.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
-  const groups = [['building', 'Building'], ['reviewing', 'Reviewing'], ['between items', 'Between items'], ['quiet', 'Quiet for 20 min or more']]
+  const groups = [['building', 'Building'], ['reviewing', 'Reviewing'], ['between items', 'Idle'], ['quiet', 'Quiet for 20 min or more']]
     .map(([key, label]) => ({ key, label, agents: agents.filter(agent => agent.group === key) }));
   /** How many agents a group holds. */
   const count = key => groups.find(group => group.key === key).agents.length;

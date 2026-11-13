@@ -49,6 +49,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
       held.version = (held.version ?? 0) + 1;
       const covered = prefix === 0 || covers(held.events, prefix);
       held.prefix = covered ? prefix : -1; held.error = covered ? null : 'The available history does not cover this board prefix.';
+      if (covered) held.readyOnce = true;
       if (!covered) { held.failedPrefix = prefix; held.failedAt = Date.now(); }
     }).catch(error => { held.error = String(error.message || error); held.failedPrefix = prefix; held.failedAt = Date.now(); }).finally(() => {
       held.pending = false;
@@ -153,5 +154,16 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const prefix = project.sequence ?? Math.max(0, ...(project.events ?? []).map(event => event.event_id));
     read(project.root, prefix);
   }
-  return { draw, tourStep, warm };
+  /**
+   * The board's held event history up to the state's prefix, for the pages that read it beside the Dashboard (Pipeline, #6869):
+   * the same one read per board, started here if nothing has. `complete` is false until every event up to the prefix is on hand; `usable` says the history was complete once, so on a board that moves every second it is
+   * at most a few events behind and still fine to count from.
+   */
+  function historyOf(project) {
+    const prefix = project.sequence ?? Math.max(0, ...(project.events ?? []).map(event => event.event_id));
+    let held = histories.get(project.root + '|' + boardPath(project.root));
+    if (!held?.error || held.prefix !== prefix) held = read(project.root, prefix);
+    return { events: upTo(held.events, prefix), complete: held.prefix >= prefix, usable: held.readyOnce === true, version: held.version ?? 0, error: held.error };
+  }
+  return { draw, tourStep, warm, history: historyOf };
 }

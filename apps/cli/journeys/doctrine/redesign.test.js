@@ -58,7 +58,7 @@ test('Doctrine redesign shows its sources, checks, review state and detail in re
         bodyColor: getComputedStyle(document.body).color, pendingState: pb7.querySelector('.dot').className,
         pendingIcon: !!pb7.querySelector('.doctrine-eye'), pendingRed: !!pb7.querySelector('.chip.no'),
         filter: document.querySelector('#doctrine-chips [data-rows="doctrine:defaults"]')?.textContent,
-        section: section?.querySelector('h4')?.innerText, sectionCount: section?.querySelector('.section-count')?.textContent,
+        section: section?.querySelector('h3')?.innerText, sectionCount: section?.querySelector('.section-count')?.textContent,
         reviewCount: section?.querySelector('.doctrine-review-count')?.textContent,
         approveAll: !!section?.querySelector('button') };
     })())`));

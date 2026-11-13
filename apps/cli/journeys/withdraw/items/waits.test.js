@@ -42,8 +42,8 @@ test('each row says what it waits on [N26]', async () => {
     }]));
     assert.deepEqual(rows['1'], { stage: 'Ready', detail: 'strong route', marks: [], gated: false, waits: [] }, 'free to claim');
     assert.deepEqual(rows['2'], { stage: 'Building', detail: 'by web-1 (Test Model)', marks: [], gated: false, waits: [] }, 'a claim names its holder');
-    assert.deepEqual(rows['3'], { stage: 'Gated', detail: 'by #2', marks: [], gated: true, waits: [] }, 'gated on #2, which is still being built');
-    assert.deepEqual(rows['4'], { stage: 'Gated', detail: 'lane api held: API &lt;freeze&gt; until Friday', marks: ['Lane held'], gated: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
+    assert.deepEqual(rows['3'], { stage: 'Blocked', detail: 'by #2', marks: [], gated: true, waits: [] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['4'], { stage: 'Blocked', detail: 'lane api held: API &lt;freeze&gt; until Friday', marks: ['Lane held'], gated: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
     assert.deepEqual(rows['5'], { stage: 'In review', detail: 'awaiting a verdict', marks: [], gated: false, waits: [] });
     assert.deepEqual(rows['6'], { stage: 'Ready', detail: 'strong route', marks: ['Sent back'], gated: false, waits: [] });
 

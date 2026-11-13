@@ -32,7 +32,7 @@ export { needsPanelHtml, needsPanelModel } from "./src/logic/needs/panel.js";
 export { closePageDialog, openPageDialog } from "./src/logic/page/dialog.js";
 export { pageScriptPart1 } from "./src/logic/page/session.js";
 export { pageStartup, tabValue } from "./src/logic/page/startup.js";
-export { itemListFields, itemStageKey, itemStagePresentation, pipelineSince, pipelineStage, replayItem, withdrawnFromStatus } from "./src/logic/pipeline/model.js";
+export { itemListFields, itemStageKey, itemStagePresentation, pipelineSince, pipelineStage, replayItem, stageSentence, withdrawnFromStatus } from "./src/logic/pipeline/model.js";
 export { pipelineHtml } from "./src/logic/pipeline/render.js";
 export { PUBLIC_EXPORT_BLOCKS, publicSnapshot } from "./src/logic/public.js";
 export { recordRowHtml } from "./src/logic/row.js";
