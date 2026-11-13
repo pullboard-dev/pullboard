@@ -204,7 +204,7 @@ export function notchPreview(notch, read, { html = notchPreviewHtml, delay = 160
   const onClick = event => {
     const el = widget(event.target);
     if (el && notch.contains(el)) {
-      if (el.getAttribute('data-notch') === 'rulings') { event.stopPropagation(); clearTimer(timer); show(el, 'list'); } else close();
+      if (el.getAttribute('data-notch') === 'rulings') { event.stopPropagation?.(); clearTimer(timer); show(el, 'list'); } else close();
     }
   };
   const onPanelClick = event => {
