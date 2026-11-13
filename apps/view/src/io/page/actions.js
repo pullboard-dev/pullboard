@@ -957,6 +957,8 @@ document.addEventListener('click', (event) => {
   if (navGroup) { openNavMenu(navGroup.dataset.navGroup); return; }
   if (view.navOpen) openNavMenu(null);
   if (!t) return;
+  // A pick in the project list's tools (Settings) closes the list, as a board pick does.
+  if (t.dataset.tab && event.target.closest('.side')) fold(false);
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costWindow) { view.costWindow = t.dataset.costWindow; view.costOpen = null; render(); return; }
