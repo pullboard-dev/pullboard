@@ -124,7 +124,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       'the declared longest path orders every state on the main row');
     assert.equal(new Set(rowBoxes.map((box) => box.y)).size, 1, 'all main-row boxes align');
     assert.deepEqual(backs.map((route) => route.pair).sort(),
-      ['claimed>open', 'submitted>open', 'submitted>verified', 'verified>open'],
+      ['claimed>open', 'submitted>open', 'verified>open', 'verified>submitted'],
       'every return to an earlier main-row state is dashed');
     const lanes = backs.map((route) => {
       const [from, to] = route.pair.split('>');
