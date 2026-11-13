@@ -1973,9 +1973,11 @@
     "model": 2
   },
   "apps/cli/journeys/init/known/main/frozen.test.js": {
-    "tempdir": 2,
-    "model": 3,
     "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/init/known-frozen.js": {
+    "tempdir": 2,
+    "model": 3
   },
   "packages/landing/tests/io/known/main/match.test.js": {
     "tempdir": 2,
