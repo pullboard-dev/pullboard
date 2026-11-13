@@ -33,7 +33,7 @@ export function makeDeferralFixtures(e2e, store) {
     const box = e2e.project('true');
     // Landing diagnostics require TAP completion evidence on both Node 22 and Node 24.
     box.boardFile = fixtureCommittedPolicy(box, { submitGate: 'landing', affectedTests: 'node --test --test-reporter=tap',
-      submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { perItem: false, manualOverride: true, publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) });
+      submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { perItem: false, manualOverride: true } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) });
     if (inline) {
       // An inline landing pushes its gated tip, so it needs a remote; its gate only checks for a red marker file.
       box.git(box.dir, 'init', '-q', '--bare', join(box.dir, 'origin.git'));
@@ -66,7 +66,7 @@ export function makeDeferralFixtures(e2e, store) {
     const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
     /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
     const submitChange = async (value, { cwd = box.web, files = [] } = {}) => {
-      const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
+      const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--accept-green', 'the source check stays as a guard', '--wait', '--json');
       assert.equal(added.code, 0, added.err);
       const id = JSON.parse(added.out).item.item_id;
       const claimed = box.run(cwd, 'claim', String(id));
@@ -82,6 +82,8 @@ export function makeDeferralFixtures(e2e, store) {
       // The board records the submit when the pulled gate's receipt is applied, which can follow the settled command [P7,C7].
       await waitForCondition(() => onLocalBoard(box, board => store.events(board, { itemId: id }).some(row => row.event_kind === 'submit')), `the board records #${id} submitted`, { signal: AbortSignal.timeout(60_000) });
       const proof = onLocalBoard(box, board => JSON.parse(store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit').event_detail));
+      // A submit that merged main moved the item's head: accept at the commit it finally submitted.
+      receipt.commit = box.git(cwd, 'rev-parse', 'HEAD');
       return { id, receipt, proof, ran: ran() };
     };
     /** Accept one submitted item as the coordinator, at its exact commit. */

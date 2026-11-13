@@ -13,6 +13,7 @@ import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
+import { keepLandingLog } from './landing.js';
 import { livePersonWaivers } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { applyMainTestReceipt } from './recheck.js';
@@ -750,6 +751,7 @@ function returnLandedReds(board, job, named, receipt, separate) {
   const rows = Array.isArray(receipt.returned) && receipt.returned.length ? receipt.returned
     : receipt.outcome === 'red' ? [...named].map(id => ({ id, reason: 'red', detail: receipt.detail })) : [];
   const back = [];
+  if (rows.length) keepLandingLog(board, job, receipt);
   for (const row of rows) {
     const item = named.has(row?.id) ? store.getItem(board, row.id) : null;
     if (!item || item.item_merged_commit) continue;
