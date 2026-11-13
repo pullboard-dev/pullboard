@@ -263,7 +263,7 @@ try {
     observe((await call(view,{method:'POST',headers:{...auth,'content-type':type},body})).status,400,'only one bounded known JSON action is admitted');
   }
   observe((await call(view,{method:'PUT',headers:json,body:'{}'})).status,405);
-  observe((await call(scoped,{headers:auth})).body,{version:1,available:false});
+  observe((await call(scoped,{headers:auth})).body,{version:1,available:false,linked:false,login:''});
   const scope = await call(scoped,{method:'POST',headers:json,body:JSON.stringify({action:'start'})});
   observe(scope.status,400,'a one-project view cannot authorize every board on the machine');
   observe(scope.body.error.code,'VIEW_SIGN_IN_SCOPE');
