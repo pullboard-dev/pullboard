@@ -254,7 +254,11 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   const firstBrowserCall = box.calls.length;
   const beforeUnpaired = box.calls.length;
   await chrome.navigate(box.origin);
-  await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('pair this browser')");
+  try { await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('pair this browser')"); }
+  catch (error) {
+    error.message += '; page state: ' + JSON.stringify(await chrome.evaluate("({ errors: window.__relayPageErrors, notice: document.querySelector('#relay-notice')?.textContent, url: location.href, title: document.title })").catch(String));
+    throw error;
+  }
   assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(firstTitle) + ')'), false);
   assert.equal(box.calls.slice(beforeUnpaired).some(call => /\/(state|events)(?:\?|$)/.test(call.path)), false,
     'a browser without the key sees only authorized board names and pairing guidance');
