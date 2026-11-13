@@ -101,7 +101,7 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
         assert.ok(new Set(layout.tabs.map(tab => Math.round(tab.top))).size <= (width < 480 ? 2 : 1), where + ': the phone has at most two rows and desktop one');
         layout.tabs.forEach((tab, index) => { if (index) assert.ok(tab.top >= layout.tabs[index - 1].bottom - 0.5 || tab.left >= layout.tabs[index - 1].right - 0.5, where + ': tabs never overlap'); });
         assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5
-          && layout.bar[1] <= bar.client, where + ': the whole tab bar fits the actual content width');
+          && layout.bar[1] <= bar.client, where + ': the whole tab bar fits the actual content width: ' + JSON.stringify({ bar: layout.bar, client: bar.client, first: layout.tabs[0], last: layout.tabs.at(-1) }));
       }
     }
     assert.deepEqual(chrome.exceptions, [], 'the real page raises no uncaught exception');

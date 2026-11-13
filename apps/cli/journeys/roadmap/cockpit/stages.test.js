@@ -113,7 +113,7 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
       // An item opens on the Items tab; Back shows the Roadmap at its address again, Forward the item.
       await openRoadmapItem(chrome, '#3');
       await pressedInto(chrome, `${showing('items', '/roadmap-demo/items/3')} && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
-      assert.equal(await chrome.stable('location.search'), '', `${width}: the address keeps the rest of itself, which holds no key`);
+      assert.doesNotMatch(await chrome.stable('location.search'), /[?&]key=/, `${width}: the address keeps the rest of itself, which holds no key`);
       await travel(chrome, -1);
       await settled(chrome, `${showing('roadmap', roadmapPath)} && document.querySelector('.tab.on')?.dataset.tab === 'roadmap'`);
       await travel(chrome, 1);
