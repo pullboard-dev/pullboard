@@ -79,7 +79,7 @@ import {checkAtCommit} from './tooling/apps/runner/index.js';
 import * as store from './tooling/packages/store/index.js';
 import * as nativeBoard from './tooling/apps/lib/index.js';
 const P=name=>(process.env.QUARANTINE_PHASES||'').split(',').includes(name),ran=[];
-let only,receipt,gateRecord,native,nativeReceipt,savedBatch,nativeBoardReceipt,checkedItem,privateReceipt;
+let only,receipt,gateRecord,native,nativeReceipt,savedBatch,nativeBoardReceipt,checkedItem,privateReceipt,unchanged;
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 const io={cwd:root,nativeBoard,say(){},err(){},gateWaitReporter:()=>()=>{}};
 const ctx=context(io),agentId=resourceAgent(ctx);
@@ -305,8 +305,8 @@ try {
  });
 } finally {git(root,['worktree','remove',builderRoot]);}
 }
-if(P('tail')){ran.push('tail');
-const unchanged=receiptBody(nativeReceipt);
+if(P('receipts')){ran.push('receipts');
+unchanged=receiptBody(nativeReceipt);
 assert.equal(receiptFields({...nativeReceipt,blockingVerdict:null}),null);
 assert.equal(receiptFields({...nativeReceipt,proof:{...nativeReceipt.proof,exitCode:0}}),null);
 const foreign=structuredClone(nativeReceipt);foreign.blockingVerdict.quarantines[0].eventId++;
@@ -315,24 +315,36 @@ const legacy=readGateReceipt(receiptStore(root),red.receiptId);
 assert.equal(Object.hasOwn(legacy,'blockingVerdict'),false);
 assert.equal(Object.hasOwn(legacy,'failureSignatures'),false,'an absent producer preserves legacy receipt bytes');
 assert.equal(receiptBody(receiptFields(JSON.parse(receiptBody(legacy)))),receiptBody(legacy));
-// Twenty genuinely executed passes, five at a time, close this exact quarantine. A cached exception then loses authority.
-for(let batch=0;batch<4;batch++)await Promise.all(Array.from({length:5},()=>gate('green')));
+}
+if(P('close')){ran.push('close');
+// Twenty genuinely executed passes close this exact quarantine. A cached exception then loses authority.
+for(let index=0;index<20;index++)await gate('green');
 // The mixed run's red 'unrelated positive' and a later green on one tree are a same-tree pair, so commit f562d717d8 files it at once
 // (a Submit-path run backfills its ratchet quarantine); only the original target closes here.
 assert.deepEqual(snapshot().map(row=>row.name),['unrelated positive [C7]']);
+}
+if(P('closeN')){ran.push('closeN');
 withBoard(ctx,board=>{
  assert.throws(()=>validateQuarantineVerdict(board,nativeReceipt),error=>error.code==='PROOF_RUN_UNBOUND');
  assert.throws(()=>validateQuarantineGate(board,gateRecord),error=>error.code==='PROOF_RUN_UNBOUND');
  assert.throws(()=>store.submit(board,item.item_id,{agentId,commit:nativeReceipt.head,tree:nativeReceipt.tree,gateGreen:true,quarantineProofIds:[nativeReceipt.id]}),error=>error.code==='PROOF_RUN_UNBOUND','expiry between native proof/preflight and atomic submit refuses');
- assert.throws(()=>store.verify(board,checkedItem.item_id,{agentId,decision:'ACCEPT',note:'actual native private check',head:privateReceipt.head,digest:checkedItem.item_frozen_digest,review:{commit:privateReceipt.head,head:privateReceipt.head,trunk:privateReceipt.main,paths:[]},quarantineProofId:privateReceipt.id}),error=>error.code==='PROOF_RUN_UNBOUND','atomic acceptance also refuses a closed quarantine');
- assert.throws(()=>store.finishLandingBatch(board,{agentId,id:savedBatch.id,tip:savedBatch.tip}),error=>error.code==='PROOF_RUN_UNBOUND','atomic landing finish cannot revive its closed exception');
- assert.throws(()=>validateQuarantineLandingProof(board,savedBatch),error=>error.code==='PROOF_RUN_UNBOUND');
  validateQuarantineGate(board,gateRecord,{historical:true});
- store.recordLandingBatch(board,{agentId,batch:savedBatch,revision:savedBatch.revision});
  assert.equal(recordGateRun(board,{agentId,receipt,lane:'web'}).duplicate,true,'the original immutable event remains idempotent after closure');
  assert.equal(proofRunReceipt(board,{agentId,itemId:item.item_id,receiptId:native.proofReceiptId}).existing.id,nativeReceipt.id);
 });
 assert.equal(receiptBody(readGateReceipt(receiptStore(root),nativeReceipt.id)),unchanged);
+}
+if(P('closeL')){ran.push('closeL');
+withBoard(ctx,board=>{
+ assert.throws(()=>store.finishLandingBatch(board,{agentId,id:savedBatch.id,tip:savedBatch.tip}),error=>error.code==='PROOF_RUN_UNBOUND','atomic landing finish cannot revive its closed exception');
+ assert.throws(()=>validateQuarantineLandingProof(board,savedBatch),error=>error.code==='PROOF_RUN_UNBOUND');
+ store.recordLandingBatch(board,{agentId,batch:savedBatch,revision:savedBatch.revision});
+});
+}
+if(P('closeP')){ran.push('closeP');
+withBoard(ctx,board=>{
+ assert.throws(()=>store.verify(board,checkedItem.item_id,{agentId,decision:'ACCEPT',note:'actual native private check',head:privateReceipt.head,digest:checkedItem.item_frozen_digest,review:{commit:privateReceipt.head,head:privateReceipt.head,trunk:privateReceipt.main,paths:[]},quarantineProofId:privateReceipt.id}),error=>error.code==='PROOF_RUN_UNBOUND','atomic acceptance also refuses a closed quarantine');
+});
 }
 console.log(JSON.stringify({phases:ran}));
 `;
