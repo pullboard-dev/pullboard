@@ -220,7 +220,7 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/data-page-ctl="state"[^>]* class="on"/gu) || []).length, 1, 'one state at a time');
   assert.doesNotMatch(pageControlsHtml({ tab: 'items', writable: false }), /New item/u, 'a read-only view offers no New item');
   assert.equal(pageControlsHtml({ tab: 'progress' }), '', 'Progress is gone: no controls');
-  assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'All'], 'Shouts: For you and All');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'Questions', 'All'], 'Shouts: For you, Questions and All');
   assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'roadmap' })), ['Show shipped'], 'Roadmap: Show shipped');
   assert.match(pageControlsHtml({ tab: 'roadmap', shipped: true }), /aria-pressed="true">Hide shipped</u);

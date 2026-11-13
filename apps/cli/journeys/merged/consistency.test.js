@@ -79,7 +79,7 @@ function countPairs() {
   if (view.tab === 'shouts') {
     add('Shouts/working agents footer', number(document.querySelector('[data-status="agents"] b')), all('#agents .agent-card').length);
     const pendingQuestions = new Set([...p.decisions, ...p.asked, ...(p.decisionQueue || [])].map(question => question.shout_id));
-    add('Shouts/Questions segment', number(document.querySelector('[data-shout-filter=questions] b')), pendingQuestions.size);
+    add('Shouts/Questions segment', number(document.querySelector('[data-page-ctl=shouts][data-value=questions] b')), pendingQuestions.size);
     add('Shouts/replaced decisions wall', all('#decisions .shout').length, 0);
     const idle = document.querySelector('#agents [data-fold="idle"][aria-expanded="true"]');
     if (idle) add('Agents/idle', number(idle), all('#agents .idle-list .agent-pill').length);
@@ -271,7 +271,7 @@ async function sweep(chrome, phase) {
       for (const fold of ['idle']) {
         if (await chrome.stable('!!document.querySelector(' + JSON.stringify('[data-fold="' + fold + '"][aria-expanded="false"]') + ')')) await press(chrome, 'document.querySelector(' + JSON.stringify('[data-fold="' + fold + '"]') + ')');
       }
-      await press(chrome, 'document.querySelector("[data-shout-filter=questions]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=questions]")');
       const expectedQuestions = await chrome.stable('[...new Set([...data.project.decisions, ...data.project.asked, ...(data.project.decisionQueue || [])].map(question => question.shout_id))]');
       const threads = await chrome.stable('[...document.querySelectorAll("#feed [data-shout-thread]")].map(button => button.dataset.shoutThread).filter(Boolean)');
       const visibleMessages = new Set();
@@ -281,7 +281,7 @@ async function sweep(chrome, phase) {
         await checkCounts(chrome, phase + '/Questions/' + key);
       }
       for (const id of expectedQuestions) assert.ok(visibleMessages.has(id), phase + ': every native pending question opens in a real conversation: ' + id);
-      await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=all]")');
       const agents = await chrome.stable('[...document.querySelectorAll("#agents .agent-card [data-agent]")].map(node => node.dataset.agent)');
       for (const agent of agents) {
         await press(chrome, 'document.querySelector(' + JSON.stringify('#agents .agent-card [data-agent="' + agent + '"]') + ')');

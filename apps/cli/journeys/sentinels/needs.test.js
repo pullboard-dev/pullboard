@@ -326,7 +326,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
-    assert.match(page.show('asks-slot'), /data-shout-filter="questions"[^>]*>Questions<b>1<\/b>/,
+    assert.match(page.show('page-controls'), /data-value="questions"[^>]*>Questions<b>1<\/b>/,
       'the shared Questions segment retains the one native pending ask');
     page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
     const waitingMessage = conversationMessage(page, 1);
@@ -534,7 +534,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
       card: card ? [...card.children].map((e) => e.id || e.className) : null,
       wallsHidden: ['#coordinator-decisions', '#decisions'].every(selector => document.querySelector(selector).hidden && !document.querySelector(selector).textContent),
       composer: box(document.querySelector('.shout-form .composer')), asks: box(document.querySelector('[aria-label="Shouts filter"]')),
-      questions: document.querySelector('[data-shout-filter="questions"]')?.textContent.trim(), selected: document.querySelector('[data-shout-filter="questions"]')?.getAttribute('aria-pressed'),
+      questions: document.querySelector('[data-page-ctl=shouts][data-value=questions]')?.textContent.trim(), selected: document.querySelector('[data-page-ctl=shouts][data-value=questions]')?.getAttribute('aria-pressed'),
       showAgents: box(document.querySelector('.asks-slot [data-agents-toggle]')),
       messages: [...document.querySelectorAll('#feed .shout .text')].map(text => text.textContent),
       feedBar: !!document.querySelector('#feed .feed-bar'), panelShown: shown(document.querySelector('#agents')), hide: !!document.querySelector('.panel-head [data-agents-toggle]'),
@@ -571,7 +571,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
 
         await click('[data-tab=shouts]');
         await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .conversation-row')");
-        await click('[data-shout-filter=questions]');
+        await click('[data-page-ctl=shouts][data-value=questions]');
         await click('#feed [data-shout-thread=\"none\"]');
         await chrome.waitFor("document.querySelectorAll('#feed .shout').length === data.project.shouts.length");
         r = await read();
@@ -594,7 +594,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await chrome.waitFor('innerWidth === 1280');
-    await click('[data-shout-filter=all]');
+    await click('[data-page-ctl=shouts][data-value=all]');
     await click('#feed [data-shout-thread="none"]');
     let r = await read();
     assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');

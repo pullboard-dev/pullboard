@@ -153,21 +153,21 @@ export function withPlaceQuery(search, pairs) {
 
 /**
  * The controls a page puts at the right of the navigation strip (the sidebar layout puts them on the title row):
- * Items shows Open, Building, In review, All, a lane, List or Pipeline and New item; Shouts For you and All; Roadmap Show
+ * Items shows Open, Building, In review, All, a lane, List or Pipeline and New item; Shouts For you, Questions and All; Roadmap Show
  * shipped; Activity a person filter. A page with nothing to control gets nothing. Each control carries data-page-ctl,
  * the hook the page's one handler reads, and the state each one shows is the state the address holds.
  *
- * @param {{ tab?: string|null, state?: string, shouts?: string, shipped?: boolean, by?: string|null, people?: string[], writable?: boolean }} [place]
+ * @param {{ tab?: string|null, state?: string, shouts?: string, questions?: number, shipped?: boolean, by?: string|null, people?: string[], writable?: boolean }} [place]
  * @returns {string}
  */
-export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', shipped = false, by = null, people = [], writable = true } = {}) {
+export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', questions = undefined, shipped = false, by = null, people = [], writable = true } = {}) {
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' + (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + name + '</button>').join('') + '</span>';
+  const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name, count]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' + (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + name + (count === undefined ? '' : '<b>' + count + '</b>') + '</button>').join('') + '</span>';
   const select = (label, kind, current, options) => '<select class="sel" data-page-ctl="' + kind + '" aria-label="' + label + '">' + options.map(([value, name]) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select>';
   if (tab === 'items') return seg('Show', 'state', state, [['active', 'Open'], ['building', 'Building'], ['verify', 'In review'], ['all', 'All']])
     + (lanes.length > 1 ? select('Lane', 'lane', lane || '', lanes.map(({ value, label, count }) => [value, (value ? label : 'All lanes') + (count === null || count === undefined || !value ? '' : ' · ' + count)])) : '')
     + seg('View', 'view', itemsView === 'pipeline' ? 'pipeline' : 'list', [['list', 'List'], ['pipeline', 'Pipeline']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
-  if (tab === 'shouts') return seg('Shouts', 'shouts', shouts === 'you' ? 'you' : shouts === 'all' ? 'all' : '', [['you', 'For you'], ['all', 'All']]);
+  if (tab === 'shouts') return seg('Shouts', 'shouts', ['you', 'questions', 'all'].includes(shouts) ? shouts : '', [['you', 'For you'], ['questions', 'Questions', questions], ['all', 'All']]);
   if (tab === 'roadmap') return '<button class="sel" type="button" data-page-ctl="shipped" aria-pressed="' + Boolean(shipped) + '">' + (shipped ? 'Hide shipped' : 'Show shipped') + '</button>';
   if (tab === 'activity') return select('Person', 'by', by || '', [['', 'Everyone'], ...people.map((name) => [name, name === 'person' ? 'You' : name === 'coordinator' ? 'The coordinator' : name])]);
   return '';

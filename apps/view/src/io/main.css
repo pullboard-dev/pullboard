@@ -1351,14 +1351,14 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .shout-form > .answering, .shout-form > .console { grid-column: 1 / -1; }
 #asks-slot { min-width: 0; max-width: 100%; }
 #asks-slot .seg { flex: none; }
-.conversation-row { display: flex; align-items: center; gap: var(--space-4); width: 100%; min-width: 0; padding: var(--space-4) 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+.conversation-row { display: grid; grid-template-columns: 44px minmax(0, 2fr) minmax(0, 3fr) auto 40px; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; height: 30px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-md); background: none; color: var(--ink-muted); font-size: var(--text-xs); text-align: left; cursor: pointer; }
 .conversation-row:hover { background: var(--surface-2); }
-.conversation-copy { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
-.conversation-title, .conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conversation-title { font-weight: 600; }
-.conversation-title code { color: var(--ink-faint); font: var(--text-xs) var(--mono); }
-.conversation-preview { color: var(--ink-muted); font-size: var(--text-sm); }
-.conversation-meta { display: grid; justify-items: end; gap: var(--space-1); flex: none; color: var(--ink-faint); font-size: var(--text-xs); }
+.conversation-id, .conversation-title, .conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-id { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
+.conversation-title { color: var(--ink); font-weight: 600; }
+.conversation-preview b { color: var(--ink-muted); font-weight: 600; }
+.conversation-row .chip { min-width: 1.6em; text-align: center; }
+.conversation-time { color: var(--ink-faint); font-size: var(--text-2xs); text-align: right; white-space: nowrap; }
 .conversation-heading { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: var(--space-2); overflow-wrap: anywhere; }
 .conversation-heading .link { justify-self: start; }
 #feed > .shout { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -1366,17 +1366,27 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 #feed .shout .who { color: var(--violet); font: 600 var(--text-sm) var(--mono); }
 #feed .shout.lead .who { color: var(--accent-strong); }
 #feed .shout .to { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.agent-row .agent-who { overflow: hidden; align-self: end; }
-.agent-row .agent-model { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); font-size: var(--text-2xs); }
-.agent-state { grid-column: 2; grid-row: 1 / span 2; display: grid; justify-items: end; gap: var(--space-1); white-space: nowrap; }
+.agent-row { grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto; min-height: 28px; padding: 0 var(--space-3); gap: var(--space-3); border-radius: var(--radius-md); }
+.agent-row .agent-who { overflow: hidden; }
+.agent-who b, .agent-card.lead .agent-who b { color: var(--ink); font-weight: 600; }
+.agent-row .agent-model { display: none; }
+.agent-state { display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 .agent-state time { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
-.agent-row .agent-doing { grid-column: 1; }
+.agent-state .chip, .agent-state [class*="stage"] { padding: 0 var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-2xs); line-height: 18px; }
+.agent-card .agent-work { padding-left: var(--space-5); }
+/* The shout box is one compact line. */
+.shouts-card > .shout-form { padding: var(--space-2) var(--space-3); }
+.shouts-card .composer { border-radius: var(--radius-md); }
+.shouts-card .composer textarea:placeholder-shown { height: 32px; }
+.shouts-card .composer textarea { min-height: 32px; padding: var(--space-2) var(--space-3); }
+.shouts-card .composer .send { width: 28px; height: 28px; border-radius: var(--radius-md); }
 @media (width < 600px) {
   .shouts-card > .shout-form { gap: var(--space-1); padding-inline: var(--space-2); }
   .shout-form .composer { flex: 1 1 0; min-width: 0; }
   .shout-form .composer textarea { min-width: 0; width: 100%; }
   #asks-slot .seg button { padding-inline: var(--space-1); font-size: var(--text-2xs); }
-  .conversation-row { gap: var(--space-2); }
+  .conversation-row { grid-template-columns: 38px minmax(0, 1fr) auto 32px; gap: var(--space-2); padding-inline: var(--space-1); }
+  .conversation-preview { display: none; }
 }
 /* The comparison overview stays open; its complete canonical table is a separate disclosure. */
 .window-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
