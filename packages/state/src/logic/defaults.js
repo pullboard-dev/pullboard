@@ -18,6 +18,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   SUBMIT_HANDOFF_NOT_LAUNCHED: 'run pullboard submit again from the item folder; the hand-off did not start',
   LAND_STALLED: 'run pullboard resume to inspect the batch record, then retry landing',
   JOBS_NOT_AVAILABLE: 'POST one job queue call (claim, renew, release or receipt) to a board that serves its runner job queue',
+  MOVE_TOO_LARGE: 'send the change as smaller moves; pullboard relay status shows any queued move the relay refused',
   BAD_UPLOAD: 'send a nonempty sealed upload within the relay limit, such as a smaller snapshot, then retry',
   BAD_BOARD_KEY: 'delete the named key file and run pullboard serve again to make a new board key',
   COMPAT_NEEDS_REMOVE_BY: 'add removeBy: \'YYYY-MM-DD\' to the compatibility setting row in the settings inventory',

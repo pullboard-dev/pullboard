@@ -11,6 +11,7 @@ import { ACTIVE } from '../logic/declaration/derived.js';
 import { AGENT_KEY } from '../logic/declaration/derived.js';
 import { FAMILY_SCOPES } from '../logic/declaration/derived.js';
 import { derivedFamily } from '../logic/declaration/derived.js';
+import { prepared } from '../logic/declaration/derived.js';
 import { familySnapshot } from '../logic/declaration/derived.js';
 import { namesFamily } from '../logic/declaration/derived.js';
 import { parsed } from '../logic/declaration/derived.js';
@@ -64,11 +65,11 @@ export const FAMILY_RECORD_PREFIX = 'local:family:';
  */
 function storedFamily(board, id) {
   if (!id) return undefined;
-  const value = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(FAMILY_RECORD_PREFIX + id)?.meta_value;
+  const value = prepared(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(FAMILY_RECORD_PREFIX + id)?.meta_value;
   if (value === undefined) return undefined;
   const record = parsed(value);
   if (!(record?.family === null || namesFamily(record?.family)) || typeof record.path !== 'string') return undefined;
-  const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(id)?.agent_path;
+  const path = prepared(board.db, 'SELECT agent_path FROM agent WHERE agent_id=?').get(id)?.agent_path;
   return path === record.path ? record.family : undefined;
 }
 

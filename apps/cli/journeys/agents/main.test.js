@@ -78,6 +78,18 @@ async function openConversation(chrome, key = 'none') {
   await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
 }
 
+/**
+ * Wait until the agents panel shows this many cards, letting the page's requests settle between looks.
+ * Why: a click's settle ends when no request is out, which a loaded runner can reach before the agents arrive; the deadline only bounds a hang.
+ */
+async function cardsShown(page, count) {
+  const deadline = Date.now() + 30_000; // budget: hang-only wait for the agents data to reach the panel.
+  while (agentEntries(page.show('agents')).length < count && Date.now() < deadline) {
+    await page.release();
+    await new Promise((done) => setImmediate(done));
+  }
+}
+
 test('the agents panel says what each agent holds [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -96,6 +108,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   try {
     const page = await openPage(view);
     await page.click({ tab: 'shouts' });
+    await cardsShown(page, 2);
     assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
     assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator"><span>1 idle<\/span>/);
     page.run('view.open.idle = true; render();');

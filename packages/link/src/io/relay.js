@@ -364,6 +364,7 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
       error.relayCode = document.error?.code;
       error.relayMessage = document.error?.message;
       if (document.version === 1 && document.error?.code === 'BAD_UPLOAD') error.snapshotLimit = document.error.snapshotLimit;
+      if (document.version === 1 && document.error?.code === 'MOVE_TOO_LARGE') error.moveLimit = document.error.moveLimit;
       if (/^[0-9a-f]{64}$/u.test(document.error?.page ?? '')) error.page = document.error.page;
       const storage = relayStorage(document.error?.storage);
       if (storage) error.storage = storage;
