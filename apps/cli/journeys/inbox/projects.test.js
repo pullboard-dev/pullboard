@@ -67,7 +67,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
       const trail = [];
       const mark = async step => trail.push(step + ':' + await chrome.stable('document.querySelector("#side").className + "|" + Boolean(document.querySelector("#proj-menu"))'));
       if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) { await mark('before'); await chrome.click('document.querySelector("#proj-switch")'); await mark('switch'); await chrome.click('document.querySelector("[data-proj-all]")'); await mark('all'); }
-      if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.click('document.querySelector(".unreadable-projects summary")');
+      if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) { await mark('pre-summary'); await chrome.click('document.querySelector(".unreadable-projects summary")'); await mark('summary:' + await chrome.stable('Boolean(document.querySelector(".unreadable-projects summary").closest("#side"))')); }
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const section = document.querySelector('.unreadable-projects');
         return { shown: { nav: document.documentElement.dataset.nav, side: document.documentElement.dataset.side, sideClass: document.querySelector('#side').className, body: getComputedStyle(document.querySelector('#side .side-body')).display, open: section.open }, pageFits: document.documentElement.scrollWidth <= innerWidth,
