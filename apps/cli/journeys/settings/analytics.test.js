@@ -192,11 +192,17 @@ test('a shout or item read answers fast while cost analytics runs on a big log [
     const insert = board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
     board.db.exec('BEGIN');
     for (let index = 0; index < 60000; index++) insert.run('2026-09-01T12:00:00.000Z', coordinator, index % 3 ? 'renew' : 'claim', itemId, '{}');
+    const at = new Date().toISOString();
+    for (let index = 0; index < 6000; index++) {
+      insert.run(at, coordinator, 'usage', null, JSON.stringify({ item: 100000 + index, revision: 1, records: [{ model: FIXTURE_MODEL, wallMs: 1000, inputTokens: 10 }] }));
+      insert.run(at, coordinator, 'merged', 100000 + index, '{}');
+    }
     board.db.exec('COMMIT');
   } finally { store.closeBoard(board); }
   const base = `http://127.0.0.1:${port}`, headers = { 'x-pullboard-key': 'fixture-secret' };
   const boards = await (await fetchFresh(base + '/api/v1/boards', { headers })).json();
   const root = base + '/api/v1/boards/' + boards.boards[0].id;
+  await fetchFresh(root + '/items/' + itemId, { headers });
   const cost = fetchFresh(root + '/cost-analytics?window=30d', { headers });
   const started = performance.now();
   const item = await fetchFresh(root + '/items/' + itemId, { headers });
