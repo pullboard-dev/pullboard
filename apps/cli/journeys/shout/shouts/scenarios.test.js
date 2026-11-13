@@ -354,7 +354,7 @@ scenario('on Spec, A approves the picked draft and picks the next, and D asks wh
     const row = (await boardOf(view, p.repo)).spec.find((entry) => entry.id === id);
     return { stage: row?.stage || row?.status || null, decided: row?.decision ? (row.decision.reason || 'approved') : null };
   };
-  await Given('drafts wait under Needs your decision on Spec', async () => {
+  await Given('drafts wait under Rulings on Spec', async () => {
     await chrome.waitFor("typeof data === 'object' && data?.project?.spec?.length === 9");
     await openTab(chrome, 'spec');
     await chrome.waitFor(`!!document.querySelector('#spec-list .srow')`);

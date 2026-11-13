@@ -4,7 +4,7 @@
 export function pipelineHtml(items, { selectedId = null } = {}) {
   /** Escape board text and the already-resolved address at their HTML boundary. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const stages = [['gated', 'Gated'], ['ready', 'Ready'], ['building', 'Building'], ['in-review', 'In review'], ['verified', 'Verified'], ['landing', 'Landing'], ['merged', 'Merged']];
+  const stages = [['blocked', 'Blocked'], ['ready', 'Ready'], ['building', 'Building'], ['in-review', 'In review'], ['verified', 'Verified'], ['landing', 'Landing'], ['merged', 'Merged']];
   return stages.map(([stage, label]) => {
     const rows = items.filter(item => item.stageKey === stage).sort((a, b) => a.since.localeCompare(b.since) || a.id - b.id);
     const oldest = rows[0];

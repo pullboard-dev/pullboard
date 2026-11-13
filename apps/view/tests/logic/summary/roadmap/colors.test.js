@@ -62,7 +62,7 @@ test('every stage color in the view resolves to its token, never a literal or a 
     [/\.roadmap-state\.building\b[^{]*\{[^}]*\}/, 'stage-building'], [/\.roadmap-state\.gated\b[^{]*\{[^}]*\}/, 'stage-gated'],
     [/\.roadmap-state\.accepted\b[^{]*\{[^}]*\}/, 'stage-merged'],
     [/\.item-stage\[data-stage=in-review\][^{]*\{[^}]*\}/, 'stage-review'], [/\.item-stage\[data-stage=building\][^{]*\{[^}]*\}/, 'stage-building'],
-    [/\.item-stage\[data-stage=ready\][^{]*\{[^}]*\}/, 'stage-ready'], [/\.item-stage\[data-stage=gated\][^{]*\{[^}]*\}/, 'stage-gated'],
+    [/\.item-stage\[data-stage=ready\][^{]*\{[^}]*\}/, 'stage-ready'], [/\.item-stage\[data-stage=blocked\][^{]*\{[^}]*\}/, 'stage-gated'],
     [/\.item-stage\[data-stage=merged\][^{]*\{[^}]*\}/, 'stage-merged'],
     [/\.chip\.busy\s*\{[^}]*\}/, 'stage-building'], [/\.chip\.free\s*\{[^}]*\}/, 'stage-ready'], [/\.chip\.warn\s*\{[^}]*\}/, 'stage-review'],
     [/\.chip\.ok\s*\{[^}]*\}/, 'stage-merged'], [/\.chip\.no\s*\{[^}]*\}/, 'mark-back'],

@@ -99,7 +99,7 @@ export function needsPanelHtml(model, presentation = new Map()) {
   }
   const confirmable = model.approvals.filter(row => row.confirmable);
   const group = (label, rows, extra = '') => rows.length ? '<li class="needs-group"><div class="needs-group-head"><h3>' + label + ' · ' + rows.length + '</h3>' + extra + '</div><ol>' + rows.map(rowHtml).join('') + '</ol></li>' : '';
-  return group('Questions and sentinels', model.questions) + group('Rows approved in Git, waiting for you', model.approvals, model.person && confirmable.length ? '<button type="button" class="needs-confirm-all" data-needs-confirm="' + escape(confirmable.map(row => row.source.id).join(' ')) + '">Confirm all ' + confirmable.length + '</button>' : '') + (model.drafts ? '<li class="needs-group"><h3>Draft spec rows</h3><ol>' + draftRow + '</ol></li>' : '');
+  return group('Questions and sentinels', model.questions) + group('Rulings: rows approved in Git', model.approvals, model.person && confirmable.length ? '<button type="button" class="needs-confirm-all" data-needs-confirm="' + escape(confirmable.map(row => row.source.id).join(' ')) + '">Confirm all ' + confirmable.length + '</button>' : '') + (model.drafts ? '<li class="needs-group"><h3>Draft spec rows</h3><ol>' + draftRow + '</ol></li>' : '');
 }
 
 /** Fold the Items page's questions and sentinels: repeats become one row, and each chip says what the row waits on [N26]. */
