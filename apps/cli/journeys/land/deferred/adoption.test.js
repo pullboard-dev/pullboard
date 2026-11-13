@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { calls } from '../../../tests/fixtures/land/board.js';
 import { json } from '../../../tests/fixtures/land/board.js';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -16,6 +17,8 @@ const { landProject, verifiedFour } = makeLandProjectFixtures({ sandbox, project
 
 test('an uncertain affected batch passes its full gate before local adoption [B3,R3,C7,V4]', () => {
   const box = landProject();
+  // The landing's gate calls are counted from the command's own process, so the case pins controller dispatch (#6249,#6832).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
