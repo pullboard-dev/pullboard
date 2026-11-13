@@ -55,7 +55,7 @@ test('pullboard test runs files as a pulled job with a per-file timeout [C7]', {
   assert.ok(seconds < 200, `the hung file never holds the run past its timeout (${seconds}s)`); // budget: hang ceiling far above the 3 s test timeout; not a speed target.
 });
 
-test('pullboard test names a failure main already has, per file [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for three pulled test jobs; not a speed target.
+test('pullboard test names a failure main already has, per file [C7]', async () => {
   const box = focusedProject();
   const ran = await box.runLocal(box.web, 'test', 'test/ok.test.js', 'test/hang.test.js', 'test/changed.test.js', '--json');
   const known = Object.fromEntries(JSON.parse(ran.out).known.map((entry) => [entry.file, entry.result]));
