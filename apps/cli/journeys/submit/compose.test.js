@@ -34,7 +34,9 @@ import { awaitNestedRun } from '../../../../packages/gate/index.js';
 
 /**
  * A planned project whose submits hold their gate in the submitting process.
- * Why: the cases read the inline gate's receipt and its refusal-trial file, which a pulled gate job on a runner never leaves here.
+ * Audited exception (#6821): the companion case completes and reads the refusal-trial ledger, which only the controller
+ * gate keeps; a pulled gate judges in the runner's own checkout. Controller dispatch stays until the pulled gate carries
+ * the ledger (0.9.5 remainder of #6821) [C7].
  */
 async function inlinePlannedProject(t, options) {
   const box = await plannedProject(t, options);
@@ -97,7 +99,7 @@ assert.equal(new Set(ids).size,ids.length);
 
 /** Join a real view seat and claim a completed-baseline item through the native CLI. */
 async function ownPlacementFixture(t) {
-  const box = await inlinePlannedProject(t, { companionLanes: true });
+  const box = await plannedProject(t, { companionLanes: true });
   const view = join(box.dir, 'own-placement-view');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
   success(box, view, 'join', 'view', '--route', 'strong');
@@ -115,23 +117,11 @@ async function ownPlacementFixture(t) {
 
 test('a view commit creating its own file and one plan row passes the hook and native submit [L3,C7]', async t => {
   const box = await ownPlacementFixture(t);
-  box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
+  // A seat's commit names its item in the Pullboard-Item trailer, the history the plan-row authority reads [L3].
+  box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]', '-m', `Pullboard-Item: #${box.id}`);
   rmSync(box.marker, { force: true });
   const submitted = await settleSubmit(t, box, success(box, box.view, 'submit', String(box.id), '--wait'));
-  if (submitted.gate?.green !== true) {
-    const { ownsNewFile } = await import('../../../../packages/sandbox/src/io/trusted/policy.js');
-    const main = box.git(box.repo, 'rev-parse', 'main'), head = submitted.commit;
-    const probe = {
-      head, main, viewHead: box.git(box.view, 'rev-parse', 'HEAD'),
-      owns: (() => { try { return ownsNewFile(box.repo, { item_id: box.id }, head, main, box.file); } catch (error) { return String(error); } })(),
-      adds: (() => { try { return box.git(box.repo, 'log', '--format=%H %P%n%B', '--diff-filter=A', head, '--not', main, '--', box.file); } catch (error) { return String(error); } })(),
-      body: (() => { try { return box.git(box.repo, 'log', '-1', '--format=%B', head); } catch (error) { return String(error); } })(),
-      inMain: (() => { try { return box.git(box.repo, 'ls-tree', main, '--', box.file); } catch (error) { return String(error); } })(),
-      lanes: (() => { try { return readFileSync(join(box.repo, 'pullboard.json'), 'utf8').slice(0, 1500); } catch (error) { return String(error); } })(),
-      graph: (() => { try { return box.git(box.repo, 'log', '--format=%H %P %s', '-8', head); } catch (error) { return String(error); } })(),
-    };
-    assert.fail(JSON.stringify(probe) + '\n' + JSON.stringify(submitted.gate?.analysis ?? submitted).slice(0, 3000));
-  }
+  assert.equal(submitted.gate?.green, true, JSON.stringify(submitted.gate?.analysis ?? submitted).slice(0, 3000));
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
 });
@@ -157,11 +147,6 @@ test('adding an owned new-file row cannot lend authority to editing an existing 
 
 test('native view submit validates its core companion placement on the composed source [C7,V4]', async t => {
   const box = await inlinePlannedProject(t, { companionLanes: true });
-  // Audited exception (#6821): the refusal-trial ledger this case completes and reads is kept only by the controller
-  // gate; the pulled gate judges in the runner's own checkout, so the fixture keeps controller dispatch until the
-  // pulled gate carries the ledger (0.9.5 remainder of #6821) [C7].
-  const machine = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...machine, gate: { ...machine.gate, runnerDispatch: 'controller' } });
   await completePlacementTrial(t, box);
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
