@@ -62,7 +62,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(fileURLToPath(new URL('../../../pullboard.js', import.meta.url)))} "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
-  const overrides = { PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
+  const overrides = { PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   const original = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
   Object.assign(process.env, overrides);

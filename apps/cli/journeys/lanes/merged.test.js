@@ -24,5 +24,7 @@ test('a real outside-lane edit after the merge of main is refused by name [L3,V4
   policyFixtures.attackCommit(box, box.web);
   const submitted = await box.runLocal(box.web, 'submit', '1', '--json');
   await assertWaitsOnOwner(box, 1, submitted, 'api', ['api/stray.js']);
-  assert.equal(JSON.parse(submitted.out).waitingOwner.paths.includes('coordinator.txt'), false, 'main-only files never count');
+  const shown = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
+  const routed = shown.thread.findLast(row => row.kind === 'ownership-wait').detail;
+  assert.equal(routed.paths.includes('coordinator.txt'), false, 'main-only files never count');
 });
