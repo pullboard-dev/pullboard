@@ -22,6 +22,7 @@ import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { storeName } from './store-names.js';
 
 const MAX_HISTORY_TAGS = 1_024;
 
@@ -140,7 +141,7 @@ function cleanPackFile(root, protect) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   if (existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'))) return null;
   const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
-  return join(home, 'pack-scan', `${createHash('sha256').update(JSON.stringify([tree, protect])).digest('hex').slice(0, 32)}.json`);
+  return join(home, 'pack-scan', storeName(createHash('sha256').update(JSON.stringify([tree, protect])).digest('hex').slice(0, 32)));
 }
 
 /** The saved clean commits, newest first; a missing or unreadable file is empty. */
