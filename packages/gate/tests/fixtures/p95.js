@@ -22,7 +22,10 @@ import { testsNeedBrowser } from '../../index.js';
 
 const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
-/** Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time. */
+/**
+ * Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time.
+ * The CPU step runs about 0.4 s, so a scheduler hiccup on a shared runner is a small share of a lifetime rather than a doubling.
+ */
 function workload(file) {
   return `import assert from 'node:assert/strict';
 import { pbkdf2Sync } from 'node:crypto';
@@ -44,7 +47,7 @@ test('a real Git and SQLite workload [C7]', () => {
     db.exec('COMMIT');
     assert.equal(db.prepare('SELECT sum(n) AS total FROM value').get().total, 4950);
   } finally { db.close(); }
-  assert.equal(pbkdf2Sync('private-pool-workload', 'fixed-fixture-input', 200000, 32, 'sha256').length, 32);
+  assert.equal(pbkdf2Sync('private-pool-workload', 'fixed-fixture-input', 800000, 32, 'sha256').length, 32);
 });
 `;
 }
