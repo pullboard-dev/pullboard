@@ -43,10 +43,10 @@ async function boardInput(view, root) {
 
 // One real board for every case: two landed, one accepted, two in review, one sent back, three ready, one building.
 before(async () => {
-  try { await seed(); } catch (error) { console.error('SEED-FAIL', error?.stack ?? error); throw error; }
+  try { await seed(); } catch (error) { console.log('SEED-FAIL', error?.stack ?? error); throw error; }
 }, { timeout: 120_000 });
 async function seed() {
-  const T0 = Date.now(); const lap = label => console.error('LAP', label, Date.now() - T0);
+  const T0 = Date.now(); const lap = label => console.log('LAP', label, Date.now() - T0);
   const box = machine();
   const alpha = project(box, 'agent-floor', undefined, {
     lease: '2h', reviewLease: '3h',
