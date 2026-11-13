@@ -127,12 +127,15 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     // the row says which the person kept, a reload keeps it; collapsed, the account control still sits centred in the top bar.
     /** The Theme row's hint, read after opening the account menu. */
     const hint = async () => {
+      // The menu rebuilds as it opens and a Theme press leaves it open, so close an open one first.
+      if (await chrome.stable("!document.querySelector('#account-menu').hidden")) await click('#account');
       await click('#account');
       await chrome.waitFor("!document.querySelector('#account-menu').hidden");
       return chrome.stable("document.querySelector('#account-menu [data-theme-label]').textContent");
     };
     assert.deepEqual([collapsed.theme.scheme, collapsed.theme.picked, await hint()], ['light', null, 'System'], 'none picked yet: the system\'s, light here, and the row says System');
     await click('#account');
+    await chrome.waitFor("document.querySelector('#account-menu').hidden");
     // With none picked the page follows the system as it changes.
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
     await frame();
