@@ -26,6 +26,8 @@ import { context } from '../read.js';
 import { withBoard } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { localRunnerStatus } from '../../../../../packages/drive/index.js';
+import { localRunnerFolder } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
 import { installRunnerService } from '../../../../../packages/runners/index.js';
 import { serviceBoard } from '../../../../../packages/runners/index.js';
@@ -63,8 +65,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
         fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}) };
     });
-    io.result?.({ runners });
-    io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
+    // The auto-started local runner is no registered runner, so it is named from its own state file [P7].
+    const folder = localRunnerFolder();
+    const local = localRunnerStatus(folder);
+    io.result?.({ runners, ...(local ? { local } : {}) });
+    const localLine = local ? (local.state === 'live' ? `local (pid ${local.pid}, live)` : 'local (stopped)') : null;
+    if (localLine && !runners.length) { io.say(localLine); return 0; }
+    io.say(runners.length ? [...(localLine ? [localLine] : []), ...runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`)].join('\n') : 'no runners registered');
     return 0;
   }
   if (first === 'status') {
