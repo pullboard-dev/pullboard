@@ -136,7 +136,7 @@ test('Spending and Folders are groups of their own, and every person-set machine
   for (const key of notPlain) assert.ok(machine.some(row => row.key === key), `${key} is still a machine setting`);
   assert.ok(!machine.some(row => row.key.startsWith('resources.')), 'capacity rows left the settings list with #6846');
   // The new forms store the value, clear it with off, and refuse a bad value without touching the file.
-  const settingsFile = join(box.env.PULLBOARD_HOME, 'settings.json');
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME ?? box.env.PULLBOARD_HOME, "settings.json");
   const set = (...args) => box.runLocal(box.repo, 'settings', ...args);
   assert.equal((await set('budget.dailyUsd', '25')).code, 0);
   assert.equal((await set('scratch', box.repo)).code, 0);
