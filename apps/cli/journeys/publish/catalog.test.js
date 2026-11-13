@@ -305,7 +305,7 @@ async function json(box, cwd, command, args = [], subcommand) {
   // for the item to leave claimed and read the gate from the settled receipt instead of the inline result.
   if (command === 'submit' && document.queued) {
     shapeFor(command, subcommand); // marks the command as exercised; its inline-result fields (id, pin, gate) come from the settled receipt below
-    assertRequiredShape(document, ['item', 'commit', 'gateJob', 'queued'], 'queued submit');
+    assertRequiredShape(document, { item: 'number', commit: 'string', gateJob: 'string', queued: 'boolean' }, 'queued submit');
     if (document.localRunner?.pid) LOCAL_RUNNERS.push(document.localRunner.pid);
     const settled = await whenRunnerSettles(box.env, async () => {
       const shown = await box.runLocal(cwd, 'show', String(document.item), '--json', '--no-next');
