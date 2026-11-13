@@ -16,16 +16,19 @@ return `function showFlow(shown) {
 function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
-  countUnseen();
+  showNav();
+  writeChrome();
   if (view.tab === 'shouts') foldShouts();
   if (view.tab === 'settings') void showSettings();
 }
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
+  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const hash = location.hash || '';
-  let path = routed ? location.pathname || '/' : hash.slice(1);
+  // A place's filters and search ride in the query: the page's own on a routed host, after a "?" in the fragment elsewhere.
+  const query = readPlaceQuery(routed ? location.search || '' : hash.includes('?') ? hash.slice(hash.indexOf('?')) : '');
+  let path = routed ? location.pathname || '/' : hash.split('?')[0].slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
   if (hash.startsWith('#shout-')) path = 'shouts/' + hash.slice(7);
   let parts;
@@ -38,15 +41,25 @@ function placeAtAddress(page = data) {
   if (named) parts.shift();
   const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && !addressReady && startupTabMigration) || (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
   const tab = requested === 'home' ? 'dashboard' : requested;
-  return { root, tab, detail: parts[0] ?? null };
+  return { root, tab, detail: parts[0] ?? null, query };
+}
+
+/** The current place's filters and search, as the address carries them. */
+function placePairs(tab = view.tab) {
+  const kind = tab === 'spec' || tab === 'doctrine' ? tab : null;
+  return placeQuery({ tab, state: view.state, stateDefault: snapshot ? 'all' : 'active', lane: view.lane, q: $('q')?.value ?? '',
+    rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
+    shouts: view.shoutFilter, activity: view.activityFilter || 'all', range: view.range || '6h',
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null });
 }
 
 /** Name each repo even beneath a group; one repo needs no prefix. */
 function tabHref(tab) {
   if (snapshot) {
     const detail = tab === 'items' && view.itemsView === 'pipeline' ? 'pipeline' : view.addressDetail;
-    if (['dashboard', 'items'].includes(tab) && detail === null && !location.hash) return location.pathname + location.search;
-    return location.pathname + location.search + '#' + tab + (detail === null ? '' : '/' + encodeURIComponent(String(detail)));
+    const fragmentQuery = withPlaceQuery('', placePairs(tab));
+    if (['dashboard', 'items'].includes(tab) && detail === null && !location.hash && !fragmentQuery) return location.pathname + location.search;
+    return location.pathname + location.search + '#' + tab + (detail === null ? '' : '/' + encodeURIComponent(String(detail))) + fragmentQuery;
   }
   const repo = data?.projects.find((entry) => entry.root === view.root);
   const group = data?.groups.find((entry) => entry.key === view.root);
@@ -54,7 +67,7 @@ function tabHref(tab) {
   const prefix = (data?.projects.filter((entry) => entry.ok).length || 0) > 1 && name ? '/' + encodeURIComponent(name) : '';
   const detail = tab === 'items' && view.itemsView === 'pipeline' && (view.addressDetail === null || view.addressDetail === 'pipeline') ? 'pipeline' : view.addressDetail;
   const path = prefix + '/' + tab + (detail === null ? '' : '/' + encodeURIComponent(String(detail)));
-  return routed ? path + location.search : location.pathname + location.search + '#' + path.slice(1);
+  return routed ? path + withPlaceQuery(location.search, placePairs(tab)) : location.pathname + location.search + '#' + path.slice(1) + withPlaceQuery('', placePairs(tab));
 }
 
 /** Push one entry per changed place, and retain native fact anchors when restoring an entry. */
@@ -88,8 +101,88 @@ function applyPlace(place, kept = null) {
     if (place.detail !== null) view.rows[place.tab] = 'all';
   }
   view.scrollPlace = place.detail !== null;
+  // The address says the filters and the search; a key it leaves out is that filter's default.
+  const query = place.query || {};
+  if (view.tab === 'items' || query.state || query.lane) { view.state = query.state || (query.q ? 'all' : snapshot ? 'all' : 'active'); view.lane = query.lane; view.before = query.q && !query.state ? (snapshot ? 'all' : 'active') : null; }
+  if (view.tab === 'spec' || view.tab === 'doctrine') view.rows[view.tab] = query.rows || (place.detail !== null ? 'all' : view.tab === 'spec' ? 'decide' : 'all');
+  if (view.tab === 'shouts') view.shoutFilter = query.shouts || 'all';
+  if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; }
+  if (view.tab === 'progress') view.range = query.range === '24h' ? '24h' : '6h';
+  if (view.tab === 'roadmap') view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
+  if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
   keep('pb.project', view.root);
   if (place.tab !== 'roadmap') keep('pb.tab', place.tab);
+}
+
+/**
+ * The navigation's own state: the active page in the strip, the group button that names it, the crumb, and which
+ * menu is open. Nothing here reads the board, so a tab answers at once.
+ */
+function showNav() {
+  const pages = navPages({ cost: privateCost });
+  const page = pages.find((entry) => entry.id === view.tab);
+  if ($('crumb-page')) $('crumb-page').textContent = page ? page.name : view.tab === 'settings' ? 'Settings' : '';
+  placeControls();
+  document.querySelectorAll?.('[data-nav-group]').forEach((button) => {
+    const group = button.dataset.navGroup, current = pages.find((entry) => entry.groupId === group && entry.id === view.tab);
+    const name = pages.find((entry) => entry.groupId === group)?.group ?? '';
+    button.classList.toggle('on', Boolean(current));
+    const label = button.querySelector('.group-label');
+    if (label) label.textContent = current ? name + ' · ' + current.name : name;
+    const open = view.navOpen === group;
+    button.setAttribute('aria-expanded', String(open));
+    const menu = $('nav-menu-' + group);
+    if (menu) menu.hidden = !open;
+  });
+  document.querySelectorAll?.('.tab[data-tab], .side-row[data-tab]').forEach((button) => {
+    button.classList.toggle('on', button.dataset.tab === view.tab);
+    if (button.dataset.tab === view.tab) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+  });
+}
+
+/**
+ * Draw the controls the open page puts at the right of the strip (the title row in the sidebar layout), and put them
+ * where the layout wants them. Each one reads the state the address holds, so a refresh, Back and Forward keep it.
+ */
+function drawPageControls() {
+  const slot = $('page-controls');
+  if (!slot) return;
+  const html = pageControlsHtml({ tab: view.tab, state: view.state, range: view.range || '6h', shouts: view.shoutFilter || 'all',
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && !readOnly });
+  const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
+  if (slot.innerHTML !== html) slot.innerHTML = html;
+  if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
+  placeControls();
+}
+
+/** Put the page controls on the strip in the top layout and on the page's title row in the sidebar layout. */
+function placeControls() {
+  const slot = $('page-controls'), home = document.documentElement.dataset.nav === 'side' ? $('page-title') : $('nav-strip');
+  if (slot && home && slot.parentElement !== home) home.appendChild?.(slot);
+  const page = navPages({ cost: privateCost }).find((entry) => entry.id === view.tab);
+  if ($('page-title-text')) $('page-title-text').textContent = page ? page.name : view.tab === 'settings' ? 'Settings' : '';
+}
+
+/** A press on one of the page controls: set that page's state, put it in the address and draw again. */
+function pageControl(target) {
+  const kind = target.dataset.pageCtl, value = target.tagName === 'SELECT' ? target.value : target.dataset.value ?? '';
+  // The control answers at once: it shows its new state and the address takes it now; the page redraws on the next turn.
+  const later = (then) => requestAnimationFrame(() => setTimeout(then, 0));
+  if (kind === 'new') { view.adding = true; later(() => { render(); $('add-title').focus(); }); return; }
+  if (kind === 'state') view.state = value;
+  else if (kind === 'range') view.range = value === '24h' ? '24h' : '6h';
+  else if (kind === 'by') view.activityBy = value || null;
+  else if (kind === 'shouts') { view.shoutFilter = value; view.shoutThread = null; view.shout = null; view.addressDetail = null; }
+  else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
+  drawPageControls();
+  address();
+  later(render);
+}
+
+/** Open one of the strip's menus, or close it; a second press on its button closes it. */
+function openNavMenu(group) {
+  view.navOpen = group && view.navOpen !== group ? group : null;
+  showNav();
 }
 
 /** Restore the address on Back and Forward, with a scoped refresh when the repo changes. */
@@ -133,6 +226,33 @@ function openTab(tab, detail = null) {
   address();
 }
 
+/**
+ * Switch tabs from what the page already holds (#6613): the store's board, and the pane as it was last drawn when
+ * nothing it was drawn from has changed since. A switch asks the network for nothing; warmTabs reads ahead what the
+ * other tabs show. Each switch's time from click to drawn frame is kept as a 'pullboard tab' performance measure.
+ */
+function switchTab(tab, detail = null) {
+  const started = globalThis.performance?.now?.();
+  view.unread = null;
+  view.roadmapOnly = null;
+  openTab(tab, detail);
+  render({ tab: true });
+  if (started === undefined || typeof requestAnimationFrame !== 'function') return;
+  requestAnimationFrame(() => setTimeout(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } }, 0));
+}
+
+/**
+ * After a live update, read ahead in the background what the other tabs draw from beyond the board itself: the
+ * Dashboard's event history and the open item's detail. A tab switch then finds them on hand (#6613).
+ */
+function warmTabs() {
+  const p = data?.project;
+  if (!p || data.root !== view.root || snapshot) return;
+  if (view.tab !== 'dashboard') dashboardView.warm(p);
+  const item = view.tab !== 'items' && view.item !== null ? p.items.find((entry) => entry.id === view.item) : null;
+  if (item) detailOf(p, item, 'ahead');
+}
+
 /** Fetch one old shout through the same public read API used by local and relay views. */
 async function loadAddressedShout() {
   if (!data?.project || view.tab !== 'shouts' || view.shout === null || data.root !== view.root) return;
@@ -165,25 +285,20 @@ function revealPlace() {
 }
 
 /**
- * Count on the Shouts tab the shouts that came after the newest one the person has seen in this
+ * Count for the status bar the shouts that came after the newest one the person has seen in this
  * project. Seeing means having the Shouts tab open with the board drawn; a project shown for the
  * first time has seen everything so far. The mark is kept in this browser, so a reload counts
  * nothing old. The board counts the shouts since the mark the last refresh sent, so a burst larger
  * than the forty loaded still counts in full; until a moved mark reaches the board, the loaded
  * shouts count, which is exact then since the mark only ever moves to the newest.
  */
-function countUnseen() {
-  const p = data && data.project;
-  // While a switch loads, the board on hand is the last project's: it marks nothing for this one.
-  if (!p || data.root !== view.root) return;
+function unseenShouts(p) {
   const key = 'pb.seen.' + view.root;
   const kept = view.seen[key] ?? keep(key);
   const newest = p.shouts.length ? p.shouts[0].shout_id : 0;
   const seen = view.tab === 'shouts' || kept === null || kept === undefined ? newest : Number(kept);
   if (String(seen) !== String(kept)) { view.seen[key] = seen; keep(key, String(seen)); }
-  const unread = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || 0;
-  const slot = $('status-unread');
-  if (slot) { slot.innerHTML = '<b>' + unread + '</b> unread'; slot.hidden = !unread; }
+  return (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || 0;
 }
 
 /** A quiet line that opens what it counts: what it says, everything it holds on hover, and show or hide. */
@@ -476,7 +591,7 @@ function moveMessage(move, result) {
 }
 
 /**
- * One sentinel draft in Needs-you: a watch the person has not approved, with the proof Rigor drafted it from.
+ * One sentinel draft in Rulings: a watch the person has not approved, with the proof Rigor drafted it from.
  * It says draft and waiting, never watching, so an unapproved check cannot pass for an approved one.
  */
 /** Keep sentinel controls identical on the full list and Dashboard, including the reviewed digest. */
@@ -497,7 +612,7 @@ function sentinelDraftRow(row) {
     + '<div class="muted sentinel-proof">' + esc(repeats) + (proof ? ' ' + proof : '') + '</div>'
     + '<div class="muted">Command: <code>' + esc(row.check) + '</code></div><div class="muted">Directory: ' + esc(row.directory) + '</div>'
     + '<div class="muted">Schedule: ' + esc(row.every) + '</div><div class="muted">Owner: ' + esc(row.owner) + '</div>'
-    + '<div class="meta"><span class="why"><b>NEEDS YOU</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
+    + '<div class="meta"><span class="why"><b>RULING</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
 }
 
 /** One blueprint fit proposal: its decision, its new text or reason, and where it came from. */
@@ -827,7 +942,7 @@ $('shouts-pane').addEventListener('click', (event) => {
   const revoke = event.target.closest('[data-revoke-token]');
   if (revoke) { void revokeCredential(revoke.dataset.revokeToken); return; }
   const filter = event.target.closest('[data-shout-filter]');
-  if (filter) { view.shoutFilter = filter.dataset.shoutFilter; view.shoutThread = null; view.shout = null; render(); return; }
+  if (filter) { view.shoutFilter = filter.dataset.shoutFilter; view.shoutThread = null; view.shout = null; if (view.addressDetail !== null) { view.addressDetail = null; } address(); render(); return; }
   const thread = event.target.closest('[data-shout-thread]');
   if (thread) { view.shoutThread = thread.dataset.shoutThread || null; view.shout = null; render(); return; }
   const more = event.target.closest('[data-more]'), pick = event.target.closest('[data-agent]');
@@ -853,7 +968,7 @@ $('shouts-pane').addEventListener('click', (event) => {
 });
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
-// A Needs-you row stays as the person left it: each open or close is kept per board and screen before the native toggle,
+// A Rulings row stays as the person left it: each open or close is kept per board and screen before the native toggle,
 // so a live redraw neither reopens a closed row nor shuts an open one.
 document.addEventListener('click', (event) => {
   const summary = event.target.closest?.('details[data-needs-key] > summary');
@@ -869,7 +984,7 @@ document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
   const activityFilter = event.target.closest('[data-activity-filter]');
-  if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; render(); return; }
+  if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; address(); render(); return; }
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
     // Review and Next keep their own order; the step cards open Building, Passed and Landed by name.
@@ -917,8 +1032,16 @@ document.addEventListener('click', (event) => {
   }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
-  if (!event.target.closest('.side')) fold(false);
+  if (!event.target.closest('.side, #proj-switch')) fold(false);
+  if (event.target.closest('#nav-pin')) { flipNav(); return; }
+  const control = event.target.closest('button[data-page-ctl]');
+  if (control) { pageControl(control); return; }
+  const navGroup = event.target.closest('[data-nav-group]');
+  if (navGroup) { openNavMenu(navGroup.dataset.navGroup); return; }
+  if (view.navOpen) openNavMenu(null);
   if (!t) return;
+  // A pick in the project list's tools (Settings) closes the list, as a board pick does.
+  if (t.dataset.tab && event.target.closest('.side')) fold(false);
   if (t.id === 'proj-switch' && projectMenuToggle()) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
@@ -953,6 +1076,7 @@ document.addEventListener('click', (event) => {
     if (t.dataset.filterKind === 'state') view.state = t.dataset.filterValue;
     else view.lane = t.dataset.filterValue || null;
     view.filterOpen = false;
+    address();
     render();
     $('filter-toggle').focus({ preventScroll: true });
     return;
@@ -979,17 +1103,18 @@ document.addEventListener('click', (event) => {
   if ('roadmapAll' in t.dataset) { view.roadmapOnly = null; render(); return; }
   if ('roadmapHeld' in t.dataset) { view.roadmapHeld = view.roadmapHeld === t.dataset.roadmapHeld ? null : t.dataset.roadmapHeld; render(); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
-  else if (t.dataset.tab) { view.unread = null; view.roadmapOnly = null; openTab(t.dataset.tab, t.dataset.detail ?? null); render(); }
+  else if (t.dataset.tab) switchTab(t.dataset.tab, t.dataset.detail ?? null);
   else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));
-  else if (t.dataset.state) { view.state = t.dataset.state; render(); }
+  else if (t.dataset.state) { view.state = t.dataset.state; address(); render(); }
   else if (t.dataset.rows) {
     const [kind, f] = t.dataset.rows.split(':');
     const addressed = view.addressDetail !== null;
     view.rows[kind] = f;
     view.addressDetail = null;
     render();
-    if (addressed) { view.addressDetail = view.row[kind]; address(); }
+    if (addressed) view.addressDetail = view.row[kind];
+    address();
   }
   else if (t.hasAttribute('data-needs-list')) { view.state='active'; view.lane=null; openTab('items'); render(); $('needs').scrollIntoView({block:'start'}); }
   else if (t.dataset.needsConfirm) askConfirmNeeds(t.dataset.needsConfirm,t);
@@ -1040,6 +1165,14 @@ document.addEventListener('click', (event) => {
 });
 // The viewport's scroll is fired at the document; the tests' stand-in document has no window.
 document.addEventListener('scroll', updateRoadmapPanel, { passive: true });
+// Items draws only the rows near the screen (#6676): scrolling or resizing moves that slice, once a frame.
+let itemsWindowFrame = 0;
+function moveItemsWindow() {
+  if (view.tab !== 'items' || itemsWindowFrame) return;
+  itemsWindowFrame = (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => setTimeout(next, 0))(() => { itemsWindowFrame = 0; if (view.tab === 'items') paintItemsWindow(); });
+}
+document.addEventListener('scroll', moveItemsWindow, { passive: true });
+if (typeof addEventListener === 'function') addEventListener('resize', moveItemsWindow, { passive: true });
 /** Close the expanded stats card and return focus to the list's summary control on Escape. */
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || !view.statsOpen || view.tab !== 'items' || document.querySelector('[data-pane="items"]')?.hidden) return;
@@ -1136,14 +1269,6 @@ $('flow-show').addEventListener('click', () => showFlow($('flow-panel').hidden))
 $('flow-panel').hidden = keep('pb.flow') !== 'shown';
 $('flow-show').setAttribute('aria-expanded', String(!$('flow-panel').hidden));
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
-$('side-toggle').addEventListener('click', () => {
-  // A phone always shows the switcher, so there the logo is only the logo.
-  if (!matchMedia('(width > 900px)').matches) return;
-  const collapsed = !document.documentElement.dataset.side;
-  collapseSide(collapsed);
-  fold(false);
-  keep('pb.side', collapsed ? 'collapsed' : 'open');
-});
 /** Pick the scheme the page does not show now, and keep it. */
 function flipTheme() {
   const next = document.documentElement.dataset.scheme === 'dark' ? 'light' : 'dark';
@@ -1152,13 +1277,14 @@ function flipTheme() {
 }
 $('theme').addEventListener('click', flipTheme);
 $('ob-theme').addEventListener('click', flipTheme);
-$('q').addEventListener('input', () => { search(); view.foundAt = 0; showFound(); });
+// Each search has its own address; typing replaces the entry rather than adding one a keystroke.
+$('q').addEventListener('input', () => { search(); address(false); view.foundAt = 0; showFound(); });
 // Leaving the field closes the results a moment later, so a press on a result lands first; coming back to the field
 // before then keeps them, or a search begun straight after Esc would lose its new results to the old close.
 let closingFound = 0;
 $('q').addEventListener('focus', () => { clearTimeout(closingFound); if ($('q').value.trim()) showFound(); });
 $('q').addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') { $('q').value = ''; search(); hideFound('escape'); $('q').blur(); return; }
+  if (event.key === 'Escape') { $('q').value = ''; search(); address(false); hideFound('escape'); $('q').blur(); return; }
   if (!view.found?.length || $('find-results').hidden) return;
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); view.foundAt = (view.foundAt + (event.key === 'ArrowDown' ? 1 : view.found.length - 1)) % view.found.length; showFound(); }
   else if (event.key === 'Enter') { event.preventDefault(); openFound(view.found[view.foundAt].go); }
@@ -1190,6 +1316,14 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
+// A select among the page controls (the time range, the person) acts on its change.
+document.addEventListener('change', (event) => { const control = event.target.closest?.('select[data-page-ctl]'); if (control) pageControl(control); });
+// Esc closes an open navigation menu. Cmd+K, "/" and the backslash belong to the palette (io/palette), which asks the
+// layout to move by this event; the pin does the same, so one press flips it once.
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && view.navOpen) { const group = view.navOpen; openNavMenu(null); document.querySelector('[data-nav-group="' + group + '"]')?.focus({ preventScroll: true }); }
+});
+document.addEventListener('pullboard:move-navigation', (event) => { event.preventDefault(); flipNav(); });
 // "/" opens the palette from anywhere but a field (io/palette).
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();

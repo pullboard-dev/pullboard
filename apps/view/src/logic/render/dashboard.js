@@ -2,7 +2,7 @@
  * Render the approved Dashboard; all numbers come from its snapshot model, never mockup values [N26].
  * @param {object} model - The Dashboard snapshot model.
  * @param {object} options - Prepared person-facing cards and presentation settings.
- * @param {string} options.needs - Shared Needs-you markup.
+ * @param {string} options.needs - Shared Rulings markup.
  * @param {string} options.rules - Rules-card markup retained from the retired Home pane.
  * @param {string} options.needsHeader - Compact Needs navigation above its rows.
  * @param {string} options.capacity - Capacity-card markup retained from the retired Home pane.
@@ -25,6 +25,8 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
       dots: '<path d="M4 8h.01M8 8h.01M12 8h.01"/>',
       ready: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5.5 6h5M5.5 9h3"/>',
       check: '<path d="M3 8.5l3.2 3L13 4.5"/>',
+      bolt: '<path d="M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z"/>',
+      flag: '<path d="M3.5 14V2.5M3.5 3h8l-1.5 3 1.5 3h-8"/>',
     };
     return '<svg class="dash-icon" data-dashboard-icon="'+name+'" aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+paths[name]+'</svg>';
   };
@@ -60,10 +62,10 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
   };
   const six = m.pace ? m.pace.last6h/6 : null, two = m.pace ? m.pace.last2h/2 : null;
   const hero = '<section class="dash-card dash-hero"><div><h1 title="Agents building, reviewing, or between items in the current board snapshot">'+m.totals.working+(m.totals.working===1?' agent at work.':' agents at work.')+'</h1><p class="dash-accent" title="Items landed during the last 24 hours">'+count(m.totals.day)+' landed in the last 24 hours.</p><div class="dash-chips"><span>'+icon('clock')+'Last 4 hours</span>'+[['recent','landed','land','Items landed during the last 4 hours'],['passed','passed review','pass','Recorded review acceptances during the last 4 hours'],['sentBack','sent back to fix','back','Recorded rejections and reopenings during the last 4 hours'],['shouts','shouts to you','msg','Shouts addressed to you during the last 4 hours']].map(heroChip).join('')+'</div></div><div class="dash-rate" title="Recorded item landings: hourly pace over the last 6 and 2 hours, and the all-time total"><b data-dashboard-stat="pace6" data-value="'+esc(six)+'">'+(six===null?'—':six.toFixed(1))+'</b> items an hour<small>today’s pace, the last 6 hours</small><small>'+(two===null?'—':two.toFixed(1))+' /h last 2 h · '+count(m.totals.allTime)+' landed all time</small></div><span class="visually-hidden" data-dashboard-stat="building" data-value="'+m.claims.length+'">'+m.claims.length+' building</span></section>';
-  // With nothing for the person, Needs you is one quiet line; otherwise its header and closed rows.
+  // With nothing for the person, Rulings is one quiet line; otherwise its header and closed rows.
   const needsCard = needs || needsHeader
-    ? '<section class="dash-card needs-card" aria-label="Needs you"><header class="needs-card-header"><h2>Needs you</h2>'+needsHeader+'</header>' + (needs ? '<ol class="needs home-needs">'+needs+'</ol>' : '') + '</section>'
-    : '<section class="dash-card needs-card needs-quiet" aria-label="Needs you"><span class="needs-quiet-badge">'+icon('check')+'</span><p><b>Nothing needs you.</b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone.</span></p></section>';
+    ? '<section class="dash-card needs-card" aria-label="Rulings"><header class="needs-card-header"><h2>Rulings</h2>'+needsHeader+'</header>' + (needs ? '<ol class="needs home-needs">'+needs+'</ol>' : '') + '</section>'
+    : '<section class="dash-card needs-card needs-quiet" aria-label="Rulings"><span class="needs-quiet-badge">'+icon('check')+'</span><p><b>Nothing to rule on.</b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone.</span></p></section>';
   /** Where the work is: five step cards joined by arrows, with the sent-back loop from In review back to Building; each opens Items filtered to its step. */
   const flowCard = (() => {
     const reserved = m.reviewing.filter(entry => entry.reviewer && Date.parse(entry.reviewUntil) > m.now).length;
@@ -80,14 +82,46 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
   const rulesCard = rules ? '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">'+rules+'</section>' : '';
   const capacityCard = capacity ? '<section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">'+capacity+'</section>' : '';
   /** Current holding actors and elapsed stays come from the same claims as the headline. */
+  /** In flight: one column of two-line rows, id and title over who holds it and for how long; no status pills (mockup). */
   const flight = (label, entries, kind) => {
-    /** Render a real in-flight row without changing its holding state. */
-    const line = entry => '<li>'+item(entry)+'<small>'+esc(kind==='claim'?entry.owner:entry.reviewer||'waiting for a reviewer')+(kind==='claim'||entry.reviewer?' · '+age(m.last(entry,kind)):'')+'</small></li>';
-    return '<div class="dash-flight"><h3>'+label+' '+entries.length+'</h3><ul>'+entries.slice(0,4).map(line).join('')+'</ul>'+(entries.length>4?'<details data-dashboard-disclosure="'+kind+'"><summary>Show '+(entries.length-4)+' more</summary><ul>'+entries.slice(4).map(line).join('')+'</ul></details>':'')+'</div>';
+    /** A real in-flight row; the holder line reads the same claim and review fields as the Agents table. */
+    const line = entry => '<li><button class="dash-flight-row" type="button" data-go="item:'+entry.id+'"><span class="dash-flight-title"><span>#'+entry.id+'</span><b title="'+esc(entry.title)+'">'+esc(entry.title)+'</b></span><small>'+esc(kind==='claim'?entry.owner:entry.reviewer||'waiting for a reviewer')+(kind==='claim'||entry.reviewer?' · '+age(m.last(entry,kind)):'')+'</small></button></li>';
+    return '<div class="dash-flight '+(kind==='claim'?'building':'review')+'"><h3>'+icon(kind==='claim'?'build':'review')+label+' <span>'+entries.length+'</span></h3><ul>'+entries.slice(0,4).map(line).join('')+'</ul>'+(entries.length>4?'<details data-dashboard-disclosure="'+kind+'"><summary>Show '+(entries.length-4)+' more</summary><ul>'+entries.slice(4).map(line).join('')+'</ul></details>':'')+'</div>';
   };
-  const shipping = '<section class="dash-card dash-shipping dash-release-card" aria-label="Shipping now">'
-    + (m.milestone ? progress+'<h3>In flight</h3><div class="dash-two">'+flight('Building',m.inFlight.building,'claim')+flight('In review',m.inFlight.review,'submit')+'</div>'
-      : '<p>No release is in progress.</p>') + '</section>';
+  /** Shipping now: the release name in the body face, N to go, one stage bar with its legend, In flight, then three pace tiles. */
+  const shipping = (() => {
+    const release = m.milestone, summary = release?.summary;
+    const counted = key => Number.isInteger(summary?.[key]) && summary[key] >= 0;
+    if (!release || !counted('total') || !counted('left')) return '<section class="dash-card dash-shipping dash-release-card" aria-label="Shipping now"><h2>Shipping now</h2><p>No release is in progress.</p></section>';
+    const named = /^(\d+(?:\.\d+)+)\s*:\s*(.+)$/u.exec(String(release.name ?? ''));
+    const title = named ? '<span class="dash-release-version">'+esc(named[1])+'</span>'+esc(named[2]) : esc(release.name);
+    // The formal stage colours: green landed, striped landing, yellow review, blue building, purple waiting, grey held.
+    const parts = [['landed','landed'],['landing','passed, landing'],['review','in review'],['building','building'],['waiting','waiting'],['held','held']].filter(([key]) => counted(key));
+    // SVG geometry, not inline styles, which the view's policy disallows; each segment is its count in SVG units.
+    let offset = 0;
+    const bar = '<svg class="dash-release-bar" viewBox="0 0 '+(summary.total || 1)+' 1" preserveAspectRatio="none" role="img" aria-label="'+esc(release.name+': '+parts.map(([key,label]) => summary[key]+' '+label).join(', '))+'">'+parts.filter(([key]) => summary[key]).map(([key,label]) => { const x = offset; offset += summary[key]; return '<rect class="dash-release-'+key+'" data-release-segment="'+key+'" data-count="'+summary[key]+'" x="'+x+'" width="'+summary[key]+'" height="1"><title>'+summary[key]+' '+label+'</title></rect>'; }).join('')+'</svg>';
+    const keys = '<div class="dash-release-keys">'+parts.map(([key,label]) => '<span data-release-key="'+key+'"><i class="dash-release-'+key+'" aria-hidden="true"></i><b>'+summary[key].toLocaleString(locale)+'</b> '+label+'</span>').join('')+'</div>';
+    const pace = summary.pace ?? m.pace, measured = Number.isInteger(pace?.last6h) && Number.isInteger(pace?.last2h);
+    const hour = at => new Date(at).toLocaleTimeString(locale, { timeZone, hour: 'numeric' });
+    const day = at => new Date(at).toLocaleDateString(locale, { timeZone, weekday: 'long' });
+    const estimate = summary.estimate, ranged = estimate && Number.isFinite(estimate.low) && Number.isFinite(estimate.high);
+    const lo = ranged ? Math.round(estimate.low) : null, hi = ranged ? Math.round(estimate.high) : null;
+    const when = !ranged ? (summary.reason === 'few-landings' ? 'too few landings yet to estimate' : 'completion time unavailable')
+      : lo === hi ? day(m.now+lo*3_600_000)+', around '+hour(m.now+lo*3_600_000)
+        : day(m.now+lo*3_600_000) === day(m.now+hi*3_600_000) ? day(m.now+lo*3_600_000)+', '+hour(m.now+lo*3_600_000)+' to '+hour(m.now+hi*3_600_000)
+          : day(m.now+lo*3_600_000)+' '+hour(m.now+lo*3_600_000)+' to '+day(m.now+hi*3_600_000)+' '+hour(m.now+hi*3_600_000);
+    const tile = (key, symbol, label, value, unit, note) => '<div class="dash-tile '+key+'" data-dashboard-tile="'+key+'"><span class="dash-tile-key">'+icon(symbol)+label+'</span><span class="dash-tile-value"><b>'+value+'</b>'+(unit?'<span>'+unit+'</span>':'')+'</span><small>'+esc(note)+'</small></div>';
+    const tiles = '<div class="dash-tiles">'
+      + tile('today', 'bolt', 'Today’s pace', measured ? (pace.last6h/6).toFixed(1) : '0.0', 'items an hour', (measured ? pace.last6h : 0)+' landed in the last 6 hours')
+      + tile('now', 'clock', 'Right now', measured ? (pace.last2h/2).toFixed(1) : '0.0', 'items an hour', (measured ? pace.last2h : 0)+' landed in the last 2 hours')
+      + tile('eta', 'flag', 'Done at this pace', ranged ? (lo === hi ? lo : lo+'–'+hi)+' h' : 'Not yet', '', when)
+      + '</div>';
+    return '<section class="dash-card dash-shipping dash-release-card" aria-label="Shipping now"><div class="dash-release-head"><div><h2>Shipping now</h2><p class="dash-release-name">'+title+'</p></div>'
+      + '<p class="dash-release-left"><b>'+summary.left.toLocaleString(locale)+' to go</b><span>'+(counted('landed') ? summary.landed.toLocaleString(locale) : 0)+' of '+summary.total.toLocaleString(locale)+' landed</span></p></div>'
+      + bar + keys
+      + '<div class="dash-inflight"><h3>In flight <span>'+(m.inFlight.building.length+m.inFlight.review.length)+'</span></h3><div class="dash-inflight-cols">'+flight('Building',m.inFlight.building,'claim')+flight('In review',m.inFlight.review,'submit')+'</div></div>'
+      + tiles + '</section>';
+  })();
   const maximum = Math.max(1,...m.bins.map(bin=>bin.count),six??0), chartHeight = 100;
   const hourLabel = at => new Date(at).toLocaleTimeString(locale, { timeZone, hour: 'numeric' });
   const paceY = chartHeight-(six??0)/maximum*90;

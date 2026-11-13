@@ -57,7 +57,7 @@ export function firstRunKit({ coordinate = false } = {}) {
   function model(project, events = []) {
     const kinds = new Set(events.map(event => event.event_kind));
     const items = project.items ?? [];
-    const landings = Math.max((project.dashboardLanded ?? []).length, events.filter(event => event.event_kind === 'merged').length);
+    const landings = Math.max((project.dashboardLanded ?? []).length, items.filter(item => item.merged || item.stage === 'merged').length, events.filter(event => event.event_kind === 'merged').length);
     const ticks = [
       (project.agents ?? []).some(coordinatorPresent),
       (project.spec ?? []).some(row => row.status === 'approved'),
