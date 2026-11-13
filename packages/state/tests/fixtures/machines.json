@@ -441,6 +441,61 @@
         "note": "serves the pulling runner's work; no driver ends it on an item move"
       },
       "harness": "apps/cli/journeys/runner/check.pull.test.js"
+    },
+    {
+      "kind": "check-baseline",
+      "name": "pulled check baseline",
+      "id": "baseline:<item>:<request>",
+      "created": "packages/api/src/io/baseline.js:offerCheckBaseline",
+      "serves": "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline",
+      "states": [
+        "offered",
+        "claimed",
+        "receipt",
+        "done"
+      ],
+      "terminal": [
+        "done"
+      ],
+      "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "offered",
+          "trigger": "add or edit offers the check at main's captured commit, or returns the open job for that request",
+          "at": "packages/api/src/io/baseline.js:offerCheckBaseline"
+        },
+        {
+          "from": "offered",
+          "to": "claimed",
+          "trigger": "a runner with every capability takes the lease",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "claimed",
+          "trigger": "a lapsed lease is taken by another runner, as the next attempt",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "receipt",
+          "trigger": "the holding runner posts its receipt",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "receipt",
+          "to": "done",
+          "trigger": "the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released",
+          "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt",
+        "note": "a moved request refuses the result (stale); no driver ends the job on an item move"
+      },
+      "harness": "apps/cli/journeys/check-baseline/main.test.js"
     }
   ],
   "processes": [
