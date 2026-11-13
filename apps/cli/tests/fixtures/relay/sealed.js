@@ -69,7 +69,7 @@ export async function fixture(t, { machineCredentials = true, legacySnapshots = 
   const data = join(directory, 'relay');
   const privateBin = join(directory, 'bin');
   mkdirSync(root); mkdirSync(home); mkdirSync(privateBin);
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   delete env.PULLBOARD_RELAY_TOKEN;
   const quoteShell = value => `'${String(value).replaceAll("'", "'\\''")}'`;
   const cliPath = resolve(import.meta.dirname, '../../../pullboard.js');

@@ -96,7 +96,7 @@ export async function removingBusyRunnerDrains(t, { cli, git, observe, startQueu
   const remoteMachineHome = join(remoteHome, '.pullboard'), worker = join(directory, 'worker');
   const bin = join(directory, 'bin'), markers = join(directory, 'markers');
   for (const path of [repo, home, machineHome, remoteHome, remoteMachineHome, worker, bin, markers]) mkdirSync(path, { recursive: true });
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+  const env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Runner Drain Fixture', GIT_AUTHOR_EMAIL: 'runner-drain@example.invalid',
     GIT_COMMITTER_NAME: 'Runner Drain Fixture', GIT_COMMITTER_EMAIL: 'runner-drain@example.invalid' };
