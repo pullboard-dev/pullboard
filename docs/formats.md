@@ -370,6 +370,20 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step` | `job_step_seq` | `INTEGER` | `NOT NULL`; `DEFAULT 0`; `UNIQUE` |
 | `job_step` | `job_step_payload` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
 | `job_step` | `job_step_at` | `INTEGER` | `NOT NULL` |
+| `run` | `run_job` | `TEXT` | `PRIMARY KEY` |
+| `run` | `run_kind` | `TEXT` | `NOT NULL` |
+| `run` | `run_item` | `INTEGER` | `nullable` |
+| `run` | `run_candidate` | `TEXT` | `nullable` |
+| `run` | `run_base` | `TEXT` | `nullable` |
+| `run` | `run_state` | `TEXT` | `NOT NULL` |
+| `run` | `run_attempt` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `run` | `run_outcome` | `TEXT` | `nullable` |
+| `run` | `run_summary` | `TEXT` | `nullable` |
+| `run` | `run_record` | `TEXT` | `nullable` |
+| `run` | `run_lease_owner` | `TEXT` | `nullable` |
+| `run` | `run_lease_until` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `run` | `run_created` | `INTEGER` | `NOT NULL` |
+| `run` | `run_updated` | `INTEGER` | `NOT NULL` |
 | `shout` | `shout_id` | `INTEGER` | `PRIMARY KEY` |
 | `shout` | `shout_from` | `TEXT` | `NOT NULL` |
 | `shout` | `shout_to` | `TEXT` | `NOT NULL` |
@@ -424,6 +438,8 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
 | `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
 | `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
+| `run_item_kind` | `run` | `run_item`, `run_kind` | no |
+| `run_open` | `run` | `run_state` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
