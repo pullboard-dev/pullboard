@@ -42,7 +42,7 @@ test('clause 1: with N=3 and four ready items where two share a file, one next c
   assert.equal(result.out.split('The real fixture succeeds.').length - 1 >= 3, true, 'each bar is printed');
 });
 
-test('clause 2: with N=1, next claims one item exactly as before [C7]', async t => {
+test('clause 3: with N=1, next claims one item exactly as before [C7]', async t => {
   const box = await fixture(t);
   const [one, , three] = fourItems(box);
   setN(box, 1);
@@ -73,7 +73,7 @@ test('clause 1: with N=5, next tops the seat up to five claims with no other cap
   assert.equal(held.length, 5, `the seat holds N=5: ${held.join(', ')}`);
   const printed = [result.document.item, ...(result.document.more ?? []).map(next => next.item)].map(item => item.item_id).sort((a, b) => a - b);
   assert.deepEqual(printed, held, 'the document names every claim');
-  for (const id of held) assert.match(result.out, new RegExp(`#${id}\\b`, 'u'), `the output names #${id}`);
+  for (const next of result.document.more) assert.ok(next.itemFolder.endsWith(`-item-${next.item.item_id}`), `#${next.item.item_id} names its folder`);
   const recorded = held.map(id => JSON.parse(box.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='claim' AND item_id=?").get(id).event_detail).claimsPerSeat);
   assert.deepEqual(recorded, [5, 5, 5, 5, 5], 'each claim records N, so a replay reads the same number');
 });

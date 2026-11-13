@@ -35,7 +35,6 @@
   ["src/landing-completion.js","packages/landing/src/io/completion.js","rule"],
   ["src/landing-docs.js","packages/landing/src/io/docs.js","rule"],
   ["src/landing-envelope.js","packages/landing/src/logic/envelope.js","rule"],
-  ["src/main-failure-noise.js","packages/landing/src/logic/main/noise.js","imports"],
   ["src/publish-pause.js","packages/landing/src/io/pause.js","imports"],
   ["src/record-train-landing.js","packages/landing/src/io/trainrecord.js","imports"],
   ["src/train-landing-receipt.js","packages/landing/src/io/train/receipt.js","imports"],
