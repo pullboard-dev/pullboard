@@ -69,12 +69,13 @@ function measureCommands(box) {
     assert.ok(held, `next --take names the item it claimed: ${taken.out}`);
     samples['next --verify'].push(timed(box, dir, 'next', '--verify').ms);
     const other = ids.find(id => id !== held);
-    const claim = timed(box, dir, 'claim', String(other));
-    samples.claim.push(claim.ms);
-    assert.equal(claim.code, 0, `claim: ${claim.err}${claim.out}`);
+    // The seat's claim allowance may be one (it follows the free runner slots), so the held item goes before the next claim.
     const release = timed(box, dir, 'release', String(held), '--reason', 'OTHER', '--note', 'measured the release', '--no-next');
     samples.release.push(release.ms);
     assert.equal(release.code, 0, `release: ${release.err}${release.out}`);
+    const claim = timed(box, dir, 'claim', String(other));
+    samples.claim.push(claim.ms);
+    assert.equal(claim.code, 0, `claim: ${claim.err}${claim.out}`);
     assert.equal(box.run(dir, 'release', String(other), '--reason', 'OTHER', '--note', 'round done', '--no-next').code, 0);
   }
   return samples;
