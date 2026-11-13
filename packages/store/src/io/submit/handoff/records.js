@@ -118,11 +118,13 @@ export function pendingSubmitHandoff(board, item) {
 }
 
 /**
- * A claimed item whose own gate is queued, running or green at its frozen bar is waiting on its gate or reviewer,
+ * A claimed item whose own gate is queued, running (hand-off or pulled) or green at its frozen bar is waiting on its gate or reviewer,
  * not buildable: next skips it and offers new work [C7,#3532].
  */
 export function awaitingGateOrReview(board, item) {
   if (pendingSubmitHandoff(board, item)) return true;
+  // A pulled gate job still offered or held by a runner is the same wait, with no hand-off record [P7].
+  if (item.item_status === 'claimed' && pulledGateRecords(board.db, item.item_id).has(item.item_id)) return true;
   const job = item.item_status === 'claimed' ? submitHandoff(board, item.item_id) : null;
   return Boolean(job) && job.agentId === item.item_owner && job.digest === item.item_frozen_digest && job.state === 'green';
 }
