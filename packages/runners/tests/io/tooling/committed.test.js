@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/runners/src/io/tooling/committed.js */
+/** @pullboard-test-input packages/runners/src/io/tooling/committed.js packages/runners/src/io/dispatch.js packages/runners/src/io/pull/delegate.js */
 /** @pullboard-world-pin: clause 1 reads the real dispatch.js and delegate.js sources to prove they name no app path. */
 /** A shared controller export is swept when its last run finishes, and at most 8 are kept [E28,C7]. */
 import assert from 'node:assert/strict';
