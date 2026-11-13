@@ -11,7 +11,7 @@ import { fixture } from '../../../tests/fixtures/verify/compare.js';
 import { submit } from '../../../tests/fixtures/verify/compare.js';
 
 test('an empty configured runner pool records an unavailable comparison without dispatch [C7,V4]', async t => {
-  const box = await fixture(t, { ssh: true });
+  const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:true,fixed:true,known:true,skip:true};\n');
   const head = submit(box);
   const removed = await box.runLocal(box.repo, 'runner', 'remove', HOST, '--json');

@@ -44,29 +44,25 @@ process.exitCode=failed?1:0;
 `;
 
 /** Build real Git histories and declare synthetic board lifecycle data without claiming a gate ran. */
-export async function fixture(t, { missingRunner = false, ssh = false } = {}) {
+export async function fixture(t, { missingRunner = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Comparison fixture';
   sandbox.env.TMPDIR = sandbox.dir;
   const box = helpers.project('true', sandbox);
-  if (ssh) {
-    // Only the empty-pool case needs a registered runner to remove; every other case is pulled by a real local runner.
-    const worker = join(box.dir, 'worker');
-    const workerHome = join(box.dir, 'worker-home');
-    const workerMachine = join(box.dir, 'worker-machine');
-    for (const path of [worker, workerHome, workerMachine]) mkdirSync(path, { recursive: true });
-    // The stand-in worker runs the comparison itself, so its machine settles the way the submitting side does [P7].
-    fixtureSettledMachine(workerMachine);
-    installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
-    const registered = await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
-    assert.equal(registered.code, 0, registered.out + registered.err);
-  } else {
-    // A real local runner pulls the comparison's jobs, never a child of this test [P7,#7185].
-    startFixtureLocalRunner(box.env, box.repo);
-    t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
-  }
+  const worker = join(box.dir, 'worker');
+  const workerHome = join(box.dir, 'worker-home');
+  const workerMachine = join(box.dir, 'worker-machine');
+  for (const path of [worker, workerHome, workerMachine]) mkdirSync(path, { recursive: true });
+  fixtureSettledMachine(workerMachine);
+  // The registered host only makes the pool non-empty (comparison needs a configured runner); a real local runner, never
+  // a child of this test, pulls and runs the comparison's jobs [P7,#7185].
+  installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
+  const registered = await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
+  assert.equal(registered.code, 0, registered.out + registered.err);
+  startFixtureLocalRunner(box.env, box.repo);
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG,
