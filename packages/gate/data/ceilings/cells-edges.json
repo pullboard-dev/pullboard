@@ -6161,9 +6161,6 @@
     "packages/landing/tests/fixtures/relay/parity/train.js": [
       "apps/cli"
     ],
-    "packages/resources/src/io/handoff/worker/cap.js": [
-      "apps/lib"
-    ],
     "packages/runners/src/io/dispatch.js": [
       "apps/runner"
     ],
