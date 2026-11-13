@@ -73,15 +73,20 @@ test('clause 1: a move the relay permanently refuses is parked and later moves a
 
 test('clause 2: pullboard relay recover publishes a checkpoint under the same board id and a second computer reads every move [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
   const { box, other, board, big } = await parkedBoard(t);
+  console.log('STEP recover');
   const recovered = await box.cliLocal('relay', 'recover');
+  console.log('STEP recovered', recovered.code, JSON.stringify(recovered.snapshotWork));
   assert.equal(recovered.code, 0, recovered.failure);
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(link.board, board, 'the board id is unchanged: no rejoin');
+  console.log('STEP other export');
   const there = await other.cli('export');
+  console.log('STEP other exported', there.code);
   assert.equal(there.code, 0, there.failure);
   const texts = shoutTexts(there.document);
   assert.ok(texts.includes(big), 'the parked move\'s effect reaches the second computer');
   assert.ok(texts.includes('small before the big move') && texts.includes('small after the big move'), 'no history is lost');
+  console.log('STEP box export');
   const here = shoutTexts((await box.cliLocal('export')).document);
   assert.deepEqual(here, texts, 'both computers hold the same shouts in the same order');
 });
