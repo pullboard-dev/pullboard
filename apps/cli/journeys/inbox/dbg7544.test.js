@@ -85,8 +85,6 @@ test('dbg [C7,D3]', t => {
   const box = shimmed(t);
   const out = [];
   out.push(box.plan.cells.map(c => c.name + ':' + c.order + ':' + c.root));
-  for (const n of ['mid', 'late', 'stats']) out.push([n, checkCuts(box.root, box.plan, n, { allLaterCells: true, temporaryExceptions: false })]);
-  const r = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
-  out.push([r.deleted, r.kept]);
+  out.push(JSON.stringify(box.plan.cells.map(c=>[c.name,c.order,c.paths?.length])));
   assert.fail('DBG ' + JSON.stringify(out));
 });
