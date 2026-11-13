@@ -119,3 +119,39 @@ test('optional submit handoff is described with default and configured provenanc
   assert.equal(row().value, false);
   assert.equal(row().origin, 'configured');
 });
+
+test('Spending and Folders are groups of their own, and every person-set machine setting has a CLI form [O5,O6,N26]', async t => {
+  const helpers = createE2eHelpers();
+  const box = helpers.project('true');
+  t.after(() => helpers.cleanup());
+  const group = key => SETTING_DESCRIPTIONS[key].group;
+  assert.equal(group('budget.dailyUsd'), 'Spending');
+  assert.equal(group('budget.totalUsd'), 'Spending');
+  assert.equal(group('scratch'), 'Folders');
+  assert.equal(group('shared'), 'Folders');
+  // Machine settings that hold a plain value a person types: each has a form. The rest are structured, registered by their own command, or internal switches.
+  const notPlain = new Set(['gate.runnerDispatch', 'gate.jobReserve', 'gate.pullPilot.items', 'gate.pullPilot.share', 'gate.localRunner', 'gate.localLoadShare', 'gate.mainComparison', 'gate.submitAuthorization', 'gate.handoffWorkers', 'gate.timingRunner', 'gate.postLandSuite', 'runners', 'landing.pools', 'serve.address', 'serve.port', 'view.port', 'relay.autoLink', 'relay.excluded', 'relay.owner.account', 'relay.owner.url', 'relay.session.token']);
+  const machine = inventory(box).filter(row => row.scope === 'machine');
+  for (const row of machine) assert.ok(row.cli || notPlain.has(row.key), `${row.key} is person-set: give it a CLI form or name it as not plain`);
+  for (const key of notPlain) assert.ok(machine.some(row => row.key === key), `${key} is still a machine setting`);
+  assert.ok(!machine.some(row => row.key.startsWith('resources.')), 'capacity rows left the settings list with #6846');
+  // The new forms store the value, clear it with off, and refuse a bad value without touching the file.
+  const settingsFile = join(box.env.PULLBOARD_HOME, 'settings.json');
+  const set = (...args) => box.runLocal(box.repo, 'settings', ...args);
+  assert.equal((await set('budget.dailyUsd', '25')).code, 0);
+  assert.equal((await set('scratch', box.repo)).code, 0);
+  assert.equal((await set('view.background', 'off')).code, 0);
+  assert.equal((await set('gate.queue.agingMinutes', '15')).code, 0);
+  const stored = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  assert.equal(stored.budget.dailyUsd, 25);
+  assert.equal(stored.scratch, box.repo);
+  assert.equal(stored.view.background, false);
+  assert.equal(stored.gate.queue.agingMinutes, 15);
+  for (const bad of [['budget.dailyUsd', '-3'], ['scratch', 'relative/dir'], ['scratch', join(box.repo, 'no-such-folder')], ['view.background', 'maybe']]) {
+    const refused = await set(...bad);
+    assert.notEqual(refused.code, 0, bad.join(' '));
+  }
+  assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), stored, 'a refused value changes nothing');
+  assert.equal((await set('budget.dailyUsd', 'off')).code, 0);
+  assert.equal(JSON.parse(readFileSync(settingsFile, 'utf8')).budget.dailyUsd, undefined);
+});
