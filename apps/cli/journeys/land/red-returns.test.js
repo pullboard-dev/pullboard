@@ -17,6 +17,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 
 const e2e = createE2eHelpers();
@@ -68,20 +69,23 @@ function strictPrePush(box) {
   mkdirSync(hooks, { recursive: true });
   for (const name of readdirSync(source)) if (!name.endsWith('.sample')) { copyFileSync(join(source, name), join(hooks, name)); chmodSync(join(hooks, name), 0o755); }
   copyFileSync(join(source, 'pre-push'), join(hooks, 'pre-push.real'));
-  writeFileSync(join(hooks, 'pre-push'), `#!/bin/sh\nunset LAND_SUPPRESS_RED\nrm -f '${join(box.dir, 'flag-LAND_SUPPRESS_RED')}'\nrm -f "$(git rev-parse --git-path pullboard-gate-green)"\nexec "$(dirname "$0")/pre-push.real" "$@"\n`);
+  writeFileSync(join(hooks, 'pre-push'), `#!/bin/sh\nunset LAND_SUPPRESS_RED\nrm -f '${join(box.dir, 'gate-switches', 'LAND_SUPPRESS_RED')}'\nrm -f "$(git rev-parse --git-path pullboard-gate-green)"\nexec "$(dirname "$0")/pre-push.real" "$@"\n`);
   chmodSync(join(hooks, 'pre-push'), 0o755);
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }
 
-test('clause 1: with no affectedTests a red at landing returns the item to its builder with its failing case; main and origin stay untouched [C7,#6270]', { skip: 'CONTROLLER_ONLY: deleted with #6579', timeout: 180_000 }, // budget: one real submit, accept, landing and resubmit; hang ceiling only.
+test('clause 1: with no affectedTests a red at landing returns the item to its builder with its failing case; main and origin stay untouched [C7,#6270]', { timeout: 180_000 }, // budget: one real submit, accept, landing and resubmit; hang ceiling only.
 async () => {
   const box = defaultProject();
   const entry = acceptedRedItem(box);
   moveMainPastSubmit(box);
   const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.repo, 'rev-parse', 'origin/main');
   const landed = await box.runLocal(box.repo, 'land', '--json');
-  const output = landed.out + landed.err;
+  const settled = await settleLand(box, JSON.parse(landed.out));
+  const output = landed.out + landed.err + JSON.stringify(settled.landJob ?? {});
   assert.doesNotMatch(output, /LAND_MAIN_COMPARISON/u, output);
+  assert.equal(settled.batch.state, 'blocked', output);
+  assert.deepEqual(settled.landed, [], 'nothing landed');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'main keeps its tree');
   assert.equal(box.tryGit(box.repo, 'ls-remote', 'origin', 'main').stdout.split(/\s+/u)[0], origin, 'origin keeps its tree');
   const row = await itemRow(box, entry.item);
@@ -92,7 +96,7 @@ async () => {
   await fixAndResubmit(box, entry);
 });
 
-test('clause 2: a pre-push hook red returns the item the same way instead of parking LAND_PUSH [C7,#6270]', { skip: 'CONTROLLER_ONLY: deleted with #6579', timeout: 180_000 }, // budget: one real submit, accept, landing push and resubmit; hang ceiling only.
+test('clause 2: a pre-push hook red returns the item the same way instead of parking LAND_PUSH [C7,#6270]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, // budget: one real submit, accept, landing push and resubmit; hang ceiling only.
 async () => {
   const box = defaultProject();
   const entry = acceptedRedItem(box);
@@ -100,7 +104,7 @@ async () => {
   const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.repo, 'rev-parse', 'origin/main');
   box.env.LAND_SUPPRESS_RED = '1';
   let output;
-  try { const landed = await box.runLocal(box.repo, 'land', '--json'); output = landed.out + landed.err; }
+  try { const landed = await box.runLocal(box.repo, 'land', '--json'); output = landed.out + landed.err + JSON.stringify((await settleLand(box, JSON.parse(landed.out))).landJob ?? {}); }
   finally { delete box.env.LAND_SUPPRESS_RED; }
   assert.match(output, /LAND_PUSH|pre-push/u, `the push reached the red pre-push gate: ${output}`);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'main keeps its tree');

@@ -332,6 +332,7 @@ const LOADERS = {
   'packages/codemap/src/io/freeze.js': ['import(pathToFileURL(checker).href)'],
   'packages/doctrine/src/io/fast.js': ["import(pathToFileURL(join(root, 'packages/gate/src/io/scan.js')).href)", 'import(pathToFileURL(join(root, script)).href)'],
   'packages/gate/src/io/run-tests.js': ["import(reporter.startsWith('.') || reporter.startsWith('/')\n    ? pathToFileURL(resolve(reporter)).href : reporter)", 'import(moduleSpecifier)', 'import(guard.href)'],
+  'packages/resources/src/io/liveness.js': ["import(new URL('./stale-test-sweep.js', import.meta.url).href)"],
 };
 function packageSource(file, source) {
   let text = source;
