@@ -36,8 +36,8 @@ function shoutTexts(exported) {
 }
 
 /**
- * Two computers on one accepted relay board, then one move too big for the relay followed by a small one, and a sync.
- * The big shout is incompressible, so its sealed move is well over the relay's 100,000-byte request limit.
+ * Two computers on one accepted relay board, then one fact too big for the relay followed by a small shout, and a sync.
+ * The big fact is incompressible, so its sealed move is well over the relay's 100,000-byte request limit.
  */
 async function parkedBoard(t) {
   const box = await relayClientFixture(t);
@@ -46,10 +46,11 @@ async function parkedBoard(t) {
   const printed = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
+  const item = (await box.cliLocal('add', box.lane, 'Carries a long note')).document.item.item_id;
   const before = (await box.cliLocal('status')).document.relay.sequence;
   const big = randomBytes(68_000).toString('base64url');
-  const bigShout = await box.cliLocal('shout', 'all', big);
-  assert.equal(bigShout.code, 0, JSON.stringify(bigShout.document?.error ?? bigShout.document).slice(0, 600));
+  const bigNote = await box.cliLocal('fact', String(item), 'note', big);
+  assert.equal(bigNote.code, 0, JSON.stringify(bigNote.document?.error ?? bigNote.document).slice(0, 600));
   assert.equal((await box.cliLocal('shout', 'all', 'small after the big move')).code, 0);
   const synced = await box.cliLocal('status');
   assert.equal(synced.code, 0, synced.failure);
@@ -60,13 +61,13 @@ test('clause 1: a move the relay permanently refuses is parked and later moves a
   const { box, other, before, synced } = await parkedBoard(t);
   const outbox = synced.document.relay.outbox;
   assert.equal(outbox.length, 1, 'only the refused move stays in the outbox');
-  assert.equal(outbox[0].operation, 'shout');
+  assert.equal(outbox[0].operation, 'appendFact');
   assert.ok(outbox[0].parked?.code, 'the outbox entry says the relay refused it for good');
   assert.ok(synced.document.relay.sequence > before, 'the small move behind the refused one was sent and acknowledged');
   const there = await other.cli('export');
   const texts = shoutTexts(there.document);
   assert.ok(texts.includes('small after the big move'), 'the second computer reads the move that flowed');
-  assert.ok(!texts.some((text) => text.length > 50_000), 'the refused move did not reach the relay');
+  assert.ok(!JSON.stringify(there.document).includes(big.slice(0, 200)), 'the refused move did not reach the relay');
   const again = await box.cliLocal('status');
   assert.equal(again.document.relay.outbox.length, 1, 'a later sync leaves the parked move parked, not retried in a loop');
 });
@@ -80,10 +81,10 @@ test('clause 2: pullboard relay recover publishes a checkpoint under the same bo
   const there = await other.cli('export');
   assert.equal(there.code, 0, there.failure);
   const texts = shoutTexts(there.document);
-  assert.ok(texts.includes(big), 'the parked move\'s effect reaches the second computer');
+  assert.ok(JSON.stringify(there.document).includes(big), 'the parked move\'s effect reaches the second computer');
   assert.ok(texts.includes('small after the big move'), 'no history is lost');
-  const here = shoutTexts((await box.cliLocal('export')).document);
-  assert.deepEqual(here, texts, 'both computers hold the same shouts in the same order');
+  const history = (exported) => exported.tables.event.map((row) => [row.event_kind, row.item_id]);
+  assert.deepEqual(history((await box.cliLocal('export')).document), history(there.document), 'both computers hold the same history in the same order');
 });
 
 test('clause 3: the refusal and relay status name pullboard relay recover, and status reads healthy once the queue drains [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
