@@ -1,6 +1,7 @@
 /** A board an older release left drifted gains its additive tables and its guards, and only a matching shape is restamped [A5,M3]. */
 import assert from 'node:assert/strict';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { copyFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -119,6 +120,14 @@ test('clause 2: pullboard status restores changed pullboard triggers, and doctor
   const found = await project.command('doctor');
   for (const name of CHANGED) assert.match(found.stdout, new RegExp(`board trigger ${name} has changed; repair: run pullboard status`, 'u'));
 
+  // Only the main checkout's code repairs a repository board, and a runner runs this source from a linked worktree: the
+  // same repair runs on a copy outside any repository, and its file is put back where the CLI reads it.
+  const files = privateFixtureFiles('pullboard-drift-');
+  folders.push(files.root);
+  const copy = join(files.root, 'board.sqlite');
+  copyFileSync(project.file, copy);
+  store.closeBoard(openKitBoard(copy));
+  copyFileSync(copy, project.file);
   const status = await project.command('status');
   assert.equal(status.status, 0, status.stderr || status.stdout);
   const repaired = observe(project.file);

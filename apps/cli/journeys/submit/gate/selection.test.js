@@ -11,6 +11,7 @@ import { sandboxBlockedOperation } from '../../../../../packages/gate/index.js';
 import { fileDenialWatcher } from '../../../../../packages/sandbox/index.js';
 import { coordinatorLocal } from './local.js';
 import { runLocal } from './local.js';
+import { submitSettled } from './local.js';
 import { SPEC } from '../../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../tests/fixtures/submit/gate.js';
@@ -18,9 +19,11 @@ import { put } from '../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../tests/fixtures/submit/gate.js';
 import { seedGraph } from '../../../tests/fixtures/submit/gate.js';
 
-/** Build a claimed submit fixture whose changed source selects a nested child-process test. */
-async function childFailureSubmitBox(t, testSource) {
+/** Build a claimed submit fixture whose changed source selects a nested child-process test; deniedFile names the path a Python-style denial reports. */
+async function childFailureSubmitBox(t, testSource, { deniedFile = null } = {}) {
   let box = privateRepo(t);
+  // Set before the first board command: that command starts the machine's local runner, whose jobs inherit only FIXTURE_ names.
+  if (deniedFile) box.env.FIXTURE_CHILD_PERMISSION_PATH = join(box.dir, deniedFile);
   // This fixture proves multiline TAP diagnostics; Node's default reporter varies by runtime.
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap', spec: 'SPEC.md' }));
   put(box.root, 'SPEC.md', SPEC);
@@ -33,7 +36,7 @@ async function childFailureSubmitBox(t, testSource) {
     '  throw error;',
     '};',
   ].join('\n'));
-  box.env.LISTEN_DENIAL_SHIM = join(box.root, 'test/listen-denial.js');
+  box.env.FIXTURE_LISTEN_DENIAL_SHIM = join(box.root, 'test/listen-denial.js');
   put(box.root, 'test/child-listener.test.js', testSource);
   commitAll(box);
   box = builderRepo(box);
@@ -53,7 +56,7 @@ function childListenerTestSource() {
     "import { spawnSync } from 'node:child_process';",
     "import '../src/listener-probe.js';",
     "test('the server child binds', () => {",
-    "  const child = spawnSync(process.execPath, ['--import', process.env.LISTEN_DENIAL_SHIM, '--input-type=module', '-e', \"import { createServer } from 'node:net'; createServer().listen(0, '127.0.0.1');\"], { encoding: 'utf8' });",
+    "  const child = spawnSync(process.execPath, ['--import', process.env.FIXTURE_LISTEN_DENIAL_SHIM, '--input-type=module', '-e', \"import { createServer } from 'node:net'; createServer().listen(0, '127.0.0.1');\"], { encoding: 'utf8' });",
     "  assert.equal(child.status, 0, `App exited before listening (code ${child.status}, signal ${child.signal}):\\n${child.stderr}`);",
     '});',
   ].join('\n');
@@ -64,7 +67,7 @@ function childPythonTestSource() {
   const childProgram = [
     'console.error("Traceback (most recent call last):")',
     'console.error("  File " + JSON.stringify("child.py") + ", line 1, in <module>")',
-    'console.error("PermissionError: [Errno 13] Permission denied: " + JSON.stringify(process.env.CHILD_PERMISSION_PATH))',
+    'console.error("PermissionError: [Errno 13] Permission denied: " + JSON.stringify(process.env.FIXTURE_CHILD_PERMISSION_PATH))',
     'process.exit(1)',
   ].join('\n');
   return [
@@ -104,30 +107,32 @@ function pythonChildTap(path, { traceback = true, frame = true, prefixMarker = f
   ].join('\n');
 }
 
+// A pulled gate runs on the runner, whose receipt names a sandbox refusal and whose jobs receive the shim through a FIXTURE_ name; the gate job's receipt carries SANDBOX_BLOCKED [C7,B26].
 test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t) => {
-  const box = await childFailureSubmitBox(t, childListenerTestSource());
-  const result = await runLocal(box, 'submit', '1');
+  const explanatory = "  assert.equal(child.status, 0, `App exited before listening (code ${child.status}, signal ${child.signal}):\\n${child.stderr}`);";
+  const original = childListenerTestSource();
+  assert.equal(original.split(explanatory).length, 2, 'replace exactly one explanatory message');
+  const pythonSource = childPythonTestSource();
+  const pythonExplanation = "  assert.equal(child.status, 0, `Child process exited with code ${child.status}:\\n${child.stderr}`);";
+  assert.equal(pythonSource.split(pythonExplanation).length - 1, 1, 'the bare Python counter changes exactly one parent message');
+  const box = await childFailureSubmitBox(t, original);
+  const bareBox = await childFailureSubmitBox(t, original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);'));
+  const pythonBox = await childFailureSubmitBox(t, pythonSource, { deniedFile: 'outside-python-denial.txt' });
+  const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'), { deniedFile: 'outside-bare-python-denial.txt' });
+  // Each box has its own machine home and local runner, so the four pulled gates settle together, inside the file's time budget.
+  const [result, bare, python, barePython] = await Promise.all([box, bareBox, pythonBox, barePythonBox].map(one => submitSettled(t, one, (...args) => one.run(...args))));
   const output = `${result.out}\n${result.err}`;
   assert.equal(result.code, 1, output);
   assert.match(output, /SANDBOX_BLOCKED/u, 'submit names the denied child-process listen');
   assert.match(output, /listen \(EPERM\)/u);
   assert.doesNotMatch(output, /GATE_RED/u);
 
-  const explanatory = "  assert.equal(child.status, 0, `App exited before listening (code ${child.status}, signal ${child.signal}):\\n${child.stderr}`);";
-  const original = childListenerTestSource();
-  assert.equal(original.split(explanatory).length, 2, 'replace exactly one explanatory message');
-  const bareSource = original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);');
-  const bareBox = await childFailureSubmitBox(t, bareSource);
-  const bare = bareBox.run('submit', '1');
   const bareOutput = `${bare.out}\n${bare.err}`;
   assert.equal(bare.code, 1, bareOutput);
   assert.match(bareOutput, /SANDBOX_BLOCKED/u, 'bare stderr with structured fatal fields still names the denial');
   assert.match(bareOutput, /listen \(EPERM\)/u);
   assert.doesNotMatch(bareOutput, /GATE_RED/u);
 
-  const pythonBox = await childFailureSubmitBox(t, childPythonTestSource());
-  pythonBox.env.CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
-  const python = pythonBox.run('submit', '1');
   const pythonOutput = `${python.out}\n${python.err}`;
   assert.equal(python.code, 1, pythonOutput);
   assert.match(python.err, /SANDBOX_BLOCKED/u, 'submit names a scanner-known denial from a child traceback');
@@ -137,12 +142,6 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t
   assert.doesNotMatch(python.err, /\bask the person\b/iu);
   assert.doesNotMatch(python.err, /GATE_RED/u);
 
-  const pythonSource = childPythonTestSource();
-  const pythonExplanation = "  assert.equal(child.status, 0, `Child process exited with code ${child.status}:\\n${child.stderr}`);";
-  assert.equal(pythonSource.split(pythonExplanation).length - 1, 1, 'the bare Python counter changes exactly one parent message');
-  const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
-  barePythonBox.env.CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
-  const barePython = barePythonBox.run('submit', '1');
   const barePythonOutput = `${barePython.out}\n${barePython.err}`;
   assert.equal(barePython.code, 1, barePythonOutput);
   assert.match(barePython.err, /SANDBOX_BLOCKED/u, 'complete bare Python stderr still names the known denial');
@@ -233,10 +232,10 @@ test('an ordinary failure stays gate red [C7,B26]', async (t) => {
     'bare Python in-repo access stays an ordinary failure');
   assert.equal(sandboxBlockedOperation(box.root, pythonChildTap(outside, { wrapper: false, assertionFooter: '1 !== 0' }), { includeFilePaths: false }), null,
     'bare Python does not bypass the file-path classification switch');
-  const result = await runLocal(box, 'submit', '1');
+  const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   const output = `${result.out}\n${result.err}`;
-  assert.equal(result.code, 1, output);
-  assert.match(output, /GATE_RED/u);
+  assert.equal(result.code, 1, output); // The pulled gate came back red.
+  assert.match(output, /not ok 1 - ordinary failure/u, 'the receipt carries the failing proof');
   assert.doesNotMatch(output, /SANDBOX_BLOCKED/u);
 });
 

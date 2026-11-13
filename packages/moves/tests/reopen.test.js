@@ -43,7 +43,7 @@ import { cellProject } from '../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../store/tests/fixtures/cell.js';
 import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../store/tests/fixtures/cell.js';
-import { submitFixture as submitBoardStateFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture as submitBoardStateFixture } from '../../store/tests/fixtures/submit.js';
 import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
 
 /** The model name the builder seat joins with. */

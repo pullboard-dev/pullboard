@@ -69,6 +69,8 @@ test('capacity pins landings, per-file pressure, Little law, cells and held-out 
   near(report.lifetimeHours, 0.5); near(report.buildHours, 0.25); near(report.waitingHours, 0.25);
   near(report.inFlight, 0.5); near(report.buildingInFlight, 0.25); near(report.waitingInFlight, 0.25);
   near(report.cellsPerItem, 1.5);
+  near(report.kernelChurnPerWeek, 0); near(report.wideItemShare, 0.5);
+  assert.deepEqual(report.busiestCell, { cell: 'packages/one', changes: 4, share: 1 });
   const a = report.files.find(row => row.file === f.a), b = report.files.find(row => row.file === f.b);
   assert.deepEqual([a.touches, a.conflicts, b.touches, b.conflicts], [4, 1, 2, 1]);
   near(a.sharedTouches, 2); near(b.sharedTouches, 0.5);

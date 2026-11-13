@@ -124,3 +124,15 @@ function detached(command, args, { cwd, env, log }) {
 export function spawnDetachedChild(command, args, { cwd, env, stdio }) {
   return spawn(command, args, { cwd, env, detached: true, stdio });
 }
+
+/**
+ * Signal a detached child's whole process group, the one entry point that stops a process tree [C7,#6751].
+ * Why: a detached start leads its own group, so the negative pid reaches the children it spawned; a gone group is no error.
+ *
+ * @param {number} pid - The group leader's pid.
+ * @param {NodeJS.Signals | number} [signal] - Signal to send, TERM by default.
+ * @returns {boolean} True when the signal was delivered, false when the group is already gone.
+ */
+export function stopProcessTree(pid, signal = 'SIGTERM') {
+  try { process.kill(-pid, signal); return true; } catch (error) { if (error?.code === 'ESRCH') return false; throw error; }
+}
