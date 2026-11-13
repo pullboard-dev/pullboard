@@ -39,7 +39,7 @@ test('the usage drain publishes in bounded batches, each its own short write, an
   for (const key of ['CODEX_THREAD_ID','CODEX_SESSION_ID','CLAUDE_CODE_SESSION_ID','CLAUDECODE','CLAUDE_CODE_ENTRYPOINT','AI_AGENT','CODEX_CI','CODEX_SHELL']) delete env[key];
   // The drain runs inside the production capture harness, which restores the process environment afterwards.
   let report = null;
-  const result = await captureCommandInProcess(async () => {
+  const result = await captureCommandInProcess(async (_argv, io) => {
     const other = openKitBoard(file, undefined, { gitRoot: box.web }), admitted = [], holds = [], batches = [];
     // Between two batches a second connection writes, as another seat's command would while the drain runs.
     const between = async (c, b, op, args, rest) => {
@@ -49,7 +49,7 @@ test('the usage drain publishes in bounded batches, each its own short write, an
       catch (e) { admitted.push(e.code ?? String(e)); }
       return r;
     };
-    const ctx = context({ cwd: process.cwd(), nativeBoard, say() {}, err() {} });
+    const ctx = context({ cwd: io.cwd, nativeBoard, say() {}, err() {} });
     await withBoard(ctx, async drainBoard => {
       const exec = drainBoard.db.exec.bind(drainBoard.db); let at = null;
       drainBoard.db.exec = sql => { const r = exec(sql); if (sql === 'BEGIN IMMEDIATE') at = performance.now(); if (sql === 'COMMIT' && at !== null) { holds.push(performance.now() - at); at = null; } return r; };
