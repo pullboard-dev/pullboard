@@ -9,6 +9,7 @@ import {
   spawn as spawnGuardian,
 } from 'node:child_process';
 import { startFixtureChild as spawn } from './child.js';
+import { privateFixtureFiles } from './child.js';
 import {
   chmodSync,
   existsSync,
@@ -231,7 +232,9 @@ export function launchChromeProcess({ executable, args = [], env = process.env, 
   requireBrowserSlot();
   if (!executable) throw new Error('Chrome was not found; install Chrome or set PULLBOARD_CHROME.');
   const launchedAt = Date.now();
-  const child = spawn(executable, args, { detached: true, env, stdio: ['ignore', 'ignore', 'pipe'] });
+  // Chrome drops com.google.Chrome* folders in its TMPDIR; a private one per launch goes away with it, so none outlive the run [C7].
+  const scratch = env.TMPDIR ? null : privateFixtureFiles('pullboard-chrome-tmp-').root;
+  const child = spawn(executable, args, { detached: true, env: scratch ? { ...env, TMPDIR: scratch } : env, stdio: ['ignore', 'ignore', 'pipe'] });
   if (child.pid) guardChromeGroup(child.pid, { profile: args.find(arg => arg.startsWith('--user-data-dir='))?.slice('--user-data-dir='.length) });
   let stderr = '';
   let launchError = null;
@@ -246,6 +249,7 @@ export function launchChromeProcess({ executable, args = [], env = process.env, 
       const profile = args.find(arg => arg.startsWith('--user-data-dir='))?.slice('--user-data-dir='.length);
       await quitOwnedChrome(child, profile, stopped, Math.min(3000, cleanupTimeoutMs));
       await stopProcessGroup(child, stopped, cleanupTimeoutMs);
+      if (scratch) rmSync(scratch, { recursive: true, force: true });
     })();
     return closePromise;
   }
