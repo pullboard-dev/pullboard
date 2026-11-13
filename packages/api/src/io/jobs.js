@@ -231,13 +231,14 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
-  return atomically(db, () => {
+  const ended = [];
+  const claimed = atomically(db, () => {
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
-      if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, onRunaway }); continue; }
+      if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
         .run(runner, now + leaseMs, now, row.job_id, now);
       if (taken.changes !== 1) continue;
@@ -248,14 +249,17 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
     }
     return null;
   });
+  // The shout is a board write of its own, so it follows the claim's transaction.
+  for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
+  return claimed;
 }
 
-/** End a job claimed past its cap: a `runaway` step, then done, and one call to `onRunaway` so the coordinator hears once. */
-function endRunaway(db, row, { now, onRunaway }) {
+/** End a job claimed past its cap: a `runaway` step, then done, queued on `ended` for `onRunaway` so the coordinator hears once. */
+function endRunaway(db, row, { now, ended }) {
   const detail = `claimed ${row.job_attempt} times without finishing; ended as a runaway`;
   if (!writeStep(db, row.job_id, 'runaway', { attempts: row.job_attempt, detail }, { seq: row.job_attempt, now }).written) return;
   finishJob(db, row.job_id, '', { now });
-  try { onRunaway?.({ job: row.job_id, kind: row.job_kind, attempts: row.job_attempt, detail }); } catch { /* a shout that cannot send leaves the job ended */ }
+  ended.push({ job: row.job_id, kind: row.job_kind, attempts: row.job_attempt, detail });
 }
 
 /**
