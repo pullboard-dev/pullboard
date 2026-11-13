@@ -190,6 +190,14 @@ function paintRoadmap(html, rows, board) {
   drawnRoadmap = done.drawn;
 }
 
+/** The person's rulings on a board state, read once per state, not on every click or draw (#6851). */
+function personalNeedsOf(project) {
+  return store.select('person-needs', [project], () => {
+    const p = privateModelProject(project);
+    return personNeeds({ ...p, agents: (p.agents || []).map(agent => ({ ...agent, displayName: agentName(agent.agent_id, p) })) });
+  });
+}
+
 // The Items rows drawn last, and the slice of them on screen (#6676).
 let itemsList = null;
 let itemsPitch = 0;
@@ -326,9 +334,7 @@ function render({ tab: switching = false } = {}) {
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
   const needsTab = draw && ['items', 'dashboard'].includes(view.tab);
-  const needsProject = { ...p, agents: (p.agents || []).map(agent => ({ ...agent, displayName: agentName(agent.agent_id, p) })) };
-  // The person's rulings are read once per board state, not on every click (#6851).
-  const personalNeeds = needsTab || draw && ['spec', 'doctrine'].includes(view.tab) ? store.select('person-needs', [data.project], () => personNeeds(needsProject)) : [];
+  const personalNeeds = needsTab || draw && ['spec', 'doctrine'].includes(view.tab) ? personalNeedsOf(data.project) : [];
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
   if (needsTab) {
   const person = !snapshot && (!readOnly || requests);
