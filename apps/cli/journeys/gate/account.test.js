@@ -2,7 +2,6 @@
 /** A green native test account covers every selected file even when its reporter emits no case timings [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
-import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -14,7 +13,6 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { writeTestTiers } from '../../../../packages/gate/index.js';
 import { requireTestTierAccount } from '../../../../packages/gate/index.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
-import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 
 /** Commit real fixture source through its ordinary installed hooks. */
 function commit(box, cwd, message) {
@@ -70,17 +68,7 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const outcomes = submitted.gate.phases.flatMap(phase => phase.testOutcomes ?? []);
   assert.deepEqual([...new Set(outcomes.map(row => row.file))].sort(), files);
 
-  // Finish the detached diagnostic while this case still owns its active-test budget.
-  // An after hook otherwise waits after Node announces test completion, hitting the file-exit guard.
-  const comparisons = join(box.repo, '.git/pullboard/review-comparisons');
-  const jobs = existsSync(comparisons) ? readdirSync(comparisons).map(job => join(comparisons, job)) : [];
-  await waitForCondition(() => jobs.every(job => existsSync(join(job, 'result.json'))),
-    'owned automatic comparison to finish before advancing main', { signal: t.signal });
-  const observed = await json(box, box.repo, 'show', String(id));
-  assert.equal(observed.comparison.status, 'unavailable', 'an empty runner pool cannot invent a diagnostic account');
-  assert.match(observed.comparison.error, /no configured runner/u);
-
-
+  // A pulled submit records no background comparison (PULL_GAP #7267), so there is none to finish or assert here.
   // Move a checked input on accepted main so a private review cannot reuse the earlier submit proof.
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/account.txt'), 'Review against the current accepted main.\n');
