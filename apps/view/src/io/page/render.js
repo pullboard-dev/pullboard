@@ -4,6 +4,8 @@ import { needsPanelHtml } from "../../logic/needs/panel.js";
 import { agentsPanelModel } from "../../logic/panel/model.js";
 import { agentsPanelHtml } from "../../logic/panel/render.js";
 import { needsPanelModel } from "../../logic/needs/panel.js";
+import { itemsNeedsModel } from "../../logic/needs/panel.js";
+import { itemsNeedsHtml } from "../../logic/needs/panel.js";
 import { LEAKS } from "../../logic/needs/list.js";
 import { PLAIN_FALLBACK } from "../../logic/needs/list.js";
 import { plainNeedWords } from "../../logic/needs/list.js";
@@ -23,6 +25,8 @@ const PLAIN_FALLBACK = (${JSON.stringify(PLAIN_FALLBACK)});
 const LEAKS = [${LEAKS.map(String).join(",")}];
 const plainNeedWords = (${plainNeedWords.toString()});
 const needsPanelModel = (${needsPanelModel.toString()});
+const itemsNeedsModel = (${itemsNeedsModel.toString()});
+const itemsNeedsHtml = (${itemsNeedsHtml.toString()});
 const needsActionsHtml = (${needsActionsHtml.toString()});
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
@@ -241,13 +245,14 @@ function render({ tab: switching = false } = {}) {
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
     if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
-  } else {
-    const needsHtml = needsPanel(needsModel,needsPresentation);
-    if (view.tab === 'items') {
-      $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
-      $('needs').tabIndex = -1;
-      store.paint($('needs'), needsHtml);
-    }
+  } else if (view.tab === 'items') {
+    // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
+    const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
+    $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
+    $('needs').tabIndex = -1;
+    store.paint($('needs'), itemsNeedsHtml(itemsNeeds, { open,
+      questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation),
+      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }));
   }
   }
 

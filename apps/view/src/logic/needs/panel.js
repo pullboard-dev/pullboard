@@ -97,3 +97,47 @@ export function needsPanelHtml(model, presentation = new Map()) {
   const group = (label, rows, extra = '') => rows.length ? '<li class="needs-group"><div class="needs-group-head"><h3>' + label + ' · ' + rows.length + '</h3>' + extra + '</div><ol>' + rows.map(rowHtml).join('') + '</ol></li>' : '';
   return group('Questions and sentinels', model.questions) + group('Rows approved in Git, waiting for you', model.approvals, model.person && confirmable.length ? '<button type="button" class="needs-confirm-all" data-needs-confirm="' + escape(confirmable.map(row => row.source.id).join(' ')) + '">Confirm all ' + confirmable.length + '</button>' : '') + (model.drafts ? '<li class="needs-group"><h3>Draft spec rows</h3><ol>' + draftRow + '</ol></li>' : '');
 }
+
+/** Fold the Items page's questions and sentinels: repeats become one row, and each chip says what the row waits on [N26]. */
+export function itemsNeedsModel(model) {
+  /** The change a Rigor draft proposes: its first sentence, with counts and item ids set aside. */
+  const change = row => row.source?.kind === 'rigor-draft'
+    ? String(row.source.text ?? '').replace(/^Rigor draft(?: \([^)]*\))?:\s*/u, '').split(/\.(?:\s|$)/u)[0].trim() : '';
+  const sameKey = text => text.replace(/#\d+/gu, '#').replace(/\d+/gu, 'N').toLowerCase();
+  /** Name who the row waits on, never a bare verb. */
+  const waits = row => {
+    const kind = row.source?.kind;
+    if (kind === 'decision') return 'Your decision';
+    if (kind === 'rigor-draft') return /^Coordinator\b/u.test(row.source.what ?? '') ? 'Coordinator' : 'Your approval';
+    if (['sentinel-draft', 'spec-revision', 'focus-approval-batch'].includes(kind)) return 'Your approval';
+    return row.action;
+  };
+  const groups = new Map(), order = [];
+  for (const row of model.questions) {
+    const text = change(row), key = text ? sameKey(text) : null;
+    if (key && groups.has(key)) { groups.get(key).members.push(row); continue; }
+    const entry = { row, text, members: [row] };
+    if (key) groups.set(key, entry);
+    order.push(entry);
+  }
+  const questions = order.map(({ row, text, members }) => {
+    if (members.length === 1) return { ...row, action: waits(row) };
+    const unproved = members.some(member => member.source.unproved);
+    return { ...row, action: waits(row), folded: members.length, members: members.map(member => member.id),
+      title: (unproved ? 'Rigor draft (unproved): ' : 'Rigor draft: ') + text + '.',
+      context: members.length + ' Rigor drafts propose this change', body: '',
+      fields: [['Drafted as', members.map(member => member.id).join(', ')], ...row.fields] };
+  });
+  return { ...model, questions };
+}
+
+/** Render the Items page's one collapsed group of questions and sentinels, above the item list [N26]. */
+export function itemsNeedsHtml({ questions = [], approvals = [], drafts = 0 }, { questionsHtml = '', restHtml = '', open = false } = {}) {
+  if (!questions.length && !approvals.length && !drafts) return '';
+  const esc = value => String(value ?? '').replace(/[&<>"']/gu, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const more = [approvals.length ? approvals.length + ' approved in Git' : '', drafts ? drafts + ' draft spec rows' : ''].filter(Boolean).join(' · ');
+  return '<li class="needs-fold"><details data-items-needs' + (open ? ' open' : '') + '><summary>'
+    + '<span class="needs-fold-caret" aria-hidden="true">›</span><span class="needs-fold-label">Questions and sentinels</span>'
+    + '<b class="needs-fold-count">' + questions.length + '</b>' + (more ? '<small class="needs-fold-more">' + esc(more) + '</small>' : '')
+    + '</summary><ol>' + (questionsHtml ? '<li class="needs-fold-questions"><ol>' + questionsHtml + '</ol></li>' : '') + restHtml + '</ol></details></li>';
+}
