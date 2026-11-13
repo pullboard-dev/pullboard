@@ -15,7 +15,8 @@ import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 for (const scenario of ['deleted source', 'terminal item', 'unreadable item status']) {
 test(scenario === 'unreadable item status'
   ? 'an unreadable item status keeps the lease and health names why until observation recovers [C7]'
-  : `a ${scenario} cancels its controller and releases its actual caller lease without fixture cancellation [C7]`, t => {
+  : `a ${scenario} cancels its controller and releases its actual caller lease without fixture cancellation [C7]`,
+{ skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

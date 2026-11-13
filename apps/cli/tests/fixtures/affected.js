@@ -30,6 +30,9 @@ import {
 import {
   fixtureSettledMachine,
 } from './testkit.js';
+import {
+  settleSubmit,
+} from './submit/settle.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 const FROZEN = 'node test/runner.js test/frozen.test.js';
@@ -156,6 +159,42 @@ export function rows(box, sql, ...args) {
 export function fileMainRed(box) {
   const result = cli(box, box.root, 'add', 'core', 'Main red: affected case needs repair', '--specs', 'G1',
     '--criterion', 'The affected case passes on main.', '--check', 'node test/runner.js test/affected.test.js', '--brief', 'Files: test/affected.test.js\nTest: affected case');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return JSON.parse(result.stdout).item.item_id;
+}
+
+
+/**
+ * Submit the claimed item and wait for its pulled gate job, then (unless `submitted` is false, as for a red gate) for the item to be submitted: a red in main's own cases
+ * settles once main's receipts record [P7,C7,#6249]. `submission` is the recorded submit's detail, or null while none is.
+ */
+export async function settledSubmit(t, box, { submitted = true } = {}) {
+  const result = once(box, box.builder, ['submit', String(box.item), '--no-next']);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const run = (cwd, ...args) => {
+    const shown = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' });
+    return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
+  };
+  let shown = null;
+  const until = document => { shown = document; return document?.item_status === 'submitted'; };
+  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), submitted ? { until, deadlineMs: 75_000 } : {})
+    .catch(error => { throw new Error(`${error.message.split('\n')[0]}; item ${shown?.item_status}; thread:\n${JSON.stringify((shown?.thread ?? []).slice(-6)).slice(0, 3000)}`); });
+  const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1", box.item)[0];
+  return { ...settled, submission: event ? JSON.parse(event.event_detail) : null };
+}
+
+/** Two real cases red on main and unchanged by the item, so each needs its own owner. */
+export const SHARED = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n"
+  + "test('alpha case [G1]', () => assert.equal(1, 2));\ntest('beta case [G1]', () => assert.equal(1, 3));\n";
+
+/** File an open repair whose check names the shared file and whose criterion names one case (or none). */
+export function fileCaseRepair(box, criterion) {
+  const args = ['add', 'core', `Main red: ${criterion}`, '--specs', 'G1',
+    '--criterion', criterion, '--check', 'node test/runner.js test/affected.test.js', '--brief', 'Files: test/affected.test.js\nTest: shared cases'];
+  let result = cli(box, box.root, ...args);
+  // The second repair reads like the first by design: answer the near-duplicate guard with the nearest id it names.
+  const nearest = /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.stdout + result.stderr)?.[1];
+  if (result.status !== 0 && nearest) result = cli(box, box.root, ...args, '--not-duplicate-of', `${nearest} each repair owns a different case`);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }

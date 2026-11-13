@@ -252,9 +252,9 @@ test('clause 1: analysis loads main\'s own tooling, never an installed copy that
   assert.deepEqual(observation.toolingSource, { kind: 'pinned-main', commit: box.main });
 });
 
-test('clause 3: a real import failure in pinned main\'s own tooling still refuses RUNNER_RESULT_INVALID [C7]', async t => {
+test('clause 3: a real import failure in pinned main\'s own tooling refuses RUNNER_TOOLING_CRASH, never retried as infrastructure [C7]', async t => {
   const box = fixture(t, { brokenMain: true });
-  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')), { code: 'RUNNER_RESULT_INVALID' });
+  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')), { code: 'RUNNER_TOOLING_CRASH' });
 });
 
 test('clause 1: a cold accepted inventory is produced on the runner with main as its trunk, and the controller runs only git [C7]', async t => {

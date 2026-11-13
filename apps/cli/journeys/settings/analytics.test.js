@@ -22,6 +22,8 @@ import { apiHttpFixture } from '../../tests/fixtures/api.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 import { performance } from 'node:perf_hooks';
 import { costAnalytics } from '../../../../packages/stats/index.js';
+import { costAnalyticsSliced } from '../../../../packages/stats/index.js';
+import { readCostAnalytics } from '../../../../packages/api/src/io/cost.js';
 import { costWindowStart } from '../../../../packages/stats/index.js';
 import { wilson } from '../../../../packages/stats/index.js';
 
@@ -210,4 +212,26 @@ test('a shout or item read answers fast while cost analytics runs on a big log [
   assert.equal(item.status, 200);
   assert.equal((await cost).status, 200);
   assert.ok(waited < 100, `the item read waited ${Math.round(waited)} ms behind cost analytics`); // budget: declared by #6663 clause 2, under 100 ms
+});
+
+test('#7362 clause 1: a read after the board moved answers from the last answer at once, and the next read finds the rebuilt one [N26]', async t => {
+  const board = openKitBoard(':memory:');
+  t.after(() => store.closeBoard(board));
+  const coordinator = store.register(board, { lane: 'coordinator', path: '/repo' });
+  const builder = store.register(board, { lane: 'core', path: '/builder', model: FIXTURE_MODEL });
+  const now = new Date(), answers = new Map();
+  const land = index => {
+    const id = store.addItem(board, { by: coordinator, lane: 'core', title: `Landed ${index}` });
+    logEvent(board, builder, 'submit', id, {}, now);
+    logEvent(board, builder, 'usage', null, { item: id, revision: 1, records: [{ model: FIXTURE_MODEL, wallMs: 1000, inputTokens: 10 }] }, now);
+    logEvent(board, coordinator, 'merged', id, {}, now);
+  };
+  const ask = () => readCostAnalytics({ root: '/repo' }, 'today', { read: work => work(board), now, modelPresentation: presentation, answers, costWindowStart, costAnalyticsSliced });
+  land(1);
+  assert.equal((await ask()).totals.itemCount, 1, 'the first read waits for its build');
+  land(2);
+  assert.equal((await ask()).totals.itemCount, 1, 'a read after the board moved answers from the last answer');
+  await [...answers].find(([key]) => key.startsWith('/repo|today|') && !key.endsWith('|last'))[1];
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await ask()).totals.itemCount, 2, 'the build the move started has landed');
 });

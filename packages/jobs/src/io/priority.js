@@ -28,7 +28,7 @@ function heldClasses(db, runner, now) {
  * @returns {{ row: Record<string, any>, offer: Record<string, any> }[]}
  */
 export function claimableJobs(db, { runner, now, limit, reserve = null, slots = null, runnable = () => true }) {
-  const open = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
+  const open = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
     WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY ${reserve ? BY_CLASS : PLAIN}, job.job_created, job.job_id LIMIT ?`).all(now, limit);
   const jobs = open.map(row => ({ row, offer: JSON.parse(row.job_step_payload) })).filter(({ row, offer }) => runnable(row, offer));
