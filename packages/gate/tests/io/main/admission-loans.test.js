@@ -340,7 +340,8 @@ test('c', () => { execSync(${JSON.stringify(startD)}, { cwd: ${JSON.stringify(ro
 test('four concurrent runs start only token-owned file processes and keep p95 below twice standalone [C7]', async t => {
   for (const mode of ['native', 'landing']) await t.test(mode, async scope => {
     const measurement = await measureFileInflation(scope, mode);
-    scope.diagnostic('P95_MEASUREMENT=' + JSON.stringify(measurement));
+    const { samples, runs, standalone, standaloneAfter, ...summary } = measurement; // the rows are long; the summary keeps a red's numbers in a short log
+    scope.diagnostic('P95_MEASUREMENT=' + JSON.stringify({ ...summary, worstRatios: samples.map(row => Math.round(row.ratio * 100) / 100).sort((x, y) => y - x).slice(0, 4) }));
     assert.equal(measurement.peakConcurrentRuns, 4, 'all four actual private gate leases overlapped');
     await scope.test('only token-owned file processes start', () => {
       assert.ok(measurement.peakFileProcesses <= measurement.cores,

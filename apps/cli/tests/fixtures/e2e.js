@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
 import { runFixtureChild } from './child.js';
+import { runFixtureChildAsync } from './child.js';
 import { runFixtureSetupGit } from './child.js';
 import { performance } from 'node:perf_hooks';
 import { chmodSync } from 'node:fs';
@@ -192,6 +193,13 @@ function sandbox({ declareFamilies = false } = {}) {
     if (result.status === 0) settlePulledJobs(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
+  /** The same call as run in its own process without blocking this one, so a journey runs several CLI calls at once. */
+  const runAsync = async (cwd, ...args) => {
+    prepare(cwd, args);
+    const result = await runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    if (result.status === 0) settlePulledJobs(cwd, args, env);
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
+  };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
     prepare(cwd, args);
@@ -206,7 +214,7 @@ function sandbox({ declareFamilies = false } = {}) {
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
   runSync.of = run;
-  return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, runSync, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: inProcess, runIn: inProcess, runSync, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -279,7 +287,7 @@ function holdingGate(box) {
     'const [armed, release, events] = process.argv.slice(2);',
     'if (!fs.existsSync(armed)) process.exit(0);',
     "fs.appendFileSync(events, 'start\\n');",
-    'const deadline = Date.now() + 15000;',
+    'const deadline = Date.now() + 180000; // budget: hang ceiling while a test observes the held gate; no elapsed-time assertion.',
     'while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);',
     'if (!fs.existsSync(release)) process.exit(23);',
     "fs.appendFileSync(events, 'end\\n');",

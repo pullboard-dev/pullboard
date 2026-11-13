@@ -15,7 +15,7 @@ import { configFromSource } from '../../../../packages/config/index.js';
 
 test("clause 1: publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3,C7]", async t => {
   const box = bridgeProject(t);
-  const entries = landBridgeItems(box);
+  const entries = await landBridgeItems(box);
   const provider = await bridgeProvider(t, box);
   const head = box.git(box.repo, 'rev-parse', 'main');
   const result = await runBridgeCLI(box, 'publish', '--json');
