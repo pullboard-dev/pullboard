@@ -457,12 +457,12 @@ async function scrollRowIntoView(chrome, id) {
     await chrome.waitFor(`!!document.querySelector('#chain .row[data-item="${id}"]')`);
   } catch (error) {
     // Diagnostic: which geometry moves each frame, so the product cause can be found.
-    const frames = await chrome.stable(`new Promise((done) => { const out = []; const step = () => {
+    const frames = (await chrome.send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression: `new Promise((done) => { const out = []; const step = () => {
       const chain = document.querySelector('#chain'), rows = [...chain.querySelectorAll('.row')], cs = getComputedStyle(chain);
       out.push({ y: Math.round(scrollY), inner: innerHeight, doc: Math.round(document.documentElement.getBoundingClientRect().height), top: Math.round(chain.getBoundingClientRect().top), h: Math.round(chain.getBoundingClientRect().height),
         pt: cs.paddingTop, pb: cs.paddingBottom, gap: cs.rowGap, rowH: rows[0] ? Math.round(rows[0].getBoundingClientRect().height) : null, n: rows.length, first: rows[0]?.dataset.item, last: rows.at(-1)?.dataset.item, shown: itemsList.shown.length, pitch: itemsPitch,
         idx: itemsList.shown.findIndex((item) => item.id === ${id}), chainScroll: chain.scrollTop, chainClient: chain.clientHeight });
-      if (out.length < 8) requestAnimationFrame(step); else done(JSON.stringify(out)); }; requestAnimationFrame(step); })`);
+      if (out.length < 8) requestAnimationFrame(step); else done(JSON.stringify(out)); }; requestAnimationFrame(step); })` })).result?.value;
     throw new Error(`${error.message}; frames ${frames}`);
   }
 }
