@@ -35,10 +35,10 @@ test('#5846 clause 1: the registry names one entry point for each operation [C7]
 test('#5846 clause 1: a second spawn of the test runner outside the registered entry is refused; the entry, a comment and a test file are not sites [C7]', () => {
   const sites = operationSites(RUNNER_SPAWN, 'packages/demo/src/io/runner.js');
   assert.deepEqual(sites.map(row => [row.operation, row.line]), [['run-tests', 2]]);
-  assert.match(sites[0].text, /outside packages\/gate\/src\/io\/run-tests\.js/u);
+  assert.match(sites[0].text, /outside apps\/cli\/src\/io\/run\/tests\.js/u);
   assert.deepEqual(operationEntryGrowth(sites, {}), sites, 'a file the baseline does not name is refused');
   assert.deepEqual(operationEntryGrowth(sites, { 'run-tests': ['packages/demo/src/io/runner.js'] }), [], 'a recorded second path is allowed until it goes');
-  assert.deepEqual(operationSites(RUNNER_SPAWN, 'packages/gate/src/io/run-tests.js'), [], 'the registered entry is not a second path');
+  assert.deepEqual(operationSites(RUNNER_SPAWN, 'apps/cli/src/io/run/tests.js'), [], 'the registered entry is not a second path');
   assert.deepEqual(operationSites(`// ${RUNNER_SPAWN.split('\n')[1]}\n`, 'packages/demo/src/io/runner.js'), [], 'a commented-out spawn is not a site');
   assert.deepEqual(operationSites(RUNNER_SPAWN, 'packages/demo/tests/runner.test.js'), [], 'tests are not shipped source');
   assert.deepEqual(operationSites("spawnSync('git', ['status']);\n", 'packages/demo/src/io/git.js'), [], 'a child that is not the test runner is not a site');
@@ -115,4 +115,20 @@ test('#6751 clause 2: the baseline lists the current process-group kill files as
   assert.ok(baseline['stop-process-tree'].length > 0);
   const grown = { ...baseline, 'stop-process-tree': [...baseline['stop-process-tree'], 'packages/demo/src/io/stop.js'] };
   assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /stop-process-tree gains a second entry point/u);
+});
+
+test('#6748 clause 1: run-tests is entered at the shim the launcher spawns, and the registry refuses another entry [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'run-tests');
+  assert.equal(entry?.entry, 'apps/cli/src/io/run/tests.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /startRunTests\(/u, 'the entry launches the engine');
+  assert.deepEqual(operationSites(RUNNER_SPAWN, 'packages/gate/src/io/run-tests.js').map(row => row.operation), ['run-tests'], 'any file but the shim that spawns the runner is a second path');
+  assert.deepEqual(operationSites(RUNNER_SPAWN, entry.entry), [], 'the shim itself is not');
+});
+
+test('#6748 clause 2: the baseline records the shim and the bin forwarder as thin forwards, so the 4 names count as 1 operation [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline.forwards['run-tests'], ['apps/cli/src/io/run/tests.js', 'packages/gate/bin/run-tests.js']);
+  for (const path of baseline.forwards['run-tests']) assert.ok(readFileSync(new URL(path, ROOT), 'utf8').split('\n').length < 20, `${path} only forwards`);
+  assert.equal(operationEntryCounts(baseline)['run-tests'], 1 + baseline['run-tests'].length, 'forwards add no entry point');
+  assert.deepEqual(baseline.forwards, operationEntryFiles(operationReport(fileURLToPath(ROOT))).forwards, 'the recorded forwards are the registry\'s');
 });
