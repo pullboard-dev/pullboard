@@ -103,7 +103,7 @@ test('clause 3: a cell with only conforming tests reports sealed, one with a fin
 
 test('clause 1: a cell test that imports front doors of cells below it is the component tier; one above it or past a front door is a finding [C7,V23]', () => {
   const root = fixture({
-    'packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ order: 1, name: 'b' }, { order: 2, name: 'a' }] }),
+    'packages/gate/data/tests/cell-order.json': JSON.stringify({ order: ['b', 'a'] }),
     'packages/b/src/inner.js': 'export const inner = 1;\n',
     'packages/a/tests/component.test.js': "import { a } from '../index.js';\nimport { b } from '../../b/index.js';\nexport const x = [a, b];\n",
     'packages/a/tests/deep.test.js': "import { inner } from '../../b/src/inner.js';\nexport const x = inner;\n",
