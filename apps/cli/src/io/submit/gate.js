@@ -99,7 +99,6 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
-import { storeName } from '../store-names.js';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
 // An accepted main that predates the cli-owned module still keeps the checks in bin/.
 const cells = await import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js');
@@ -378,7 +377,7 @@ function runningToolingId() {
  * @returns {string}
  */
 export function analysisResultFile(artifactDirectory, { main, source, parts, tooling = runningToolingId() }) {
-  return join(artifactDirectory, 'results', `${parts ? parts.join('+') : 'all'}-${main}-${source}-${storeName(tooling)}`);
+  return join(artifactDirectory, 'results', [parts ? parts.join('+') : 'all', main, source, tooling].join('-') + '.json');
 }
 
 /**
