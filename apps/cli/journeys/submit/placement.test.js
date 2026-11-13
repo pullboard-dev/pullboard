@@ -173,3 +173,23 @@ test('trusted submit admits an actual explicit process rehome and keeps its sour
   placePath(value.root, value.path, { cell: 'app:lib', entry: true });
   assert.deepEqual((await inspectEntry(value)).problems, []);
 });
+
+test('clause 1: main\'s committed plan places every process entry, packages/landing/src/io/main/red/refresh.js included [C7]', () => {
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
+  const plan = readPlan(root);
+  const original = 'bin/main-red-refresh.js';
+  assert.equal(cellReadPathMap(root).get(original), 'packages/landing/src/io/main/red/refresh.js');
+  assert.ok(plan.stays.some(stay => stay.path === original));
+  assert.ok(plan.entries.some(entry => entry.path === original));
+  assert.deepEqual(entryPlacementProblems(root, plan), []);
+});
+
+test('clause 1: infra-release and main-red-focus engines live in the state engines folder, with no src/ stay left [C7,V4]', () => {
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
+  const plan = readPlan(root);
+  for (const name of ['infra-release-engine.js', 'main-red-focus-engine.js']) {
+    assert.ok(existsSync(join(root, 'packages/state/src/logic/engines', name)), name);
+    assert.equal(plan.stays.some(entry => entry.path === `src/${name}`), false, `no stay row names src/${name}`);
+  }
+  assert.deepEqual(entryPlacementProblems(root, plan), []);
+});

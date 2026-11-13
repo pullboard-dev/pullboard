@@ -102,3 +102,19 @@ test('listed canonical engine leaves and the two bootstrap supports stay without
   assert.deepEqual(paths.map(file => readFileSync(join(box.root, file), 'utf8')), original);
   assert.deepEqual((await inspect(box)).problems, []);
 });
+
+test('a non-state cell retains its own engine leaf and survives the immutable submit controller [C7,CD64]', async t => {
+  const box = accepted(t, 'stats'), paths = [box.paths[0], box.paths[6]];
+  const original = paths.map(file => readFileSync(join(box.root, file), 'utf8'));
+  box.plan = retainEnginePaths({ root: box.root, plan: box.plan, cellName: 'stats', paths, pathMap: new Map() });
+  assert.deepEqual(box.plan.engineStays.map(entry => [entry.cell, entry.row[0]]), paths.map(file => ['stats', file]));
+  assert.deepEqual(paths.map(file => readFileSync(join(box.root, file), 'utf8')), original);
+  assert.deepEqual((await inspect(box)).problems, []);
+});
+
+test('retainEnginePaths refuses an ordinary file, an engine-looking name, a non-engine stats file and a missing cell [C7,CD64]', t => {
+  const box = accepted(t), stats = accepted(t, 'stats'), refused = error => error.code === 'CELLS_ENGINE_STAY';
+  for (const file of box.paths.slice(3, 6)) assert.throws(() => retainEnginePaths({ root: box.root, plan: box.plan, cellName: 'state', paths: [file], pathMap: new Map() }), refused);
+  assert.throws(() => retainEnginePaths({ root: stats.root, plan: stats.plan, cellName: 'stats', paths: [stats.paths[3]], pathMap: new Map() }), refused);
+  assert.throws(() => retainEnginePaths({ root: stats.root, plan: stats.plan, cellName: 'missing', paths: [stats.paths[0]], pathMap: new Map() }), refused);
+});
