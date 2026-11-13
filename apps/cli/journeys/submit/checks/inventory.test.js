@@ -57,6 +57,8 @@ const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, p
 async function plannedFixture(t, prepare = () => {}) {
   const box = fixture(t);
   prepare(box);
+  // The cell inventory reads only indexed files, so stage what the case just wrote before the plan is computed.
+  git(box.root, 'add', '-A');
   writePlan(box.root, computePlan(box.root));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'plan actual fixture');

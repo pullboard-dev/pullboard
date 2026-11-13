@@ -131,10 +131,10 @@ const SURFACE_FILE = Object.freeze({
   'handoff-queue': 'packages/resources/src/io/handoff/worker/cap.js',
   'board-write': 'packages/store/src/io/board/write/lock.js',
   'resource-write': 'packages/resources/src/io/write/queue.js',
-  gate: 'apps/cli/src/io/gate/drive.js',
+  gate: 'apps/cli/src/io/submit/pull.js',
   'landing-run': 'apps/cli/src/io/landing/automatic.js',
   'runner-job': 'apps/runner/src/io/scripts/worker.js',
-  orphan: 'packages/resources/src/io/handoff/recovery.js',
+  orphan: 'packages/sentinels/src/io/surfaces.js',
   'heartbeat-loop': 'apps/cli/src/io/commands/heartbeat.js',
   'heartbeat-claim': 'apps/cli/src/io/commands/heartbeat.js',
 });

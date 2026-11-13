@@ -11,6 +11,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -28,7 +29,7 @@ function commit(box, cwd, message) {
   box.git(cwd, 'commit', '-q', '-m', message);
 }
 
-test('clause 1: deferred suite and cross-lane mechanical edit submit both notices on one line [V4,L3,C7]', () => {
+test('clause 1: deferred suite and cross-lane mechanical edit submit both notices on one line [V4,L3,C7]', async t => {
   const box = helpers.project('node --test', helpers.sandbox(), { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.submitGate = 'landing';
@@ -51,7 +52,7 @@ test('clause 1: deferred suite and cross-lane mechanical edit submit both notice
   writeFileSync(join(builder, 'api/consumer.js'), "import { value } from '../web/new.js';\nexport const result = value;\n");
   commit(box, builder, 'refactor(web): repoint consumer import [G1]');
   json(box, builder, 'fact', String(item), 'note', 'clause 1 [test]: test/import.test.js proves clause 1: the consumer import resolves to the renamed module');
-  const submitted = json(box, builder, 'submit', String(item), '--no-next');
+  const submitted = await settleSubmit(t, box, json(box, builder, 'submit', String(item), '--no-next'));
   assert.equal(submitted.gate.deferred, true);
   assert.match(submitted.gate.report, /cross-lane mechanical edits: api\/consumer\.js/u);
   const shown = json(box, builder, 'show', String(item));
