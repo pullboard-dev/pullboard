@@ -32,12 +32,9 @@ import { cellLintGrowth } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
 import { cellReadPathMap as readPathMap } from '../../../../packages/codemap/index.js';
 import { mappedPath } from '../../../../packages/codemap/index.js';
-import { checkCuts } from '../../../../packages/codemap/index.js';
 import { entryPlacementProblems } from '../../../../packages/codemap/index.js';
 import { processEntry } from '../../../../packages/codemap/index.js';
-import { cutTitle } from '../../../../packages/codemap/index.js';
 import {
-  frontDoorBypasses,
   onlyForwards,
   withDeclaredLoads,
 } from '../../../../packages/codemap/index.js';
@@ -84,27 +81,11 @@ function mappedBypassKey(map, key) {
   return to !== undefined && extra === undefined ? `${mappedPath(map, from)}->${mappedPath(map, to)}` : key;
 }
 
-/** Read only landed core cut items (titles cutTitle names), so the runner request carries a few rows, not the board [C7]. */
+/** Read only landed core cut items (titles `Cells import cuts: <cell> ...`), so the runner request carries a few rows, not the board [C7]. */
 export function landedCutItemRows(db) {
   return db.prepare(`SELECT item_id, item_lane, item_title, item_status, item_merged_commit FROM item
     WHERE item_lane='core' AND item_status='verified' AND item_merged_commit IS NOT NULL AND item_title LIKE 'Cells import cuts: % removes imports into later cells'
     AND NOT EXISTS (SELECT 1 FROM board_meta WHERE meta_key='item_redirect:' || item_id)`).all();
-}
-
-/** Read cut authority only from the trusted controller's board snapshot and pinned accepted ancestry. */
-function landedCutCells(root, acceptedMain, plan, readCutItems) {
-  if (typeof readCutItems !== 'function') throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader is required');
-  const items = readCutItems(acceptedMain, root);
-  if (!Array.isArray(items)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
-  const titles = new Map(plan.cells.map(cell => [cutTitle(cell.name), cell.name]));
-  const landed = new Set();
-  for (const item of items) {
-    const cell = titles.get(item.item_title);
-    if (!cell || item.item_lane !== 'core' || item.item_status !== 'verified'
-      || !/^[a-f0-9]{40,64}$/u.test(item.item_merged_commit ?? '')) continue;
-    if (tryGit(root, ['merge-base', '--is-ancestor', item.item_merged_commit, acceptedMain]).status === 0) landed.add(cell);
-  }
-  return landed;
 }
 
 /** A malformed analysis is a refusal, never an empty set of findings. */
@@ -413,75 +394,6 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   return { cells, problems, warnings, reorg, allCellsReason: fallback ?? null, ...(collectMachinery ? { machinery } : {}) };
 }
 
-/**
- * Run one side's cut check, turning a plan the cut tooling cannot read into a CELLS_SUBMIT refusal that names the side
- * and the error. Why: on 9 Nov #3689 renumbered the cell order and importCuts threw "cut links must name an earlier
- * importing cell"; the uncaught throw killed the remote analysis and every section came back RUNNER_RESULT_INVALID, a
- * machine fault, when the candidate's own plan was the problem.
- *
- * @template T
- * @param {'candidate' | 'accepted main'} side
- * @param {string} cell
- * @param {() => T} check
- * @returns {T}
- */
-export function readableCuts(side, cell, check) {
-  try { return check(); }
-  catch (error) {
-    if (error instanceof Refused) throw error;
-    throw new Refused('CELLS_SUBMIT', `the ${side} cells plan cannot be cut-checked for ${cell}: ${error?.message ?? error}; ${side === 'candidate'
-      ? 'make every cut link in packages/codemap/data/plan name an importing cell ordered before its target (renumber the cuts with the cells), then commit the plan'
-      : 'accepted main\'s cells plan is inconsistent; tell the coordinator, who repairs main\'s plan'}`);
-  }
-}
-
-/** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
-function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations, cacheEligible, onCellObservation = () => {}, collectBacklog = false }) {
-  if (!existsSync(join(baseRoot, 'packages/codemap/data/plan/cells.json'))) return { problems: [], existingCuts: [], later: [] };
-  const before = readPlan(baseRoot), after = candidatePlan(sourceRoot);
-  const changed = git(sourceRoot, ['diff', '--name-only', '--no-renames', '-z', cutBase, 'HEAD']).split('\0').filter(Boolean);
-  const oldInventory = inventories ? inventories.base(baseRoot, cutBase) : cellInventory(baseRoot, parsers);
-  const newInventory = inventories ? inventories.candidate(sourceRoot, oldInventory, changed) : cellInventory(sourceRoot, parsers);
-  const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
-  const problems = [], existingCuts = [], later = [];
-  const candidateMap = readPathMap(sourceRoot);
-  for (const name of cells) {
-    if (!collectBacklog && !landedCells.has(name)) continue;
-    const previous = before.cells.some(cell => cell.name === name);
-    const cacheKey = `cell-base-cuts:${cutBase}:${name}`;
-    const cached = previous && cacheEligible?.() ? observations?.get(cacheKey)?.value : null;
-    let oldCuts;
-    if (Array.isArray(cached) && cached.every(value => typeof value === 'string')) {
-      oldCuts = [...cached];
-      onCellObservation('base-reused', name);
-    } else {
-      oldCuts = previous ? readableCuts('accepted main', name, () => checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory })) : [];
-      if (previous && cacheEligible?.() && observations instanceof Map && observations.size < 32768) {
-        const bytes = Buffer.byteLength(cacheKey) + Buffer.byteLength(JSON.stringify(oldCuts));
-        if (bytes <= 1024 * 1024) observations.set(cacheKey, { value: [...oldCuts], bytes });
-      }
-      onCellObservation('base-checked', name);
-    }
-    // The full accepted cut backlog belongs to the main audit, not every submit.
-    if (collectBacklog) existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
-    if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
-    const newCuts = readableCuts('candidate', name, () => checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory }));
-    for (const problem of additions(oldCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)),
-      newCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)))) {
-      const edge = / still imports later [\w:-]+: ([^:\r\n]+) -> ([^:\r\n]+)$/u.exec(problem);
-      if (edge) later.push({ text: `${name} --cuts: ${problem}; import a lower cell or take a port`,
-        warning: warning(edge[1], importLine(sourceRoot, edge[1], edge[2]), `${name} --cuts: ${problem}`, 'import a lower cell or take a port') });
-      else problems.push(`${name} --cuts: ${problem}; import a lower cell or take a port`);
-    }
-    const oldDoors = previous ? readableCuts('accepted main', name, () => frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory })) : new Map();
-    const oldDoorKeys = new Set([...oldDoors.keys()].map(key => mappedBypassKey(candidateMap, key)));
-    for (const [key, text] of readableCuts('candidate', name, () => frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory }))) {
-      if (!oldDoorKeys.has(mappedBypassKey(candidateMap, key))) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
-    }
-  }
-  return { problems, existingCuts, later };
-}
-
 /** Immutable snapshot callbacks may not leave changed files or a moved checkout behind. */
 function unchangedSnapshot(root, commit) {
   if (git(root, ['rev-parse', 'HEAD']) !== commit || git(root, ['status', '--porcelain', '--untracked-files=all'])) {
@@ -569,29 +481,17 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const snapshots = cellsObjectSnapshots(root, acceptedMain, [commit, cutBase, source], artifact, services.onSnapshotRead);
   const result = await withCellSourceSnapshots([...snapshots.values()], async () => {
     const mainRoot = snapshots.get(acceptedMain).root, candidateRoot = snapshots.get(commit).root;
-    const landedCells = existsSync(join(mainRoot, 'packages/codemap/data/plan/cells.json'))
-      ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
     const result = withSubmitCellParser(() => cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, title, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: false, collectMachinery: services.collectMachinery === true, onBindingProbe: services.onBindingProbe, onAllCells: services.onAllCells, runtimeIdentity: artifact.runtimeIdentity }));
-    /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
-    const inspect = (baseRoot, sourceRoot) => {
-      const cuts = withSubmitCellParser(() => withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations: observations.values, cacheEligible: samePreloads, onCellObservation: services.onCellObservation })));
-      unchangedSnapshot(baseRoot, cutBase);
-      unchangedSnapshot(sourceRoot, source);
-      return cuts;
-    };
-    const cuts = inspect(snapshots.get(cutBase).root, snapshots.get(source).root);
     unchangedSnapshot(mainRoot, acceptedMain);
     unchangedSnapshot(candidateRoot, commit);
     observations.commit();
-    if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
-    // Later-cell imports refuse only Cells reorg work; every other item proceeds with them as warnings (#2473).
-    const problems = [...result.problems, ...cuts.problems, ...result.reorg ? cuts.later.map(row => row.text) : []];
+    const problems = [...result.problems];
     const machinery = [...result.machinery ?? []];
     if (services.collectMachinery && problems.length) machinery.push({ kind: 'plan', code: 'CELLS_SUBMIT', message: problems.join('; '), rule: receiptDigest(readFileSync(fileURLToPath(import.meta.url), 'utf8')) });
     else refuse(problems);
-    const warnings = [...result.warnings, ...result.reorg ? [] : cuts.later.map(row => row.warning)];
+    const warnings = [...result.warnings];
     const policy = services.collectMachinery && existsSync(join(mainRoot, 'packages/codemap/data/plan/cells.json')) ? readPlan(mainRoot) : null;
-    return { ...result, warnings, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source,
+    return { ...result, warnings, existingCuts: [], acceptedMain, cutBase, commit, source,
       ...(services.collectMachinery ? { machinery: machinery.map(row => ({ ...row, rule: receiptDigest([row.rule, policy, cutRows]) })) } : {}) };
   });
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);

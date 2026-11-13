@@ -14,9 +14,9 @@ test('clause 1: the real remoteSubmitCells path with a cold coordinator inventor
   try {
     const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' };
     const git = (...args) => runFixtureGit(args, { cwd: root, env });
-    // The plan reaches the commit as a Git object, so main has a cells plan and no inventory is warm on the coordinator.
+    // The plan reaches the commit as a Git object, so main has the cells tooling and no inventory is warm on the coordinator.
     const plan = runFixtureGit(['hash-object', '-w', '--stdin'], { cwd: root, env, input: '{}\\n' });
-    git('update-index', '--add', '--cacheinfo', `100644,${plan},packages/codemap/data/plan/cells.json`);
+    git('update-index', '--add', '--cacheinfo', `100644,${plan},packages/codemap/index.js`);
     git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'plan');
     const main = git('rev-parse', 'HEAD'), tree = git('rev-parse', 'HEAD^{tree}');
     const stdout = Buffer.from('PULLBOARD_CELLS_RESULT ' + JSON.stringify({ acceptedMain: main, source: main, cells: [], existingCuts: [], problems: [], warnings: [], reorg: null }) + '\n');
