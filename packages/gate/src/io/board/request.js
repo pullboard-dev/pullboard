@@ -68,6 +68,7 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/sandbox/src/io/trusted/policy/committed.js#policyGit': 'mainReceipts reads the main committed policy with synchronous git',
   'packages/spec/src/io/signature.js#runTool': 'spec approval evidence runs a signing tool in a synchronous child process',
   'packages/store/src/io/board/busy.js#beginImmediateQueued': 'a queued board write parks the thread on Atomics.wait between retries',
+  'packages/store/src/io/board/claim.js#jitter': 'a claim preparation re-reads its rows after a few random milliseconds parked on Atomics.wait; the pulled gate renews the submit admission through it',
   'packages/store/src/io/board/write/lock.js#boardWriteHolderText': 'busy-board error text lists lock holders with a synchronous directory read',
   'packages/store/src/io/board/write/lock.js#identities': 'busy-board error text lists lock holders through a synchronous process lookup',
   'packages/verify/src/io/verdict/freshness.js#readGit': 'verdict freshness reads git synchronously while building relay state',
