@@ -27,7 +27,7 @@ test('clause 1: How work moved, Now, Release, the pace strip, Agents, the four l
   assert.deepEqual(cards, [
     ['build', 'Build', '1/h', '3 claimed → 2 submitted'],
     ['gate', 'Gate', '1/h', '1 green · 1 red'],
-    ['review', 'Review', '0/h', '0 accepted · 1 sent back'],
+    ['review', 'Review', '1/h', '1 accepted · 1 sent back'],
     ['land', 'Land', '0/h', '1 landed · 1 to land'],
   ]);
   assert.match(flow, /1 sent back<\/button> to their builders in the last 4 hours/u, 'the reject five hours ago is outside the window');
