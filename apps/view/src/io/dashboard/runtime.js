@@ -3,7 +3,7 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null }) {
   const histories = new Map();
   // The first-run tour keeps its stop across live redraws, so a refresh never sends it back to the start.
   const tour = { index: 0, auto: true, timer: null };
@@ -51,12 +51,12 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const observedAt = Date.parse(project.observedAt);
     const now = Number.isFinite(observedAt) ? observedAt : Date.now();
     // Native snapshots are JSON; include every field so changed live data or an observation clock always invalidates.
-    const projectKey = JSON.stringify(project), cached = held.modelCache;
+    const projectKey = JSON.stringify(project), cached = held.modelCache, atWork = working ? working(project) : null, atWorkKey = atWork ? atWork.join('|') : '';
     const fresh = cached && cached.projectKey === projectKey && cached.events === held.events
-      && cached.prefix === prefix && cached.complete === complete && cached.now === now;
+      && cached.prefix === prefix && cached.complete === complete && cached.now === now && cached.atWorkKey === atWorkKey;
     const behind = !fresh && quick && Boolean(cached?.state);
-    const state = fresh || behind ? cached.state : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now });
-    if (!behind) held.modelCache = { projectKey, events: held.events, prefix, complete, now, state };
+    const state = fresh || behind ? cached.state : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now, working: atWork });
+    if (!behind) held.modelCache = { projectKey, events: held.events, prefix, complete, now, atWorkKey, state };
     const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const progress = state.milestone ? summary(state.milestone, { now, locale, timeZone })?.header ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
