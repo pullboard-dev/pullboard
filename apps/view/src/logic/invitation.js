@@ -4,17 +4,28 @@
  * @returns {string}
  */
 export function sharingPresentation() {
-  return `/** Show the opt-in once after a real local read; quiet boards do not acquire another polling loop. */
-async function sharingInvitation() {
-  if (!$('share-note') || snapshot || (hosted.local ? !localSession : pageReadOnly || configuredTransportModule)) return;
-  let available = false;
-  try { available = Boolean((await sharingApi()).available); } catch { available = false; }
-  const hiddenByPerson = keep('pb.share') === 'hidden';
-  $('share-note').hidden = !available || hiddenByPerson;
-  if ($('share-again')) $('share-again').hidden = !available || !hiddenByPerson;
+  return `/** Who is signed in, from one local read; the account control at the top right shows it, and no banner appears in the page. */
+let account = { linked: Boolean(hosted.relaySession), login: '' };
+/** Draw the control, and the menu when it is open, from what the last read said. */
+function drawAccount() {
+  const slot = $('account-slot'), menu = $('account-menu');
+  if (!slot || !menu) return;
+  const open = !menu.hidden;
+  const button = slot.querySelector('[data-account]');
+  const fresh = document.createElement('div');
+  fresh.innerHTML = accountHtml({ signedIn: account.linked, login: account.login });
+  if (button) button.replaceWith(fresh.firstChild); else slot.prepend(fresh.firstChild);
+  if (open) { $('account').setAttribute('aria-expanded', 'true'); menu.innerHTML = accountMenuHtml({ signedIn: account.linked, login: account.login, theme: keep('pb.theme') || 'system' }); }
 }
-$('share-hide')?.addEventListener('click', () => { keep('pb.share', 'hidden'); $('share-note').hidden = true; if ($('share-again')) $('share-again').hidden = false; });
-$('share-again')?.addEventListener('click', () => { keep('pb.share', 'shown'); $('share-again').hidden = true; $('share-note').hidden = false; });
+/** Read once after a real local read whether any board is linked and as whom; quiet boards do not acquire another polling loop. */
+async function sharingInvitation() {
+  if (snapshot || (hosted.local ? !localSession : pageReadOnly || configuredTransportModule)) return;
+  try {
+    const reply = await sharingApi();
+    account = { linked: Boolean(reply.linked), login: String(reply.login || '') };
+  } catch { /* the control stays as it was */ }
+  drawAccount();
+}
 
 /** Render names and reasons as text, without exposing machine paths or private sign-in material. */
 function sharingProgress(status) {
@@ -22,8 +33,8 @@ function sharingProgress(status) {
   sharing.boards = status.boards || [];
   const linked = sharing.boards.filter(board => board.outcome === 'linked');
   if (linked.length) {
-    $('share-note').hidden = true;
-    if ($('share-again')) $('share-again').hidden = true;
+    account = { ...account, linked: true };
+    drawAccount();
   }
   const lines = sharing.boards.map(board => board.outcome === 'linked' ? 'Linked ' + board.name + '.'
     : 'Did not link ' + board.name + ': ' + board.reason);

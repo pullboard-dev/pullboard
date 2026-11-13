@@ -257,7 +257,12 @@ function element(id) {
     focus() {},
     scrollIntoView() { this.scrolled += 1; },
     getBoundingClientRect: () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 }),
+    // The palette's search box hint is added beside its box.
+    parentNode: { appendChild() {} },
     querySelectorAll: () => [],
+    querySelector: () => null,
+    prepend() {},
+    replaceWith() {},
   };
 }
 
@@ -347,10 +352,13 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const inflight = new Set();
   const requests = [];
   const document = {
-    body: element('body'),
+    body: Object.assign(element('body'), { appendChild() {} }),
     documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
+    // The palette builds its overlay at load: a created element is a plain node the page may append and listen on.
+    createElement: () => element('created'),
+    querySelector: () => null,
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
@@ -362,6 +370,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const context = vm.createContext({
     document,
     location: { search: '' },
+    navigator: { platform: '', userAgent: '' },
     URLSearchParams,
     structuredClone,
     innerWidth: width,
@@ -1055,6 +1064,7 @@ async function shoutsAt(chrome, width, scheme) {
 async function pickProject(chrome, find) {
   if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
     await chrome.click("document.querySelector('#proj-switch')");
+    await chrome.click('document.querySelector("[data-proj-all]")');
   }
   await chrome.click(find);
   await chrome.waitFor("!document.body.classList.contains('switching') && data?.root === view.root");
@@ -1067,14 +1077,13 @@ async function travel(chrome, step) {
 }
 
 /**
- * Choose a Show or Lane option from the Items toolbar's Filter menu as a person does: open the menu, press the
- * option, and wait for the menu to close (#429). A choice is "state:<state>" or "lane:<lane>".
+ * Choose a Show or Lane option from the strip's Items controls as a person does: press the Show button, or pick the
+ * lane in the Lane select. A choice is "state:<state>" or "lane:<lane>".
  */
 async function chooseFilter(chrome, choice) {
-  await press(chrome, "document.querySelector('#filter-toggle')");
-  await chrome.waitFor("!document.querySelector('#filter-menu').hidden");
-  await press(chrome, `document.querySelector('#filter-menu [data-filter-choice="${choice}"]')`);
-  await chrome.waitFor("document.querySelector('#filter-menu').hidden");
+  const [kind, value] = [choice.slice(0, choice.indexOf(':')), choice.slice(choice.indexOf(':') + 1)];
+  if (kind === 'state') await press(chrome, `document.querySelector('#page-controls [data-page-ctl="state"][data-value="${value}"]')`);
+  else await chrome.stable(`(() => { const select = document.querySelector('#page-controls select[data-page-ctl="lane"]'); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 }
 
 /** Wait for a condition after a press; if it never arrives, say what the page shows and where the press landed. */
