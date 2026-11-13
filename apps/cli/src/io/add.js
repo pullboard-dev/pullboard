@@ -13,6 +13,7 @@ import { runnerBaselineCommand } from '../../../../packages/gate/index.js';
 import { offerCheckBaseline } from '../../../../packages/api/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { localRunnerEnabled } from '../../../../packages/config/index.js';
+import { runnerDispatchMode } from '../../../../packages/config/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { ensureLocalRunner } from './runner/local.js';
@@ -23,12 +24,14 @@ import { ordered } from './claim.js';
  * Offer the baseline as a pull job for this machine's local runner, which runs the check at main and posts its result.
  * With no registered runners the machine is its own runner, as for a gate [P7]; the check never runs on this host (#2520, #3851).
  * Why not the detached worker: it has no runner of its own to run the check on, so the baseline stayed pending forever (#6560).
+ * Only under gate.runnerDispatch pull, as for a hosted landing: under controller nothing here pulls the job, so a
+ * waited add sat out the whole wait and left a detached local runner behind (#6233).
  *
  * @returns {Promise<boolean>} True when the job is offered and the local runner runs; false leaves the baseline to the worker.
  */
 async function offerLocalBaseline(ctx, board, id, baseline) {
   const root = ctx.info.root;
-  if (!localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
+  if (runnerDispatchMode() !== 'pull' || !localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
   const host = primaryCheckoutRoot(ctx.info);
   if (!host) return false;
   offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline) });
