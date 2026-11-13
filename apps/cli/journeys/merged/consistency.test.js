@@ -237,6 +237,7 @@ function countPairs() {
 
 /** Assert every observed pair with its own label so a new count mismatch names its surface. */
 async function checkCounts(chrome, phase) {
+  console.error('[T]', Math.round(performance.now()/1000), phase);
   const pairs = await chrome.stable('window.countSweepPairs()');
   assert.ok(pairs.length >= 4, phase + ': shared and pane counts are actually checked');
   for (const pair of pairs) assert.equal(pair.actual, pair.expected, phase + ': ' + pair.label);
