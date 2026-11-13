@@ -1,6 +1,6 @@
 /** Render the Settings pane; its only controls navigate scopes or refresh a GET, or copy a command. */
 export function settingsMarkup() {
-  return '<section data-pane="settings" class="settings-pane" id="settings-pane" aria-label="Settings" hidden><div id="settings-content" aria-live="polite"></div></section>';
+  return '<section data-pane="settings" class="settings-pane" id="settings-pane" aria-label="Settings" hidden><div id="settings-content" aria-live="polite"></div><div class="dash-two dash-reference" id="settings-reference"></div></section>';
 }
 
 /**
