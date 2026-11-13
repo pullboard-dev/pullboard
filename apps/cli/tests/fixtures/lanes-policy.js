@@ -19,16 +19,19 @@ export const policyFixtures = createE2eHelpers();
  */
 export async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  // The pulled gate settles on the runner and the owner routing follows it, so wait for the hold rather than read once.
-  const read = async () => JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
-  const item = await whenRunnerSettles(box.env, async () => { const row = await read(); return row.item_status === 'open' && row.item_hold_reason ? row : null; },
-    { deadlineMs: 120_000, what: `owner routing of #${id} ${label}` });
+  // The pulled gate's receipt is applied just after its job row closes, so settle on the routing event itself [P7].
+  const item = await whenRunnerSettles(box.env, async () => {
+    const row = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+    return row.item_hold_reason ? row : null;
+  }, { deadlineMs: 120_000, what: `the owner routing of #${id} ${label}` });
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
-  // The pulled gate settles inside the command; the routing's verdict is the hold, which names the owner and the paths.
-  assert.equal(item.item_hold_reason.includes(owner), true, `${label} ${owner}: ${item.item_hold_reason}`);
-  for (const path of paths) assert.equal(item.item_hold_reason.includes(path), true, `${label} ${path}: ${item.item_hold_reason}`);
+  const waiting = (item.thread ?? []).findLast(row => row.kind === 'ownership-wait')?.detail;
+  assert.ok(waiting, `${label}: the thread records the ownership wait`);
+  assert.deepEqual(waiting.owners, [owner], label);
+  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
+  return waiting;
 }
 
 /** Claim a real item before the coordinator moves one API path into its web lane. */

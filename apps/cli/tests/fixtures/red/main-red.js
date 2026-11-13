@@ -71,7 +71,7 @@ export function fixture(t, { spec, source, affectedTests = 'node test/runner.js'
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.test',
     GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.test',
-    PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     PULLBOARD_MODEL: 'Fixture Model', MAIN_RED_RUNS: join(directory, 'main-runs.log'),
   };
   delete env.PULLBOARD_RELAY_TOKEN;

@@ -40,7 +40,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     writeFileSync(join(repo,'apps/cli/pullboard.js'),`/** @pullboard-module-loads .tooling/apps/cli/pullboard.js */\nimport {spawnSync} from 'node:child_process';\nimport {fileURLToPath} from 'node:url';\nconst entry=fileURLToPath(new URL('../../.tooling/apps/cli/pullboard.js',import.meta.url));\nconst child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});\nif(child.error)throw child.error;\nif(child.signal)process.kill(process.pid,child.signal);\nelse process.exitCode=child.status??1;\n`);
   }
   writeFileSync(join(repo,'package.json'),JSON.stringify({private:true,type:'module'}));
-  const env = { ...process.env, HOME: join(scratch,'home'), PULLBOARD_HOME: join(scratch,'home','pullboard'),
+  const env = { ...process.env, HOME: join(scratch,'home'), PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(scratch,'home','pullboard'),
     PULLBOARD_MACHINE_HOME: machine, GIT_CONFIG_GLOBAL:'/dev/null', GIT_CONFIG_NOSYSTEM:'1',
     GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(key)) delete env[key];
