@@ -25,7 +25,7 @@ function inventory(box, gate, relay = {}) {
   }
 }
 
-test('the inventory reads gate.timingRunner false as a valid off setting with no error [O5,O6,N26]', t => {
+test('clause 1: the inventory reads gate.timingRunner false as a valid off setting with no error [O5,O6,N26]', t => {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   t.after(() => helpers.cleanup());
@@ -35,7 +35,7 @@ test('the inventory reads gate.timingRunner false as a valid off setting with no
   assert.equal(row.origin, 'configured');
 });
 
-test('a wrong-typed setting is an error on its own row that names the setting [O5,O6,N26]', t => {
+test('clause 2: a wrong-typed setting is an error on its own row that names the setting [O5,O6,N26]', t => {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   t.after(() => helpers.cleanup());
@@ -47,7 +47,7 @@ test('a wrong-typed setting is an error on its own row that names the setting [O
   assert.doesNotMatch(JSON.stringify(bad.error), /BAD_SETTINGS|unsupported type/u);
 });
 
-test('every other setting is still listed when one setting is wrong-typed [O5,O6,N26]', t => {
+test('clause 3: every other setting is still listed when one setting is wrong-typed [O5,O6,N26]', t => {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   t.after(() => helpers.cleanup());
