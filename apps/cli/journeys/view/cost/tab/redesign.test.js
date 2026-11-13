@@ -35,7 +35,7 @@ test('the private Cost overview renders prepared analytics and each confidence [
     await chrome.waitFor('!!document.querySelector(".cost-model-card")');
     await chrome.click("document.querySelector('[data-cost-row]')");
     const text = await chrome.stable('document.body.innerText');
-    for (const expected of ['Showing agent time','Leaning','Nothing to compare','AGENT TIME EACH DAY','50%','60%','Long item','No token count']) assert.ok(text.includes(expected), expected);
+    for (const expected of ['Leaning','Nothing to compare','Agent time each day','50%','60%','Long item','No token count']) assert.ok(text.includes(expected), expected);
     assert.match(costOverviewHtml({...fixture, builders:{...fixture.builders,verdict:'clear'}}), /Clear/u);
     assert.doesNotMatch(costOverviewHtml(fixture, null, {hasPrices:true}), /Want dollars/u);
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify((() => { const bar=document.querySelector('.cost-chart-bar'), parts=[...bar.querySelectorAll('rect')].map(e=>({y:Number(e.getAttribute('y')),height:Number(e.getAttribute('height'))})); return {parts,ranges:document.querySelectorAll('.cost-range').length,split:document.querySelectorAll('.cost-split rect').length}; })())`));
@@ -45,9 +45,8 @@ test('the private Cost overview renders prepared analytics and each confidence [
     assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted, came back later/u);
 
     await chrome.click("document.querySelector('[data-go]')");
-    await chrome.click("document.querySelector('[data-cost-copy]')");
     await chrome.click("document.querySelector('[data-cost-all]')");
-    assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.calls)')), ['item:1', 'Add model prices to Pullboard', 'all']);
+    assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.calls)')), ['item:1', 'all']);
     const unknown = costOverviewHtml({...fixture, longest:[{id:2,title:'Unknown',agentMs:null,sentBack:0,sessions:[{label:'Unknown model',count:null,agentMs:null,tokensIn:null}]}]}, 2);
     assert.doesNotMatch(unknown, /0 sessions|cost-time-bar/u);
     assert.match(unknown, /No token count/u);
@@ -68,7 +67,7 @@ test('the private Cost tab consumes the server projection and routes controls [N
     await chrome.waitFor('!!data?.project');
     await press(chrome, 'document.querySelector("[data-tab=cost]")');
     await chrome.waitFor('!!document.querySelector("#cost .cost-model-card")');
-    assert.ok((await chrome.stable('document.querySelector("#cost").innerText')).includes('Showing agent time'));
+    assert.ok((await chrome.stable('document.querySelector("#cost").innerText')).includes('Agent time each day'));
     await press(chrome, 'document.querySelector("[data-tab=items]")');
     const projection = { version:1, window:'7d', totals:{agentMs:7200000,itemCount:1,medianItemMs:7200000,sentBack:{items:0,itemShare:0,agentMs:0,agentMsShare:0}}, days:[{date:'2026-10-30',firstTimeMs:7200000,sentBackMs:0,items:1}], builders:{verdict:'nothing-to-compare',best:'a',runnerUp:null,rows:[{model:'a',label:'Fixture model',vendor:'Fixture',built:30,passedFirst:29,rate:.967,low:.83,high:.99,typicalItemMs:7200000,judged:true,tooFew:false}]}, verifiers:{verdict:'clear',best:'b',runnerUp:'c',rows:[{model:'b',label:'Reviewer B',vendor:'Fixture',verdicts:31,accepts:30,reopenedLater:1,rate:.03,low:.01,high:.16,judged:true,tooFew:false},{model:'c',label:'Reviewer C',vendor:'Fixture',verdicts:35,accepts:32,reopenedLater:8,rate:.25,low:.13,high:.42,judged:true,tooFew:false}]}, unknownBuilderModelShare:0,longest:[{id:1,title:'Seeded item',agentMs:7200000,sentBack:0,verifiedBy:'Reviewer B',landedAt:'2026-10-30T12:00:00Z',sessions:[{model:'a',label:'Fixture model',count:null,agentMs:7200000,tokensIn:null}]}],allItems:1 };
     await chrome.stable(`(() => { const original=window.fetch; window.costRequests=[]; window.fetch=(input,init) => { const url=String(input); if (!url.includes('/cost-analytics?')) return original(input,init); const windowName=new URL(url,location.href).searchParams.get('window'); costRequests.push(windowName); return Promise.resolve(new Response(JSON.stringify({costAnalytics:{...${JSON.stringify(projection)},window:windowName}}),{status:200,headers:{'content-type':'application/json'}})); }; })()`);
@@ -76,7 +75,7 @@ test('the private Cost tab consumes the server projection and routes controls [N
     await press(chrome, 'document.querySelector("[data-tab=cost]")');
     await chrome.waitFor('!!document.querySelector("#cost .cost-model-card")');
     let text = await chrome.stable('document.querySelector("#cost").innerText');
-    for (const expected of ['Showing agent time','Fixture model','Nothing to compare','Clear','Seeded item']) assert.ok(text.includes(expected),expected);
+    for (const expected of ['Fixture model','Nothing to compare','Clear','Seeded item']) assert.ok(text.includes(expected),expected);
     await chrome.click('document.querySelector("#cost [data-cost-row]")');
     await chrome.waitFor('document.querySelector("#cost .cost-detail")');
     text = await chrome.stable('document.querySelector("#cost .cost-detail").innerText');

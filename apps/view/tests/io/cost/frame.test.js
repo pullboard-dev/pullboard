@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/view/src/io/cost.css apps/view/src/io/main.css */
+/** @pullboard-test-input apps/view/src/io/cost.css apps/view/src/io/main.css apps/view/src/io/cost/overview.js */
 /** @pullboard-world-pin reads cost.css and main.css to prove the width rules the page ships. */
 /** Cost draws its frame and last known numbers at once, and Cost and Settings use the page's full width [N26]. */
 import assert from 'node:assert/strict';
@@ -43,14 +43,25 @@ test('clause 1: Cost draws the last numbers this browser read while the fresh re
   assert.doesNotMatch(costOverviewHtml(last, null, { updating: false }), /cost-updating/u, 'a settled page says nothing');
 });
 
-test('clause 2: Cost and Settings take the page width and the Agent time card ends with its content [N26]', () => {
+test('clause 2: Cost and Settings take the page width [N26]', () => {
   assert.doesNotMatch(css('cost.css'), /\.cost-page\s*\{[^}]*max-width/u, 'Cost has no width cap');
-  assert.match(css('cost.css'), /\.cost-summary\s*\{[^}]*align-self: start/u, 'the Agent time card is not stretched to the chart beside it');
   assert.doesNotMatch(css('main.css'), /#settings-pane\s*\{[^}]*(?:max-width|margin-inline)/u, 'Settings has no width cap and is not centred');
 });
 
-test('clause 2: the Agent time card is not stretched by its column, so no blank area sits under the Sent back bar [N26]', () => {
-  assert.match(css('cost.css'), /\.cost-col > \.cost-summary\s*\{[^}]*flex: none/u, 'the column flex:1 on cards does not apply to the summary card');
+const panelData = { window: '7d', totals: { agentMs: 7_200_000, itemCount: 2, medianItemMs: 3_600_000, sentBack: { itemShare: 0.5, agentMsShare: 0.5, agentMs: 3_600_000 } }, days: [{ date: '2026-10-30', firstTimeMs: 3_600_000, sentBackMs: 3_600_000, items: 2 }], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 2 };
+
+test('clause 1: Cost shows no line about agent time or adding model prices [N26]', () => {
+  for (const hasPrices of [false, true]) assert.doesNotMatch(costOverviewHtml(panelData, null, { hasPrices }), /Showing agent time|Want dollars|Add model prices|cost-prices|data-cost-copy/u);
+});
+
+test('clause 2: Agent time and Agent time each day share one panel under one level-1 header, summary beside the chart at equal height [N26]', () => {
+  const html = costOverviewHtml(panelData);
+  const panel = /<h2 class="hd1">Agent time<\/h2><\/div><div class="cost-card cost-overview">(.*?)<\/div><\/section><section class="cost-sect"><div class="shd"><h2 class="hd1">Models/su.exec(html)?.[1] ?? '';
+  assert.match(panel, /^<article class="cost-summary">/u, 'the summary opens the panel');
+  assert.match(panel, /<article class="cost-chart"><div class="cost-chart-head"><h3 class="hd2">Agent time each day<\/h3>/u, 'the daily chart sits in the same panel under a level-2 head');
+  assert.equal(panel.match(/<h2/gu), null, 'no second level-1 header inside the panel');
+  assert.match(css('cost.css'), /\.cost-overview\s*\{[^}]*display: grid;[^}]*align-items: stretch/u, 'the two sides stretch to one height');
+  assert.doesNotMatch(css('cost.css'), /\.cost-summary\s*\{[^}]*align-self: start/u, 'the summary is not shortened beside the chart');
 });
 
 test('clause 1: an opened item scrolls to just below the two-row phone nav, so its chips are not cut under it [N26]', () => {
