@@ -3,6 +3,7 @@ import { dependencyValues } from '../../../../packages/items/index.js';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { main } from './main.js';
 import { COORDINATOR } from '../../../../packages/config/index.js';
 import { outOfLane } from '../../../../packages/seats/index.js';
@@ -19,6 +20,9 @@ import { relayLinked } from '../../../../packages/link/index.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { primaryCheckoutRoot } from './worktree.js';
 import { ordered } from './claim.js';
+
+/** The detached baseline worker, an executable of the lib app; the gate package spawns it by this path. */
+const BASELINE_WORKER = fileURLToPath(new URL('../../../lib/src/io/check/baseline.js', import.meta.url));
 
 /**
  * Offer the baseline as a pull job for this machine's local runner, which runs the check at main and posts its result.
@@ -56,7 +60,7 @@ async function settled(board, id) {
  */
 export async function launchBaseline(ctx, board, id, baseline, options = {}) {
   try { if (await offerLocalBaseline(ctx, board, id, baseline)) return options.wait ? settled(board, id) : undefined; } catch { /* the worker below leaves it pending */ }
-  try { return await startCheckBaseline(ctx.info.root, id, baseline, options); }
+  try { return await startCheckBaseline(ctx.info.root, id, baseline, { ...options, worker: BASELINE_WORKER }); }
   catch {
     await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
       baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);

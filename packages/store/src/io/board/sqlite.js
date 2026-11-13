@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
@@ -45,7 +46,7 @@ export function requireRuntimePorts(ports) {
   for (const name of ['boardNotWritable', 'boardBusyError']) {
     if (typeof ports.auth[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply auth.${name}.`);
   }
-  for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters']) {
+  for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters', 'withLocalSeatPresence']) {
     if (typeof ports.verification[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply verification.${name}.`);
   }
   for (const name of ['agentModel', 'proofReceipts', 'itemById', 'laneHold', 'laneHolds', 'getItem', 'listAgents', 'reviewHolder', 'listItems', 'seatFamily', 'canonicalFamily',
@@ -76,6 +77,11 @@ export function requireRuntimePorts(ports) {
   if (ports.nativePorts.atomic !== ports.lifecycle.atomic || ports.nativePorts.logEvent !== ports.logEvent
     || ports.enginePorts.operations !== ports.operations) throw new Refused('NO_POLICY', 'Use one canonical set of native and engine providers.');
   return ports;
+}
+
+/** The one path of a repository's board database under its git common directory; every other module asks here (registry owner, #6735). */
+export function boardFilePath(commonDir) {
+  return join(commonDir, 'pullboard/board.sqlite');
 }
 
 /**

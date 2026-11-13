@@ -966,8 +966,12 @@
     "tempdir": 1
   },
   "apps/cli/journeys/hold/demo.test.js": {
-    "raw-cli": 5,
-    "tempdir": 10
+    "raw-cli": 1,
+    "tempdir": 6
+  },
+  "apps/cli/journeys/hold/demo-widths.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/cli/journeys/hold/demo-lanes.test.js": {
     "raw-cli": 2,

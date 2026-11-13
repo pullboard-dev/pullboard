@@ -13,6 +13,7 @@ import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { jobView } from '../../../../packages/jobs/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
+import { pullGit } from '../../src/io/runner/git.js';
 import { sideReporters } from '../../../../packages/gate/src/io/test/progress.js';
 
 /** The progress reporter run-tests adds when a runner names a progress file. */
@@ -70,7 +71,7 @@ async (t) => {
     }
     return response;
   };
-  const served = await serveRunner({ board, runner: 'r-progress', capabilities: ['node22'], cache, once: true, fetchImpl, timing: { idleMs: 10, progressMs: 50 } });
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-progress', capabilities: ['node22'], cache, once: true, fetchImpl, timing: { idleMs: 10, progressMs: 50 } });
   assert.deepEqual(served.jobs.map(job => [job.job, job.outcome]), [['test:progress', 'posted']]);
 
   assert.ok(seen.length >= 2, `progress was posted while the job ran (${seen.length} posts)`);
