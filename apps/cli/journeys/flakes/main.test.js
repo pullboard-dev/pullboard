@@ -167,7 +167,8 @@ test('a flake fixture setup commit runs no hook, while an ordinary commit in the
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true', undefined, { withWorktree: false });
-  const git = (...args) => box.git(box.repo, ...args);
+  // A plain git runner keeps hooks on commit, unlike box.git, so the two commits below differ only by commitFixtureSetup.
+  const git = (...args) => runFixtureGit(args, { cwd: box.repo, env: box.env });
   const hooks = join(box.dir, 'marker-hooks');
   const marker = join(box.dir, 'hook-ran.txt');
   mkdirSync(hooks);
