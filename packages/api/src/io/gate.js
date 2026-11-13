@@ -837,7 +837,7 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
     if (store.getItem(board, item)?.item_status !== 'claimed') continue;
     const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);
     const byFile = compared ? null : compareFilesWithMain(board, receipt, job_base, compareWithMain);
-    if (compared ? compared.cases.some(row => row.onMain === null) : !byFile || byFile.files.some(row => row.result === null)) continue;
+    if (compared ? compared.cases.some(row => row.onMain === null) : !byFile || byFile.unavailable || byFile.files.some(row => row.result === null)) continue;
     if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
   }
   return settled;

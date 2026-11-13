@@ -91,8 +91,9 @@ export function fixture(t, { spec, source, affectedTests = 'node test/runner.js'
   put(root, 'test/runner.js', [
     "import { appendFileSync } from 'node:fs';",
     "import { spawnSync } from 'node:child_process';",
-    // The item check marks its own runs; only gate and main-comparison runs are counted (#2349).
-    "if (process.env.MAIN_RED_RUNS && process.env.MAIN_RED_STAGE !== 'check') appendFileSync(process.env.MAIN_RED_RUNS, `${process.cwd()}\\n`);",
+    // The item check marks its own runs; only gate and main-comparison runs are counted (#2349). The log's path is written
+    // in, since a pulled gate's runner does not inherit this test's environment.
+    `if (process.env.MAIN_RED_STAGE !== 'check') appendFileSync(${JSON.stringify(env.MAIN_RED_RUNS)}, \`\${process.cwd()}\\n\`);`,
     "const files = process.argv.slice(2).length ? process.argv.slice(2) : ['test/inherited.test.js'];",
     `const result = spawnSync(process.execPath, ['--test', ...${JSON.stringify(reporter ? [`--test-reporter=${reporter}`] : [])}, ...files], { cwd: process.cwd(), env: process.env, encoding: 'utf8' });`,
     "if (result.stdout) process.stdout.write(result.stdout);",

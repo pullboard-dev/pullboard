@@ -207,11 +207,12 @@ test('a pulled red reads native spec reporter failure files and compares them wi
     'the unchanged spec reporter command runs once on the candidate and once on exact main');
 });
 
-test('a red with unreadable failure files says why main was not checked [V1]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
+test('a pulled red with unreadable failure files says why main was not checked [V1,C7]', async t => {
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST });
   put(box.root, 'test/runner.js', [
     "import { appendFileSync } from 'node:fs';",
-    "if (process.env.MAIN_RED_STAGE !== 'check') appendFileSync(process.env.MAIN_RED_RUNS, `${process.cwd()}\\n`);",
+    // The log's path is written in, since a pulled gate's runner does not inherit this test's environment.
+    `if (process.env.MAIN_RED_STAGE !== 'check') appendFileSync(${JSON.stringify(box.env.MAIN_RED_RUNS)}, \`\${process.cwd()}\\n\`);`,
     "console.error('A runner failed without a failure-file report.');",
     "console.error('test at test/inherited.test.js:3:1');",
     'process.exitCode = 1;',
@@ -226,12 +227,13 @@ test('a red with unreadable failure files says why main was not checked [V1]', {
   put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
   commit(submitter.root, box.env, 'test(core): select unreadable runner red [G2]');
   const before = runCount(box);
-  const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise unreadable runner failure reporting');
-  assert.equal(red.code, 1, red.out || red.err);
-  assert.match(red.err, /\[GATE_RED\]/u);
-  assert.match(red.err, /main not checked: could not read which tests failed/u);
-  assert.doesNotMatch(red.err, /also red on main|inherited main red/u);
+  const { shown, job } = await settledRed(t, box, submitter, submitItem, { args: ['--infra', 'append a candidate-only test marker to exercise unreadable runner failure reporting'] });
+  const facts = gateFacts(shown, job.id);
+  assert.equal(facts.length, 1, facts.join('\n---\n'));
+  assert.match(facts[0], /^Gate job \S+ red at /u);
+  assert.match(facts[0], /main not checked: could not read which tests failed/u);
+  assert.doesNotMatch(facts[0], /also red on main|also fails on main|inherited main red/u);
+  assert.equal(shown.item_status, 'claimed');
   assert.equal(runCount(box), before + 1,
     'a location outside the spec reporter failure footer is not guessed to be a failed file');
 });
-

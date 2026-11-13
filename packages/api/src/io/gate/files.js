@@ -17,9 +17,9 @@ const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
  * @param {string} main - The accepted main the gate job was offered against.
  * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: object[], files: string[] }) =>
  *   { files?: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[] } | null) | null} lookup
- * @returns {{ main: string, files: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[], jobs: string[] } | null}
- *   null when the red is not only test phases without cases, no phase names a failed file, no lookup is given
- *   (gate.mainComparison off), or main's receipts cannot be keyed.
+ * @returns {{ main: string, files: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[], jobs: string[], unavailable?: string } | null}
+ *   unavailable says why main was not checked, with no files, when no red phase names a failed file; null when the red
+ *   is not only test phases without cases, no lookup is given (gate.mainComparison off), or main's receipts cannot be keyed.
  */
 export function compareFilesWithMain(board, receipt, main, lookup) {
   const gate = receipt?.gate ?? {};
@@ -27,7 +27,8 @@ export function compareFilesWithMain(board, receipt, main, lookup) {
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
   if (!red.length || red.some(phase => Array.isArray(phase.failures) && phase.failures.length)) return null;
   const files = [...new Set(red.flatMap(phase => Array.isArray(phase.failedFiles) ? phase.failedFiles : []))].filter(file => typeof file === 'string' && PROJECT_FILE.test(file));
-  if (!files.length) return null;
+  // A red that names neither cases nor files is never guessed to be main's: it says why main was not checked.
+  if (!files.length) return { main, files: [], jobs: [], unavailable: 'could not read which tests failed' };
   let found = null;
   try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: [], files }); } catch (error) { if (!error?.code) throw error; }
   const rows = new Map((Array.isArray(found?.files) ? found.files : []).map(row => [row.file, row]));
@@ -40,14 +41,15 @@ export function compareFilesWithMain(board, receipt, main, lookup) {
 }
 
 /**
- * The gate fact's lines for a file comparison, worded as the inline gate's refusal words them: the files main also
- * fails, and each file main's receipt is still missing for. A file green on main is the change's own red and adds no
+ * The gate fact's lines for a file comparison, worded as the inline gate's refusal words them: why main was not
+ * checked, or the files main also fails and each file main's receipt is still missing for. A file green on main is the change's own red and adds no
  * line, as before.
  *
  * @param {NonNullable<ReturnType<typeof compareFilesWithMain>>} compared
  * @returns {string[]}
  */
 export function fileMainLines(compared) {
+  if (compared.unavailable) return [`main not checked: ${compared.unavailable}`];
   const red = compared.files.filter(row => row.result === 'red').map(row => row.file);
   return [...(red.length ? [`also red on main: ${red.join(', ')}`] : []),
     ...compared.files.filter(row => row.result === null).map(row => `main receipt missing: ${row.file}`)];
