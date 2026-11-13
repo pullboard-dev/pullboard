@@ -17,6 +17,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { whenRunnerSettles } from '../../../tests/fixtures/runner/local-start.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
@@ -34,14 +35,20 @@ const {
  */
 async function assertWaitsOnOwner(t, box, id, submitted, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  // The pulled gate settles green first; the routing's verdict is the item's hold, which names the owner and the paths.
+  // The pulled gate settles green first; its receipt is applied a moment later, so settle on the hold itself [P7].
   assert.equal((await settleSubmit(t, box, JSON.parse(submitted.out))).gate.green, true, label);
-  const item = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json')).out);
+  const item = await whenRunnerSettles(box.env, async () => {
+    const row = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json')).out);
+    return row.item_hold_reason ? row : null;
+  }, { deadlineMs: 120_000, what: `the owner routing of #${id} ${label}` });
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
-  assert.match(item.item_hold_reason, /coordinator/u, label);
-  for (const path of paths) assert.equal(item.item_hold_reason.includes(path), true, `${label} ${path}`);
+  // The hold names only a digest; owner and paths are in the thread's ownership-wait event.
+  const waiting = (item.thread ?? []).findLast(row => row.kind === 'ownership-wait')?.detail;
+  assert.ok(waiting, `${label}: the thread records the ownership wait`);
+  assert.deepEqual(waiting.owners, ['coordinator'], label);
+  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
 }
 
 
