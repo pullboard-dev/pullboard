@@ -1,8 +1,9 @@
 /** Select and order the Items view from explicit observations, without reading browser or board globals. */
 export function selectItemsView({ items, query = '', matchedIds = [], readyIds = [], stateById, state, lane, pipeline = false,
   dashboardList = null, dashboardNext = [], selectedId = null, currentBoard = true, adding = false, addressDetail = null,
-  tab = 'items', snapshot = false }) {
+  tab = 'items', snapshot = false, ids = [] }) {
   const matched = new Set(matchedIds);
+  const named = new Set(ids);
   const ready = new Set(readyIds);
   if (!(stateById instanceof Map)) throw new TypeError('stateById must be a Map of item ids to state observations');
   const observations = stateById;
@@ -23,6 +24,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   if (state === 'landed') names.landed = 'Landed';
   // The Dashboard's Sent back counts open this one (#6847): open or rebuilding items whose latest verdict sent them back.
   if (state === 'sent-back') names['sent-back'] = 'Sent back';
+  // A Pipeline count opens Items on exactly the items it counted, named in the address (#6869).
+  if (state === 'ids') names.ids = 'From Pipeline';
 
   const selectedLane = lane && !matching.some(item => item.lane === lane) ? null : lane;
   const inLane = item => !selectedLane || item.lane === selectedLane;
@@ -31,7 +34,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
       : value === 'gated' ? gatedOf(item)
         : value === 'passed' ? stateOf(item) === 'verified' && !mergedOf(item)
           : value === 'landed' ? mergedOf(item)
-            : value === 'sent-back' ? ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT' : stateOf(item) === value);
+            : value === 'sent-back' ? ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT'
+              : value === 'ids' ? named.has(item.id) : stateOf(item) === value);
   const stateOptions = Object.entries(names).map(([value, label]) => ({
     value, label, count: matching.filter(inLane).filter(inState(value)).length,
   }));

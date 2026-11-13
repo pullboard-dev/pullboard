@@ -153,5 +153,15 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const prefix = project.sequence ?? Math.max(0, ...(project.events ?? []).map(event => event.event_id));
     read(project.root, prefix);
   }
-  return { draw, tourStep, warm };
+  /**
+   * The board's held event history up to the state's prefix, for the pages that read it beside the Dashboard (Pipeline, #6869):
+   * the same one read per board, started here if nothing has. `complete` is false until every event up to the prefix is on hand.
+   */
+  function historyOf(project) {
+    const prefix = project.sequence ?? Math.max(0, ...(project.events ?? []).map(event => event.event_id));
+    let held = histories.get(project.root + '|' + boardPath(project.root));
+    if (!held?.error || held.prefix !== prefix) held = read(project.root, prefix);
+    return { events: upTo(held.events, prefix), complete: held.prefix >= prefix, version: held.version ?? 0, error: held.error };
+  }
+  return { draw, tourStep, warm, history: historyOf };
 }

@@ -25,7 +25,7 @@ function showTab() {
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
+  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'pipeline', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const hash = location.hash || '';
   // A place's filters and search ride in the query: the page's own on a routed host, after a "?" in the fragment elsewhere.
   const query = readPlaceQuery(routed ? location.search || '' : hash.includes('?') ? hash.slice(hash.indexOf('?')) : '');
@@ -52,7 +52,8 @@ function placePairs(tab = view.tab) {
   return placeQuery({ tab, state: view.state, stateDefault: snapshot ? 'all' : 'active', lane: view.lane, q: $('q')?.value ?? '',
     rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
     shouts: view.shoutFilter, activity: view.activityFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null,
+    window: view.pipelineWindow || '1h', ids: view.itemIds || [] });
 }
 
 /** Name each repo even beneath a group; one repo needs no prefix. */
@@ -70,6 +71,25 @@ function tabHref(tab) {
   const detail = tab === 'items' && view.itemsView === 'pipeline' && (view.addressDetail === null || view.addressDetail === 'pipeline') ? 'pipeline' : view.addressDetail;
   const path = prefix + '/' + tab + (detail === null ? '' : '/' + encodeURIComponent(String(detail)));
   return routed ? path + withPlaceQuery(location.search, placePairs(tab)) : location.pathname + location.search + '#' + path.slice(1) + withPlaceQuery('', placePairs(tab));
+}
+
+/** The address of Items narrowed to exactly these items: what a Pipeline count links to (#6869). */
+function itemsIdsHref(ids) {
+  const pairs = placeQuery({ tab: 'items', state: 'ids', stateDefault: snapshot ? 'all' : 'active', ids });
+  if (snapshot) return location.pathname + location.search + '#items' + withPlaceQuery('', pairs);
+  const repo = data?.projects.find((entry) => entry.root === view.root);
+  const group = data?.groups.find((entry) => entry.key === view.root);
+  const name = repo?.name || group?.name;
+  const prefix = (data?.projects.filter((entry) => entry.ok).length || 0) > 1 && name ? '/' + encodeURIComponent(name) : '';
+  const path = prefix + '/items';
+  return routed ? path + withPlaceQuery(location.search, pairs) : location.pathname + location.search + '#' + path.slice(1) + withPlaceQuery('', pairs);
+}
+
+/** Open Items on exactly the items a Pipeline count named, and say so in the address (#6869). */
+function openPipelineItems(ids) {
+  view.itemIds = ids; view.state = 'ids'; view.lane = null; view.before = null; view.dashboardList = null; view.itemsView = 'list'; view.item = null;
+  if ($('q')) $('q').value = '';
+  openTab('items'); render();
 }
 
 /** Push one entry per changed place, and retain native fact anchors when restoring an entry. */
@@ -109,6 +129,9 @@ function applyPlace(place, kept = null) {
   if (view.tab === 'spec' || view.tab === 'doctrine') view.rows[view.tab] = query.rows || (place.detail !== null ? 'all' : view.tab === 'spec' ? 'decide' : 'all');
   if (view.tab === 'shouts') view.shoutFilter = query.shouts || 'all';
   if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; }
+  if (view.tab === 'pipeline') view.pipelineWindow = ['15m', '30m', '3h'].includes(query.window) ? query.window : '1h';
+  // Items opened from a Pipeline count names its items in the address (#6869).
+  view.itemIds = view.tab === 'items' && query.state === 'ids' && query.ids ? query.ids.split(',').map(Number).filter(Number.isInteger) : [];
   if (view.tab === 'roadmap') view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
   if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
   keep('pb.project', view.root);
@@ -149,7 +172,7 @@ function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
   const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && (!readOnly || requests) });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && (!readOnly || requests), window: view.pipelineWindow || '1h' });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
   if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
@@ -174,6 +197,7 @@ function pageControl(target) {
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
   else if (kind === 'by') view.activityBy = value || null;
+  else if (kind === 'window') view.pipelineWindow = ['15m', '30m', '3h'].includes(value) ? value : '1h';
   else if (kind === 'shouts') { view.shoutFilter = value; view.shoutThread = null; view.shout = null; view.addressDetail = null; }
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
   drawPageControls();

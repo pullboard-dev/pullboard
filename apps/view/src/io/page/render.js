@@ -212,7 +212,7 @@ function paintItemsWindow() {
 }
 
 // The parts that scroll on their own: each keeps its place through any draw (#6613).
-const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'cost'];
+const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'insights-pipeline', 'cost'];
 /**
  * Draw the page from the store (#6613). The sidebar and the chrome are drawn on every call; the shown tab's pane is
  * drawn unless this is a tab switch and the pane still shows what it was drawn from. Every part is written through
@@ -350,6 +350,8 @@ function render({ tab: switching = false } = {}) {
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
     if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
+  } else if (view.tab === 'pipeline') {
+    pipelineView.draw(p);
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
@@ -386,7 +388,7 @@ function render({ tab: switching = false } = {}) {
   const readyIds = view.state === 'ready' ? dashboardModel(p, [], { complete: false, now: Date.now() }).next.map(item => item.id) : [];
   const stateById = new Map(p.items.map(item => [item.id, { state: stateOf(item), gated: gatedOf(item), merged: Boolean(item.merged) }]));
   const itemsSelection = selectItemsView({ items: p.items, query: q, matchedIds: found, readyIds, stateById, state: view.state,
-    lane: view.lane, pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
+    lane: view.lane, ids: view.itemIds || [], pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
     currentBoard: data.root === view.root, adding: view.adding,
     addressDetail: view.tab === 'items' ? view.addressDetail : null, tab: view.tab, snapshot });
   view.lane = itemsSelection.selectedLane;

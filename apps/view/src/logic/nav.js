@@ -16,7 +16,7 @@ export function navPages({ cost = false } = {}) {
   const groups = [
     { group: 'Work', id: 'work', pages: [['items', 'Items', 'Every piece of work'], ['shouts', 'Shouts', 'Agents talking to the coordinator'], ['roadmap', 'Roadmap', 'What ships next, in order']] },
     { group: 'Rules', id: 'rules', pages: [['spec', 'Spec', 'What the product must do'], ['doctrine', 'Doctrine', 'How the work must be done']] },
-    { group: 'Insights', id: 'insights', pages: [['dashboard', 'Dashboard', 'Every number on the board'], ['activity', 'Activity', 'What happened, in order'], ['cost', 'Cost', 'Time and tokens per item']] },
+    { group: 'Insights', id: 'insights', pages: [['dashboard', 'Dashboard', 'Every number on the board'], ['activity', 'Activity', 'What happened, in order'], ['cost', 'Cost', 'Time and tokens per item'], ['pipeline', 'Pipeline', 'Why work isn\'t moving']] },
   ];
   return groups.flatMap(entry => entry.pages.filter(([id]) => cost || id !== 'cost')
     .map(([id, name, what]) => ({ id, name, what, group: entry.group, groupId: entry.id })));
@@ -103,12 +103,13 @@ export function notchHtml({ agents = null, perHour = null, rulings = null } = {}
 /**
  * A place's filters and search as query pairs, leaving out each default so a plain tab keeps a plain address.
  * Items' Show and Lane, the search words, Spec and Doctrine's row filter, Shouts' filter, Activity's filter and person,
- * whether the Roadmap shows what shipped: each control in a page's strip has its key here [N38].
+ * whether the Roadmap shows what shipped, Pipeline's window, and the items a Pipeline count opened Items on: each control
+ * in a page's strip has its key here [N38].
  *
- * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string, shipped?: boolean, by?: string|null }} place
+ * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string, shipped?: boolean, by?: string|null, window?: string, ids?: number[]|null }} place
  * @returns {[string, string][]}
  */
-export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', shipped = false, by = null }) {
+export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', shipped = false, by = null, window = '1h', ids = null }) {
   const pairs = [];
   const words = String(q ?? '').trim();
   if (tab === 'items' && state && state !== stateDefault && !(words && state === 'all')) pairs.push(['state', state]);
@@ -119,6 +120,8 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
   if (tab === 'activity' && activity && activity !== 'all') pairs.push(['activity', activity]);
   if (tab === 'activity' && by) pairs.push(['by', by]);
   if (tab === 'roadmap' && shipped) pairs.push(['shipped', '1']);
+  if (tab === 'pipeline' && window && window !== '1h') pairs.push(['w', window]);
+  if (tab === 'items' && state === 'ids' && Array.isArray(ids) && ids.length) pairs.push(['ids', ids.join(',')]);
   return pairs;
 }
 
@@ -126,24 +129,24 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
  * Read a place's filters and search back from a query string; a key the address leaves out reads as null.
  *
  * @param {string} search - "?a=b" or "a=b".
- * @returns {{ state: string|null, lane: string|null, q: string|null, rows: string|null, shouts: string|null, activity: string|null, shipped: string|null, by: string|null }}
+ * @returns {{ state: string|null, lane: string|null, q: string|null, rows: string|null, shouts: string|null, activity: string|null, shipped: string|null, by: string|null, window: string|null, ids: string|null }}
  */
 export function readPlaceQuery(search) {
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   const value = (key) => { const read = params.get(key); return read === null || read === '' ? null : read; };
-  return { state: value('state'), lane: value('lane'), q: value('q'), rows: value('rows'), shouts: value('shouts'), activity: value('activity'), shipped: value('shipped'), by: value('by') };
+  return { state: value('state'), lane: value('lane'), q: value('q'), rows: value('rows'), shouts: value('shouts'), activity: value('activity'), shipped: value('shipped'), by: value('by'), window: value('w'), ids: value('ids') };
 }
 
 /**
  * Join a query string's other keys (the session's, say) with a place's pairs, in that order; the place keys are
- * state, lane, q, rows, shouts, activity, shipped and by.
+ * state, lane, q, rows, shouts, activity, shipped, by, w and ids.
  *
  * @param {string} search - The current "?…" whose place keys are replaced.
  * @param {[string, string][]} pairs
  * @returns {string} "" or "?…".
  */
 export function withPlaceQuery(search, pairs) {
-  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'shipped', 'by'];
+  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'shipped', 'by', 'w', 'ids'];
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   for (const key of keys) params.delete(key);
   for (const [key, value] of pairs) params.append(key, value);
@@ -154,13 +157,13 @@ export function withPlaceQuery(search, pairs) {
 /**
  * The controls a page puts at the right of the navigation strip (the sidebar layout puts them on the title row):
  * Items shows Open, Building, In review, All, a lane, List or Pipeline and New item; Shouts For you and All; Roadmap Show
- * shipped; Activity a person filter. A page with nothing to control gets nothing. Each control carries data-page-ctl,
+ * shipped; Activity a person filter; Pipeline its 15m, 30m, 1h and 3h window. A page with nothing to control gets nothing. Each control carries data-page-ctl,
  * the hook the page's one handler reads, and the state each one shows is the state the address holds.
  *
  * @param {{ tab?: string|null, state?: string, shouts?: string, shipped?: boolean, by?: string|null, people?: string[], writable?: boolean }} [place]
  * @returns {string}
  */
-export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', shipped = false, by = null, people = [], writable = true } = {}) {
+export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', shipped = false, by = null, people = [], writable = true, window = '1h' } = {}) {
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' + (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + name + '</button>').join('') + '</span>';
   const select = (label, kind, current, options) => '<select class="sel" data-page-ctl="' + kind + '" aria-label="' + label + '">' + options.map(([value, name]) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select>';
@@ -169,6 +172,7 @@ export function pageControlsHtml({ tab = null, state = 'active', lane = null, la
     + seg('View', 'view', itemsView === 'pipeline' ? 'pipeline' : 'list', [['list', 'List'], ['pipeline', 'Pipeline']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
   if (tab === 'shouts') return seg('Shouts', 'shouts', shouts === 'you' ? 'you' : shouts === 'all' ? 'all' : '', [['you', 'For you'], ['all', 'All']]);
   if (tab === 'roadmap') return '<button class="sel" type="button" data-page-ctl="shipped" aria-pressed="' + Boolean(shipped) + '">' + (shipped ? 'Hide shipped' : 'Show shipped') + '</button>';
+  if (tab === 'pipeline') return '<span class="ctl-lbl">Window</span>' + seg('Window', 'window', ['15m', '30m', '3h'].includes(window) ? window : '1h', [['15m', '15m'], ['30m', '30m'], ['1h', '1h'], ['3h', '3h']]);
   if (tab === 'activity') return select('Person', 'by', by || '', [['', 'Everyone'], ...people.map((name) => [name, name === 'person' ? 'You' : name === 'coordinator' ? 'The coordinator' : name])]);
   return '';
 }

@@ -110,6 +110,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <figure class="card-panel flow" id="flow-panel" hidden><div id="flow"></div><figcaption>Every item on the board, since the start. Hover a number for what it means.</figcaption></figure>
     <div class="card-panel feed" id="activity"></div>
   </section>
+  <section data-pane="pipeline" id="insights-pipeline" class="pipeline-page" aria-label="Pipeline"></section>
   ${settingsMarkup()}
   <section data-pane="roadmap" class="roadmap-layout" id="roadmap" aria-label="Roadmap"></section>
   ${privateCost ? '<section data-pane="cost" id="cost" aria-label="Cost"></section>' : ''}
