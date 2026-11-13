@@ -284,9 +284,11 @@ test('clause 1: the top right is one account control, the person\'s initial when
   assert.match(accountHtml({ signedIn: false }), />Sign in<\/button>$/u);
   const text = (html) => [...html.matchAll(/<(?:b|small|button)[^>]*>(.*?)<\/(?:b|small|button)>/gu)].map((m) => m[1].replace(/<[^>]+>/gu, ''));
   const signedIn = accountMenuHtml({ signedIn: true, login: 'coreyolson', theme: 'dark' });
-  assert.deepEqual(text(signedIn), ['@coreyolson', 'GitHub', 'Settings,', 'ThemeDark', 'Pair a phone']);
+  assert.deepEqual(text(signedIn), ['@coreyolson', 'GitHub', 'Settings', 'ThemeDark', 'Pair a phone']);
   const signedOut = accountMenuHtml({ signedIn: false });
-  assert.match(signedOut, /Not signed in/u);
+  assert.doesNotMatch(signedOut, /Not signed in|class="who"|<small>/u, 'signed out is one quiet row, no banner block');
+  assert.equal(text(signedOut)[0], 'Sign in with GitHub');
+  assert.doesNotMatch(signedIn + signedOut, /Settings<span>/u, 'no stray comma after Settings');
   assert.match(signedOut, /data-account-signin>Sign in with GitHub</u);
   assert.doesNotMatch(signedIn + signedOut, /Sign out/u, 'no Sign out row: the view has no real sign-out yet, and relay off is destructive');
   for (const html of [signedIn, signedOut]) for (const word of ['Settings', 'Theme', 'Pair a phone']) assert.match(html, new RegExp(word, 'u'));

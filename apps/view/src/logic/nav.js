@@ -214,7 +214,7 @@ export function accountMenuHtml({ signedIn = false, login = '', theme = 'system'
   const row = (attribute, label, hint = '') => '<button type="button" role="menuitem" ' + attribute + '>' + label + (hint ? '<span>' + hint + '</span>' : '') + '</button>';
   const who = signedIn
     ? '<div class="who"><b>' + (login ? '@' + esc(login) : 'Signed in') + '</b><small>GitHub</small></div>'
-    : '<div class="who"><b>Not signed in</b><small>Sign in to open your boards on any device</small></div>' + row('data-account-signin', 'Sign in with GitHub');
-  return who + row('data-tab="settings"', 'Settings', ',') + row('data-theme-flip', 'Theme', '<i data-theme-label>' + (theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System') + '</i>')
+    : row('data-account-signin', 'Sign in with GitHub');
+  return who + row('data-tab="settings"', 'Settings') + row('data-theme-flip', 'Theme', '<i data-theme-label>' + (theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System') + '</i>')
     + row('data-account-pair', 'Pair a phone');
 }
