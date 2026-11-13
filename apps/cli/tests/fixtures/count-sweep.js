@@ -216,7 +216,7 @@ export function countPairs() {
     add('Floor/seen agents note', number(document.querySelector('[data-floor-group="agents"] h2 span')), agents.length);
     add('Floor/day landed note', number(document.querySelector('[data-floor-group="recent"] h2 span')), dayIds.size);
     // Tile sub-lines moved into each tile's hover title (2ad0017969).
-    add('Floor/unreviewed note', Number(/; (\d+) waiting for a reviewer$/u.exec(document.querySelector('[data-floor-stat="in-review"]')?.title ?? '')?.[1]), review.filter(item => !item.reviewer || !(Date.parse(item.reviewUntil) > Date.now())).length);
+    add('Floor/unreviewed note', Number(/; (\d+) pending review$/u.exec(document.querySelector('[data-floor-stat="in-review"]')?.title ?? '')?.[1]), review.filter(item => !item.reviewer || !(Date.parse(item.reviewUntil) > Date.now())).length);
     const headline = document.querySelector('.floor-hero h1').textContent.replaceAll(',', '').match(/\d+/g).map(Number);
     // The headline reads landings in 24 hours, then peak agents (f1fb1e6fb7); the peak is never below the live count.
     add('Floor/headline/landed', headline[0], dayIds.size);
