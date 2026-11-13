@@ -31,6 +31,8 @@ function median(values) {
   const n = sorted.length;
   return n ? Math.round((sorted[Math.floor((n - 1) / 2)] + sorted[Math.floor(n / 2)]) / 2) : null;
 }
+/** A landing or review move needs no parse here: its item is its own column, and only its model is read, later, when named. */
+const NO_DETAIL = Object.freeze({});
 function detail(event) {
   try { return JSON.parse(event.event_detail); } catch { return {}; }
 }
@@ -68,7 +70,7 @@ function* projectCost({ items, agents, events, window = '30d', now = new Date(),
   let seen = 0;
   for (const event of ordered) {
     if (++seen % 2000 === 0) yield;
-    const info = detail(event), id = event.item_id ?? info.item;
+    const info = event.item_id !== null && event.item_id !== undefined && !['usage', 'shared-usage'].includes(event.event_kind) ? NO_DETAIL : detail(event), id = event.item_id ?? info.item;
     if (id) { if (!histories.has(id)) histories.set(id, []); histories.get(id).push(event); }
     if (event.event_kind === 'usage') {
       if (info.shared) shared.add(info.item);

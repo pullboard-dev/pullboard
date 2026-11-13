@@ -64,6 +64,8 @@
 .cost-private-row { margin: 0; }
 .cost-col, .cost-sect { display: flex; flex-direction: column; min-width: 0; }
 .cost-col > .cost-card { flex: 1; }
+/* The Agent time card ends with its content, so no blank area sits under the Sent back bar. */
+.cost-col > .cost-summary { flex: none; }
 .cost-summary > div + div { padding-top: 14px; border-top: var(--border-row); }
 .cost-big { margin: 6px 0 0; font-size: 30px; line-height: 1.1; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .cost-big small { margin-left: 4px; color: var(--ink-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; }
