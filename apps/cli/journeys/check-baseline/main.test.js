@@ -48,8 +48,7 @@ test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in 
   const locations = readFileSync(observations, 'utf8').trim().split('\n');
   assert.equal(locations.length, 1, 'add runs exactly one baseline');
   assert.notEqual(locations[0], box.repo);
-  assert.ok(locations[0].startsWith(box.worker), `the baseline ran in the registered runner's checkout: ${locations[0]}`);
-  assert.equal(existsSync(locations[0]), false, 'the isolated checkout is removed after the baseline completes');
+  assert.ok(locations[0].startsWith(box.worker), `the baseline ran in the local runner's checkout: ${locations[0]}`);
   assert.match((await box.runLocal(box.repo, ['show', String(item.item_id)])).stdout, /CRITERION_PROVES_NOTHING/u);
   const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);

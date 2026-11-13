@@ -38,6 +38,7 @@ import * as store from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -76,9 +77,6 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
     const configured = (await box.runLocal(box.repo, 'settings', key, value));
     assert.equal(configured.code, 0, configured.err || configured.out);
   }
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const kept = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  writeFileSync(settingsFile, JSON.stringify({ ...kept, gate: { ...kept.gate, runnerDispatch: 'controller' } }));
 
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
@@ -130,7 +128,7 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   const ran = await box.runLocal(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
   // A fresh seat's first delivery starts at the board head (#6152), so the lane's earlier moves are no news to it.
-  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\n#1 is in the gate as job /);
+  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\n(?:no new shouts or activity\n)?#1 is in the gate as job /);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
   assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
@@ -166,6 +164,7 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   await addDiagnosedLight(box, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
   const webRunner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
   assert.match((await box.runLocal(webRunner, 'run', '--agent-light', good, '--attempts', '1')).out, /#1 is in the gate as job /);
+  await settledGateJob(box, 1); // the pulled gate posts its receipt after the run returns [C7]
   const commit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', commit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--no-next', '--note', 'ran the check, then emptied the file and saw it fail')).out, /verified #1/);
@@ -195,6 +194,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
   writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
   assert.match((await box.runLocal(dependencyRunner, 'run', '--agent-light', upstreamAgent, '--attempts', '1')).out, /#1 is in the gate as job /);
+  await settledGateJob(box, 1); // the pulled gate posts its receipt after the run returns [C7]
   const dependencyCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', dependencyCommit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.')).out, /verified #1/);

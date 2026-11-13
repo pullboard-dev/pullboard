@@ -3,7 +3,7 @@
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { changedStaticFailures } from '../../../../../packages/gate/index.js';
+import { changedStaticFailures } from '../../../../../packages/gate/heavy.js';
 import { staticScopeFromEnv } from '../../../../../packages/gate/index.js';
 import { viewPureGate } from './view.js';
 
