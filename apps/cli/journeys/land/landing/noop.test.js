@@ -34,6 +34,3 @@ test('an idle empty land takes no lease and writes no event [E25,E26,B3]', async
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), head);
   assert.equal(onBoard(box, board => store.landingBatches(board).length), 0);
 });
-
-// CONTROLLER_ONLY: the waiting lander queued behind a landing lease is the controller's; a pulled land job never waits in line [E25,B3].
-test('an empty land still queues behind a live landing owner [E25,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});

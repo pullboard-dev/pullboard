@@ -13,9 +13,6 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { boardFixture, accepted } = makeMergeBoard(e2e);
 
-// CONTROLLER_ONLY: the add-only JSON and Markdown retention is the batch engine's mechanical merge (packages/merge train.js); the pulled land job merges with plain git and returns an overlapping file as a conflict [C7].
-test('public land retains JSON and Markdown additions [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});
-
 test('public land returns a same-line edit that really conflicts to its builder [B3,R3,C7]', async () => {
   const box = boardFixture();
   const competing = accepted(box, 3, { 'docs/api.md': '# Edited by first item\n\nEnd.\n' });
