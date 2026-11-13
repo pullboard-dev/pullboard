@@ -548,6 +548,26 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
 }
 
 /**
+ * The items whose current merge was recorded in the last 24 hours, each with its commit: what the Dashboard's landing
+ * bars and lists match against its events. The older landings are not listed; the page counts them from its items.
+ *
+ * @param {any} board
+ * @param {any[]} all Every item row.
+ * @param {number} now
+ * @returns {{ id: number, commit: string }[]}
+ */
+function recentLandings(board, all, now) {
+  const landed = new Map(all.filter(item => item.item_merged_commit).map(item => [item.item_id, item.item_merged_commit]));
+  const recent = new Map();
+  for (const event of store.eventsOfKinds(board, ['merged'])) {
+    const commit = landed.get(event.item_id);
+    if (commit === undefined || recent.has(event.item_id) || Date.parse(event.event_at) <= now - 24 * 3_600_000) continue;
+    try { if (JSON.parse(event.event_detail).commit === commit) recent.set(event.item_id, commit); } catch { /* A malformed receipt lists nothing. */ }
+  }
+  return [...recent].map(([id, commit]) => ({ id, commit }));
+}
+
+/**
  * Everything in a project's state that only the board's recorded history, HEAD, the spec and doctrine files and the
  * minute decide: every field but the items, the agents and the unseen count. projectState keeps it while
  * derivedMarker is unchanged, so a read after an agent heartbeat or lease renewal rebuilds only what moved.
@@ -586,8 +606,8 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
     asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
     events: store.recentEvents(board, 80),
     dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-    dashboardLanded: all.filter(item => item.item_merged_commit)
-      .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
+    // Only the landings the Dashboard draws (the last 24 hours): every older landing is an item whose stage the page already holds (#6666).
+    dashboardLanded: recentLandings(board, all, now),
     landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
       .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
     holds: store.laneHolds(board),
