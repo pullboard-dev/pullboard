@@ -1,6 +1,7 @@
 {
   "foreign": [
     "package.json",
+    "composer.json",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",
