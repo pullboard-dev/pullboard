@@ -539,7 +539,6 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 @media (max-width: 900px) { .detail { position: static; max-height: none; } #detail { scroll-margin-top: 60px; } }
 .detail h2 { margin: 0; font-size: var(--text-xl); line-height: var(--leading-snug); overflow-wrap: anywhere; }
 .detail h2 span { color: var(--ink-faint); font: 600 var(--text-sm) var(--mono); margin-right: var(--space-2); }
-.detail h3 { margin: 0 0 var(--space-2); font: 600 var(--text-2xs)/1 var(--mono); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); }
 .detail .text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .detail .muted, .muted { color: var(--ink-muted); }
 .check-warning { margin: var(--space-2) 0 0; color: var(--warn); font-size: var(--text-sm); }
@@ -735,9 +734,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .section-count { margin-left: var(--space-2); color: var(--ink-faint); font: 500 var(--text-2xs) var(--mono); }
 .spec-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-4) 0 var(--space-1); }
 .rows h4 { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
-.spec-section-approve, .approve-row, .decline-row { min-height: var(--tap); padding: 0 var(--space-4); border: 1px solid transparent; border-radius: var(--radius-xs); background: none; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.spec-section-approve { border: 0; color: var(--accent-strong); }
-.spec-section-approve:hover { background: var(--accent-soft); }
+.approve-row, .decline-row { min-height: var(--tap); padding: 0 var(--space-4); border: 1px solid transparent; border-radius: var(--radius-xs); background: none; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .approve-row { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .approve-row:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
 .decline-row { border-color: var(--line-strong); color: var(--ink-muted); }
@@ -1311,14 +1308,14 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .shout-form > .answering, .shout-form > .console { grid-column: 1 / -1; }
 #asks-slot { min-width: 0; max-width: 100%; }
 #asks-slot .seg { flex: none; }
-.conversation-row { display: flex; align-items: center; gap: var(--space-4); width: 100%; min-width: 0; padding: var(--space-4) 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+.conversation-row { display: grid; grid-template-columns: 44px minmax(0, 2fr) minmax(0, 3fr) auto 40px; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; height: 30px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-md); background: none; color: var(--ink-muted); font-size: var(--text-xs); text-align: left; cursor: pointer; }
 .conversation-row:hover { background: var(--surface-2); }
-.conversation-copy { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
-.conversation-title, .conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conversation-title { font-weight: 600; }
-.conversation-title code { color: var(--ink-faint); font: var(--text-xs) var(--mono); }
-.conversation-preview { color: var(--ink-muted); font-size: var(--text-sm); }
-.conversation-meta { display: grid; justify-items: end; gap: var(--space-1); flex: none; color: var(--ink-faint); font-size: var(--text-xs); }
+.conversation-id, .conversation-title, .conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-id { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
+.conversation-title { color: var(--ink); font-weight: 600; }
+.conversation-preview b { color: var(--ink-muted); font-weight: 600; }
+.conversation-row .chip { min-width: 1.6em; text-align: center; }
+.conversation-time { color: var(--ink-faint); font-size: var(--text-2xs); text-align: right; white-space: nowrap; }
 .conversation-heading { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: var(--space-2); overflow-wrap: anywhere; }
 .conversation-heading .link { justify-self: start; }
 #feed > .shout { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -1326,17 +1323,25 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 #feed .shout .who { color: var(--violet); font: 600 var(--text-sm) var(--mono); }
 #feed .shout.lead .who { color: var(--accent-strong); }
 #feed .shout .to { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.agent-row .agent-who { overflow: hidden; align-self: end; }
+.agent-row { grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto; min-height: 44px; padding: 0 var(--space-3); gap: var(--space-3); border-radius: var(--radius-md); }
+.agent-row .agent-who { overflow: hidden; }
+.agent-who b, .agent-card.lead .agent-who b { color: var(--ink); font-weight: 600; }
 .agent-row .agent-model { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); font-size: var(--text-2xs); }
-.agent-state { grid-column: 2; grid-row: 1 / span 2; display: grid; justify-items: end; gap: var(--space-1); white-space: nowrap; }
+.agent-row .agent-doing { grid-column: 2; grid-row: 1; }
+.agent-state { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 .agent-state time { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
-.agent-row .agent-doing { grid-column: 1; }
+.agent-state .chip, .agent-state [class*="stage"] { padding: 0 var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-2xs); line-height: 18px; }
+.agent-card .agent-work { padding-left: var(--space-5); }
+/* The shout box is one compact line. */
+.shouts-card > .shout-form { padding: var(--space-2) var(--space-3); }
+.shouts-card .composer { border-radius: var(--radius-md); }
 @media (width < 600px) {
   .shouts-card > .shout-form { gap: var(--space-1); padding-inline: var(--space-2); }
   .shout-form .composer { flex: 1 1 0; min-width: 0; }
   .shout-form .composer textarea { min-width: 0; width: 100%; }
   #asks-slot .seg button { padding-inline: var(--space-1); font-size: var(--text-2xs); }
-  .conversation-row { gap: var(--space-2); }
+  .conversation-row { grid-template-columns: 38px minmax(0, 1fr) auto 32px; gap: var(--space-2); padding-inline: var(--space-1); }
+  .conversation-preview { display: none; }
 }
 /* The comparison overview stays open; its complete canonical table is a separate disclosure. */
 .window-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
@@ -1369,7 +1374,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 /* Spec keeps the shared row frame, with its tier and citation count in one right column. */
 #spec-list .spec-section-head { border-top: 1px solid var(--line); padding-top: var(--space-5); margin-top: var(--space-5); }
 #spec-list .spec-section-head:first-child { border-top: 0; margin-top: var(--space-2); padding-top: 0; }
-#spec-list h4 { font-size: var(--text-spec-heading); font-weight: 600; color: var(--ink); }
+.spec-section-head .hd2 { margin: 0; }
 :is(#spec-list, #doctrine-list) .spec-record { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr) auto; grid-template-areas: "dot main side"; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
 :is(#spec-list, #doctrine-list) .spec-record > div:first-of-type { grid-area: main; min-width: 0; display: block; }
 :is(#spec-list, #doctrine-list) .spec-record > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; color: var(--warn); background: var(--warn-soft); font-size: var(--text-xs); }
@@ -1378,6 +1383,15 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 :is(#spec-list, #doctrine-list) .spec-record .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .row-id { font-family: var(--mono); margin-right: var(--space-3); font-weight: 500; }
 :is(#spec-list, #doctrine-list) .spec-record .meta { display: flex; flex-wrap: nowrap; gap: var(--space-3); }
+/* A row fits its card at every width: nothing in it pushes past the card, so refs and test paths end in an ellipsis. */
+:is(#spec-list, #doctrine-list) .spec-record { min-width: 0; overflow: hidden; }
+:is(#spec-list, #doctrine-list) .spec-record .meta { min-width: 0; overflow: hidden; }
+:is(#spec-list, #doctrine-list) .spec-record .meta > * { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(#spec-list, #doctrine-list) .spec-record a.ref { display: inline; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow: hidden; }
+  #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 .spec-gate { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; color: var(--ink-muted); }
 .spec-gate code { font: var(--text-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spec-gate.missing { color: var(--reject); }
@@ -1415,8 +1429,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 
 /* Settings: a header card, then one card per group of one-height rows (N26). */
 #settings-pane { padding: 0; }
-.settings-head { display: grid; gap: var(--space-4); padding: var(--space-5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
-.settings-head h2 { margin: 0; font-size: var(--text-2xl); letter-spacing: var(--tracking-tight); }
+.settings-head { display: grid; gap: var(--space-3); }
 .settings-head p { margin: 0; color: var(--ink-muted); }
 .settings-bar { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
 .settings-bar .ghost { min-height: var(--tap); display: inline-flex; align-items: center; }
@@ -1426,11 +1439,8 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .settings-head .settings-where { font-size: var(--text-xs); color: var(--ink-faint); }
 .settings-where code { font: var(--text-xs) var(--mono); color: var(--ink-muted); }
 .set-groups { display: grid; gap: var(--space-5); margin-top: var(--space-5); }
+.set-sect { min-width: 0; }
 .set-group { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; }
-.ghead { display: flex; align-items: baseline; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--line); }
-.ghead h3 { margin: 0; font-size: var(--text-md); font-weight: 650; white-space: nowrap; }
-.ghead p { margin: 0; min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ghead span { margin-left: auto; font: var(--text-2xs) var(--mono); color: var(--ink-faint); white-space: nowrap; }
 .set { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
 .set + .set { border-top: 1px solid var(--line); }
 .set .name { min-width: 0; }
@@ -1521,5 +1531,13 @@ body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }
 .focus-batch small { color: var(--muted, inherit); }
 /* Long lists lay out only the rows on screen, so showing their tab costs the same however long the list is (#6613). */
 #chain > li, #spec-list > .spec-record, #doctrine-list > .spec-record, #roadmap .milestone-item { content-visibility: auto; contain-intrinsic-block-size: auto 56px; }
+/* Two header levels, nothing else (design sheet v1.3): .hd1 is a section header on the ground above its card, in a .shd row
+   with an optional .cap2 caption; .hd2 is a sub-head inside a card. Pages use these two classes and no other heading style. */
+.shd { display: flex; align-items: baseline; gap: 14px; min-height: 18px; margin: 0 0 6px; padding: 0 2px; white-space: nowrap; min-width: 0; }
+.shd .cap2 { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-faint); }
+.shd .cap2 ~ .cap2, .shd .cnt { margin-left: 0; }
+.shd .cnt { flex: none; font-size: var(--text-xs); color: var(--ink-faint); }
+.hd1 { flex: none; margin: 0; font: 600 10.5px/1.4 var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); }
+.hd2 { margin: 0 0 6px; font: 600 12.5px/1.4 var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink-muted); }
 /* @pullboard-project-menu-styles */
 /* @pullboard-palette-styles */ /* @pullboard-nav-styles */

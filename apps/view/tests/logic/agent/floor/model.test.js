@@ -66,7 +66,7 @@ test('the floor\'s full row of numbers names every count the person asked for [N
   assert.deepEqual(shown.map(([, , label]) => label), labels);
   for (const [key, value] of shown) assert.equal(value, String(expected[key]), `${key} reads the seeded board`);
   assert.match(band, /4 seen in 4 h/u, 'every seat seen in the window, quiet ones included');
-  assert.match(band, /1 waiting for a reviewer/u);
+  assert.match(band, /1 pending review/u);
   assert.equal(floor.numbers.unreviewed, 1);
 });
 
@@ -94,7 +94,7 @@ test('every agent has a four-hour line with what it holds, its times and shouts,
   const { floor, html } = floorAt(seeded.now);
   const agents = section(html, 'Agents');
   assert.doesNotMatch(agents, /<details/u, 'no agent is folded away');
-  for (const [group, count] of [['Building', 1], ['Reviewing', 1], ['Between items', 1], ['Quiet for 20 min or more', 1]]) {
+  for (const [group, count] of [['Building', 1], ['Reviewing', 1], ['Idle', 1], ['Quiet for 20 min or more', 1]]) {
     assert.match(agents, new RegExp(`<h3 class="floor-group">${group} · ${count}</h3>`, 'u'));
   }
   const line = id => agents.match(new RegExp(`data-floor-agent="${id}"[\\s\\S]*?</span></div>`, 'u'))?.[0] ?? '';

@@ -97,7 +97,7 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       if (width === 1280) assert.ok(result.pace.height <= result.paceLineHeight + 1 && result.paceFits, `desktop pace stays on one shared header line without clipping: ${JSON.stringify({ rect: result.pace, lineHeight: result.paceLineHeight, fits: result.paceFits })}`);
       const rowsById = new Map(result.rows.map(row => [row.id, row]));
       assert.equal(rowsById.size, 5, `${width}: the release shows each of its five items once`);
-      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Gated', 'Building', 'In review', 'Ready'], `${width}: each item shows its approved plain lifecycle stage`);
+      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Blocked', 'Building', 'In review', 'Ready'], `${width}: each item shows its approved plain lifecycle stage`);
       // The shared stage model shows a returned item as Ready with a sent-back mark, not a Sent back stage.
       assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.back), [false, false, false, false, true], `${width}: only the returned item carries the sent-back mark`);
       assert.equal(queuePositionById.size, 5, `${width}: the roadmap API gives every release item a queue position`);
