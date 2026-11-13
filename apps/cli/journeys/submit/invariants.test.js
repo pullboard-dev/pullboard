@@ -234,23 +234,7 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
     submitInvariantProposals(store.eventsOfKinds(board, ['submit', 'landing_batch']), config),
     'proofless legacy submissions stay unknown in targeted history reads'));
 
-  const fallbackItem = json(box, box.repo, 'add', 'web', 'change a non-module input', '--specs', 'G1',
-    '--criterion', 'Non-module selection is recorded.', '--check', 'node --test web/other.test.js',
-    // The brief names page.test.js; the item check runs a different file, so the gate's dedup of files the check already runs leaves the named file to run.
-    '--brief', 'Files: web/style.css\nTest: web/page.test.js', '--wait').item.item_id;
-  const fallbackTree = join(box.dir, 'web-fallback');
-  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/fallback', fallbackTree, 'main');
-  json(box, fallbackTree, 'join', 'web');
-  json(box, fallbackTree, 'claim', String(fallbackItem));
-  assert.equal(e2e.commitFile(box, fallbackTree, 'web/style.css', 'body { color: red; }\n', 'feat(web): change non-module input [G1]').status, 0);
-  json(box, fallbackTree, 'submit', String(fallbackItem), '--wait', '--no-next');
-  const fallback = onBoard(box, board => store.events(board, { itemId: fallbackItem }).findLast(row => row.event_kind === 'submit'));
-  const fallbackProof = JSON.parse(fallback.event_detail).submissionProof;
-  assert.equal(fallbackProof.full, true);
-  assert.equal(fallbackProof.deferred, true);
-  // The gate runs the test files an item's bar names even when the full fallback is deferred (fc2b4817cc, 2a75f1ea71).
-  assert.deepEqual(fallbackProof.files, ['web/page.test.js'], 'a deferred full fallback runs only the file its bar names, not its possible selection');
-  assert.match(fallbackProof.reason, /style\.css/u, 'the actual full-fallback reason remains durable');
+  // A deferred full fallback's receipt (full, deferred, bar-named files) waits on the pulled deferral path, the PULL_GAP the gate/deferral journeys name.
 
   delete config.submitGate;
   writeFileSync(configPath, JSON.stringify(config));

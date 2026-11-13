@@ -1232,9 +1232,6 @@
   "apps/cli/journeys/shout/activity/journey.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/show/quarantine/composed-lift.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
   },
