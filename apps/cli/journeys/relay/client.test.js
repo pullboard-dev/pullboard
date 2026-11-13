@@ -477,6 +477,18 @@ test('[H16,C7] a relay transport failure names its cause', async (t) => {
   assert.equal(repeated.document.item.item_title, 'reply lost at the transport', 'the recovered command reports its original outcome');
 });
 
+test('[H16,C7] a relay that accepts a move and never answers ends within the client budget', async (t) => {
+  const { root, env, lane, relay } = await lostReplyFixture(t);
+  relay.hangMoves(true);
+  const started = Date.now();
+  const hung = await cliResult(root, env, 'add', lane, 'server never answers');
+  const elapsed = Date.now() - started;
+  assert.equal(hung.status, 1, hung.stderr);
+  assert.equal(hung.document.error.code, 'RELAY_UNAVAILABLE', 'a never-answering relay is refused, not waited on');
+  assert.match(hung.document.error.message, /did not answer \(timed out after \d+ ms on POST \/api\/v1\/boards\/[0-9a-f]{32}\/moves\)/u, 'the refusal names the stalled request');
+  assert.ok(elapsed < 60_000, `the command ended in ${elapsed} ms, inside its budget`); // budget: client ceiling is 10 s per request.
+});
+
 test('[H16,C7] a relay transport failure names its cause when a read recovers the move', async (t) => {
   const fixture = await lostReplyFixture(t);
   const { root, env, lane, relay } = fixture;

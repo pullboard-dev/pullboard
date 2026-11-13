@@ -21,7 +21,9 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     const key = itemStageKey(itemStagePresentation(item, { gated: Boolean(item.blockedBy?.length || item.heldReason || item.laneHoldReason), landingBatchAt: item.landingBatchAt }).stage);
     if (key in stageCounts) stageCounts[key]++;
   }
-  const merged = new Map((project.dashboardLanded ?? []).map(entry => [entry.id, entry]));
+  // Every landed item is known from its own row; only the last day's landings list their commit, to match merge events (#6666).
+  const merged = new Map(items.filter(item => item.merged || item.stage === 'merged').map(item => [item.id, { id: item.id, commit: null }]));
+  for (const entry of project.dashboardLanded ?? []) merged.set(entry.id, entry);
   const prefix = project.sequence ?? Infinity;
   const events = history.filter(event => event.event_id <= prefix && Date.parse(event.event_at) <= now)
     .sort((a, b) => a.event_id - b.event_id);
