@@ -104,13 +104,13 @@ test('ps elapsed times parse in every layout [C7]', () => {
 test('clause 2: a process inside a test run never sweeps the machine, and a runner job is not an orphan [C7]', () => {
   assert.equal(sweepAllowed({}), true);
   for (const name of ['PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_TEST_SANDBOX', 'NODE_TEST_CONTEXT']) assert.equal(sweepAllowed({ [name]: '1' }), false, name);
-  const job = { pid: 20, ppid: 1, ageMs: 1000, command: 'node /Users/x/.pullboard-runner/jobs/abc/checkout/bin/run-tests.js a.test.js' };
+  const job = { pid: 20, ppid: 1, ageMs: 1000, command: 'node /Users/person/.pullboard-runner/jobs/abc/checkout/bin/run-tests.js a.test.js' };
   assert.deepEqual(sweepStaleTests({ processes: [job], own: 99, stop: () => assert.fail('a runner job is not stopped') }), []);
 });
 
 test('#7137 clause 1: a detached pullboard test --test-run driver with parent launchd/init is never stopped [C7]', () => {
   const driver = { pid: 30, ppid: 1, ageMs: 120_000,
-    command: '/Users/x/.nvm/versions/node/v22.22.2/bin/node /Users/x/repo/apps/cli/pullboard.js test --test-run 5aa66d18-0f5e-47ae-8361-f7385076e222 a.test.js' };
+    command: '/Users/person/.nvm/versions/node/v22.22.2/bin/node /Users/person/repo/apps/cli/pullboard.js test --test-run 5aa66d18-0f5e-47ae-8361-f7385076e222 a.test.js' };
   const signalled = [];
   assert.deepEqual(sweepStaleTests({ processes: [driver], own: 99, stop: pid => signalled.push(pid) }), []);
   assert.deepEqual(signalled, [], 'a test-run driver is not signalled');

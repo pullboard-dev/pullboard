@@ -20,12 +20,21 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { legacyRelayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
-/** Start the private relay fixture on the pull path; a submit queues its gate job and these journeys settle it before reading the submitted row. */
+/** Start the private relay fixture; its pulled gates run on the machine's loopback local runner, stopped when the test ends [P7]. */
 async function relayClientFixture(t, options) {
   const box = await legacyRelayClientFixture(t, options);
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true, mode: 0o700 });
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   return box;
+}
+
+/** Settle a linked checkout's pulled submit: the fixture local runner takes the gate job and its receipt makes the item submitted [P7,#5821]. */
+function settleLinkedSubmit(t, box, cwd, submitted) {
+  const run = async (_root, ...args) => { const ran = await box.cliAt(cwd, ...args.filter(arg => arg !== '--json')); return { code: ran.code, out: JSON.stringify(ran.document), err: '' }; };
+  return settleSubmit(t, { repo: box.root, env: box.env, run }, submitted.document);
 }
 
 // The subtests each start their own private relay fixture, so they run side by side: back to back they outlast the file's wall limit on a loaded runner.
@@ -92,6 +101,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   const submitted = await box.cliAt(agentRoot, 'submit', String(item));
   assert.equal(submitted.code, 0, 'the linked agent submits locally while the baseline is refused');
   assertPaused(submitted.document);
+  await settleLinkedSubmit(t, box, agentRoot, submitted);
   const shouted = await box.cliAt(agentRoot, 'shout', 'all', 'Relay pause fixture remains available');
   assert.equal(shouted.code, 0, 'the linked agent shouts locally while the baseline is refused');
   assertPaused(shouted.document);
@@ -111,11 +121,8 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
     'no paused local move was sent before its baseline existed');
   const baseline = await uploadedState(box);
   assert.equal(baseline.sequence, box.moveAcks.length, 'the baseline checkpoint covers only the queued review fact move, if it was sent');
-  // A pull submit queues its gate job and the item stays claimed until a runner posts the receipt, which a relay-linked checkout never serves [P7,C7]; the baseline holds the claim.
-  const kinds = baseline.document.tables.event.filter(row => row.item_id === item).map(row => row.event_kind);
-  assert.equal(baseline.document.tables.item.find(row => row.item_id === item).item_status, 'claimed',
-    'the accepted fresh baseline includes the local claim');
-  assert.ok(kinds.includes('claim'), `the baseline holds the claim event: ${kinds}`);
+  assert.equal(baseline.document.tables.item.find(row => row.item_id === item).item_status, 'submitted',
+    'the accepted fresh baseline includes the local claim and submission');
   assert.ok(baseline.document.tables.shout.some(row => row.shout_text === 'Relay pause fixture remains available'),
     'the fresh baseline retains the local shout');
   assert.ok(baseline.document.tables.agent.some(row => row.agent_path === agentRoot),

@@ -85,7 +85,6 @@
     "apps/cli/src/io/commands/shadow-batch.js",
     "apps/cli/src/io/commands/submit.js",
     "apps/cli/src/io/commands/worktree.js",
-    "apps/cli/src/io/gate/pool.js",
     "apps/cli/src/io/item/folder.js",
     "apps/cli/src/io/item/folder/scripts/spare.js",
     "apps/cli/src/io/landing/budget.js",

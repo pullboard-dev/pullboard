@@ -110,9 +110,9 @@ test('#6750 clause 1: create-worktree has one entry point, and a new git worktre
   assert.deepEqual(operationSites("export const list = git => git(['worktree', 'list']);\n", 'packages/demo/src/io/tree.js'), [], 'worktree list is not a creation');
 });
 
-test('#6750 clause 2: the baseline lists the 18 current worktree-add files as known violations, and the list can only shrink [C7]', () => {
+test('#6750 clause 2: the baseline lists the 17 current worktree-add files as known violations, and the list can only shrink [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
-  assert.equal(baseline['create-worktree'].length, 18);
+  assert.equal(baseline['create-worktree'].length, 17);
   assert.deepEqual(baseline['create-worktree'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['create-worktree']);
   const grown = { ...baseline, 'create-worktree': [...baseline['create-worktree'], 'packages/demo/src/io/tree.js'] };
   assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /create-worktree gains a second entry point/u);

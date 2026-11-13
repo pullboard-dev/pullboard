@@ -16,7 +16,7 @@ import { testOutputSummary } from '../../../../packages/gate/index.js';
 import { accountedFailures } from '../../../../packages/landing/index.js';
 
 describe('a real remote submit retains the failing source file and exact main failure receipt [V4,B3,H16]', { concurrency: true }, () => {
-  test('a real remote submit retains the failing source file and exact main failure receipt [V4,B3,H16]', async t => {
+  test('a real remote submit retains the failing source file and exact main failure receipt [V4,B3,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
     const box = await fixture(t, { beforeMain: beforeMain({ phases: true }), check: 'node test/check-runner.js' });
     const result = await cliAsync(box, box.builder, 'submit', String(box.item));
     assert.equal(result.status, 0, result.stdout + result.stderr);
