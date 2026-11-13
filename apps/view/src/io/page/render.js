@@ -18,6 +18,7 @@ import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
 import { progressHtml } from "../../logic/nav.js";
 import { navLayout } from "../../logic/nav.js";
+import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
@@ -43,6 +44,7 @@ ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
 ${progressHtml.toString()}
 ${navLayout.toString()}
+${pageControlsHtml.toString()}
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -148,7 +150,9 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
     roadmap: release && release.total > release.done ? release.total - release.done + ' to go' : '', spec: (p.spec || []).length, doctrine: (p.practice || []).length };
   for (const [page, value] of Object.entries(facts)) document.querySelectorAll?.('[data-nav-fact="' + page + '"]').forEach((node) => text(node, value ? String(value) : ''));
   if (view.tab === 'progress') {
-    const html = progressHtml({ agents, perHour: pace, landedDay: p.dashboardPace?.last24h ?? null, rulings, building, review });
+    const day = view.range === '24h';
+    const landed = day ? p.dashboardPace?.last24h ?? null : p.dashboardPace?.last6h ?? null;
+    const html = progressHtml({ agents, perHour: day && Number.isFinite(landed) ? landed / 24 : pace, landed, range: day ? '24h' : '6h', rulings, building, review });
     if ($('progress').innerHTML !== html) $('progress').innerHTML = html;
   }
 }
@@ -826,10 +830,13 @@ function render({ tab: switching = false } = {}) {
       findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
     };
   });
-  store.paint(activity, activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
+  // The strip's person filter lists whoever appears in the activity, and keeps its pick even before that person shows up.
+  view.activityPeople = [...new Set([...activityRows.map(entry => entry.by).filter(Boolean), ...(view.activityBy ? [view.activityBy] : [])])].sort();
+  store.paint(activity, activityHtml({ ...activityModelData, rows: view.activityBy ? activityRows.filter(entry => entry.by === view.activityBy) : activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
   }
   if (draw) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
+  drawPageControls();
   revealPlace();
   revealSegmentedChoices(document);
   updateRoadmapPanel();
