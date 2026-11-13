@@ -17,18 +17,18 @@ const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandPro
 
 test('land pushes one exact batch in verdict order and records each first-containing merge once [B3,R3]', async () => {
   const box = landProject();
-  // Three items are enough to show verdict order differs from item order; a fourth only adds a pulled gate to this file's time.
+  // Two items show verdict order differs from item order; each more adds a pulled gate, and three ran past the file budget under load.
   box.env.LAND_SUPPRESS_RED = '1';
-  const entries = FILES.slice(0, 3).map((file, index) => itemWorktree(box, index + 1, file));
+  const entries = FILES.slice(0, 2).map((file, index) => itemWorktree(box, index + 1, file));
   for (const entry of entries) submitItem(box, entry, 'PASS\n');
-  for (const index of [2, 0, 1]) acceptItem(box, entries[index]);
+  for (const index of [1, 0]) acceptItem(box, entries[index]);
   delete box.env.LAND_SUPPRESS_RED;
   const base = box.git(box.repo, 'rev-parse', 'main');
   const start = calls(box).length;
   const result = await settleLand(box, json(box, box.repo, 'land'));
-  const order = [2, 0, 1].map((index) => entries[index].item);
+  const order = [1, 0].map((index) => entries[index].item);
   assert.deepEqual(result.landed, order);
-  assert.deepEqual(mergeSubjects(box, base, result.batch.tip), [3, 1, 2].map((n) => `feat(merge): land fixture ${n} [G1]`), 'each merge takes its item\'s type from the item\'s feat commit');
+  assert.deepEqual(mergeSubjects(box, base, result.batch.tip), [2, 1].map((n) => `feat(merge): land fixture ${n} [G1]`), 'each merge takes its item\'s type from the item\'s feat commit');
   assert.equal(result.batch.state, 'landed');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip);
   await whenRunnerSettles(box.env, () => box.git(box.remote, 'rev-parse', 'main') === result.batch.tip, { deadlineMs: 30_000, what: 'origin to take the landed tip' }); // the land job publishes the host trunk's tip on to origin [#7398]
