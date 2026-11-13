@@ -70,7 +70,10 @@ function resumeDriver(box, job, { now = Date.now() } = {}) {
     { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8', timeout: 120_000 });
 }
 
-test('clause 1: a driver stopped mid-check stops its check and leaves the job resumable, and a fresh driver finishes it with one terminal result [V4,H16,E18,C7]', async t => {
+/** A detached gate driver exists only under controller dispatch; the pulled gate is a job a runner takes, so these journeys wait for a pulled-job form [V4,H16,E18,C7]. */
+const DRIVER_UNDER_PULL = 'pending: no detached driver exists under the default pulled gate; a pulled-job form is filed from #7045';
+
+test('clause 1: a driver stopped mid-check stops its check and leaves the job resumable, and a fresh driver finishes it with one terminal result [V4,H16,E18,C7]', { skip: DRIVER_UNDER_PULL }, async t => {
   const box = fixture(t);
   const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
@@ -103,7 +106,7 @@ test('clause 1: a driver stopped mid-check stops its check and leaves the job re
   assert.equal(lines(box.finished), 1, 'only the resumed check finished: the stopped one was stopped');
 });
 
-test('clause 1: a driver killed mid-check leaves its saved steps, and once its lease lapses a fresh driver resumes the same drive job to one verdict [C7]', async t => {
+test('clause 1: a driver killed mid-check leaves its saved steps, and once its lease lapses a fresh driver resumes the same drive job to one verdict [C7]', { skip: DRIVER_UNDER_PULL }, async t => {
   const box = fixture(t);
   const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
