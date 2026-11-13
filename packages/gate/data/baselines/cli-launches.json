@@ -797,6 +797,9 @@
   "apps/cli/journeys/init/shards.test.js": {
     "launch": 8
   },
+  "apps/cli/journeys/init/shards/stop.test.js": {
+    "launch": 2
+  },
   "packages/landing/tests/hung.test.js": {
     "launch": 1
   },
