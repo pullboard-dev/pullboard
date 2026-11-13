@@ -68,6 +68,7 @@ test('Settings render hostile values as read-only text in a narrow real browser 
     await chrome.waitFor('document.body.classList.contains("loading") === false');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: false });
     await chrome.click(`document.querySelector('#proj-switch')`);
+    await chrome.click('document.querySelector("[data-proj-all]")');
     await chrome.click(`document.querySelector('[data-tab="settings"]')`);
     await chrome.waitFor('document.querySelectorAll("#settings-content .set[data-setting-key]").length > 0');
     await chrome.click(`document.querySelector('[data-settings-scope="repo"]')`);

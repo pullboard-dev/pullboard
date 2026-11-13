@@ -2,10 +2,18 @@
 import { provingCheck } from '../../../verify/index.js';
 export { provingCheck };
 
-/** Print a recorded observation, including the warning every reviewer must see before work. */
-export function sayCheckBaseline(io, item) {
+/**
+ * Print a recorded observation, including the warning every reviewer must see before work.
+ * With no live runner a pending baseline reads "not run yet" and names the command that runs it, never "running" [#6559].
+ */
+export function sayCheckBaseline(io, item, { runnerLive = true } = {}) {
   const base = item.item_check_baseline;
   if (!base) return;
+  if (base.result === 'pending' && !runnerLive) {
+    io.say('check baseline: not run yet');
+    io.say('next: pullboard runner local');
+    return;
+  }
   if (base.result === 'pending') {
     io.say(`check baseline running in the background at main ${base.main}: ${base.command}`);
     return;

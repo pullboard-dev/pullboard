@@ -56,15 +56,11 @@ function specDecisions(p) {
 }
 
 /**
- * The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
- * click opens (the Active and To verify filters, the gated rows, the agents panel's rows), and a part with none hides.
- * The unread shouts fill their slot from writeChrome.
+ * The agents at work: whoever holds a claim, reviews a submission or is fixing a sent-back item, and moved in the last hour
+ * (or every one, when the agents panel shows all). The notch counts them.
  */
-function statusBarHtml(p) {
+function workingAgents(p) {
   const items = p.items.filter((i) => i.status !== 'withdrawn');
-  const active = items.filter((i) => stateOf(i) !== 'verified');
-  const heldLanes = new Set(p.holds.map((hold) => hold.hold_lane));
-  const gated = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
   const workingActors = new Set(), recentActors = new Set();
   for (const item of items) {
     if (item.status === 'claimed') {
@@ -77,10 +73,30 @@ function statusBarHtml(p) {
   }
   const footerBusy = p.agents.filter(agent => workingActors.has(agent.agent_id)
     && (view.allAgents || recentActors.has(agent.agent_id) || agent.lastMoveAt && Date.now() - Date.parse(agent.lastMoveAt) < 36e5));
+  return footerBusy;
+}
+
+/** The navigation's board numbers from one board: agents at work, the active items, and those building and in review. */
+function navNumbers(p) {
+  const busy = workingAgents(p), active = p.items.filter((i) => i.status !== 'withdrawn' && stateOf(i) !== 'verified');
+  return { agents: busy.length, agentIds: busy.map((a) => a.agent_id), agentNames: busy.map((a) => agentName(a.agent_id)), active: active.length,
+    building: active.filter((i) => stateOf(i) === 'building').length, review: active.filter((i) => stateOf(i) === 'verify').length };
+}
+
+/**
+ * The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
+ * click opens (the Active and To verify filters, the gated rows), and a part with none hides. Agents at work are in the
+ * notch, which holds what matters now; the notch and this bar never repeat (#6614).
+ * The unread shouts fill their slot from writeChrome.
+ */
+function statusBarHtml(p) {
+  const items = p.items.filter((i) => i.status !== 'withdrawn');
+  const active = items.filter((i) => stateOf(i) !== 'verified');
+  const heldLanes = new Set(p.holds.map((hold) => hold.hold_lane));
+  const gated = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
   const release = nextMilestone(p), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
   return part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
     + part('gated', active.filter(gated).length, 'gated', 'Show the open items waiting on another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
@@ -105,17 +121,19 @@ function writeChrome() {
   const shown = p && data.root === view.root ? p : null;
   store.paint($('status-board'), shown ? store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml) : '');
   if (!shown) return;
+  // The navigation's numbers: the notch, the switcher's rulings, each page's one fact (#6614).
+  drawNav(shown, store.select('nav-numbers', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers));
   const spec = $('tabs').querySelector?.('[data-tab=spec]');
   if (spec) {
-    const rows = specDecisions(shown), label = 'Spec <b>' + rows.counts.decide + '</b>';
+    const rows = specDecisions(shown);
     if (spec.title !== rows.decisionTitle) spec.title = rows.decisionTitle;
-    if (spec.innerHTML !== label) spec.innerHTML = label;
   }
   const slot = $('status-unread');
   if (slot) {
     const unread = unseenShouts(shown), html = '<b>' + unread + '</b> unread';
     if (slot.innerHTML !== html) slot.innerHTML = html;
     if (slot.hidden !== !unread) slot.hidden = !unread;
+    document.querySelectorAll?.('[data-nav-fact="shouts"]').forEach((node) => { const text = unread ? String(unread) : ''; if (node.textContent !== text) node.textContent = text; });
   }
 }
 

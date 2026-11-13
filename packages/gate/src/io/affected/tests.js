@@ -353,12 +353,16 @@ function graphAt(root, commit, changedDocs = [], prior = null, probe = null) {
  * an import the graph cannot resolve, or a test whose computed import declares nothing, has `files: null` and a reason,
  * so a caller that keys results on it runs that file rather than trust an incomplete closure [C7].
  *
+ * Why `prior`: a candidate's graph forks from its base's cached graph, parsing only the changed modules, where a cold
+ * build parses every module; a tree that differs in paths or policy rebuilds all [C7,#6672].
+ *
  * @param {string} root
  * @param {string} [commit]
+ * @param {object | null} [prior] - The graph of another tree, from codeMapGraph.
  * @returns {{ closures: Map<string, { files: string[] | null, helpers?: string[], reason: string }>, modules: Map<string, string>, blobs: Map<string, string> }}
  */
-export function testClosures(root, commit = 'HEAD') {
-  return closuresInGraph(graphAt(root, commit));
+export function testClosures(root, commit = 'HEAD', prior = null) {
+  return closuresInGraph(graphAt(root, commit, [], prior));
 }
 
 /** Expose the same commit-pinned import graph for read-only code-map observations, never a new selector. */
