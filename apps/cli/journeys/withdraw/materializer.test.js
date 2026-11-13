@@ -211,10 +211,13 @@ test('[A2,C7] an open page hears one change notice per write, and none from its 
 
 test('[A2,C7] a state worker that cannot start never fails a read: the server builds on the request thread', async (t) => {
   const box = apiHttpFixture(t);
-  const { read } = await materializedApi(t, box, [], 'data:text/javascript,throw new Error("no state ports here")');
+  const { api, read } = await materializedApi(t, box, [], 'data:text/javascript,throw new Error("no state ports here")');
   const first = await read();
   assert.equal(first.status, 200, JSON.stringify(first.document));
   assert.ok(Number.isSafeInteger(first.document.state.sequence));
   const second = await read();
   assert.equal(second.status, 200, JSON.stringify(second.document));
+  const headers = { 'x-pullboard-key': new URL(api.url).searchParams.get('k') };
+  const listing = await (await fetch(new URL(api.url).origin + '/api/v1/boards', { headers })).json();
+  assert.equal(listing.stateWorker, 'stopped', 'the board list tells the page the state worker stopped, so it says so');
 });
