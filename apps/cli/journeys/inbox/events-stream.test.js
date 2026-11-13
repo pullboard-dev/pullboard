@@ -112,10 +112,14 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   }
   /** Require exactly one changed notification for the most recent input change. */
   async function changedOnce(label) {
+    // The mocked clock freezes the file waiter's coalescing timer; advance it in small steps while the frame is awaited [A2,N26].
+    let waiting = true;
+    const pump = (async () => { while (waiting) { t.mock.timers.tick(60); await new Promise((resolve) => setImmediate(resolve)); } })();
     const frame = await Promise.race([
       nextFrame(),
       new Promise((_, reject) => realSetTimeout(() => reject(new Error(`changed event did not arrive within two seconds (${label})`)), 2000)), // budget: #554's criterion bounds a changed event at two seconds.
-    ]);
+    ]).finally(() => { waiting = false; });
+    await pump;
     assert.equal(frame.event, 'changed');
     assert.equal(frame.id, null, 'a state notification does not advance the append-only event cursor');
     assert.deepEqual(frame.data, { version: 1, event: { event_kind: 'changed' } });
