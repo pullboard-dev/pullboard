@@ -21,6 +21,7 @@ import { leaseTokenDigest } from './disposition.js';
 import { openPoolReadOnly } from '../lock.js';
 import { recoveryIdentity } from '../recovery.js';
 import { cleanupCharges } from '../recovery.js';
+import { storeName } from '../store-names.js';
 
 /** Retain only this controller's declared deadline or unresolved lifecycle observation. */
 export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController, observeUnavailable, rebindController }, sourceRoot) {
@@ -60,7 +61,7 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
       controllerPid: process.pid, started, ...(source ? { source } : {}),
       ...(deadline ? { deadline } : {}), ...(problem ? { problem } : {}) });
     if (!file) {
-      const candidate = join(directory, `${randomUUID()}.json`);
+      const candidate = join(directory, `${storeName(randomUUID())}`);
       writeFileSync(candidate, bytes, { flag: 'wx', mode: 0o600 });
       file = candidate;
       return;
