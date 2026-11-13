@@ -24,8 +24,16 @@ const SOURCE = /^(?:apps|packages)\/[^/]+\/(?:src\/.+|[^/]+)\.[cm]?js$/u;
 /** A whole string naming a store file: a bare name or a relative path ending in a store extension. */
 const STORE_FILE = /^(?:[\w.-]+\/)*([\w.-]*[\w-]\.(?:jsonl|json|sqlite))$/u;
 /** SQL that writes a table, inside a string or template. */
+/** A directory store: the segment after a `'pullboard'` path part, or `pullboard/<dir>` in one literal; no extension. */
+const DIR_SEGMENT = /^[a-z][a-z0-9-]*$/u;
+const DIR_LITERAL = /^(?:\.git\/)?pullboard\/([a-z][a-z0-9-]*)\//u;
 const TABLE_WRITE = /\b(?:INSERT(?:\s+OR\s+[A-Z]+)?\s+INTO|REPLACE\s+INTO|UPDATE|DELETE\s+FROM)\s+([a-z_][a-z0-9_]*)\b/gu;
 const TABLE_CREATE = /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z_][a-z0-9_]*)\b/gu;
+
+/** The registry row of a store: a `dir:<name>` store lives in the `dirs` section, every other in `stores`. */
+export function storeRow(registry, store) {
+  return store.startsWith('dir:') ? registry.dirs?.[store.slice(4)] : registry.stores[store];
+}
 
 /** Whether a repo-relative path is shipped source the store check judges. */
 export function isStoreSource(path) {
@@ -44,9 +52,13 @@ export function isStoreSource(path) {
 export function storeSites(source, path) {
   if (!isStoreSource(path)) return [];
   const found = [];
+  let before = null;
   for (const string of lex(source).strings) {
+    const dir = before?.text === 'pullboard' && /^\s*,\s*$/u.test(source.slice(before.end, string.start)) && DIR_SEGMENT.test(string.text) ? string.text : DIR_LITERAL.exec(string.text)?.[1];
+    before = string;
     const name = STORE_FILE.exec(string.text);
     if (name) { found.push({ path, line: lineAt(source, string.start), store: name[1] }); continue; }
+    if (dir) { found.push({ path, line: lineAt(source, string.start), store: `dir:${dir}` }); continue; }
     for (const match of string.text.matchAll(TABLE_WRITE)) found.push({ path, line: lineAt(source, string.start + 1 + match.index), store: `table:${match[1]}` });
     for (const match of string.text.matchAll(TABLE_CREATE)) found.push({ path, line: lineAt(source, string.start + 1 + match.index), store: `table:${match[1]}`, creates: true });
   }
@@ -81,8 +93,8 @@ export function storeExceptionFault(row, today) {
 export function storeHomeCounts(sites, registry) {
   const counts = {};
   for (const site of sites) {
-    if (site.creates || (registry.foreign ?? []).includes(site.store)) continue;
-    if (registry.stores[site.store]?.owner === site.path) continue;
+    if (site.creates || site.store.startsWith('dir:') || (registry.foreign ?? []).includes(site.store)) continue;
+    if (storeRow(registry, site.store)?.owner === site.path) continue;
     counts[site.path] ??= {};
     counts[site.path][site.store] = (counts[site.path][site.store] ?? 0) + 1;
   }
@@ -105,7 +117,7 @@ export function storeGrowth(sites, registry, baseline, today) {
   const problems = [];
   for (const site of sites) {
     if ((registry.foreign ?? []).includes(site.store)) continue;
-    const row = registry.stores[site.store];
+    const row = storeRow(registry, site.store);
     if (!row) {
       problems.push({ path: site.path, line: site.line, text: `CD2_UNREGISTERED_STORE: ${site.store} is not in ${STORE_REGISTRY}; register it with one owner module` });
       continue;
@@ -113,11 +125,37 @@ export function storeGrowth(sites, registry, baseline, today) {
     if (site.creates || row.owner === site.path || held.has(`${site.path}\0${site.store}`)) continue;
     const key = `${site.path}\0${site.store}`;
     seen[key] = (seen[key] ?? 0) + 1;
-    if (seen[key] > (baseline[site.path]?.[site.store] ?? 0)) {
+    const ceiling = site.store.startsWith('dir:') ? row.homes?.[site.path] ?? 0 : baseline[site.path]?.[site.store] ?? 0;
+    if (seen[key] > ceiling) {
       problems.push({ path: site.path, line: site.line, text: `CD2_SECOND_HOME: ${site.store} belongs to ${row.owner}; import its path or writer from there` });
     }
   }
   return problems;
+}
+
+/** Second homes of each directory store, as `{ name: { path: n } }`: its ceilings live in its `dirs` row, beside the owner. */
+export function storeDirHomes(sites, registry) {
+  const homes = {};
+  for (const site of sites) {
+    if (!site.store.startsWith('dir:') || registry.dirs?.[site.store.slice(4)]?.owner === site.path) continue;
+    const name = site.store.slice(4);
+    homes[name] ??= {};
+    homes[name][site.path] = (homes[name][site.path] ?? 0) + 1;
+  }
+  return homes;
+}
+
+/** Directory-store ceilings that rose against accepted main's registry: like the file baseline, they only fall. */
+export function storeDirGrowth(registry, accepted) {
+  const risen = [];
+  for (const [name, row] of Object.entries(registry.dirs ?? {})) {
+    if (!accepted.dirs?.[name]) continue; // registered in this change: its homes are measured once
+    for (const [path, count] of Object.entries(row.homes ?? {})) {
+      const before = accepted.dirs[name].homes?.[path] ?? 0;
+      if (count > before) risen.push({ path: STORE_REGISTRY, line: 1, text: `CD2_BASELINE_ROSE: ${path} dir:${name} ${before} -> ${count}; the store baseline may only fall` });
+    }
+  }
+  return risen;
 }
 
 /** Ceilings that rose against accepted main's baseline: the baseline may only fall. */
@@ -168,6 +206,7 @@ export function storeRegistryCheck({ files, sources, text, previous }, today = n
   const sites = sources.flatMap(row => storeSites(row.source, row.file));
   const problems = [...storeGrowth(sites, registry, baseline, today), ...storeExceptionProblems(registry, files, today), ...storeOwnerProblems(registry)];
   if (files.includes(STORE_BASELINE) && previous(STORE_BASELINE)) problems.push(...storeBaselineGrowth(baseline, JSON.parse(previous(STORE_BASELINE))));
+  if (previous(STORE_REGISTRY)) problems.push(...storeDirGrowth(registry, JSON.parse(previous(STORE_REGISTRY))));
   return problems.map(row => `${row.path}:${row.line}: ${row.text}`);
 }
 
@@ -183,11 +222,24 @@ export function censusRegistry(sites, foreign) {
     tally[site.store][site.path] = (tally[site.store][site.path] ?? 0) + (site.creates ? 0.5 : 1);
   }
   const stores = {};
+  const dirs = {};
   for (const store of Object.keys(tally).sort()) {
     const [owner] = Object.entries(tally[store]).sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1))[0];
-    stores[store] = { kind: store.startsWith('table:') ? 'table' : store.slice(store.lastIndexOf('.') + 1), owner };
+    if (store.startsWith('dir:')) dirs[store.slice(4)] = { kind: 'dir', owner };
+    else stores[store] = { kind: store.startsWith('table:') ? 'table' : store.slice(store.lastIndexOf('.') + 1), owner };
   }
-  return { foreign, stores, exceptions: [] };
+  return { foreign, dirs, stores, exceptions: [] };
+}
+
+/** The registry with each directory row's `homes` set to the current second homes (rows without any carry none). */
+export function withDirHomes(registry, sites) {
+  const homes = storeDirHomes(sites, registry);
+  const dirs = {};
+  for (const [name, row] of Object.entries(registry.dirs ?? {})) {
+    const { homes: _old, ...rest } = row;
+    dirs[name] = homes[name] ? { ...rest, homes: homes[name] } : rest;
+  }
+  return { ...registry, dirs };
 }
 
 /** The updater only lowers ceilings: it refuses before writing when any file has grown. */
@@ -203,12 +255,15 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const json = value => JSON.stringify(value, null, 2) + '\n';
   if (process.argv.includes('--write')) { // first record only
     const registry = censusRegistry(sites, JSON.parse(readFileSync(REGISTRY_URL, 'utf8')).foreign ?? []);
-    writeFileSync(REGISTRY_URL, json(registry));
+    writeFileSync(REGISTRY_URL, json(withDirHomes(registry, sites)));
     writeFileSync(BASELINE_URL, json(storeHomeCounts(sites, registry)));
   } else {
     const registry = JSON.parse(readFileSync(REGISTRY_URL, 'utf8'));
     const baseline = JSON.parse(readFileSync(BASELINE_URL, 'utf8'));
-    if (process.argv.includes('--ratchet')) writeFileSync(BASELINE_URL, json(tightenStoreBaseline(sites, registry, baseline)));
+    if (process.argv.includes('--ratchet')) {
+      writeFileSync(BASELINE_URL, json(tightenStoreBaseline(sites, registry, baseline)));
+      writeFileSync(REGISTRY_URL, json(withDirHomes(registry, sites)));
+    }
     else report(storeGrowth(sites, registry, baseline, new Date().toISOString().slice(0, 10)));
   }
 }

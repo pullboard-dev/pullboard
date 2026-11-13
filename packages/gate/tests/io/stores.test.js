@@ -13,6 +13,7 @@ import { storeExceptionApprovalText } from '../../src/io/stores.js';
 import { storeGrowth } from '../../src/io/stores.js';
 import { storeOwnerProblems } from '../../src/io/stores.js';
 import { storeReport } from '../../src/io/stores.js';
+import { storeDirGrowth } from '../../src/io/stores.js';
 import { storeSites } from '../../src/io/stores.js';
 import { tightenStoreBaseline } from '../../src/io/stores.js';
 
@@ -93,6 +94,36 @@ test('clause 2: the updater only lowers ceilings and refuses growth without writ
   assert.throws(() => tightenStoreBaseline(sites, REGISTRY, baseline), /newcomer\.js:2: CD2_SECOND_HOME/u);
   assert.deepEqual(tightenStoreBaseline(sites.slice(0, 1), REGISTRY, baseline), baseline);
   assert.deepEqual(tightenStoreBaseline([], REGISTRY, baseline), {});
+});
+
+test('clause 1: a join(..., \'pullboard\', \'<dir>\') directory store is a site, and a new unregistered one is refused [CD2]', () => {
+  const source = [
+    "const a = join(common, 'pullboard', 'trace');",
+    "const b = join(gitDir, 'pullboard/packs/x');",
+    "const c = 'pullboard/verified-by-second-agent';",
+    "const d = join(common, 'pullboard', 'relay.json');",
+    "const e = join(common, 'pullboard');",
+  ].join('\n');
+  assert.deepEqual(storeSites(source, OTHER).map(row => [row.line, row.store]), [[1, 'dir:trace'], [2, 'dir:packs'], [4, 'relay.json']]);
+  const registry = { ...REGISTRY, dirs: { trace: { kind: 'dir', owner: OWNER } } };
+  const failures = judge({ [OTHER]: "const a = join(common, 'pullboard', 'brand-new-dir');" }, { registry });
+  assert.match(failures[0], /CD2_UNREGISTERED_STORE: dir:brand-new-dir is not in/u);
+  assert.match(judge({ [OTHER]: "const a = join(common, 'pullboard', 'trace');" }, { registry })[0], /CD2_SECOND_HOME: dir:trace belongs to packages\/landing/u);
+  assert.deepEqual(judge({ [OWNER]: "const a = join(common, 'pullboard', 'trace');" }, { registry }), []);
+});
+
+test('clause 2: stores.json has a dirs section seeded with the directory stores, and a missing one fails [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const seeded = 'check-output ledger-cache tool-builds trace worktree-archives module-graphs worktree-prune automatic-landing review-packets gate-receipts review-comparisons source-advances state-cache packs submit-handoffs main-audits test-runs gate-spans usage-due baseline-results history-scan release-receipts flake-evidence check-receipts worktree-maintenance publish publish-index landings trunk search sandbox-exports release-coordinator-actions outside-check-output tool-build-scheduler board'.split(' ');
+  assert.deepEqual(seeded.filter(name => !registry.dirs?.[name]), [], 'every seeded directory store is registered');
+  const found = new Set(storeReport(ROOT).filter(site => site.store.startsWith('dir:')).map(site => site.store.slice(4)));
+  assert.deepEqual([...found].filter(name => !registry.dirs[name]), [], 'a directory store the source names is registered');
+  assert.ok(Object.values(registry.dirs).every(row => row.kind === 'dir' && row.owner));
+  const grown = { dirs: { trace: { homes: { [OTHER]: 2 } }, fresh: { homes: { [OTHER]: 2 } } } };
+  const accepted = { dirs: { trace: { homes: { [OTHER]: 1 } } } };
+  assert.deepEqual(storeDirGrowth(grown, accepted).map(row => row.text), [`CD2_BASELINE_ROSE: ${OTHER} dir:trace 1 -> 2; the store baseline may only fall`], 'a registered directory may not rise; a new one records its homes once');
+  const shipped = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  assert.ok(!JSON.stringify(shipped).includes('dir:'), 'directory ceilings live in their dirs rows');
 });
 
 test('clause 2: the repository adds no unregistered store or second home past the shipped baseline [CD2]', () => {
