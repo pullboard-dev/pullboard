@@ -1320,6 +1320,10 @@
       "kind": "table",
       "owner": "packages/codemap/src/io/parsed.js"
     },
+    "table:run": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/jobs.js"
+    },
     "table:runner_draining": {
       "kind": "table",
       "owner": "packages/resources/src/io/main.js"
