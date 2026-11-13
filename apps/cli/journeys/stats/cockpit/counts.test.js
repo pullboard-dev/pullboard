@@ -23,7 +23,7 @@ import { pickProject } from '../../../tests/fixtures/cockpit/harness.js';
 import { press } from '../../../tests/fixtures/cockpit/harness.js';
 import { joinedAgent } from './fixture.js';
 
-test('[V2,N26] real Chrome shows matching proof stats at phone width and clears on a group [V2,N26]', { timeout: 90_000 }, async (t) => {
+test('[V2,N26] real Chrome page data carries matching proof stats and a group draws none [V2,N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the proof stats card criterion.');
 
@@ -51,40 +51,18 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("!!data?.project");
     await press(chrome, "document.querySelector('[data-tab=items]')");
-    await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats [data-stat=\"submissions\"]')");
+    await chrome.waitFor("!!data?.project?.proofStats");
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats [data-stat="submissions"]')`);
-    await press(chrome, "document.querySelector('#proof-stats-summary')");
-    await chrome.waitFor("!document.querySelector('#proof-stats-full').hidden");
-    const keys = ['submissions', 'rejections', 'rejectionShare', 'merged', 'mergedWithoutAccept', 'agentCount', 'firstEventAt', 'lastEventAt'];
-    const expectedValues = Object.fromEntries(keys.map((key) => [key, key === 'rejectionShare' ? `${(expected[key] * 100).toFixed(1)}%` : String(expected[key] ?? '')]));
-    for (const scheme of ['light', 'dark']) for (const width of [375, 1280]) {
-      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      const actual = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const card = document.querySelector('#proof-stats'), rect = card.getBoundingClientRect();
-        const grid = getComputedStyle(card.querySelector('.proof-stats-grid'));
-        return { hidden:card.hidden || !!card.closest('[hidden]'), display:getComputedStyle(card).display,
-          width:rect.width, height:rect.height, right:rect.right, viewport:document.documentElement.clientWidth,
-          columns:grid.gridTemplateColumns.split(' ').length,
-          values:Object.fromEntries(${JSON.stringify(keys)}.map(key => { const node=card.querySelector('[data-stat="' + key + '"]'); return [key, node?.getAttribute('data-value') ?? null]; })),
-          text:Object.fromEntries(${JSON.stringify(keys)}.map(key => [key, card.querySelector('[data-stat="' + key + '"]')?.textContent ?? null])) };
-      })())`));
-      assert.equal(actual.hidden, false, `${width}: selected board's stats card is visible`);
-      assert.equal(actual.display, 'grid', `${width}: stats card uses its computed grid layout`);
-      assert.ok(actual.width > 0 && actual.height > 0 && actual.right <= actual.viewport + 1, `${width}: card has visible bounds inside the viewport`);
-      assert.equal(actual.columns, width < 480 ? 2 : 4, `${width}: compact stats grid adapts to the viewport`);
-      assert.deepEqual(actual.values, expectedValues, `${width}: every visible value matches pullboard stats --json`);
-      const expectedText = JSON.parse(await chrome.stable(`JSON.stringify(Object.fromEntries(${JSON.stringify(keys)}.map(key => {
-        const value = ${JSON.stringify(expected)}[key];
-        const date = key === 'firstEventAt' || key === 'lastEventAt';
-        return [key, date ? (value ? new Date(value).toLocaleDateString([], { year:'numeric', month:'short', day:'numeric' }) : 'none') : ${JSON.stringify(expectedValues)}[key]];
-      })))`));
-      assert.deepEqual(actual.text, expectedText, `${width}: visible text also matches the stats response`);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!data?.project?.proofStats`);
+    // The proof stats card left the Items tab on purpose (#6727); the counts still arrive in the page data.
+    assert.equal(await chrome.stable("document.querySelector('#proof-stats') === null"), true, 'the Items tab no longer draws a proof stats card');
+    const shown = JSON.parse(await chrome.stable('JSON.stringify(data.project.proofStats)'));
+    for (const key of ['submissions', 'rejections', 'rejectionShare', 'merged', 'mergedWithoutAccept', 'agentCount', 'firstEventAt', 'lastEventAt']) {
+      assert.deepEqual(shown[key], expected[key], `page data ${key} matches pullboard stats --json`);
     }
     await pickProject(chrome, `document.querySelector('[data-root="group:Proof project"]')`);
-    await chrome.waitFor("data?.group?.name === 'Proof project' && document.querySelector('#group-view:not([hidden])') && document.querySelector('#proof-stats').hidden");
-    assert.equal(await chrome.stable("document.querySelector('#proof-stats').innerHTML"), '', 'a grouped view cannot retain a prior repo\'s stats');
+    await chrome.waitFor("data?.group?.name === 'Proof project' && document.querySelector('#group-view:not([hidden])')");
+    assert.equal(await chrome.stable("document.querySelector('#proof-stats') === null"), true, 'a grouped view draws no stats card');
     const { flow: currentFlow, ...currentTotals } = (await boardOf(view, alpha.repo)).proofStats;
     const { flow: expectedFlow, agents, bars, caught, ...expectedTotals } = expected;
     for (const key of ['agents', 'bars', 'caught']) assert.equal(Object.hasOwn(currentTotals, key), false, `native state omits historical ${key}`);
@@ -129,17 +107,16 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("!!data?.project");
     await press(chrome, "document.querySelector('[data-tab=items]')");
-    await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary')");
+    await chrome.waitFor("!!data?.project?.proofStats");
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats-summary')`);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!data?.project?.proofStats`);
     await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("view.tab === 'items'");
-    await press(chrome, "document.querySelector('#proof-stats-summary')");
-    const detail = await chrome.stable("document.querySelector('#proof-stats-full').textContent");
-    const count = await chrome.stable("document.querySelector('[data-stat=agentCount]').textContent");
-    assert.equal(count, String(expected.agentCount), 'the expanded card keeps the API agent count');
-    assert.doesNotMatch(detail, /solo|crew|web-\d+|Families/i, 'the card does not enumerate agent or family names');
-    assert.equal(await chrome.stable("document.querySelector('[data-stat=familyCount]') === null"), true, 'the full card has no Families tile');
+    const count = await chrome.stable('data.project.proofStats.agentCount');
+    assert.equal(count, expected.agentCount, 'the page data keeps the API agent count');
+    const page = await chrome.stable("document.querySelector('[data-pane=items]').textContent");
+    assert.doesNotMatch(page, /solo|crew|Families/i, 'the Items tab does not enumerate agent or family names');
+    assert.equal(await chrome.stable("document.querySelector('[data-stat=familyCount]') === null"), true, 'the Items tab has no Families tile');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
