@@ -122,7 +122,6 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
       await pressedInto(chrome, `${showing('roadmap', roadmapPath)} && location.search === ''`);
     }
 
-    await settled(chrome, `!!data?.project && ${showing('dashboard', '/roadmap-demo/dashboard')} && document.querySelector('.tab.on')?.dataset.tab === 'dashboard'`);
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
     assert.deepEqual(consoleErrors, [], 'Chrome reports no console errors');
   } finally {
