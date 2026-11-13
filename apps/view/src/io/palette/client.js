@@ -8,11 +8,11 @@
  */
 function pbPalette(env) {
   const doc = env.document;
-  const KEYS = { items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c' };
+  const KEYS = { items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c', pipeline: 'p' };
   const WHAT = {
     items: 'Every piece of work', shouts: 'Agents talking to the coordinator',
     roadmap: 'What ships next, in order', spec: 'What the product must do', doctrine: 'How the work must be done',
-    dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', settings: 'This view and your account',
+    dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', pipeline: 'Why work isn\'t moving', settings: 'This view and your account',
   };
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const mod = env.mac ? '⌘' : 'Ctrl ';

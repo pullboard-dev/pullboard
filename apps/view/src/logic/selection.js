@@ -1,15 +1,17 @@
 /** Select and order the Items view from explicit observations, without reading browser or board globals. */
 export function selectItemsView({ items, query = '', matchedIds = [], readyIds = [], stateById, state, lane, pipeline = false,
   dashboardList = null, dashboardNext = [], selectedId = null, currentBoard = true, adding = false, addressDetail = null,
-  tab = 'items', snapshot = false }) {
+  tab = 'items', snapshot = false, ids = [] }) {
   const matched = new Set(matchedIds);
+  const named = new Set(ids);
   const ready = new Set(readyIds);
   if (!(stateById instanceof Map)) throw new TypeError('stateById must be a Map of item ids to state observations');
   const observations = stateById;
   const stateOf = item => observations.get(item.id)?.state;
   const gatedOf = item => observations.get(item.id)?.gated === true;
   const mergedOf = item => observations.get(item.id)?.merged === true;
-  const matching = (query ? items : items.filter(item => item.status !== 'withdrawn'))
+  // A search looks through every state, and so does a list of named items: landed work is withdrawn once met, and a count of it must still open.
+  const matching = (query || state === 'ids' ? items : items.filter(item => item.status !== 'withdrawn'))
     .filter(item => !query || matched.has(item.id));
 
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
@@ -23,6 +25,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   if (state === 'landed') names.landed = 'Landed';
   // The Dashboard's Sent back counts open this one (#6847): open or rebuilding items whose latest verdict sent them back.
   if (state === 'sent-back') names['sent-back'] = 'Sent back';
+  // A Pipeline count opens Items on exactly the items it counted, named in the address (#6869).
+  if (state === 'ids') names.ids = 'From Pipeline';
 
   const selectedLane = lane && !matching.some(item => item.lane === lane) ? null : lane;
   const inLane = item => !selectedLane || item.lane === selectedLane;
@@ -31,7 +35,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
       : value === 'gated' ? gatedOf(item)
         : value === 'passed' ? stateOf(item) === 'verified' && !mergedOf(item)
           : value === 'landed' ? mergedOf(item)
-            : value === 'sent-back' ? ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT' : stateOf(item) === value);
+            : value === 'sent-back' ? ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT'
+              : value === 'ids' ? named.has(item.id) : stateOf(item) === value);
   const stateOptions = Object.entries(names).map(([value, label]) => ({
     value, label, count: matching.filter(inLane).filter(inState(value)).length,
   }));

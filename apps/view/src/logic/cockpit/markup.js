@@ -107,6 +107,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   <section data-pane="activity">
     <div class="act-live"><div id="activity" aria-label="Activity"></div><div class="act-tip" id="act-tip" hidden></div></div>
   </section>
+  <section data-pane="pipeline" id="insights-pipeline" class="pipeline-page" aria-label="Pipeline"></section>
   ${settingsMarkup()}
   <section data-pane="roadmap" class="roadmap-layout" id="roadmap" aria-label="Roadmap"></section>
   ${privateCost ? '<section data-pane="cost" id="cost" aria-label="Cost"></section>' : ''}

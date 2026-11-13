@@ -240,7 +240,7 @@ function paintItemsWindow() {
 }
 
 // The parts that scroll on their own: each keeps its place through any draw (#6613).
-const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'cost'];
+const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'insights-pipeline', 'cost'];
 /**
  * Draw the page from the store (#6613). The sidebar and the chrome are drawn on every call; the shown tab's pane is
  * drawn unless this is a tab switch and the pane still shows what it was drawn from. Every part is written through
@@ -312,6 +312,8 @@ function render({ tab: switching = false } = {}) {
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
   const gatedOf = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
+  // The Pipeline page draws itself from the held event history on every refresh and tab switch; it needs no Rulings (#6869).
+  if (view.tab === 'pipeline') pipelineView.draw(p);
   if (draw && view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p, switching);
     store.paint($('cost'), costPaneHtml(history, p));
@@ -431,7 +433,7 @@ function render({ tab: switching = false } = {}) {
   const readyIds = view.state === 'ready' ? dashboardModel(p, [], { complete: false, now: Date.now() }).next.map(item => item.id) : [];
   const stateById = new Map(p.items.map(item => [item.id, { state: stateOf(item), gated: gatedOf(item), merged: Boolean(item.merged) }]));
   const itemsSelection = selectItemsView({ items: p.items, query: q, matchedIds: found, readyIds, stateById, state: view.state,
-    lane: view.lane, pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
+    lane: view.lane, ids: view.itemIds || [], pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
     currentBoard: data.root === view.root, adding: view.adding,
     addressDetail: view.tab === 'items' ? view.addressDetail : null, tab: view.tab, snapshot });
   view.lane = itemsSelection.selectedLane;
