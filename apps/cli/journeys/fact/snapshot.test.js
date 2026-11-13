@@ -75,13 +75,17 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
   };
   recentWindow(expected, 'the live projection');
   recentWindow(actual, 'the export projection');
-  assert.deepEqual(actual, {
+  const wanted = {
     ...expected,
     observedAt: actual.observedAt,
     proofStats: actualStatistics,
     statsComparison: actualComparison,
     dashboardRecent: actual.dashboardRecent,
-  }, message);
+  };
+  assert.deepEqual(Object.keys(actual).sort(), Object.keys(wanted).sort(), `${message}: the same projection fields`);
+  // Compare field by field so a red names the one field that moved between the two reads.
+  for (const field of Object.keys(wanted)) assert.deepEqual(actual[field], wanted[field], `${message}: field ${field}`);
+  assert.deepEqual(actual, wanted, message);
   const { since, until, ...liveCounts } = expected.dashboardRecent;
   const { since: exportSince, until: exportUntil, ...exportCounts } = actual.dashboardRecent;
   assert.deepEqual(exportCounts, liveCounts, 'the hero counts match across the two reads');
