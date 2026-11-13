@@ -51,10 +51,10 @@ test('clause 1: a reviewer of another family than the claimer\'s model is admitt
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
 });
 
-test('clause 1: a reviewer of the claimer\'s model family is refused O2_FAMILY_MATCH [V1,H16]', async t => {
+test('clause 1: a reviewer of the claimer\'s model family is refused as the same family [V1,H16]', async t => {
   const { box, id } = await fixture(t, CLAIMER_MODEL);
   const reviewer = await seat(box, 'anthropic-reviewer', ['--family', 'anthropic', '--model', ANTHROPIC_MODEL]);
   const refused = await box.runAsLocal('anthropic-reviewer-session', reviewer, 'verify', String(id), 'accept', '--note', NOTE);
   assert.notEqual(refused.code, 0, refused.out + refused.err);
-  assert.match(refused.out + refused.err, /O2_FAMILY_MATCH/u);
+  assert.match(refused.out + refused.err, /SAME_FAMILY[^]*another declared family/u);
 });
