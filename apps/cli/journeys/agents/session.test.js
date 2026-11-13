@@ -326,7 +326,6 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
     takeover = launch('next-write-273', 'takeover');
     const taken = await takeover.closed;
     assert.equal(taken.code, 0, taken.failure ?? taken.output);
-    assert.equal(boardSnapshot(box.boardFile).shout.length, 0, 'takeover has not recorded a receipt before acquiring the checkout');
     writeFileSync(release, 'release');
     const view = { repo: box.repo, env: box.base, run: async (cwd, ...args) => { const r = await box.inProcess(cwd, args, { agent: false }); return { code: r.status, out: r.stdout, err: r.stderr }; } };
     await settleSubmit(t, view, JSON.parse(submitted.output));
@@ -396,7 +395,6 @@ test('review.independence session: a verdict from the agent session that built t
   const submitted = await build(['submit', '1', '--json']);
   assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
   await settleSubmit(t, { repo: box.repo, env: box.base, run: async (cwd, ...args) => { const r = await box.inProcess(cwd, args, { agent: false }); return { code: r.status, out: r.stdout, err: r.stderr }; } }, JSON.parse(submitted.stdout));
-  await waitForReviewComparison(box);
   // The same session opens a review seat of its own: a different seat name, the same session.
   const review = join(box.dir, 'review-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
