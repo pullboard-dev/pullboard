@@ -1124,8 +1124,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
     onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads are refused until the API restarts\n`) }) : null;
   /**
-   * Serve a read from the worker while it runs, and from a direct build once it has stopped, including the reads
-   * that were waiting on it: a failed worker never fails a read. A refusal from a running worker's build stands.
+   * Serve a read from the worker while it runs. Once it has stopped, a read, including one that was waiting on it,
+   * is refused STATE_WORKER_STOPPED by name and never built on the request thread. A refusal from a running worker's build stands.
    */
   function materialized(fromWorker, direct) {
     if (!materializer || materializer.alive) return materializer ? fromWorker() : direct();
