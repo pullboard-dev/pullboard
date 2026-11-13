@@ -159,8 +159,9 @@ test('native view submit validates its core companion placement on the composed 
   assert.equal(queued.code, 0, queued.out + queued.err);
   await settleSubmit(t, box, JSON.parse(queued.out));
   // The runner's receipt is green on its own; the board's ledger turns it red once the enforced diagnostic arrives.
-  const refused = box.run(box.repo, 'show', String(id), '--json', '--no-next');
-  const refusal = refused.out + refused.err + (existsSync(trials) ? readFileSync(trials, 'utf8') : '');
+  const shown = JSON.stringify(success(box, box.repo, 'show', String(id)));
+  const refused = { out: shown };
+  const refusal = shown + (existsSync(trials) ? readFileSync(trials, 'utf8') : '');
   assert.match(refused.out, /CELLS_PLAN_UNPLACED/, refusal);
   assert.match(refused.out, /src\/view\/plan-companion-added\.js/, refusal);
   assert.doesNotMatch(refused.out, /submitted for review/, refusal);
