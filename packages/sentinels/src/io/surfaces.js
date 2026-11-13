@@ -16,6 +16,7 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { elapsedMs } from '../logic/budgets.js';
+import { storeName } from './store-names.js';
 
 // Budget: the job lease a runner's renewal extends (the jobs cell's LEASE_MS, two minutes), so a lease's last renewal is its end minus this.
 const LEASE_RENEW_WINDOW_MS = 120_000;
@@ -230,7 +231,7 @@ function lastSpanEnds(spanFolder, now) {
   const ends = new Map();
   for (const day of [now - 86_400_000, now]) {
     let text;
-    try { text = readFileSync(join(spanFolder, `${new Date(day).toISOString().slice(0, 10)}.jsonl`), 'utf8'); } catch { continue; }
+    try { text = readFileSync(join(spanFolder, `${storeName(new Date(day).toISOString().slice(0, 10), '.jsonl')}`), 'utf8'); } catch { continue; }
     for (const line of text.split('\n')) {
       if (!line) continue;
       try {

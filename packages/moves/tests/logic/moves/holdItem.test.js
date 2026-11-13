@@ -14,7 +14,7 @@ import { heldCounted } from '../../../index.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { submitFixture } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
 
 const HOUR = 3_600_000;
 const LIGHT_BRIEF = 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n';

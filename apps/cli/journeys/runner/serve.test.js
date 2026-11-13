@@ -64,7 +64,8 @@ async (t) => {
   const { receipt } = view.steps.find(step => step.name === 'receipt').payload;
   assert.equal(receipt.commit, commit);
   assert.match(receipt.tail, /ran at the candidate/u, 'the job ran at the commit fetched from the trunk remote');
-  assert.ok(calls.every(url => url === `${box.origin}${box.path}/jobs`), 'the runner only calls the board\'s jobs URL');
+  const pack = `${box.origin}${box.path}/trunk/${commit}.pack`;
+  assert.ok(calls.every(url => url === `${box.origin}${box.path}/jobs` || url === pack), 'the runner only calls the board\'s jobs URL and its trunk pack download');
   assert.deepEqual(loadMachineSettings().runners ?? [], [], 'the board knows no ssh runner: nothing ever connects into r-pull');
   assert.equal(served.waits.length, 0);
 });

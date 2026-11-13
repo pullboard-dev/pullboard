@@ -22,6 +22,9 @@ const GATE = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/ga
 /** Main's gate door with the real TAP accounting and timing reads, as accepted main carries them. */
 const GATE_DOOR = `${TOOLING['packages/gate/index.js']}export { accountedFailures, timingAccountingStages, timingSource, TIMING_RUN_ID_ENV } from ${JSON.stringify(GATE)};\n`;
 
+/** Main's gate door with the proof under bin/tests/, since the proof's text names a test file the no-runtime-assumptions preflight refuses elsewhere. */
+const CASES_DOOR = GATE_DOOR.replace("proofCommand: 'node bin/proof.js ./web'", "proofCommand: 'node bin/tests/proof.js ./web'");
+
 /** The item's one gate job and its posted receipt. */
 function posted(board, id) {
   const job = jobsOf(board.db, { kind: 'gate', item: id })[0];
@@ -53,7 +56,7 @@ process.exitCode = ran.status;
 
 test('clause 1: a red pulled proof\'s receipt names each failing case with its error message [P7]', { timeout: 180_000 }, // budget: hang ceiling for a project, one submit and one whole gate in a runner process.
 async t => {
-  const box = await pullProject(t, 1, { tooling: { 'bin/proof.js': CASES_PROOF, 'web/cases.test.js': CASES, 'packages/gate/index.js': GATE_DOOR } });
+  const box = await pullProject(t, 1, { tooling: { 'bin/tests/proof.js': CASES_PROOF, 'web/cases.test.js': CASES, 'packages/gate/index.js': CASES_DOOR } });
   const [id] = box.ids;
   submitOne(box, id);
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });

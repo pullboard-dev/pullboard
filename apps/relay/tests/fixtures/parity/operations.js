@@ -3,6 +3,7 @@ import { seedStaleState } from '../../../../../packages/health/tests/fixtures/st
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as rawStore from '../../../../../packages/store/index.js';
 import {
   openBoard,
@@ -62,6 +63,9 @@ import {
 } from '../../../../../packages/store/tests/fixtures/relay/parity/reland.js';
 import { syntheticFlakeObservation } from '../../../../cli/tests/fixtures/observation.js';
 
+/** The CLI file the train fixture's `pullboard` shim runs. */
+const CLI_ENTRY = fileURLToPath(new URL('../../../../cli/pullboard.js', import.meta.url));
+
 /** The fixture root supplies canonical native operations to the unchanged lower recipes. */
 const store = Object.freeze({ ...rawStore, ensureCoordinator: rawStore.board_ensureCoordinator, recordNextIdle: rawStore.board_recordNextIdle,
   openBoard, draftSpecRow, recordRowVerification, decideSpecRevisions });
@@ -113,7 +117,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     await seedStaleState(context);
     await seedBatch(context);
     process.stderr.write('parity phase seedNativeTrain begin\n');
-    await seedNativeTrain(context);
+    await seedNativeTrain(context, { cli: CLI_ENTRY });
     process.stderr.write('parity phase seedNativeTrain complete\n');
     await seedSpecOutcomes(context);
     await seedCurrentOperations(context);

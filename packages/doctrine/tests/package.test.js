@@ -327,6 +327,7 @@ const LOADERS = {
   'apps/cli/src/io/submit/remote.js': ["import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')"],
   'apps/cli/src/io/submit/gate.js': ["import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')", 'import(input.module)'],
   'apps/view/src/io/page/actions.js': ['import(configuredTransportModule)'],
+  'packages/api/src/io/pool/worker.js': ['import(workerData.portsModule)'],
   'packages/api/src/io/state/materializer/worker.js': ['import(workerData.portsModule)'],
   'packages/codemap/src/io/freeze.js': ['import(pathToFileURL(checker).href)'],
   'packages/doctrine/src/io/fast.js': ["import(pathToFileURL(join(root, 'packages/gate/src/io/scan.js')).href)", 'import(pathToFileURL(join(root, script)).href)'],

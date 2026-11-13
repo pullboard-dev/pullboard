@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell flakes gate */
 /** @pullboard-world-pin: clause 1 reads the native flake source and the committed ceiling to prove no apps/ path remains. */
 /** The native flake observer names no apps/ path, so its package-to-app ceiling row is gone [C7]. */
 import assert from 'node:assert/strict';

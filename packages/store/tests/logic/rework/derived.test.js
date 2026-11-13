@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
 import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
-import { submitFixture } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../fixtures/submit.js';
 
 /** A board with a coordinator, an undeclared builder seat and a reviewer of another vendor. */
 function setup(t) {

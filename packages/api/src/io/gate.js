@@ -20,6 +20,9 @@ import { MAIN_TEST_KIND } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 
+/** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
+const RECEIPT_EXT = '.json';
+
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
@@ -110,15 +113,18 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
     const submitPhase = SUBMIT_PHASES[phase.role];
     if (!submitPhase || phase.status !== 0) continue;
     const command = phase.role === 'check' ? check : gate.analysis?.proofCommand;
+    // The runner's own per-case outcomes; the receipt body refuses malformed ones, and then the phase records none and maps no clause to a run.
+    const testOutcomes = Array.isArray(phase.testOutcomes) ? phase.testOutcomes : null;
     const run = { version: 2, id: randomUUID(), kind: 'submit', tree: submit.companion?.tree ?? submit.tree, head: candidate, main,
-      command: createHash('sha256').update(String(command ?? phase.role)).digest('hex'), green: true, failures: [], load: null, at: new Date().toISOString(),
+      command: createHash('sha256').update(String(command ?? phase.role)).digest('hex'), green: true, failures: [], load: null, at: new Date().toISOString(), ...(testOutcomes ? { testOutcomes } : {}),
       proof: { item: id, frozenDigest: submit.digest ?? null, seat: submit.agentId, runner: runnerName, exitCode: phase.status,
         durationMs: Number.isSafeInteger(gate.steps?.[phase.role]) && gate.steps[phase.role] >= 0 ? gate.steps[phase.role] : 0,
         sourceClean: true, environment, counts: tailCounts(phase.tail), submitPhase } };
-    const body = receiptBody(run);
+    let body = receiptBody(run);
+    if (!body && testOutcomes) { delete run.testOutcomes; body = receiptBody(run); }
     if (!body) continue;
     mkdirSync(folder, { recursive: true, mode: 0o700 });
-    writeFileSync(join(folder, `${run.id}.json`), body, { mode: 0o600, flag: 'wx' });
+    writeFileSync(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
     store.recordProofRun(board, { agentId: submit.agentId, itemId: id, receiptId: run.id });
     ids.push({ id: run.id, role: submitPhase, command: run.command });
   }
@@ -271,6 +277,8 @@ export function failingParts(receipt) {
       if (red.omitted) parts.push(`${phase.role} not ok: ${red.omitted} more in shard ${red.job}'s log`);
     }
     parts.push(...shardLogLines(phase));
+    // A phase the runner found blocked by its environment is named by the controller's refusal code, never read as an ordinary red [C7].
+    if (typeof phase.sandboxBlocked === 'string' && phase.sandboxBlocked) parts.push(`SANDBOX_BLOCKED: the environment refused ${clip(phase.sandboxBlocked)}. Ask the coordinator to bring this operation to the person, or run the gate outside the sandbox; keep the tests unchanged; to ask: pullboard shout coordinator --kind question "<the denied operation>" --decision`);
     // Why the exit lines first: a plain tail of a crashed proof ends on its closing counts, which name nothing.
     if (!cases.length) parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
   }
@@ -371,6 +379,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     const sharded = offerProofShards(board, { job, receipt, offered });
     if (sharded) return sharded;
   }
+  const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
   if (receipt?.status === 0 && receipt?.gate?.green === true) {
@@ -381,12 +390,14 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job}'s proof-run receipts were not recorded: ${error.code}: ${error.message}`.slice(0, 2000) });
     }
   }
-  const green = receipt?.status === 0 && receipt?.gate?.green === true;
+  // The runner's machinery diagnostics meet the board repository's refusal-trial ledger: one on trial reports, an enforced one refuses [C7].
+  const trials = judgeMachinery(board, receipt?.gate?.analysis?.machinery, say => trialNotes.push(say));
+  const green = receipt?.status === 0 && receipt?.gate?.green === true && !trials.refused.length;
   const compared = green ? null : compareGateWithMain(board, receipt, main, compareWithMain);
   const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true);
   const recorded = compared ? { cases: compared.cases } : {};
-  let parts = compared ? [...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
-    ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : failingParts(receipt);
+  let parts = compared ? [...trials.refused, ...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
+    ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : [...trials.refused, ...failingParts(receipt)];
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
   if (green || mainOnly) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
@@ -399,6 +410,9 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : ''}` } });
       if (mainOnly) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      // A green gate is one real gate for every refusal on trial, counted once per receipt set, as the controller's own submit counts it [C7].
+      const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
+      if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       return { applied: true, outcome: 'review', ...recorded };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -413,6 +427,49 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       text: `#${id} gate red at ${candidate.slice(0, 7)}: ${parts.find(part => !part.startsWith('also fails on main')) ?? parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
   } catch (error) { if (error?.code === undefined) throw error; }
   return { applied: true, outcome: 'red', ...recorded };
+}
+
+/** The refusal-trial ledger this process's board API records pulled gates in; null until a host provides one. */
+let refusalTrials = null;
+
+/**
+ * Provide the refusal-trial ledger port for every board this process serves: refuse(root, diagnostic, say) applies one
+ * machinery diagnostic (throwing its Refused when enforced) and count(root, { id }) counts one real gate. Why a port:
+ * the ledger lives in the board repository's .git/pullboard and only the gate cell writes it, so `pullboard serve`
+ * hands it in and this route keeps no import of that cell [C7].
+ * @param {{ refuse: Function, count: Function } | null} port
+ */
+export function provideRefusalTrials(port) {
+  refusalTrials = port && typeof port.refuse === 'function' && typeof port.count === 'function' ? port : null;
+}
+
+/**
+ * Apply a runner's machinery diagnostics to the board repository's trial ledger, so a pulled gate keeps the same record
+ * an inline one did. A diagnostic of an enforced code refuses the gate; one on trial only reports.
+ *
+ * @param {any} board - gitRoot is the board host's repository; without it or a provider nothing is recorded.
+ * @param {unknown} machinery
+ * @param {(line: string) => void} say
+ * @returns {{ refused: string[] }} One line per enforced diagnostic.
+ */
+function judgeMachinery(board, machinery, say) {
+  const refused = [];
+  if (!refusalTrials || !board.gitRoot || !Array.isArray(machinery)) return { refused };
+  for (const diagnostic of machinery.slice(0, 20)) {
+    try { refusalTrials.refuse(board.gitRoot, diagnostic, say); }
+    catch (error) {
+      if (error?.code) refused.push(`${error.code}: ${error.message}`);
+      else say(`could not record ${diagnostic?.code ?? 'a diagnostic'} in the refusal-trial ledger`);
+    }
+  }
+  return { refused };
+}
+
+/** Count one green pulled gate in the ledger; its receipt ids (or the job) key it so a re-applied receipt counts once. */
+function countGate(board, receiptIds, job) {
+  if (!refusalTrials || !board.gitRoot) return [];
+  try { return refusalTrials.count(board.gitRoot, { id: JSON.stringify(receiptIds.length ? receiptIds : [job]) }); }
+  catch { return ['could not record this gate in the refusal-trial ledger']; }
 }
 
 /** The main-receipt lookup this process's board API applies red gate receipts with; null until a host provides one. */

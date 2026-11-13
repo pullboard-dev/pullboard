@@ -76,10 +76,10 @@ function queuedLaunch() {
  * Wake the existing queue from its captured tools, retaining the ordinary singleton and PID-incarnation guards.
  * Load process observation only when a queued launch has no dispatcher resource holder.
  */
-export async function recoverHandoffDispatcher({ loadStartOf }) {
+export async function recoverHandoffDispatcher({ loadStartOf, entry }) {
   const launch = queuedLaunch();
   if (!launch) return;
   const dispatcher = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_DISPATCHER_RESOURCE);
   if (dispatcher?.holders?.length) return;
-  await ensureHandoffDispatcher(launch.tools, launch.commonDir, { startOf: await loadStartOf() });
+  await ensureHandoffDispatcher(launch.tools, launch.commonDir, { startOf: await loadStartOf(), entry });
 }
