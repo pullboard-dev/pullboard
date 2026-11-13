@@ -13,6 +13,8 @@ import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
+import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
+import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
@@ -22,6 +24,19 @@ const TRUNK = 'refs/heads/main';
 /** The ref an accepted item's commit is published under on the trunk remote, so a runner can fetch it by name. */
 export function landingItemRef(id) {
   return `refs/pullboard/land/${id}`;
+}
+
+/**
+ * The trunk commit a land job lands onto, as this checkout holds it: the trunk remote's tip, fetched under a private ref
+ * when this checkout lacks it, else main's commit. Why: verdict freshness is judged against the main the items land on,
+ * and with a trunk remote of record this checkout's own main may lag it [B3,C7].
+ */
+function landingTrunk(root, remote, main) {
+  const listed = tryGit(root, ['ls-remote', '--', remote, TRUNK]);
+  const tip = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : main;
+  const held = () => tryGit(root, ['cat-file', '-e', `${tip}^{commit}`]).status === 0;
+  if (tip !== main && !held()) tryGit(root, ['fetch', '--quiet', '--no-tags', remote, `+${TRUNK}:refs/pullboard/landing/trunk`]);
+  return held() ? tip : main;
 }
 
 /**
@@ -46,10 +61,12 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
   const hosted = !configured && runnerDispatchMode() === 'pull' && (await local(root)).running;
   if (!configured && !hosted) return null;
   const remote = configured ?? root;
-  return (opened ? work => work(opened) : work => withBoard(ctx, work))(board => {
+  return (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
     const open = ids ? null : openLandingJob(board.db);
     if (open) return { offered: open, items: [], waiting: false };
-    const all = listItems(board, { all: true });
+    // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
+    const all = await withoutStaleVerdicts(board, root, landingTrunk(root, remote, policy.commit), listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && (!ids || ids.includes(item.item_id)),
+      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line) });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
     const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at);
     const chosen = all.filter(wanted);

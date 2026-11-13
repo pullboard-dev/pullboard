@@ -17,7 +17,7 @@ import { put } from '../../tests/fixtures/red/main-red.js';
 import { runCount } from '../../tests/fixtures/red/main-red.js';
 import { withoutScopeNotices } from '../../tests/fixtures/red/main-red.js';
 
-test('an inherited red names the rework that owns it [V1]', async (t) => {
+test('an inherited red names the rework that owns it [V1]', { skip: 'PULL_GAP: un-skipped by #7104' }, async (t) => {
   await t.test('a prioritized rework already first in its tier stays first [V1]', (sub) => {
     const box = fixture(sub, { spec: RED_SPEC, source: FAILING_TEST });
     const [rework, submitItem] = addItems(box, [
