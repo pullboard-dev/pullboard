@@ -78,9 +78,11 @@ caseTest('ssh', 'a failed SSH call preserves its command exit and stderr through
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
 // the SSH stand-in's own Node process boots and no start is recorded (3 of 12 concurrent runs red on 28 Oct, 4/4 green
 // alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.
-// Pull dispatch boots the stand-in for each enqueue and agent script, so under runner load it needs 30 s: past 8 s the
-// lease is admitted late with a 90 s startup budget and the 90 s child timeout fires first (lost.pull, #6734).
-const STAND_IN_BOOT_BUDGET_MS = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 30_000 : 8_000;
+// Pull dispatch boots the stand-in for each enqueue and agent script, so under runner load it needs 15 s: past 8 s the
+// lease is admitted late with a 90 s startup budget and the 90 s child timeout fires first (lost.pull, #6734). The held
+// first dispatch waits this budget out before failing over, then the second dispatch (a controller boot, the pack and
+// the job) needs up to 57 s on a loaded runner, so 30 s here left no margin inside the 90 s child timeout (#7090).
+const STAND_IN_BOOT_BUDGET_MS = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 15_000 : 8_000;
 
 caseTest('held:yield', 'a worker missing READY yields to a free runner in the next admission cycle [C7,Q1,Q2]', t => {
   const box = fixture(t, { dropFirst: false });

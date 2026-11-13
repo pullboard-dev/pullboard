@@ -19,6 +19,7 @@ import { submitHandoff } from '../../../../store/index.js';
 import { mainCheckout } from '../../../../git/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { landingStaticRefusal } from '../static.js';
+import { scopedStaticConfig } from '../static.js';
 import { Refused } from '../../../../kernel/index.js';
 import { gateGroup } from './gate.js';
 import { waivedProof } from './failures.js';
@@ -124,7 +125,7 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
     // A named batch's module-resolution parse and plan check ride in the same runner job as the static checks, so the coordinator scans nothing [C7,#5559].
     const scanned = proven.externalProof && scanRidesRunner(state) ? withLandingScan(state) : null;
     const config = scanned?.config ?? state.config;
-    const ran = await timedPhase(state.say, 'static checks', () => runChecks(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
+    const ran = await timedPhase(state.say, 'static checks', () => runChecks(state.batch.root, scopedStaticConfig(state.batch.root, state.batch.base, config), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
       .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); });
     if (scanned) await finishLandingScan(state, ran);
     await timedPhase(state.say, 'cli smoke', () => smoke(state.batch.root, { record: true }));
@@ -137,7 +138,7 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
   // The landing's static check waits as a landing: as an ordinary item check it queued 58 to 211 s behind builder
   // submits on 6 Nov, longer than the gate it was meant to run beside [C7].
-  const staticChecks = timedPhase(state.say, 'static checks', () => runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })) // a landing slot: not an item check, not a short slot
+  const staticChecks = timedPhase(state.say, 'static checks', () => runChecks(state.batch.root, scopedStaticConfig(state.batch.root, state.batch.base, state.config), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })) // a landing slot: not an item check, not a short slot
     .then(result => ({ result }), error => ({ error }));
   let gate;
   try { gate = await runGate(state, label, { localTrunk: true, ...options }); }
@@ -226,7 +227,7 @@ async function reusedAcrossMove(state, gate, from, to) {
   const services = state.guardServices ?? {};
   const runChecks = services.runStaticChecks ?? runStaticChecks;
   await Promise.all([
-    timedPhase(state.say, 'static checks', () => runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
+    timedPhase(state.say, 'static checks', () => runChecks(state.batch.root, scopedStaticConfig(state.batch.root, state.batch.base, state.config), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
       .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); }),
     timedPhase(state.say, 'cli smoke', () => landingSmoke(services)(state.batch.root, { record: true })),
   ]);
