@@ -48,11 +48,15 @@ function readCostHistory(project, switching = false) {
       return kept;
     }
   }
-  const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model), error: null, model: kept?.model ?? null };
+  // The last numbers this browser read draw at once while the fresh read is on its way.
+  let remembered = null;
+  if (!kept?.model) { try { remembered = JSON.parse(keep('pb.cost.' + key) || 'null'); } catch { remembered = null; } }
+  const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model || remembered), error: null, model: kept?.model ?? remembered };
   costHistory.set(key, entry);
   api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
     if (costHistory.get(key) !== entry || !reply.costAnalytics) return;
     entry.model = reply.costAnalytics;
+    try { keep('pb.cost.' + key, JSON.stringify(reply.costAnalytics)); } catch { /* storage full or unavailable: the numbers are simply not kept for next time */ }
     entry.loading = false;
     entry.refreshing = false;
     if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d')) render();
@@ -80,9 +84,11 @@ const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
 ${readCostHistory.toString()}
 function costPaneHtml(history, project) {
-  if (history.loading && !history.model) return '<p class="empty" role="status">Loading cost history…</p>';
-  if (history.error && !history.model) return '<p class="empty" role="status">Cost history is unavailable.</p>';
-  return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses });
+  const shown = { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses };
+  // The frame (heading and period buttons) draws at once; the numbers fill in place, or the last read ones stay up.
+  if (history.loading && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Reading cost history…' });
+  if (history.error && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Cost history is unavailable.' });
+  return costOverviewHtml(history.model, view.costOpen, { ...shown, updating: Boolean(history.loading) });
 }` : '';
 return `${privateCostSource}
 const modelLabelRules = ${JSON.stringify(modelLabelRules())};
@@ -125,10 +131,14 @@ function requestNotice(request) {
   return label + ' · ' + requestLabel(request) + (error ? '\\n' + (error.code ? '[' + error.code + '] ' : '') + (error.message || '') + (error.next ? '\\n' + error.next : '') : '');
 }
 
-/** Show the public request receipts on every board tab and update the latest action's status. */
+/** Show the public request receipts on every board tab and update the latest action's status; returns how far the panel grew above the viewport. */
 function renderPersonRequests(project) {
   const entries = project?.personRequests || [];
   const panel = $('person-requests');
+  // A panel above the viewport (hidden counts: it opens at the page top) is measured before and after, so render can
+  // move its page-scroll mark by the growth and a new receipt never shoves what the person reads [H12,H5].
+  const above = window.scrollY > 0 && (panel.hidden || panel.getBoundingClientRect().bottom <= 0);
+  const heightBefore = above && !panel.hidden ? panel.getBoundingClientRect().height : 0;
   panel.hidden = !entries.length;
   panel.innerHTML = entries.length ? '<h2>Your requests</h2><ul class="request-list">' + [...entries].sort((a, b) => b.sequence - a.sequence).map((request) => {
     const status = { waiting: 'Waiting', done: 'Done', refused: 'Refused' }[request.status] || 'Unknown status';
@@ -136,6 +146,7 @@ function renderPersonRequests(project) {
     const reason = error ? '<p class="request-error">' + (error.code ? '<b>' + esc(error.code) + '</b> ' : '') + esc(error.message || '') + '</p>' + (error.next ? '<p class="request-next">' + esc(error.next) + '</p>' : '') : '';
     return '<li data-person-request="' + esc(request.id) + '"><span class="request-label">' + esc(requestLabel(request)) + '</span><span class="chip request-status ' + (request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : 'warn') + '">' + status + '</span>' + reason + '</li>';
   }).join('') + '</ul>' : '';
+  const grew = above ? (entries.length ? panel.getBoundingClientRect().height : 0) - heightBefore : 0;
   const active = view.request;
   const current = active && active.root === view.root && active.run === view.acting && entries.find((request) => request.id === active.id);
   if (current && !$('console').hidden) {
@@ -149,6 +160,7 @@ function renderPersonRequests(project) {
     feedback.tone = rowRequest.status === 'done' ? 'ok' : rowRequest.status === 'refused' ? 'no' : '';
     feedback.text = requestNotice(rowRequest);
   }
+  return grew;
 }
 
 /**

@@ -28,7 +28,6 @@ import { orphanCutEdges } from '../../../../../packages/codemap/src/io/cells/scr
 import { importCuts } from '../../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../../packages/codemap/index.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
-import { installCutCases } from '../../../tests/fixtures/cells/cases.js';
 import { fixture } from '../../../../../packages/landing/tests/fixtures/plan.js';
 import {
   mechanicalConflictFiles,
@@ -245,9 +244,6 @@ test('a correct shim does not make an otherwise unreachable moved package reacha
   put('src/board.js', "import { claims } from './claims.js';\nexport const board = () => claims;\n");
   assert.ok(checkMoved(root, plan, 'kernel').some(problem => problem.includes('unreachable front door packages/kernel/index.js')));
 });
-
-
-installCutCases({ PLAN, BIN, fixture, git });
 
 
 test('a bounded single-entry write derives index and shard counts from the same paths [C7,D3,CD60]', t => {

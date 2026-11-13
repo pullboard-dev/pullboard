@@ -57,3 +57,32 @@ export function exportOnlyProblems(sources, allowed, doors = new Set()) {
     text: `a new export-only file; export these names from the module that defines them or from the cell's index.js (${EXPORT_ONLY_CEILINGS})`,
   }));
 }
+
+/** The node:test reporters: a reporter file must default-export its generator, so these are the only plain default exports allowed [CD22]. */
+export const DEFAULT_EXPORT_REPORTERS = Object.freeze([
+  'packages/gate/src/io/test/action/reporter.js',
+  'packages/gate/src/io/test/progress.js',
+  'packages/gate/src/io/test/selection.js',
+  'packages/gate/src/logic/reporter/coverage.js',
+]);
+/** A move module default-exports its frozen operation record, the one shape the move loader reads. */
+const MOVE_MODULE = /^packages\/moves\/src\/(?:io|logic)\/moves\/[^/]+\.js$/u;
+/** Tests and journeys may build default-export source as fixture text; the rule judges shipped code. */
+const TEST_SOURCE = /(?:^|\/)(?:tests|journeys)\//u;
+
+/**
+ * One problem per changed source that default-exports outside the reporter list and the move modules.
+ * Why: CD22 names named exports only; a default export hides its name from search and rename, so none joins unless a loader needs one.
+ *
+ * @param {{ file: string, source: string }[]} sources - The changed files that still exist.
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function defaultExportProblems(sources) {
+  return sources.flatMap(({ file, source }) => {
+    if (!/\.[cm]?js$/u.test(file) || TEST_SOURCE.test(file) || MOVE_MODULE.test(file) || DEFAULT_EXPORT_REPORTERS.includes(file)) return [];
+    const code = source.replace(/\/\*[\s\S]*?\*\//gu, match => match.replace(/[^\n]/gu, ' ')).replace(/^\s*\/\/.*$/gmu, '');
+    const at = /^export\s+default\b/mu.exec(code);
+    if (!at) return [];
+    return [{ path: file, line: code.slice(0, at.index).split('\n').length, text: 'a default export; use a named export (CD22), or declare a reporter in DEFAULT_EXPORT_REPORTERS (packages/gate/src/logic/export/only.js)' }];
+  });
+}

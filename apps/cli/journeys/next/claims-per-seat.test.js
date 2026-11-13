@@ -17,13 +17,18 @@ import { cellSeat } from '../../../../packages/store/tests/fixtures/cell.js';
 const e2e = createE2eHelpers();
 
 /** A real repository, its board on a fixed clock, and web seats that heartbeat so they read as live. */
-function fixture(t, { seats = 1 } = {}) {
+function fixture(t, { seats = 1, idle = 0 } = {}) {
   const repo = cellRepo(t);
   const at = Date.now() + 60_000;
-  const board = cellBoard(t, ':memory:', { now: () => new Date(at) }, { gitRoot: repo.root });
+  let clock = at;
+  const board = cellBoard(t, ':memory:', { now: () => new Date(clock) }, { gitRoot: repo.root });
   cellSeat(board, { lane: 'coordinator', path: repo.root });
   const ids = Array.from({ length: seats }, (_, index) => cellSeat(board, { lane: 'web', path: join(repo.root, `seat-${index}`) }));
   for (const seat of ids) heartbeatSeat(board, seat.id);
+  // Idle seats beat 11 minutes ago, past the ten-minute live window, so they hold claims' worth of rows but are not live.
+  clock = at - 11 * 60_000;
+  for (let index = 0; index < idle; index++) heartbeatSeat(board, cellSeat(board, { lane: 'web', path: join(repo.root, `idle-${index}`) }).id);
+  clock = at;
   const add = () => cellItem(board, { lane: 'web', title: 'Work', criterion: 'Real proof', specIds: ['G1'], route: 'strong', check: 'true' }).item_id;
   const claim = id => cellClaim(board, id, ids[0], { root: repo.root, itemFolder: true });
   return { board, add, claim, at };
@@ -86,4 +91,12 @@ test('a registered runner\'s free job slots stand in for local cores [C7]', t =>
   const { held, error } = fill(f);
   assert.equal(held, 4, 'floor(8 / 2) = 4');
   assert.ok(error.message.includes('floor(8 free runner slots / 2 live seats)) = 4'), error.message);
+});
+
+test('seats with no heartbeat in the last 10 minutes are not counted as live seats [C7]', t => {
+  const cores = availableParallelism();
+  const f = fixture(t, { seats: 1, idle: cores + 5 });
+  const { held, error } = fill(f);
+  assert.equal(held, Math.min(5, Math.max(1, cores)), 'idle seats leave the one live seat every slot');
+  assert.ok(error.message.includes(`floor(${cores} free local cores / 1 live seats))`), error.message);
 });

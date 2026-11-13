@@ -138,7 +138,7 @@ export function gateSlotEnvironment(lease) {
   };
 }
 /** Resolve the local database for the requested scope. */
-function databaseFile(scope, root) {
+export function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');
   if (scope === 'machine') return machineResourceFile();
   if (scope === 'repo') return join(repoInfo(root).commonDir, 'pullboard', 'resources.sqlite');

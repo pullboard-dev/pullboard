@@ -120,10 +120,10 @@ function execute(repo, args, commandConfig) {
   if (command === 'rev-parse') {
     if (rest.length === 1 && rest[0] === '--show-toplevel') return outcome(0, `${repo.root}\n`);
     if (rest.length === 1 && rest[0] === '--is-shallow-repository') return outcome(0, 'false\n');
-    const name = rest.at(-1);
-    if (!name || name.startsWith('-') || rest.slice(0, -1).some(word => !['--verify', '--quiet'].includes(word))) unsupported(`rev-parse ${rest.join(' ')}`);
-    const found = revision(repo, name);
-    return found ? outcome(0, `${found.oid}\n`) : outcome(rest.includes('--quiet') ? 1 : 128, '', 'fatal: revision not found\n');
+    const names = rest.filter(word => !['--verify', '--quiet'].includes(word));
+    if (!names.length || names.some(word => word.startsWith('-')) || rest.includes('--verify') && names.length > 1) unsupported(`rev-parse ${rest.join(' ')}`);
+    const found = names.map(name => revision(repo, name)); // several names print one line each, as `git rev-parse a b` does (#6486)
+    return found.every(Boolean) ? outcome(0, found.map(one => `${one.oid}\n`).join('')) : outcome(rest.includes('--quiet') ? 1 : 128, '', 'fatal: revision not found\n');
   }
   if (command === 'symbolic-ref') {
     if (rest.at(-1) !== 'HEAD' || rest.slice(0, -1).some(word => !['--quiet', '-q', '--short'].includes(word))) unsupported(`symbolic-ref ${rest.join(' ')}`);

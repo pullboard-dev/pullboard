@@ -12,7 +12,9 @@ import { loadConfig } from '../../../../../packages/config/index.js';
 import { maintainStaleState } from '../../../../../packages/store/index.js';
 import { staleStateLimits } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
-import { submitHandoff } from '../../../../../packages/store/index.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
+import { jobsOf } from '../../../../../packages/jobs/index.js';
+import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
@@ -24,11 +26,17 @@ function document(result) {
   return JSON.parse(result.out);
 }
 
+/** The tail of the fixture machine's local runner log, so a gate that never starts shows what the runner saw. */
+function runnerLog(box) {
+  const log = join(box.env.PULLBOARD_MACHINE_HOME ?? '', 'local-runner', 'runner.log');
+  return existsSync(log) ? readFileSync(log, 'utf8').slice(-2000) : '(no local runner log)';
+}
+
 /** Read the real board under an optional injected clock. */
 function read(box, id, clock) {
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, clock);
-  try { return { item: getItem(board, id), job: submitHandoff(board, id) }; }
+  try { return { item: getItem(board, id), job: jobsOf(board.db, { kind: 'gate', item: id }).at(-1) ?? null }; }
   finally { board.db.close(); }
 }
 
@@ -62,7 +70,7 @@ function fixture(t) {
   try { box = helpers.project(gate.command, isolated); }
   catch (error) { helpers.cleanup(); throw error; }
   const configFile = join(box.repo, 'pullboard.json');
-  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), submit: { handoff: true } }, null, 2) + '\n');
+  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')) }, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queued submit [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -70,14 +78,14 @@ function fixture(t) {
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
   assert.equal(fixtureJoin(box.run, api, 'api', '--route', 'strong').code, 0);
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const add = (lane, title) => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
-    '--criterion', `${title} passes its gate.`, '--check', 'true', '--json')).item.item_id;
-  const gated = add('web', 'Build whose gate is running'), idle = add('api', 'Build with no gate');
+  const add = (lane, title, check = 'true') => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
+    '--criterion', `${title} passes its gate.`, '--check', check, '--json')).item.item_id;
+  // The held command is the item's frozen check: a pulled gate runs the check phase on the runner whatever its proof selects [P7].
+  const gated = add('web', 'Build whose gate is running', gate.command), idle = add('api', 'Build with no gate');
   t.after(async () => {
     writeFileSync(gate.release, 'release\n');
-    const job = read(box, gated).job;
-    const source = job && join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source');
-    if (job) await helpers.waitFor(() => !existsSync(source), 'queued worker cleanup', 120000); // budget: hang ceiling for the real detached worker's cleanup; no elapsed-time assertion.
+    if (read(box, gated).job) await settledGateJob(box, gated, { deadlineMs: 120_000 }); // budget: hang ceiling for the local runner to finish the released gate; no elapsed-time assertion.
+    if (box.runnerPid) try { process.kill(box.runnerPid, 'SIGKILL'); } catch { /* already gone */ }
     helpers.cleanup();
   });
   return { ...box, helpers, gate, api, gated, idle };
@@ -101,16 +109,23 @@ test('a claim with a running queued gate survives the idle release and the lapse
   const folder = document((await box.runLocal(box.web, 'claim', String(box.gated), '--json'))).itemFolder;
   assert.equal(box.helpers.commitFile(box, folder, 'web/built.js', 'export const built = true;\n', 'feat(web): build it [G1]').status, 0);
   writeFileSync(box.gate.mode, 'hold\n');
-  assert.equal(document((await box.runLocal(folder, 'submit', String(box.gated), '--no-next', '--json'))).queued, true);
-  const running = () => read(box, box.gated).job?.state === 'running' && existsSync(box.gate.started);
-  await box.helpers.waitFor(running, 'the queued gate is running', 60000); // budget: hang ceiling for the real detached worker to start its gate; no elapsed-time assertion.
+  // In process without the kit's settle: the kit's submit waits for the queue to settle, and this gate is held open.
+  const submit = await runCliInProcess(['submit', String(box.gated), '--no-next', '--json'], { cwd: folder, env: box.env });
+  const queued = JSON.parse(submit.stdout);
+  assert.equal(queued.queued, true, submit.stderr + submit.stdout);
+  box.runnerPid = queued.localRunner?.pid;
+  // A runner holding the job leaves it at its claimed step, or a progress step once it reports one.
+  const held = job => ['claimed', 'progress'].includes(job?.step);
+  const running = () => held(read(box, box.gated).job) && existsSync(box.gate.started);
+  try { await box.helpers.waitFor(running, 'the queued gate is running', 60000); } // budget: hang ceiling for the local runner to start its gate; no elapsed-time assertion.
+  catch (error) { throw new Error(`${error.message}: job ${JSON.stringify(read(box, box.gated).job)}, check started ${existsSync(box.gate.started)}\n${runnerLog(box)}`); }
   const claimed = read(box, box.gated).item, other = read(box, box.idle).item;
   const limit = staleStateLimits(loadConfig(box.repo)).claim;
 
   // The sentinel's idle release: 45 minutes with no commit or file change, lease still live.
   const idleAt = { now: () => new Date(Date.now() + 45 * MINUTE) };
   assert.ok(idleAt.now().toISOString() < claimed.item_lease_until, 'the idle case keeps a live lease');
-  assert.equal(read(box, box.gated).job.state, 'running', JSON.stringify(read(box, box.gated).job));
+  assert.ok(held(read(box, box.gated).job), JSON.stringify(read(box, box.gated).job));
   const idleRows = maintain(box, idleAt);
   assert.ok(!idleRows.some(row => row.id === box.gated), 'the idle release never selects a claim whose gate is running');
   assert.equal(read(box, box.gated, idleAt).item.item_status, 'claimed');
@@ -119,7 +134,7 @@ test('a claim with a running queued gate survives the idle release and the lapse
   const lapsedAt = { now: () => new Date(Math.max(Date.parse(claimed.item_lease_until), Date.parse(other.item_lease_until)) + limit + MINUTE) };
   maintain(box, lapsedAt);
   const gated = read(box, box.gated, lapsedAt);
-  assert.equal(gated.job.state, 'running', JSON.stringify(gated.job));
+  assert.ok(held(gated.job), JSON.stringify(gated.job));
   assert.equal(gated.item.item_status, 'claimed', 'the lapsed-lease sweep keeps a claim whose gate is running');
   assert.equal(gated.item.item_owner, claimed.item_owner);
   assert.equal(read(box, box.idle, lapsedAt).item.item_status, 'open', 'a claim with no gate still lapses');
