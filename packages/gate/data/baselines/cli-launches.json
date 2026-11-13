@@ -1050,7 +1050,7 @@
     "launch": 1
   },
   "apps/cli/journeys/runner/deadline.test.js": {
-    "launch": 3
+    "launch": 1
   },
   "apps/cli/journeys/relay/upload.test.js": {
     "launch": 22
@@ -1642,5 +1642,8 @@
   },
   "apps/cli/journeys/resume/plans.test.js": {
     "launch": 4
+  },
+  "apps/cli/journeys/runner/deadline/queue.test.js": {
+    "launch": 2
   }
 }

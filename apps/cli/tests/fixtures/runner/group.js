@@ -40,7 +40,7 @@ export async function stopGroup(child, closed, { kill = process.kill, census = r
   if (liveMembers(census, child.pid).length) signalFixtureGroup(child.pid, 'SIGKILL', options);
   try {
     await Promise.race([closed, new Promise((resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('fixture group did not close after KILL')), 2_000); // budget: hang ceiling for the child-close handshake after escalation.
+      timer = setTimeout(() => reject(new Error('fixture group did not close after KILL')), 10_000); // budget: hang ceiling for the child-close handshake after escalation; 2 s missed on a runner at twice its cores.
     })]);
   } finally { clearTimeout(timer); }
   const deadline = Date.now() + 2_000;
