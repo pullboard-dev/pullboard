@@ -114,12 +114,12 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   let cached;
   try { await run(box.item); }
   catch (error) { cached = error; }
-  assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
+  assert.match(cached?.message ?? '', /cell lint boundaries:packages\/kernel\/src\/logic\/refused\.js->src\/stats-flow\.js/u);
   const first = { ...observed, requested, computed }, before = process.env.NODE_OPTIONS;
   observed.imports = 0; observed.bindings = 0;
   requested = 0; computed = 0;
   const changedCriterion = { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries with another criterion.' }) };
-  await assert.rejects(run(changedCriterion), /kernel --cuts: kernel still imports later stats/u);
+  await assert.rejects(run(changedCriterion), /cell lint boundaries:packages\/kernel\/src\/logic\/refused\.js->src\/stats-flow\.js/u);
   assert.equal(computed, 0, 'a refused candidate still preserves complete binding observations for a later criterion');
   observed.imports = 0; observed.bindings = 0;
   requested = 0; computed = 0;
