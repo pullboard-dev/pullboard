@@ -33,6 +33,22 @@ export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', rout
   return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
 }
 
+/**
+ * Run a fixture add; when the likely-duplicate guard refuses it, file it again naming the item it resembles.
+ *
+ * Why: fixture boards file many near-identical items by design, and the guard is for people, so the kit answers it once
+ * here instead of every journey inventing distinct titles [C7].
+ */
+function addAnsweringDuplicate(run, root, addArgs) {
+  const nearest = raw => {
+    const result = fixtureResult(raw);
+    return result.code === 0 ? null : /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.out + result.err)?.[1] ?? null;
+  };
+  const again = (raw, id) => id === null ? raw : run(root, ...addArgs.slice(0, -1), '--not-duplicate-of', `${id} fixture items repeat by design`, '--json');
+  const first = run(root, ...addArgs);
+  return typeof first?.then === 'function' ? first.then(raw => again(raw, nearest(raw))) : again(first, nearest(first));
+}
+
 /** Add a fixture item with a complete route-specific build brief and return its parsed item; a diagnosis fact routes the item light, so pass diagnose: false to keep the declared route. */
 export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixture item is valid.', check = 'true', route = 'strong', brief, diagnosis, diagnose = true, args = [], wait = false, run = box.run } = {}) {
   const buildBrief = brief ?? `Files:\n- ${lane}/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- ${title} passes.`;
@@ -41,7 +57,7 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
   if (check === 'true') addArgs.push('--accept-green', 'fixture check keeps passing');
   addArgs.push('--brief', buildBrief, ...args, '--json');
   if (wait) addArgs.splice(addArgs.length - 1, 0, '--wait');
-  const added = run(root, ...addArgs);
+  const added = addAnsweringDuplicate(run, root, addArgs);
   const afterAdd = raw => {
     const result = fixtureResult(raw);
     assert.equal(result.code, 0, `${result.out}\n${result.err}`);

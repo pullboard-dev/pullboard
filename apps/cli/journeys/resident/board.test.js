@@ -175,8 +175,9 @@ before(() => {
   assert.equal(runIn(repo, ['init']).status, 0);
   runFixtureGit(['add', '-A'], { cwd: repo, env });
   runFixtureGit(['commit', '-q', '-m', 'chore(repo): set up the resident fixture'], { cwd: repo, env });
-  for (const title of ['First', 'Second']) {
-    const added = runIn(repo, ['add', 'core', title, '--specs', 'H24', '--criterion', 'it works', '--brief', 'Files: src/a.js\nTest: it works.']);
+  // Distinct titles and bars, so the likely-duplicate guard does not read the second as a copy of the first.
+  for (const [title, criterion] of [['Warm the show path', 'show answers from the warm process'], ['Cache inbox rows', 'the inbox reads cached rows']]) {
+    const added = runIn(repo, ['add', 'core', title, '--specs', 'H24', '--criterion', criterion, '--brief', 'Files: src/a.js\nTest: it works.']);
     assert.equal(added.status, 0, added.stdout + added.stderr);
   }
   const worktree = join(dir, 'core-1');

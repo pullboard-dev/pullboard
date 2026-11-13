@@ -11,7 +11,7 @@ import { flakyProject } from '../../../../../packages/git/tests/fixtures/flakes.
 import { TITLE } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import { copyCommittedPackageFiles } from '../copy.js';
 import { runFixtureGit } from '../child.js';
-import { fixtureSettledMachine } from '../testkit.js';
+import { fixtureMachineSettings } from '../testkit.js';
 import { openBoard } from '../../../../lib/index.js';
 import { flakeQuarantines } from '../../../../lib/index.js';
 import { gateRuns } from '../../../../lib/index.js';
@@ -31,8 +31,9 @@ export function fixture(t, deterministic = false, companion = false) {
     writeFileSync(listing, JSON.stringify(cells, null, 2) + '\n');
     return join(root, 'apps/cli/pullboard.js');
   } });
-  // These cases read the submit's gate result at once, so it settles whatever the machine's dispatch default is [P7].
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
+  // These cases read the submit's gate result and its counter file at once, so the gate runs in the submitting process (#6249).
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/', 'packages/controlled/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
