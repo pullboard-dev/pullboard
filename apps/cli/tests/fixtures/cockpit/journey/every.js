@@ -769,7 +769,7 @@ export async function everyBoardJourney(t, slow = null, { restart = false } = {}
     await chromeB.waitFor("view.root === data.projects.find(row => row.id === " + JSON.stringify(boardAId) + ").root && document.querySelector('#chain')?.textContent.includes('linked machine A board')");
     const updatedTitle = 'A live move visible on B';
     await chromeB.stable(`(() => { const chain = document.querySelector('#chain'); window.__journeyUpdateAt = null; window.__journeyUpdateObserver = new MutationObserver(() => { if (chain.textContent.includes(${JSON.stringify(updatedTitle)})) { window.__journeyUpdateAt = performance.timeOrigin + performance.now(); window.__journeyUpdateObserver.disconnect(); } }); window.__journeyUpdateObserver.observe(chain, { childList: true, subtree: true, characterData: true }); return true; })()`);
-    await chromeA.click("document.querySelector('#new-item')");
+    await chromeA.click("document.querySelector('[data-page-ctl=new]')");
     await chromeA.stable(`document.querySelector('#add-title').value = ${JSON.stringify(updatedTitle)}; window.__journeyMoveStarted = null; document.addEventListener('pointerdown', event => { if (event.isTrusted && event.target.closest('#add-form button.go')) window.__journeyMoveStarted = performance.timeOrigin + performance.now(); }, { capture: true, once: true }); 'ready'`);
     await press(chromeA, "document.querySelector('#add-form button.go')");
     await chromeA.waitFor("Number.isFinite(window.__journeyMoveStarted)");

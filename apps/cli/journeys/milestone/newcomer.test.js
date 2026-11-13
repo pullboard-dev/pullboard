@@ -74,7 +74,7 @@ test('a new project reviews inherited defaults and files new work in its first b
       assert.match(await chrome.stable('document.querySelector("#doctrine-detail").textContent'), /Approve it to keep it, or override or decline it in DOCTRINE\.md/, `${width}: the default explains how to adopt a local rule`);
       assert.equal(await chrome.stable('document.querySelectorAll("#doctrine-detail [data-row-decision]").length'), 0, `${width}: inherited defaults offer no local decision action`);
       await tab(chrome, 'items');
-      await press(chrome, 'document.querySelector("#new-item")');
+      await press(chrome, 'document.querySelector(\'[data-page-ctl=new]\')');
       assert.equal(await chrome.stable('document.querySelector("#add-lane").value'), 'web', `${width}: new work starts in the first lane owning folders`);
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelector("#add-lane").options].map(option => option.value))')),
         ['web', 'api', 'coordinator', 'review', 'research'], `${width}: building lanes precede coordinator and non-building lanes`);
@@ -129,7 +129,7 @@ test('the actual tour leaves a labelled demo visible at phone and desktop widths
       assert.equal(await chrome.stable('document.querySelector("#proj-name").textContent'), 'demo', `${width}: the selected board is the registered tour demo`);
       assert.ok(await chrome.stable('data.project.items.some(item => item.status === "verified" && item.stage === "merged")'), `${width}: the tour\'s actual accepted history is visible`);
       await tab(chrome, 'items');
-      await press(chrome, 'document.querySelector("#new-item")');
+      await press(chrome, 'document.querySelector(\'[data-page-ctl=new]\')');
       assert.equal(await chrome.stable('document.querySelector("#add-lane").value'), 'app', `${width}: tour work also defaults to its building lane`);
       await press(chrome, 'document.querySelector("#add-cancel")');
     }
