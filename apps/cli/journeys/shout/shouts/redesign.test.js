@@ -66,7 +66,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
         return { pageWidth:document.documentElement.scrollWidth, viewport:innerWidth, feed:box('#feed'), panel:box('#shouts-pane > aside'),
           composer:box('#shout-form .composer'), toggle:box('#page-controls [data-page-ctl=shouts]'), status:{...box('.status'),visible:style.display !== 'none',background:style.backgroundColor,expected:opaqueSurface},
           component:document.querySelector('#page-controls [data-page-ctl=shouts]').dataset.pageCtl, rowBox:(r => ({height:r.height,lines:getComputedStyle(document.querySelector('.conversation-row')).whiteSpace}))(document.querySelector('.conversation-row').getBoundingClientRect()), border:getComputedStyle(document.querySelector('.conversation-row')).borderBottomWidth, agentBox:(r => r && r.height)(document.querySelector('#agents .agent-row')?.getBoundingClientRect()), inPage:document.querySelectorAll('#asks-slot [data-shout-filter]').length,
-          rows:[...document.querySelectorAll('.conversation-row')].map(row => ({key:row.dataset.shoutThread,title:row.querySelector('.conversation-title').textContent,preview:row.querySelector('.conversation-preview').textContent,chip:row.querySelector('.chip').textContent})),
+          rows:[...document.querySelectorAll('.conversation-row')].map(row => ({key:row.dataset.shoutThread,title:row.querySelector('.conversation-title').textContent,preview:row.querySelector('.conversation-preview').textContent,previewLeft:row.querySelector('.conversation-preview').getBoundingClientRect().left,previewWidth:row.querySelector('.conversation-preview').getBoundingClientRect().width,titleRight:row.querySelector('.conversation-title').getBoundingClientRect().right,chip:row.querySelector('.chip').textContent})),
           decisions:!document.querySelector('#coordinator-decisions').hidden,
           agent:{name:document.querySelector('#agents .agent-row .agent-who b')?.textContent,model:document.querySelector('#agents .agent-model')?.textContent,
             avatars:document.querySelectorAll('#agents .avatar').length,title:document.querySelector('#agents .agent-row')?.title,
@@ -85,6 +85,9 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.equal(list.rows.find(row => row.key === 'item:2').chip, '2');
       assert.ok(list.rows.find(row => row.key === 'item:2').preview.startsWith('coordinator: #2: Coordinator reply'));
       assert.equal(list.rows.find(row => row.key === 'item:1').chip, '1');
+      // #7311: the shout text stays on a phone, after the title, and every row's text column starts at the same x, No item rows too.
+      assert.ok(list.rows.length >= 4 && list.rows.every(row => row.previewWidth > 20 && row.previewLeft >= row.titleRight), 'each row shows its shout text after the title: ' + JSON.stringify([width, list.rows]));
+      assert.equal(new Set(list.rows.map(row => Math.round(row.previewLeft))).size, 1, 'the text column starts at one x in every row: ' + JSON.stringify(list.rows.map(row => row.previewLeft)));
       assert.equal(list.decisions, false, 'there is no pinned coordinator decisions wall');
       assert.equal(list.agent.name, 'web-1');
       assert.equal(list.agent.model, MACHINE_MODEL);

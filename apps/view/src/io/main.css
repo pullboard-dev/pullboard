@@ -1324,13 +1324,13 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .shout-form > .answering, .shout-form > .console { grid-column: 1 / -1; }
 #asks-slot { min-width: 0; max-width: 100%; }
 #asks-slot .seg { flex: none; }
-.conversation-row { display: grid; grid-template-columns: 44px minmax(0, 2fr) minmax(0, 3fr) auto 40px; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; height: 30px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-md); background: none; color: var(--ink-muted); font-size: var(--text-xs); text-align: left; cursor: pointer; }
+.conversation-row { display: grid; grid-template-columns: 44px minmax(0, 2fr) minmax(0, 3fr) 32px 48px; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; height: 30px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-md); background: none; color: var(--ink-muted); font-size: var(--text-xs); text-align: left; cursor: pointer; }
 .conversation-row:hover { background: var(--surface-2); }
 .conversation-id, .conversation-title, .conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-id { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
 .conversation-title { color: var(--ink); font-weight: 600; }
 .conversation-preview b { color: var(--ink-muted); font-weight: 600; }
-.conversation-row .chip { min-width: 1.6em; text-align: center; }
+.conversation-row .chip { min-width: 0; justify-self: stretch; padding-inline: 0; text-align: center; }
 .conversation-time { color: var(--ink-faint); font-size: var(--text-2xs); text-align: right; white-space: nowrap; }
 .conversation-heading { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: var(--space-2); overflow-wrap: anywhere; }
 .conversation-heading .link { justify-self: start; }
@@ -1356,8 +1356,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
   .shout-form .composer { flex: 1 1 0; min-width: 0; }
   .shout-form .composer textarea { min-width: 0; width: 100%; }
   #asks-slot .seg button { padding-inline: var(--space-1); font-size: var(--text-2xs); }
-  .conversation-row { grid-template-columns: 38px minmax(0, 1fr) auto 32px; gap: var(--space-2); padding-inline: var(--space-1); }
-  .conversation-preview { display: none; }
+  .conversation-row { grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr) 28px 40px; gap: var(--space-2); padding-inline: var(--space-1); }
 }
 /* The comparison overview stays open; its complete canonical table is a separate disclosure. */
 .window-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }

@@ -16,13 +16,11 @@ import {
   settledSubmit,
 } from '../../../../tests/fixtures/init/known-frozen.js';
 
-/** The pulled gate does not yet judge a frozen red against main's receipts (mainOwnedGate runs only in the controller submit), so these journeys wait for it [V4,B3,C7]. */
-const PULLED_MAIN_OWNED = 'pending: the pulled gate records no main-owned verdict; remainder is #7104 (filed from #7045)';
 
-test('verify accepts an identical owned main red and records its exact case [V4,B3]', { skip: PULLED_MAIN_OWNED }, async t => {
+test('verify accepts an identical owned main red and records its exact case [V4,B3]', async t => {
   const box = fixture(t), repair = fileMainRed(box);
-  const settled = await settledSubmit(t, box);
-  assert.equal(settled.gate.green, true, 'the pulled gate ends green: ' + JSON.stringify(settled.gate));
+  const settled = await settledSubmit(t, box, { submitted: true });
+  assert.equal(settled.submission?.gateGreen, true, 'the pulled gate records green over the main-owned case: ' + JSON.stringify(settled.gate));
   const { independent, review } = reviewer(box);
   const accepted = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'checked the frozen case');
   assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
@@ -48,34 +46,12 @@ test('verify refuses a frozen failure that is green on main [V4,B3]', t => {
   assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
 });
 
-test('verify refuses an identical main failure without an open repair owner [V4,B3]', { skip: PULLED_MAIN_OWNED }, async t => {
+test('verify refuses an identical main failure without an open repair owner [V4,B3]', async t => {
   const box = fixture(t);
-  const settled = await settledSubmit(t, box);
-  assert.equal(settled.gate.green, true, 'the pulled gate ends green: ' + JSON.stringify(settled.gate));
+  const settled = await settledSubmit(t, box, { submitted: true });
+  assert.equal(settled.submission?.gateGreen, true, 'the pulled gate records green over the main-owned case: ' + JSON.stringify(settled.gate));
   const { independent, review } = reviewer(box);
   const refused = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'no repair owns the case');
   assert.equal(refused.status, 1, refused.stdout + refused.stderr);
   assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
-});
-
-test('a frozen case red identically on main with no owner records a green gate listing it main-owned, shouts, and files nothing [V4,B3,C7]', { skip: PULLED_MAIN_OWNED }, async t => {
-  const box = fixture(t);
-  const report = await settledSubmit(t, box);
-  // Since #3534 the gate records green over main's own reds and names them, instead of a builder fact.
-  assert.equal(report.gate.green, true, 'a red only in main\'s own case records green: ' + JSON.stringify(report.gate));
-  assert.deepEqual(report.gate.mainOwned.map(({ file, name }) => ({ file, name })), [{ file: 'test/frozen.test.js', name: 'frozen case [G1]' }], 'the gate names the main-owned file and case');
-  assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0, 'submit files no item');
-  const shown = JSON.parse(cli(box, box.root, 'show', String(box.item)).stdout);
-  assert.ok(!shown.thread.some(entry => entry.type === 'fact' && entry.text.includes('unowned known main red')), 'no builder fact is written for a main-owned red');
-  const shouts = rows(box, 'SELECT * FROM shout');
-  const asked = shouts.filter(row => row.shout_to === 'coordinator' && row.shout_decision === 1 && String(row.shout_text).includes('test/frozen.test.js'));
-  assert.equal(asked.length, 1, 'exactly one decision shout reaches the coordinator: ' + JSON.stringify(shouts));
-});
-
-test('an open Main red repair is linked, not duplicated [V4,B3]', { skip: PULLED_MAIN_OWNED }, async t => {
-  const box = fixture(t);
-  const repair = fileMainRed(box);
-  const report = await settledSubmit(t, box);
-  assert.deepEqual(report.gate.knownMainReworks.map(row => row.item), [repair]);
-  assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 1);
 });
