@@ -317,7 +317,8 @@ test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
     shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
   }
-  assert.equal(shown.item_commit, current, 'submit records the HEAD created by this command');
+  const runnerLog = join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log');
+  assert.equal(shown.item_commit, current, `submit records the HEAD created by this command; gate ${JSON.stringify(shown.gateJob)}; run ${run.stdout.slice(-400)}; runner log ${existsSync(runnerLog) ? readFileSync(runnerLog, 'utf8').slice(-1500) : 'none'}`);
 });
 
 /** Create a promise gate for a deterministic overlap between command fact scopes. */
