@@ -47,7 +47,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const stage = (key, dot, name, list, perHour, a, b, green = false) => '<button type="button" class="dash-stage" data-dashboard-step="'+key+'" data-dashboard-list="'+list+'"><span class="dash-stage-t"><i class="dash-dot '+dot+'"></i>'+name+'<span class="dash-rate'+(green ? ' g' : '')+'">'+perHour+'</span></span><span class="dash-stage-a">'+a+'</span><span class="dash-stage-b">'+b+'</span></button>';
   const flowCards = f ? [
     stage('build', 'building', 'Build', 'building', rate(f.submitted), '<b>'+num(f.claimed)+'</b> claimed → <b>'+num(f.submitted)+'</b> submitted', num(f.handedBack)+' handed back'+(f.buildMedian === null ? '' : ' · median '+span(f.buildMedian))),
-    stage('gate', 'gated', 'Gate', 'gate', rate(f.green + f.red), '<b>'+num(f.green)+'</b> green · <b>'+num(f.red)+'</b> red', num(f.gateRunning)+' in the gate now'),
+    stage('gate', 'gate', 'Gate', 'gate', rate(f.green + f.red), '<b>'+num(f.green)+'</b> green · <b>'+num(f.red)+'</b> red', num(f.gateRunning)+' in the gate now'),
     stage('review', 'review', 'Review', 'review', rate(f.accepted + f.sentBack), '<b>'+num(f.accepted)+'</b> accepted · <b>'+num(f.sentBack)+'</b> sent back', num(f.waitingReview)+' wait for a reviewer'+(f.oldestWait === null ? '' : ' · oldest '+ago(f.oldestWait))),
     stage('land', 'merged', 'Land', 'landed', rate(f.landed), '<b>'+num(f.landed)+'</b> landed · <b>'+num(m.lists.accepted.length)+'</b> to land', f.lastLanded ? 'last '+ago(f.lastLanded)+' ago' : 'none yet', true),
   ].join('') : '<p class="dash-empty">Reading the board’s history…</p>';
@@ -59,7 +59,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const tile = (dot, value, word, list, title) => open('<i class="dash-dot '+dot+'"></i><b>'+num(value)+'</b>'+word, list, { cls: 'dash-tile', title });
   const now = section('Now', 'dash-nowsec', label('Now'), '<div class="dash-card dash-now">'+[
     tile('ready', s.ready, 'ready', 'next', 'Open, nothing waiting'), tile('waiting', s.waiting, 'waiting', 'gated', 'Waiting on other items'),
-    tile('building', s.building, 'building', 'building', 'One item each'), tile('gated', s.gate, 'in the gate', 'gate', 'Submitted, the gate is checking'),
+    tile('building', s.building, 'building', 'building', 'One item each'), tile('gate', s.gate, 'in the gate', 'gate', 'Submitted, the gate is checking'),
     tile('review', s.review, 'in review', 'review', 'Passed the gate, with or waiting for a reviewer'), tile('landing', s.toLand, 'to land', 'passed', 'Accepted, landing next'),
     tile('back', s.sentBack, 'sent back', 'sent-back', 'With their builders'), tile('held', s.held, 'held', 'held', 'Paused on purpose'),
   ].join('<span class="dash-x" aria-hidden="true"></span>')+open(num(s.active)+' open · Items ›', 'active', { cls: 'dash-tright' })+'</div>');
