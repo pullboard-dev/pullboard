@@ -56,7 +56,7 @@ function sidebarReader(boards, { summaryServed = true } = {}) {
   const states = new Map(boards.map((board) => [board.id, board.state]));
   const context = {
     snapshot: false, localBoardIds: new Set(boards.map((board) => board.id)), data: null,
-    renderSide: () => {}, $: () => ({}), listFields: (item) => ({ id: item.id, title: item.title, status: item.status }),
+    renderSide: () => {}, drawFrame: () => {}, $: () => ({}), listFields: (item) => ({ id: item.id, title: item.title, status: item.status }),
     personNeeds: (state) => state.needs ?? [],
     api: async (path) => {
       paths.push(path);
