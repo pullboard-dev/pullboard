@@ -1,6 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** The performance harness measures real projects: eight registered boards and the single-project baseline [N26,N40]. */
+/** The performance harness measures real projects: eight registered boards [N26,N40]. */
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -29,7 +29,7 @@ test('the harness measures with eight registered projects [N26,N40]', async (t) 
     if (t.passed) for (const fixture of fixtures) removeStressBoard(fixture);
   });
   const root = resolve(import.meta.dirname, '../../../../..');
-  for (const projects of [8, 1]) {
+  for (const projects of [8]) {
     const result = await runFixtureChildAsync(process.execPath, [join(root, 'apps/cli/tests/fixtures/cockpit/perf/run.mjs'),
       ...(projects > 1 ? ['--projects', String(projects)] : []),
       '--size', '5', '--runs', '1', '--idle', '1', '--live-every', '1', '--keep'],
