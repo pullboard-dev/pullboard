@@ -1,7 +1,7 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
-/** Scenario partition: original case bytes and deadlines remain unchanged. */
+/** Scenario partition: the real pinned-worker probe that recovers after one failure; the installer and hold cases run in their own files. */
 import {
-  runnerRecoveryTests,
+  runnerProbeRecoveryTests,
 } from '../../../tests/fixtures/scenarios/runners.js';
 
-runnerRecoveryTests();
+runnerProbeRecoveryTests([1]);
