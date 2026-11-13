@@ -20,6 +20,10 @@ function refusalFor(refusalDocument, error) {
   const document = refusalDocument(error instanceof Refused ? error : new Refused('SERVICE_ERROR', 'the board service could not complete the call; retry or check the service'));
   const storage = error instanceof Refused && error.code === 'ACCOUNT_STORAGE_LIMIT' ? relayStorage(error.storage) : null;
   if (storage) document.error.storage = storage;
+  const size = error instanceof Refused && error.code === 'MOVE_TOO_LARGE' ? error.moveLimit : null;
+  if (Number.isSafeInteger(size?.moveBytes) && Number.isSafeInteger(size?.limit) && size.limit > 0 && size.moveBytes > size.limit) {
+    document.error.moveLimit = { moveBytes: size.moveBytes, limit: size.limit };
+  }
   return document;
 }
 
@@ -82,9 +86,11 @@ function acceptsGzip(header) {
 /**
  * Read a bounded JSON object, draining oversize requests so a refusal reaches the caller. An upload (uploadRefusal)
  * answers an oversize body with the structured BAD_UPLOAD size refusal: the measured bytes and the stated limit, so the
- * machine can name the board instead of waiting on a plain BAD_REQUEST (#1196).
+ * machine can name the board instead of waiting on a plain BAD_REQUEST (#1196). A move (moveRefusal) answers an oversize
+ * body with the structured MOVE_TOO_LARGE refusal: the move's measured bytes and the stated limit, so the sender can park
+ * it and name the recovery instead of retrying a move that can never fit (#6696).
  */
-async function readBody(req, { maxBytes = BODY_BYTES, uploadRefusal = false } = {}) {
+async function readBody(req, { maxBytes = BODY_BYTES, uploadRefusal = false, moveRefusal = false } = {}) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > PAIR_PACKAGE_BODY_BYTES) throw new TypeError('API body limit needs a positive safe integer within the shared request limit');
   if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type'] ?? ''))) throw new Refused('BAD_REQUEST', 'send an application/json object as the request body');
   const chunks = [];
@@ -96,6 +102,11 @@ async function readBody(req, { maxBytes = BODY_BYTES, uploadRefusal = false } = 
   if (size > maxBytes && uploadRefusal) {
     const error = new Refused('BAD_UPLOAD', 'the upload body exceeds the relay limit; send a smaller snapshot');
     error.snapshotLimit = { sealedBytes: size, limit: maxBytes };
+    throw error;
+  }
+  if (size > maxBytes && moveRefusal) {
+    const error = new Refused('MOVE_TOO_LARGE', `this move is ${size} bytes, over the relay limit of ${maxBytes} bytes`);
+    error.moveLimit = { moveBytes: size, limit: maxBytes };
     throw error;
   }
   if (size > maxBytes) throw new Refused('BAD_REQUEST', 'the body exceeds ' + maxBytes + ' bytes; send one move or request at a time');
@@ -485,7 +496,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
           ...(warnings.length ? { warning: warnings[0], ...(warnings.length > 1 ? { warnings: warnings.slice(1) } : {}) } : {}) });
       }
       if (req.method === 'POST' && route[2] === 'moves') {
-        const moved = await adapter.move(board, await readBody(req, bodyBytes.moves ? { maxBytes: bodyBytes.moves } : undefined), who);
+        const moved = await adapter.move(board, await readBody(req, { moveRefusal: true, ...(bodyBytes.moves ? { maxBytes: bodyBytes.moves } : {}) }), who);
         return json(res, moved.status, moved.body);
       }
       if (route[2] === 'jobs') {
