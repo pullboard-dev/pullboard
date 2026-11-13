@@ -1,6 +1,10 @@
+/** @pullboard-world-pin: the #6810 case reads the committed tree, which must no longer hold the in-process landing batch. */
 /** A landing reruns its items' submit proof, never the full plan, and a batch of many lands on its items' receipts [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { landingReceiptReuse } from '../../../index.js';
 import { submitProved } from '../../../src/io/step/gate.js';
 import { submittedSelections } from '../../../src/io/step/gate.js';
@@ -48,4 +52,15 @@ test('clause 3: a batch of several items lands on their submit receipts, rerunni
   const missing = landingReceiptReuse({ items: [{ id: 7, commit: 'c7' }, { id: 9, commit: 'c9' }], readEvents: id => events[id] ?? [], tree: 'tAB', base: 'm1',
     tooling: 'tools', full: false, files: [], treeOf: rev => trees[rev] ?? null, changedPaths, closure });
   assert.deepEqual([missing.reuse, missing.code, missing.item], [false, 'NO_RECEIPT', 9]);
+});
+
+test('#6810 clauses 1-2: the in-process landing batch file is gone and its runner is named nowhere in the tree [C7,#6810]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  assert.equal(existsSync(fileURLToPath(new URL('../../../src/io/in/process.js', import.meta.url))), false);
+  // The name is split so this test does not name it; git grep exits 1 when nothing matches.
+  const name = 'inProcess' + 'LandingBatch';
+  let named = '';
+  try { named = execFileSync('git', ['grep', '-l', '-F', name], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  assert.equal(named, '');
 });
