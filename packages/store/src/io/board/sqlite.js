@@ -13,6 +13,7 @@ import { jobBlobsPending } from "./blobs.js";
 import { migrateJobBlobs } from "./blobs.js";
 import { compactBoard } from "./blobs.js";
 import { sharedColumnsAhead } from "./schema.js";
+import { runsPort } from "./runs.js";
 import {
   SCHEMA,
   SCHEMA_VERSION,
@@ -82,6 +83,80 @@ export function requireRuntimePorts(ports) {
 /** The one path of a repository's board database under its git common directory; every other module asks here (registry owner, #6735). */
 export function boardFilePath(commonDir) {
   return join(commonDir, 'pullboard/board.sqlite');
+}
+
+/** The runs file's name; it always sits in the same folder as the board file (registry owner). */
+export const RUNS_FILE = 'board.runs.sqlite';
+
+/** The runs file's own schema stamp; it moves only when the runs file's shape changes. */
+export const RUNS_SCHEMA = 1;
+
+/** The board_meta key of the flag that sends runner traffic to the runs file; absent or any value but '1' is off. */
+export const RUNS_STORE_KEY = 'runs_store';
+
+/** The path of the runs file that belongs to the board at `boardFile`. */
+export function runsFilePath(boardFile) {
+  return join(dirname(boardFile), RUNS_FILE);
+}
+
+/**
+ * Whether this board sends runner traffic to the runs file. Off by default: a board with no flag row reads off.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's handle.
+ * @returns {boolean}
+ */
+export function runsStoreOn(db) {
+  return db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(RUNS_STORE_KEY)?.meta_value === '1';
+}
+
+/**
+ * Open, or create, a runs file: WAL, the board's busy timeout, the job tables, and a runs_meta stamp naming the board
+ * it belongs to. Opening a runs file stamped for another board is refused, so two boards never share one queue.
+ *
+ * @param {string} file - The runs file, or `:memory:` in tests.
+ * @param {{ boardId: string }} options
+ * @returns {DatabaseSync}
+ */
+export function openRunsStore(file, { boardId }) {
+  if (typeof boardId !== 'string' || !boardId) throw new Refused('NO_POLICY', 'Name the board a runs file belongs to: pass { boardId }.');
+  const db = new DatabaseSync(file);
+  try {
+    db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
+    if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
+    db.exec('CREATE TABLE IF NOT EXISTS runs_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)');
+    db.exec(JOB_SCHEMA_SQL);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const owner = db.prepare("SELECT meta_value FROM runs_meta WHERE meta_key = 'board_id'").get()?.meta_value;
+      if (owner && owner !== boardId) throw new Refused('RUNS_BOARD_MISMATCH', `runs file ${file} belongs to board ${owner}, not ${boardId}`, 'move the stray runs file aside; the board rebuilds in-flight work from its run rows');
+      db.prepare("INSERT OR IGNORE INTO runs_meta (meta_key, meta_value) VALUES ('board_id', ?)").run(boardId);
+      db.prepare("INSERT INTO runs_meta (meta_key, meta_value) VALUES ('schema', ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value").run(String(RUNS_SCHEMA));
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+}
+
+/**
+ * The board's runs port, or null while the flag is off. The runs file opens on the first call, never before, so a
+ * board with the flag off never creates one, and no board write ever waits on the runs file's open.
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - An open board.
+ * @param {string} boardFile - The board's file path.
+ * @returns {ReturnType<typeof runsPort> | null}
+ */
+export function boardRunsPort(board, boardFile) {
+  if (!runsStoreOn(board.db)) return null;
+  const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get()?.meta_value;
+  let runs = null;
+  const open = () => (runs ??= openRunsStore(runsFilePath(boardFile), { boardId }));
+  return runsPort({ get db() { return open(); } });
 }
 
 /**
