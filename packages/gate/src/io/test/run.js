@@ -167,15 +167,18 @@ function localReason() {
 
 /**
  * Hold a local start until the one-minute load is under one per core, so test runs never pile onto a busy
- * machine while it has no runner to send them to [C7]. Returns what the run says about its start.
+ * machine while it has no runner to send them to [C7]. Returns what the run says about its start. A test fixture
+ * board (PULLBOARD_FIXTURE_BOARD=1) starts at once: the outer gated run already owns the load budget, so waiting
+ * again inside it double-counts and times nested journeys out on a loaded runner.
  *
- * @param {{ read?: () => number[], cores?: number, wait?: (ms: number) => Promise<unknown>, pollMs?: number, maxWaitMs?: number, onWait?: (state: object) => void }} [options]
+ * @param {{ env?: Record<string, string | undefined>, read?: () => number[], cores?: number, wait?: (ms: number) => Promise<unknown>, pollMs?: number, maxWaitMs?: number, onWait?: (state: object) => void }} [options]
  * @returns {Promise<{ load: number, cores: number, waitedMs: number, note: string }>}
  */
-export async function localLoadStart({ read = loadavg, cores = availableParallelism(), wait = sleep, pollMs = 2000, maxWaitMs = 10 * 60_000, onWait } = {}) {
+export async function localLoadStart({ env = process.env, read = loadavg, cores = availableParallelism(), wait = sleep, pollMs = 2000, maxWaitMs = 10 * 60_000, onWait } = {}) {
   const started = Date.now();
   let load = read()[0];
-  while (load >= cores && Date.now() - started < maxWaitMs) {
+  const fixture = env.PULLBOARD_FIXTURE_BOARD === '1';
+  while (!fixture && load >= cores && Date.now() - started < maxWaitMs) {
     onWait?.({ state: 'local-load', load, cores });
     process.stderr.write(`pullboard test: load ${load.toFixed(1)} on ${cores} cores; waiting for it to drop under ${cores} before a local start\n`);
     await wait(pollMs);
