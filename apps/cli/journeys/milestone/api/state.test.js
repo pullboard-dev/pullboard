@@ -64,8 +64,11 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
   const document = json(box, box.repo, 'roadmap');
   assert.deepEqual(document.milestones.map(({ name }) => name), ['Aftercare', 'Delivery']);
   assert.deepEqual(document.milestones[1].items.map(({ status }) => status), ['claimed', 'open']);
-  // The registered foreign repo is in this board's API scope, as it is for a served board reading the registry [N26].
-  const api = await startLocalHandler(t, box, { extraProjects: [{ root: foreign.repo, name: 'foreign', project: '', added: '2026-10-08T00:00:00.000Z' }] });
+  // The handler reads the project registry from this process's home, as the served board's own process does with the box's [N26].
+  const previousHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
+  t.after(() => { if (previousHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousHome; });
+  const api = await startLocalHandler(t, box);
   const listing = await (await apiFetch(api, '/api/v1/boards')).json();
   const current = listing.boards.find((candidate) => candidate.root === box.repo);
   const response = await apiFetch(api, `/api/v1/boards/${current.id}/state`);

@@ -137,7 +137,7 @@ export async function startLocalHandler(t, box, options = {}) {
     secret,
     getPort: () => port,
     runCommand: options.runCommand ?? isolatedMain(box),
-    projects: () => [{ root: box.repo, name: 'API fixture', project: '', added: '2026-01-01T00:00:00.000Z' }, ...(options.extraProjects ?? [])],
+    projects: () => [{ root: box.repo, name: 'API fixture', project: '', added: '2026-01-01T00:00:00.000Z' }],
     ...(options.allowedOrigins === undefined ? {} : { allowedOrigins: options.allowedOrigins }),
     ...(options.allowedHosts === undefined ? {} : { allowedHosts: options.allowedHosts }),
     ...(options.onStateBuild === undefined ? {} : { onStateBuild: options.onStateBuild }),

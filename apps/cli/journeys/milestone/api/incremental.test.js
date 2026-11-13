@@ -154,7 +154,9 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     await move('verify', ids[0], { decision: 'accept', reason: 'CRITERION_MET', note: 'verified dependency' }, verifier.agent);
     builds.length = 0;
     const dependencyState = await assertFreshFullState('verified dependency');
-    assert.deepEqual(builds, [ids[0], ids[1], ids[3]], 'the verified item, its dependent and the next light item a seat claimed on submit are recomputed');
+    // A pulled submit only queues its gate, so it may or may not have handed its seat the next light item; any such claim is recomputed too.
+    const nextClaimed = dependencyState.items.find((item) => item.id === ids[3])?.claim ? [ids[3]] : [];
+    assert.deepEqual(builds, [ids[0], ids[1], ...nextClaimed], 'the verified item, its dependent and any next light item a seat claimed on submit are recomputed');
     assert.deepEqual(dependencyState.items.find((item) => item.id === ids[1]).blockedBy, [],
       'the waiting item becomes unblocked when its dependency is verified');
     for (const extra of dependencyState.items.filter((item) => [ids[1], ids[3]].includes(item.id) && item.claim)) {
