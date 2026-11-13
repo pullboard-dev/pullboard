@@ -36,8 +36,8 @@ export async function assertRunnerMemoryAdmission() {
     // The existing floor is file-configured; its CLI setter is not part of this item.
     const settingsPath = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
     const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
-    // Pull dispatch is the default; this probe drives the controller's gate slot and runner worker directly.
-    writeFileSync(settingsPath, JSON.stringify({ ...settings, gate: { ...settings.gate, memoryFloorMB: 512, runnerDispatch: 'controller' } }));
+    // Pull dispatch is the default; this probe drives the gate slot and runner worker directly.
+    writeFileSync(settingsPath, JSON.stringify({ ...settings, gate: { ...settings.gate, memoryFloorMB: 512 } }));
     writeFileSync(join(box.repo, 'memory-probe.cjs'), "console.log('REAL_RUNNER_MEMORY_PROBE');\n");
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: private memory admission probe');
