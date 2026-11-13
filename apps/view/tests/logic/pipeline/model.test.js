@@ -102,7 +102,7 @@ test('withdrawn stage recovery preserves each recorded prior state [N26,N28,N38]
 test('stage presentation maps every lifecycle input to its approved word and detail [N26,N28,N38]', testApprovedStagePresentations);
 test('stage keys are stable for all approved display words [N26,N28,N38]', testApprovedStageKeys);
 
-test('a blocked item says which item blocks it, in the design sheet words [N26,#6870]', () => {
+test('clause 2: a blocked item says which item blocks it, in the design sheet words [N26,#6870]', () => {
   const blocked = itemStagePresentation({ status: 'open', blockedBy: [5821] }, { gated: true });
   assert.equal(stageSentence(blocked.stage, blocked.detail), 'Blocked by #5821');
   const held = itemStagePresentation({ status: 'open' }, { gated: true });

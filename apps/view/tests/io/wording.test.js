@@ -19,7 +19,7 @@ test('no file under apps/view/src says needs you, in code, markup, styles or com
   assert.deepEqual(found, [], "the view calls the person's decisions Rulings");
 });
 
-test('the design sheet words are the only ones the view shows: Blocked, Pending review, Idle, ETA, Release, Search [N26]', () => {
+test('clause 1: the design sheet words are the only ones the view shows: Blocked, Pending review, Idle, ETA, Release, Search [N26]', () => {
   const old = /Gated|Done at this pace|Shipping now|Needs your decision|Search or jump|Between items|between items ·|waiting for a reviewer|wait for a reviewer|Waiting for review|Waits on/u;
   const found = sources(SRC).flatMap(file => readFileSync(file, 'utf8').split('\n').flatMap((text, index) => old.test(text) ? [file.slice(SRC.length) + ':' + (index + 1)] : []));
   assert.deepEqual(found, [], 'Blocked, Pending review, Idle, ETA, Release, Rulings and Search are the words');
