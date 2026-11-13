@@ -1,4 +1,4 @@
-/** Runner dispatch generation guards and late-start budget after a lost SSH call [C7]. Split from lost.recovery.test.js for the per-file budget. */
+/** Runner dispatch generation guards and late-start budget after a lost SSH call [C7]. Split from lost.recovery.test.js. All four cases call the controller transport (runOnRunnerAsync/withGateSlot) directly, which #6579 deletes, so each is skipped CONTROLLER_ONLY. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import assert from 'node:assert/strict';
@@ -64,7 +64,7 @@ function queue(t) {
   initializeRunnerRecovery(db); t.after(() => db.close());
   return db;
 }
-test('a controller and worker mixed across an upgrade are refused before SSH while a fresh controller works [C7]', t => {
+test('a controller and worker mixed across an upgrade are refused before SSH while a fresh controller works [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
   const box = fixture(t), installed = join(box.dir, 'installed-tooling');
   mkdirSync(installed);
   copyPackageFiles(join(import.meta.dirname, '../../../..'), installed);
@@ -89,7 +89,7 @@ test('a controller and worker mixed across an upgrade are refused before SSH whi
   assert.equal(result.freshGreen, true, 'both upgraded allowlists are coherent when loaded by a fresh controller');
 });
 
-test('a changed composed resource provider leaf refuses the old controller generation before SSH [C7]', t => {
+test('a changed composed resource provider leaf refuses the old controller generation before SSH [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
   const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-lifecycle-tooling');
   mkdirSync(installed);
   copyPackageFiles(join(import.meta.dirname, '../../../..'), installed);
@@ -108,7 +108,7 @@ test('a changed composed resource provider leaf refuses the old controller gener
   assert.equal(result.sent, false, 'a stale lifecycle provider cannot contact or quarantine a host');
 });
 
-test('an asynchronous runner dispatch never uses a preloaded resource generation [C7]', t => {
+test('an asynchronous runner dispatch never uses a preloaded resource generation [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
   const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-preloaded-tooling');
   mkdirSync(installed);
   copyPackageFiles(join(import.meta.dirname, '../../../..'), installed);
@@ -137,7 +137,7 @@ test('an asynchronous runner dispatch never uses a preloaded resource generation
 });
 
 
-test('a dispatch after the lease queue deadline gets its full startup budget and reaches READY first time [C7]', t => {
+test('a dispatch after the lease queue deadline gets its full startup budget and reaches READY first time [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
   const box = fixture(t, { dropFirst: false });
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
