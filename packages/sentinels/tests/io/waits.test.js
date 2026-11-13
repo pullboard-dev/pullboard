@@ -338,7 +338,7 @@ test('clause 2: the hold read from #6121\'s job ends within budget: its age coun
   assert.ok(gate.ageMs < 60_000, 'it is a renewal old, not the six minutes since the claim');
 });
 
-test('a runner unavailable for 279 s is inside the audited runnerUnavailableMs row; one past 300 s still breaches [C7]', () => {
+test('clause 1: a runner unavailable for 279 s is inside the audited runnerUnavailableMs row; one past 300 s still breaches [C7]', () => {
   const budgets = waitBudgets();
   assert.equal(budgets.runnerUnavailableMs, 300_000);
   assert.equal(budgets.waiterMs, 120_000, 'the handoff queue keeps its two-minute budget');
@@ -357,4 +357,10 @@ test('a board write held 5.1 s is inside the audited boardWriteMs row; one past 
   assert.equal(board.breach, false);
   assert.equal(slow.breach, true);
   assert.equal(resource.breach, true, 'the resource write queue keeps databaseMs');
+});
+
+test('clause 2: the 147 s, 155 s and 279 s runner-unavailable episodes read from #6777, #6779 and #6800 each end within the budget [C7]', () => {
+  const budgets = waitBudgets();
+  const rows = [147_000, 155_000, 279_000].map(ageMs => ({ surface: 'runner-unavailable', key: 'h', holder: 'h', pid: null, ageMs, waiters: [] }));
+  assert.deepEqual(judgeWaits(rows, budgets).map(row => row.breach), [false, false, false]);
 });
