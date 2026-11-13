@@ -1,6 +1,6 @@
 export { exitSessionIdentity, exitedSession, exitContinuationProblem, exitContinuationSummary, exitedSessionIdentity } from './src/logic/exit/rules/continuation.js';
 export { exitClaim, recordExitProgress, exitClaimDecision, releaseExitClaim, capturedExitRules, requireExitActive } from './src/logic/exit/rules/claim.js';
-export { validateKnownMainAutofile, fileKnownMainAutofile } from './src/logic/known/main/autofile.js';
+export { validateKnownMainAutofile, fileKnownMainAutofile, filePulledMainReds } from './src/logic/known/main/autofile.js';
 export { boardNotWritable, requireBoardWriteAccess, boardBusyError } from './src/io/board/access.js';
 export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued } from './src/io/board/busy.js';
 export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
@@ -11,7 +11,7 @@ export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/b
 export { compactJobSteps, jobHistory, stepArchivePath, COMPACT_AFTER_DAYS, STEP_ARCHIVE_NAME } from './src/io/board/compact.js';
 export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
 export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
-export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
+export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";

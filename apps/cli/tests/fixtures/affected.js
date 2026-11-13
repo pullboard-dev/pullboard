@@ -182,3 +182,20 @@ export async function settledSubmit(t, box, { submitted = true } = {}) {
   const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1", box.item)[0];
   return { ...settled, submission: event ? JSON.parse(event.event_detail) : null };
 }
+
+/** Two real cases red on main and unchanged by the item, so each needs its own owner. */
+export const SHARED = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n"
+  + "test('alpha case [G1]', () => assert.equal(1, 2));\ntest('beta case [G1]', () => assert.equal(1, 3));\n";
+
+/** File an open repair whose check names the shared file and whose criterion names one case (or none). */
+export function fileCaseRepair(box, criterion) {
+  const args = ['add', 'core', `Main red: ${criterion}`, '--specs', 'G1',
+    '--criterion', criterion, '--check', 'node test/runner.js test/affected.test.js', '--brief', 'Files: test/affected.test.js\nTest: shared cases'];
+  let result = cli(box, box.root, ...args);
+  // The second repair reads like the first by design: answer the near-duplicate guard with the nearest id it names.
+  const nearest = /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.stdout + result.stderr)?.[1];
+  if (result.status !== 0 && nearest) result = cli(box, box.root, ...args, '--not-duplicate-of', `${nearest} each repair owns a different case`);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return JSON.parse(result.stdout).item.item_id;
+}
+

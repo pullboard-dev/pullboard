@@ -6152,6 +6152,9 @@
     "packages/runners/light.js": 40,
     "packages/git/light.js": 12,
     "packages/resources/light.js": 27,
-    "packages/kernel/light.js": 7
+    "packages/kernel/light.js": 7,
+    "packages/jobs/light.js": 6,
+    "packages/pin/light.js": 6,
+    "packages/transport/light.js": 19
   }
 }
