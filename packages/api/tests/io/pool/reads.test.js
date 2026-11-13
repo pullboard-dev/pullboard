@@ -102,6 +102,22 @@ test('clause 3 [A2,C7]: the board lookup for a /api/v1/boards/:id route runs in 
   assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with the board lookup blocked`);
 });
 
+test('clause 1 [A2,C7]: the item detail read runs in a pool worker, so a detail handler blocked 30 s leaves health answering within 200 ms', { timeout: 60_000 }, async (t) => {
+  const channel = `reads-item-${process.pid}`;
+  const listener = new BroadcastChannel(channel);
+  t.after(() => listener.close());
+  const blocked = new Promise((resolve) => { listener.onmessage = () => resolve(); });
+  const { api, id } = await served(t, ports(['item'], channel));
+  await timedHealth(api);
+  const abort = new AbortController();
+  t.after(() => abort.abort());
+  call(api, `/api/v1/boards/${id}/items/1`, { signal: abort.signal }).catch(() => {});
+  await blocked;
+  const health = await timedHealth(api);
+  assert.equal(health.status, 200);
+  assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with the item detail handler blocked`);
+});
+
 test('clause 1 [A2,C7]: with the state worker stopped, a state read is refused STATE_WORKER_STOPPED, never built on the request thread', { timeout: 60_000 }, async (t) => {
   const crashing = 'data:text/javascript,' + encodeURIComponent('export async function boardStatePorts() { throw new Error("fixture: the state worker dies at start"); }');
   const stopped = Promise.withResolvers();
