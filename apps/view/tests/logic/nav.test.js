@@ -9,6 +9,8 @@ import { navStripHtml } from '../../src/logic/nav.js';
 import { notchHtml } from '../../src/logic/nav.js';
 import { navLayout } from '../../src/logic/nav.js';
 import { navSideHtml } from '../../src/logic/nav.js';
+import { pageControlsHtml } from '../../src/logic/nav.js';
+import { pageRenderScript } from '../../src/io/page/render.js';
 import { pageScriptPart2 } from '../../index.js';
 import { runInNewContext } from 'node:vm';
 import { placeQuery } from '../../src/logic/nav.js';
@@ -115,8 +117,9 @@ test('clause 1: the notch holds agents, per hour and rulings, in that order, wit
 });
 
 test('clause 1: Progress says the board in plain words [N26]', () => {
-  const html = progressHtml({ agents: 1, perHour: 12.6, landedDay: 300, rulings: 2, building: 4, review: 1 });
-  assert.equal(html.replace(/<[^>]+>/gu, '|').split('|').filter(Boolean).join(''), 'Progress1 agent is at work.4 building and 1 in review.Work lands at about 13 an hour, 300 in the last 24 hours.2 rulings wait for you.');
+  const html = progressHtml({ agents: 1, perHour: 12.6, landed: 76, rulings: 2, building: 4, review: 1 });
+  assert.equal(html.replace(/<[^>]+>/gu, '|').split('|').filter(Boolean).join(''), 'Progress1 agent is at work.4 building and 1 in review.Work lands at about 13 an hour, 76 in the last 6 hours.2 rulings wait for you.');
+  assert.match(progressHtml({ perHour: 12.6, landed: 300, range: '24h' }), /300<\/b> in the last 24 hours\./u, 'the time range says which window the numbers are over');
   assert.match(progressHtml({ agents: 0, rulings: 0 }), /Nothing is building or in review\.<\/p><p>Nothing waits for you\./u);
 });
 
@@ -130,11 +133,17 @@ test('clause 2: every filter and search has its own address, a default leaves no
   assert.equal(at({ tab: 'shouts', shouts: 'mine' }), '?k=secret&shouts=mine');
   assert.equal(at({ tab: 'activity', activity: 'landed' }), '?k=secret&activity=landed');
   assert.equal(at({ tab: 'roadmap', state: 'verify', lane: 'web' }), '?k=secret', 'Items\' filters belong to Items only');
+  assert.equal(at({ tab: 'progress', range: '24h' }), '?k=secret&range=24h');
+  assert.equal(at({ tab: 'progress', range: '6h' }), '?k=secret', 'the default range leaves no key');
+  assert.equal(at({ tab: 'roadmap', shipped: true }), '?k=secret&shipped=1');
+  assert.equal(at({ tab: 'roadmap', shipped: false }), '?k=secret');
+  assert.equal(at({ tab: 'activity', by: 'coordinator' }), '?k=secret&by=coordinator');
+  assert.equal(at({ tab: 'items', by: 'coordinator', range: '24h', shipped: true }), '?k=secret', 'each page keeps only its own controls\' keys');
   assert.equal(withPlaceQuery('?k=secret&state=verify&q=old', []), '?k=secret', 'leaving a place drops its keys and keeps the rest');
   assert.equal(withPlaceQuery('', []), '');
-  assert.deepEqual(readPlaceQuery('?k=secret&state=verify&lane=web&q=greeting+card&rows=all&shouts=mine&activity=landed'),
-    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed' });
-  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null });
+  assert.deepEqual(readPlaceQuery('?k=secret&state=verify&lane=web&q=greeting+card&rows=all&shouts=mine&activity=landed&range=24h&shipped=1&by=coordinator'),
+    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed', range: '24h', shipped: '1', by: 'coordinator' });
+  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null, range: null, shipped: null, by: null });
   for (const place of [{ tab: 'items', state: 'gated', lane: 'core' }, { tab: 'items', state: 'all', q: '#12' }, { tab: 'doctrine', rows: 'repo', rowsDefault: 'all' }, { tab: 'shouts', shouts: 'mine' }]) {
     const read = readPlaceQuery(at(place));
     assert.deepEqual(placeQuery({ ...place, ...Object.fromEntries(Object.entries(read).filter(([, value]) => value !== null)) }), placeQuery(place), `${JSON.stringify(place)} reads back as itself`);
@@ -169,7 +178,7 @@ test('clause 1: the sidebar lists the same pages in 28 px rows, each with its on
   assert.match(served, /<nav class="sidenav" id="sidenav" aria-label="Pages"><div class="side-h">Work<\/div>/u, 'the shell carries the sidebar list');
   assert.match(served, /data-nav-fact="shouts"/u);
   assert.ok(served.indexOf('id="proj-switch"') < served.indexOf('class="notch"') && served.indexOf('id="proj-rulings"') < served.indexOf('class="pin"'), 'the switcher with its decisions badge is the top left');
-  assert.ok(served.indexOf('id="sidenav"') > served.indexOf('</main>'), 'the sidebar follows the page in the markup, so the strip tabs are the first of each page [data-tab]');
+  assert.ok(served.indexOf('id="sidenav"') > served.indexOf('</main>'), 'the sidebar follows the page in the markup, so the strip\'s tabs are the first of each page [data-tab]');
 });
 
 test('clause 2: the pin flips the navigation between the top tabs and the sidebar, this device remembers it, and a phone always gets the top [N26]', () => {
@@ -182,14 +191,14 @@ test('clause 2: the pin flips the navigation between the top tabs and the sideba
 
   // The page's own script: run the pin's code against a fake page, as the browser would.
   const script = pageScriptPart2(new Proxy({}, { get: () => function stub() { return {}; } }));
-  const start = script.indexOf('const widePage'), end = script.indexOf("widePage.addEventListener?.('change', placeNav);");
+  const start = script.indexOf('const widePage'), end = script.indexOf("widePage.addEventListener?.('change'");
   assert.ok(start >= 0 && end > start, 'the page script carries the pin');
   const run = ({ stored, wide }) => {
     const kept = new Map(stored ? [['pb.nav', stored]] : []), attributes = {}, classes = new Set();
     const pin = { setAttribute: (name, value) => { attributes[name] = value; }, title: '', querySelector: () => ({ classList: { toggle: (name, on) => { if (on) classes.add(name); else classes.delete(name); } } }) };
     const listeners = [];
     const root = { dataset: {} };
-    const context = { navLayout, keep: (key, value) => value === undefined ? kept.get(key) ?? null : kept.set(key, value),
+    const context = { navLayout, placeControls: () => {}, keep: (key, value) => value === undefined ? kept.get(key) ?? null : kept.set(key, value),
       matchMedia: () => ({ matches: wide, addEventListener: (type, listener) => listeners.push(listener) }),
       document: { documentElement: root, getElementById: () => pin } };
     runInNewContext(script.slice(start, end) + '; placeNav; flipNav; this.flip = flipNav;', context);
@@ -209,4 +218,47 @@ test('clause 2: the pin flips the navigation between the top tabs and the sideba
   assert.equal(top.kept.get('pb.nav'), 'side');
   assert.equal(top.root.dataset.nav, 'side');
   assert.equal(run({ stored: 'side', wide: false }).root.dataset.nav, 'top', 'a phone keeps the top tabs whatever the device chose');
+});
+
+test('clause 1: each page puts its own controls at the right of the strip, and the sidebar layout puts them on the title row [N26]', () => {
+  const labels = (html) => [...html.matchAll(/<(?:button|option)[^>]*>([^<]+)<\/(?:button|option)>/gu)].map(match => match[1]);
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'items' })), ['Open', 'Building', 'In review', 'All', 'New item'], 'Items: Open, Building, In review, All and New item');
+  assert.match(pageControlsHtml({ tab: 'items', state: 'verify' }), /<button type="button" data-page-ctl="state" data-value="verify" class="on" aria-pressed="true">In review<\/button>/u, 'the shown state is the pressed one');
+  assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/ class="on"/gu) || []).length, 1, 'one state at a time');
+  assert.doesNotMatch(pageControlsHtml({ tab: 'items', writable: false }), /New item/u, 'a read-only view offers no New item');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'progress' })), ['Last 6 hours', 'Last 24 hours'], 'Progress: a time range');
+  assert.match(pageControlsHtml({ tab: 'progress', range: '24h' }), /<option value="24h" selected>/u);
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'All'], 'Shouts: For you and All');
+  assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'roadmap' })), ['Show shipped'], 'Roadmap: Show shipped');
+  assert.match(pageControlsHtml({ tab: 'roadmap', shipped: true }), /aria-pressed="true">Hide shipped</u);
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'activity', people: ['agent-1', 'coordinator', 'person'] })), ['Everyone', 'agent-1', 'The coordinator', 'You'], 'Activity: a person filter');
+  assert.match(pageControlsHtml({ tab: 'activity', by: 'coordinator', people: ['coordinator'] }), /<option value="coordinator" selected>/u);
+  for (const tab of ['spec', 'doctrine', 'dashboard', 'cost', 'settings', null]) assert.equal(pageControlsHtml({ tab }), '', `${tab}: nothing to control shows nothing`);
+
+  // The served shell: the controls live in the strip, and the sidebar layout's title row waits to take them.
+  const html = shell(false);
+  assert.match(html, /<main>\n {2}<div class="page-title" id="page-title"><h2 id="page-title-text"><\/h2><\/div>/u, 'the title row opens the page');
+  const css = composeViewStyles();
+  const rule = (selector) => { const at = css.indexOf(selector + ' {'); assert.ok(at >= 0, `the stylesheet has ${selector}`); return css.slice(at + selector.length + 2, css.indexOf('}', at)); };
+  assert.match(rule(':root[data-nav] .pagectl'), /margin-left: auto/u, 'right-aligned in the strip and on the title row');
+  assert.match(rule(':root[data-nav="side"] .page-title'), /display: flex/u, 'the title row shows in the sidebar layout');
+  assert.match(rule(':root[data-nav="top"] .page-title'), /display: none/u, 'and not in the top layout');
+  assert.match(rule(':root[data-nav] .pagectl .new'), /color: var\(--accent\)/u);
+
+  // The page's script draws them from the shared render script and moves them with the layout.
+  assert.ok(pageRenderScript().includes('function pageControlsHtml(') && pageRenderScript().includes('function navLayout('), 'the render script carries both');
+});
+
+test('clause 2: each control\'s state is in the page address, and the address puts it back [N38]', () => {
+  const states = [
+    [{ tab: 'items', state: 'building' }, '?state=building'], [{ tab: 'items', state: 'verify' }, '?state=verify'], [{ tab: 'items', state: 'all' }, '?state=all'],
+    [{ tab: 'progress', range: '24h' }, '?range=24h'], [{ tab: 'shouts', shouts: 'you' }, '?shouts=you'], [{ tab: 'roadmap', shipped: true }, '?shipped=1'], [{ tab: 'activity', by: 'person' }, '?by=person'],
+  ];
+  const back = (search) => Object.fromEntries(Object.entries(readPlaceQuery(search)).filter(([, value]) => value !== null).map(([key, value]) => [key, key === 'shipped' ? value === '1' : value]));
+  for (const [place, search] of states) {
+    assert.equal(withPlaceQuery('', placeQuery(place)), search, `${place.tab}: the control's state is in the address`);
+    assert.deepEqual(placeQuery({ tab: place.tab, ...back(search) }), placeQuery(place), `${place.tab}: refresh, back and forward read it back`);
+  }
+  assert.equal(withPlaceQuery('', placeQuery({ tab: 'items' })), '', 'Open, the default, leaves the address plain');
 });
