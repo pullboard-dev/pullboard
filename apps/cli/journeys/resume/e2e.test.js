@@ -185,7 +185,6 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   const report = JSON.stringify(gate);
   assert.match(report, /the page renders a heading/);
   assert.ok(report.length < 20_000, 'the receipt stays bounded instead of repeating the TAP stream');
-  console.error(report.slice(0, 3000));
 });
 
 test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
