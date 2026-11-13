@@ -920,10 +920,15 @@ export function applyLandingReceipt(board, { job, receipt }) {
     if (!named.has(id)) continue;
     const item = store.getItem(board, id);
     if (item?.item_status !== 'verified' || item.item_merged_commit) continue;
-    store.merged(board, id, { agentId: 'coordinator', commit: receipt.trunk, note: `landed by runner job ${job}` });
+    // Each item lands at its own first-containing merge when the receipt names one; trunk already held the rest [B3,R3,#7506].
+    const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
+    store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
     merged.push(id);
     // A landing proof red only in waived tests is recorded on each item it landed, as the controller's waived landing gate was [#655].
     if (waived.length) store.appendFact(board, id, { agentId: 'coordinator', kind: 'measurement', text: `Land job ${job} landing gate waived, not green, at ${receipt.trunk.slice(0, 12)}:\n${waived.join('\n')}`.slice(0, 2000) });
   }
+  // A landing that moved trunk writes one main-moved receipt, so seats get the main-moved notice [B3,R3,#7506].
+  const moved = merged.filter(id => (receipt.landed ?? []).includes(id));
+  if (moved.length) store.logEvent(board, 'coordinator', 'main-moved', null, { sha: receipt.trunk, job, items: moved });
   return { applied: merged.length > 0 || returned.length > 0, outcome: 'landed', merged, returned };
 }
