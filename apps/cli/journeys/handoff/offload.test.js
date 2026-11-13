@@ -8,6 +8,7 @@ import { jobQueueCall } from '../../../../packages/api/index.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
 import { localLoadAdmits } from '../../../../packages/drive/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
+import { pullGit } from '../../src/io/runner/git.js';
 import { hostProcesses } from '../../tests/fixtures/pull.js';
 import { pullProject } from '../../tests/fixtures/pull.js';
 import { pullQueue } from '../../tests/fixtures/pull.js';
@@ -48,7 +49,7 @@ test('clause 2: with no runners a loaded machine leaves the row waiting, and it 
   submitOne(box, id);
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => jobQueueCall(current.db, body, { mode: 'pull', trunk: () => box.repo }) });
   const lines = [];
-  const loaded = await serveRunner({ board: url, runner: 'local-busy', once: true, admit: () => localLoadAdmits({ load: 8, cores: 4, share: 1 }),
+  const loaded = await serveRunner({ git: pullGit, board: url, runner: 'local-busy', once: true, admit: () => localLoadAdmits({ load: 8, cores: 4, share: 1 }),
     cache: join(box.runnerHome, 'busy'), say: line => lines.push(line) });
   assert.deepEqual(loaded.jobs, [], 'no job was taken');
   assert.match(lines.join('\n'), /over its load share/u);
