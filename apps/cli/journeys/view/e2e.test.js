@@ -14,7 +14,6 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -349,21 +348,9 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runLocal(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
-  // --wait keeps the submit alive until its pulled gate is green; only that process starts the review comparison [C7,P7].
-  const submitted = await box.runLocal(box.web, 'submit', '1', '--wait');
-  // Submit starts a background review comparison that records a second "Review comparison" fact when it settles [V4,C7];
-  // wait for it so the history order below does not depend on whether it lands before or after the reject.
-  const comparisonFacts = () => {
-    const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-    try { return board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n; } finally { store.closeBoard(board); }
-  };
-  try {
-    await waitFor(() => comparisonFacts() >= 2, 'the background review comparison to record its result', 30_000); // budget: hang ceiling for the detached comparison worker under runner load.
-  } catch (error) {
-    const directory = join(box.repo, '.git', 'pullboard', 'review-comparisons');
-    const logs = existsSync(directory) ? readdirSync(directory).map((job) => `${job}: ${readdirSync(join(directory, job)).join(',')}\n${existsSync(join(directory, job, 'worker.log')) ? readFileSync(join(directory, job, 'worker.log'), 'utf8') : ''}${existsSync(join(directory, job, 'result.json')) ? readFileSync(join(directory, job, 'result.json'), 'utf8') : ''}`) : ['(no comparison folder)'];
-    throw new Error(`${error.message}\n${logs.join('\n')}\nsubmit ${submitted.code}: ${submitted.out}${submitted.err}`);
-  }
+  // A pulled submit returns once its gate job is offered and the fixture settles that job, so the gate has recorded
+  // its receipt before the reject below. The pull path starts no background review comparison [V4,C7,P7].
+  await box.runLocal(box.web, 'submit', '1');
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
   box.git(box.repo, 'switch', '-q', 'main');
@@ -380,13 +367,14 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     );
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
-    assert.deepEqual(item.history.map((event) => event.kind), ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'fact', 'submit', 'fact', 'fact', 'reject', 'escalate']);
+    // Facts (the gate job note, the tier-1 shadow, a review comparison when one runs) are noted apart from the moves.
+    assert.deepEqual(item.history.map((event) => event.kind).filter((kind) => kind !== 'fact'), ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'submit', 'reject', 'escalate']);
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       const [receipt] = store.proofReceipts(board, item.id);
       assert.equal(receipt.item, item.id, 'the visible proof belongs to this item');
       assert.equal(receipt.commit, item.commit, 'the visible proof checked the submitted commit');
-      assert.equal(item.history[4].by, receipt.seat, 'the history names the native executing seat');
+      assert.equal(item.history.find((event) => event.kind === 'proof-run').by, receipt.seat, 'the history names the native executing seat');
     } finally {
       store.closeBoard(board);
     }
