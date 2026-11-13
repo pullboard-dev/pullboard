@@ -46,7 +46,7 @@ function cpuLoadShell(e2e, commonjs, stage) {
   const remoteMachineHome = join(remoteHome, '.pullboard');
   const requests = join(box.dir, 'ssh-requests.jsonl');
   for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
-  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
+  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo, ['apps/runner/src/io/controller.js']);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
   const standIn = { bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, nodeCommand: process.execPath };
   installSshStandIn({ ...standIn, requests });
@@ -66,10 +66,6 @@ function cpuLoadShell(e2e, commonjs, stage) {
   // CommonJS conservatively needs browser admission; this private worker supplies a genuine browser slot.
   command('runner', 'add', HOST, '--node', process.execPath, '--slots', '1', '--browser', commonjs ? '1' : '0');
   command('settings', 'gate.runnersFirst', 'off');
-  // The gate runs in this process, so it pins controller dispatch; the default pull dispatch would need a committed runner controller the copied fixture runner lacks [P7].
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  writeFileSync(settingsFile, JSON.stringify({ ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } }));
   command('settings', 'gateSlots', '1');
   stage('runner-registered');
   const shell = { box, env, requests, standIn, remoteHome, remoteMachineHome, command, probeFile };
