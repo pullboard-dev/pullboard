@@ -125,7 +125,8 @@ export async function proveSettingsApi() {
     assert.equal(find('machine', 'gate.runnerWaitMs').default, 300_000);
     assert.equal(find('machine', 'gate.runnerWaitMs').origin, 'default');
     assert.equal(find('machine', 'gate.queue.agingMinutes').value, 30);
-    assert.equal(find('machine', 'resources.custom.capacity').value, 4);
+    assert.equal(find('machine', 'resources.custom.capacity'), undefined, 'resource rows are never reported as settings');
+    assert.equal(rows.some(row => row.key.startsWith('resources.')), false, 'no resource row appears in the inventory');
     assert.equal(find('repo', 'claim.reopenFirstRefusalMinutes').value, 30);
     assert.equal(find('repo', 'verify.composeAtAdmission')?.value, true, 'the actual optional admission policy is inventoried');
     assert.equal(find('repo', 'verify.composeAtAdmission').default, false);

@@ -6,8 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e.js';
 import { fixtureAdd } from './testkit.js';
+import { whenRunnerSettles } from './runner/local-start.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
-import { fixtureMachineSettings } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 
 export const policyFixtures = createE2eHelpers();
@@ -19,21 +19,25 @@ export const policyFixtures = createE2eHelpers();
  */
 export async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  const waiting = JSON.parse(submitted.out).waitingOwner;
-  assert.deepEqual(waiting.owners, [owner], label);
-  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
-  const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+  // The pulled gate's receipt is applied just after its job row closes, so settle on the routing event itself [P7].
+  const item = await whenRunnerSettles(box.env, async () => {
+    const row = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+    return row.item_hold_reason ? row : null;
+  }, { deadlineMs: 120_000, what: `the owner routing of #${id} ${label}` });
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
+  const waiting = (item.thread ?? []).findLast(row => row.kind === 'ownership-wait')?.detail;
+  assert.ok(waiting, `${label}: the thread records the ownership wait`);
+  assert.deepEqual(waiting.owners, [owner], label);
+  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
+  return waiting;
 }
 
 /** Claim a real item before the coordinator moves one API path into its web lane. */
 export async function reassignedPathFixture() {
   const box = policyFixtures.project('true');
   mkdirSync(join(box.repo, 'api'));
-  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   writeFileSync(join(box.repo, 'api/shared.js'), 'original\n');
   box.git(box.repo, 'add', 'api/shared.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create coordinator fixture path');
@@ -60,8 +64,6 @@ export async function reassignedPathFixture() {
 /** A web item that merged main, after which main changed the same foreign file again. */
 export async function mergedMainFixture(title) {
   const box = policyFixtures.project('true');
-  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong')).code, 0);
   assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(policyFixtures.commitFile(box, box.web, 'web/index.html', 'own work\n', 'feat(web): own change [G1]').status, 0);
@@ -74,8 +76,6 @@ export async function mergedMainFixture(title) {
 /** Set up a real board and cells plan so submission exercises the frozen lane policy. */
 export async function nativePlanRowFixture(t, { mainFile } = {}) {
   const box = policyFixtures.project('true');
-  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('src/');

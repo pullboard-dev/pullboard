@@ -56,14 +56,14 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||file==='packages/gate/tests/fixtures/budgets.js'||/^(?:src|bin|packages|apps)\//u.test(file)&&!/^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/(?:tests|journeys)\/)/u.test(file));
   for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
   assert.equal(existsSync(join(installed,'.git')),false);
-  const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
+  const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
     GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
   // The runner's launch guard names this checkout's copy; the installed worker knows only its own copy, so point the guard there.
   const outerGuard=new URL('../../../../../../packages/gate/src/io/browser/guard.js',import.meta.url).href,installedGuard=pathToFileURL(join(installed,'packages/gate/src/io/browser/guard.js')).href;
   if(env.NODE_OPTIONS)env.NODE_OPTIONS=env.NODE_OPTIONS.replaceAll(`--import=${outerGuard}`,`--import=${installedGuard}`);
   for(const name of Object.keys(env))if(name.startsWith('GIT_')&&!/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(name))delete env[name];
   for(const name of ['PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN','PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN'])delete env[name];
-  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:2,browserSlots:2,gate:{browserFreeChecks:true,runnerDispatch:'controller'}}));
+  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:2,browserSlots:2,gate:{browserFreeChecks:true}}));
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node apps/cli/src/io/run/tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(repoPath(repo, `test/${name}.test.js`),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
