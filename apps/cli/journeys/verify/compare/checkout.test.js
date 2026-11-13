@@ -111,7 +111,7 @@ function gitSpy(box) {
   return { env: { ...box.env, PATH: `${directory}:${box.env.PATH}` }, log };
 }
 
-test('clause 1: verify --compare sends both commit ids to the runner and makes no clone, checkout or worktree here [V4,C7]', { skip: 'PULL_GAP: un-skipped by #7270' }, async t => {
+test('clause 1: verify --compare sends both commit ids to the runner and makes no clone, checkout or worktree here [V4,C7]', async t => {
   const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:false,fixed:true,known:false,skip:true};\n');
   const head = submit(box);
