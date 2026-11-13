@@ -3,6 +3,7 @@
  * review, red hands it back to its builder), and a landing's receipt marks its items merged at the pushed commit [P7].
  */
 import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -103,7 +104,7 @@ function tailCounts(text) {
  *
  * @returns {{ id: string, role: string, command: string }[]} the receipts recorded, in phase order: id, submit phase and command digest
  */
-function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check }) {
+function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check, admission = null }) {
   const { boardReceiptStore, receiptBody } = board.runtimePorts?.sourceAdvanceReceipts ?? {};
   const folder = typeof boardReceiptStore === 'function' ? boardReceiptStore(board) : null;
   if (!folder) return [];
@@ -112,6 +113,9 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   const runnerName = runner ? JSON.parse(runner.job_step_payload).runner ?? null : null;
   const environment = gate.environment && ['node', 'platform', 'arch'].every(key => typeof gate.environment[key] === 'string' && gate.environment[key])
     ? { node: gate.environment.node, platform: gate.environment.platform, arch: gate.environment.arch } : null;
+  // A plain submit's receipts are reusable by review: they name the admission witness and the plan they ran [C7,H16].
+  const reuse = admission ? { submitAdmission: admission.id, submitReuse: true, submitReusePlan: reusePlanDigest({ check: check ?? '', files: pulledProofFiles(receipt),
+    proofCommand: gate.analysis?.proofCommand ?? '' }) } : {};
   const ids = [];
   for (const phase of gate.phases ?? []) {
     const submitPhase = SUBMIT_PHASES[phase.role];
@@ -123,7 +127,7 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
       command: createHash('sha256').update(String(command ?? phase.role)).digest('hex'), green: true, failures: [], load: null, at: new Date().toISOString(), ...(testOutcomes ? { testOutcomes } : {}),
       proof: { item: id, frozenDigest: submit.digest ?? null, seat: submit.agentId, runner: runnerName, exitCode: phase.status,
         durationMs: Number.isSafeInteger(gate.steps?.[phase.role]) && gate.steps[phase.role] >= 0 ? gate.steps[phase.role] : 0,
-        sourceClean: true, environment, counts: tailCounts(phase.tail), submitPhase } };
+        sourceClean: true, environment, counts: tailCounts(phase.tail), submitPhase, ...reuse } };
     let body = receiptBody(run);
     if (!body && testOutcomes) { delete run.testOutcomes; body = receiptBody(run); }
     if (!body) continue;
@@ -133,6 +137,40 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
     ids.push({ id: run.id, role: submitPhase, command: run.command });
   }
   return ids;
+}
+
+/**
+ * The digest review recomputes to match a submit's receipts to its plan: the same bytes as verify's submitReusePlanDigest
+ * (packages/verify/src/logic/plan.js), restated here because this cell may not import verify; the review-reuse journey
+ * fails when they drift [C7,H16].
+ */
+function reusePlanDigest({ check, files, proofCommand }) {
+  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full: false, deferred: false, proofCommand: proofCommand || '' })).digest('hex');
+}
+
+/** The files a pulled gate's proof ran, as its analysis named them. */
+function pulledProofFiles(receipt) {
+  return Array.isArray(receipt?.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
+}
+
+/**
+ * Record the submit admission a green pulled gate's receipts are reusable under: a renewal of the builder's own live claim
+ * that names the judged commit and tree, the witness the controller's submit recorded when its gate was admitted.
+ * Why: review reuses a submit's proof only from receipts linked to such a witness (reusableSubmitProof) [C7,H16].
+ *
+ * @returns {{ id: string, commit: string, tree: string } | null} The witness, or null when the claim cannot take one (the submit still applies).
+ */
+function recordSubmitAdmission(board, { id, item, candidate, submit }) {
+  const left = Date.parse(item.item_lease_until) - board.clock.now().getTime();
+  if (!(left > 0)) return null;
+  const witness = { id: randomUUID(), commit: candidate, tree: submit.tree };
+  try {
+    store.claim(board, id, { agentId: submit.agentId, lane: item.item_lane, leaseMs: left, freeze: () => null, submitAdmission: witness });
+    return witness;
+  } catch (error) {
+    if (!error?.code) throw error;
+    return null;
+  }
 }
 
 /** The offer a job was made with, its request read back whole, or null. */
@@ -418,7 +456,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   let phaseReceipts = [];
   const owned = ownershipOnly(receipt);
   if (receipt?.status === 0 && receipt?.gate?.green === true || owned) {
-    try { phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check }); }
+    const admission = receipt?.status === 0 && receipt?.gate?.green === true && !submit.companion ? recordSubmitAdmission(board, { id, item, candidate, submit }) : null;
+    try { phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check, admission }); }
     catch (error) {
       // A receipt the board refuses is named on the thread; the gate's result still applies, so the item is never stranded.
       if (!error?.code) throw error;
@@ -441,12 +480,12 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   if (routed?.refused) parts.push(`ownership routing refused: ${routed.refused}`);
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
   if (green || mainOnly || waived || excused && !trials.refused.length) {
-    const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
+    const files = pulledProofFiles(receipt);
     try {
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
       const companion = submit.companion ? { ...submit.companion, receiptIds: phaseReceipts.map(row => row.id),
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
-      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green, ...(submit.infra ? { infra: submit.infra } : {}),
+      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
         submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}` } });
       if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
