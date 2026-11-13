@@ -13,7 +13,7 @@ export function seedNativeOrdinary(box, demo, { includeForward = false, keepClai
   const json = (root, ...args) => JSON.parse(box.run(root, ...args, '--json'));
   /** Add one real item whose check runs through the ordinary CLI baseline. */
   const add = title => json(demo.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong',
-    '--criterion', 'The original return criterion', '--check', 'true', '--wait').item.item_id;
+    '--criterion', 'The original return criterion', '--check', 'true', '--accept-green', 'the fixture item needs a baseline that always passes', '--wait').item.item_id;
   const release = add('Return by release');
   box.run(demo.web, 'claim', String(release));
   box.run(demo.web, 'release', String(release), '--reason', 'OTHER', '--note', 'Another builder can take this item.', '--no-next');
