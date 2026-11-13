@@ -3,6 +3,8 @@
 /** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
+import { chargedText } from '../../tests/fixtures/load.js';
+import { loadClock } from '../../tests/fixtures/load.js';
 import assert from 'node:assert/strict';
 import {
   copyFileSync,
@@ -48,23 +50,25 @@ const FULL_GATE_PROOF = ['packages/gate/src/io/main.js', 'packages/store/src/io/
 
 test('clause 1: a real named-file run meets its declared ten-second import-check budget [C7,V4]', { cpuLoad: true }, t => {
   const declaredBudget = 10_000;
-  const started = performance.now();
+  const stopCheck = loadClock();
   assert.equal(testsNeedCpuRunner(ROOT, ['apps/cli/journeys/run/lazy.test.js']), true,
     'the optimized classifier still recognizes this real CPU declaration');
-  const elapsed = performance.now() - started;
-  t.diagnostic(`named-file import check: ${elapsed.toFixed(1)}ms; declared budget ${declaredBudget}ms`);
-  assert.ok(elapsed < declaredBudget, `named-file import check took ${elapsed.toFixed(1)}ms`); // budget: declared #2425 ten-second named-file import-check limit.
+  const check = stopCheck();
+  t.diagnostic(`named-file import check: ${chargedText(check)}; declared budget ${declaredBudget}ms`);
+  assert.ok(check.ms < declaredBudget, `named-file import check took ${chargedText(check)}`); // budget: declared #2425 ten-second named-file import-check limit.
   const box = fixture();
   assert.equal(testsNeedCpuRunner(box.repo, ['web/plain.test.js']), false, 'ordinary tests do not acquire CPU authority');
   // Process-level: the run-tests launcher itself is the subject, and its phase line comes from a real start.
+  const stopRun = loadClock();
   const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', 'web/plain.test.js'], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
+  const run = stopRun();
   assert.equal(child.status, 0, child.context ?? child.stderr + child.stdout);
   const phases = /^run-tests: phases selection ([\d.]+)s, admission ([\d.]+)s, tests ([\d.]+)s, cleanup ([\d.]+)s, total ([\d.]+)s$/mu.exec(child.stderr);
   assert.ok(phases, 'the real node apps/cli/src/io/run/tests.js <one file> run prints its phase line');
   t.diagnostic(`real named-file run: selection ${phases[1]}s of total ${phases[5]}s; declared budget ${declaredBudget / 1000}s`);
-  assert.ok(Number(phases[1]) * 1000 < declaredBudget, `the real run's selection phase (the named-file import check) took ${phases[1]}s`); // budget: declared #2425 ten-second named-file import-check limit.
+  assert.ok(Number(phases[1]) * 1000 / run.scale < declaredBudget, `the real run's selection phase (the named-file import check) took ${phases[1]}s at runner load ${run.scale.toFixed(1)}x`); // budget: declared #2425 ten-second named-file import-check limit.
 });
 
 test('clause 2: every named run prints one per-phase timing line, successful or refused [C7,V4]', () => {

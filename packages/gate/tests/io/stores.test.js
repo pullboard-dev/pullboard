@@ -16,6 +16,7 @@ import { storeOwnerProblems } from '../../src/io/stores.js';
 import { storeReport } from '../../src/io/stores.js';
 import { storeDirGrowth } from '../../src/io/stores.js';
 import { storeSites } from '../../src/io/stores.js';
+import { storeWriteProblems } from '../../src/io/stores.js';
 import { tightenStoreBaseline } from '../../src/io/stores.js';
 
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
@@ -199,4 +200,49 @@ test('clause 2: the store-homes recount under --ratchet raises no per-file ceili
   const recount = tightenStoreBaseline(storeReport(ROOT), registry, baseline);
   assert.deepEqual(storeBaselineGrowth(recount, baseline), []);
   assert.equal(recount['packages/api/src/io/main.js']?.['board.sqlite'], undefined, 'the API server asks the store for the path');
+});
+
+test('#6739 clause 1: a ${...} template registers by its literal stem, and a name with no literal word is not a store [CD2]', () => {
+  const source = [
+    'const a = join(dir, `exit-anchor-${claim}.json`);',
+    'const b = `${id}.json`;',
+    'const c = `${a}-${b}.profile.json`;',
+    'const d = `${dir}/${name}.jsonl`;',
+    "const e = `${count} items`;",
+  ].join('\n');
+  assert.deepEqual(storeSites(source, OTHER).map(row => [row.line, row.store]), [[1, 'stem:exit-anchor-*.json'], [3, 'stem:*-*.profile.json']]);
+});
+
+test('#6739 clause 2: the registry lists every current templated stem, and a new unlisted stem fails the check [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const stems = new Set(storeReport(ROOT).map(site => site.store).filter(store => store.startsWith('stem:')));
+  assert.ok(stems.size >= 25, `the repository holds ${stems.size} templated stems`);
+  for (const stem of stems) assert.ok(registry.stems[stem.slice(5)]?.owner, `${stem} has an owner row in stems`);
+  assert.deepEqual(storeSites('const a = `exit-anchor-${claim}.json`;', OTHER).map(row => row.store), ['stem:exit-anchor-*.json']);
+  const failures = judge({ [OTHER]: 'const f = `fresh-${id}.json`;' }, { registry: { ...REGISTRY, stems: {} } });
+  assert.match(failures[0], /CD2_UNREGISTERED_STORE: stem:fresh-\*\.json is not in/u);
+});
+
+test('#6739 clause 2: a stem that gains a second home past its recorded ceiling is refused [CD2]', () => {
+  const registry = { ...REGISTRY, stems: { 'fresh-*.json': { kind: 'json', owner: OWNER, homes: {} } } };
+  assert.match(judge({ [OTHER]: 'const f = `fresh-${id}.json`;' }, { registry })[0], /CD2_SECOND_HOME: stem:fresh-\*\.json belongs to packages\/landing/u);
+});
+
+test('#6742 clause 1: every store owner in the registry holds a write call, is repo-data or is on the measured debt list [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.ok(Object.values(registry.stores).filter(row => row.kind === 'repo-data').length >= 19, 'read-only data files are marked repo-data');
+  assert.ok(registry.writeOwnerDebt.length <= 22, 'the debt list only shrinks');
+});
+
+test('#6742 clause 1: a new store whose owner writes nothing is refused, and a repaired debt row must leave the list [CD2]', () => {
+  const reads = { [OWNER]: 'export const x = readFileSync(file);', [OTHER]: 'writeFileSync(file, text);' };
+  const read = file => reads[file];
+  const silent = { stores: { 'fresh.json': { kind: 'json', owner: OWNER } } };
+  assert.match(storeWriteProblems(silent, read)[0].text, /CD2_OWNER_NO_WRITE: fresh\.json is owned by packages\/landing\/src\/io\/main\/red\.js, which holds no write call/u);
+  assert.deepEqual(storeWriteProblems({ stores: { 'fresh.json': { kind: 'repo-data', owner: OWNER } } }, read), []);
+  assert.deepEqual(storeWriteProblems({ ...silent, writeOwnerDebt: ['fresh.json'] }, read), []);
+  const repaired = { stores: { 'fresh.json': { kind: 'json', owner: OTHER } }, writeOwnerDebt: ['fresh.json'] };
+  assert.match(storeWriteProblems(repaired, read)[0].text, /fresh\.json now has a writing owner or is repo-data; remove it from writeOwnerDebt/u);
 });
