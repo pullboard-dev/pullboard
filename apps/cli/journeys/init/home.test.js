@@ -65,8 +65,8 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
     assert.deepEqual(['approved', 'gated', 'ungated'].map((key) => count(rules, key)), [3, 2, 1], 'approved rows, those naming a gate, and those with none');
     assert.match(rules, /data-go="tab:spec"/, 'the rules card opens the Spec');
     const dashboard = fresh.show('dashboard');
-    assert.match(dashboard, /aria-label="Needs you"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
-    assert.doesNotMatch(dashboard, /Nothing needs you/u, 'a visible call suppresses the calm state');
+    assert.match(dashboard, /aria-label="Rulings"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
+    assert.doesNotMatch(dashboard, /Nothing to rule on/u, 'a visible call suppresses the calm state');
 
     // Existing work also opens on Dashboard; the person's explicit Items choice is remembered.
     box.run(alpha.repo, 'add', 'web', 'Render the page', '--specs', 'G1');
