@@ -15,7 +15,7 @@ import { waitBudgets } from '../../index.js';
 import { waitItemFields } from '../../index.js';
 import { waitsSnapshot } from '../../index.js';
 
-const OWNER = 'auxiliary-51-mill-86cb1a';
+const OWNER = 'pool-51-mill-86cb1a';
 
 test('gates #6777, #6769 and #6469 held by a live auxiliary lease with progress 5 min old file no waits item [C7]', async t => {
   const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });

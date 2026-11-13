@@ -21,6 +21,7 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { captureMergeOnly } from '../../../../../packages/merge/index.js';
 import { mergeOnlyBasis } from '../../../../../packages/merge/index.js';
 import {
@@ -69,6 +70,7 @@ function content(box, cwd, value, message) {
 
 test('clause 1: a merge-only resubmission keeps its accept and records the resolution diff [V1,V4,H16]', async () => {
   const box = e2e.project();
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } }); // The resubmission's gate settles in the submit's own process (#6249).
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const configured = e2e.commitFile(box, box.repo, 'pullboard.json',
     JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2), 'chore: configure local landing');

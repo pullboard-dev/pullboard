@@ -6,6 +6,8 @@ import { tryGit } from './main.js';
 const READS = {
   status: () => true,
   'ls-files': args => !args.includes('--resolve-undo'),
+  'rev-parse': () => true,
+  log: args => args.includes('--first-parent'),
 };
 
 /** The git command word of an argument list, skipping `-c name=value` and other leading flags. */
@@ -41,5 +43,21 @@ export function createGitMemo(run = spawnGit) {
       return answers.get(key);
     },
     clear() { answers.clear(); },
+    /**
+     * Resolve HEAD, HEAD^, the trunk tip and the merge base with one git process.
+     * Why: `rev-parse HEAD HEAD^ trunk HEAD...trunk` prints the three tips and `^<merge base>` together, so submit's four lookups cost one spawn.
+     * A repeat is answered from the memo until a git write clears it.
+     *
+     * @param {string} cwd the repository folder
+     * @param {string} trunk the trunk ref to compare against
+     * @returns {{ ok: boolean, head?: string, parent?: string, trunk?: string, mergeBase?: string, stderr?: string }}
+     */
+    resolveRevs(cwd, trunk) {
+      const out = this.git(cwd, ['rev-parse', 'HEAD', 'HEAD^', trunk, `HEAD...${trunk}`]);
+      if (out.status !== 0) return { ok: false, stderr: out.stderr };
+      const lines = out.stdout.split('\n').filter(Boolean);
+      const base = lines.find(line => line.startsWith('^'));
+      return { ok: true, head: lines[0], parent: lines[1], trunk: lines[2], mergeBase: base ? base.slice(1) : undefined };
+    },
   };
 }

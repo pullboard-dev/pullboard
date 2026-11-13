@@ -138,7 +138,20 @@ export function updateCellInventory(root, parsers, prior, changed) {
   return { files, edges, unknown };
 }
 
-/** Inventory all ordinary repository files; symlinks remain visible unknowns rather than traversed boundaries. */
+/** Parse every tracked module, naming the first file that does not compile so the refusal says where to look. */
+function parseTracked(importsIn, modules, sources) {
+  try { return importsIn(sources); }
+  catch (error) {
+    if (error.message !== 'source does not compile as an ES module') throw error;
+    for (const [index, file] of modules.entries()) {
+      try { importsIn([sources[index]]); }
+      catch (failure) { if (failure.message === error.message) throw new Error(`${file}: ${error.message}`); throw failure; }
+    }
+    throw error;
+  }
+}
+
+/** Inventory the files Git tracks, staged changes included, so ignored or untracked scratch never reaches a lint; symlinks remain visible unknowns rather than traversed boundaries. */
 export function cellInventory(root, parsers) {
   inventoryBuilds += 1;
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new TypeError('cell inventory needs explicit module parser operations');
@@ -148,7 +161,7 @@ export function cellInventory(root, parsers) {
   let listedPaths;
   if (snapshot) listedPaths = [...snapshot.entries.keys()].sort();
   else {
-    const listed = gitSpawnSync(['ls-files', '--cached', '--others', '--exclude-per-directory=.gitignore', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
+    const listed = gitSpawnSync(['ls-files', '--cached', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
     if (listed.status !== 0) throw new Error('cell lint inventory needs a real Git repository; initialize the private fixture or restore Git metadata');
     listedPaths = [...new Set(listed.stdout.split('\0').filter(Boolean))].sort();
   }
@@ -173,7 +186,7 @@ export function cellInventory(root, parsers) {
   const modules = [...files.keys()].filter(file => /\.[cm]?js$/u.test(file)).sort();
   const edges = new Map(modules.map(file => [file, []]));
   const sources = modules.map(file => files.get(file).toString('utf8'));
-  const parsed = importsIn(sources), common = commonJsIn(sources);
+  const parsed = parseTracked(importsIn, modules, sources), common = commonJsIn(sources);
   for (const [index, file] of modules.entries()) {
     const imports = parsed[index];
     if (common[index]) unknown.push({ file, reason: 'CommonJS loader closure is unresolved' });

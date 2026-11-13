@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
 import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
-import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../store/tests/fixtures/submit.js';
 import { exportBoard } from '../../store/index.js';
 import { importBoard } from '../../store/index.js';
 import { restoreRelaySnapshot } from '../../store/index.js';

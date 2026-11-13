@@ -22,6 +22,9 @@ import { exactStart } from '../../../../../packages/gate/index.js';
 import { ensureDispatcher } from '../../../../../packages/drive/index.js';
 import { DISPATCHER_JOB } from '../../../../../packages/drive/index.js';
 import { gateDriveJobId } from '../../../../../packages/drive/index.js';
+/** The dispatcher file inside a captured tools tree, named here so the resources cell never reaches an app [CD12]. */
+const DISPATCHER_ENTRY = 'apps/lib/src/io/handoff/dispatcher.js';
+
 /** The drive cell's detector for gate drives that renew their lease with no step; the sentinel command shouts each as Stuck (#3661). */
 export { stalledGateDriveFindings } from '../../../../../packages/drive/index.js';
 import { releaseLease } from '../../../../../packages/jobs/index.js';
@@ -326,7 +329,7 @@ export async function ensureGateDispatcher(file, tools, commonDir) {
   withRawBoard(file, board => ensureDispatcher(board.db, { owner, spawn: () => { taken = true; } }));
   if (!taken) return false;
   let launched = false;
-  try { launched = await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart, owner }); }
+  try { launched = await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart, owner, entry: DISPATCHER_ENTRY }); }
   finally { if (!launched) withRawBoard(file, board => releaseLease(board.db, DISPATCHER_JOB, owner)); }
   return launched;
 }
