@@ -32,6 +32,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { childEnvironment } from '../../../kernel/light.js';
+import { gitSpawn } from '../../../git/light.js';
 import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
@@ -129,10 +130,15 @@ async function queueCall(endpoint, body, fetchImpl, timeoutMs = 15_000) {
 /** Run a git command in a directory, without blocking the lease renewals; resolve its status and text. */
 function git(cwd, args, input = null) {
   return new Promise(resolve => {
-    const child = execFile('git', args, { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error, stdout, stderr) => {
-      resolve({ status: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stdout: String(stdout ?? '').trim(), stderr: String(stderr ?? error?.message ?? '').trim() });
-    });
-    if (input !== null) child.stdin.end(input);
+    const child = gitSpawn(args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', part => { stdout = (stdout + part).slice(-16 * 1024 * 1024); });
+    child.stderr.setEncoding('utf8').on('data', part => { stderr = (stderr + part).slice(-16 * 1024 * 1024); });
+    child.once('error', error => resolve({ status: 1, stdout: stdout.trim(), stderr: error.message }));
+    child.once('close', status => resolve({ status: status ?? 1, stdout: stdout.trim(), stderr: stderr.trim() }));
+    child.stdin.on('error', () => {});
+    child.stdin.end(input ?? undefined);
   });
 }
 
@@ -187,7 +193,7 @@ async function fromPack(store, commit, pack) {
     const got = await pack(commit);
     if (!got?.file) return false;
     const status = await new Promise(resolve => {
-      const child = spawn('git', ['-C', store, 'index-pack', '--stdin', '-q'], { stdio: ['pipe', 'ignore', 'ignore'] });
+      const child = gitSpawn(['-C', store, 'index-pack', '--stdin', '-q'], { stdio: ['pipe', 'ignore', 'ignore'] });
       child.once('error', () => resolve(1));
       child.once('close', resolve);
       createReadStream(got.file).once('error', () => child.stdin.destroy()).pipe(child.stdin).once('error', () => {});

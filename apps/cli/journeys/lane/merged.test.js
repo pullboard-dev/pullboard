@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/codemap/data/plan/45-app-view.json packages/codemap/data/plan/cells.json */
+/** @pullboard-test-input packages/codemap/data/plan/46-app-view.json packages/codemap/data/plan/cells.json */
 /** Real public submits distinguish merged main rows from a builder's own foreign edits [L3,C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -107,7 +107,7 @@ test('a builder editing the accepted main row itself still fails public submit b
 
 /** Probe row authority only; these synthetic blobs are not native claim or execution evidence. */
 function insertedRows(change = () => {}) {
-  const path = 'packages/codemap/data/plan/45-app-view.json';
+  const path = 'packages/codemap/data/plan/46-app-view.json';
   const rows = ['first', 'last'].map(name => [`src/view/${name}.css`, `apps/view/src/io/view/${name}.css`, 'seed']);
   const before = { 'packages/codemap/data/plan/cells.json': { cells: [{ name: 'app:view', order: 39, file: path }], stays: [] },
     [path]: { name: 'app:view', order: 39, root: 'apps/view', paths: rows } };

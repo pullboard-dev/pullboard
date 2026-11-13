@@ -9,14 +9,22 @@ import { availableParallelism } from 'node:os';
 import { Refused } from '../../../../kernel/index.js';
 import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 
-/** Detect the performance-core budget on Apple Silicon, or the runtime's usable CPU budget elsewhere. */
-export function performanceCores() {
+let cachedCores;
+
+/**
+ * Detect the performance-core budget on Apple Silicon, or the runtime's usable CPU budget elsewhere.
+ * Why cached: the answer cannot change inside a process, and each sysctl spawn blocks the caller (#6753).
+ * `spawn` is the seam a test counts spawns through.
+ */
+export function performanceCores(spawn = spawnSync) {
+  if (cachedCores !== undefined) return cachedCores;
+  cachedCores = Math.max(1, availableParallelism());
   if (process.platform === 'darwin') {
-    const result = spawnSync('/usr/sbin/sysctl', ['-n', 'hw.perflevel0.physicalcpu'], { encoding: 'utf8' });
+    const result = spawn('/usr/sbin/sysctl', ['-n', 'hw.perflevel0.physicalcpu'], { encoding: 'utf8' });
     const count = Number(result.stdout?.trim());
-    if (result.status === 0 && Number.isSafeInteger(count) && count > 0) return count;
+    if (result.status === 0 && Number.isSafeInteger(count) && count > 0) cachedCores = count;
   }
-  return Math.max(1, availableParallelism());
+  return cachedCores;
 }
 
 /** Set to 1 by a pulled runner job's entry: this host is the whole job's execution host, with no other gate to share it [P7]. */
