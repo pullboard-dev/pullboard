@@ -143,7 +143,9 @@ test('a refused later checkpoint names its repair once on every native agent com
   const recovered = await box.cliAtLocal(agentRoot, 'status');
   assert.equal((recovered.document.diagnostics ?? []).length, 0, 'fresh accepted checkpoint clears the refusal');
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal, undefined);
-  assert.equal((await uploadedState(box)).sequence, baselineSequence + records.length + 1);
+  const finalSequence = (await uploadedState(box)).sequence;
+  assert.equal(finalSequence, baselineSequence + records.length + 1,
+    `sequence parts: baseline ${baselineSequence}, records ${JSON.stringify(records.map(record => [record.event_id, record.sender.kind, record.operation ?? record.type ?? record.kind]))}, final ${finalSequence}`);
 });
 
 /** One long-lived caller can acknowledge several distinct moves without hiding later warnings. */
