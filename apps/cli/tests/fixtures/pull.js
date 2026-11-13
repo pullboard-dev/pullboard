@@ -91,12 +91,18 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: stand-in trusted tooling [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  /** Add item n; every item after the first names the first as no duplicate. */
+  const add = (n, first) => fixtureAdd(box.runAsync, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
   const ids = [];
-  for (let n = 1; n <= count; n++) {
-    const added = fixtureAdd(box.run, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(ids.length ? ['--not-duplicate-of', `${ids[0]} numbered fixture item`] : []));
+  const head = await add(1);
+  assert.equal(head.code, 0, head.err);
+  ids.push(JSON.parse(head.out).item.item_id);
+  // The rest are added at once: ten sequential add commands were most of a ten-item journey's setup.
+  for (const added of await Promise.all(Array.from({ length: count - 1 }, (_, n) => add(n + 2, ids[0])))) {
     assert.equal(added.code, 0, added.err);
     ids.push(JSON.parse(added.out).item.item_id);
   }
+  ids.sort((a, b) => a - b);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const runnerHome = privateFixtureFiles('pull-runner-').root;
   t.after(() => rmSync(runnerHome, { recursive: true, force: true }));
@@ -115,6 +121,26 @@ export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate
   const submitted = box.run(folder, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
+}
+
+/**
+ * Claim, commit and submit each item at once, every one from its own folder; each submit must return green at once.
+ * Why at once: a submit is a real CLI process, and ten run one after another were most of a ten-item journey's time.
+ *
+ * @param {Awaited<ReturnType<typeof pullProject>>} box
+ * @param {number[]} ids
+ * @returns {Promise<{ folder: string, commit: string, document: object }[]>} One entry per id, in id order.
+ */
+export function submitAll(box, ids) {
+  return Promise.all(ids.map(async id => {
+    const claimed = await box.runAsync(box.web, 'claim', String(id), '--json');
+    assert.equal(claimed.code, 0, claimed.err);
+    const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
+    assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): pulled gate ${id} [G1]`).status, 0);
+    const submitted = await box.runAsync(folder, 'submit', String(id), '--json');
+    assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
+    return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
+  }));
 }
 
 /**

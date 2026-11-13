@@ -7,21 +7,16 @@ import { jobsOf } from '../../../../packages/jobs/index.js';
 import { hostProcesses } from '../../tests/fixtures/pull.js';
 import { pullProject } from '../../tests/fixtures/pull.js';
 import { loopbackRunner } from '../../tests/fixtures/pull.js';
-import { submitOne } from '../../tests/fixtures/pull.js';
+import { submitAll } from '../../tests/fixtures/pull.js';
 
 test('clauses 1 and 3: ten pull submits each write one gate job row and return; the host process count stays flat while the ten gates run [P7]', async t => {
-  const T0 = Date.now(); const lap = n => t.diagnostic(`LAP ${n} ${Date.now() - T0}`);
-  const box = await pullProject(t, 10); lap('project');
+  const box = await pullProject(t, 10);
   const before = hostProcesses(box.dir);
-  const submitted = [];
-  for (const id of box.ids) {
-    submitted.push(submitOne(box, id));
-    assert.equal(hostProcesses(box.dir), before, `submit #${id} left a process behind on the submitting host`);
-  }
-  lap('submits');
+  const submitted = await submitAll(box, box.ids);
+  assert.equal(hostProcesses(box.dir), before, 'the ten submits left no process behind on the submitting host');
   for (const { document } of submitted) assert.equal(document.queued, true);
   const runner = await loopbackRunner(t, box);
-  const rows = jobsOf(runner.board.db, { kind: 'gate' });
+  const rows = jobsOf(runner.board.db, { kind: 'gate' }).sort((a, b) => a.item - b.item); // the ten submits ran at once, so rows arrive in any order
   assert.deepEqual(rows.map(row => [row.item, row.step]), box.ids.map(id => [id, 'offered']), 'one offered gate job row per submit');
   assert.deepEqual(rows.map(row => row.candidate), submitted.map(entry => entry.commit));
   assert.equal(runner.board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind <> 'gate'").get().n, 0, 'no dispatcher, driver or worker job exists');
@@ -30,16 +25,13 @@ test('clauses 1 and 3: ten pull submits each write one gate job row and return; 
     assert.equal(getItem(runner.board, id).item_status, 'claimed', 'the builder holds the item until the receipt is recorded');
   }
 
-  lap('rows');
   const taken = [];
   for (let n = 0; n < box.ids.length; n++) taken.push(await runner.take(`runner-${n}`));
-  lap('taken');
   const samples = [];
   let runnerSeen = 0;
   const sample = () => { samples.push(hostProcesses(box.dir)); runnerSeen = Math.max(runnerSeen, hostProcesses(box.runnerHome)); };
   // Sampled on each event the running jobs emit, so every sample falls while gates are running.
   const finished = await Promise.all(taken.map(job => runner.run(job, sample)));
-  lap('ran');
   assert.ok(runnerSeen > 0, 'the sampler saw the runner jobs running, so it was measuring live');
   assert.ok(samples.length >= 3);
   assert.deepEqual([...new Set(samples)], [before], `the submitting host's process count stayed at ${before} while ten gates ran`);
