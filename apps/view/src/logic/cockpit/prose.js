@@ -1,6 +1,6 @@
 /** Return the original prose section of the self-contained cockpit document. */
 export function cockpitProse(sections) {
-  const { releaseNotice, snapshot, pageRenderScript, settingsPageScript, agentApprovalScript, pageScriptPart4, pageScope, historyLoadingScript } = sections;
+  const { releaseNotice, snapshot, pageRenderScript, settingsPageScript, agentApprovalScript, pageScriptPart4, pageScope, historyLoadingScript, paletteScript } = sections;
   return `/** Tags that flow inside a line of text, so a reference's line belongs to the nearest block around it. */
 const INLINE_TAGS = new Set(['SPAN', 'B', 'I', 'EM', 'STRONG', 'CODE', 'S', 'SMALL', 'TIME', 'MARK', 'U', 'SUB', 'SUP', 'ABBR', 'KBD', 'Q', 'LABEL']);
 const CONTROLS = 'button, a[href], select, input, textarea, [role=button]';
@@ -57,7 +57,7 @@ ${pageRenderScript(pageScope.privateCost)}
  * it, so it stays closed across reloads, and across restarts of the view, which serves from the
  * same address again, until they open it. While hidden it is not drawn.
  */
-${settingsPageScript()}${agentApprovalScript()}${pageScriptPart4(pageScope)}${historyLoadingScript()}</script>
+${settingsPageScript()}${agentApprovalScript()}${pageScriptPart4(pageScope)}${historyLoadingScript()}${paletteScript()}</script>
 </body>
 </html>`;
 }
