@@ -21,4 +21,3 @@
 .pal-help h2 { margin: 0 0 10px; font-size: 15px; }
 .pal-help div { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid var(--line); }
 .pal-help h2 + div { border-top: 0; }
-@media (width < 480px) { .pal-hint { display: none; } }

@@ -107,7 +107,7 @@ test('clause 3: on a real board, the next `next` call ends a stale job whose ite
   assert.ok(job.steps.some(step => step.name === 'withdrawn' && step.payload.stale === true));
 });
 
-test('#4070 clause 1: a lapsed gate job serving a live pre-submit hand-off, its item claimed by the hand-off seat, is never ended stale [C7]', async t => {
+test('#4070 clause 1: a lapsed gate job serving a live pre-submit hand-off, its item claimed by the hand-off seat, is never ended stale [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
@@ -167,7 +167,7 @@ test('#4071 clause 1: a lapsed gate-drive job is listed; one whose hand-off ende
   assert.notEqual(view('gate-drive:live-handoff').step, 'done', 'a gate-drive job still serving its hand-off is left to its worker');
 });
 
-test('a submitted item is current at the head its hand-off submitted, not at a gate job\'s composed candidate; such a job is never ended stale [C7]', async t => {
+test('a submitted item is current at the head its hand-off submitted, not at a gate job\'s composed candidate; such a job is never ended stale [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
