@@ -1,5 +1,13 @@
 /** Shared kit for the liveness chaos children: run one flow, break a holder at a named step, read what the board did alone [C7]. */
-import { rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  rmSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import {
+  claimJob,
+  offerJob,
+} from '../../../../packages/api/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import {
   cli,
@@ -24,7 +32,7 @@ async function readItem(box, id) {
 
 /**
  * The flow steps the kit can break. Each runs the real CLI up to its step and returns the item and the holder it left.
- * Children for submit, gate, verify and land add their step here.
+ * Children for land add their step here.
  */
 const STEPS = {
   async claim(box, id) {
@@ -47,6 +55,20 @@ const STEPS = {
     const taker = box.seats.sameFamily;
     return { holder: reviewer, done: item => item.item_status !== 'submitted' || (Boolean(item.item_review_by) && item.item_review_by !== reviewer.id),
       recover: () => cli(box, taker.path, ['next', '--verify', String(id)]) };
+  },
+  async gate(box, id) {
+    box.submit(id); // the real submit comes first: the gate job belongs to the submitted item
+    const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
+    const job = `gate-${id}`;
+    const now = box.clock.now().getTime();
+    offerJob(box.board.db, { id: job, kind: 'gate', item: id, candidate: head, now });
+    // A fixture runner: its checkout is a folder a kill removes; a cut link only stops it renewing the lease it holds.
+    const path = join(box.root, '..', `runner-${id}`);
+    mkdirSync(path, { recursive: true });
+    const runner = `runner-fixture-${id}`;
+    const claim = claimJob(box.board.db, { runner, kinds: ['gate'], now });
+    if (claim?.job !== job) throw new Refused('LIVENESS_STEP_FAILED', `the fixture runner could not take gate job ${job}`);
+    return { holder: { id: runner, path, lane: 'runner' }, job, done: item => item.item_status !== 'submitted' };
   },
 };
 
