@@ -60,7 +60,7 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
       controllerPid: process.pid, started, ...(source ? { source } : {}),
       ...(deadline ? { deadline } : {}), ...(problem ? { problem } : {}) });
     if (!file) {
-      const candidate = join(directory, `${randomUUID()}.json`);
+      const candidate = join(directory, randomUUID() + '.json');
       writeFileSync(candidate, bytes, { flag: 'wx', mode: 0o600 });
       file = candidate;
       return;

@@ -19,6 +19,7 @@ import {
   relative,
   resolve,
 } from 'node:path';
+import { storeName } from './store-names.js';
 
 /** Refuse unknown input without changing the checkout. */
 function requireThat(condition, message) { if (!condition) throw new Refused('CELLS_MOVE', message, 'Restore the clean recorded checkout or resolve the named unsupported input before retrying.'); }
@@ -177,7 +178,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     [from, to, frontDoor].forEach(filePath);
     requireThat(/^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(frontDoor), 'front door must be one package index');
     requireThat(to.startsWith(posix.dirname(frontDoor) + '/src/') && /\.(?:m?js)$/u.test(to), 'body must live under the package src tree');
-    const mapFile = `packages/codemap/data/plan/path-map/${frontDoor.split('/')[1]}.json`;
+    const mapFile = `packages/codemap/data/plan/path-map/${storeName(frontDoor.split('/')[1])}`;
     requireThat(new Set([from, to, frontDoor, mapFile]).size === 4, 'transaction paths overlap');
     requireThat(typeof purpose === 'string' && purpose.trim() && !/[\r\n]|\*\//u.test(purpose), 'give one plain front-door purpose sentence');
     if (recordedHead === null) requireThat(git(root, ['status', '--porcelain=v1', '-z']) === '', 'start from a clean checkout');
@@ -250,7 +251,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     requireThat(/^src\/[^/]+\.(?:m?js)$/u.test(payload.from)
       && /^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(payload.frontDoor)
       && payload.to.startsWith(posix.dirname(payload.frontDoor) + '/src/'), 'custody paths leave the supported one-leaf shape');
-    requireThat(payload.mapFile === `packages/codemap/data/plan/path-map/${payload.frontDoor.split('/')[1]}.json`, 'map shard must match its cell');
+    requireThat(payload.mapFile === `packages/codemap/data/plan/path-map/${storeName(payload.frontDoor.split('/')[1])}`, 'map shard must match its cell');
     requireThat(Array.isArray(payload.directories) && payload.directories.every(directory => {
       filePath(directory);
       return [payload.to, payload.frontDoor, payload.mapFile].some(file => file.startsWith(directory + '/'));
