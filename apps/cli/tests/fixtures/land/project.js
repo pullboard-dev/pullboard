@@ -98,6 +98,9 @@ function submitItem(box, entry, contents = 'PASS\n') {
 
 /** Verify only private fixture items at their actual submitted commits. */
 function acceptItem(box, entry) {
+  // Under pull dispatch the submit returns once its gate is offered; the item reads submitted when the runner's receipt lands [P7,#6577].
+  const stop = Date.now() + 180_000; // budget: hang ceiling for the loopback runner's gate, never a speed assertion.
+  while (/"item_status":\s*"claimed"|"status":\s*"claimed"/u.test(box.run(box.repo, 'show', String(entry.item), '--json').out) && Date.now() < stop) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
   entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
   box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
   try {
