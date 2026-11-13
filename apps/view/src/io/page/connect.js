@@ -285,10 +285,10 @@ function placeNav() {
   const pin = document.getElementById('nav-pin');
   if (!pin) return;
   const words = layout === 'side' ? 'Move the navigation to the top' : 'Move the navigation to the sidebar';
-  pin.setAttribute('aria-pressed', String(layout === 'side'));
-  pin.setAttribute('aria-label', words);
+  pin.setAttribute?.('aria-pressed', String(layout === 'side'));
+  pin.setAttribute?.('aria-label', words);
   pin.title = words + ' (\\\\)';
-  pin.querySelector('.pg')?.classList.toggle('up', layout === 'side');
+  pin.querySelector?.('.pg')?.classList?.toggle('up', layout === 'side');
 }
 /** The pin flips the layout and this device remembers it. */
 function flipNav() {
