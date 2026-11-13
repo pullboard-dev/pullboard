@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/drive/src/io/queue.js packages/gate/data/ceilings/cells-edges.json */
 /** @pullboard-world-pin: the apps-free clause reads the queue source and the committed ceiling. A finished test run reports its verdict through --status, and a run no worker took reports a typed refusal [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
