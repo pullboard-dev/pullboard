@@ -416,6 +416,9 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
       return answer;
     },
   });
+  // The page reads window.scrollY to keep the reading position; this page never scrolls.
+  context.scrollY = 0;
+  context.window = context;
   vm.runInContext(script, context);
   if (!hold) await settle(inflight);
   return {
