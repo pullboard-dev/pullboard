@@ -426,8 +426,7 @@ function filePulledRepairs(board, { id, submit, main, unowned, receipt }) {
   if (config?.submit?.autoFileMainReds !== true) return null;
   const errors = (receipt?.gate?.phases ?? []).flatMap(phase => Array.isArray(phase.errors) ? phase.errors : []);
   try {
-    return store.filePulledMainReds(board, id, { agentId: submit.agentId, main, runner: config.affectedTests, lanes: config.lanes, unowned, errors,
-      add: item => store.addItem(board, item) });
+    return store.filePulledMainReds(board, id, { agentId: submit.agentId, main, runner: config.affectedTests, lanes: config.lanes, unowned, errors });
   } catch (error) {
     // A repair the board refuses is named on the thread; the coordinator is asked to own the red instead.
     if (!error?.code) throw error;
