@@ -242,7 +242,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   assert.equal(awaitingFreshAccept.item_verified_by, null, 'the older accept does not verify the resubmission');
   const firstOffer = (await fixtureCommand(box, box.repo, 'land', '--json'));
   assert.equal(firstOffer.code, 0, firstOffer.err);
-  assert.ok(!JSON.parse(firstOffer.out).items.includes(item.id), 'the earlier accept cannot make the resubmission eligible to land');
+  assert.ok(!(JSON.parse(firstOffer.out).items ?? []).includes(item.id), 'the earlier accept cannot make the resubmission eligible to land');
   await acceptLandingFixture(box, item);
   const firstResubmission = readItem(box, item.id);
   const firstFreshAccept = firstResubmission.thread.filter((event) => event.type === 'move' && event.kind === 'accept').at(-1);
@@ -269,7 +269,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   assert.equal(secondAwaitingAccept.item_verified_by, null, 'the prior accepts do not verify the second resubmission');
   const secondOffer = (await fixtureCommand(box, box.repo, 'land', '--json'));
   assert.equal(secondOffer.code, 0, secondOffer.err);
-  assert.ok(!JSON.parse(secondOffer.out).items.includes(item.id), 'the earlier accepts cannot make the second resubmission eligible to land');
+  assert.ok(!(JSON.parse(secondOffer.out).items ?? []).includes(item.id), 'the earlier accepts cannot make the second resubmission eligible to land');
   await acceptLandingFixture(box, item);
   const readyToLand = readItem(box, item.id);
   assert.equal(readyToLand.thread.filter((event) => event.type === 'move' && event.kind === 'accept').length, 3,
