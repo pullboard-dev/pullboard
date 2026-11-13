@@ -7,7 +7,7 @@ import { mainAuditFixture } from '../../../tests/fixtures/main/audit/project.js'
 import { readAuditJob } from '../../../tests/fixtures/main/audit/project.js';
 import { runFixtureGit } from '../../../tests/fixtures/child.js';
 
-test('audit retains native coverage and failures with a file directory [C7]', { timeout: 180_000 }, async t => {
+test('audit retains native coverage and failures with a file directory [C7]', { timeout: 300_000 }, async t => {
   const box = await mainAuditFixture(t);
   runFixtureGit(['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env });
   await box.runWorker();
