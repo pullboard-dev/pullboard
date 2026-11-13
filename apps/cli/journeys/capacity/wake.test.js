@@ -18,6 +18,7 @@ import {
 import { REVIEW_WAKE_WAIT_MS } from '../../../../packages/sentinels/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settlePulledJobs } from '../../tests/fixtures/e2e.js';
 import { captureCommandInProcess } from '../../tests/fixtures/process.js';
 import { main } from '../../tests/fixtures/native.js';
 
@@ -42,6 +43,8 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   assert.equal(built.status, 0, built.stderr);
   const submitted = await cli(box.web, 'submit', String(item), '--wait', '--no-next');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  // The submit offers its gate as a pulled job; wait for the loopback runner's receipt before reading the item.
+  settlePulledJobs(box.web, ['submit'], box.env);
   const output = join(box.dir, 'wake-arguments.jsonl');
   const executable = join(box.dir, 'reviewer-wake.mjs');
   writeFileSync(executable, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(output)},JSON.stringify(process.argv.slice(2))+'\\n');\nprocess.exitCode=${fails ? 1 : 0};\n`);
