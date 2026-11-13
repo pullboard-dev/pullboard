@@ -32,7 +32,8 @@ import {
   openRoadmapItem,
 } from '../../../tests/fixtures/cockpit/roadmap.js';
 
-test('Roadmap references stay inline and rows expand before opening Items [N26,N38]', { timeout: 90_000 }, async (t) => {
+/** Check the inline Roadmap references at one viewport width; each width is its own case so neither doubles the other's time. */
+async function proseReferencesAt(t, width) {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prose-reference checks.');
   const box = machine();
@@ -54,7 +55,7 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
     await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.querySelector('#chain .row[data-item=\"2\"]')");
-    for (const width of [375, 1280]) {
+    {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const contexts = [
         ['roadmap', '#roadmap .milestone h2 .ref', 'Local target'],
@@ -129,7 +130,11 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
     rmSync(profile, { recursive: true, force: true });
     await view.stop();
   }
-});
+}
+
+test('Roadmap references stay inline and rows expand before opening Items at 375 px [N26,N38]', { timeout: 90_000 }, (t) => proseReferencesAt(t, 375));
+
+test('Roadmap references stay inline and rows expand before opening Items at 1280 px [N26,N38]', { timeout: 90_000 }, (t) => proseReferencesAt(t, 1280));
 
 test('the expanded row keeps send-backs short and names agents plainly [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
