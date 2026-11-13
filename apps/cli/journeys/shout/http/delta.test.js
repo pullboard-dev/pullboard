@@ -237,6 +237,7 @@ test('[A2, N26] local milestone item status refreshes after an item event', asyn
 
   const before = await box.call(box.path + '/state');
   assert.equal(builds, 1);
+  console.log('DBG', JSON.stringify(before.document.state.milestones).slice(0,1200));
   const { progress: beforeProgress, ...beforeItem } = before.document.state.milestones[0].items[0];
   assert.equal(beforeProgress.stage, 'open');
   assert.deepEqual(beforeItem, {
