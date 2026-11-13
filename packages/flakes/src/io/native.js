@@ -26,6 +26,7 @@ import {
 } from 'node:path';
 import { pairReds } from './pair.js';
 import {
+  addWorktree,
   headCommit,
   headTree,
   invalidateGitFacts,
@@ -366,7 +367,7 @@ const MOST_CASES = 20;
 function baseTree(root, base) {
   if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(base))) return null;
   const folder = join(dirname(root), `pair-main-${randomUUID()}`);
-  return tryGit(root, ['worktree', 'add', '--detach', '--force', folder, base]).status === 0 ? folder : null;
+  try { addWorktree(root, ['--detach', '--force', folder, base]); return folder; } catch { return null; }
 }
 
 /** Remove the worktree baseTree made, with git's own bookkeeping. */

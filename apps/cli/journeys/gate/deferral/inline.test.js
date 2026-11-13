@@ -14,7 +14,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { largeSelectionProject, deferredLandingLogs } = makeDeferralFixtures(e2e, store);
 
-test('an inline landing whose gate passes anything still runs the deferred files and lands nothing on red [C7]', { skip: 'PULL_GAP: the pulled gate and land jobs have no deferred-selection path (gate.deferred, submissionProof.deferredFiles, deferred files run at landing); needs its own item' }, async t => {
+test('an inline landing whose gate passes anything still runs the deferred files and lands nothing on red [C7]', async t => {
   const inline = largeSelectionProject(t, 20, { inline: true });
   const inlineRed = await inline.submitChange('red');
   assert.deepEqual(inlineRed.ran, ['guard']);
@@ -28,7 +28,7 @@ test('an inline landing whose gate passes anything still runs the deferred files
   assert.ok(inline.ran().length > 1, 'the inline landing ran the deferred files');
 });
 
-test('a red deferred landing keeps its real failing file and durable log [C7]', { skip: 'PULL_GAP: the pulled gate and land jobs have no deferred-selection path (gate.deferred, submissionProof.deferredFiles, deferred files run at landing); needs its own item' }, async t => {
+test('a red deferred landing keeps its real failing file and durable log [C7]', async t => {
 const project = largeSelectionProject(t, 20, { inline: true });
 const red = await project.submitChange('red');
 project.accept(red.id, red.receipt.commit);
