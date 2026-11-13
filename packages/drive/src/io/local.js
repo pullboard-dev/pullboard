@@ -59,6 +59,17 @@ export function localRunnerState(folder, now = Date.now()) {
   return state;
 }
 
+/**
+ * What runner list shows for the local runner: live with its pid, stopped when its state file remains, null when none ever ran.
+ * @param {string} folder
+ * @returns {{ state: 'live', pid: number } | { state: 'stopped' } | null}
+ */
+export function localRunnerStatus(folder) {
+  const live = localRunnerState(folder);
+  if (live) return { state: 'live', pid: live.pid };
+  return existsSync(join(folder, 'state.json')) ? { state: 'stopped' } : null;
+}
+
 /** The board roots the local runner serves, those still on disk. */
 export function localBoards(folder) {
   const roots = readJson(join(folder, 'boards.json'), []);
