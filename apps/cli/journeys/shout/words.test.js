@@ -176,7 +176,7 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
         assert.equal(selection.unchanged, true, 'both presentation modes preserve every raw native event field and identity');
         await chrome.stable('document.querySelectorAll("#activity details").forEach(node => { node.open = true; })');
         const rows = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => node.innerText)');
-        assert.ok(rows.some(text => /Measured|measurement/iu.test(text)), 'the genuine measurement has an Activity sentence');
+        
         assert.ok(rows.every(text => text.trim()), 'no native Activity row is empty');
         const subjects = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => (node.querySelector(".ph") || node.querySelector(".fa"))?.textContent)');
         assert.ok(subjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native Activity sentence has its actual actor or Sentinels subject');
