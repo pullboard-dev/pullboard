@@ -243,7 +243,7 @@ test("clause 2: a doctrine rule's check holds its count when its row is demoted 
   assertDoctrineReport(report.out, 'Q1 Web pages carry no TODO markers. · 2, was 2 · holding');
 });
 
-test("clause 2: a doctrine rule's check holds its count when its row is demoted, shown at submit [D1,D3]", { skip: 'PULL_GAP: un-skipped by #7104' }, async () => {
+test("clause 2: a doctrine rule's check holds its count when its row is demoted, shown at submit [D1,D3,C7]", async t => {
   const box = await checkedProject('count: 2');
   const file = join(box.repo, 'DOCTRINE.md');
   const committed = readFileSync(file, 'utf8');
@@ -265,12 +265,15 @@ test("clause 2: a doctrine rule's check holds its count when its row is demoted,
   assert.equal(report.code, 0, report.err);
   assertDoctrineReport(report.out, 'Q1 Web pages carry no TODO markers. · 2, was 2 · holding');
 
+  // A pulled gate's rise meets the board's refusal-trial ledger: it reports what it would refuse and the gate settles green.
   commitWeb(box, { 'b.html': 'TODO three\n' }, 'feat(web): add a page [G1]');
-  const rose = await box.inProcess(box.web, 'submit', '1');
-  const roseOutput = `${rose.out}${rose.err}`;
-  assert.equal(rose.code, 0, rose.err);
-  assert.match(roseOutput, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
-  assert.match(roseOutput, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
+  const rose = await settled(t, box, box.web, 1);
+  assert.equal(rose.gate.green, true, JSON.stringify(rose.gate.analysis));
+  const shown = JSON.parse((await box.inProcess(box.repo, 'show', '1', '--json', '--no-next')).out);
+  assert.equal(shown.item_status, 'submitted', 'a rise on trial never settles red');
+  const thread = shown.thread.map(row => row.text ?? '').join('\n');
+  assert.match(thread, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
+  assert.match(thread, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
 });
 
 

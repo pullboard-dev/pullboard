@@ -82,9 +82,7 @@ async function item(t, box, number, text) {
   const commit = e2e.commitFile(box, path, FILE, text, `feat(web): registry addition ${number} [G1]`);
   assert.equal(commit.status, 0, commit.stderr);
   const head = box.git(path, 'rev-parse', 'HEAD');
-  const submitted = box.run(path, 'submit', String(id), '--json');
-  assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  await settleSubmit(t, box, JSON.parse(submitted.out));
+  await settleSubmit(t, box, json(box, path, 'submit', String(id)));
   box.git(box.repo, 'checkout', '-q', '--detach', head);
   try { json(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private registry item checked'); }
   finally { box.git(box.repo, 'checkout', '-q', 'main'); }

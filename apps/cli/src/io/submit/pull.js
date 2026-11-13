@@ -296,7 +296,11 @@ if (!analysis) {
   if (kept) receipt.kept = kept;
 }
 else {
-  const refusals = Object.entries(analysis.outcomes ?? {}).filter(([, outcome]) => outcome?.refused).map(([part, outcome]) => ({ part, ...outcome.refused }));
+  // A doctrine refusal that carries its machinery identity (RATCHET_ROSE) is a machinery diagnostic: the board's refusal-trial
+  // ledger judges it as the controller's runMachineryGuard did, so it reports during its trial instead of settling red [C7].
+  const trialed = ([part, outcome]) => part === 'doctrine' && typeof outcome?.refused?.machineryRule === 'string' && outcome.refused.machineryRule;
+  const refusals = Object.entries(analysis.outcomes ?? {}).filter(([, outcome]) => outcome?.refused).filter(entry => !trialed(entry)).map(([part, outcome]) => ({ part, ...outcome.refused }));
+  const doctrineMachinery = Object.entries(analysis.outcomes ?? {}).filter(trialed).map(([part, outcome]) => ({ kind: part, code: outcome.refused.code, message: outcome.refused.message, rule: outcome.refused.machineryRule }));
   if (analysis.refused) refusals.push({ part: 'analysis', ...analysis.refused });
   // A lane-ownership finding is data, not a refusal: the proof still runs, and the board routes green proof to the owners [B3,L1,P7].
   const ownership = analysis.authorization?.ownership;
@@ -304,8 +308,8 @@ else {
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
-    // The cells machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
-    machinery: (analysis.cells?.machinery ?? []).slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+    // The cells and doctrine machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
+    machinery: [...(analysis.cells?.machinery ?? []), ...doctrineMachinery].slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   if (analysis.plan && typeof analysis.plan === 'object') { receipt.plan = planOf(analysis.plan); Object.assign(receipt, deferralOf(analysis.plan, input.analysis.config)); }
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;

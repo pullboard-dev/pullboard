@@ -483,6 +483,29 @@ function waiverLines(cases) {
 }
 
 /**
+ * Accepted main's verify.inspectClauses, as the inline submit sealed it: main's normalized policy, else its committed
+ * config file (on unless set false); false when neither reads. Why main's: the setting is accepted policy [C7,V4].
+ */
+function inspectsClauses(board, main) {
+  if (!board.gitRoot || !SHA.test(String(main))) return false;
+  try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.verify.inspectClauses === true; } catch { /* the committed file below */ }
+  try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.inspectClauses !== false; } catch { return false; }
+}
+
+/**
+ * Record a settled pulled submission's clause checklist, as the inline submit did: a green gate's tick notes for each
+ * [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary for the reviewer [C7,V4].
+ * The files are only those the gate's own phases ran, its proof files and every file an outcome names, so no clause is
+ * ticked by a file the gate did not run.
+ */
+function recordClauseInspection(board, { id, receipt, head, agentId, green }) {
+  const outcomes = (receipt?.gate?.phases ?? []).filter(phase => phase.status === 0).flatMap(phase => Array.isArray(phase.testOutcomes) ? phase.testOutcomes : [])
+    .filter(row => row && typeof row.file === 'string' && typeof row.name === 'string');
+  const gateFiles = new Set([...pulledProofFiles(receipt), ...outcomes.map(row => row.file)].filter(file => PROJECT_FILE.test(file)));
+  store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
+}
+
+/**
  * Apply one newly recorded gate-job receipt to its item. The receipt counts only while it is for the item's current
  * candidate: the newest gate job offered for the item, its source, still claimed by the seat that submitted it at the
  * same frozen bar. Anything else is stale: the receipt stays recorded on the job and the item is left as it is.
@@ -585,6 +608,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${[...caseLines(compared), ...lines, ...caseReworkLines(board, main, compared, { accepted: true })].join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
       }
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : owners ? `green over main-owned ${owners.checkOnly ? 'frozen check' : 'test'} cases` : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      if (inspectsClauses(board, main)) recordClauseInspection(board, { id, receipt, head: submit.companion?.source ?? candidate, agentId: submit.agentId, green: gateGreen });
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
         store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });
