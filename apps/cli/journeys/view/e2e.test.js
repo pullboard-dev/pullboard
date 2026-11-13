@@ -350,7 +350,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   await box.runLocal(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   // --wait keeps the submit alive until its pulled gate is green; only that process starts the review comparison [C7,P7].
-  await box.runLocal(box.web, 'submit', '1', '--wait');
+  const submitted = await box.runLocal(box.web, 'submit', '1', '--wait');
   // Submit starts a background review comparison that records a second "Review comparison" fact when it settles [V4,C7];
   // wait for it so the history order below does not depend on whether it lands before or after the reject.
   const comparisonFacts = () => {
@@ -362,7 +362,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   } catch (error) {
     const directory = join(box.repo, '.git', 'pullboard', 'review-comparisons');
     const logs = existsSync(directory) ? readdirSync(directory).map((job) => `${job}: ${readdirSync(join(directory, job)).join(',')}\n${existsSync(join(directory, job, 'worker.log')) ? readFileSync(join(directory, job, 'worker.log'), 'utf8') : ''}${existsSync(join(directory, job, 'result.json')) ? readFileSync(join(directory, job, 'result.json'), 'utf8') : ''}`) : ['(no comparison folder)'];
-    throw new Error(`${error.message}\n${logs.join('\n')}`);
+    throw new Error(`${error.message}\n${logs.join('\n')}\nsubmit ${submitted.code}: ${submitted.out}${submitted.err}`);
   }
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
