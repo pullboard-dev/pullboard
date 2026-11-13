@@ -18,6 +18,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 /**
@@ -132,6 +133,7 @@ test('a materialized automatic Rigor draft shows in Needs you, marked unproved, 
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       await chrome.click(`document.querySelector('[data-tab=items]')`);
+      await openItemsNeeds(chrome);
       const read = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const needs = document.querySelector('#needs');
         const rows = [...needs.querySelectorAll('.needs-call')].map((row) => ({ words: row.querySelector('.needs-copy b').textContent,

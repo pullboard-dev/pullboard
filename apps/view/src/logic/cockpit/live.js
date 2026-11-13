@@ -13,11 +13,34 @@ ${pageScriptPart2(pageScope)}function syncBoardMode(root) {
   document.body.classList.toggle('requests', requests);
 }
 
-${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
+${pageScriptPart3(pageScope)}/**
+ * Draw the shown board from its own read, before the rest of the boards answer (#6589): a board not yet on the page,
+ * as on a page load or a switch, fills its frame in at once. The read that started it still draws the full answer.
+ * An address naming another board leaves the draw to that board's own refresh.
+ */
+function drawEarly(root, generation, early) {
+  if (root !== view.root || data?.root === root || generation < refreshDrawn.generation) return;
+  early.root = root;
+  if (!addressReady) {
+    const place = placeAtAddress(early);
+    if (place?.root && place.root !== root) return;
+    if (place) applyPlace(place, globalThis.history?.state);
+    addressReady = true;
+  }
+  seen = boardText(early);
+  data = early;
+  syncBoardMode(root);
+  itemSearches.clear();
+  render();
+  address(false);
+  void loadAddressedShout();
+}
+
+async function refresh(fresh = null, attempt = 1) {
   const generation = ++refreshStarted;
   const root = view.root;
   const mark = root ? view.seen['pb.seen.' + root] ?? keep('pb.seen.' + root) : null;
-  const next = await boardState(root, mark, fresh);
+  const next = await boardState(root, mark, fresh, fresh ? null : (early) => drawEarly(root, generation, early));
   // The person switched projects while this answer was on its way: the switch's own refresh shows it.
   if (root !== view.root) return;
   // A board left and opened again: an answer that started before one already drawn is older than it, so it is not
@@ -46,7 +69,7 @@ ${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
   next.root = root;
   // Rebuild only when the board changed: a list rebuilt under the pointer can swallow a click.
   if (!addressReady) {
-    data = next;
+    data = store.set(next);
     const place = placeAtAddress(next);
     if (place?.root && place.root !== view.root) {
       view.root = place.root;
@@ -60,7 +83,7 @@ ${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
   const changed = text !== seen;
   if (text !== seen) {
     seen = text;
-    data = next;
+    data = store.set(next, true);
     syncBoardMode(view.root);
     itemSearches.clear();
     const reading = detailRead;
@@ -68,7 +91,7 @@ ${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
     if (detailRead !== reading) await detailRead;
   } else if (data !== next) {
     // The same board read again: keep its newest clock readings and show them in place, with no redraw (#644).
-    data = next;
+    data = store.set(next, false);
     showFlowAges();
     tickAges();
     if (view.tab === 'dashboard' && data.project) dashboardView.draw(data.project);
@@ -76,6 +99,7 @@ ${pageScriptPart3(pageScope)}async function refresh(fresh = null, attempt = 1) {
   if (changed) {
     address(false);
     void loadAddressedShout();
+    warmTabs();
   }
   if (snapshot && !snapshotReplay.final && data.project) {
     snapshotReplay.final = structuredClone(data.project);
@@ -116,7 +140,7 @@ const connected = () => Boolean(stream) && stream.status !== 'down';
 
 /** Say nothing while the page's stream is up, and why the page is not live while it is down. */
 function liveLine() {
-  if (!stream || stream.status !== 'down') return '';
+  if (!stream || stream.status !== 'down') return stateWorkerStopped ? 'the state worker stopped: serving from the request thread' : '';
   if (stream.offline) return 'offline: is pullboard view still running?';
   return (canStream() ? 'reconnecting' : 'no live stream in this browser') + ': refreshing every ' + FALLBACK_MS / 1000 + 's';
 }
