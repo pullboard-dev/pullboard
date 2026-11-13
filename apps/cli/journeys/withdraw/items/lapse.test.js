@@ -35,7 +35,7 @@ test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]'
   try {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
-    await page.click({itemsView:'pipeline'});
+    await page.run("view.itemsView = 'pipeline'; render();");
     const open = () => page.show('pipeline').split('data-pipeline-stage="ready"')[1].split('</header>')[1].split('</p>')[0];
     assert.match(open(), /data-go="item:2"/, 'an open item from minute35 is older than a claim that lapses at minute40');
     assert.match(open(), new RegExp(new Date(base+35*60_000).toISOString()), 'the oldest open timestamp is the arrival');

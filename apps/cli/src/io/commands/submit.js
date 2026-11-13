@@ -381,13 +381,14 @@ function knownMainReds(root, failures, main) {
   try { return redsAreMains(failures, cachedMainComparison(root, main, failures.map(row => row.file)), main); } catch { return false; }
 }
 
-/** Stop unchanged third red submissions while naming the two test failures that need repair. */
-function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
+/** Stop unchanged third red submissions, queued or pulled, while naming the two test failures that need repair. */
+function requireRedSubmitProgress(root, board, id, digest, candidate, main, pulledReds = () => []) {
   // A gate whose every red is a case main fails by the same name is main's red, not the item's code, so it is no loop [C7].
-  const red = redSubmitTestRuns(board, id, digest, root).filter(row => !knownMainReds(root, row.failures, main));
+  const red = [...redSubmitTestRuns(board, id, digest, root), ...pulledReds(board, id)].sort((a, b) => a.eventId - b.eventId).filter(row => !knownMainReds(root, row.failures, main));
   if (red.length < 2) return;
   const latest = red.slice(-2);
-  const latestFact = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind='fact'").get(id).id;
+  // A pulled gate writes its own notes and red facts; only a fact that is not the gate's own counts as the holder's progress.
+  const latestFact = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind='fact' AND COALESCE(json_extract(event_detail,'$.text'),'') NOT LIKE 'Gate job %'").get(id).id;
   if (latestFact > latest.at(-1).eventId) return;
   const candidateHash = itemChangeHash(root, candidate, main);
   const hashes = latest.map(row => itemChangeHash(root, row.commit, main));
@@ -418,7 +419,7 @@ function restoreMergedHead(root, before) {
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
-  const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx), pullGate = !isSubmitHandoffWorker(ctx) && (await import('../submit/pull.js')).pullGateWanted(id);
+  const pullGate = !isSubmitHandoffWorker(ctx) && (await import('../submit/pull.js')).pullGateWanted(id);
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -484,11 +485,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
-  // A live handoff owns its captured source; never rewrite it underneath its queued worker.
-  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? await authorizationStep('handoff-recover', async () => (await (await import('../submit/handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held)))) : null;
-  const pending = pendingHandoff && pendingHandoff.commit !== commit ? await (await import('../submit/handoff.js')).replaceSubmitHandoff(ctx, id, held.item_owner, pendingHandoff) : pendingHandoff;
   let mainMerge = null;
-  if (!isSubmitHandoffWorker(ctx) && !pending) {
+  if (!isSubmitHandoffWorker(ctx)) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
     try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit)); }
     catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
@@ -611,7 +609,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
-  if (!pending) authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit)));
+  const { itemPulledReds: pulledReds } = await import('../submit/pull.js');
+  authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit, pulledReds)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
     text: `Builder ${held.item_owner} automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
   const barWarning = await authorizationStep('bar-warning', () => withBoard(ctx, async board => {
@@ -632,12 +631,12 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
-  // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes [P7].
-  if (pullGate && !pending && !companion && ownershipRefusal) throw ownershipRefusal;
+  // Queue all captured sources before cell compilation; under gate.runnerDispatch pull the whole gate is one runner job row this host writes,
+  // a companion submit's gate judging its composed source, so no submit reaches the hand-off path [P7].
+  if (pullGate && ownershipRefusal) throw ownershipRefusal;
   // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
-  if (!companion && (pullGate || pending || handoffEnabled)) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
-  if (pullGate && !pending && !companion) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom) }, { frozenCheck, policyAt, listItems: store.listItems });
-  if (pending || handoffEnabled) return (await import('../submit/handoff.js')).enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
+  if (!companion && pullGate) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
+  if (pullGate) return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems });
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
   const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);

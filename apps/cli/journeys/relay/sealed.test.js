@@ -1,3 +1,5 @@
+// pullboard: browser
+/** @pullboard-test-gui */
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { fixture } from '../../tests/fixtures/relay/sealed.js';
@@ -20,6 +22,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
+import { SPEC_REFREEZE } from '../../../../packages/spec/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { main } from '../../tests/fixtures/native.js';
 import { exportBoard } from '../../../../packages/store/index.js';
@@ -346,7 +349,8 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     const legacyPolicy = { version: 1, commit, verify: { policy: 'coordinator', family: 'require' } };
     const legacyText = JSON.stringify({ ...frozen, policy: legacyPolicy });
     legacyDigest = createHash('sha256').update(legacyText).digest('hex');
-    store.refreeze(source, 1, { agentId: 'coordinator', freeze: () => ({ text: legacyText, digest: legacyDigest }) });
+    // A held claim is kept through a spec correction, so the builder's next claim is a renewal that keeps the pin.
+    store.refreeze(source, 1, { agentId: 'coordinator', [SPEC_REFREEZE]: true, freeze: () => ({ text: legacyText, digest: legacyDigest }) });
   } finally { store.closeBoard(source); }
 
   runBuilder('claim', '1');

@@ -1,7 +1,13 @@
 /** pullboard why names one cause per unlanded item and every idle seat [N26,C7]. */
 import assert from 'node:assert/strict';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { flowWhy } from '../../../../packages/health/index.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
+
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
 
 const NOW = Date.parse('2026-11-12T12:00:00Z');
 const MIN = 60_000;
@@ -72,4 +78,43 @@ test('every live seat with nothing to do is listed with why, with landings in th
 
 test('a release that does not exist is refused with the next step [N26,C7]', () => {
   assert.throws(() => flowWhy({}, { ...ports(), release: 'Nope' }), error => error.code === 'NO_MILESTONE' && /roadmap/u.test(error.message));
+});
+
+/** A project with a release of two open items, one of which waits on the other. */
+async function released() {
+  const box = e2e.project('true');
+  const file = (title, args = []) => fileFixtureItem(box, box.repo, { lane: 'web', title, criterion: 'the page renders', check: 'true', args: ['--specs', 'G1', ...args] }).item_id;
+  const first = file('First page');
+  const second = file('Second page', ['--after', String(first)]);
+  const added = await box.runLocal(box.repo, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', `${first},${second}`);
+  assert.equal(added.code, 0, `${added.out}\n${added.err}`);
+  return { box, first, second };
+}
+
+test('why prints the release flow on one screen: a line per unlanded item, and --json carries a version [N26,C7]', async () => {
+  const { box, first, second } = await released();
+  const text = await box.runLocal(box.repo, 'why');
+  assert.equal(text.code, 0, `${text.out}\n${text.err}`);
+  const lines = text.out.trim().split('\n').filter(line => !line.startsWith('next:'));
+  assert.match(lines[0], /^release Delivery as of \d{4}-/u);
+  assert.match(lines.find(line => line.startsWith(`#${first} `)), /free/u);
+  assert.match(lines.find(line => line.startsWith(`#${second} `)), /waiting {2}#\d+/u);
+  assert.ok(lines.some(line => line.startsWith('landed: 0 in the last hour')));
+  assert.ok(lines.length < 25, 'one screen');
+  const named = await box.runLocal(box.repo, 'why', 'Delivery', '--json');
+  const json = JSON.parse(named.out);
+  assert.equal(json.version, 1);
+  assert.equal(json.release, 'Delivery');
+  assert.deepEqual(json.items.map(row => [row.id, row.cause]).sort((a, b) => a[0] - b[0]), [[first, 'free'], [second, 'waiting']]);
+  assert.ok(Array.isArray(json.idle) && json.landings.lastHour === 0);
+});
+
+test('why <id> and why <file> keep their output [N26,C7]', async () => {
+  const { box, first } = await released();
+  const byId = await box.runLocal(box.repo, 'why', String(first), '--json');
+  assert.deepEqual(Object.keys(JSON.parse(byId.out)).sort(), ['decisions', 'id', 'version']);
+  const byFile = await box.runLocal(box.repo, 'why', 'web/none.txt', '--json');
+  assert.deepEqual(Object.keys(JSON.parse(byFile.out)).sort(), ['decisions', 'file', 'items', 'line', 'rows', 'version']);
+  const refused = await box.runLocal(box.repo, 'why', 'a', 'b');
+  assert.notEqual(refused.code, 0);
 });

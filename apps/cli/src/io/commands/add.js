@@ -3,6 +3,7 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
@@ -61,6 +62,8 @@ import {
   launchBaseline,
   CHECKOUT_LEASES,
 } from '../entry.js';
+import { isConfigFile } from '../../../../../packages/config/browser.js';
+import { anyRunnerLive } from '../runner/local.js';
 
 /**
  * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
@@ -155,7 +158,9 @@ export async function run(io, args) {
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
+  const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
   const id = await ordered(ctx, board, 'addItem', [item]);
+  if (differs) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Not a duplicate of #${differs.id}: ${differs.reason}` }]);
   const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
@@ -175,7 +180,7 @@ export async function run(io, args) {
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
-  sayCheckBaseline(io, store.getItem(board, id));
+  sayCheckBaseline(io, store.getItem(board, id), { runnerLive: anyRunnerLive() });
   sayRelated(io, ctx, board, id, item);
   return 0;
 });
@@ -278,7 +283,7 @@ export function pathTokens(text) {
   const tokens = new Set();
   for (const match of String(text ?? '').matchAll(PATH_TOKEN)) {
     const token = match[1].replace(/^\.\//u, '');
-    if (token.endsWith('/') || token.includes('.') || token === 'pullboard.json') tokens.add(token);
+    if (token.endsWith('/') || token.includes('.') || isConfigFile(token)) tokens.add(token);
   }
   return [...tokens];
 }
@@ -290,11 +295,15 @@ export function pathTokens(text) {
  *
  * @param {object} config - The frozen policy with its lanes.
  * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
+ * @param {{ prose?: boolean, present?: (paths: string[]) => Set<string> }} [options] - `present` names which paths exist on main;
+ *   with it, a path missing from main and owned by no lane is a planned file of the item's own lane, not a coordinator path (#6713).
  * @returns {string[]}
  */
 export function coordinatorPaths(config, item, options) {
-  return barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
+  const unowned = barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
+  if (!options?.present || !unowned.length) return unowned;
+  const found = options.present(unowned);
+  return unowned.filter(path => found.has(path.replace(/\/$/u, '')));
 }
 
 /**
@@ -309,7 +318,7 @@ export function barPaths(item, { prose = true } = {}) {
   const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
   // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
   const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
-  const scoped = scope ? named.map(path => (path === 'pullboard.json' || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
+  const scoped = scope ? named.map(path => (isConfigFile(path) || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
   return [...new Set(scoped)];
 }
 

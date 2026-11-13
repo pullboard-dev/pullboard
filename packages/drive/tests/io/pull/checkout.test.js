@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
@@ -74,7 +75,7 @@ async function serveAll(t, jobs) {
   const board = fakeBoard(trunk, jobs({ first, second }));
   const stop = new AbortController();
   const sleep = async () => { stop.abort(); };
-  await serveRunner({ board: BOARD, runner: 'r-reuse', capabilities: [], cache, jobs: 1, signal: stop.signal, fetchImpl: board.fetchImpl, sleep, timing: { idleMs: 1 } });
+  await serveRunner({ git: pullGit, board: BOARD, runner: 'r-reuse', capabilities: [], cache, jobs: 1, signal: stop.signal, fetchImpl: board.fetchImpl, sleep, timing: { idleMs: 1 } });
   return { ...board, first, second };
 }
 
@@ -104,4 +105,30 @@ test('a fresh and a reused checkout both resolve the trunk\'s release tags, whic
     const { receipts, first } = await serveAll(t, ({ first, second }) => [{ id: 'j1', commit: second, run: job(false) }, { id: 'j2', commit: first, run: job(false) }]);
     assert.equal(receipts.length, 2, JSON.stringify(receipts));
     assert.deepEqual(receipts.map(receipt => field(receipt, 'RELEASE')), [first, first], receipts.map(receipt => receipt.tail).join('\n'));
+  });
+
+test('#6681: a warm slot starts its command within 10 s of its claim at p90, and the receipt names where the time went [C7]', { timeout: 60_000 }, // budget: five local git checkouts and five node children.
+  async t => {
+    const { receipts } = await serveAll(t, ({ first, second }) => [first, second, first, second, first].map((commit, index) => ({ id: `j${index}`, commit, run: job(index === 0) })));
+    assert.equal(receipts.length, 5, JSON.stringify(receipts));
+    const starts = receipts.map(receipt => receipt.startup);
+    assert.deepEqual(starts.map(start => start?.version), [1, 1, 1, 1, 1], 'every receipt carries its startup phases');
+    assert.deepEqual(starts.map(start => start.reused), [false, true, true, true, true], 'only the first job builds the folder; every later one reuses the warm one');
+    for (const start of starts) assert.ok(start.fetchMs + start.checkoutMs + start.requestMs <= start.totalMs + 3, `phases fit inside the whole: ${JSON.stringify(start)}`);
+    const warm = starts.slice(1).map(start => start.totalMs).sort((a, b) => a - b);
+    assert.ok(warm[Math.ceil(warm.length * 0.9) - 1] < 10_000, `warm starts took ${warm.join(', ')} ms`);
+    assert.equal(JSON.parse(field(receipts[4], 'STATUS')), '', 'a warm start is still exactly the commit\'s tree');
+  });
+
+test('#6681: slots checking out one commit at once fetch it once and each reuse their own folder [C7]', { timeout: 60_000 }, // budget: four slots, each a git checkout and a node child.
+  async t => {
+    const { cache, trunk, first, second } = trunkRepo(t);
+    const ids = [0, 1, 2, 3].map(index => ({ id: `s${index}`, commit: index % 2 ? first : second, run: job(true) }));
+    const board = fakeBoard(trunk, [...ids, ...ids.map(one => ({ ...one, id: `${one.id}b` }))]);
+    const stop = new AbortController();
+    await serveRunner({ git: pullGit, board: BOARD, runner: 'r-slots', capabilities: [], cache, jobs: 4, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => { if (board.receipts.length >= 8) stop.abort(); else await new Promise(resolve => setImmediate(resolve)); }, timing: { idleMs: 1 } });
+    assert.equal(board.receipts.length, 8, JSON.stringify(board.receipts.map(receipt => receipt.tail)));
+    assert.deepEqual(board.receipts.map(receipt => receipt.status), Array(8).fill(0));
+    assert.ok(board.receipts.every(receipt => receipt.startup.totalMs < 10_000), JSON.stringify(board.receipts.map(receipt => receipt.startup)));
+    assert.ok(board.receipts.some(receipt => receipt.startup.reused), 'a slot that ran a job before reuses its folder');
   });

@@ -1591,7 +1591,241 @@
         "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
       ]
     },
-    "apps/cli/journeys/withdraw/items.test.js": {
+    "apps/cli/journeys/withdraw/items/add.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/review.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/waits.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/detail.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/baseline.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/reason.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/list.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/sentback.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/stale.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/pipeline.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/pipeline-click.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/toolbar.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/toolbar-open.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/withdraw/items/toolbar-wide.test.js": {
       "cells": [
         "app:lib",
         "gate",
@@ -4082,22 +4316,6 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/handoff/dispatcher/session.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
     "packages/resources/tests/io/handoff/worker/dispatcher/launcher.test.js": {
       "cells": [
         "app:lib",
@@ -4916,18 +5134,6 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/tests/fixtures/land/parallel.js": {
-      "cells": [
-        "app:lib",
-        "landing",
-        "resources",
-        "runners",
-        "store"
-      ],
-      "reasons": [
-        "spawns a child process (apps/cli/tests/fixtures/child.js)"
-      ]
-    },
     "apps/cli/tests/fixtures/land/stop.js": {
       "cells": [
         "kernel",
@@ -5176,22 +5382,6 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/claim/complete.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
     "test/landing-known-main-focused.test.js": {
       "cells": [
         "git",
@@ -5321,24 +5511,6 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/fact/landing/blocks.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "landing",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "imports past landing front door (packages/landing/src/io/step/batch.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
     "test/landing-regenerates-docs.test.js": {
       "cells": [
         "git",
@@ -5367,22 +5539,6 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/runner/landing/resume.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
     "test/landing-shards-name-filter.test.js": {
       "cells": [
         "gate",
@@ -5394,22 +5550,6 @@
       ]
     },
     "apps/cli/journeys/fact/landing/red.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
-    "apps/cli/journeys/reopen/landing/stale.test.js": {
       "cells": [
         "app:lib",
         "kernel",

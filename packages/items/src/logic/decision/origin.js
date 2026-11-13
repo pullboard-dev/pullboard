@@ -7,7 +7,7 @@
  */
 import { DECISION_ORIGIN_ENGINE } from '../../../../state/light.js';
 import { ENGINE_VERSION } from '../../../../state/light.js';
-import { Refused } from "../../../../kernel/index.js";
+import { Refused } from "../../../../kernel/browser.js";
 
 /** The origins an agent may name; `person` is reserved for a real person answer. */
 export const NAMEABLE_ORIGINS = Object.freeze(['person-relayed', 'agent', 'inherited']);

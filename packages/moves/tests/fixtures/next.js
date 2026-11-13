@@ -12,7 +12,7 @@ import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { nextTake } from '../../../sandbox/index.js';
 import { nextOnce } from '../../index.js';
 

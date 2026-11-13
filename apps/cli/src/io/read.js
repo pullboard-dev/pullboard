@@ -1,9 +1,9 @@
 import { itemFolderIdentity } from './item/folder/identity.js';
-import { seatFamily } from '../../../../packages/items/index.js';
+import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,
   dependencyLabel,
-} from '../../../../packages/items/index.js';
+} from '../../../../packages/items/light.js';
 /**
  * What every command shares and a read needs: the checkout's context, the board opened around one piece of work,
  * argument parsing and the one-line item format. It loads no gate, relay or landing module, so a read command that
@@ -17,14 +17,14 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { displayAgentName } from '../../../../packages/seats/index.js';
-import * as store from '../../../../packages/store/index.js';
+import { displayAgentName } from '../../../../packages/seats/light.js';
+import * as store from '../../../../packages/store/light.js';
 import {
   CONFIG_FILE,
   COORDINATOR,
   loadConfig,
-} from '../../../../packages/config/index.js';
-import { loadDoctrine } from '../../../../packages/doctrine/index.js';
+} from '../../../../packages/config/light.js';
+import { loadDoctrine } from '../../../../packages/doctrine/light.js';
 import {
   codeIsFromMain,
   differFromHead,
@@ -35,15 +35,15 @@ import {
   repoInfo,
   resolveCommit,
   tryGit,
-} from '../../../../packages/git/index.js';
-import { Refused } from '../../../../packages/kernel/index.js';
+} from '../../../../packages/git/light.js';
+import { Refused } from '../../../../packages/kernel/light.js';
 import {
   mainPolicy,
   policyAt,
   trunkRef,
-} from '../../../../packages/sandbox/index.js';
-import { familyIndex } from '../../../../packages/verify/index.js';
-import { MAIN_MERGE_LABEL } from '../../../../packages/merge/index.js';
+} from '../../../../packages/sandbox/light.js';
+import { familyIndex } from '../../../../packages/verify/read.js';
+import { MAIN_MERGE_LABEL } from '../../../../packages/merge/light.js';
 import { sessionRoute } from './route.js';
 
 /**
@@ -193,7 +193,7 @@ export function itemLine(item, name = (id) => id, mainMerge = false) {
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   const staleVerdict = item.item_verdict_state ? `  ${item.item_verdict_state.code}` : '';
   const hold = item.item_hold_reason ? `  held by ${name(item.item_hold_by)}: ${item.item_hold_reason}` : '';
-  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${item.item_stage})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
+  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${item.item_stage}${item.item_gate_runner === 'none' ? ', no runner' : ''})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
 }
 
 /** Format a stable agent id for human-facing CLI output. */

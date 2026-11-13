@@ -44,6 +44,7 @@ import {
 import { projectState } from '../../src/io/view.js';
 import { testsNeedBrowser } from '../../../../packages/gate/index.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
+import { copyModuleClosure } from '../../tests/fixtures/copy.js';
 import {
   scratch,
   machine,
@@ -72,6 +73,8 @@ test('the view fixture refuses to launch Chrome from an undeclared test file [C7
   // The tests under test import the cockpit harness from its place in the layout, so that folder comes along [C7].
   mkdirSync(join(root, 'test'));
   cpSync(resolve(import.meta.dirname, '../../tests/fixtures'), join(root, 'apps/cli/tests/fixtures'), { recursive: true });
+  // The CLI fixtures re-export helpers that live under packages/; copy the harness's whole import closure too.
+  copyModuleClosure(resolve(import.meta.dirname, '../../../..'), root, ['apps/cli/tests/fixtures/cockpit/harness.js']);
 
   /** Exercise the actual view launcher and always stop any stand-in it owns, including a failing baseline. */
   const body = (name, binding) => `
@@ -228,7 +231,9 @@ test('borrowed board presentation keeps parity, shows staged rows, and leaves th
     assert.ok(ordinary.agents.every(agent => agent.presence === 'live' && typeof agent.heartbeatAt === 'string'),
       'real native fixture heartbeats remain visible beside the durable board');
     const borrowed = projectState(p.repo, { board: staged });
-    assert.deepEqual(borrowed, { ...ordinary, agents: ordinary.agents.map(agent => ({ ...agent, heartbeatAt: null, presence: 'gone' })) },
+    // The dashboard's four-hour window ends at each read's own clock, so the two reads differ by milliseconds; its counts must not.
+    const sameWindow = state => ({ ...state, dashboardRecent: { ...state.dashboardRecent, since: 0, until: 0 } });
+    assert.deepEqual(sameWindow(borrowed), sameWindow({ ...ordinary, agents: ordinary.agents.map(agent => ({ ...agent, heartbeatAt: null, presence: 'gone' })) }),
       'borrowed projection preserves every durable field; an in-memory import has no native presence sidecar');
     const before = exportBoard(source);
     const stagedId = addItem(staged, { by: 'coordinator', lane: 'web', title: 'Staged recovery row', criterion: 'visible only in staged snapshot' });

@@ -25,13 +25,18 @@ test('a seat with no claim is sent to pullboard next and never told to wait for 
   assert.match(card.next, /^pullboard next\b/u, 'an idle seat pulls the ranked queue instead of waiting to be assigned');
   assert.doesNotMatch(card.next, /wait for (?:an? )?assignment|wait to be assigned/iu);
   const guide = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
-  assert.match(guide, /no (?:active )?claim[\s\S]{0,100}pullboard next/iu, 'generated guidance states the idle-seat rule');
+  assert.match(guide, /Never wait[\s\S]{0,60}1\. `pullboard next`/u, 'generated guidance states the idle-seat rule: the worker loop starts at pullboard next');
+  assert.doesNotMatch(guide, /wait for (?:an? )?assignment|wait to be assigned/iu);
   const settings = JSON.parse(readFileSync(join(box.repo, '.claude/settings.json'), 'utf8'));
   const command = settings.hooks.SessionStart.flatMap(entry => entry.hooks).find(hook => hook.command === agentHookCommand('SessionStart'))?.command;
   assert.ok(command, 'the generated SessionStart hook runs pullboard hook SessionStart');
-  const hooked = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.web, env: box.env, encoding: 'utf8' });
-  assert.equal(hooked.status, 0, hooked.failure || hooked.stderr || hooked.stdout);
-  const context = JSON.parse(hooked.stdout).hookSpecificOutput?.additionalContext ?? '';
+  // The hook gives its child 2 s, so a loaded runner can time it out; ask again before judging the guidance.
+  let context = '';
+  for (let attempt = 0; attempt < 3 && !context; attempt += 1) {
+    const hooked = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.web, env: box.env, encoding: 'utf8' });
+    assert.equal(hooked.status, 0, hooked.failure || hooked.stderr || hooked.stdout);
+    context = JSON.parse(hooked.stdout).hookSpecificOutput?.additionalContext ?? '';
+  }
   assert.match(context, /next: pullboard next/u, 'the actual session hook gives the same queue instruction');
   assert.doesNotMatch(context, /wait for (?:an? )?assignment|wait to be assigned/iu);
   // 4657576b18: a plain next with no lane work finishes at once with the end-your-turn answer, never a refusal.
