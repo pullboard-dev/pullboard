@@ -34,7 +34,7 @@
       { "verb": "escalate", "declared": true, "from": ["open", "claimed"], "to": "open", "by": "agent|coordinator", "cause": "pullboard escalate", "at": "packages/store/src/logic/board/escalate.js:escalate", "guard": "CLOSED, NOTE_REQUIRED, NOT_YOURS", "emits": "escalate", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "refreeze", "declared": true, "from": ["open", "claimed", "submitted", "verified"], "to": "open", "by": "coordinator", "cause": "pullboard refreeze (edit --criterion)", "at": "packages/store/src/io/board/refreeze.js:refreeze", "guard": "COORDINATOR_ONLY, CLOSED (verified only inside a spec correction, never merged), BAR_NOT_READY", "emits": "refreeze", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "refreeze", "declared": true, "from": ["claimed"], "to": "claimed", "by": "agent|coordinator", "cause": "the holder takes a refrozen bar", "at": "packages/store/src/io/board/refreeze.js:refreeze", "guard": "NOT_YOURS, UNKNOWN_SPEC", "emits": "refreeze", "harness": "apps/cli/journeys/verify/machine.test.js" },
-      { "verb": "withdraw", "declared": true, "from": ["open", "claimed", "submitted"], "to": "withdrawn", "by": "coordinator", "cause": "pullboard withdraw; a forced merged on an unverified item", "at": "packages/store/src/io/board/withdraw.js:withdraw", "guard": "CLOSED, COORDINATOR_ONLY, NOTE_REQUIRED, STALE_MAIN_RED", "emits": "withdraw; ends a queued or running hand-off record", "harness": "apps/cli/journeys/withdraw/handoff.test.js" },
+      { "verb": "withdraw", "declared": true, "from": ["open", "claimed", "submitted", "verified"], "to": "withdrawn", "by": "coordinator", "cause": "pullboard withdraw; a forced merged on an unverified item", "at": "packages/store/src/io/board/withdraw.js:withdraw", "guard": "CLOSED, COORDINATOR_ONLY, NOTE_REQUIRED, STALE_MAIN_RED", "emits": "withdraw; ends a queued or running hand-off record", "harness": "apps/cli/journeys/withdraw/handoff.test.js" },
       { "verb": "patch", "declared": true, "from": ["submitted", "verified"], "to": "submitted", "by": "coordinator", "cause": "pullboard patch attach or remove", "at": "packages/items/src/io/patches.js:invalidateItemPatch", "guard": "ITEM_PATCH_STATE, COORDINATOR_ONLY, ALREADY_MERGED", "emits": "item_patch_attach or item_patch_remove", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "patch-claimed", "declared": true, "from": ["claimed"], "to": "claimed", "by": "coordinator", "cause": "pullboard patch on a claimed item", "at": "packages/items/src/io/patches.js:invalidateItemPatch", "guard": "ITEM_PATCH_STATE, COORDINATOR_ONLY", "emits": "item_patch_attach", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "patch-objected", "declared": true, "from": ["claimed", "submitted"], "to": "open", "by": "agent", "cause": "pullboard patch object", "at": "packages/items/src/io/patches.js:applyItemPatchObjection", "guard": "ITEM_PATCH_WINDOW, NOTE_REQUIRED", "emits": "item_patch_object", "harness": "apps/cli/journeys/verify/machine.test.js" },
@@ -46,7 +46,6 @@
     "refused": [
       { "from": "submitted", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "verified", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
-      { "from": "verified", "to": "withdrawn", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "open", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "submitted", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
@@ -441,6 +440,61 @@
         "note": "serves the pulling runner's work; no driver ends it on an item move"
       },
       "harness": "apps/cli/journeys/runner/check.pull.test.js"
+    },
+    {
+      "kind": "check-baseline",
+      "name": "pulled check baseline",
+      "id": "baseline:<item>:<request>",
+      "created": "packages/api/src/io/baseline.js:offerCheckBaseline",
+      "serves": "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline",
+      "states": [
+        "offered",
+        "claimed",
+        "receipt",
+        "done"
+      ],
+      "terminal": [
+        "done"
+      ],
+      "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "offered",
+          "trigger": "add or edit offers the check at main's captured commit, or returns the open job for that request",
+          "at": "packages/api/src/io/baseline.js:offerCheckBaseline"
+        },
+        {
+          "from": "offered",
+          "to": "claimed",
+          "trigger": "a runner with every capability takes the lease",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "claimed",
+          "trigger": "a lapsed lease is taken by another runner, as the next attempt",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "receipt",
+          "trigger": "the holding runner posts its receipt",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "receipt",
+          "to": "done",
+          "trigger": "the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released",
+          "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt",
+        "note": "a moved request refuses the result (stale); no driver ends the job on an item move"
+      },
+      "harness": "apps/cli/journeys/check-baseline/main.test.js"
     }
   ],
   "processes": [
@@ -487,7 +541,7 @@
     { "case": "red notice after the claim lapsed", "current": "next still says the item stays claimed by you until a past time", "intended": "the notice reads the live lease and says the claim lapsed", "harness": "packages/gate/tests/fixtures/pipeline/red-notice-after-the-claim-lapsed.js" },
     { "case": "a red from an older head shown at claim", "current": "returnedRecord shows the newest red or infrastructure gate without matching the current commit", "intended": "only a red at the item's current commit is shown", "harness": "packages/gate/tests/fixtures/pipeline/a-red-from-an-older-head-shown-at-claim.js" },
     { "case": "main moved while an item was in review", "current": "a clean move keeps the verdict; a real conflict reopens the item naming the file", "intended": "same", "harness": "apps/cli/journeys/lifecycle/merge.test.js" },
-    { "case": "main moved after acceptance, before landing", "current": "the lander reopens a stale verdict to its lane with the file named", "intended": "same", "harness": "apps/cli/journeys/reopen/landing/stale.test.js" },
+    { "case": "main moved after acceptance, before landing", "current": "the land job merges on the moved trunk and checks there; a red or a conflict leaves trunk where it was", "intended": "same", "harness": "apps/cli/journeys/runner/landing/job.test.js" },
     { "case": "gate driver lease lost", "current": "a refused renewal retakes the lease on the next tick", "intended": "same, but only while its item still is in its serving state", "harness": "apps/cli/journeys/handoff/dead/running.test.js" },
     { "case": "gate driver killed", "current": "the gate is requeued on the same candidate within seconds, with no builder red", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/requeue.js" },
     { "case": "live driver mistaken for dead", "current": "a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/driver.js" },

@@ -197,6 +197,15 @@ export function runFixtureGit(args, options = {}) {
   return result.stdout.trim();
 }
 
+/**
+ * Run a Git fixture setup step; a `commit` skips the repository's hooks, which each cost a Node launch [C7].
+ * Why: setup commits are not what a journey tests; a journey about hooks commits through tryGit or runFixtureGit and keeps them.
+ */
+export function runFixtureSetupGit(args, options = {}) {
+  const setup = args[0] === 'commit' ? ['-c', 'core.hooksPath=/dev/null', ...args] : args;
+  return runFixtureGit(setup, options);
+}
+
 /** Preserve execFileSync output and failure fields while adding common child diagnostics. */
 export function runFixtureExecFile(command, args = [], options = {}) {
   if (!Array.isArray(args)) { options = args; args = []; }

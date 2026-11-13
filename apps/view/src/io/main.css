@@ -434,21 +434,6 @@ a.ghost { color: var(--ink); }
 .toolbar .go { flex: none; margin-left: auto; }
 /* Filter is a button sized to its words, beside List | Pipeline; a long choice gives way with an ellipsis, never the row.
    Its arrow points the way the menu goes, as the project switcher's does, switching at once. */
-.filter-control { position: relative; flex: 0 1 auto; min-width: 0; }
-.filter-toggle { display: inline-flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--tap); padding: 0 var(--space-4) 0 var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); font-weight: 500; cursor: pointer; white-space: nowrap; }
-.filter-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.filter-toggle svg { flex: none; width: 16px; height: 16px; color: var(--ink-faint); }
-.filter-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-.filter-toggle:hover, .filter-toggle[aria-expanded="true"] { background: var(--surface-2); }
-.filter-menu { position: absolute; z-index: 20; top: calc(100% + 8px); left: 0; display: grid; gap: var(--space-4); width: max-content; min-width: 220px; max-width: min(320px, calc(100vw - 32px)); padding: var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow); }
-.filter-group { display: grid; gap: var(--space-0); min-width: 0; }
-.filter-group h3 { margin: 0 var(--space-2) var(--space-0); color: var(--ink-faint); font-size: var(--text-2xs); letter-spacing: var(--tracking-label); text-transform: uppercase; }
-.filter-option { display: flex; justify-content: space-between; align-items: center; gap: var(--space-6); width: 100%; min-height: var(--tap); padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-md); background: none; color: var(--ink); text-align: left; white-space: nowrap; cursor: pointer; }
-.filter-option:hover, .filter-option:focus-visible { background: var(--surface-2); }
-.filter-option[aria-checked="true"] { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
-.filter-option-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.filter-option b { flex: none; color: var(--ink-faint); font: 600 var(--text-2xs) var(--mono); }
-.new-item-narrow { display: none; }
 input, select, textarea { border: 1px solid var(--line-strong); background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-3); min-width: 0; }
 input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .go { border: 0; background: var(--ink); color: var(--surface); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-5); cursor: pointer; font-weight: 600; white-space: nowrap; }
@@ -845,11 +830,10 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* A clickable row is never shorter than the target. */
 [data-item], [data-row] { min-height: var(--tap); }
 /* The Items toolbar's controls stand at the target, 32px under a mouse. */
-.toolbar .go, .toolbar input, .filter-toggle, .filter-option { min-height: var(--tap); }
+.toolbar .go, .toolbar input { min-height: var(--tap); }
 .toolbar .go, .toolbar input { padding-block: 0; }
 .inline > label { min-width: 0; }
 /* The label changes at 900px, while the control keeps its accessible name at every size. */
-@media (width < 900px) { .new-item-wide { display: none; } .new-item-narrow { display: inline; } }
 @media (width < 480px) {
   .toolbar { gap: var(--space-2); padding-inline: var(--space-3); }
   .toolbar .go { padding-inline: var(--space-4); }
@@ -914,7 +898,9 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .list-card { display: grid; gap: var(--space-0); padding: var(--space-2); }
 .list-card > .chain { padding: 0; }
 /* Items draws only the rows near the screen (#6676), so every row is one fixed height and the list's whole height is known. */
-#chain { --item-row-h: 74px; overflow-anchor: none; } #chain > li.row { height: var(--item-row-h); box-sizing: border-box; overflow: hidden; content-visibility: visible; }
+/* Items opens on its list alone: the sign-in and share notes live in the account menu, never above the rows (#6648). */
+:root[data-tab="items"] #local-note[data-kind="note"], :root[data-tab="items"] #share-note, :root[data-tab="items"] #relay-notice { display: none; }
+#chain { --item-row-h: 55px; overflow-anchor: none; } #chain > li.row { height: var(--item-row-h); box-sizing: border-box; overflow: hidden; content-visibility: visible; }
 .needs { display: grid; gap: var(--space-0); margin: 0 0 var(--space-1); padding: 0 0 var(--space-1); list-style: none; border-bottom: 1px solid var(--line); }
 .needs[hidden] { display: none; }
 .dot.ask { background: var(--warn); }
@@ -975,29 +961,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .credential dd { margin: 0; overflow-wrap: anywhere; }
 .credential > button { justify-self: start; min-height: 44px; }
 
-.proof-stats { padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-3); }
-.proof-stats[hidden] { display: none; }
-.proof-stats-summary { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--tap); padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-lg); background: var(--surface-2); color: var(--ink); text-align: left; font-size: var(--text-sm); line-height: var(--leading-snug); cursor: pointer; }
-.proof-stats-summary:hover { background: color-mix(in srgb, var(--surface-2) 82%, var(--ink) 18%); }
-.proof-stats-summary > span:first-child { min-width: 0; flex: 1; }
-.proof-stats-summary-text { min-width: 0; flex: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; overflow-wrap: anywhere; }
-@media (width < 900px) { .proof-stats-summary-text { -webkit-line-clamp: 2; } }
-.proof-stats-caret { flex: none; color: var(--ink-muted); font-size: var(--text-lg); }
-.proof-stats-full { display: grid; gap: var(--space-3); }
-.proof-stats-full[hidden] { display: none; }
-.proof-stats-head { display: flex; align-items: center; gap: var(--space-3); }
-.proof-stats-head b { font-size: var(--text-sm); }
-.proof-stats-head > span, .proof-stats-grid > div > span { color: var(--ink-muted); font-size: var(--text-2xs); }
-.proof-stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
-.proof-stats-grid > div { min-width: 0; display: flex; flex-direction: column; gap: var(--space-0); }
-.proof-stats-grid b { font-size: var(--text-md); font-variant-numeric: tabular-nums; }
-.proof-stats-grid small { overflow-wrap: anywhere; font-size: var(--text-2xs); color: var(--ink-muted); }
-.proof-stats-flow { border-top: 1px solid var(--line); padding-top: var(--space-3); min-width: 0; }
-.proof-stats-bottleneck { margin: var(--space-3) 0 0; font-size: var(--text-xs); line-height: var(--leading-body); overflow-wrap: anywhere; }
-.proof-stats-detail { border-top: 1px solid var(--line); padding-top: var(--space-2); font-size: var(--text-2xs); }
-.proof-stats-detail p { margin: var(--space-2) 0 0; overflow-wrap: anywhere; }
 
-@media (width < 480px) { .proof-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .milestone-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -1490,7 +1454,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .spec-fact .spec-citing { border: 0; background: none; padding: 0; }
 
 /* Settings: a header card, then one card per group of one-height rows (N26). */
-#settings-pane { padding: var(--space-5); max-width: 980px; margin-inline: auto; }
+#settings-pane { padding: 0; }
 .settings-head { display: grid; gap: var(--space-4); padding: var(--space-5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow); }
 .settings-head h2 { margin: 0; font-size: var(--text-2xl); letter-spacing: var(--tracking-tight); }
 .settings-head p { margin: 0; color: var(--ink-muted); }
@@ -1527,7 +1491,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .copy[data-copied] { color: var(--accent-strong); border-color: var(--accent); opacity: 1; }
 @media (hover: none) { .copy { opacity: 1; } }
 @media (width < 600px) {
-  #settings-pane { padding: var(--space-4); }
+  #settings-pane { padding: 0; }
   .set { gap: 0 var(--space-3); padding: 0 var(--space-4); }
   .ghead p { display: none; }
   .val { min-width: 72px; max-width: 152px; }

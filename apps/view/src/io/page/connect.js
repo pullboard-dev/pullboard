@@ -27,7 +27,7 @@ import { timelineBodyHtml } from "../../logic/timeline/body.js";
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, comparisonHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
@@ -40,9 +40,10 @@ const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
+const comparisonHtml = (${comparisonHtml.toString()});
 /** Defer the shared clock lookup until the page has initialized its formatter. */
 const dashboardWhen = iso => when(iso);
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
@@ -268,7 +269,8 @@ function theme(pick) {
   const now = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   document.documentElement.dataset.scheme = now;
   // The open-board screens carry the same toggle in their own header (#764), as the sidebar is hidden there.
-  for (const button of [$('theme'), $('ob-theme')]) {
+  for (const label of document.querySelectorAll('[data-theme-label]')) label.textContent = pick === 'light' ? 'Light' : pick === 'dark' ? 'Dark' : 'System';
+  for (const button of [$('ob-theme')]) {
     button.title = now === 'dark' ? 'Dark theme: switch to light' : 'Light theme: switch to dark';
     button.setAttribute('aria-label', button.title);
   }

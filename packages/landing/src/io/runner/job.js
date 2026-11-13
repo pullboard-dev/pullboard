@@ -79,13 +79,88 @@ export function admitTrunk(root, { trunk, base }) {
   writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600 });
 }
 
-/** Run the job's check command in the merged tree; exit 0 is green. */
+// A failing test's first line in TAP ("not ok 3 - name") or the spec reporter ("✖ name"), and the lines after it.
+const FAILED_CASE = /^\s*(?:not ok \d+|\u2716 )/u;
+
+/**
+ * Run one check command in the merged tree; exit 0 is green. Its red names the command and its first failing case with
+ * the lines after it, so the item's builder reads which case failed, as 0.9.3's landing told them [P7].
+ */
 export function commandCheck(argv) {
   return ({ root }) => new Promise(resolve => {
-    const child = spawn(argv[0], argv.slice(1), { cwd: root, stdio: 'ignore' });
-    child.on('error', error => resolve({ ok: false, detail: String(error.message).slice(0, 300) }));
-    child.on('exit', (code, signal) => resolve({ ok: code === 0, detail: code === 0 ? null : `check exited ${code ?? signal}` }));
+    // An enclosing node --test run's context never reaches the project's check, which then reports as its own run.
+    const { NODE_TEST_CONTEXT, ...env } = process.env;
+    const child = spawn(argv[0], argv.slice(1), { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env });
+    const named = argv.at(-1).slice(0, 200);
+    let output = '';
+    const keep = chunk => { if (output.length < 200_000) output += chunk.toString('utf8'); };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
+    child.on('error', error => resolve({ ok: false, detail: `${named}: ${String(error.message).slice(0, 300)}` }));
+    child.on('close', (code, signal) => {
+      if (code === 0) return resolve({ ok: true, detail: null });
+      const lines = output.split('\n');
+      const at = lines.findIndex(line => FAILED_CASE.test(line));
+      const failed = at < 0 ? lines.filter(Boolean).slice(-8) : lines.slice(at, at + 12);
+      resolve({ ok: false, detail: `check ${named} exited ${code ?? signal}: ${failed.join('\n').trim().slice(0, 600)}` });
+    });
   });
+}
+
+/**
+ * The land job's check of the items merged so far: each merged item's own check, the job's command, then the ledger
+ * proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a culprit search
+ * merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
+ */
+async function landingCheck(payload, env) {
+  const prove = payload.proof ? (await import('./proof.js')).ledgerProofCheck : null;
+  return async context => {
+    const merged = new Set(context.items);
+    const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
+    const parts = [...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => commandCheck(['sh', '-c', payload.checks[entry.id]])),
+      ...(payload.check ? [commandCheck(payload.check)] : []),
+      ...(prove && files.length ? [prove({ ...payload.proof, files }, { env })] : [])];
+    let proof = null;
+    for (const part of parts) {
+      const result = await part(context);
+      if (result?.proof) proof = result.proof;
+      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', ...(proof ? { proof } : {}) };
+    }
+    return { ok: true, detail: null, ...(proof ? { proof } : {}) };
+  };
+}
+
+/** Merge one item onto HEAD with --no-ff; null when it merged, else why not, with the merge aborted. */
+function mergeItem(root, entry, base) {
+  const merged = tryGit(root, [...IDENTITY, 'merge', '--no-ff', '--no-edit', '-q', '-m', `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`, entry.commit]);
+  if (merged.status === 0) return null;
+  tryGit(root, ['merge', '--abort']);
+  return `#${entry.id} does not merge on ${base.slice(0, 12)}: ${(merged.stdout || merged.stderr).slice(0, 240)}`;
+}
+
+/**
+ * Find which merged items turn the check red: merge them again one at a time on the base, checking each step, and drop
+ * each one whose merge turns it red. HEAD ends on the base plus the clean items, a tree the last step checked green.
+ * Why: 0.9.3's landing returned only the red item; the clean ones beside it stay accepted, or land under separate publish.
+ */
+async function isolateReds(root, { base, trunk, pending, check, renew }) {
+  must(root, ['checkout', '-q', '--detach', '--force', base]);
+  must(root, ['clean', '-q', '-fd']);
+  const kept = [], red = [];
+  let detail = null;
+  for (const entry of pending) {
+    const before = must(root, ['rev-parse', 'HEAD']);
+    if (mergeItem(root, entry, base)) { red.push(entry.id); continue; }
+    if (!await renew()) return null;
+    admitTrunk(root, { trunk, base });
+    const result = await check({ root, base, items: [...kept, entry.id], renew });
+    if (result?.ok) { kept.push(entry.id); continue; }
+    red.push(entry.id);
+    detail ??= `#${entry.id}: ${result?.detail ?? 'the landing check failed'}`;
+    must(root, ['reset', '-q', '--hard', before]);
+    must(root, ['clean', '-q', '-fd']);
+  }
+  return { kept, red, detail };
 }
 
 /**
@@ -95,21 +170,24 @@ export function commandCheck(argv) {
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
  *
- * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checkout?: boolean }} payload - checkout:
+ * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, publish?: string, proof?: object }} payload - checks: each item's own check by id; checkout:
  *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed',
- *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null }>}
+ *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null,
+ *   returned: { id: number, reason: 'red' | 'conflict', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
+ *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env }) {
   const { remote, trunk, expect, items } = payload;
   // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
-  const check = checks ?? (payload.check ? commandCheck(payload.check)
-    : payload.proof ? (await import('./proof.js')).ledgerProofCheck(payload.proof, { env }) : () => ({ ok: true, detail: null }));
+  const check = checks ?? await landingCheck(payload, env);
+  const separate = payload.publish === 'separate';
   const root = landingCheckout(workdir);
-  const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null };
+  const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null, returned: [] };
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
+  const giveBack = (id, reason, detail) => { receipt.returned.push({ id, reason, detail }); receipt.detail ??= detail; };
   for (const entry of items) {
     const fetched = fetchItem(root, remote, entry);
     if (fetched.moved) return done('item-moved', { detail: `#${entry.id}: ${fetched.moved}` });
@@ -120,25 +198,36 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (base !== (receipt.base ?? expect)) receipt.moved.push(base);
     receipt.base = base;
     const already = items.filter(entry => tryGit(root, ['merge-base', '--is-ancestor', entry.commit, base]).status === 0).map(entry => entry.id);
-    const pending = items.filter(entry => !already.includes(entry.id));
     receipt.already = already;
-    if (pending.length === 0) return done('landed', { trunk: base, landed: [] });
+    // A returned item stays out of every later attempt: it goes back to its builder, or parks, whatever trunk does next.
+    const waiting = items.filter(entry => !already.includes(entry.id) && !receipt.returned.some(row => row.id === entry.id));
+    if (waiting.length === 0) return done(receipt.returned.length ? receipt.returned[0].reason : 'landed', { trunk: base, landed: [] });
     must(root, ['checkout', '-q', '--detach', '--force', base]);
     must(root, ['clean', '-q', '-fd']);
-    for (const entry of pending) {
-      const merged = tryGit(root, [...IDENTITY, 'merge', '--no-ff', '--no-edit', '-q', '-m', `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`, entry.commit]);
-      if (merged.status !== 0) {
-        tryGit(root, ['merge', '--abort']);
-        return done('conflict', { detail: `#${entry.id} does not merge on ${base.slice(0, 12)}: ${(merged.stdout || merged.stderr).slice(0, 240)}` });
-      }
-    }
+    // A sibling that collides goes back alone, as in 0.9.3: the items that merge cleanly still land [P7].
+    let pending = waiting.filter(entry => {
+      const collided = mergeItem(root, entry, base);
+      if (collided) giveBack(entry.id, 'conflict', collided);
+      return !collided;
+    });
+    if (pending.length === 0) return done('conflict');
     // Renew around the check: a check longer than the lease may let a second runner take the job, which is safe, since
     // the push's compare-and-swap and the on-trunk skip keep a duplicate landing from losing or doubling a commit.
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before its check' });
     admitTrunk(root, { trunk, base });
     const result = await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
-    if (!result?.ok) return done('red', { detail: result?.detail ?? 'the landing check failed' });
+    if (!result?.ok) {
+      // A red tree lands nothing it did not check green: name the red items, return them, and under separate publish
+      // land the clean rest on the tree the culprit search checked green [P7].
+      const found = pending.length > 1 ? await isolateReds(root, { base, trunk, pending, check, renew })
+        : { kept: [], red: [pending[0].id], detail: `#${pending[0].id}: ${result?.detail ?? 'the landing check failed'}` };
+      if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
+      receipt.detail ??= result?.detail ?? 'the landing check failed';
+      for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.detail ?? result?.detail}`);
+      if (found.red.length && (!separate || found.kept.length === 0)) return done('red');
+      pending = pending.filter(entry => found.kept.includes(entry.id));
+    }
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });

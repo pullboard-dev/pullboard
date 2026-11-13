@@ -216,10 +216,6 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "items-empty: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "apps/cli/journeys/withdraw/items.test.js": {
-    "kind": "journey",
-    "reason": "items: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
-  },
   "apps/cli/journeys/milestone/routes.test.js": {
     "kind": "adapter",
     "reason": "journey-routes: existing source/VM/transport contract, not a pure-render witness"

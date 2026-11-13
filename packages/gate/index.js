@@ -18,7 +18,7 @@ export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseChec
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
-export { detectGate, settingCommand, missingGate, setHere } from "./src/io/config.js";
+export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere } from "./src/io/config.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
 export { digestOf, writeTimingProfile } from "./src/io/output.js";
@@ -61,11 +61,12 @@ export { isolateTestMachine, foreignNodeOptions, ACCOUNT_HOME_ENV, RUNNER_PRELOA
 export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/io/coordinator/guard.js";
 export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, allTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
 export { refreshTestPlacement } from "./src/io/test/placement/report.js";
+export { affectedCommand } from "./src/io/test/affected-command.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/io/test/placement.js";
 export { testResultDigest, validTestTap, validTestResult, storeTestResult, selectedTestResults, packTestResults, importTestResults, completedTestResult, retainTestResultCompletion, TEST_RESULT_VERSION, TEST_RESULT_STORE_ENV, TEST_RESULT_ORIGIN_ENV, TEST_RESULT_REQUEST_ENV } from "./src/io/test/store.js";
 export { runFullSuite, testFiles, runTestFiles, inCleanCheckout, uncommittedNotice } from "./src/io/test/run.js";
 export { readTestFileBudgets, testFileBudgetPath } from "./src/io/test/file/policy.js";
-export { DEFAULT_TEST_FILE_BUDGET_MS, requireTestFileRatchet, testFileBudgetFailure } from "./src/logic/test/budget/file.js";
+export { DEFAULT_TEST_FILE_BUDGET_MS, requireTestFileRatchet, testFileBudgetFailure, testFileLoadScale } from "./src/logic/test/budget/file.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/io/test/selection.js";
 export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/io/test/value/timing.js";
 export { testValueReport } from "./src/io/test/value.js";

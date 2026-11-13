@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -115,4 +116,22 @@ test('clause 2: a named staged static check runs inside the pre-commit process a
   const ran = /web\/page\.html:1: fixture static check ran in process (\d+)/u.exec(run.err);
   assert.ok(ran, `the static failure blocks the commit:\n${run.err}`);
   assert.equal(ran[1], run.pidOf('/apps/cli/src/io/hook/thin.js'), 'the check ran in the hook process itself');
+});
+
+test('a fixture setup commit runs no hooks, and a journey that commits through tryGit still runs them [C7]', () => {
+  const box = e2e.project('true');
+  const hooks = join(box.dir, 'marker-hooks');
+  const marker = join(box.dir, 'hook-ran.txt');
+  mkdirSync(hooks);
+  writeFileSync(join(hooks, 'pre-commit'), `#!/bin/sh\necho ran >> "${marker}"\n`);
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  box.git(box.repo, 'config', 'core.hooksPath', hooks);
+  writeFileSync(join(box.repo, 'setup.txt'), 'setup\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: fixture setup');
+  assert.equal(existsSync(marker), false, 'a setup commit runs no hook');
+  writeFileSync(join(box.repo, 'about-hooks.txt'), 'hooks\n');
+  box.git(box.repo, 'add', '-A');
+  assert.equal(box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: a hook journey commit').status, 0);
+  assert.equal(existsSync(marker), true, 'a commit through tryGit runs the hook');
 });
