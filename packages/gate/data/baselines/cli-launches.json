@@ -753,7 +753,7 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/search.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/roadmap/card.test.js": {
     "launch": 4
@@ -1630,5 +1630,8 @@
   },
   "apps/cli/journeys/runner/deadline/queue.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/init/path-with-space.test.js": {
+    "launch": 1
   }
 }
