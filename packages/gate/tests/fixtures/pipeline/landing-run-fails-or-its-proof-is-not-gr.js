@@ -7,6 +7,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { hopCheck } from './kit.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { driveLanding } from '../../../../drive/index.js';
 import { jobView } from '../../../../jobs/index.js';
@@ -28,17 +29,23 @@ function assertEnded(db, id, code) {
 }
 
 test('a landing run that throws ends failed with its lease freed, and the next landing starts [C7]', async t => {
-  const { db } = cellBoard(t, ':memory:');
-  await assert.rejects(driveLanding(db, { owner: 'lander-1', id: 'land:run:thrown', run: async () => { throw Object.assign(new Error('merge refused'), { code: 'LAND_MERGE' }); } }), /merge refused/u);
-  assertEnded(db, 'land:run:thrown', 'LAND_MERGE');
-  const next = await driveLanding(db, { owner: 'lander-2', id: 'land:run:next', run: async () => ({ landed: [] }) });
-  assert.deepEqual(next, { landed: [] });
-  assert.equal(jobView(db, 'land:run:next').step, 'done', 'a green run finishes done');
+  await hopCheck('landing-run-throws', async () => {
+      const { db } = cellBoard(t, ':memory:');
+      await assert.rejects(driveLanding(db, { owner: 'lander-1', id: 'land:run:thrown', run: async () => { throw Object.assign(new Error('merge refused'), { code: 'LAND_MERGE' }); } }), /merge refused/u);
+      assertEnded(db, 'land:run:thrown', 'LAND_MERGE');
+      const next = await driveLanding(db, { owner: 'lander-2', id: 'land:run:next', run: async () => ({ landed: [] }) });
+      assert.deepEqual(next, { landed: [] });
+      assert.equal(jobView(db, 'land:run:next').step, 'done', 'a green run finishes done');
+    return { measured: 'failed LAND_MERGE, lease freed, next landing done' };
+  });
 });
 
 test('a landing run whose batch stalled, so its proof is not green, ends failed with its lease freed [C7]', async t => {
-  const { db } = cellBoard(t, ':memory:');
-  await driveLanding(db, { owner: 'lander-1', id: 'land:run:stalled', run: async () => ({ stalled: true, stallDescription: 'proof red', batch: { id: 'b1', state: 'failed' }, landed: [] }) });
-  assertEnded(db, 'land:run:stalled', 'LAND_STALLED');
-  assert.equal(jobView(db, 'land:run:stalled').steps.find(step => step.name === 'failed').payload.message, 'proof red');
+  await hopCheck('landing-run-stalled', async () => {
+      const { db } = cellBoard(t, ':memory:');
+      await driveLanding(db, { owner: 'lander-1', id: 'land:run:stalled', run: async () => ({ stalled: true, stallDescription: 'proof red', batch: { id: 'b1', state: 'failed' }, landed: [] }) });
+      assertEnded(db, 'land:run:stalled', 'LAND_STALLED');
+      assert.equal(jobView(db, 'land:run:stalled').steps.find(step => step.name === 'failed').payload.message, 'proof red');
+    return { measured: 'failed LAND_STALLED, lease freed' };
+  });
 });
