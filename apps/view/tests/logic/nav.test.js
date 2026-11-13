@@ -4,12 +4,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cockpitMarkup } from '../../index.js';
 import { composeViewStyles } from '../../src/io/styles.js';
+import { accountHtml } from '../../src/logic/nav.js';
+import { accountMenuHtml } from '../../src/logic/nav.js';
 import { navPages } from '../../src/logic/nav.js';
 import { navStripHtml } from '../../src/logic/nav.js';
 import { notchHtml } from '../../src/logic/nav.js';
 import { navLayout } from '../../src/logic/nav.js';
 import { navSideHtml } from '../../src/logic/nav.js';
 import { pageControlsHtml } from '../../src/logic/nav.js';
+import { sharedRowHtml } from '../../src/logic/component.js';
 import { pageRenderScript } from '../../src/io/page/render.js';
 import { pageScriptPart2 } from '../../index.js';
 import { runInNewContext } from 'node:vm';
@@ -212,9 +215,9 @@ test('clause 2: the pin flips the navigation between the top tabs and the sideba
 
 test('clause 1: each page puts its own controls at the right of the strip, and the sidebar layout puts them on the title row [N26]', () => {
   const labels = (html) => [...html.matchAll(/<(?:button|option)[^>]*>([^<]+)<\/(?:button|option)>/gu)].map(match => match[1]);
-  assert.deepEqual(labels(pageControlsHtml({ tab: 'items' })), ['Open', 'Building', 'In review', 'All', 'New item'], 'Items: Open, Building, In review, All and New item');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'items' })), ['Open', 'Building', 'In review', 'All', 'List', 'Pipeline', 'New item'], 'Items: Open, Building, In review, All, List, Pipeline and New item');
   assert.match(pageControlsHtml({ tab: 'items', state: 'verify' }), /<button type="button" data-page-ctl="state" data-value="verify" class="on" aria-pressed="true">In review<\/button>/u, 'the shown state is the pressed one');
-  assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/ class="on"/gu) || []).length, 1, 'one state at a time');
+  assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/data-page-ctl="state"[^>]* class="on"/gu) || []).length, 1, 'one state at a time');
   assert.doesNotMatch(pageControlsHtml({ tab: 'items', writable: false }), /New item/u, 'a read-only view offers no New item');
   assert.equal(pageControlsHtml({ tab: 'progress' }), '', 'Progress is gone: no controls');
   assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'All'], 'Shouts: For you and All');
@@ -250,4 +253,51 @@ test('clause 2: each control\'s state is in the page address, and the address pu
     assert.deepEqual(placeQuery({ tab: place.tab, ...back(search) }), placeQuery(place), `${place.tab}: refresh, back and forward read it back`);
   }
   assert.equal(withPlaceQuery('', placeQuery({ tab: 'items' })), '', 'Open, the default, leaves the address plain');
+});
+
+test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar above its list; filters and New item live in the strip [N26]', () => {
+  const html = shell(false);
+  const items = html.slice(html.indexOf('<section data-pane="items"'), html.indexOf('<section data-pane="shouts"'));
+  for (const id of ['proof-stats', 'items-toolbar', 'items-view-switch', 'filter-toggle', 'filter-menu', 'new-item']) assert.ok(!items.includes('id="' + id + '"'), `${id} is not on the Items page`);
+  assert.doesNotMatch(items, /class="card-panel toolbar"|local-note|share-note/u, 'nothing but the list card leads the page');
+  assert.ok(items.indexOf('id="chain"') < items.indexOf('id="needs"'), 'questions and sentinels fold below the items');
+  const css = composeViewStyles();
+  assert.match(css, /:root\[data-tab="items"\] #local-note\[data-kind="note"\][^{]*\{ display: none; \}/u, 'the sign-in note is hidden while Items shows');
+  const lanes = [{ value: '', label: 'All lanes', count: null }, { value: 'core', label: 'core', count: 605 }, { value: 'view', label: 'view', count: 52 }];
+  const strip = pageControlsHtml({ tab: 'items', lane: 'core', lanes, itemsView: 'pipeline' });
+  assert.match(strip, /<select class="sel" data-page-ctl="lane" aria-label="Lane">.*<option value="core" selected>core · 605<\/option>/u, 'the lane filter is in the strip, with its counts');
+  assert.match(strip, /data-page-ctl="view" data-value="pipeline" class="on" aria-pressed="true">Pipeline/u, 'List and Pipeline are in the strip');
+  assert.match(strip, /data-page-ctl="new">New item/u, 'New item is in the strip');
+});
+
+test('clause 1: Items rows are one card of mockup-shaped rows at the mockup\'s fixed row height [N26]', () => {
+  const css = composeViewStyles();
+  const rule = (selector) => { const at = css.indexOf(selector + ' {'); assert.ok(at >= 0, `the stylesheet has ${selector}`); return css.slice(at + selector.length + 2, css.indexOf('}', at)); };
+  assert.match(rule('#chain'), /--item-row-h: 55px/u, 'the mockup\'s row: 55 px and a 2 px gap, 57 px a row, kept fixed for the windowing');
+  const row = sharedRowHtml({ className: 'on ', attributes: { 'data-item': 7 }, title: 'A title', state: 'building', primaryHtml: '<span>#7</span>A title', timeHtml: '<time>1h</time>', chipHtml: '<span class="chip">core-7</span>', metaHtml: '<span>core</span>' });
+  const order = ['class="dot', 'class="row-copy"', 'class="t srow-text"><span>#7</span>A title', 'class="meta"><span>core</span>', 'class="row-side"', '<time', 'class="chip">core-7'].map(part => row.indexOf(part));
+  assert.ok(order.every((at, n) => at >= 0 && (!n || at > order[n - 1])), `state circle, #id and title, then lane, then time and the holder chip at the right: ${order}`);
+});
+
+test('clause 1: the top right is one account control, the person\'s initial when signed in and Sign in when not, and its menu holds who they are, Settings, Theme, and Pair a phone; the Sign out row stays hidden until the view has a real sign-out [N26,#6648]', () => {
+  assert.match(accountHtml({ signedIn: true, login: 'coreyolson' }), />C<\/button>$/u, 'the initial, upper-cased');
+  assert.match(accountHtml({ signedIn: false }), />Sign in<\/button>$/u);
+  const text = (html) => [...html.matchAll(/<(?:b|small|button)[^>]*>(.*?)<\/(?:b|small|button)>/gu)].map((m) => m[1].replace(/<[^>]+>/gu, ''));
+  const signedIn = accountMenuHtml({ signedIn: true, login: 'coreyolson', theme: 'dark' });
+  assert.deepEqual(text(signedIn), ['@coreyolson', 'GitHub', 'Settings,', 'ThemeDark', 'Pair a phone']);
+  const signedOut = accountMenuHtml({ signedIn: false });
+  assert.match(signedOut, /Not signed in/u);
+  assert.match(signedOut, /data-account-signin>Sign in with GitHub</u);
+  assert.doesNotMatch(signedIn + signedOut, /Sign out/u, 'no Sign out row: the view has no real sign-out yet, and relay off is destructive');
+  for (const html of [signedIn, signedOut]) for (const word of ['Settings', 'Theme', 'Pair a phone']) assert.match(html, new RegExp(word, 'u'));
+  assert.match(accountHtml({ signedIn: true, login: '<b>' }), /&lt;|>B</u, 'a login is text, never markup');
+});
+
+test('clause 2: the page carries no sign-in banner, and Settings is reached from the account menu only [N26,#6648]', () => {
+  const html = cockpitMarkup({ repositoryAttribute: 'https://example.test', cssAttribute: 'view.css', hostedLocal: true, snapshot: false, readOnly: false, requestMode: false, privateCost: false, hostedMarkup: () => '', signIn: '', settingsMarkup: () => '', starMarkup: () => '' });
+  assert.doesNotMatch(html, /Open your boards on any device|share-note|share-again/u, 'no banner and no second invitation');
+  assert.doesNotMatch(html, /id="theme"|machine-settings-entry/u, 'the bare theme button and the machine Settings entry are gone');
+  assert.equal([...html.matchAll(/data-tab="settings"/gu)].length, 0, 'Settings is not a fixed button anywhere in the page shell; the menu draws it');
+  assert.match(html, /id="account-slot">.*id="account"[^>]*data-account/su, 'the account control sits in its slot');
+  assert.match(accountMenuHtml({}), /data-tab="settings"/u, 'the menu holds Settings');
 });

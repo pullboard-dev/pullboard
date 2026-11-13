@@ -114,7 +114,7 @@ test('a fresh board opens on the first-run page: three boxes, the loop, the chec
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'first-run-chrome'));
     await chrome.waitFor('!!data?.project && !!document.querySelector("#dashboard .first-run")');
     // Hidden until work starts: the numbers, the window comparison and the Pipeline card.
-    assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .dash-hero, #dashboard .dash-comparison, #dashboard [aria-label=Pipeline], #dashboard [data-dashboard-stat]").length'), 0, 'no stats, comparison or Pipeline card before work');
+    assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .dash-live, #dashboard .dash-comparison, #dashboard [aria-label=Pipeline], #dashboard [data-dashboard-step]").length'), 0, 'no stats, comparison or Pipeline card before work');
     assert.match(await chrome.stable('document.querySelector("#dashboard .first-run-line code").textContent'), /^Use the pullboard-run skill: be this project's coordinator\. Keep listening, run builder and verifier subagents, and help me add more agents\.$/u, 'the line to copy, until the coordinate command exists');
     assert.equal(await chrome.stable('document.querySelector("#dashboard .first-run-start h2").textContent'), 'Create your Coordinator Agent');
     const checks = JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#dashboard [data-first-run-check]")].map(li => [li.textContent.replace(/^[✓0-9]+/u, ""), li.dataset.ticked]))'));
@@ -229,13 +229,13 @@ test('once work lands the usual Dashboard follows the first-run page, which the 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'first-run-landed-chrome'));
-    await chrome.waitFor('!!data?.project && !!document.querySelector("#dashboard .first-run") && !!document.querySelector("#dashboard .dash-hero")');
+    await chrome.waitFor('!!data?.project && !!document.querySelector("#dashboard .first-run") && !!document.querySelector("#dashboard .dash-live")');
     assert.equal(await chrome.stable('document.querySelector("#dashboard .first-run-checks [data-first-run-check=\\"4\\"]").dataset.ticked'), 'true', 'the first landing ticks Your app updated');
     assert.equal(await chrome.stable('document.querySelector("#dashboard .first-run-checks [data-first-run-check=\\"5\\"]").dataset.ticked'), 'false', 'one landing is not rinse and repeat');
-    assert.equal(await chrome.stable('document.querySelector("#dashboard .first-run").compareDocumentPosition(document.querySelector("#dashboard .dash-hero")) & Node.DOCUMENT_POSITION_FOLLOWING'), 4, 'the usual Dashboard follows the first-run page');
+    assert.equal(await chrome.stable('document.querySelector("#dashboard .first-run").compareDocumentPosition(document.querySelector("#dashboard .dash-live")) & Node.DOCUMENT_POSITION_FOLLOWING'), 4, 'the usual Dashboard follows the first-run page');
     await press(chrome, 'document.querySelector("#dashboard [data-first-run-hide]")');
-    await chrome.waitFor('!document.querySelector("#dashboard .first-run") && !!document.querySelector("#dashboard .dash-hero")');
-    assert.equal(await chrome.stable('document.querySelector("#dashboard .dash-hero") !== null'), true, 'hiding leaves the usual Dashboard');
+    await chrome.waitFor('!document.querySelector("#dashboard .first-run") && !!document.querySelector("#dashboard .dash-live")');
+    assert.equal(await chrome.stable('document.querySelector("#dashboard .dash-live") !== null'), true, 'hiding leaves the usual Dashboard');
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

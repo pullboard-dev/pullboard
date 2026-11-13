@@ -231,7 +231,9 @@ test('borrowed board presentation keeps parity, shows staged rows, and leaves th
     assert.ok(ordinary.agents.every(agent => agent.presence === 'live' && typeof agent.heartbeatAt === 'string'),
       'real native fixture heartbeats remain visible beside the durable board');
     const borrowed = projectState(p.repo, { board: staged });
-    assert.deepEqual(borrowed, { ...ordinary, agents: ordinary.agents.map(agent => ({ ...agent, heartbeatAt: null, presence: 'gone' })) },
+    // The dashboard's four-hour window ends at each read's own clock, so the two reads differ by milliseconds; its counts must not.
+    const sameWindow = state => ({ ...state, dashboardRecent: { ...state.dashboardRecent, since: 0, until: 0 } });
+    assert.deepEqual(sameWindow(borrowed), sameWindow({ ...ordinary, agents: ordinary.agents.map(agent => ({ ...agent, heartbeatAt: null, presence: 'gone' })) }),
       'borrowed projection preserves every durable field; an in-memory import has no native presence sidecar');
     const before = exportBoard(source);
     const stagedId = addItem(staged, { by: 'coordinator', lane: 'web', title: 'Staged recovery row', criterion: 'visible only in staged snapshot' });

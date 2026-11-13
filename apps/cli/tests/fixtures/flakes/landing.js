@@ -6,7 +6,6 @@ import {
   checkedItem,
 } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import { runCliInProcess } from '../process.js';
-import { fixtureSettledMachine } from '../testkit.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -24,8 +23,7 @@ export async function cliLocal(box, cwd, ...args) {
 /** Prepare one genuinely submitted and accepted candidate with a private local bare destination. */
 export async function readyLanding(t, rerun) {
   const box = flakyProject(t, { alwaysPass: 'controlled', rerun });
-  // The landing and its submit settle in these commands' own processes [P7].
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
+  // flakyProject pins controller dispatch in this machine home, so the landing and its submit settle in these commands' own processes [P7]; pull dispatch would leave the submit unsettled and #1 without an item commit.
   const remote = join(box.scratch, 'private-origin.git');
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);

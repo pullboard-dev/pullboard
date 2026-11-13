@@ -30,6 +30,7 @@ import { submitInvariantProposals } from '../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { landingFailures } from '../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { repositoryBoardFile } from '../../tests/fixtures/board/submit.js';
 import { replayHistoricalSeatMove } from '../../tests/fixtures/seats.js';
 
@@ -101,6 +102,7 @@ function landing(box, id, submit, commit, files, diagnostics = [], green = false
 
 test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
   const box = e2e.project('node --test web/page.test.js');
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } }); // This journey reads a gate settled in the submit's own process (#6249).
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.submitGate = 'landing';

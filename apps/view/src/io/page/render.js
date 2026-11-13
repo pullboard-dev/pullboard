@@ -17,6 +17,8 @@ import { navPages } from "../../logic/nav.js";
 import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
+import { accountHtml } from "../../logic/nav.js";
+import { accountMenuHtml } from "../../logic/nav.js";
 import { navLayout } from "../../logic/nav.js";
 import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
@@ -44,6 +46,8 @@ ${navPages.toString()}
 ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
+${accountHtml.toString()}
+${accountMenuHtml.toString()}
 ${navLayout.toString()}
 ${pageControlsHtml.toString()}
 
@@ -101,12 +105,12 @@ function stageOfItem(item, project = {}, gated = false, gateDetail = '') {
 }
 
 /** Render the approved item stage, its plain detail and any explanatory marks. */
-function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false, roadmap = false) {
+function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false, roadmap = false, brief = false) {
   const stage = stageOfItem(item, project, gated, gateDetail);
   // A Roadmap row names only the stage, with Landed for Merged; the route and holder stay in the title for hover and readers [N26].
   const word = roadmap && stage.stage === 'Merged' ? 'Landed' : stage.stage;
   return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.detail) + '" aria-label="' + esc(stage.stage + ': ' + stage.detail) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(word) + '</b>' + (compact ? '</span>' : '')
-    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
+    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap || brief ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
 }
 
 /** Make a mark's reason available on hover and to assistive readers while the row remains tappable. */
@@ -143,7 +147,7 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
   const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
   text(ruled, String(rulings));
   ruled?.classList?.toggle('a', rulings > 0);
-  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the agent floor.' : 'No agent at work. Open the agent floor.');
+  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the Agents table.' : 'No agent at work. Open the Agents table.');
   text($('proj-rulings'), rulings ? String(rulings) : '');
   // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
   const release = nextMilestone(p);
@@ -225,7 +229,6 @@ function render({ tab: switching = false } = {}) {
   // Anything but a tab switch may change what any pane shows, so a pane drawn before it is drawn again on its switch.
   if (!switching) store.invalidate();
   const scrolled = store.scrollMark([document.scrollingElement, ...SCROLLED_PARTS.map((id) => $(id))]);
-  const statsFocus = document.activeElement?.id === 'proof-stats-summary' ? document.activeElement.id : null;
   const p = privateModelProject(data.project);
   const group = data.group;
   renderSide();
@@ -236,14 +239,13 @@ function render({ tab: switching = false } = {}) {
   if (data.root !== view.root || listing) {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
-    for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
+    for (const id of ['products', 'group-view', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
     // The tabs and the screen's empty cards stand while its board state is on its way, never a blank page (#6589).
     if (data.projects.some((entry) => entry.ok)) drawFrame();
     else $('live').textContent = 'Loading project…';
     return;
   }
   $('board-frame').hidden = true;
-  $('proof-stats').hidden = true;
   if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
   // flashes them; with no board to show, one message says how a board starts, in their place.
@@ -256,7 +258,10 @@ function render({ tab: switching = false } = {}) {
   $('products').hidden = !p || !p.products.length;
   renderReleaseNotes(group ? null : p);
   renderHostedReleaseNote(p);
-  renderPersonRequests(p);
+  const grew = renderPersonRequests(p);
+  // The page scroll is put back at the end of this draw; a panel that grew above the view moves that mark with it.
+  const page = scrolled.find(([element]) => element === document.scrollingElement);
+  if (page && grew) page[1] += grew;
   renderCredentials();
   // A board's Settings pane still refreshes the shared status counts; machine-only Settings has no board to render.
   if (view.tab === 'settings' && !p) { $('group-view').hidden = true; showTab(); return; }
@@ -268,10 +273,6 @@ function render({ tab: switching = false } = {}) {
   // that frame is on screen, so the switch never waits on the rows that changed (#6679).
   const roadmapBehind = draw && switching && view.tab === 'roadmap' && drawnRoadmap !== null
     && drawnRoadmap.scope === JSON.stringify([view.root, p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null]);
-  $('proof-stats').hidden = view.tab !== 'items';
-  if (view.tab === 'items') store.paint($('proof-stats'), proofStatsCard(p.proofStats, view.statsOpen));
-  // Polling replaces this card's controls; keep the person's keyboard position through that redraw.
-  if (statsFocus && view.tab === 'items') $(statsFocus)?.focus({ preventScroll: true });
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
   store.paint($('prod-list'), p.products.map((x) => {
     const states = [['open', '', x.items.open], ['building', 'building', x.items.claimed], ['to verify', 'verify', x.items.submitted], ['verified', 'verified', x.items.verified]].filter(([, , n]) => n);
@@ -306,6 +307,8 @@ function render({ tab: switching = false } = {}) {
 
   }
 
+  // Settings carries the rules and useful-agents cards that used to sit on the Dashboard.
+  if (view.tab === 'settings') $('settings-reference').innerHTML = '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">' + homeRules(p.spec) + '</section><section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">' + homeCapacity(p.capacityForecast) + '</section>';
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
@@ -343,8 +346,6 @@ function render({ tab: switching = false } = {}) {
     const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: openNeeds('dashboard'), compact: true });
     const behind = dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
       needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
-      rules: homeRules(p.spec),
-      capacity: homeCapacity(p.capacityForecast),
       quick: switching,
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
@@ -353,11 +354,12 @@ function render({ tab: switching = false } = {}) {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
     const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
+    const nothing = !itemsNeeds.questions.length && !itemsNeeds.approvals.length && !itemsNeeds.drafts;
     $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
     $('needs').tabIndex = -1;
-    store.paint($('needs'), itemsNeedsHtml(itemsNeeds, { open,
+    store.paint($('needs'), nothing ? needsPanel(needsModel, needsPresentation) : itemsNeedsHtml(itemsNeeds, { open,
       questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation),
-      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }) || needsPanel(needsModel, needsPresentation));
+      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }));
   }
   }
 
@@ -373,7 +375,6 @@ function render({ tab: switching = false } = {}) {
   $('add-specs').placeholder = (approved.length ? approved : p.spec).slice(0, 2).map((r) => r.id).join(',') || 'none yet';
   const q = $('q').value.trim().toLowerCase();
   const pipeline = view.itemsView === 'pipeline';
-  store.paint($('items-view-switch'), segmentedToggle({ label: 'Items view', attribute: 'data-items-view', value: view.itemsView, options: [{ value: 'list', label: 'List' }, { value: 'pipeline', label: 'Pipeline' }] }));
   $('item-list').hidden = pipeline;
   $('pipeline').hidden = !pipeline;
   // Each Show choice counts what it would show under the lane and the search. A search looks through every
@@ -389,31 +390,10 @@ function render({ tab: switching = false } = {}) {
     currentBoard: data.root === view.root, adding: view.adding,
     addressDetail: view.tab === 'items' ? view.addressDetail : null, tab: view.tab, snapshot });
   view.lane = itemsSelection.selectedLane;
-  const { matching, stateOptions, laneOptions, inView, shown, finishedUnderAll } = itemsSelection;
-  const stateButtons = stateOptions.map(({ value, label, count }) => '<button class="filter-option" role="menuitemradio" aria-checked="' + (view.state === value) + '" data-filter-choice="state:' + value + '" data-filter-kind="state" data-filter-value="' + value + '" data-state="' + value + '" type="button"><span class="filter-option-label">' + label + '</span><b>' + count + '</b></button>');
-  const laneButtons = laneOptions.map(({ value, label, count }) => '<button class="filter-option" role="menuitemradio" aria-checked="' + ((view.lane || '') === value) + '" data-filter-choice="lane:' + esc(value) + '" data-filter-kind="lane" data-filter-value="' + esc(value) + '" aria-label="' + esc(label) + (count === null ? '' : ' · ' + count) + '" title="' + esc(label) + (count === null ? '' : ' · ' + count) + '" type="button"><span class="filter-option-label">' + esc(label) + '</span>' + (count === null ? '' : '<b>' + count + '</b>') + '</button>');
-  const activeChoice = document.activeElement?.dataset?.filterChoice;
-  const menu = $('filter-menu');
-  store.paint(menu, (pipeline ? '' : '<section class="filter-group" role="group" aria-label="Show"><h3>Show</h3>' + stateButtons.join('') + '</section>')
-    + '<section class="filter-group" role="group" aria-label="Lane"><h3>Lane</h3>' + laneButtons.join('') + '</section>');
-  menu.hidden = !view.filterOpen;
-  menu.style.left = '0px';
-  menu.style.maxWidth = '';
-  if (view.filterOpen) {
-    // The open menu stays inside the toolbar, no wider than it and shifted left as far as it needs. The window's
-    // width is no measure of that room: it counts a classic scrollbar, so on CI's runners a menu kept inside the
-    // window still reached 10px past the toolbar (#442).
-    const bar = $('items-toolbar'), box = bar.getBoundingClientRect(), left = box.left + bar.clientLeft, right = left + bar.clientWidth;
-    menu.style.maxWidth = Math.min(320, bar.clientWidth) + 'px';
-    const at = menu.getBoundingClientRect();
-    menu.style.left = Math.max(left - at.left, Math.min(0, right - at.right)) + 'px';
-  }
-  $('filter-toggle').setAttribute('aria-expanded', String(view.filterOpen));
-  const filterLabel = itemsSelection.filterLabel;
-  $('filter-label').textContent = filterLabel;
-  $('filter-toggle').setAttribute('aria-label', filterLabel);
-  $('filter-toggle').title = filterLabel;
-  if (view.filterOpen && activeChoice) [...menu.querySelectorAll('[data-filter-choice]')].find((option) => option.dataset.filterChoice === activeChoice)?.focus({ preventScroll: true });
+  const { matching, laneOptions, inView, shown, finishedUnderAll } = itemsSelection;
+  // The lanes the strip's Lane control offers, with each one's count under the shown state (Filters live in the strip).
+  const lanesKey = JSON.stringify(laneOptions.map(({ value, count }) => [value, count]));
+  if (view.itemLanesKey !== lanesKey) { view.itemLanesKey = lanesKey; view.itemLanes = laneOptions; drawPageControls(); }
   store.paint($('pipeline'), pipeline ? pipelineCard(shown) : '');
   const { nextSelectedId } = itemsSelection;
   if (nextSelectedId !== view.item) view.item = nextSelectedId;
@@ -453,18 +433,23 @@ function render({ tab: switching = false } = {}) {
   if (!selected) store.paint($('detail'), '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>');
   const opened = selected && !view.adding ? detailOf(p, selected, view.tab === 'items' && data.root === view.root) : null;
   /** An item's heading: its id, title, state, lane and route, all of which its summary holds. */
-  const head = (item, s = stateOf(item)) => '<div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p)) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>';
+  /** The opened item's header, drawn the same while its detail loads and once it has arrived: lane, size and milestone as chips, then its state and holder as chips (#6769). */
+  const panelHead = (item, more = '') => {
+    const holder = holderOf(item) || reviewerOf(item);
+    const holderChip = holder ? '<span class="chip holder" title="' + esc((stateOf(item) === 'verify' ? 'Reviewing: ' : 'Building: ') + agentName(holder)) + '">' + esc(agentName(holder)) + '</span>' : '';
+    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
+    return '<header class="item-panel-head"><div class="item-panel-where">' + where.map(part => '<span class="chip">' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">'
+      + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p), false, false, Boolean(holderChip)) + holderChip + more + '</div></header>';
+  };
   if (opened?.error) store.paint($('detail'), '<div class="stack"><p class="detail-wait muted" role="status">Could not load #' + selected.id + ': ' + esc(opened.error) + '</p></div>');
   // Until its omitted fields arrive, an opened item paints its heading from its summary and fills the rest in place (#1039).
-  else if (opened?.loading) store.paint($('detail'), '<div class="stack" aria-busy="true">' + head(selected) + '</div>');
+  else if (opened?.loading) store.paint($('detail'), '<div class="item-panel" aria-busy="true">' + panelHead(selected) + '</div>');
   const item = opened?.item;
   if (item) {
     const s = stateOf(item);
     const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
     const baseline = item.checkBaseline;
     const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
-    /** Render the item's lane, route and current milestone in the approved plain header. */
-    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
     /** Parse a single named test case only from the recorded check or its baseline evidence. */
     const namedCase = (() => {
       const pattern = /--test-name-pattern(?:=|\\s+)(?:"([^"]+)"|'([^']+)'|([^\\s;]+))/u.exec(item.check || '');
@@ -506,8 +491,7 @@ function render({ tab: switching = false } = {}) {
     const passedCount = verdicts.filter(verdict => verdict.decision === 'ACCEPT').length;
     const backCount = verdicts.length - passedCount;
     const panelChoice = view.itemPanel?.root === view.root && view.itemPanel.item === item.id ? view.itemPanel.tab : 'overview';
-    const statusChips = stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p))
-      + (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
+    const statusChips = (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
       + overlapHtml(data.claimOverlaps, item.id)
       + (item.builtBy ? '<span class="chip">Built by ' + esc(agentName(item.builtBy)) + '</span>' : '')
       + (item.commit ? '<span class="item-head-hash">at ' + hashButton(item.commit) + '</span>' : '');
@@ -557,7 +541,7 @@ function render({ tab: switching = false } = {}) {
     const moreHistory = historyCount > 5 ? '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + historyCount + '" aria-expanded="' + historyOpen + '">' + (historyOpen ? 'Show less' : 'Show all ' + historyCount) + '</button>' : '';
     /** Render one accessible tab with the selected tab's native count. */
     const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '<span class="seg-hit seg-hit-top" aria-hidden="true"></span><span class="seg-hit seg-hit-bottom" aria-hidden="true"></span></button>';
-    store.paint($('detail'), '<div class="item-panel"><header class="item-panel-head"><div class="item-panel-where">' + where.map((part, index) => (index ? '<span class="sep">·</span>' : '') + '<span>' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">' + statusChips + '</div></header>'
+    store.paint($('detail'), '<div class="item-panel">' + panelHead(item, statusChips)
       + '<div class="seg item-panel-tabs" role="tablist" aria-label="Item details">' + panelTab('overview', 'Overview', null) + panelTab('verdicts', 'Verdicts', verdicts.length) + panelTab('history', 'History', historyCount) + '</div>'
       + '<section class="item-panel-section" id="item-panel-panel-overview" role="tabpanel" aria-labelledby="item-panel-tab-overview"' + (panelChoice === 'overview' ? '' : ' hidden') + ' data-item-panel-panel="overview">'
       + '<div class="item-panel-section-head"><p class="label">Latest verdict</p><span class="item-panel-count">Passed ' + passedCount + ' ' + (passedCount === 1 ? 'time' : 'times') + ' · sent back ' + backCount + '</span></div>' + latest
@@ -701,7 +685,8 @@ function render({ tab: switching = false } = {}) {
     return { id: item.id, status: item.status, holder: holderOf(item), reviewer: reviewerOf(item), builtBy: item.builtBy,
       state, since: item.since, ageHtml: item.since ? '<time data-ago="' + esc(item.since) + '">' + ago(item.since) + '</time>' : '', stale: Boolean(stale), titleTextHtml: esc(item.title), titleHtml: rich(item.title, titles),
       stateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)),
-      briefStateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)) };
+      // The agent's row already names the agent, so its stage chip drops the "by <agent>" detail; hover still carries it.
+      briefStateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p), false, false, true) };
   });
   const agentRows = p.agents.map((agent) => {
     const isLead = lead(agent.agent_id);
@@ -814,6 +799,7 @@ function render({ tab: switching = false } = {}) {
   if (keep('pb.flow') === 'shown') store.paint($('flow'), lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length));
   store.paint($('activity-filters'), activityFilters(activityModel(p, { words: activityWords }), view.activityFilter || 'all'));
   const activity = $('activity');
+  { const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions(); $('activity-compare').innerHTML = comparisonHtml(p.statsComparison ?? null, { locale, timeZone }); }
   const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
   activity.dataset.boardRoot = p.root;
   const activityTime = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });

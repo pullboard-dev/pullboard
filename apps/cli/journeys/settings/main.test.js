@@ -47,7 +47,7 @@ test('the Settings page lists every setting by scope from the settings API and e
     const inventory = await reply.json();
     const before = box.run(alpha.repo, 'export', '--json');
     const config = readFileSync(join(alpha.repo, 'pullboard.json'), 'utf8');
-    assert.match(page.html, /data-tab="settings"[^>]*>Settings</u, 'Settings is reachable from the board navigation');
+    assert.match(page.html, /row\('data-tab="settings"', 'Settings'/u, 'Settings is reachable from the account menu');
     await page.click({ root: alpha.repo });
     await page.click({ tab: 'settings' });
     for (const scope of ['machine', 'repo', 'board']) {
@@ -99,13 +99,18 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
     const href = new URL(view.link.href); href.pathname = '/settings';
     chrome = await openSnapshotChrome(executable, href.href, profile);
     await chrome.waitFor('view.tab === "settings" && !document.querySelector("#settings-pane").hidden');
+    // Settings now lives in the account menu, which draws its rows when it opens.
+    await press(chrome, 'document.querySelector("#account")');
     const footer = await chrome.stable(`(() => {
       const button = document.querySelector('#side [data-tab="settings"]');
-      return { bottom: button?.closest('.side-footer') === document.querySelector('#side').lastElementChild,
-        github: Boolean(button?.parentElement.querySelector('a[href*="github.com"]')),
+      return { menu: Boolean(document.querySelector('#account-menu [data-tab="settings"]')),
+        github: Boolean(document.querySelector('#side').lastElementChild.matches('.side-footer') && document.querySelector('#side .side-footer a[href*="github.com"]')),
         top: Boolean(document.querySelector('.side-body [data-tab="settings"]')) };
     })()`);
-    assert.deepEqual(footer, { bottom: true, github: true, top: false });
+    assert.deepEqual(footer, { menu: true, github: true, top: false });
+    // The open account menu covers the scope controls, so close it before pressing them.
+    await press(chrome, 'document.querySelector("#account")');
+    await chrome.waitFor('document.querySelector("#account-menu").hidden');
     await press(chrome, 'document.querySelector("[data-settings-scope=board]")');
     await press(chrome, 'document.querySelector("#settings-pane [data-settings-open]")');
     await press(chrome, 'document.querySelector("[data-settings-scope=repo]")');
@@ -161,11 +166,12 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
         assert.equal(scopes.length, 3);
         assert.ok(scopes.every(box => box.left >= 0 && box.right <= width && box.height >= 44), 'all three scopes remain reachable by touch at 320px');
 
-        await press(chrome, 'document.querySelector("#proj-switch")');
-        await press(chrome, 'document.querySelector("[data-proj-all]")');
-        const target = await chrome.stable(`(() => { const node = document.querySelector('#side [data-tab="settings"]'), box = node.getBoundingClientRect(); return { visible: getComputedStyle(node.parentElement).display !== 'none', left: box.left, right: box.right, height: box.height, bottom: box.bottom }; })()`);
-        assert.ok(target.visible && target.left >= 0 && target.right <= width && target.height >= 44 && target.bottom <= 900, 'the bottom Settings entry is reachable by touch at 320px');
-        await press(chrome, 'document.querySelector("#proj-switch")');
+        await press(chrome, 'document.querySelector("#account")');
+        await chrome.waitFor('!document.querySelector("#account-menu").hidden');
+        const target = await chrome.stable(`(() => { const node = document.querySelector('#account-menu [data-tab="settings"]'), box = node.getBoundingClientRect(); return { visible: getComputedStyle(node).display !== 'none', left: box.left, right: box.right, height: box.height, bottom: box.bottom }; })()`);
+        assert.ok(target.visible && target.left >= 0 && target.right <= width && target.height >= 44 && target.bottom <= 900, 'the account menu Settings row is reachable by touch at 320px');
+        await press(chrome, 'document.querySelector("#account")');
+        await chrome.waitFor('document.querySelector("#account-menu").hidden');
       }
       if (process.env.PULLBOARD_SETTINGS_SCREENSHOTS) {
         mkdirSync(process.env.PULLBOARD_SETTINGS_SCREENSHOTS, { recursive: true });
