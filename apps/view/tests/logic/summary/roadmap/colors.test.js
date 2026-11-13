@@ -69,7 +69,7 @@ test('every stage color in the view resolves to its token, never a literal or a 
     [/\.dot\.building\b[^{]*\{[^}]*\}/, 'stage-building'], [/\.dot\.verify\b[^{]*\{[^}]*\}/, 'stage-review'],
     [/\.dot\.verified\b[^{]*\{[^}]*\}/, 'stage-merged'], [/\.dot\.back\b[^{]*\{[^}]*\}/, 'mark-back'],
     [/\.roadmap-step\.busy\s*\{[^}]*\}/, 'stage-building'], [/\.roadmap-step\.free\s*\{[^}]*\}/, 'stage-ready'],
-    [/\.dash-agent rect\.review\b[^{]*\{[^}]*\}/, 'stage-review'], [/\.cost-split > \.back[^{]*\{[^}]*\}/, 'mark-back'],
+    [/\.dash-lane rect\.review\b[^{]*\{[^}]*\}/, 'stage-review'], [/\.cost-split > \.back[^{]*\{[^}]*\}/, 'mark-back'],
     [/\.floor rect\.build\b[^{]*\{[^}]*\}/, 'stage-building'], [/\.floor rect\.review\b[^{]*\{[^}]*\}/, 'stage-review'],
     [/\.floor-chip\.build\s*\{[^}]*\}/, 'stage-building'], [/\.floor-chip\.review\s*\{[^}]*\}/, 'stage-review'],
     [/\.window-stage-build\s*\{[^}]*\}/, 'stage-building'], [/\.window-stage-review\s*\{[^}]*\}/, 'stage-review'], [/\.window-stage-land\s*\{[^}]*\}/, 'stage-merged'],

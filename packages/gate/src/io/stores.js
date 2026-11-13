@@ -132,6 +132,19 @@ export function storeBaselineGrowth(current, accepted) {
   return risen;
 }
 
+/**
+ * Stores whose owner the registry pins: the owner is the module that writes the store, so moving it needs the pin
+ * edited beside the row, in view of the reviewer. Why: the census picked owners by name count, and the three
+ * most-shared stores landed on readers (#6735).
+ *
+ * @param {{ stores: Record<string, { owner: string }>, pinned?: Record<string, string> }} registry
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function storeOwnerProblems(registry) {
+  return Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
+    : [{ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is pinned to ${owner}, not ${registry.stores[store]?.owner ?? 'no owner'}; the writer owns the store` }]);
+}
+
 /** Held-exception faults for the exceptions a change touches: its own files, or every row when the registry changed. */
 export function storeExceptionProblems(registry, files, today) {
   const all = files.includes(STORE_REGISTRY);
@@ -153,7 +166,7 @@ export function storeRegistryCheck({ files, sources, text, previous }, today = n
   let baseline;
   try { registry = JSON.parse(text(STORE_REGISTRY)); baseline = JSON.parse(text(STORE_BASELINE)); } catch { return []; } // no registry: not this repository
   const sites = sources.flatMap(row => storeSites(row.source, row.file));
-  const problems = [...storeGrowth(sites, registry, baseline, today), ...storeExceptionProblems(registry, files, today)];
+  const problems = [...storeGrowth(sites, registry, baseline, today), ...storeExceptionProblems(registry, files, today), ...storeOwnerProblems(registry)];
   if (files.includes(STORE_BASELINE) && previous(STORE_BASELINE)) problems.push(...storeBaselineGrowth(baseline, JSON.parse(previous(STORE_BASELINE))));
   return problems.map(row => `${row.path}:${row.line}: ${row.text}`);
 }
