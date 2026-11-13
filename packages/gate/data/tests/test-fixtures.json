@@ -595,7 +595,6 @@
     "tempdir": 9
   },
   "apps/cli/tests/fixtures/board.js": {
-    "tempdir": 1,
     "raw-board": 1
   },
   "apps/cli/tests/fixtures/board/link.js": {
@@ -628,9 +627,12 @@
     "tempdir": 2,
     "raw-board": 27
   },
-  "apps/cli/tests/fixtures/board/submit.js": {
+  "packages/store/tests/fixtures/submit.js": {
     "tempdir": 1,
     "hand-policy": 1
+  },
+  "packages/store/tests/fixtures/tmp.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/claim/latency.test.js": {
     "tempdir": 1,
@@ -1704,7 +1706,7 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "apps/cli/tests/fixtures/gate/file-pool.js": {
+  "packages/gate/tests/fixtures/file-pool.js": {
     "tempdir": 1,
     "hand-policy": 1
   },

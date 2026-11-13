@@ -10,7 +10,7 @@ import {
 
 test('a pull request carries a not-verified status while its commits lack second-agent proof [B3,R3]', async t => {
   const box = bridgeProject(t);
-  landBridgeItems(box);
+  await landBridgeItems(box);
   const provider = await bridgeProvider(t, box);
   const published = await runBridgeCLI(box, 'publish', '--json');
   assert.equal(published.code, 0, published.err);

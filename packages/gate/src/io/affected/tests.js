@@ -113,7 +113,10 @@ function selectionGit(root, args) {
   const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.quotepath=false', ...args], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 128 * 1024 * 1024,
   });
-  if (result.status !== 0) throw new Error('the committed import graph could not be read');
+  if (result.status !== 0) {
+    const why = String(result.stderr || '').trim().split('\n')[0].slice(0, 160);
+    throw new Error(`git ${args.find(arg => !arg.startsWith('-') && arg !== 'core.quotepath=false')} failed${why ? `: ${why}` : ''}, so the committed import graph could not be read`);
+  }
   return result.stdout;
 }
 
@@ -130,9 +133,10 @@ function modulesAt(root, commit, { completeGraph = true, prior } = {}) {
   if (manifest && (manifest.type !== 'blob' || manifest.mode === '120000')) throw new Error('the root package policy is not a regular tracked file');
   const policy = manifest ? JSON.parse(selectionGit(root, ['show', `${commit}:package.json`])) : {};
   if (completeGraph && entries.some(entry => entry.path.endsWith('.js'))) {
-    if (policy.type !== 'module' || tracked.some(entry => entry.path.endsWith('/package.json'))) {
-      throw new Error('CommonJS or nested package scopes cannot supply a complete ES-module import graph');
-    }
+    const nested = tracked.find(entry => entry.path.endsWith('/package.json'));
+    if (!manifest) throw new Error('there is no root package.json declaring "type": "module", so no ES-module import graph can be built');
+    if (policy.type !== 'module') throw new Error('the root package.json does not declare "type": "module", so no ES-module import graph can be built');
+    if (nested) throw new Error(`${nested.path} is a nested package scope, which cannot supply a complete ES-module import graph`);
   }
   if (entries.some(entry => entry.type !== 'blob' || entry.mode === '120000')) {
     throw new Error('a tracked module uses an unsupported file mode');
