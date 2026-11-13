@@ -138,21 +138,16 @@ export function gateSlotEnvironment(lease) {
   };
 }
 /** Resolve the local database for the requested scope. */
-function databaseFile(scope, root) {
+export function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');
   if (scope === 'machine') return machineResourceFile();
-  if (scope === 'repo') return repoResourceFile(repoInfo(root).commonDir);
+  if (scope === 'repo') return join(repoInfo(root).commonDir, 'pullboard', 'resources.sqlite');
   throw new Refused('BAD_RESOURCE_SCOPE', `unknown resource scope "${scope}"; use machine or repo`);
 }
 
-/** The database path for the machine-wide resource pool: the one place that names it (registry owner, #6736). */
-export function machineResourceFile() {
+/** Resolve the database path for the machine-wide resource pool. */
+function machineResourceFile() {
   return join(machineHome(), 'resources.sqlite');
-}
-
-/** The database path for a repository's resource pool under its git common directory. */
-export function repoResourceFile(commonDir) {
-  return join(commonDir, 'pullboard', 'resources.sqlite');
 }
 
 /** Canonicalize an absolute resource path without creating a missing foreign pool. */
