@@ -31,6 +31,9 @@ export function landJobs(box) {
   // @pullboard-board-file journey: a read-only look at the land jobs the real CLI and runner wrote.
   const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
   try {
+    // The loopback runner writes this board while a journey polls it, so a read waits out its write lock, never failing on it.
+    // budget: wait ceiling for one runner write transaction, never a speed assertion.
+    db.exec('PRAGMA busy_timeout = 10000');
     return db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
       const steps = db.prepare('SELECT job_step_name AS name, job_step_payload AS payload, job_step_at AS at FROM job_step WHERE job_step_job = ? ORDER BY job_step_seq, job_step_id').all(job.job_id);
       const offered = JSON.parse(steps.find(step => step.name === 'offered')?.payload ?? '{}');
