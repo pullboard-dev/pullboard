@@ -1,5 +1,5 @@
 /** Shared real Git landing setup for independently scheduled suites [B3,R3]. */
-import { fixtureSwitchSource } from '../runner/local-start.js';
+import { fixtureSwitchSource } from '../runner/switches.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,

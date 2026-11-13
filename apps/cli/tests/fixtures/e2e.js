@@ -30,7 +30,7 @@ import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { reviveFixtureLocalRunner } from './runner/local-start.js';
-import { runnerSwitchedEnv } from './runner/local-start.js';
+import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
 import { runCliSync } from './sync/cli.js';
 import { fetchPrintedViewLink } from './view/link.js';
