@@ -301,15 +301,20 @@ async function json(box, cwd, command, args = [], subcommand) {
     assert.match(result.stderr, /^(?:pullboard test: load \d+(?:\.\d+)? on \d+ cores; waiting for it to drop under \d+ before a local start\n)*$/, 'test --json permits only the load wait notice on stderr');
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
-  assertRequiredShape(document, shapeFor(command, subcommand).required, command);
-  // A pull submit returns queued at once; the machine's local runner posts the gate receipt, so wait for the item to leave claimed.
+  // A pull submit returns queued at once (item, commit, gateJob); the machine's local runner posts the gate receipt, so wait
+  // for the item to leave claimed and read the gate from the settled receipt instead of the inline result.
   if (command === 'submit' && document.queued) {
+    shapeFor(command, subcommand); // marks the command as exercised; its inline-result fields (id, pin, gate) come from the settled receipt below
+    assertRequiredShape(document, ['item', 'commit', 'gateJob', 'queued'], 'queued submit');
     if (document.localRunner?.pid) LOCAL_RUNNERS.push(document.localRunner.pid);
-    await whenRunnerSettles(box.env, async () => {
+    const settled = await whenRunnerSettles(box.env, async () => {
       const shown = await box.runLocal(cwd, 'show', String(document.item), '--json', '--no-next');
-      return shown.status === 0 && JSON.parse(shown.stdout).item_status !== 'claimed';
+      const read = shown.status === 0 ? JSON.parse(shown.stdout) : null;
+      return read && read.item_status !== 'claimed' ? read : null;
     }, { deadlineMs: 120_000, what: `the pulled gate of #${document.item}` });
+    return { ...document, id: document.item, gate: settled.gateJob?.gate ?? null };
   }
+  assertRequiredShape(document, shapeFor(command, subcommand).required, command);
   return document;
 }
 
@@ -1042,7 +1047,7 @@ catalogCase('[A1] intake records a real outside pull request through the CLI', a
   assert.equal(document.item.item_commit, box.commit);
 });
 
-catalogCase('[A1,C7] test runs named test files and reports where they ran', async () => {
+catalogCase('[A1,C7] test runs named test files as a pulled job and reports the runner', async () => {
   const box = await project();
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }, null, 2)); // this file's own runner must not nest it
@@ -1053,7 +1058,7 @@ catalogCase('[A1,C7] test runs named test files and reports where they ran', asy
   const result = await json(box, box.repo, 'test', ['test/catalog.test.js']);
   assert.equal(result.green, true);
   assert.deepEqual(result.files, ['test/catalog.test.js']);
-  assert.equal(result.runner, 'this machine', 'with no runner registered the files run here');
+  assert.match(result.runner, /^local-/u, 'the pulled job runs on the machine\'s loopback runner, which the settled receipt names');
   assert.deepEqual(result.counts, { passed: 1, failed: 0, skipped: 0 });
   assert.match(readFileSync(result.logPath, 'utf8'), /^ok 1 - catalog passes/mu,
     'the actual TAP is retained in the complete log instead of the public summary');
