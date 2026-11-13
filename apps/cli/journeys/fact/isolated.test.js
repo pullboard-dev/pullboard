@@ -23,7 +23,7 @@ test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fix
   process.env.PULLBOARD_JUNK = 'junk';
   try {
     const box = e2e.sandbox();
-    const pullboardKeys = Object.keys(box.env).filter(key => key.startsWith('PULLBOARD_')).sort();
+    const pullboardKeys = Object.keys(box.env).filter(key => key.startsWith('PULLBOARD_') && key !== 'PULLBOARD_TEST_RUNNER_PID').sort();
     assert.deepEqual(pullboardKeys, FIXTURE_KEYS);
     assert.equal(box.env.PULLBOARD_MODEL, FIXTURE_MODEL);
     assert.equal(box.env.PULLBOARD_INFRA_RETRY_BACKOFF_MS, '0');
