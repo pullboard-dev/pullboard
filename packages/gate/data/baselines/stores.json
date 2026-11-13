@@ -10,6 +10,7 @@
   ],
   "pinned": {
     "board.sqlite": "packages/store/src/io/board/sqlite.js",
+    "resources.sqlite": "packages/resources/src/io/main.js",
     "table:board_meta": "packages/store/src/io/board/meta.js"
   },
   "outsideWriters": {
@@ -738,7 +739,7 @@
     },
     "resources.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/config/src/io/settings/inventory.js"
+      "owner": "packages/resources/src/io/main.js"
     },
     "result.json": {
       "kind": "json",

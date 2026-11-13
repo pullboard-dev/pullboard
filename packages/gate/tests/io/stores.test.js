@@ -78,6 +78,23 @@ test('clause 1: an exception needs the person\'s exact approval and an unexpired
   assert.ok(unsigned.some(line => /needs the person's answer: approve store exception/u.test(line)));
 });
 
+test('clause 1: resources.sqlite is owned by the module that writes it, and a read-only file as owner is refused [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  assert.equal(registry.stores['resources.sqlite'].owner, 'packages/resources/src/io/main.js');
+  assert.deepEqual(storeOwnerProblems(registry), []);
+  const reader = { ...registry, stores: { ...registry.stores, 'resources.sqlite': { kind: 'sqlite', owner: 'packages/config/src/io/settings/inventory.js' } } };
+  assert.match(storeOwnerProblems(reader)[0].text, /CD2_STORE_OWNER: resources\.sqlite is pinned to packages\/resources\/src\/io\/main\.js, not packages\/config\/src\/io\/settings\/inventory\.js/u);
+  assert.match(judge({ [OTHER]: 'export const x = 1;' }, { registry: reader })[0], /CD2_STORE_OWNER: resources\.sqlite/u);
+});
+
+test('clause 2: the recount under --ratchet raises no per-file ceiling once the settings inventory asks the resources module for its paths [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  const recount = tightenStoreBaseline(storeReport(ROOT), registry, baseline);
+  assert.deepEqual(storeBaselineGrowth(recount, baseline), []);
+  assert.equal(recount['packages/config/src/io/settings/inventory.js']?.['resources.sqlite'], undefined);
+});
+
 test('clause 2: the store baseline may only fall: a risen or new ceiling refuses, a fall passes [CD2]', () => {
   const accepted = { [OTHER]: { 'main-red.json': 2 } };
   assert.deepEqual(storeBaselineGrowth({ [OTHER]: { 'main-red.json': 1 } }, accepted), []);
