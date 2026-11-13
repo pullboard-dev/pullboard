@@ -18,7 +18,7 @@ test('a sent-back item shows why first [N26]', async () => {
   const p = project(box, 'shop');
   await box.inProcess(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets by name', '--brief', 'Files: web/greeting.html');
   await box.inProcess(p.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye', '--brief', 'Files: web/farewell.html');
-  await box.inProcess(p.repo, 'add', 'web', 'Heading', '--specs', 'G1', '--criterion', 'has a heading', '--brief', 'Files: web/heading.html');
+  await box.inProcess(p.repo, 'add', 'web', 'Heading', '--specs', 'G1', '--criterion', 'has a heading', '--brief', 'Files: web/heading.html', '--not-duplicate-of', '1 a different page');
   build(box, p, 1, 'greeting.html');
   sendBack(box, p, 1, 'no <b>greeting</b> on the page\nsecond line of the note');
   build(box, p, 2, 'farewell.html');
@@ -29,8 +29,8 @@ test('a sent-back item shows why first [N26]', async () => {
   build(box, p, 3, 'heading-again.html');
   accept(box, p, 3);
   // Two more ways to be sent back and not verified: withdrawn after the reject, and being reworked.
-  await box.inProcess(p.repo, 'add', 'web', 'Banner', '--specs', 'G1', '--criterion', 'shows a banner', '--brief', 'Files: web/banner.html');
-  await box.inProcess(p.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'shows a footer', '--brief', 'Files: web/footer.html');
+  await box.inProcess(p.repo, 'add', 'web', 'Banner', '--specs', 'G1', '--criterion', 'shows a banner', '--brief', 'Files: web/banner.html', '--not-duplicate-of', '1 a different page');
+  await box.inProcess(p.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'shows a footer', '--brief', 'Files: web/footer.html', '--not-duplicate-of', '1 a different page');
   build(box, p, 4, 'banner.html');
   sendBack(box, p, 4, 'the banner covers the heading');
   await box.inProcess(p.repo, 'withdraw', '4', 'the banner is dropped');

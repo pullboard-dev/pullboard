@@ -29,7 +29,6 @@ import {
 
 import { pipelineBoard } from '../../../tests/fixtures/cockpit/pipeline.js';
 import { installPipelinePressDiagnostics } from '../../../tests/fixtures/cockpit/pipeline.js';
-import { waitForPipelineItem } from '../../../tests/fixtures/cockpit/pipeline.js';
 
 /** A real card press records click delivery, Pipeline redraws and address selection under CPU throttling [N26,N38,C7]. */
 test('the pipeline opens the clicked item under a 6× CPU throttle [N26,N38,C7]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for one browser journey at the declared 6× CPU load.
