@@ -14,8 +14,8 @@ import { loadedToolingFiles } from '../tooling/remote.js';
 import { probeRunnerJob } from '../health.js';
 import { watchSource } from './observe.js';
 import { spawn } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { scratchRoot } from '../../../../config/index.js';
 
 /** Run one short controller mode and return its decoded answer, with the controller's own refusal and drop shapes. */
 async function shortController(mode, payload, { root, runner, signal }) {
@@ -23,7 +23,7 @@ async function shortController(mode, payload, { root, runner, signal }) {
   try {
     if (!installation) loadedToolingFiles({ rescan: false });
     const entry = installation?.entry ?? fileURLToPath(new URL('../../../../../apps/runner/src/io/controller.js', import.meta.url));
-    const child = spawn(process.execPath, [entry, '--pullboard-runner-controller', mode], { cwd: mode === '--submit' ? root : tmpdir(), stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [entry, '--pullboard-runner-controller', mode], { cwd: mode === '--submit' ? root : scratchRoot(), stdio: ['pipe', 'pipe', 'pipe'] });
     const output = [], diagnostics = [];
     let bytes = 0, error;
     const stop = () => child.kill('SIGTERM');
