@@ -99,7 +99,7 @@ function landing(box, id, submit, commit, files, diagnostics = [], green = false
   }));
 }
 
-test('a landing escape is proposed as a submit invariant [C7,V4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
+test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
   const box = e2e.project('node --test web/page.test.js');
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -126,8 +126,9 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', { skip: 'CONT
   assert.ok(submit.submissionProof, 'the actual submit event retains the selected files instead of relying on its human note');
   assert.equal(submit.submissionProof.full, false);
   assert.deepEqual(submit.submissionProof.files, ['web/page.test.js']);
-  assert.equal(submit.submissionProof.reason, '');
-  assert.equal(submit.submissionProof.deferred, true);
+  // The pulled gate job's receipt is the proof: it names its job, and a pulled gate defers nothing to landing [P7,C7].
+  assert.match(submit.submissionProof.reason, /^pulled gate job /u);
+  assert.equal(submit.submissionProof.deferred, false);
   assert.equal(submit.submissionProof.version, 1);
 
   const first = 'a'.repeat(40);

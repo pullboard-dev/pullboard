@@ -29,7 +29,6 @@ import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
-import { jobsOf } from '../../../../packages/jobs/index.js';
 import { reviveFixtureLocalRunner } from './runner/local-start.js';
 import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
@@ -90,34 +89,6 @@ export function settlePulledJobs(cwd, args, env) {
     if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
-}
-
-/**
- * A settled queued submit's --json output with its gate job's receipt gate under `gate`, the shape the inline gate printed.
- * Why: #6832 deleted the inline gate, so a journey that reads `gate` from its submit reads the pulled gate's verdict here,
- * from the job row the loopback runner wrote, instead of each journey re-reading it.
- *
- * @param {string} cwd - Where the submit ran.
- * @param {string[]} args - The command's arguments.
- * @param {object} env - The fixture environment.
- * @param {string} out - The submit's stdout.
- * @returns {string} The output, with `gate` added when the settled job has a receipt.
- */
-function settledSubmitOutput(cwd, args, env, out) {
-  if (args[0] !== 'submit' || !args.includes('--json') || env.PULLBOARD_FIXTURE_UNSETTLED === '1') return out;
-  let doc;
-  try { doc = JSON.parse(out); } catch { return out; }
-  if (!doc?.queued || !doc.gateJob || doc.gate) return out;
-  const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
-  const file = common.status === 0 ? join(common.stdout.trim(), 'pullboard', 'board.sqlite') : '';
-  if (!file || !existsSync(file)) return out;
-  // @pullboard-board-file journey: a read-only look at the receipt step the loopback runner posted.
-  const db = new DatabaseSync(file, { readOnly: true });
-  try {
-    const job = jobsOf(db, { kind: 'gate', item: doc.item }).find(row => row.id === doc.gateJob);
-    const gate = job?.steps.find(step => step.name === 'receipt')?.payload?.receipt?.gate;
-    return gate ? JSON.stringify({ ...doc, gate }) + '\n' : out;
-  } catch { return out; } finally { db.close(); }
 }
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
@@ -210,8 +181,7 @@ function sandbox({ declareFamilies = false } = {}) {
     prepare(cwd, args);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    const out = result.status === 0 ? settledSubmitOutput(cwd, args, env, result.stdout) : result.stdout;
-    return { code: result.status, out, err: result.failure ?? result.stderr, failure: result.failure };
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
   /** The same call as run in its own process without blocking this one, so a journey runs several CLI calls at once. */
   const runAsync = async (cwd, ...args) => {
@@ -225,8 +195,7 @@ function sandbox({ declareFamilies = false } = {}) {
     prepare(cwd, args);
     const result = await runCliInProcess(args, { cwd, env });
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    const out = result.status === 0 ? settledSubmitOutput(cwd, args, env, result.stdout) : result.stdout;
-    return { code: result.status, out, err: result.stderr, failure: null, status: result.status, stdout: out, stderr: result.stderr };
+    return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
   /** The same call as inProcess, answered synchronously by a warm worker thread, for synchronous setup such as project() [C7]. */
   const runSync = (cwd, ...args) => {

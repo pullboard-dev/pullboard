@@ -1,6 +1,5 @@
 /** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Real gate, item-check and verifier profiles parse emitted timings [C7,V10]. */
-import { copyFixtureRunner } from '../../../../packages/gate/tests/fixtures/copy.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import {
@@ -38,6 +37,7 @@ import { openBoard } from '../../../lib/index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js');
@@ -289,7 +289,7 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   assert.doesNotMatch(red.stdout, /slowest test files:/);
 });
 
-test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,V10]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
+test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,V10]', async t => {
   const box = await project();
   const projectConfig = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...projectConfig, verify: { policy: 'any', unrelatedTrunkMoves: false } }, null, 2) + '\n');
@@ -327,7 +327,11 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
 
   const submitted = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(submitted.status, 0, submitted.stderr || submitted.stdout);
-  const submission = JSON.parse(submitted.stdout);
+  // The submit queues a pulled gate job; its receipt's gate carries the profiles the runner wrote [P7,C7].
+  const submission = await settleSubmit(t, { repo: box.repo, env: box.env, run: async (cwd, ...args) => {
+    const result = await box.runLocal(cwd, ...args);
+    return { code: result.status, out: result.stdout, err: result.stderr };
+  } }, JSON.parse(submitted.stdout));
   assert.ok(submission.gate.check.profilePath && submission.gate.proofProfilePath, 'native submit retains both authentic phase profiles');
   for (const profilePath of [submission.gate.check.profilePath, submission.gate.proofProfilePath, submission.gate.profilePath]) {
     assert.ok(profilePath && existsSync(profilePath), `submit profile is retained: ${profilePath}`);
@@ -473,219 +477,4 @@ test('a timing profile keeps every selected file while its digest names only ten
   assert.deepEqual(crashProfile.files.map(file => file.path), ['timed/crash.test.js']);
   assert.ok(crashProfile.files[0].durationMs > 0, 'a crashed process has its measured file duration');
   assert.deepEqual(crashProfile.tests, [], 'the process wrapper is not an actual test case');
-});
-
-/** Start a private submit process and collect its separate streams until close. */
-function startProfiledSubmit(box, cwd) {
-  // process-level: submit queues behind the held slot and is timed as a process.
-  const child = spawn(process.execPath, [BIN, 'submit', '1', '--json'], {
-    cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const stdout = [];
-  const stderr = [];
-  child.stdout.on('data', chunk => stdout.push(chunk));
-  child.stderr.on('data', chunk => stderr.push(chunk));
-  const finished = new Promise(resolveFinished => child.once('close', (code, signal) => resolveFinished({
-    code, signal, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8'),
-  })));
-  finished.child = child;
-  return { child, finished };
-}
-
-/** Let one bounded timer settle while a private child or queue lease is cleaned up. */
-function waitProfileCleanup(ms) {
-  return new Promise(resolveCleanup => setTimeout(resolveCleanup, ms));
-}
-
-/** Copy the production runner's complete static import closure into the real fixture repo. */
-function copyProfileRunner(box) {
-  const source = resolve(import.meta.dirname, '../../../..');
-  mkdirSync(join(box.repo, 'bin'), { recursive: true });
-  const fixtureSource = join(box.repo, 'src');
-  if (existsSync(fixtureSource)) {
-    assert.deepEqual(readdirSync(fixtureSource), [], 'the profile fixture has no local source files to overwrite');
-  } else mkdirSync(fixtureSource, { recursive: true });
-  copyFixtureRunner(source, box.repo);
-}
-
-/** Run one real submission with an optional real machine-slot wait and await every owned child. */
-async function runProfileSubmission(box, queue) {
-  const holder = queue ? await occupyGateSlot(box, box.repo) : null;
-  const holderExited = holder
-    ? (holder.exitCode === null ? once(holder, 'exit') : Promise.resolve())
-    : null;
-  // The enclosing clock starts before the child, so it bounds the child's own recorded work and wait.
-  const startedAt = Date.now();
-  const submit = startProfiledSubmit(box, box.web);
-  const priorHome = process.env.PULLBOARD_HOME;
-  const priorMachineHome = process.env.PULLBOARD_MACHINE_HOME;
-  let queued = false;
-  let released = false;
-  let result;
-  process.env.PULLBOARD_HOME = box.home;
-  process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
-  try {
-    if (holder) {
-      // Wait for the child to join the real queue, bounded by the same ceiling as the submission itself, not a fixed poll count.
-      while (Date.now() - startedAt < 60_000) {
-        queued = listResources({ scope: 'machine', root: box.repo })
-          .find(resource => resource.name === 'gate')?.line.some(waiter => waiter.agent !== 'profile-test-holder') ?? false;
-        if (queued || submit.child.exitCode !== null) break;
-        await waitProfileCleanup(25);
-      }
-      if (queued) await waitProfileCleanup(300);
-      if (holder.exitCode === null) {
-        released = true;
-        holder.stdin.end('release\n');
-      }
-    }
-    let timer;
-    try {
-      const terminal = Promise.race([
-        submit.finished,
-        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('private profile submit exceeded 60 seconds')), 60_000); }), // budget: hang ceiling for private submission completion; no throughput claim.
-      ]).catch(async error => {
-        if (submit.child.exitCode === null && submit.child.signalCode === null) submit.child.kill('SIGTERM');
-        await submit.finished;
-        throw error;
-      });
-      terminal.child = submit.child;
-      result = await awaitNestedRun(terminal);
-    } finally {
-      clearTimeout(timer);
-    }
-  } finally {
-    if (priorHome === undefined) delete process.env.PULLBOARD_HOME;
-    else process.env.PULLBOARD_HOME = priorHome;
-    if (priorMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
-    else process.env.PULLBOARD_MACHINE_HOME = priorMachineHome;
-    if (holder && holder.exitCode === null) {
-      if (!released) holder.stdin.end('release\n');
-      await Promise.race([holderExited, waitProfileCleanup(2_000)]);
-      if (holder.exitCode === null) holder.kill('SIGTERM');
-      if (holder.exitCode === null) await holderExited;
-    }
-    if (submit.child.exitCode === null && submit.child.signalCode === null) {
-      submit.child.kill('SIGTERM');
-      await submit.finished;
-    }
-  }
-  return { result, queued, elapsedMs: Date.now() - startedAt };
-}
-
-test('a submit timing profile records both phases and one queue wait for selected and full proofs [C7,V4,V16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
-  for (const scenario of [
-    { name: 'affected subset', full: false, queue: true },
-    { name: 'full fallback', full: true, queue: false },
-  ]) {
-    const box = await project();
-    const trace = join(box.dir, `${scenario.name.replaceAll(' ', '-')}.trace`);
-    box.env.PROFILE_TRACE = trace;
-    mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false, runnersOnly: false } }));
-    const checkCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js';
-    // Select the same three private bodies while the copied runtime remains the unchanged production runner.
-    const gateCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
-    writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ type: 'module' }));
-    copyProfileRunner(box);
-    mkdirSync(join(box.repo, 'timed'), { recursive: true });
-    mkdirSync(join(box.repo, 'api'), { recursive: true });
-    mkdirSync(join(box.repo, 'web'), { recursive: true });
-    writeFileSync(join(box.repo, 'timed/check.test.js'), [
-      "import { appendFileSync } from 'node:fs';",
-      "import { test } from 'node:test';",
-      "test('frozen check profile sample [C7]', async () => {",
-      "  appendFileSync(process.env.PROFILE_TRACE, 'check\\n');",
-      '  await new Promise(resolve => setTimeout(resolve, 70));',
-      '});',
-    ].join('\n') + '\n');
-    writeFileSync(join(box.repo, 'web/value.js'), 'export const value = 7;\n');
-    writeFileSync(join(box.repo, 'web/affected.test.js'), [
-      "import assert from 'node:assert/strict';",
-      "import { appendFileSync } from 'node:fs';",
-      "import { test } from 'node:test';",
-      "import { value } from './value.js';",
-      "test('affected proof profile sample [C7]', () => {",
-      "  appendFileSync(process.env.PROFILE_TRACE, 'web\\n');",
-      '  assert.equal(value, 7);',
-      '});',
-    ].join('\n') + '\n');
-    writeFileSync(join(box.repo, 'api/untouched.test.js'), [
-      "import assert from 'node:assert/strict';",
-      "import { appendFileSync } from 'node:fs';",
-      "import { test } from 'node:test';",
-      "test('unaffected proof profile sample [C7]', () => {",
-      "  appendFileSync(process.env.PROFILE_TRACE, 'api\\n');",
-      '  assert.equal(1, 1);',
-      '});',
-    ].join('\n') + '\n');
-    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node apps/cli/src/io/run/tests.js' }) }, null, 2));
-    box.git(box.repo, 'add', '-A');
-    // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
-    box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
-    box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-    const added = await fixtureAdd(box.runLocal, box.repo, 'web', `Profile ${scenario.name}`, '--specs', 'G1',
-      '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
-    assert.equal(added.status, 0, added.stderr || added.stdout);
-    const claimedTwo = await box.runLocal(box.web, 'claim', '1');
-    assert.equal(claimedTwo.status, 0, `${claimedTwo.stdout}${claimedTwo.stderr}`);
-    writeFileSync(trace, ''); // Ignore the real --wait baseline execution in submission counts.
-    writeFileSync(join(box.web, 'web/value.js'), 'export const value = 7; // changed lane module\n');
-    if (scenario.full) writeFileSync(join(box.web, 'web/README.txt'), 'unsupported path forces the configured gate\n');
-    featureCommit(box, box.web);
-
-    const submission = await runProfileSubmission(box, scenario.queue);
-    assert.equal(submission.result.code, 0, submission.result.stderr || submission.result.stdout);
-    assert.equal(submission.queued, scenario.queue, `${scenario.name} observes only the planned real gate wait`);
-    const receipt = JSON.parse(submission.result.stdout);
-    const gate = receipt.gate;
-    assert.equal(gate.green, true);
-    assert.equal(gate.full, scenario.full);
-    assert.equal(gate.check.green, true);
-    assert.equal(gate.check.checked, true);
-    assert.equal(gate.check.command, checkCommand);
-    assert.equal(gate.reason === '', !scenario.full);
-    // The check's own file is named by the bar, and a no-runner project's default runner does not match the check's runner prefix, so the proof names it too.
-    if (scenario.full) assert.deepEqual(gate.files, ['timed/check.test.js']);
-    if (!scenario.full) assert.deepEqual(gate.files, ['web/affected.test.js']);
-    if (scenario.full) assert.match(gate.reason, /affected-test selection is not enabled/u);
-
-    assert.ok(gate.check.log.endsWith('pullboard-submit.log.check.log'));
-    assert.equal(gate.check.profilePath, `${gate.check.log}.profile.json`);
-    assert.ok(existsSync(gate.check.log));
-    assert.ok(gate.proofLog.endsWith('pullboard-submit.log.proof.log'));
-    assert.equal(gate.proofProfilePath, `${gate.proofLog}.profile.json`);
-    assert.ok(existsSync(gate.proofLog));
-    assert.equal(gate.profilePath, `${gate.log}.profile.json`);
-    assert.ok(existsSync(gate.log));
-
-    const checkProfile = JSON.parse(readFileSync(gate.check.profilePath, 'utf8'));
-    if (scenario.queue) assert.ok(checkProfile.waitMs >= 100, `actual queued check waited ${checkProfile.waitMs}ms`); // budget: declared 300ms private queue hold must appear in the recorded wait.
-    const proofProfile = JSON.parse(readFileSync(gate.proofProfilePath, 'utf8'));
-    const combined = JSON.parse(readFileSync(gate.profilePath, 'utf8'));
-    assert.deepEqual(checkProfile.files, [], 'TAP test timings are not invented file measurements');
-    assert.equal(checkProfile.tests[0].name, 'frozen check profile sample [C7]');
-    assert.ok(checkProfile.tests[0].durationMs >= 50); // budget: declared 70ms frozen-check sleep must appear in its profile.
-    assert.deepEqual(proofProfile.files, []);
-    assert.deepEqual(proofProfile.tests.map(value => value.name).sort(), scenario.full
-      ? ['unaffected proof profile sample [C7]', 'frozen check profile sample [C7]', 'affected proof profile sample [C7]'].sort()
-      : ['affected proof profile sample [C7]']);
-    assert.equal(proofProfile.waitMs, 0, 'the second phase reuses the submission lease instead of queueing again');
-    assert.equal(combined.waitMs, checkProfile.waitMs, 'the combined profile records the real queue wait once');
-    assert.ok(combined.wallMs >= Math.max(checkProfile.wallMs, proofProfile.wallMs) - 25, // budget: measured check and proof phase durations; 25ms rounding allowance.
-      'the combined wall time covers the slower concurrent phase without adding their queue waits');
-    assert.ok(submission.elapsedMs + 50 >= combined.waitMs + combined.wallMs, // budget: measured combined wait/work against the enclosing clock; 50ms rounding allowance.
-      `${submission.elapsedMs}ms total vs ${combined.waitMs}ms one wait + ${combined.wallMs}ms combined work`);
-    assert.deepEqual(combined.files, []);
-    assert.ok(combined.tests.some(value => value.name === 'frozen check profile sample [C7]'));
-    assert.ok(combined.tests.some(value => value.name === 'affected proof profile sample [C7]'));
-    if (scenario.full) assert.ok(combined.tests.some(value => value.name === 'unaffected proof profile sample [C7]'));
-
-    const ran = readFileSync(trace, 'utf8').trim().split(/\r?\n/u).sort();
-    assert.equal(ran.filter(line => line === 'check').length, scenario.full ? 2 : 1,
-      'the item check runs once; a full fallback also includes that file in its test suite');
-    assert.equal(ran.filter(line => line === 'web').length, 1);
-    assert.equal(ran.filter(line => line === 'api').length, scenario.full ? 1 : 0,
-      'unaffected files run only when selection correctly falls back to the full gate');
-  }
 });
