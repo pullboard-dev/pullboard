@@ -237,6 +237,140 @@
       "owner": "packages/landing/src/io/prune.js"
     }
   },
+  "stems": {
+    "*-*.profile.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/execution.js"
+    },
+    "*-latest.json": {
+      "kind": "json",
+      "owner": "packages/git/src/io/check/receipts.js"
+    },
+    "*.blueprint.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/commands/blueprint.js",
+      "homes": {
+        "packages/blueprints/src/io/main.js": 1,
+        "packages/blueprints/src/io/set.js": 1
+      }
+    },
+    "*.failure.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/inventory.js",
+      "homes": {
+        "packages/gate/src/io/run-tests.js": 1
+      }
+    },
+    "*.guard.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/gate/src/io/refusal/trial.js"
+    },
+    "*.lease.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/link/src/io/relay/lock.js"
+    },
+    "*.lock.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/codemap/src/io/accepted.js",
+      "homes": {
+        "packages/seats/src/io/projects.js": 1
+      }
+    },
+    "*.owner-lock.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/gate/src/io/inventory.js"
+    },
+    "*.owner.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/inventory.js"
+    },
+    "*.presence.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/sentinels/src/io/surfaces.js",
+      "homes": {
+        "packages/store/src/io/presence.js": 1
+      }
+    },
+    "*.profile.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/submit.js",
+      "homes": {
+        "apps/runner/src/io/private/privacy.js": 1,
+        "packages/gate/src/io/execution.js": 1,
+        "packages/landing/src/io/land/envelope.js": 1,
+        "packages/landing/src/io/step/gate.js": 1
+      }
+    },
+    "*.ready.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/inventory.js"
+    },
+    "*.tap.json": {
+      "kind": "json",
+      "owner": "packages/gate/src/io/test/action/cache.js",
+      "homes": {
+        "packages/gate/src/io/test/action/reporter.js": 1
+      }
+    },
+    "*.worktrees.json": {
+      "kind": "json",
+      "owner": "packages/activity/src/io/observations.js"
+    },
+    ".cancelled-*.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/transport.js"
+    },
+    ".startup-*.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/transport.js"
+    },
+    "compare-*.json": {
+      "kind": "json",
+      "owner": "packages/verify/src/io/compare.js"
+    },
+    "compare-*.profile.json": {
+      "kind": "json",
+      "owner": "packages/verify/src/io/compare.js"
+    },
+    "exit-anchor-*.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/exit/rules.js"
+    },
+    "landing-worker-starts-*.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/gate/src/io/run-tests.js"
+    },
+    "reply-*.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/parser.js",
+      "homes": {
+        "packages/codemap/src/io/cell/parser/worker.js": 1,
+        "packages/runners/src/io/module/parser.js": 1,
+        "packages/runners/src/io/module/parser/worker.js": 1
+      }
+    },
+    "report-*.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/commits/src/io/contribution-clauses.js"
+    },
+    "request-*.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/cell/parser.js",
+      "homes": {
+        "packages/codemap/src/io/cell/parser/worker.js": 1,
+        "packages/runners/src/io/module/parser.js": 1,
+        "packages/runners/src/io/module/parser/worker.js": 1
+      }
+    },
+    "setup-*.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/setup.js"
+    },
+    "view-*.json": {
+      "kind": "json",
+      "owner": "apps/view/src/io/session.js"
+    }
+  },
   "stores": {
     ".journal.sqlite": {
       "kind": "sqlite",
