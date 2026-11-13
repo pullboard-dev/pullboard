@@ -154,11 +154,13 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await click('[data-tab="items"]');
       if (width <= 900) {
         await click('#proj-switch');
+        await click('[data-proj-all]');
         await chrome.waitFor("getComputedStyle(document.querySelector('#proj-list')).display !== 'none'");
         await checkLayout(width, 'open project list');
         await click(`[data-root="${other.repo}"]`);
         await chrome.waitFor("document.querySelector('#proj-name').textContent === 'other-demo'");
         await click('#proj-switch');
+        await click('[data-proj-all]');
         await click(`[data-root="${demo.repo}"]`);
         await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
         await click('[data-tab=items]');
@@ -225,7 +227,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       }
       await click('[data-tab="items"]');
 
-      await click('#new-item');
+      await click('[data-page-ctl=new]');
       await checkLayout(width, 'add form');
       await fill('#add-lane', 'web');
       await fill('#add-title', `Phone item ${width}`);

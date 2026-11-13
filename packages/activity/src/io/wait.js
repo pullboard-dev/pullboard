@@ -1,7 +1,7 @@
 /** Native file notifications share one wake generation without periodic polling [C7]. */
 import { existsSync } from 'node:fs';
 import { statSync } from 'node:fs';
-import { watch } from 'node:fs';
+import { watch as nativeWatch } from 'node:fs';
 import { dirname } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -10,10 +10,16 @@ import { fileURLToPath } from 'node:url';
 
 /** How long a wait sleeps before it re-stats its inputs in case a native event was lost. */
 const RECHECK_MS = 5000;
+/** Native events arriving within this window of the first one share a single refresh, so a burst of file changes costs one pass, not one per file [C7]. */
+const COALESCE_MS = 50;
+/** Passes start at least this many times their own cost apart, so file changes never keep more than about one fifth of the event loop busy [C7]. */
+const PACE = 4;
+/** The longest a burst of changes may defer the next pass, so a busy repository still wakes its waiters at least this often. */
+const MAX_GAP_MS = 2000;
 
-/** Watch exact inputs, including files created or replaced later, and retain changes across reads and waits. */
-export function fileChangeWaiter(paths) {
-  let targets = [], generation = 0, closed = false, failure = null;
+/** Watch exact inputs (tests may inject the native watch, the timer and the clock; weight names the milliseconds a wake costs its listeners), including files created or replaced later, and retain changes across reads and waits. */
+export function fileChangeWaiter(paths, { watch = nativeWatch, schedule = setTimeout, cancel = clearTimeout, weight = () => 0, now = Date.now } = {}) {
+  let targets = [], generation = 0, closed = false, failure = null, pending = null, gap = 0, endedAt = 0;
   const watchers = new Map(), listeners = new Set();
   let signatures = new Map();
   const fileWatchers = new Map();
@@ -34,6 +40,18 @@ export function fileChangeWaiter(paths) {
     generation += 1;
     for (const listener of [...listeners]) listener(failure);
   }
+  /** One refresh, snapshot and wake for every native event that arrives while a pass is already scheduled; the next pass waits out a gap scaled to what this one cost. */
+  function coalesced() {
+    if (closed || pending) return;
+    pending = schedule(() => {
+      pending = null;
+      if (closed) return;
+      const started = now();
+      try { refresh(); snapshot(); changed(); } catch (error) { changed(error); }
+      endedAt = now();
+      gap = Math.min(MAX_GAP_MS, PACE * (endedAt - started + Math.max(0, Number(weight()) || 0)));
+    }, Math.max(COALESCE_MS, gap - (now() - endedAt)));
+  }
   /** Bind the nearest existing parent so creation and atomic replacement remain observable. */
   function refresh() {
     if (closed) return;
@@ -52,7 +70,7 @@ export function fileChangeWaiter(paths) {
       const known = fileWatchers.get(target);
       if (known && known.ino !== ino) { known.watcher.close(); fileWatchers.delete(target); }
       if (ino === null || fileWatchers.has(target)) continue;
-      const entry = { ino, watcher: watch(target, () => { try { refresh(); snapshot(); changed(); } catch (error) { changed(error); } }) };
+      const entry = { ino, watcher: watch(target, coalesced) };
       entry.watcher.on('error', error => changed(error));
       fileWatchers.set(target, entry);
     }
@@ -62,7 +80,7 @@ export function fileChangeWaiter(paths) {
       const entry = { names, watcher: null };
       entry.watcher = watch(directory, (event, filename) => {
         if (filename !== null && !entry.names.has(String(filename).split(sep)[0])) return;
-        try { refresh(); snapshot(); changed(); } catch (error) { changed(error); }
+        coalesced();
       });
       entry.watcher.on('error', error => changed(error));
       watchers.set(directory, entry);
@@ -106,6 +124,7 @@ export function fileChangeWaiter(paths) {
   function close() {
     if (closed) return;
     closed = true;
+    if (pending) cancel(pending); pending = null;
     for (const entry of watchers.values()) entry.watcher.close();
     watchers.clear();
     for (const entry of fileWatchers.values()) entry.watcher.close();

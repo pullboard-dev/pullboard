@@ -61,6 +61,10 @@ test('clause 1: only explicit relay commands open outbound connections; the view
     // isIP only parses an address string for an explicit LAN view [H19]; it opens nothing.
     (file === 'apps/view/src/io/address.js' && line.trim() === "import { isIP } from 'node:net';") ||
     (file === 'packages/sync/src/io/local.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
+    // The runner pull transport is the named opt-in door: runners or pullboard serve dial it only when the person turns them on (on one machine it is localhost) [P7].
+    (file === 'packages/transport/src/io/pull/http.js' && /node:https?\b/u.test(line)) ||
+    // The remote-board client is an I/O adapter behind the board.url opt-in: the person sets board.url, so it may import node:http(s) [P7].
+    (file === 'apps/cli/src/io/remote/board.js' && /^import \{ request as https?Request \} from 'node:https?';$/u.test(line.trim())) ||
     // Scanners that name network calls in order to refuse them.
     (file === 'apps/view/src/io/coverage.js' && /^const BROWSER_CALLS = \/\\b\(\?:/u.test(line.trim())) ||
     (file === 'packages/gate/src/io/board/write.js' && line.trim() === "if (['fetch', 'WebSocket', 'EventSource', 'globalThis.fetch', 'globalThis.WebSocket', 'globalThis.EventSource'].includes(name)) {") ||
@@ -163,6 +167,7 @@ assert.deepEqual(globalThis.__localFetchRequests, [
   assert.match(viewSession, /redirect: 'manual'/, 'the local reuse probe cannot follow a remote redirect');
   const api = readFileSync(join(ROOT, "packages/api/src/io/main.js"), 'utf8');
   assert.match(api, /const ADDRESS = '127\.0\.0\.1';/);
-  assert.match(api, /server\.listen\(port, ADDRESS, /);
+  assert.match(api, /export function serveApi\(\{ port = 0, address = ADDRESS,/u, 'the API binds loopback unless serve.address names another address');
+  assert.match(api, /server\.listen\(port, address, /u, 'the listener uses only the selected address');
   assert.match(serve, /connect-src 'self'/, "the page may call nothing but its own server");
 });
