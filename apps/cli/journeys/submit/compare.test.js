@@ -30,6 +30,11 @@ import {
   runFixtureGit,
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
+import {
+  fixture as knownMain,
+  rows as knownMainRows,
+  settledSubmit as settledKnownMain,
+} from '../../tests/fixtures/affected.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
@@ -260,4 +265,15 @@ test('the default gate.mainComparison is on-red, so a red submit still compares 
   await comparisonStarted(box, submission, 'the default still starts the main comparison');
   writeFileSync(join(box.control, 'a.release'), 'release');
   await assertRed(box, submission);
+});
+
+test('with gate.mainComparison off a pulled red that also fails on main stays red and offers no main-test job [V4,C7,#7490]', async t => {
+  const box = knownMain(t);
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...saved, gate: { ...saved.gate, mainComparison: 'off' } }));
+  const report = await settledKnownMain(t, box, { submitted: false });
+  assert.equal(report.gate?.green, false, 'the pulled gate stays red: ' + JSON.stringify(report.gate));
+  assert.equal(knownMainRows(box, 'SELECT item_status FROM item WHERE item_id = ?', box.item)[0].item_status, 'claimed', 'the item stays claimed, not submitted');
+  assert.deepEqual(knownMainRows(box, "SELECT job_id FROM job WHERE job_kind = 'main-test'"), [], 'no main-test job is offered');
 });
