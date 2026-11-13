@@ -2,7 +2,7 @@
  * Render the approved Dashboard; all numbers come from its snapshot model, never mockup values [N26].
  * @param {object} model - The Dashboard snapshot model.
  * @param {object} options - Prepared person-facing cards and presentation settings.
- * @param {string} options.needs - Shared Needs-you markup.
+ * @param {string} options.needs - Shared Rulings markup.
  * @param {string} options.rules - Rules-card markup retained from the retired Home pane.
  * @param {string} options.needsHeader - Compact Needs navigation above its rows.
  * @param {string} options.capacity - Capacity-card markup retained from the retired Home pane.
@@ -24,6 +24,7 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
       review: '<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>',
       dots: '<path d="M4 8h.01M8 8h.01M12 8h.01"/>',
       ready: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5.5 6h5M5.5 9h3"/>',
+      check: '<path d="M3 8.5l3.2 3L13 4.5"/>',
       bolt: '<path d="M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z"/>',
       flag: '<path d="M3.5 14V2.5M3.5 3h8l-1.5 3 1.5 3h-8"/>',
     };
@@ -61,7 +62,10 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
   };
   const six = m.pace ? m.pace.last6h/6 : null, two = m.pace ? m.pace.last2h/2 : null;
   const hero = '<section class="dash-card dash-hero"><div><h1 title="Agents building, reviewing, or between items in the current board snapshot">'+m.totals.working+(m.totals.working===1?' agent at work.':' agents at work.')+'</h1><p class="dash-accent" title="Items landed during the last 24 hours">'+count(m.totals.day)+' landed in the last 24 hours.</p><div class="dash-chips"><span>'+icon('clock')+'Last 4 hours</span>'+[['recent','landed','land','Items landed during the last 4 hours'],['passed','passed review','pass','Recorded review acceptances during the last 4 hours'],['sentBack','sent back to fix','back','Recorded rejections and reopenings during the last 4 hours'],['shouts','shouts to you','msg','Shouts addressed to you during the last 4 hours']].map(heroChip).join('')+'</div></div><div class="dash-rate" title="Recorded item landings: hourly pace over the last 6 and 2 hours, and the all-time total"><b data-dashboard-stat="pace6" data-value="'+esc(six)+'">'+(six===null?'—':six.toFixed(1))+'</b> items an hour<small>today’s pace, the last 6 hours</small><small>'+(two===null?'—':two.toFixed(1))+' /h last 2 h · '+count(m.totals.allTime)+' landed all time</small></div><span class="visually-hidden" data-dashboard-stat="building" data-value="'+m.claims.length+'">'+m.claims.length+' building</span></section>';
-  const needsCard = '<section class="dash-card needs-card" aria-label="Needs you"><header class="needs-card-header"><h2>Needs you</h2>'+needsHeader+'</header>' + (needs ? '<ol class="needs home-needs">'+needs+'</ol>' : needsHeader ? '' : '<p><b>Nothing needs you.</b> When a decision is yours, it shows up here and on your phone.</p>') + '</section>';
+  // With nothing for the person, Rulings is one quiet line; otherwise its header and closed rows.
+  const needsCard = needs || needsHeader
+    ? '<section class="dash-card needs-card" aria-label="Rulings"><header class="needs-card-header"><h2>Rulings</h2>'+needsHeader+'</header>' + (needs ? '<ol class="needs home-needs">'+needs+'</ol>' : '') + '</section>'
+    : '<section class="dash-card needs-card needs-quiet" aria-label="Rulings"><span class="needs-quiet-badge">'+icon('check')+'</span><p><b>Nothing to rule on.</b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone.</span></p></section>';
   /** Where the work is: five step cards joined by arrows, with the sent-back loop from In review back to Building; each opens Items filtered to its step. */
   const flowCard = (() => {
     const reserved = m.reviewing.filter(entry => entry.reviewer && Date.parse(entry.reviewUntil) > m.now).length;

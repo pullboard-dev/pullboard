@@ -59,7 +59,7 @@ export function firstRunKit({ coordinate = false } = {}) {
     const tally = Array.isArray(events) ? { kinds: new Set(events.map(event => event.event_kind)), merged: events.filter(event => event.event_kind === 'merged').length } : events;
     const { kinds } = tally;
     const items = project.items ?? [];
-    const landings = Math.max((project.dashboardLanded ?? []).length, tally.merged);
+    const landings = Math.max((project.dashboardLanded ?? []).length, items.filter(item => item.merged || item.stage === 'merged').length, tally.merged);
     const ticks = [
       (project.agents ?? []).some(coordinatorPresent),
       (project.spec ?? []).some(row => row.status === 'approved'),

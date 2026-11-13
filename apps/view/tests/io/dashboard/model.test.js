@@ -111,3 +111,15 @@ test('Dashboard after a run of live updates matches a full recompute over the sa
   assert.deepEqual(shown(dashboardModel(ahead, future, { now: input.now, complete: true, fold })), shown(dashboardModel(ahead, future, { now: input.now, complete: true })), 'an event dated after the clock is left out, as a full recompute leaves it out');
   assert.equal(fold.state, null, 'nothing is kept past an event the clock has not reached');
 });
+
+test('Dashboard counts every landed item from its own row and matches commits only for the last day\'s landings [N26]', () => {
+  const input = dashboardData();
+  const { now } = input;
+  const items = input.project.items.map(item => item.id === 2 ? { ...item, stage: 'merged' } : item);
+  const old = { id: 99, title: 'Landed long ago', status: 'verified', stage: 'merged', lane: 'web', specs: [], blockedBy: [] };
+  const project = { ...input.project, items: [...items, old], dashboardLanded: input.project.dashboardLanded.filter(entry => entry.id === 2) };
+  const model = dashboardModel(project, input.events, { now, complete: true });
+  assert.equal(model.totals.allTime, 2, 'the landed count includes the old landing that dashboardLanded no longer lists');
+  assert.ok(!model.landing.some(item => item.id === 99), 'the old landing is not waiting to land');
+  assert.equal(model.landed.filter(entry => entry.item.id === 2).length, 1, 'the recent landing still matches its merge event');
+});
