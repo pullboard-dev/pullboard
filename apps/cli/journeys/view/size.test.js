@@ -323,6 +323,7 @@ test('[C7] a delta after only the rolling pace moves resends no milestone and se
   const before = await box.request(box.path + '/state');
   assert.equal(before.document.state.milestones[0].summary.pace.last2h, 1, 'the landing is inside the two-hour window');
   box.tick(3 * 3_600_000);
+  box.advance(3 * 3_600_000);
   store.shout(box.board, { from: box.agents[0], to: 'coordinator', text: 'A later event that touches no item', lanes: ['web'] });
   const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
   assert.ok(delta.document.delta, 'a later build answers with a delta');
