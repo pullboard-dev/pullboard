@@ -227,6 +227,10 @@ const SHOWN = `JSON.stringify((() => {
  * Copied, the failure names what the button says and what each clipboard write did, so a slow or refused write shows.
  */
 async function pressCopy(chrome, button, words) {
+  // A page still reflowing when the press scrolls it shifts the document under the pointer (scrollY 900 became 0 while the
+  // button stayed put), so start from the top and wait until the document height holds still for 400 ms.
+  await chrome.stable('(() => { scrollTo(0, 0); return true; })()');
+  await chrome.waitFor(`(() => { const height = document.documentElement.scrollHeight, now = performance.now(); if (window.__copyHeight !== height) { window.__copyHeight = height; window.__copySince = now; } return now - window.__copySince >= 400; })()`, 5_000); // budget: hang ceiling for a page's layout to stop moving.
   await press(chrome, `document.querySelector(${JSON.stringify(button)})`);
   try {
     await chrome.waitFor(`document.querySelector(${JSON.stringify(button)}).textContent === 'Copied'`, 5_000); // budget: hang ceiling for one granted clipboard write.
@@ -468,6 +472,8 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     await chrome.stable("(() => { sessionStorage.clear(); return true; })()");
     await openState(chrome, '?blocked', 'blocked');
     await chrome.stable("(() => { window.__access = 'granted'; return true; })()");
+    // The page's own round trip to the view starts a new document, which resets the click count; the one click comes after it.
+    await chrome.waitFor("document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for the next re-check and the round trip.
     await openItems(chrome);
     await chrome.waitFor(opened, 30_000); // budget: hang ceiling for the next re-check and the first board read.
     assert.equal(await chrome.stable('window.__clicks'), 1, 'only the Items click was made on the page');
@@ -536,71 +542,28 @@ test('the link invitation closes, stays closed and comes back [N26,H5]', async t
     await chrome.waitFor("data?.project?.root && !document.body.classList.contains('loading')");
     await chrome.stable('sharingReady');
     await openItems(chrome); // the first-run Dashboard hides the card, so a person opens Items first.
-    assert.equal(await chrome.stable("document.querySelector('#share-note b')?.textContent"), 'Open your boards on any device');
-    assert.equal(await chrome.stable("document.querySelector('#share-note .share-txt > span')?.textContent"), 'Sign in to use pullboard.dev while on the go.');
-    assert.deepEqual(JSON.parse(await chrome.stable("JSON.stringify((() => { const a = document.querySelector('#share-note .share-txt a'); return a ? [a.textContent, a.href, a.target, a.rel] : null; })())")), ['How the relay works', 'https://pullboard.dev/relay/', '_blank', 'noopener']);
-    assert.equal(await chrome.stable("document.querySelector('#share-start').textContent.trim()"), 'Sign in with GitHub');
-    assert.equal(await chrome.stable("Boolean(document.querySelector('#share-start svg') && document.querySelector('#share-note .share-ic svg'))"), true);
-    assert.equal(await chrome.stable("document.querySelector('#share-hide')?.getAttribute('aria-label')"), 'Hide this; bring it back from the projects list');
-    assert.equal(await chrome.stable("document.querySelector('#share-again')?.hidden"), true, 'no redundant entry while the card shows');
-    await press(chrome, "document.querySelector('#share-hide')");
-    assert.equal(await chrome.stable("document.querySelector('#share-note').hidden"), true);
-    assert.equal(await chrome.stable("document.querySelector('#share-again').hidden"), false);
-    await chrome.send('Page.reload');
-    await chrome.waitFor("data?.project?.root && !document.body.classList.contains('loading')");
-    await chrome.stable('sharingReady');
-    await openItems(chrome); // the first-run Dashboard hides the card, so a person opens Items first.
-    assert.equal(await chrome.stable("document.querySelector('#share-note').hidden"), true, 'the machine remembers dismissal after reload');
-    assert.equal(await chrome.stable("document.querySelector('#share-again').textContent"), 'Link boards to pullboard.dev…');
-    await press(chrome, "document.querySelector('#share-again')");
-    assert.equal(await chrome.stable("document.querySelector('#share-note').hidden"), false);
-    assert.equal(await chrome.stable("document.querySelector('#share-again').hidden"), true);
-    const backgrounds = new Set();
+    // The invitation is the account control (#6648): no banner in the page, one Sign in at the top right that opens its menu.
+    assert.equal(await chrome.stable("document.querySelector('#share-note, #share-again')"), null, 'no banner and no second entry in the page');
+    assert.equal(await chrome.stable("document.querySelector('#account')?.textContent.trim()"), 'Sign in', 'signed out, the top right says Sign in');
+    await press(chrome, "document.querySelector('#account')");
+    assert.equal(await chrome.stable("document.querySelector('#account-menu [data-account-signin]')?.textContent.trim()"), 'Sign in with GitHub');
     for (const width of [1280, 390, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await press(chrome, "document.querySelector('[data-tab=roadmap]')");
-      await chrome.waitFor("document.querySelector('.roadmap-list') && document.querySelector('.roadmap-panel')");
       for (const theme of ['light', 'dark']) {
         await chrome.stable(`document.documentElement.dataset.theme = '${theme}'`);
         const measured = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-          const card = document.querySelector('#share-note'), rect = card.getBoundingClientRect();
-          const parts = [...document.querySelectorAll('.roadmap-list, .roadmap-panel')].map(part => part.getBoundingClientRect());
-          const button = document.querySelector('#share-start');
-          const link = card.querySelector('.share-txt a'), line = card.querySelector('.share-txt > span'), linkRect = link.getBoundingClientRect();
-          return { left: rect.left, right: rect.right, columnsLeft: Math.min(...parts.map(part => part.left)),
-            columnsRight: Math.max(...parts.map(part => part.right)), background: getComputedStyle(card).backgroundColor,
-            githubBackground: getComputedStyle(button).backgroundColor, overflow: document.documentElement.scrollWidth > innerWidth,
-            buttonFits: button.getBoundingClientRect().right <= rect.right,
-            linkFits: linkRect.left >= rect.left && linkRect.right <= rect.right,
-            linkBelowLine: linkRect.top >= line.getBoundingClientRect().bottom - 1,
-            linkColor: getComputedStyle(link).color, entryColor: getComputedStyle(document.querySelector('#share-again')).color,
-            closeWidth: document.querySelector('#share-hide').getBoundingClientRect().width,
-            closeHeight: document.querySelector('#share-hide').getBoundingClientRect().height,
-            buttonHeight: button.getBoundingClientRect().height };
+          const menu = document.querySelector('#account-menu').getBoundingClientRect();
+          return { inside: menu.left >= 0 && menu.right <= innerWidth, overflow: document.documentElement.scrollWidth > innerWidth };
         })())`));
-        assert.ok(Math.abs(measured.left - measured.columnsLeft) < 1 && Math.abs(measured.right - measured.columnsRight) < 1,
-          `${width}/${theme}: the full card spans both Roadmap and Releases columns`);
-        assert.equal(measured.githubBackground, 'rgb(31, 35, 40)', 'the existing GitHub style stays dark');
-        assert.equal(measured.overflow, false, `${width}/${theme}: no horizontal overflow`);
-        assert.equal(measured.buttonFits, true);
-        assert.equal(measured.linkFits, true, `${width}/${theme}: the relay link stays inside the card`);
-        assert.equal(measured.linkColor, measured.entryColor, `${width}/${theme}: the relay link uses the view accent`);
-        if (width < 600) assert.equal(measured.linkBelowLine, true, `${width}/${theme}: the relay link wraps below the quiet line`);
-        const target = width < 900 ? 44 : 32;
-        assert.ok(measured.closeWidth >= target && measured.closeHeight >= target && measured.buttonHeight >= target,
-          `${width}/${theme}: close and sign-in retain the view's existing tap target`);
-        backgrounds.add(measured.background);
+        assert.deepEqual(measured, { inside: true, overflow: false }, `${width}/${theme}: the account menu fits the window`);
       }
-      await proofShot(chrome, 'link-invitation', width);
+      await proofShot(chrome, 'account-menu', width);
     }
-    assert.equal(backgrounds.size, 2, 'the card uses the light and dark surface tokens');
     available = false;
     await chrome.send('Page.reload');
     await chrome.waitFor("data?.project?.root && !document.body.classList.contains('loading')");
     await chrome.stable('sharingReady');
-    await openItems(chrome); // the first-run Dashboard hides the card, so a person opens Items first.
-    assert.equal(await chrome.stable("document.querySelector('#share-note').hidden"), true);
-    assert.equal(await chrome.stable("document.querySelector('#share-again').hidden"), true, 'no entry when sharing is unavailable');
+    assert.equal(await chrome.stable("document.querySelector('#share-note, #share-again')"), null, 'still no banner when sharing is unavailable');
     assert.deepEqual(failures, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

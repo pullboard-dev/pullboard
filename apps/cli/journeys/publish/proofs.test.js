@@ -41,7 +41,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 test('per-item proposals isolate each patch and never attribute bots or unlisted users as person approval [B3,R3]', async t => {
   const box = bridgeProject(t, 'item');
-  const entries = landBridgeItems(box);
+  const entries = await landBridgeItems(box);
   const provider = await bridgeProvider(t, box);
   const result = await runBridgeCLI(box, 'publish', '--json');
   assert.equal(result.code, 0, result.err);
@@ -71,9 +71,9 @@ test('per-item proposals isolate each patch and never attribute bots or unlisted
   assert.equal(provider.requests.some(request => request.path.endsWith('/merge') && request.method !== 'GET'), false);
 });
 
-test('publication findings replay deterministically and ordinary closed-parent guards remain intact [B2,H16,R3]', t => {
+test('publication findings replay deterministically and ordinary closed-parent guards remain intact [B2,H16,R3]', async t => {
   const box = bridgeProject(t);
-  const entries = landBridgeItems(box);
+  const entries = await landBridgeItems(box);
   // @pullboard-board-file journey: reads the board the CLI children wrote and exports it
   const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   // @pullboard-board-file persistence: the replica is a second file board the import fills
@@ -104,7 +104,7 @@ test('publication findings replay deterministically and ordinary closed-parent g
 
 test('one publish pass computes pull request coverage once with bounded git calls [B3,R3]', async t => {
   const box = bridgeProject(t, 'item');
-  landBridgeItems(box, { independent: true });
+  await landBridgeItems(box, { independent: true });
   const head = box.git(box.repo, 'rev-parse', 'main');
   const commits = box.git(box.repo, 'rev-list', `${box.published}..${head}`).split('\n').filter(Boolean);
   const pulls = [1, 2, 3].map(number => ({ number, head: { sha: head }, base: { sha: box.published }, commits: commits.length }));

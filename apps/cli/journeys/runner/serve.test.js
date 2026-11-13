@@ -19,6 +19,7 @@ import { trunkRemote } from '../../../../packages/config/index.js';
 import { jobView } from '../../../../packages/jobs/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
+import { pullGit } from '../../src/io/runner/git.js';
 import { landingRemote } from '../../../../packages/landing/index.js';
 
 /**
@@ -56,14 +57,15 @@ async (t) => {
   offerJob(db, { id: 'gate:serve', kind: 'gate', needs: ['node22'], candidate: commit, run: [process.execPath, 'check.js'] });
   const calls = [];
   const fetchImpl = (url, init) => { calls.push(String(url)); return fetch(url, init); };
-  const served = await serveRunner({ board, runner: 'r-pull', capabilities: ['node22'], cache, once: true, fetchImpl, timing: { idleMs: 10 } });
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-pull', capabilities: ['node22'], cache, once: true, fetchImpl, timing: { idleMs: 10 } });
   assert.deepEqual(served.jobs.map(job => [job.job, job.outcome, job.receipt.status]), [['gate:serve', 'posted', 0]]);
   const view = jobView(db, 'gate:serve');
   assert.equal(view.step, 'done');
   const { receipt } = view.steps.find(step => step.name === 'receipt').payload;
   assert.equal(receipt.commit, commit);
   assert.match(receipt.tail, /ran at the candidate/u, 'the job ran at the commit fetched from the trunk remote');
-  assert.ok(calls.every(url => url === `${box.origin}${box.path}/jobs`), 'the runner only calls the board\'s jobs URL');
+  const pack = `${box.origin}${box.path}/trunk/${commit}.pack`;
+  assert.ok(calls.every(url => url === `${box.origin}${box.path}/jobs` || url === pack), 'the runner only calls the board\'s jobs URL and its trunk pack download');
   assert.deepEqual(loadMachineSettings().runners ?? [], [], 'the board knows no ssh runner: nothing ever connects into r-pull');
   assert.equal(served.waits.length, 0);
 });
@@ -80,7 +82,7 @@ async (t) => {
     return fetch(url, init);
   };
   const slept = [];
-  const served = await serveRunner({ board, runner: 'r-wifi', capabilities: ['node22'], cache, once: true, fetchImpl,
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-wifi', capabilities: ['node22'], cache, once: true, fetchImpl,
     sleep: async ms => { slept.push(ms); }, timing: { firstMs: 100, maxMs: 1_000 } });
   assert.deepEqual(served.waits, [100, 200, 100], 'each failed call waits longer than the last, and a success resets the backoff');
   const receipts = jobView(db, 'gate:flaky-link').steps.filter(step => step.name === 'receipt');
@@ -90,7 +92,7 @@ async (t) => {
   const closed = await new Promise(resolve => { const server = createServer(); server.listen(0, '127.0.0.1', () => { const { port } = server.address(); server.close(() => resolve(port)); }); });
   const stop = new AbortController();
   let tries = 0;
-  const down = await serveRunner({ board: `http://127.0.0.1:${closed}/api/v1/boards/b?k=x`, runner: 'r-down', capabilities: ['node22'], cache, signal: stop.signal,
+  const down = await serveRunner({ git: pullGit, board: `http://127.0.0.1:${closed}/api/v1/boards/b?k=x`, runner: 'r-down', capabilities: ['node22'], cache, signal: stop.signal,
     sleep: async () => { tries += 1; if (tries === 4) stop.abort(); }, timing: { firstMs: 100, maxMs: 300 } });
   assert.deepEqual(down.waits, [100, 200, 300, 300], 'the backoff caps and keeps trying');
   assert.deepEqual(down.jobs, [], 'no job is touched while the board is away');
@@ -105,7 +107,7 @@ async (t) => {
   offerJob(db, { id: 'gate:setting', kind: 'gate', needs: [], candidate: commit, run: [process.execPath, 'check.js'] });
   const answers = [];
   const fetchImpl = async (url, init) => { const response = await fetch(url, init); answers.push(await response.clone().json()); return response; };
-  await serveRunner({ board, runner: 'r-setting', capabilities: [], cache, once: true, fetchImpl });
+  await serveRunner({ git: pullGit, board, runner: 'r-setting', capabilities: [], cache, once: true, fetchImpl });
   assert.equal(answers.find(answer => answer.claim)?.trunk, trunk, 'a claim names the board\'s trunk remote');
 
   assert.deepEqual(configFromSource('{}').trunk, { remote: '' }, 'unset by default');
@@ -117,7 +119,7 @@ test('clause 1: a candidate the trunk remote lacks is released to the queue, nev
 async (t) => {
   const { db, board, cache } = await pullBoard(t);
   offerJob(db, { id: 'gate:missing', kind: 'gate', needs: [], candidate: 'f'.repeat(40), run: [process.execPath, 'check.js'] });
-  const served = await serveRunner({ board, runner: 'r-miss', capabilities: [], cache, once: true });
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-miss', capabilities: [], cache, once: true });
   assert.deepEqual(served.jobs, [{ job: 'gate:missing', outcome: 'released' }]);
   const view = jobView(db, 'gate:missing');
   assert.equal(view.steps.some(step => step.name === 'receipt'), false);
@@ -139,7 +141,7 @@ async (t) => {
     if (answer.claim) claimed.push({ job: answer.claim.job, at: Date.now() });
     return response;
   };
-  const served = await serveRunner({ board, runner: 'r-slots', capabilities: [], cache, jobs: 2, signal: stop.signal, fetchImpl, timing: { idleMs: 10 },
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-slots', capabilities: [], cache, jobs: 2, signal: stop.signal, fetchImpl, timing: { idleMs: 10 },
     say: line => { if (line.startsWith('posted ') && ++posted === 2) stop.abort(); } });
   assert.equal(served.slots, 2);
   assert.deepEqual(claimed.map(row => row.job).sort(), ['gate:slot-a', 'gate:slot-b'], 'one serve claimed both jobs');
@@ -169,7 +171,7 @@ const wait = () => fs.existsSync(${JSON.stringify(seen)}) ? console.log('child s
     return fetch(url, init);
   };
   t.after(() => { try { process.kill(JSON.parse(readFileSync(seen, 'utf8')).pid, 'SIGKILL'); } catch { /* already gone */ } });
-  const served = await serveRunner({ board, runner: 'r-reap', capabilities: [], cache, once: true, fetchImpl, timing: { idleMs: 10 } });
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-reap', capabilities: [], cache, once: true, fetchImpl, timing: { idleMs: 10 } });
   assert.deepEqual(served.jobs.map(row => [row.job, row.outcome, row.receipt.status]), [['gate:leftover', 'posted', 0]]);
   assert.match(served.jobs[0].receipt.tail, /child started/u);
   assert.equal(JSON.parse(readFileSync(seen, 'utf8')).job, 'gate:leftover', 'clause 2: the job\'s child carries PULLBOARD_RUNNER_JOB');
@@ -202,12 +204,12 @@ async (t) => {
   const job = id => offerJob(db, { id, kind: 'gate', needs: [], candidate: commit, run: [process.execPath, 'check.js'] });
   // The warm runner first fetches and runs one job, so its second run reuses its cache; the cold one starts from nothing.
   job('gate:prime');
-  await serveRunner({ board, runner: 'r-warm', capabilities: [], cache: warm, once: true });
+  await serveRunner({ git: pullGit, board, runner: 'r-warm', capabilities: [], cache: warm, once: true });
   job('gate:warm');
-  const hot = await serveRunner({ board, runner: 'r-warm', capabilities: [], cache: warm, once: true });
+  const hot = await serveRunner({ git: pullGit, board, runner: 'r-warm', capabilities: [], cache: warm, once: true });
   job('gate:cold');
   assert.equal(existsSync(cold), false, 'the cold runner has no cache at all');
-  const fresh = await serveRunner({ board, runner: 'r-cold', capabilities: [], cache: cold, once: true });
+  const fresh = await serveRunner({ git: pullGit, board, runner: 'r-cold', capabilities: [], cache: cold, once: true });
   const same = receipt => ({ status: receipt.status, signal: receipt.signal, commit: receipt.commit, run: receipt.run,
     outputSha256: receipt.outputSha256, outputBytes: receipt.outputBytes, tail: receipt.tail });
   assert.deepEqual([hot.jobs[0].outcome, fresh.jobs[0].outcome], ['posted', 'posted']);

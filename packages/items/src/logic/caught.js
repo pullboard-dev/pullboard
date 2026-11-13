@@ -1,4 +1,4 @@
-import { proofEventDetail } from "../../../kernel/index.js";
+import { proofEventDetail } from "../../../kernel/light.js";
 /**
  * What the board caught, read from events it already records [N26,D1]: a quiet list for
  * `pullboard stats` and `pullboard digest`, shown only when someone asks.

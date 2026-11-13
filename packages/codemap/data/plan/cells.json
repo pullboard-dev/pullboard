@@ -240,33 +240,33 @@
     },
     {
       "order": 45,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/45-app-view.json"
+      "name": "search",
+      "file": "packages/codemap/data/plan/45-search.json"
     },
     {
       "order": 46,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/46-app-runner.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/46-app-view.json"
     },
     {
       "order": 47,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/47-app-cli.json"
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/47-app-runner.json"
     },
     {
       "order": 48,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/48-app-lib.json"
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/48-app-cli.json"
     },
     {
       "order": 49,
-      "name": "app:relay",
-      "file": "packages/codemap/data/plan/49-app-relay.json"
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/49-app-lib.json"
     },
     {
       "order": 50,
-      "name": "search",
-      "file": "packages/codemap/data/plan/50-search.json"
+      "name": "app:relay",
+      "file": "packages/codemap/data/plan/50-app-relay.json"
     }
   ],
   "stays": [
@@ -1814,6 +1814,22 @@
         "packages/landing/src/io/history.js",
         "rule"
       ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit-handoff.json",
+        "apps/cli/src/io/documentation/events/submit/handoff.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit_handoff_returned.json",
+        "apps/cli/src/io/documentation/events/submit_handoff_returned.json",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2190,6 +2206,7 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->commits",
     "apps/cli->search",
     "apps/cli->state",
     "apps/lib->apps/runner",
@@ -2205,6 +2222,8 @@
     "config->kernel",
     "gate->codemap",
     "runners->config",
+    "items->config",
+    "items->state",
     "runners->verify",
     "landing->verify",
     "verify->kernel",
@@ -2236,6 +2255,9 @@
     "gate->resources",
     "gate->drive",
     "gate->config",
+    "merge->config",
+    "rigor->config",
+    "spec->config",
     "gate->seats",
     "github->store",
     "items->git",
@@ -2265,7 +2287,6 @@
     "apps/cli->sentinels",
     "apps/cli->config",
     "apps/cli->resources",
-    "state->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",

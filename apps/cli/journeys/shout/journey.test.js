@@ -114,7 +114,7 @@ before(async () => {
 after(async () => { await seeded.view?.stop(); });
 
 // Chrome startup, two widths and one live board move share this 90-second journey budget.
-test('the floor opens from the Dashboard, has its own address, refreshes live and fits a phone [N26,N38]', { timeout: 90_000 }, async () => {
+test('the floor opens at its own address, refreshes live and fits a phone [N26,N38]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the agent floor journey.');
   const { box, alpha, view } = seeded;
@@ -122,10 +122,10 @@ test('the floor opens from the Dashboard, has its own address, refreshes live an
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link')`);
-    assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents]").lastElementChild.textContent'), 'Open the agent floor →');
-    await press(chrome, 'document.querySelector("#dashboard .dash-floor-link")');
-    await chrome.waitFor('view.tab === "dashboard" && view.addressDetail === "floor" && !!document.querySelector("#dashboard .floor")');
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-live')`);
+    // The /live-style Dashboard (#6847) draws its own Agents table; the floor keeps its address and opens from it.
+    await chrome.send('Page.navigate', { url: view.base + '/dashboard/floor' });
+    await chrome.waitFor('typeof view === "object" && view.tab === "dashboard" && view.addressDetail === "floor" && !!document.querySelector("#dashboard .floor")');
     assert.equal(await chrome.stable('location.pathname'), '/dashboard/floor', 'the floor has its own address');
     for (const name of ['Headline', 'Board numbers', 'Landed per hour', 'Agent time', 'Agents', 'In review', 'Accepted, waiting to land', 'Ready, nobody building', 'Landed · 24 h']) {
       assert.equal(await chrome.stable(`!!document.querySelector('#dashboard .floor [aria-label=${JSON.stringify(name)}]')`), true, `${name} shows`);
@@ -151,7 +151,7 @@ test('the floor opens from the Dashboard, has its own address, refreshes live an
       await proofShot(chrome, 'agent-floor', width);
     }
     await press(chrome, 'document.querySelector("#dashboard .floor-crumbs a")');
-    await chrome.waitFor('view.addressDetail === null && !!document.querySelector("#dashboard .dash-floor-link")');
+    await chrome.waitFor('view.addressDetail === null && !!document.querySelector("#dashboard .dash-live")');
     assert.equal(await chrome.stable('location.pathname'), '/dashboard');
     await chrome.send('Page.navigate', { url: view.base + '/dashboard/floor' });
     await chrome.waitFor('typeof view !== "undefined" && view.addressDetail === "floor" && !!document.querySelector("#dashboard .floor [aria-label=Agents]")');

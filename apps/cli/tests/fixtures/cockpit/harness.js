@@ -73,6 +73,29 @@ function build(box, p, id, file) {
 }
 
 /**
+ * The in-process twin of build: the same claim, commit and submit, with the CLI calls awaited in this process instead of launched.
+ * Why: a journey's before() seeds a whole board, and a launch per call ran it past the wall limit.
+ */
+async function buildLocal(box, p, id, file) {
+  const key = `${p.baseBranch}:${id}`;
+  let branch = p.itemBranches.get(key);
+  if (!branch) {
+    branch = `${p.baseBranch}-item-${id}`;
+    box.git(p.web, 'switch', '-q', '-c', branch, p.baseBranch);
+    p.itemBranches.set(key, branch);
+  } else {
+    box.git(p.web, 'switch', '-q', branch);
+  }
+  p.branch = branch;
+  await box.inProcess(p.web, 'claim', String(id));
+  mkdirSync(join(p.web, 'web'), { recursive: true });
+  writeFileSync(join(p.web, 'web', file), `${file}\n`);
+  box.git(p.web, 'add', '-A');
+  box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  await box.inProcess(p.web, 'submit', String(id), '--no-next');
+}
+
+/**
  * The coordinator sends an item back from a checkout of its submitted commit, as a verifier does.
  */
 function sendBack(box, p, id, note) {
@@ -257,7 +280,12 @@ function element(id) {
     focus() {},
     scrollIntoView() { this.scrolled += 1; },
     getBoundingClientRect: () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 }),
+    // The palette's search box hint is added beside its box.
+    parentNode: { appendChild() {} },
     querySelectorAll: () => [],
+    querySelector: () => null,
+    prepend() {},
+    replaceWith() {},
   };
 }
 
@@ -285,7 +313,8 @@ function target({ id = '', classes = '', ...data }) {
   const matches = (selector) => {
     if (selector.startsWith('#')) return selector.slice(1) === id;
     if (selector.startsWith('.')) return classes.split(' ').includes(selector.slice(1));
-    const attribute = /^\[data-([a-z-]+)\]$/.exec(selector);
+    // A click target is never the root element, so a `:not(:root)` guard on a data selector always holds.
+    const attribute = /^\[data-([a-z-]+)\](?::not\(:root\))?$/.exec(selector);
     return attribute ? attribute[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) in data : false;
   };
   const self = { id, dataset: data, hasAttribute: name => matches('[' + name + ']'), closest: (selectors) => (selectors.split(',').some((selector) => matches(selector.trim())) ? self : null) };
@@ -347,10 +376,13 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const inflight = new Set();
   const requests = [];
   const document = {
-    body: element('body'),
+    body: Object.assign(element('body'), { appendChild() {} }),
     documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
+    // The palette builds its overlay at load: a created element is a plain node the page may append and listen on.
+    createElement: () => element('created'),
+    querySelector: () => null,
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
@@ -362,6 +394,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const context = vm.createContext({
     document,
     location: { search: '' },
+    navigator: { platform: '', userAgent: '' },
     URLSearchParams,
     structuredClone,
     innerWidth: width,
@@ -384,6 +417,9 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
       return answer;
     },
   });
+  // The page reads window.scrollY to keep the reading position; this page never scrolls.
+  context.scrollY = 0;
+  context.window = context;
   vm.runInContext(script, context);
   if (!hold) await settle(inflight);
   return {
@@ -540,11 +576,25 @@ function accept(box, p, id) {
 }
 
 /**
+ * The in-process twin of accept: the coordinator's accept, awaited in this process instead of launched.
+ */
+async function acceptLocal(box, p, id) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  await box.inProcess(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
+
+/**
  * One item's row in the list, or '' when the list does not show it.
  */
 function needEntries(html) {
   return [...html.matchAll(/<li class="row ask"(?: data-go="([^"]*)")?><span class="dot ask"><\/span><div><div class="t">(?:<span>([^<]*)<\/span>)?([^]*?)<\/div>(?:<span class="row-age">[^]*?<\/span>)?<div class="meta"><span class="why"><b>NEEDS YOU<\/b> ([^<]*)<\/span><\/div><\/div><span class="chip warn">([^<]*)<\/span><\/li>/g)]
     .map((row) => [row[1] ?? null, row[2] ?? null, row[3], row[4], row[5]]);
+}
+
+/** Open the Items page's collapsed questions-and-sentinels group so its rows can be pressed and measured [N26]. */
+async function openItemsNeeds(chrome) {
+  await chrome.waitFor("(() => { const group = document.querySelector('#needs details[data-items-needs]'); if (group && !group.open) group.open = true; return !!group?.open; })()");
 }
 
 /**
@@ -1050,6 +1100,7 @@ async function shoutsAt(chrome, width, scheme) {
 async function pickProject(chrome, find) {
   if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
     await chrome.click("document.querySelector('#proj-switch')");
+    await chrome.click('document.querySelector("[data-proj-all]")');
   }
   await chrome.click(find);
   await chrome.waitFor("!document.body.classList.contains('switching') && data?.root === view.root");
@@ -1062,14 +1113,13 @@ async function travel(chrome, step) {
 }
 
 /**
- * Choose a Show or Lane option from the Items toolbar's Filter menu as a person does: open the menu, press the
- * option, and wait for the menu to close (#429). A choice is "state:<state>" or "lane:<lane>".
+ * Choose a Show or Lane option from the strip's Items controls as a person does: press the Show button, or pick the
+ * lane in the Lane select. A choice is "state:<state>" or "lane:<lane>".
  */
 async function chooseFilter(chrome, choice) {
-  await press(chrome, "document.querySelector('#filter-toggle')");
-  await chrome.waitFor("!document.querySelector('#filter-menu').hidden");
-  await press(chrome, `document.querySelector('#filter-menu [data-filter-choice="${choice}"]')`);
-  await chrome.waitFor("document.querySelector('#filter-menu').hidden");
+  const [kind, value] = [choice.slice(0, choice.indexOf(':')), choice.slice(choice.indexOf(':') + 1)];
+  if (kind === 'state') await press(chrome, `document.querySelector('#page-controls [data-page-ctl="state"][data-value="${value}"]')`);
+  else await chrome.stable(`(() => { const select = document.querySelector('#page-controls select[data-page-ctl="lane"]'); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 }
 
 /** Wait for a condition after a press; if it never arrives, say what the page shows and where the press landed. */
@@ -1131,11 +1181,11 @@ async function readRoadmap(chrome) {
           empty: card.querySelector('.milestone-empty')?.innerText ?? null,
           note: card.querySelector('.milestone-note')?.innerText ?? null,
           rows: [...card.querySelectorAll('.milestone-item')].map((row) => {
-            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = chip.getBoundingClientRect();
+            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = word.getBoundingClientRect();
             return {
               id: row.querySelector('.id').innerText, label: word.innerText.trim(), tone: chip.dataset.stage || [...chip.classList].filter((name) => ['ok', 'no', 'warn', 'busy', 'free'].includes(name)).join(' '),
               marks: [...chip.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()), detail: chip.querySelector('.stage-detail')?.textContent || '',
-              seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
+              seen: box.width > 0 && box.height > 0 && getComputedStyle(word).visibility === 'visible',
               chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
               button: row.matches('button,[role="button"]'), tip: row.title, title: [...(title.querySelector('.milestone-title') ?? title).childNodes].slice(1).map((node) => node.textContent).join(''), // the id and title share .milestone-title (10d605f572)
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
@@ -1154,7 +1204,7 @@ async function readRoadmap(chrome) {
  * and the bar's edges. The tab picked now is picked again afterwards.
  */
 async function tabBar(chrome) {
-  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].map(tab => tab.dataset.tab)");
+  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length).map(tab => tab.dataset.tab)");
   const picked = await chrome.stable("document.querySelector('#tabs .tab.on')?.dataset.tab");
   const layouts = [];
   try {
@@ -1162,12 +1212,12 @@ async function tabBar(chrome) {
       await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(on)}))`);
       layouts.push(await chrome.stable(`(() => {
         const bar = document.querySelector('#tabs');
-        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].map(tab => {
+        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].filter(tab => tab.getClientRects().length).map(tab => {
           const range = document.createRange(); range.selectNodeContents(tab.firstChild);
           const box = tab.getBoundingClientRect(), label = range.getBoundingClientRect();
           return { tab: tab.dataset.tab, top: box.top, bottom: box.bottom, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
         }) };
-      })()`, "document.querySelectorAll('#tabs, #tabs .tab')"));
+      })()`, "[document.querySelector('#tabs'), ...[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length)]"));
     }
   } finally {
     await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(picked)}))`);
@@ -1262,4 +1312,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };

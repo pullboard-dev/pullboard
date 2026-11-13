@@ -1,4 +1,7 @@
 import { viewApiPorts } from '../../../view/index.js';
+
+/** The view's API ports, handed on so the settings fixture reaches the view through this file, not directly. */
+export { viewApiPorts };
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
@@ -100,6 +103,8 @@ export function apiFixtureEnvironment(directory, bin) {
   const env = {
     ...process.env, HOME: join(directory, 'home'), PULLBOARD_HOME: join(directory, 'home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
+    // Fixture items carry near-identical titles; the duplicate check at add would refuse them.
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
     PATH: bin + ':' + process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'HTTP Agent', GIT_AUTHOR_EMAIL: 'agent@example.invalid',
     GIT_COMMITTER_NAME: 'HTTP Agent', GIT_COMMITTER_EMAIL: 'agent@example.invalid',
@@ -117,8 +122,9 @@ export function bindApiFixtureMachine(t, env) {
     const previous = process.env.PULLBOARD_MACHINE_HOME;
     const markers = new Map(AGENT_SHELL_MARKERS.map(name => [name, process.env[name]]));
     for (const name of AGENT_SHELL_MARKERS) delete process.env[name];
+    // In-process adds meet the duplicate guard too, so the fixture's distinct-title switch binds with the identity.
     // In-process landing commits merges; a runner has no Git identity of its own, so the fixture's identity binds here too.
-    const identity = new Map(['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].map(name => [name, process.env[name]]));
+    const identity = new Map(['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'PULLBOARD_FIXTURE_ADD_DISTINCT'].map(name => [name, process.env[name]]));
     for (const name of identity.keys()) process.env[name] = env[name];
     fixtureMachineTests.add(t);
     t.after(() => {

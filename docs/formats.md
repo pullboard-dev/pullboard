@@ -420,6 +420,10 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `job_kind_item` | `job` | `job_kind`, `job_item` | no |
+| `job_lease_live` | `job` | `job_lease_until` | no |
+| `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
+| `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
+| `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
@@ -550,8 +554,6 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
 | `next-idle` | idle seat | `version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown) |
 | `review-default` | board | Review-policy migration: `engine`, `count`, `unfinished`. |
-| `submit-handoff` | queued builder | Queue `state` (queued, running, green, submitted, red or incomplete) and captured source `commit`; submitted retains an accepted submission whose native gate was not green; job identifiers and refusal text stay in private board metadata. |
-| `submit_handoff_returned` | queued builder | Captured `commit`; from the queued red return engine, the failed item stays claimed by its builder with a fresh `leaseUntil` (its refusal stays in private board metadata) and opens for anyone only when that lease lapses. Older engines carried the builder's first-refusal window and returned the item open. No other claim is released. |
 <!-- events:end -->
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
@@ -825,6 +827,10 @@ The activity-delivery engine, numbered at landing, adds recipient-owned `recordA
 
 The machine resource database adds `waiter.runner_only` and `holder.runner_execution`, both integer booleans defaulting to zero. A runner-only gate ticket cannot consume local or short capacity while a runner is registered. The trusted SSH worker sets `runner_execution` on its own actual private gate holder; inherited admission reads that holder rather than accepting an environment-only claim of remote execution. These are local, additive scheduling metadata, not board move or relay formats.
 The CPU-sentinel engine, numbered at landing, names an agent-worktree process after more than twenty CPU minutes, once per host, PID and start time. Current `health-scan` receipts carry `pendingCpu`, the findings whose coordinator notice was held by the existing ten-notice cap. Later scans drain that durable queue without inventing another health-failure episode. An older engine refuses while this queue is pending, preserving its history; older receipts retain their original fields. Observation never signals a process.
+
+## Machine-local runner rate card
+
+A runner's rate card is part of the machine's `settings.json`, as `runnerRates`: a map from a runner host to `{price, months, watts, kwhPrice}` (purchase price, whole months to pay it off, load watts and power price per kWh, each a number of 0 or more and months 1 or more). Set one with `pullboard settings runnerRates <runner> <price> <months> <watts> <kwhPrice>`; a missing or invalid field refuses with `BAD_RUNNER_RATES` and stores nothing.
 
 ## Machine-local relay canary
 

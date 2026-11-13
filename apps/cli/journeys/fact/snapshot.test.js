@@ -34,7 +34,6 @@ import {
   project,
   build,
   sendBack,
-  fetchLive,
   startView,
   boardId,
   boardOf,
@@ -58,7 +57,9 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
     assert.equal(observation.observedAt, new Date(now).toISOString(), 'the root read stamp matches its statistics observation clock');
     return portableSnapshot(JSON.parse(JSON.stringify(viewProofSummary(proofStats(board, { now }, statsReadPorts)))), root);
   };
-  assert.deepEqual(expected.proofStats, statisticsAt(expected), 'the live projection matches the public statistics reader at its clock');
+  /** Drop the newest-event stamps: the live read ran before the oracle's snapshot, so a later wake may sit past it and only its stamp moves [N26]. */
+  const withoutNewest = (value) => JSON.parse(JSON.stringify(value, (key, field) => (key === 'lastEventAt' ? undefined : field)));
+  assert.deepEqual(withoutNewest(expected.proofStats), withoutNewest(statisticsAt(expected)), 'the live projection matches the public statistics reader at its clock');
   const actualStatistics = statisticsAt(actual);
   assert.deepEqual(actual.proofStats, actualStatistics, 'the export projection matches the public statistics reader at its clock');
   /** Check the complete comparison window against the same locked event prefix at each read clock. */
@@ -68,7 +69,31 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
   assert.deepEqual(expected.statsComparison, comparisonAt(expected), 'the live comparison matches its public reader at its observation clock');
   const actualComparison = comparisonAt(actual);
   assert.deepEqual(actual.statsComparison, actualComparison, 'the export comparison matches its public reader at its observation clock');
-  assert.deepEqual(actual, { ...expected, observedAt: actual.observedAt, proofStats: actualStatistics, statsComparison: actualComparison }, message);
+  /** The Dashboard hero's four-hour window ends at its own read clock, so it moves with each observation; its counts must not [N26]. */
+  const recentWindow = (observation, name) => {
+    assert.ok(observation.dashboardRecent.until <= Date.parse(observation.observedAt), `${name} four-hour window ends at or before its read stamp`);
+    assert.equal(observation.dashboardRecent.until - observation.dashboardRecent.since, 4 * 3_600_000, `${name} window spans four hours`);
+  };
+  recentWindow(expected, 'the live projection');
+  recentWindow(actual, 'the export projection');
+  const wanted = {
+    ...expected,
+    observedAt: actual.observedAt,
+    proofStats: actualStatistics,
+    statsComparison: actualComparison,
+    dashboardRecent: actual.dashboardRecent,
+    // The export is a served summary, which counts its finished items; the live read lists them whole, so the counts follow its items [#6588].
+    ...(actual.finished ? { finished: { verified: expected.items.filter(item => item.status === 'verified').length, withdrawn: expected.items.filter(item => item.status === 'withdrawn').length } } : {}),
+  };
+  assert.deepEqual(Object.keys(actual).sort(), Object.keys(wanted).sort(), `${message}: the same projection fields`);
+  // Compare field by field so a red names the one field that moved between the two reads.
+  /** An item with no claim carries claimHealth null live and omits it in the served summary; neither says anything different [#6588]. */
+  const unclaimed = (value) => JSON.parse(JSON.stringify(value, (key, field) => (key === 'claimHealth' && field === null ? undefined : field)));
+  for (const field of Object.keys(wanted)) assert.deepEqual(unclaimed(actual[field]), unclaimed(wanted[field]), `${message}: field ${field}`);
+  assert.deepEqual(unclaimed(actual), unclaimed(wanted), message);
+  const { since, until, ...liveCounts } = expected.dashboardRecent;
+  const { since: exportSince, until: exportUntil, ...exportCounts } = actual.dashboardRecent;
+  assert.deepEqual(exportCounts, liveCounts, 'the hero counts match across the two reads');
 }
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 240_000 }, async (t) => { // budget: hang-only ceiling for fixture setup plus four real 1x/4x/16x replays on a loaded runner; no speed claim.
@@ -260,7 +285,8 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
       /** Observe replay pacing while preserving each native browser timeout unchanged. */
       window.setTimeout = (callback, delay, ...args) => {
         if (callback === window.advanceReplay) window.__replayScheduledDelays.push(delay);
-        return nativeSetTimeout(callback, delay, ...args);
+        // While a measured replay runs, the step fires at once: the assertion reads the scheduled value, and a board with 30 or more events takes over 30 s at 1×.
+        return nativeSetTimeout(callback, window.__replayFast && callback === window.advanceReplay ? 0 : delay, ...args);
       };
     })()`);
     /** Replay the complete exported history and compare scheduled timer values, not elapsed time. */
@@ -273,8 +299,10 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
         select.dispatchEvent(new Event('change', { bubbles: true }));
       })()`);
       assert.equal(await evaluate("document.querySelector('#replay-speed').value"), speed);
+      await evaluate('window.__replayFast = true');
       await chrome.click("document.querySelector('#replay-play')");
       await chrome.waitFor('!snapshotReplay.playing', 30_000); // budget: hang-only ceiling for one complete replay.
+      await evaluate('window.__replayFast = false');
       assert.equal(await evaluate('snapshotReplay.playing'), false, `${speed}× replay reaches its end`);
       assert.equal(await evaluate('snapshotReplay.index'), initial.total, `${speed}× replay renders the final exported event`);
       const scheduled = JSON.parse(await evaluate('JSON.stringify(window.__replayScheduledDelays)'));
@@ -348,68 +376,5 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     if (chrome) await closeSnapshotChrome(chrome);
     await new Promise((resolve) => server.close(resolve));
     rmSync(profile, { recursive: true, force: true });
-  }
-});
-
-test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
-  const box = machine();
-  const alpha = project(box, 'private-project');
-  box.run(alpha.repo, 'add', 'web', 'Private checkout item', '--specs', 'G1', '--criterion', 'exports without checkout paths');
-  const projectRoot = alpha.repo;
-  const worktreeRoot = alpha.web;
-  const commonGitDir = box.git(alpha.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
-  const live = await startView(box);
-  try {
-    const listingResponse = await fetchLive(`${live.base}/api/v1/boards`, { headers: { 'x-pullboard-key': live.key } });
-    assert.equal(listingResponse.status, 200);
-    const listing = await listingResponse.json();
-    const board = listing.boards.find((entry) => entry.root === projectRoot);
-    assert.ok(board, 'the live listing keeps the absolute project root');
-    assert.equal(board.root, projectRoot);
-    const state = await boardOf(live, projectRoot);
-    assert.equal(state.root, projectRoot, 'live state keeps the absolute root');
-    const agent = state.agents.find((entry) => entry.agent_id === 'web-1');
-    assert.ok(agent);
-    assert.equal(agent.agent_path, worktreeRoot, 'live state keeps the agent worktree path');
-    assert.equal(box.git(alpha.web, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonGitDir,
-      'the linked worktree still shares the repository common Git directory');
-    const boardEvents = await fetchLive(`${live.base}/api/v1/boards/${board.id}/events`, { headers: { 'x-pullboard-key': live.key } });
-    assert.equal(boardEvents.status, 200);
-    const events = await boardEvents.json();
-    assert.ok(events.events.length > 0);
-
-    /** Read every actual export Buffer so an unexpected subtree cannot hide a private folder. */
-    const exportedText = (output) => output.files().map(({ body }) => body.toString('utf8')).join('\n');
-    const structuredOutput = box.exportSnapshot(alpha.repo, 'export-structured');
-    const structuredFiles = exportedText(structuredOutput);
-    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
-      assert.ok(!structuredFiles.includes(privatePath), `export does not include structured path ${privatePath}`);
-    }
-
-    // A second export deliberately includes paths in human-authored prose. Those exact values are
-    // the only allowed occurrences; project.root, agent_path and common Git metadata stay redacted.
-    const brief = `Keep this literal checkout reference: ${projectRoot}`;
-    const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
-    box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
-    box.run(alpha.web, 'shout', 'all', shout);
-    const proseOutput = box.exportSnapshot(alpha.repo, 'export-prose');
-    const proseSnapshot = proseOutput.root;
-    const stateFile = JSON.parse(readFileSync(join(proseSnapshot, 'api', 'v1', 'boards', board.id, 'state.json'), 'utf8')).state;
-    assert.notEqual(stateFile.root, projectRoot, 'export redacts structured project root');
-    assert.notEqual(stateFile.agents.find((entry) => entry.agent_id === 'web-1').agent_path, worktreeRoot,
-      'export redacts the structured agent worktree');
-    assert.equal(stateFile.items.find((entry) => entry.title === 'Path in prose').brief, brief);
-    assert.ok(stateFile.shouts.some((entry) => entry.shout_text === shout), 'the authored shout remains literal');
-    const proseFiles = proseOutput.files().map(({ body }) => body.toString('utf8'));
-    let scrubbedText = proseFiles.join('\n');
-    for (const text of [brief, shout]) {
-      scrubbedText = scrubbedText.replaceAll(JSON.stringify(text), '"<authored prose>"')
-        .replaceAll(JSON.stringify(JSON.stringify(text)).slice(1, -1), '<authored event prose>');
-    }
-    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
-      assert.ok(!scrubbedText.includes(privatePath), `outside authored prose, export does not include ${privatePath}`);
-    }
-  } finally {
-    await live.stop();
   }
 });

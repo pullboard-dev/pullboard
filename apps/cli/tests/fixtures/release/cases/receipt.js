@@ -45,6 +45,8 @@ function fixture(count = 8) {
   return { expected, envelope: { version: 1, gateReceipt, participation } };
 }
 
+export { fixture as releaseReceiptFixture };
+
 /** Register bounded structural controls; the importing frozen wrapper owns whether these tests execute. */
 export function installReleaseReceiptCases() {
   for (const count of [1, 7]) {

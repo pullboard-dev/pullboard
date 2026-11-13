@@ -72,10 +72,6 @@
   "apps/cli/src/io/worktree/maintenance/observation.js": {
     "state.json": 2
   },
-  "apps/cli/src/io/worktree/maintenance/scheduler.js": {
-    "timer.guard.sqlite": 1,
-    "timer.json": 1
-  },
   "apps/lib/src/io/notice.js": {
     "board.sqlite": 1
   },
@@ -125,8 +121,8 @@
   },
   "apps/view/src/io/serve.js": {
     "board.sqlite": 3,
-    "boards.json": 1,
     "state.json": 1,
+    "boards.json": 1,
     "resources.sqlite": 1
   },
   "apps/view/src/io/session.js": {
@@ -244,7 +240,7 @@
   "packages/gate/src/io/keepalive.js": {
     "pullboard-item.json": 1,
     "seat-timing.jsonl": 1,
-    "board.sqlite": 2
+    "board.sqlite": 1
   },
   "packages/gate/src/io/launches.js": {
     "baseline.json": 1
@@ -414,9 +410,6 @@
     "settings.json": 1,
     "pullboard.json": 1
   },
-  "packages/landing/src/io/step/batch.js": {
-    "cells.json": 2
-  },
   "packages/landing/src/io/worker.js": {
     "table:board_meta": 1
   },
@@ -508,7 +501,6 @@
     "table:holder": 4
   },
   "packages/resources/src/io/main.js": {
-    "resources.sqlite": 2,
     "table:runner_unavailable": 1
   },
   "packages/resources/src/io/renewal.js": {

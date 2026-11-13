@@ -79,7 +79,10 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     }
 
     const config = loadConfig(root);
-    const freshness = freshnessReader ?? verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state;
+    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() ?? undefined }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+    const freshness = freshnessReader ?? projector.state;
+    // One cat-file answers every verified item's commit, rather than one Git process per item [C7].
+    projector?.prime(currentItems.filter(item => dirtyIds.has(item.item_id) || refreshVerdicts));
     const state = projectState(root, { seen: null, board, itemProjector: (item, context) => {
       if (dirtyIds.has(item.item_id)) {
         const projected = context.project();
@@ -117,7 +120,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     state.requests = projectData.requests;
     state.personRequests = projectData.personRequests;
     Object.assign(state, personSigningPresentation(root, board, config));
-    state.milestones = projectData.milestones.map(milestoneWithoutClock);
+    state.milestones = milestoneItemIds(projectData.milestones.map(milestoneWithoutClock));
     state.blocks = personBlockWords(repoInfo(root).commonDir, board.clock.now(), localCapacity ? machineBudgetState(board, observedAt) : undefined); // Needs you below is recomputed with them [C6].
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
@@ -230,4 +233,17 @@ function milestoneWithoutClock(milestone) {
   const { idleMinutes: _minutes, ...progress } = milestone.progress;
   const latest = milestone.items.map(entry => entry.progress?.lastActivity).filter(Boolean).sort().at(-1) ?? null;
   return { ...milestone, items, progress: { ...progress, idleSince: latest } };
+}
+
+/**
+ * Each milestone with its local items as ids: the page already holds every local item, so a row keeps only its id,
+ * its roadmap state and its queue position, and the title, status and progress come from the state's items (#6666).
+ * Items on other boards keep their whole row, since this state does not hold them.
+ *
+ * @param {any[]} milestones
+ * @returns {any[]}
+ */
+export function milestoneItemIds(milestones) {
+  return milestones.map(milestone => ({ ...milestone, items: milestone.items.map(entry => typeof entry.id !== "number" ? entry
+    : { id: entry.id, state: entry.state, ...(entry.position === undefined ? {} : { position: entry.position }) }) }));
 }

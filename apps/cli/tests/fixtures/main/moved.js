@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-module-loads apps/lib/index.js */
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
+import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -21,8 +22,12 @@ import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 
 const SOURCE = new URL('../../../../../', import.meta.url);
 
-/** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = false } = {}) {
+/**
+ * Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance.
+ * Why manual landing by default: under pull the board's automatic lander offers a land job for the accepted item, and the
+ * loopback local runner lands it into the fixture's own checkout, racing the source-advance worker this fixture observes.
+ */
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = true } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -118,6 +123,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     }
   }
   t.after(()=>{
+    stopFixtureLocalRunner(machine);
     const owner=join(directory,'owner.json');
     assert.equal(existsSync(owner),false,`private worker custody remains live; preserve ${scratch}`);
     rmSync(scratch,{recursive:true,force:true});

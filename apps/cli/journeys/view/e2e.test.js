@@ -326,7 +326,10 @@ test('the view answers a request line no URL parser accepts with 403, and keeps 
 
 test('nothing a person types on the view sits inside what the refresh rewrites [N27]', () => {
   const page = cockpitSource();
-  const rewritten = [...page.matchAll(/\$\('([a-z-]+)'\)\.innerHTML = /g)].map((match) => match[1]);
+  // Every refresh part is written through store.paint (#6613), which replaced the direct innerHTML assignments.
+  const rewritten = [...new Set([...page.matchAll(/store\.paint\(\$\('([a-z-]+)'\)/g)].map((match) => match[1]))];
+  // The items list is painted through a local named chain, the element with id="chain".
+  if (page.includes('store.paint(chain,')) rewritten.push('chain');
   assert.ok(['lanes', 'chain', 'detail', 'needs'].every((id) => rewritten.includes(id)), 'the refresh rewrites these');
   for (const id of rewritten) {
     const opening = new RegExp(`id="${id}"[^>]*>([^]*?)</`).exec(page);
@@ -336,7 +339,9 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   // never holds anything a person typed; every other field the script could build is still refused.
   // The Spec tab's Answer box is the one other field; its refresh case in spec/cockpit.test.js proves the draft and focus survive.
   const script = page.slice(page.indexOf('<script>')).replace(/\nasync function copyWords\([^]*?\n}\n/, '\n')
-    .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''");
+    .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''")
+    // The command palette's search box (pal-q) lives in its own overlay, opened and closed by the person, never in a refreshed part.
+    .replace(/overlay\.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box"[^\n]*/u, '');
   assert.doesNotMatch(script, /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
 });
 
@@ -345,16 +350,18 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runLocal(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  // A pulled submit returns once its gate job is offered and the fixture settles that job, so the gate has recorded
+  // its receipt before the reject below. The pull path starts no background review comparison [V4,C7,P7].
   await box.runLocal(box.web, 'submit', '1');
-  // Submit starts a background review comparison that records a second "Review comparison" fact when it settles [V4,C7];
-  // wait for it so the history order below does not depend on whether it lands before or after the reject.
-  const comparisonFacts = () => {
+  // The settle returns when the job queue is quiet, which can be before the receipt is applied; wait for the submission itself.
+  const submittedNow = () => {
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-    try { return board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n; } finally { store.closeBoard(board); }
+    try { return store.getItem(board, 1).item_status === 'submitted'; } finally { store.closeBoard(board); }
   };
-  await waitFor(() => comparisonFacts() >= 2, 'the background review comparison to record its result', 30_000); // budget: hang ceiling for the detached comparison worker under runner load.
+  await waitFor(submittedNow, 'the pulled gate to record the submission', 60_000); // budget: hang ceiling for the loopback runner's gate under runner load.
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
+  const rejected = await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
+  assert.equal(rejected.code, 0, rejected.out + rejected.err);
   box.git(box.repo, 'switch', '-q', 'main');
   const view = await startView(box, box.repo);
   try {
@@ -369,13 +376,14 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     );
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
-    assert.deepEqual(item.history.map((event) => event.kind), ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'fact', 'submit', 'fact', 'fact', 'reject', 'escalate']);
+    // Facts (the gate job note, the tier-1 shadow, a review comparison when one runs) are noted apart from the moves.
+    assert.deepEqual(item.history.map((event) => event.kind).filter((kind) => kind !== 'fact'), ['add', 'milestone_placed', 'claim', 'proof-run', 'submit', 'reject', 'escalate']);
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       const [receipt] = store.proofReceipts(board, item.id);
       assert.equal(receipt.item, item.id, 'the visible proof belongs to this item');
       assert.equal(receipt.commit, item.commit, 'the visible proof checked the submitted commit');
-      assert.equal(item.history[4].by, receipt.seat, 'the history names the native executing seat');
+      assert.equal(item.history.find((event) => event.kind === 'proof-run').by, receipt.seat, 'the history names the native executing seat');
     } finally {
       store.closeBoard(board);
     }
@@ -408,6 +416,9 @@ test("the view's refresh re-renders only what changed [N26,A2]", async () => {
     sharingReady: null,
     sharingInvitation: () => Promise.resolve(),
     transport: null,
+    // The page's board store is outside the slice this test runs; set() hands back the state it was given.
+    store: { set: (next) => next },
+    warmTabs: () => {},
     boardState: () => {
       let resolve;
       const promise = new Promise((done) => { resolve = done; });
