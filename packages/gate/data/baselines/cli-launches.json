@@ -1454,9 +1454,6 @@
   "apps/cli/journeys/land/hooklock.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/verify/fixes.test.js": {
-    "launch": 6
-  },
   "apps/cli/journeys/watch/main.test.js": {
     "launch": 2
   },
