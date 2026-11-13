@@ -141,7 +141,7 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ho
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // PULLBOARD_AGENT_CORES above: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job (#6734).
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
-  const child = spawn('/bin/sh', ['-c', skipAgent ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env,
+  const child = spawn('/bin/sh', ['-c', (skipAgent ? withoutAgent(remoteCommand) : remoteCommand).replace('nohup sh -c', 'nohup sh -x -c').replace('< /dev/null > /dev/null 2>&1 &', '< /dev/null > "$HOME/agent.out" 2>&1 &')], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   // READY and ordinary results stream; only a held-return fault withholds its receipt.
