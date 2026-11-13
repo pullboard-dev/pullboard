@@ -32,8 +32,11 @@
   "apps/cli/journeys/relay/person/credential.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/runner/deadline.test.js": {
-    "sleep": 5
+  "apps/cli/journeys/runner/deadline/queue.test.js": {
+    "sleep": 3
+  },
+  "apps/cli/tests/fixtures/runner/deadline.js": {
+    "sleep": 1
   },
   "apps/cli/journeys/submit/lease.test.js": {
     "sleep": 1

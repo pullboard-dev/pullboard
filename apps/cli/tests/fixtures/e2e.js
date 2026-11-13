@@ -58,6 +58,18 @@ const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'shi
 const SETTLE_MS = 180_000;
 
 /**
+ * Whether the fixture machine pins gate.runnerDispatch to controller; an absent or unreadable settings file is the pull default.
+ * Why: only a pull gate is a job the loopback local runner settles, so only pull has a queue worth waiting for.
+ *
+ * @param {object} env - The fixture environment.
+ * @returns {boolean}
+ */
+function controllerDispatch(env) {
+  try { return JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gate?.runnerDispatch === 'controller'; }
+  catch { return false; /* No settings file: the product default, pull. */ }
+}
+
+/**
  * Wait until the fixture board's runner job queue holds no unfinished job, so a journey reads a settled gate or landing.
  * Why: under pull dispatch a submit offers its gate as a job the loopback local runner takes and returns at once; the
  * journeys assert what the gate decided, so the fixture command returns once the queue is done [P7,#5821].
@@ -69,7 +81,9 @@ const SETTLE_MS = 180_000;
 function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
   // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
-  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
+  // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
+  // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
+  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || controllerDispatch(env) || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
   if (common.status !== 0) return;
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
