@@ -32,7 +32,7 @@ function page(options = {}) {
   ];
   const palette = pbPalette({
     document: doc, mac: true, box,
-    pages: () => ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'cost'].map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })),
+    pages: () => options.pages ?? ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'cost'].map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })),
     hasTab: () => true,
     items: () => { calls.fetch += 0; return items; },
     go: (target) => calls.go.push(target),
@@ -102,6 +102,23 @@ test('clause 1: arrow keys move the pick, Enter opens it, and a pick goes where 
   palette.state().list = palette.results('landing');
   press('Enter');
   assert.deepEqual(calls.go, ['tab:shouts', 'item:3186'], 'an item opens by its id');
+});
+
+test('clause 1: a page row reads title, then one subtitle once, then its count, each in its own element [N26]', () => {
+  const { press, results } = page({ pages: [{ id: 'spec', name: 'Spec', count: '314' }, { id: 'dashboard', name: 'Dashboard', count: '' }] });
+  press('/');
+  const rows = results.innerHTML.split('<button').slice(1);
+  assert.equal(rows.length, 2 + 4, 'two pages and the four actions');
+  assert.match(rows[0], /<span>Spec<\/span><small>What the product must do<\/small><span class="pal-end"><em>314<\/em><kbd>g e<\/kbd><\/span>/u);
+  assert.equal(rows[0].split('What the product must do').length, 2, 'the subtitle appears once');
+  assert.doesNotMatch(rows[0], /Spec[^<]*What the product/u, 'the title does not carry the subtitle');
+  assert.match(rows[1], /<span>Dashboard<\/span><small>Every number on the board<\/small><span class="pal-end"><kbd>g d<\/kbd><\/span>/u, 'no count draws no count');
+});
+
+test('clause 1: the mounted page reads each page name from its title element, apart from its subtitle and count [N26]', () => {
+  const script = paletteScript();
+  assert.match(script, /querySelector\('\.tab-name b, \.side-name'\)/u, 'the name comes from the title, not the whole button text');
+  assert.match(script, /querySelector\('\[data-nav-fact\]'\)/u, 'the count comes from the page fact');
 });
 
 test('clause 2: g then a page letter jumps to that page, and a late or unknown second key does nothing [U94,#6616]', () => {
