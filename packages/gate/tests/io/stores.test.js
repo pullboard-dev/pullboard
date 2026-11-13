@@ -11,6 +11,7 @@ import { STORE_REGISTRY } from '../../src/io/stores.js';
 import { storeBaselineGrowth } from '../../src/io/stores.js';
 import { storeExceptionApprovalText } from '../../src/io/stores.js';
 import { storeGrowth } from '../../src/io/stores.js';
+import { storeOutsideWriters } from '../../src/io/stores.js';
 import { storeOwnerProblems } from '../../src/io/stores.js';
 import { storeReport } from '../../src/io/stores.js';
 import { storeSites } from '../../src/io/stores.js';
@@ -85,6 +86,24 @@ test('clause 2: the store baseline may only fall: a risen or new ceiling refuses
   const changed = baseline => ({ [STORE_BASELINE]: JSON.stringify(baseline) });
   assert.ok(judge(changed({ [OTHER]: { 'main-red.json': 3 } }), { accepted }).some(line => /CD2_BASELINE_ROSE/u.test(line)));
   assert.deepEqual(judge(changed({ [OTHER]: { 'main-red.json': 1 } }), { accepted }), []);
+});
+
+test('clause 1: table:board_meta is owned by one packages/store/src/io module, not the stale-state logic file [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:board_meta'].owner;
+  assert.match(owner, /^packages\/store\/src\/io\/[^/]+(?:\/[^/]+)*\.js$/u);
+  assert.notEqual(owner, 'packages/store/src/logic/board/stale/apply.js');
+  assert.deepEqual(storeOwnerProblems(registry), []);
+  assert.match(storeOwnerProblems({ ...registry, stores: { ...registry.stores, 'table:board_meta': { kind: 'table', owner: 'packages/store/src/logic/board/stale/apply.js' } } })[0].text, /CD2_STORE_OWNER: table:board_meta/u);
+});
+
+test('clause 2: the board_meta writers outside packages/store are a known set that can only shrink [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const listed = registry.outsideWriters['table:board_meta'];
+  const found = storeOutsideWriters(storeReport(ROOT), 'table:board_meta', 'packages/store/');
+  assert.deepEqual(found.filter(path => !listed.includes(path)), [], 'a new outside writer of board_meta is refused; ask the store module to write the key');
+  assert.deepEqual(listed.filter(path => !found.includes(path)), [], 'a file that stopped writing board_meta leaves the list');
+  assert.ok(listed.length > 0 && listed.every(path => !path.startsWith('packages/store/')));
 });
 
 test('clause 2: the updater only lowers ceilings and refuses growth without writing [CD2]', () => {
