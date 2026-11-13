@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 import { policyFixtures } from '../../tests/fixtures/lanes-policy.js';
 import { assertWaitsOnOwner } from '../../tests/fixtures/lanes-policy.js';
 import { nativePlanRowFixture } from '../../tests/fixtures/lanes-policy.js';
@@ -32,7 +33,11 @@ test('native submit accepts a plan row for an item file after reclaim and refree
   commitPlanRow(box, id, shardPath, 'src/new.js');
   const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const shown = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+  // The board applies the pulled receipt just after the job row closes, so settle on the item leaving its claim [P7].
+  const shown = await whenRunnerSettles(box.env, async () => {
+    const row = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+    return row.item_status !== 'claimed' ? row : null;
+  }, { deadlineMs: 120_000, what: `the pulled gate of #${id} to apply` });
   assert.equal(shown.item_status, 'submitted', JSON.stringify(shown.thread.filter(row => row.type === 'fact').map(row => row.text)).slice(-3000));
 });
 
