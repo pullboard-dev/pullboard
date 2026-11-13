@@ -40,6 +40,21 @@ function landingTrunk(root, remote, main) {
 }
 
 /**
+ * The deferred files each item's latest submission recorded, by item id; null when no item deferred any.
+ * Why: the pulled gate records them in the submission proof, and only the landing job can run them on the merged tree [C7].
+ */
+function deferredFilesOf(db, items) {
+  const found = {};
+  for (const entry of items) {
+    const row = db.prepare("SELECT event_detail FROM event WHERE item_id = ? AND event_kind = 'submit' ORDER BY event_id DESC LIMIT 1").get(entry.id);
+    let files = null;
+    try { files = JSON.parse(row?.event_detail ?? 'null')?.submissionProof?.deferredFiles; } catch { /* an unreadable detail defers nothing */ }
+    if (Array.isArray(files) && files.length) found[String(entry.id)] = files;
+  }
+  return Object.keys(found).length ? found : null;
+}
+
+/**
  * Offer the board's accepted, unmerged, unheld items as one land job, or return null when this machine lands them
  * itself (no trunk remote of record, and not pull or no local runner). While a land job is open no second automatic
  * one is offered: its receipt settles the items first. Named ids offer only those items; forced (the person's reason)
@@ -85,7 +100,9 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     }
     const listed = tryGit(root, ['ls-remote', '--', remote, TRUNK]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
-    const job = offerLandingJob(board.db, { items, expect, trunk: TRUNK, forced, badges: badgeDocuments?.(board) ?? [],
+    // Each item's submit may have deferred test files to this landing; the job runs them on the merged tree [C7].
+    const deferred = deferredFilesOf(board.db, items);
+    const job = offerLandingJob(board.db, { items, expect, trunk: TRUNK, forced, deferred, badges: badgeDocuments?.(board) ?? [],
       ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true } : { config: policy.config }) });
     ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${items.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
     return { offered: job.id, items: items.map(entry => entry.id), waiting: false, ...(forced ? { forced } : {}) };
