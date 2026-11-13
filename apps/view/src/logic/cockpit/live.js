@@ -69,7 +69,7 @@ async function refresh(fresh = null, attempt = 1) {
   next.root = root;
   // Rebuild only when the board changed: a list rebuilt under the pointer can swallow a click.
   if (!addressReady) {
-    data = next;
+    data = store.set(next);
     const place = placeAtAddress(next);
     if (place?.root && place.root !== view.root) {
       view.root = place.root;
@@ -83,7 +83,7 @@ async function refresh(fresh = null, attempt = 1) {
   const changed = text !== seen;
   if (text !== seen) {
     seen = text;
-    data = next;
+    data = store.set(next, true);
     syncBoardMode(view.root);
     itemSearches.clear();
     const reading = detailRead;
@@ -91,7 +91,7 @@ async function refresh(fresh = null, attempt = 1) {
     if (detailRead !== reading) await detailRead;
   } else if (data !== next) {
     // The same board read again: keep its newest clock readings and show them in place, with no redraw (#644).
-    data = next;
+    data = store.set(next, false);
     showFlowAges();
     tickAges();
     if (view.tab === 'dashboard' && data.project) dashboardView.draw(data.project);
@@ -99,6 +99,7 @@ async function refresh(fresh = null, attempt = 1) {
   if (changed) {
     address(false);
     void loadAddressedShout();
+    warmTabs();
   }
   if (snapshot && !snapshotReplay.final && data.project) {
     snapshotReplay.final = structuredClone(data.project);
@@ -139,7 +140,7 @@ const connected = () => Boolean(stream) && stream.status !== 'down';
 
 /** Say nothing while the page's stream is up, and why the page is not live while it is down. */
 function liveLine() {
-  if (!stream || stream.status !== 'down') return '';
+  if (!stream || stream.status !== 'down') return stateWorkerStopped ? 'the state worker stopped: serving from the request thread' : '';
   if (stream.offline) return 'offline: is pullboard view still running?';
   return (canStream() ? 'reconnecting' : 'no live stream in this browser') + ': refreshing every ' + FALLBACK_MS / 1000 + 's';
 }
