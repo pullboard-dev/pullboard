@@ -73,7 +73,9 @@ test('a failed SSH call preserves its command exit and stderr through the synchr
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
 // the SSH stand-in's own Node process boots and no start is recorded (3 of 12 concurrent runs red on 28 Oct, 4/4 green
 // alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.
-const STAND_IN_BOOT_BUDGET_MS = 8_000;
+// Pull dispatch boots the stand-in for each enqueue and agent script, so at runner load 18-21 it needs 30 s: past 8 s the
+// lease is admitted late with a 90 s startup budget and the 90 s child timeout fires first (lost.pull, #6734).
+const STAND_IN_BOOT_BUDGET_MS = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 30_000 : 8_000;
 
 test('a worker missing READY yields to a free runner in the next admission cycle [C7,Q1,Q2]', t => {
   const box = fixture(t, { dropFirst: false });
