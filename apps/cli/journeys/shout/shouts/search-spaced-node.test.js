@@ -8,6 +8,7 @@ import {
   constants,
   mkdirSync,
   realpathSync,
+  rmSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -24,7 +25,7 @@ function nodeWithSpaces(root) {
 }
 
 test('search wrappers run when Node lives at a path with spaces [C7]', { timeout: 150_000 }, () => {
-  const fixture = privateFixtureFiles('pullboard-search-spaced-node-'), root = fixture.root;
+  const root = privateFixtureFiles('pullboard-search-spaced-node-').root;
   try {
     const node = nodeWithSpaces(root);
     const pattern = 'row ages read from one captured commit|spec rows keep newest-first order across a capture that moves';
