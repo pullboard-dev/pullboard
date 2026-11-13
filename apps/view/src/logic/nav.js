@@ -108,7 +108,7 @@ export function notchHtml({ agents = null, perHour = null, rulings = null } = {}
  * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string, shipped?: boolean, by?: string|null }} place
  * @returns {[string, string][]}
  */
-export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', shipped = false, by = null }) {
+export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', shipped = false, by = null, release = null, page = 1 }) {
   const pairs = [];
   const words = String(q ?? '').trim();
   if (tab === 'items' && state && state !== stateDefault && !(words && state === 'all')) pairs.push(['state', state]);
@@ -119,6 +119,7 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
   if (tab === 'activity' && activity && activity !== 'all') pairs.push(['activity', activity]);
   if (tab === 'activity' && by) pairs.push(['by', by]);
   if (tab === 'roadmap' && shipped) pairs.push(['shipped', '1']);
+  if (tab === 'roadmap' && release) { pairs.push(['release', release]); if (page > 1) pairs.push(['page', String(page)]); }
   return pairs;
 }
 
@@ -135,6 +136,19 @@ export function readPlaceQuery(search) {
 }
 
 /**
+ * The open release and the page of its landed items, read from a query string: the release a person paged to and
+ * its page number from 1 (a missing or bad page reads 1).
+ *
+ * @param {string} search - "?a=b" or "a=b".
+ * @returns {{ release: string|null, page: number }}
+ */
+export function readRoadmapPlace(search) {
+  const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
+  const page = Number.parseInt(params.get('page') ?? '', 10);
+  return { release: params.get('release') || null, page: Number.isSafeInteger(page) && page > 1 ? page : 1 };
+}
+
+/**
  * Join a query string's other keys (the session's, say) with a place's pairs, in that order; the place keys are
  * state, lane, q, rows, shouts, activity, shipped and by.
  *
@@ -143,7 +157,7 @@ export function readPlaceQuery(search) {
  * @returns {string} "" or "?…".
  */
 export function withPlaceQuery(search, pairs) {
-  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'shipped', 'by'];
+  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'shipped', 'by', 'release', 'page'];
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   for (const key of keys) params.delete(key);
   for (const [key, value] of pairs) params.append(key, value);

@@ -201,7 +201,7 @@ function roadmapCards(p, titles, kept = null) {
     kept.set(key, '');
     return key;
   }, place: (key, html) => { kept.set(key, html); return '<li data-slot="' + esc(key) + '"></li>'; } } : {};
-  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets, ...slots }) };
+  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, page: view.roadmapPage, headers, headings, rows, notes, targets, ...slots }) };
 }
 
 `;
