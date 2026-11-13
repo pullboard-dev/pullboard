@@ -1,7 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-module-loads apps/lib/index.js */
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
-import { startFixtureLocalRunner } from '../runner/local-start.js';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -23,8 +22,12 @@ import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 
 const SOURCE = new URL('../../../../../', import.meta.url);
 
-/** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = false } = {}) {
+/**
+ * Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance.
+ * Why manual landing by default: under pull the board's automatic lander offers a land job for the accepted item, and the
+ * loopback local runner lands it into the fixture's own checkout, racing the source-advance worker this fixture observes.
+ */
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = true } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -126,6 +129,6 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     rmSync(scratch,{recursive:true,force:true});
   });
   /** The ordinary health worker is the production automatic entry point; old source has no replacement stub. */
-  function trigger() { startFixtureLocalRunner(env,repo);const wake=join(directory,'wake.json');expectedGeneration=(existsSync(wake)?JSON.parse(readFileSync(wake,'utf8')).generation:0)+1;const run=cli('sentinel','run','--health-only','--json');assert.equal(run.status,0,run.context ?? run.stderr);return run; }
+  function trigger() { const wake=join(directory,'wake.json');expectedGeneration=(existsSync(wake)?JSON.parse(readFileSync(wake,'utf8')).generation:0)+1;const run=cli('sentinel','run','--health-only','--json');assert.equal(run.status,0,run.context ?? run.stderr);return run; }
   return {repo,installed,env,store,board,git,cli,trigger,settled,id,actors,accepted,trunk,tree,base,original,marker,directory,scratch,gateEntered,gateRelease};
 }

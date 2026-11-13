@@ -32,6 +32,13 @@ export function settledLandJob(box, job, { deadlineMs = SETTLE_MS } = {}) {
     { deadlineMs, what: `land job ${job}` });
 }
 
+/** The offered land job's id: `offered` on a forced landing's result, else the id plain `land` says it offered. */
+function offeredJob(landed) {
+  if (landed?.offered) return landed.offered;
+  const said = (landed?.messages ?? []).map(line => /offered (?:forced )?land job (\S+) for /u.exec(String(line))?.[1]).find(Boolean);
+  return said ?? null;
+}
+
 /**
  * Settle a land result: an inline landing (it has a `batch`) or one that offered nothing comes back as is; an offered
  * land job is waited for and comes back with the receipt in the inline shape, plus `landJob` with the raw receipt.
@@ -42,8 +49,9 @@ export function settledLandJob(box, job, { deadlineMs = SETTLE_MS } = {}) {
  * @returns {Promise<object>} `{ ...landed, landed: number[], returned, batch: { tip, state, items }, landJob }`.
  */
 export async function settleLand(box, landed, options) {
-  if (!landed?.offered || landed.batch) return landed;
-  const job = await settledLandJob(box, landed.offered, options);
+  const offered = offeredJob(landed);
+  if (!offered || landed.batch) return landed;
+  const job = await settledLandJob(box, offered, options);
   const { receipt } = job;
   return { ...landed, landed: receipt.landed ?? [], returned: receipt.returned ?? [],
     batch: { tip: receipt.trunk ?? null, state: batchState(receipt.outcome), outcome: receipt.outcome, items: job.items.map(id => ({ id })) },
