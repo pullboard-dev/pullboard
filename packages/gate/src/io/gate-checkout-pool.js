@@ -12,6 +12,8 @@ import { isAbsolute } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { addWorktree } from '../../../git/index.js';
+import { cleanGitEnvironment } from '../../../git/index.js';
 
 /** A kept checkout's folder name: a random id, so no two gates ever pick the same new name. */
 const SLOT = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
@@ -127,8 +129,8 @@ export function borrowGateCheckout({ git, commonDir, pool, root, commit }) {
     }
     discardGateCheckout(git, commonDir, root);
   }
-  const added = common(git, commonDir, ['worktree', 'add', '--lock', '--detach', root, commit]);
-  if (!added.ok) throw new Error(`queued source Git worktree failed: ${added.err.slice(0, 1000)}`);
+  try { addWorktree(commonDir, ['--lock', '--detach', root, commit], { env: cleanGitEnvironment() }); }
+  catch (error) { throw new Error(`queued source Git worktree failed: ${String(error?.stderr ?? error?.message ?? error).slice(0, 1000)}`); }
   return { reused: false, from: null, written: null };
 }
 
