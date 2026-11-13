@@ -103,7 +103,7 @@ test("Pullboard's doctrine carries its four checks [D1,D3]", () => {
   assert.ok(staged.status === 0 || staged.status === 1, staged.stderr);
   if (staged.status === 1) box.git(checkout, 'commit', '-q', '-m', 'docs: exercise doctrine checks [D1,D3]');
 
-  const spec = box.run(checkout, 'spec', 'check');
+  const spec = box.run(checkout, 'spec', 'check', '--detail');
   assert.equal(spec.code, 0, `${spec.out.split(/\r?\n/u).filter((line) => !/ warning: /u.test(line)).join('\n')}\n${spec.err}`);
   const report = box.run(checkout, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
