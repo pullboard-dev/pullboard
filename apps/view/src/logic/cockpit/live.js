@@ -63,6 +63,8 @@ async function refresh(fresh = null, attempt = 1) {
   if (!next.project && !next.group && next.projects.some((p) => p.ok)) {
     view.root = next.projects.find((p) => p.ok).root;
     keep('pb.project', view.root);
+    // The switcher names the chosen board now, while its state is on its way (#6715).
+    renderSide();
     return refresh();
   }
   // The project this board is, so a switch still loading never reads it as the next one's.
@@ -140,7 +142,7 @@ const connected = () => Boolean(stream) && stream.status !== 'down';
 
 /** Say nothing while the page's stream is up, and why the page is not live while it is down. */
 function liveLine() {
-  if (!stream || stream.status !== 'down') return '';
+  if (!stream || stream.status !== 'down') return stateWorkerStopped ? 'the state worker stopped: serving from the request thread' : '';
   if (stream.offline) return 'offline: is pullboard view still running?';
   return (canStream() ? 'reconnecting' : 'no live stream in this browser') + ': refreshing every ' + FALLBACK_MS / 1000 + 's';
 }
