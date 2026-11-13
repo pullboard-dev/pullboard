@@ -8,9 +8,9 @@
  */
 function pbPalette(env) {
   const doc = env.document;
-  const KEYS = { progress: 'p', items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c' };
+  const KEYS = { items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c' };
   const WHAT = {
-    progress: 'What is happening, in plain words', items: 'Every piece of work', shouts: 'Agents talking to the coordinator',
+    items: 'Every piece of work', shouts: 'Agents talking to the coordinator',
     roadmap: 'What ships next, in order', spec: 'What the product must do', doctrine: 'How the work must be done',
     dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', settings: 'This view and your account',
   };
@@ -139,7 +139,8 @@ function pbPalette(env) {
     if (gAt) {
       const live = Date.now() - gAt < 900;
       gAt = 0;
-      const p = live && pages().find((x) => x.key === e.key);
+      // g p still goes where Progress was: Dashboard.
+      const p = live && pages().find((x) => x.key === (e.key === 'p' ? 'd' : e.key));
       if (p) { e.preventDefault(); env.go('tab:' + p.id); }
       return;
     }
