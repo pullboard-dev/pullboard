@@ -20,6 +20,7 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
+import { judgePulledFlakes } from './flakes.js';
 import { ownershipOnly } from './owner.js';
 import { routePulledOwnership } from './owner.js';
 
@@ -410,6 +411,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     const sharded = offerProofShards(board, { job, receipt, offered });
     if (sharded) return sharded;
   }
+  // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
+  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
@@ -437,7 +440,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : [...trials.refused, ...failingParts(receipt)];
   if (routed?.refused) parts.push(`ownership routing refused: ${routed.refused}`);
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
-  if (green || mainOnly || waived) {
+  if (green || mainOnly || waived || excused && !trials.refused.length) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
     try {
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
@@ -445,13 +448,14 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
       store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green, ...(submit.infra ? { infra: submit.infra } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
-        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : ''}` } });
+        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}` } });
       if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
       if (mainOnly) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
-      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : waived ? 'waived, not green,' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : mainOnly ? 'red only on main\'s own cases' : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
       // A green gate is one real gate for every refusal on trial, counted once per receipt set, as the controller's own submit counts it [C7].
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
+      if (green) startPulledComparison(board, id, submit.agentId);
       return { applied: true, outcome: 'review', ...recorded };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -466,6 +470,48 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       text: `#${id} gate red at ${candidate.slice(0, 7)}: ${parts.find(part => !part.startsWith('also fails on main')) ?? parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
   } catch (error) { if (error?.code === undefined) throw error; }
   return { applied: true, outcome: 'red', ...recorded };
+}
+
+/** The review comparison starter this process's board API calls when a pulled gate goes green; null until a host provides one. */
+let comparisonStarter = null;
+/** The fact prefix a review comparison records under; spelled here so the board API adds no edge to the verify cell. */
+const COMPARISON_PREFIX = 'Review comparison: ';
+
+/**
+ * Provide the function that detaches a green pulled submission's background main comparison: start({ root, item,
+ * source, digest }) launches the worker that runs and records it. Why a provider: the comparison worker and its tools
+ * live in the CLI, and `pullboard serve` calls this once at start, so the board API stays free of them [C7,V4].
+ * @param {((request: { root: string, item: number, source: string, digest: string }) => unknown) | null} start
+ */
+export function provideComparisonStart(start) {
+  comparisonStarter = typeof start === 'function' ? start : null;
+}
+
+/**
+ * Record a green pulled submission's comparison as pending, then detach its worker, as the inline green submit does.
+ * Why: only the inline submit started it, so a pulled green gate reached review with no comparison ever recorded
+ * (#7267). A comparison already pending or complete for this source and bar is left alone; a starter that fails
+ * records the comparison unavailable, so no review waits on one that never ran.
+ */
+function startPulledComparison(board, id, agentId) {
+  if (!comparisonStarter || !board.gitRoot) return;
+  const item = store.getItem(board, id);
+  if (!item?.item_commit || !item.item_frozen_digest) return;
+  const pending = { item: id, status: 'pending', source: item.item_commit, digest: item.item_frozen_digest };
+  for (const fact of [...store.itemThread(board, id)].reverse()) {
+    if (fact.type !== 'fact' || !fact.text?.startsWith(COMPARISON_PREFIX)) continue;
+    let recorded = null;
+    try { recorded = JSON.parse(fact.text.slice(COMPARISON_PREFIX.length)); } catch { continue; }
+    if (recorded?.source !== pending.source || recorded.digest !== pending.digest) continue;
+    if (['pending', 'complete'].includes(recorded.status)) return;
+    break;
+  }
+  let started;
+  try { started = comparisonStarter({ root: board.gitRoot, item: id, source: pending.source, digest: pending.digest }); }
+  catch (error) { started = { error }; }
+  if (started === false) return;
+  const failed = started?.error ? { ...pending, status: 'unavailable', error: String(started.error?.message ?? started.error).slice(0, 500) } : null;
+  store.appendFact(board, id, { agentId, kind: 'measurement', text: COMPARISON_PREFIX + JSON.stringify(failed ?? pending) });
 }
 
 /** The refusal-trial ledger this process's board API records pulled gates in; null until a host provides one. */

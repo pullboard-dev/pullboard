@@ -4,15 +4,14 @@ import { test } from 'node:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
-import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
 import { fixture } from '../../../tests/fixtures/verify/compare.js';
 
-test('a green submission records its background comparison without a reviewer command [V4,C7]', { skip: 'PULL_GAP: un-skipped by #7267' }, async t => {
+test('a green submission records its background comparison without a reviewer command [V4,C7]', async t => {
   const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:true,fixed:true,known:true,skip:true};\n');
   const head = box.helpers.attackCommit(box, box.web);
-  const result = await runFixtureChildAsync(process.execPath, [box.helpers.BIN, 'submit', String(box.id), '--no-next', '--json'],
-    { cwd: box.web, env: box.env, timeout: 120000 }); // budget: real private comparison subprocess ceiling.
+  const result = await runCliInProcess(['submit', String(box.id), '--no-next', '--json'], { cwd: box.web, env: box.env });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   let comparison, thread;
   // budget: bounded wait for real private runner completion; never an elapsed-time assertion.
