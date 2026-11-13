@@ -640,13 +640,16 @@ const span = (ms) => {
  */
 function timeline(item, { newestFirst = false } = {}) {
   const fromThread = Array.isArray(item.thread) && item.thread.length > 0;
-  const entries = (fromThread
+  const recorded = fromThread
     ? item.thread
-    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry })))
-    // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
-    // verifier's background review-comparison receipts stay out of the person's history.
-    .filter((entry) => !['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
-      && !(entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: ')));
+    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+  // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
+  // verifier's background review-comparison receipts stay out of the person's history.
+  const bookkeeping = (entry) => ['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
+    || (entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: '));
+  const entries = recorded.filter((entry) => !bookkeeping(entry));
+  // A placement keeps its event identity with the row of the event before it, so every API event is still found once [B33,B29].
+  const folded = recorded.flatMap((entry, at) => entry.kind === 'milestone_placed' ? [{ eventId: entry.eventId, after: recorded.slice(0, at).findLast((before) => !bookkeeping(before))?.eventId ?? null }] : []);
   // Native thread moves keep their event detail nested; project it through the shared lifecycle adapter
   // before replay so retained refreezes and other declared event facts match the API history projection.
   const replayEntries = entries.map((entry) => entry.type === 'move' && fromThread
@@ -669,7 +672,7 @@ function timeline(item, { newestFirst = false } = {}) {
     : entry);
   const presentedSteps = steps.map((step) => ({ ...step, kindLabel: eventWords(step.kind), momentLabel: eventMoment(step.kind), timeLabel: step.at ? when(step.at) : '',
     ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
-  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
+  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW, folded,
     open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [], newestFirst });
 }
 

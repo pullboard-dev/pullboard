@@ -25,7 +25,6 @@
 .row.item-row .item-seat.back { background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); }
 .row.item-row .item-seat.verify { background: color-mix(in oklab, var(--stage-review) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-review) 60%, var(--ink)); }
 .row.item-row .item-status { font-family: var(--sans); }
-.row.item-row .item-status.verified { background: color-mix(in oklab, var(--stage-merged) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-merged) 60%, var(--ink)); }
 .row.item-row.gated:has(> .row-side > .chip.gate), .row.item-row.gated:has(.meta .gate) { border-color: color-mix(in oklab, var(--stage-gated) 45%, var(--line)); }
 
 /* Items opens on its items: questions and sentinels wait in one collapsed group above them, ids whole [N26]. */
