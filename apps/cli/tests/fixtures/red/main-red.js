@@ -149,9 +149,9 @@ export async function settledRed(t, box, submitter, item, { args = [], until = (
   return { shown, job: settled.gateJob };
 }
 
-/** The text of every fact the board recorded for one gate job's result, oldest first. */
+/** The text of every fact the board recorded for one gate job's result, oldest first; the note offering the job is not one. */
 export function gateFacts(shown, job) {
-  return (shown?.thread ?? []).map(entry => String(entry.text ?? '')).filter(text => text.startsWith(`Gate job ${job} `));
+  return (shown?.thread ?? []).map(entry => String(entry.text ?? '')).filter(text => text.startsWith(`Gate job ${job} `) && !text.startsWith(`Gate job ${job} offered for `));
 }
 
 /** Assert the public refusal identifies both next steps and excludes false unique attribution. */
