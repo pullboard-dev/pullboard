@@ -113,5 +113,5 @@ export async function submitted(box, repo, web, title, check) {
 
 /** Remove all files created by a test's private repository and SQLite board. */
 export function clean(box) {
-  rmSync(box.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // a just-finished in-process submit may still be writing its last files
+  rmSync(box.dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }); // a just-finished in-process submit or a detached board writer may still be writing its last files; retry ENOTEMPTY rather than fail the case [C7]
 }

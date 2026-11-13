@@ -247,6 +247,8 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     "console.log('TAP version 13\\nok 1 - landed queue files keep their behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gateFile)}`, sandbox);
+  // The landings and their gates settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   if (policyAfterFirst) {
     const file = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -280,7 +282,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     }
   });
   // The stopped holder keeps its gate slot until its own lease runs out, so the adopting landing needs a second slot of its own.
-  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2, gate: { ...FIXTURE_GATE_DISPATCH } });
+  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2, gate: { runnerDispatch: 'controller' } });
   writeFileSync(arm, 'armed');
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
