@@ -347,7 +347,9 @@ function keyedMainFailing(db, id) {
  * against main's receipts the way the controller gate's main-owned verdict does, linking repairs and asking for the rest [V4,B3,C7].
  */
 function mainOwnership(board, id, compared, main) {
-  const failures = [...new Map(compared.cases.map(({ file, name }) => [`${file}\0${name}`, { file, name }])).values()];
+  // A pulled receipt names each case but carries no diagnostics, so the signature keys the exact case on main.
+  const signed = (file, name) => createHash('sha256').update(JSON.stringify(['pulled-case', file, name])).digest('hex');
+  const failures = [...new Map(compared.cases.map(({ file, name }) => [`${file}\0${name}`, { file, name, signature: signed(file, name) }])).values()];
   const items = store.listItems(board, { all: true });
   const { clear } = store.splitAmbiguousMainReds({ main, failures }, items, id);
   const unowned = store.unownedMainReds(clear, items, id) ?? [];
@@ -444,7 +446,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : gateGreen ? 'green over main-owned frozen check cases' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
-        store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], item: id, decision: true, text: unownedShout(id, owners.unowned, main) });
+        store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });
       } catch (error) { if (error?.code === undefined) throw error; }
       // A green gate is one real gate for every refusal on trial, counted once per receipt set, as the controller's own submit counts it [C7].
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
