@@ -118,9 +118,9 @@ export function rows(box, sql, ...args) {
 }
 
 /** File an open repair whose check names the failing file. */
-export function fileMainRed(box) {
+export function fileMainRed(box, extra = []) {
   const result = cli(box, box.root, 'add', 'core', 'Main red: frozen case needs repair', '--specs', 'G1',
-    '--criterion', 'The frozen case passes on main.', '--check', FROZEN, '--brief', 'Files: test/frozen.test.js\nTest: frozen case');
+    '--criterion', 'The frozen case passes on main.', '--check', FROZEN, '--brief', 'Files: test/frozen.test.js\nTest: frozen case', ...extra);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }
