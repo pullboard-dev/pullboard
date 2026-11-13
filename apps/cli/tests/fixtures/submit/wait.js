@@ -55,10 +55,10 @@ export function waitKit(store) {
     assert.equal(child.exitCode, 0, 'a later independent verdict does not change the completed gate result');
     if (json) {
       const document = JSON.parse(child.stdoutText);
-      assert.equal(document.id, 1);
+      assert.equal(document.item, 1);
       assert.ok(document.commit);
-      assert.ok(document.pin);
-      assert.ok(document.gate);
+      assert.ok(document.gateJob, 'a pulled submit names its gate job instead of a hand-off pin');
+      assert.ok((await settledGateJob(box, 1)).gate, 'the settled job receipt carries the gate result');
       assert.equal(document.verdict, undefined, 'submit reports its gate independently of a later review');
     }
     assert.ok(onBoard(box, board => store.verdictsFor(board, 1)).some(row => row.verdict_decision === decision
