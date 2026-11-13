@@ -5,13 +5,13 @@
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
-  readFileSync,
   rmSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
+import { composeViewStyles } from '../../../view/src/io/styles.js';
 import {
   accept,
   build,
@@ -36,7 +36,7 @@ async function startReadOnlyView(view) {
         .end(cockpitPage('', { readOnly: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
       if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transport);
       if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' })
-        .end(readFileSync(new URL("../../../view/src/io/main.css", import.meta.url)));
+        .end(composeViewStyles());
       if (!url.pathname.startsWith('/upstream/')) return response.writeHead(404).end();
       const reply = await fetchLive(view.base + url.pathname.slice('/upstream'.length) + url.search,
         { headers: { 'x-pullboard-key': view.key } });

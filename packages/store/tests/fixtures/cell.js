@@ -133,6 +133,8 @@ export function cellSandbox(t, { model = FIXTURE_MODEL } = {}) {
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     PULLBOARD_CLAIM_BEATER: '0',
+    // A fixture board's nested pullboard test starts at once, as in the e2e sandbox (#7257).
+    PULLBOARD_FIXTURE_BOARD: '1',
     PULLBOARD_MODEL: model,
     // Fixture items carry near-identical numbered titles, so add's duplicate guard stays off, as in the e2e sandbox (#6864).
     PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
