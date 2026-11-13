@@ -41,6 +41,7 @@ import {
 } from 'node:test';
 import { main } from '../../tests/fixtures/native.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 import { resultCommands } from '../../index.js';
 import { createLocalApiHandler } from '../../../../packages/api/index.js';
 import {
@@ -75,7 +76,6 @@ import { assertSpecCorrectionRefreezesCitations } from '../../tests/fixtures/ref
 import {
   FIXTURE_MODEL,
   fixtureJoin,
-  fixtureMachineSettings,
 } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -84,6 +84,8 @@ import {
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const TEMP_DIRS = [];
+// Local runners that pull submits started on a case's machine; killed when the file ends.
+const LOCAL_RUNNERS = [];
 const COMPILE_CACHE = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-api-compile-cache-')));
 TEMP_DIRS.push(COMPILE_CACHE);
 const covered = new Set();
@@ -150,6 +152,7 @@ after(async () => {
   for (const child of serverChildren.keys()) child.kill('SIGKILL');
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
+  for (const pid of LOCAL_RUNNERS) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
   for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -186,9 +189,7 @@ function sandbox() {
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     NODE_COMPILE_CACHE: COMPILE_CACHE,
   };
-  // The cases read a submit's result at once and verify it, so the gate runs in the submitting process (#6249).
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.PULLBOARD_STARTUP_TRACE_FILE;
   delete env.PULLBOARD_STARTUP_TRACE_ENTRY;
@@ -301,6 +302,14 @@ async function json(box, cwd, command, args = [], subcommand) {
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
+  // A pull submit returns queued at once; the machine's local runner posts the gate receipt, so wait for the item to leave claimed.
+  if (command === 'submit' && document.queued) {
+    if (document.localRunner?.pid) LOCAL_RUNNERS.push(document.localRunner.pid);
+    await whenRunnerSettles(box.env, async () => {
+      const shown = await box.runLocal(cwd, 'show', String(document.item), '--json', '--no-next');
+      return shown.status === 0 && JSON.parse(shown.stdout).item_status !== 'claimed';
+    }, { deadlineMs: 120_000, what: `the pulled gate of #${document.item}` });
+  }
   return document;
 }
 
