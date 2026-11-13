@@ -10,6 +10,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 
 const e2e = createE2eHelpers();
@@ -19,6 +20,7 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 /** A plain landing project in the default shape: no affectedTests, per-item landing, no landing.publish, pushed to its origin. */
 function defaultProject() {
   const box = landProject();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME); // submits settle their gate in-process (#6249)
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   delete config.affectedTests;
