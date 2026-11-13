@@ -812,10 +812,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/generated/handoff.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/http.js": {
       "cells": 1,
       "deep": 0
@@ -6090,9 +6086,6 @@
     "packages/drive/src/io/queue.js": [
       "apps/cli"
     ],
-    "packages/flakes/src/io/native.js": [
-      "apps/cli"
-    ],
     "packages/gate/src/io/check/baseline/worker.js": [
       "apps/lib"
     ],
@@ -6194,9 +6187,6 @@
       "apps/cli"
     ],
     "packages/runners/tests/fixtures/fleet.js": [
-      "apps/cli"
-    ],
-    "packages/sentinels/src/io/serve.js": [
       "apps/cli"
     ],
     "packages/state/tests/fixtures/api.js": [

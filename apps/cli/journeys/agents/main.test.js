@@ -360,7 +360,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         assert.ok((await text('#detail')).includes(expected.builder), `${at}: held item detail`);
         assert.equal(await text('#needs details[data-needs-key^="decision:"] [data-needs-field="asked-by"]'), expected.reviewer, `${at}: Needs-you decision author`);
         assert.ok((await text('#needs details[data-needs-key^="hold:"] .needs-copy small')).includes('lane held by ' + expected.reviewer), `${at}: Needs-you lane holder`);
-        await chooseFilter(chrome, 'state:verified');
+        await chooseFilter(chrome, 'state:all');
         await settled(chrome, '!!document.querySelector("#chain [data-item=\\"2\\"]")');
         await press(chrome, 'document.querySelector("#chain [data-item=\\"2\\"]")');
         await settled(chrome, `view.item === 2 && !!document.querySelector("#detail h2") && !document.querySelector('#detail [aria-busy="true"]') && !!document.querySelector('#detail .verdict .by')`);
