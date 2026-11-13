@@ -2,6 +2,7 @@ import { activeViewAgents } from "../logic/summary/state.js";
 import { viewProofSummary } from "../logic/summary/state.js";
 import { compactItemSummaries } from "../logic/summary/state.js";
 import { viewFlowSummary } from "../logic/summary/state.js";
+import { projectSummary } from "../logic/summary/project.js";
 import { modelPresentation } from "./cost/tab.js";
 import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
@@ -164,7 +165,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
   const { serveApi } = await import("../../../../packages/api/index.js");
-  const api = await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
+  const api = await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
   let listing;
   let state;
   let events;
@@ -653,7 +654,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
