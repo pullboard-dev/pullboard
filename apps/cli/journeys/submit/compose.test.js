@@ -104,7 +104,7 @@ test('a view commit creating its own file and one plan row passes the hook and n
   box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
   rmSync(box.marker, { force: true });
   const submitted = success(box, box.view, 'submit', String(box.id), '--wait');
-  assert.equal(submitted.gate.green, true);
+  assert.equal(submitted.gate?.green, true, JSON.stringify(submitted).slice(0, 600));
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
 });
