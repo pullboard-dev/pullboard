@@ -127,7 +127,10 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
     try { await chrome.waitFor(LOADED, firstLoadMs()); }
     catch (error) {
       const seen = await chrome.stable("JSON.stringify({ text: document.body.innerText.slice(0, 600), cls: document.body.className, data: typeof data, root: typeof view === 'object' ? view.root : null, project: typeof data === 'object' && data ? Object.keys(data) : null, err: window.__err })").catch(e => e.message);
-      throw new Error(`DIAG ${seen} :: ${error.message.slice(0, 100)} :: ${server.stderr()}`);
+      const { readFileSync, existsSync, readdirSync } = await import('node:fs');
+      let reg; try { reg = readFileSync(join(board.env.PULLBOARD_HOME, 'projects.json'), 'utf8'); } catch (e) { reg = `ERR ${e.message}`; }
+      const extra = JSON.stringify({ root: board.root, rootExists: existsSync(board.root), ws: board.workspace, home: board.env.PULLBOARD_HOME, homeFiles: existsSync(board.env.PULLBOARD_HOME) ? readdirSync(board.env.PULLBOARD_HOME) : null, reg });
+      throw new Error(`DIAG ${extra} ${seen} :: ${error.message.slice(0, 100)} :: ${server.stderr()}`);
     }
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     const hangs = [], hung = new Set();
