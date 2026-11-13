@@ -26,8 +26,8 @@ async () => {
   establishBaseFile(box, 1, e2e);
   const red = await item(box, 1);
   box.env.LAND_SUPPRESS_RED = '1';
-  try { submitItem(box, red, 'RED\n'); } finally { delete box.env.LAND_SUPPRESS_RED; }
-  acceptItem(box, red);
+  // The review's frozen check runs here too, so the red stays suppressed through the accept; the land job does not inherit it [C7].
+  try { submitItem(box, red, 'RED\n'); acceptItem(box, red); } finally { delete box.env.LAND_SUPPRESS_RED; }
   moveMainPastSubmit(box);
 
   await land(box);

@@ -26,8 +26,8 @@ async () => {
   establishBaseFile(box, 1, e2e);
   const red = await item(box, 1), green = await item(box, 2);
   box.env.LAND_SUPPRESS_RED = '1';
-  try { submitItem(box, red, 'RED\n'); submitItem(box, green); } finally { delete box.env.LAND_SUPPRESS_RED; }
-  acceptItem(box, red);
+  // The review's frozen check runs here too, so the red stays suppressed through its accept; the land job does not inherit it [C7].
+  try { submitItem(box, red, 'RED\n'); submitItem(box, green); acceptItem(box, red); } finally { delete box.env.LAND_SUPPRESS_RED; }
   acceptItem(box, green);
   moveMainPastSubmit(box); // the red submit was recorded green with its red suppressed; main moves so landing runs its own gate [C7]
   const start = box.git(box.repo, 'rev-parse', 'main');
