@@ -17,18 +17,19 @@ async function seat(box, name, args) {
   return root;
 }
 
-/** An item claimed by a seat that declared no family but named its model, then landed by hand around the gate under verify.family require. */
+/** An item claimed by a seat that declared no family but named its model, then landed by hand around the gate once verify.family is require. */
 async function fixture(t, model) {
   const box = crossLaneFixture(t);
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Claimed then hand landed', criterion: 'the result exists', check: 'test -f web/result.txt', run: box.runLocal });
+  const builder = await seat(box, 'builder', ['--model', model]);
+  const claimed = await box.runAsLocal('builder-session', builder, 'claim', String(item.item_id));
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  // The claim predates the policy, as the old landings do: a family-requiring board would refuse a claim with no declared family.
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, verify: { ...config.verify, family: 'require' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: require a different review family');
-  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Claimed then hand landed', criterion: 'the result exists', check: 'test -f web/result.txt', run: box.runLocal });
-  const builder = await seat(box, 'builder', ['--model', model]);
-  const claimed = await box.runAsLocal('builder-session', builder, 'claim', String(item.item_id));
-  assert.equal(claimed.code, 0, claimed.out + claimed.err);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/result.txt'), 'hand landed\n');
   box.git(box.repo, 'add', '-A');
