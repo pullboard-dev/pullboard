@@ -29,7 +29,7 @@ function git(cwd, args) {
 }
 
 test('#5846 clause 1: the registry names one entry point for each operation [C7]', () => {
-  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'execute-gate', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'create-worktree', 'stop-process-tree']);
+  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'execute-gate', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'create-worktree', 'stop-process-tree', 'sync-sleep', 'move-trunk']);
   for (const { entry } of OPERATIONS) assert.ok(readFileSync(new URL(entry, ROOT), 'utf8').length > 0, `${entry} exists`);
 });
 
@@ -173,4 +173,49 @@ test('#6749 clause 2: execute-gate is its own operation and a new unmarked run*G
   assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new gate runner is refused');
   assert.deepEqual(operationSites(RUN_GATE, entry.entry), [], 'the entry itself is not a second path');
   assert.deepEqual(operationSites("export function dispatchGate() {}\n", 'packages/demo/src/io/gate.js').map(row => row.operation), ['dispatch-gates'], 'a dispatcher is not an executor');
+});
+
+const SLEEP_WAIT = 'export const nap = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);\n';
+
+test('#6752 clause 1: sync-sleep is entered at the kernel sleepBlocking function, and a new Atomics.wait outside it fails the registry test [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'sync-sleep');
+  assert.equal(entry?.entry, 'packages/kernel/src/logic/sleep.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function sleepBlocking/u);
+  const sites = operationSites(SLEEP_WAIT, 'packages/demo/src/io/nap.js');
+  assert.deepEqual(sites.map(row => [row.operation, row.line]), [['sync-sleep', 1]]);
+  assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new file is refused');
+  assert.deepEqual(operationSites(SLEEP_WAIT, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites(`// ${SLEEP_WAIT}`, 'packages/demo/src/io/nap.js'), [], 'a commented-out wait is not a site');
+});
+
+test('#6752 clause 2: the baseline lists the current Atomics.wait files as known violations, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline['sync-sleep'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['sync-sleep']);
+  assert.ok(baseline['sync-sleep'].length > 0);
+  assert.equal(operationEntryCounts(baseline)['sync-sleep'], 1 + baseline['sync-sleep'].length);
+  const grown = { ...baseline, 'sync-sleep': [...baseline['sync-sleep'], 'packages/demo/src/io/nap.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /sync-sleep gains a second entry point/u);
+});
+
+const MOVE_REF = "export const move = (git, trunk, tip) => git(['update-ref', trunk, tip]);\n";
+const PUSH_MAIN = "export const push = (git, remote, entry) => git(['push', remote, `+${entry.commit}:${entry.ref}`]);\n";
+
+test('#6747 clause 1: move-trunk marks an update-ref of a trunk ref and a push to main, entered at publish.js [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'move-trunk');
+  assert.equal(entry?.entry, 'packages/landing/src/io/step/publish.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export async function moveTrunkRef/u);
+  assert.deepEqual(operationSites(MOVE_REF, 'packages/demo/src/io/move.js').map(row => [row.operation, row.line]), [['move-trunk', 1]]);
+  assert.deepEqual(operationSites(PUSH_MAIN, 'packages/demo/src/io/push.js').map(row => [row.operation, row.line]), [['move-trunk', 1]]);
+  assert.deepEqual(operationSites("git(['update-ref', 'refs/heads/main', tip]);\n", 'packages/demo/src/io/move.js').length, 1, 'a literal main ref counts');
+  assert.deepEqual(operationSites("git(['update-ref', `refs/pullboard/x/${id}`, tip]);\n", 'packages/demo/src/io/pin.js'), [], 'a pin is not a trunk move');
+  assert.deepEqual(operationSites(MOVE_REF, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationEntryGrowth(operationSites(MOVE_REF, 'packages/demo/src/io/move.js'), JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))).length, 1, 'a new file is refused');
+});
+
+test('#6747 clause 2: the baseline lists the other trunk movers as known violations, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline['move-trunk'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['move-trunk']);
+  assert.equal(baseline['move-trunk'].length, 7, 'measured: 7 other files, the bar said 6');
+  const grown = { ...baseline, 'move-trunk': [...baseline['move-trunk'], 'packages/demo/src/io/move.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /move-trunk gains a second entry point/u);
 });
