@@ -57,7 +57,7 @@ function measureCommands(box) {
   seed(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const dir = join(box.dir, 'web-budget');
   box.git(box.repo, 'worktree', 'add', '-q', dir, '-b', 'web/budget');
-  assert.equal(joinFixtureSeat(box, dir, 'web').code, 0, 'the seat joins');
+  assert.equal(joinFixtureSeat(box, dir, 'web', { lockLane: true }).code, 0, 'the seat joins and keeps its lane');
   const samples = { next: [], 'next --take': [], 'next --verify': [], claim: [], release: [] };
   for (let round = 0; round < ROUNDS; round++) {
     const ids = [0, 1].map(n => fileFixtureItem(box, box.repo, { lane: 'web', title: `Budget work ${round}.${n}` }).item_id);
