@@ -295,6 +295,7 @@
     "apps/runner": 143,
     "apps/view": 128,
     "blueprints": 143,
+    "board": 138,
     "codemap": 142,
     "commits": 143,
     "config": 142,
