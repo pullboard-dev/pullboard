@@ -37,8 +37,8 @@ import { openGateSpans } from '../../../../../../packages/resources/index.js';
 import { recordGateSpan } from '../../../../../../packages/resources/index.js';
 import { acceptedCellsFromJob } from '../../../../../lib/index.js';
 import { submitUntilSettled } from '../../../../../lib/index.js';
-import { runGateStages } from '../../../../../../packages/gate/heavy.js';
-import { withGateProgress } from '../../../../../../packages/gate/heavy.js';
+import { runGateStages } from '../../../../../../packages/gate/index.js';
+import { withGateProgress } from '../../../../../../packages/gate/index.js';
 import { drainLoop } from '../../../../../../packages/drive/index.js';
 import { rowSink } from '../../../../../../packages/drive/index.js';
 import { recordJobRow } from '../../../../../../packages/drive/index.js';
@@ -51,8 +51,8 @@ import { jobView } from '../../../../../../packages/jobs/index.js';
 import { releaseLease } from '../../../../../../packages/jobs/index.js';
 import { borrowGateCheckout } from '../../../../../../packages/gate/heavy.js';
 import { discardGateCheckout } from '../../../../../../packages/gate/heavy.js';
-import { returnGateCheckout } from '../../../../../../packages/gate/index.js';
-import { gateCheckoutPool } from '../../../../../../packages/gate/index.js';
+import { returnGateCheckout } from '../../../../../../packages/gate/heavy.js';
+import { gateCheckoutPool } from '../../../../../../packages/gate/heavy.js';
 
 /** Git for the gate's kept checkouts, without the caller's Git environment; a failure is returned, never thrown. */
 function gateGit(args) {
