@@ -50,9 +50,6 @@
   "apps/relay/tests/relay-client-fixture.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/verify/check.test.js": {
-    "sleep": 2
-  },
   "apps/cli/journeys/shout/http.test.js": {
     "sleep": 1
   },
@@ -376,5 +373,8 @@
   },
   "apps/cli/journeys/init/shards.test.js": {
     "sleep": 4
+  },
+  "apps/cli/journeys/verify/check-landing.test.js": {
+    "sleep": 2
   }
 }
