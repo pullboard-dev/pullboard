@@ -541,6 +541,23 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `claimed` | `receipt` | the holding runner posts its receipt | `postReceipt` in `packages/api/src/io/jobs.js` |
 | `receipt` | `done` | the receipt is recorded and the lease released | `postReceipt` in `packages/api/src/io/jobs.js` |
 
+#### `check-baseline`: pulled check baseline
+
+- **Id:** `baseline:<item>:<request>`. Created by `offerCheckBaseline` in `packages/api/src/io/baseline.js`.
+- **Serves:** item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline.
+- **States:** `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
+- **Ends when its item moves on:** n/a, at `applyCheckBaselineReceipt` in `packages/api/src/io/baseline.js`: a moved request refuses the result (stale); no driver ends the job on an item move
+- **Harness:** `apps/cli/journeys/check-baseline/main.test.js`.
+
+| From | To | Trigger | Where |
+|---|---|---|---|
+| (none) | `offered` | add or edit offers the check at main's captured commit, or returns the open job for that request | `offerCheckBaseline` in `packages/api/src/io/baseline.js` |
+| `offered` | `claimed` | a runner with every capability takes the lease | `claimJob` in `packages/api/src/io/jobs.js` |
+| `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |
+| `claimed` | `receipt` | the holding runner posts its receipt | `postReceipt` in `packages/api/src/io/jobs.js` |
+| `receipt` | `done` | the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released | `applyCheckBaselineReceipt` in `packages/api/src/io/baseline.js` |
+
 #### Processes that are not job rows
 
 | Process | What it does | Where | Serves | Harness |
