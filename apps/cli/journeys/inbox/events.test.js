@@ -110,7 +110,7 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   assert.equal(badAgent.document.error.code, 'NO_AGENT');
   const submitted = await box.call(box.path + '/moves', { verb: 'submit', item: id, agent: one.agent });
   assert.equal(submitted.status, 200, JSON.stringify(submitted.document));
-  await whenRunnerSettles(box.env, async () => (await box.call(box.path + '/items/' + id)).document.item.status !== 'claimed' || null,
+  await whenRunnerSettles(box.env, async () => (await box.cliLocal(box.root, 'show', String(id))).item_status !== 'claimed',
     { deadlineMs: 60_000, what: `the pulled gate of #${id}` });
   const review = await box.call(box.path + '/moves', { verb: 'next', agent: two.agent, args: { verify: true } });
   assert.equal(review.status, 200, JSON.stringify(review.document));
