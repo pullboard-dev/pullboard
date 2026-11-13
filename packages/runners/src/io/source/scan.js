@@ -10,13 +10,11 @@ import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -27,6 +25,8 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { scratchFolder } from '../../../../config/index.js';
+import { storeName } from '../store-names.js';
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -36,7 +36,7 @@ export function sourceGit(root, args, options = {}) {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: MAX_BLOB_BYTES, ...options,
   });
   if (result.error?.code === 'ENOBUFS') {
-    const directory = mkdtempSync(join(tmpdir(), 'pullboard-source-count-'));
+    const directory = scratchFolder('pullboard-source-count-');
     const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
     try {
       const counted = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
@@ -85,17 +85,34 @@ export function cachedScan(kind, parts, scan) {
   if (!tree) return scan();
   const folder = join(process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard'), 'source-scan');
   const key = JSON.stringify([kind, tree, ...parts]);
+  let saved = keptScan(folder, key);
+  if (saved) return saved.value;
+  // One scan per key: the shards and the analysis trip of one gate prepare the same commit at once, and each scanned
+  // it cold, 22-25 s apiece on the controller (11 Nov) [C7,#5728]. A waiter answers from the scanner's verdict; a
+  // refusal is never kept, so after it each waiter scans and refuses for itself.
+  const lock = join(folder, `${createHash('sha256').update(key).digest('hex').slice(0, 32)}.lock`);
+  const release = takeScan(lock, () => (saved = keptScan(folder, key)) !== null);
+  if (!release) return saved.value;
+  try {
+    saved = keptScan(folder, key);
+    if (saved) return saved.value;
+    const value = scan();
+    try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, value }))); }
+    catch { /* An unwritable cache only costs the next scan its shortcut. */ }
+    return value;
+  } finally { release(); }
+}
+
+/** A kept clean verdict for this exact key, as { value }, or null; an unreadable verdict only costs the shortcut. */
+function keptScan(folder, key) {
   try {
     const saved = loadKeyedResult(folder, key);
     if (saved) {
       const entry = JSON.parse(saved.toString('utf8'));
-      if (entry?.key === key) return entry.value;
+      if (entry?.key === key) return { value: entry.value };
     }
   } catch { /* An unreadable verdict only costs this scan its shortcut. */ }
-  const value = scan();
-  try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, value }))); }
-  catch { /* An unwritable cache only costs the next scan its shortcut. */ }
-  return value;
+  return null;
 }
 
 /** Scan every current blob and the commit message before any source bytes leave the controller; a clean commit's verdict is kept (cachedScan). */
@@ -136,7 +153,7 @@ function scanSourceObjects(root, source) {
       }
       return size;
     });
-    const scratch = mkdtempSync(join(tmpdir(), 'pullboard-runner-source-'));
+    const scratch = scratchFolder('pullboard-runner-source-');
     try {
       const scan = join(scratch, 'current.scan');
       for (let start = 0; start < blobs.length;) {
@@ -210,7 +227,7 @@ function cleanHistoryFile(root, policies) {
   const digest = createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 32);
   const partial = existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'));
   const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
-  return join(partial ? join(common, 'pullboard') : home, 'history-scan', `${digest}.json`);
+  return join(partial ? join(common, 'pullboard') : home, 'history-scan', storeName(digest));
 }
 
 /** Read the cached clean commits, newest first; a missing or unreadable cache is empty. */

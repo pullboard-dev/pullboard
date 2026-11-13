@@ -111,9 +111,23 @@ export async function nextHere(io, values) {
   }
   finally {
     progress.stop(); await monitor?.close();
+    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/**
+ * Print each next phase's milliseconds and name the slowest three, on stderr so JSON stdout stays whole.
+ * Why: the 0.2 s budget needs a measured profile of the real-size board before any phase is optimised (#6290).
+ *
+ * @param {any} io
+ * @param {{phase: string, ms: number}[]} phases Slowest first.
+ */
+function sayNextProfile(io, phases) {
+  const write = text => (io.stderr?.write ? io.stderr.write(text + '\n') : io.err?.(text));
+  for (const row of phases) write(`next profile: ${row.phase} ${Math.round(row.ms)} ms`);
+  write(`next profile: total ${Math.round(phases.reduce((sum, row) => sum + row.ms, 0))} ms; slowest three: ${phases.slice(0, 3).map(row => row.phase).join(', ')}`);
 }
 
 /**
@@ -252,6 +266,14 @@ async function nextWithProgress(io, values, progress) {
         for (const reason of found.reasons ?? []) io.say(reason);
         sayReviewOffer(ctx, found); return 0;
       }
+      // "you hold" is printed only after this read finds the item claimed by this seat under a live lease; otherwise selection runs again [C7,#4056].
+      if (found.held && !found.review && !values.verify && !found.waitingOffer) {
+        const stillHeld = withBoardRead(ctx, board => {
+          const fresh = store.getItem(board, found.item.item_id);
+          return fresh?.item_status === 'claimed' && fresh.item_owner === whoAmI(ctx, board).id && fresh.item_lease_until > board.clock.now().toISOString();
+        });
+        if (!stillHeld) { values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.item.item_id])] }; continue; }
+      }
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
@@ -261,7 +283,9 @@ async function nextWithProgress(io, values, progress) {
         const record = store.returnedRecord(board, item.item_id);
         return record && { ...record, ...(record.gate ? { gate: { ...record.gate, failing: retainedGateAssertions(ctx.info.commonDir, record.gate.job) } } : {}) };
       });
-      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      // A fresh build claim in the default loop takes up to N-1 more ready items whose files are disjoint, each in its own folder [C7,#6263].
+      const more = !review && !found.held && !found.waitingOffer && found.itemFolder && values.defaultLoop ? await claimMore(ctx, values) : [];
+      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -307,10 +331,17 @@ async function nextWithProgress(io, values, progress) {
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
-        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
+        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
+        for (const next of more) {
+          io.say(`claimed #${next.item.item_id}: ${next.item.item_title}`);
+          io.say(`item folder: ${next.itemFolder}; seat ${next.holder}; build, commit and submit there`);
+          if (next.item.item_criterion) io.say(`criterion: ${next.item.item_criterion}`);
+          if (next.item.item_check) io.say(`check: ${next.item.item_check}   (run it before you submit)`);
+          io.say(`when it is built and committed: ${cdTo(next.itemFolder)} pullboard submit ${next.item.item_id}`);
+        }
       }
       return 0;
     }
@@ -386,6 +417,35 @@ async function nextWithProgress(io, values, progress) {
       wakeVersion = wake.version();
     }
   } } finally { wake?.close(); }
+}
+
+/**
+ * Claim more ready items for this seat, each sharing no file with one it already holds, until the claim guard's N says stop [C7,#6263].
+ * Why: the seat builds the next item while an earlier one's tests run; N comes from the board (claims.perSeat or free slots per live seat).
+ *
+ * @param {any} ctx
+ * @param {any} values
+ * @returns {Promise<any[]>} The extra claims, in claim order.
+ */
+async function claimMore(ctx, values) {
+  const omit = new Set(values.omitIds ?? []);
+  const taken = [];
+  for (let tries = 0; tries < 10; tries += 1) {
+    withBoardRead(ctx, board => {
+      const me = whoAmI(ctx, board).id, items = store.listItems(board);
+      const mine = items.filter(item => item.item_status === 'claimed' && item.item_owner === me);
+      const held = new Set(mine.flatMap(item => store.itemFiles(item)));
+      // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
+      for (const item of mine) omit.add(item.item_id);
+      for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);
+    });
+    const found = await nextOnce(ctx, { ...values, build: true, omitIds: [...omit] });
+    if (found.skipItem) { omit.add(found.skipItem); continue; }
+    if (!found.item || found.held || found.review || found.waitingOffer || found.retry || !found.itemFolder) break;
+    omit.add(found.item.item_id);
+    taken.push(found);
+  }
+  return taken;
 }
 
 /** Hold an idle next on the board file until the seat's queued test run comes back; true when one did [C7]. */

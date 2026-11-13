@@ -15,6 +15,7 @@ import {
 import { pathToFileURL } from 'node:url';
 import {
   after,
+  describe,
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
@@ -25,8 +26,7 @@ import {
 } from '../../../tests/fixtures/runner/ssh.js';
 import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
-import { fixtureCellsPlan } from '../../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -48,25 +48,14 @@ function runnerProject({ healthDown = false } = {}) {
   writeFileSync(join(box.repo, 'packages/landing/src/io/smoke.js'), `${mark}\nexport function runLandingCliSmoke() { console.error('smoke-ran-at:' + process.env.HOME); process.exit(1); }\n`);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: runner-only landing checks');
-  // A separate foreign project owns its plan schema and its committed checker; the native project has no cells plan.
-  const foreign = join(box.dir, 'foreign-plan-project');
-  mkdirSync(join(foreign, 'packages/codemap/src/io/cells/scripts'), { recursive: true });
-  mkdirSync(join(foreign, 'packages/codemap/data/plan'), { recursive: true });
-  writeFileSync(join(foreign, 'package.json'), JSON.stringify({ type: 'module' }));
-  fixtureCellsPlan(foreign, JSON.stringify({ placed: [] }));
-  writeFileSync(join(foreign, 'packages/codemap/src/io/cells/scripts/plan.js'), `${mark}\nconsole.log('not in packages/codemap/data/plan/cells.json: ran-at:' + process.env.HOME);\nprocess.exit(1);\n`);
-  box.git(foreign, 'init', '-q', '-b', 'main');
-  box.git(foreign, 'add', '-A');
-  box.git(foreign, 'commit', '-q', '-m', 'test: foreign plan checker');
-  const foreignMain = box.git(foreign, 'rev-parse', 'HEAD');
   const worker = join(box.dir, 'runner-worker'), sshBin = join(box.dir, 'runner-bin'), remoteHome = join(box.dir, 'runner-home');
   const remoteMachine = join(remoteHome, '.pullboard'), requests = join(box.dir, 'runner-requests.jsonl'), starts = join(box.dir, 'runner-starts.jsonl');
   for (const path of [worker, sshBin, remoteHome, remoteMachine]) mkdirSync(path, { recursive: true });
   installSshStandIn({ bin: sshBin, worker, home: remoteHome, machineHome: remoteMachine, requests, starts, healthDown, workerHealthDown: healthDown });
   box.env.PATH = `${sshBin}:${box.env.PATH}`;
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
     runners: healthDown ? [] : [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0, ...(healthDown ? { runnerWaitMs: 1000 } : {}) } });
-  return { box, marker, remoteHome, starts, foreign, foreignMain, main: box.git(box.repo, 'rev-parse', 'HEAD') };
+  return { box, marker, remoteHome, starts, main: box.git(box.repo, 'rev-parse', 'HEAD') };
 }
 
 /** Run one script against the landing package in a child under the box's machine settings and return its JSON line. */
@@ -76,7 +65,7 @@ async function inChild(box, body) {
     const landing = await import(${JSON.stringify(landing)});
     const settle = async run => { try { return { value: await run() }; } catch (error) { return { code: error.code, message: error.message }; } };
     ${body}
-  `], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 150_000 }); // budget: up to three real runner round trips.
+  `], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 230_000 }); // budget: up to three real runner round trips.
   assert.equal(result.status, 0, result.stderr || result.failure);
   return JSON.parse(result.stdout);
 }
@@ -84,43 +73,41 @@ async function inChild(box, body) {
 /** Count real job dispatches the ssh stand-in started. */
 function jobs(starts) { return existsSync(starts) ? readFileSync(starts, 'utf8').split('\n').filter(Boolean).length : 0; }
 
-test('with gate.runnersOnly on, a main comparison, the CLI smoke and the cells-plan check each run on a runner [C7,#3011]', { timeout: 240_000 }, async () => {
-  const { box, marker, remoteHome, starts, main, foreign, foreignMain } = runnerProject();
+// The cases each own a box and a runner stand-in, so they run side by side inside the file budget.
+describe('runner-only landing checks [C7,#3011]', { concurrency: true }, () => {
+test('with gate.runnersOnly on, a main comparison and the CLI smoke each run on a runner [C7,#3011]', { timeout: 240_000 }, async () => {
+  const { box, marker, remoteHome, starts, main } = runnerProject();
   const module = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/landing/src/io/main/red.js')).href;
   const out = await inChild(box, `
     const { compareMainFailures } = await import(${JSON.stringify(module)});
     // No runnerAdmission is named: the machine's gate.runnersOnly setting alone sends it to a runner.
     const compare = await compareMainFailures(${JSON.stringify(box.repo)}, { tests: [{ file: 'web/land-1.test.js', passed: false }] }, undefined, '',
       { commit: ${JSON.stringify(main)}, detailed: true, allowCancelled: true });
-    const plan = await settle(() => landing.landingPlanCheck(${JSON.stringify(foreign)}, ${JSON.stringify(foreignMain)}));
     const smoke = await settle(() => landing.smokeCommit(${JSON.stringify(box.repo)}, ${JSON.stringify(main)}));
-    process.stdout.write(JSON.stringify({ compare, plan, smoke }));
+    process.stdout.write(JSON.stringify({ compare, smoke }));
   `);
   assert.equal(out.compare.unavailable, undefined, out.compare.unavailable);
   assert.deepEqual(out.compare.files.map(row => [row.file, row.result]), [['web/land-1.test.js', 'red']]);
-  assert.equal(out.plan.code, 'LAND_PLAN_UNPLACED', out.plan.message);
-  assert.ok(out.plan.message.includes(`ran-at:${remoteHome}`), `the plan check ran off the runner: ${out.plan.message}`);
   assert.equal(out.smoke.code, 'LAND_CLI_SMOKE', out.smoke.message);
   assert.match(out.smoke.message, new RegExp(`on runner ${HOST}`, 'u'));
-  assert.ok(jobs(starts) >= 3, `expected three runner jobs, saw ${jobs(starts)}`);
+  assert.ok(jobs(starts) >= 2, `expected two runner jobs, saw ${jobs(starts)}`);
   assert.equal(existsSync(marker), false, 'no check ran as a local process');
 });
 
 test('with gate.runnersOnly on and no runner free, each check queues to the runner deadline and never runs locally [C7,#3011]', { timeout: 240_000 }, async () => {
-  const { box, marker, main, foreign, foreignMain } = runnerProject({ healthDown: true });
+  const { box, marker, main } = runnerProject({ healthDown: true });
   const module = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/landing/src/io/main/red.js')).href;
   const out = await inChild(box, `
     const { compareMainFailures } = await import(${JSON.stringify(module)});
     const compare = await compareMainFailures(${JSON.stringify(box.repo)}, { tests: [{ file: 'web/land-1.test.js', passed: false }] }, undefined, '',
       { commit: ${JSON.stringify(main)}, detailed: true, allowCancelled: true });
-    const plan = await settle(() => landing.landingPlanCheck(${JSON.stringify(foreign)}, ${JSON.stringify(foreignMain)}));
     const smoke = await settle(() => landing.smokeCommit(${JSON.stringify(box.repo)}, ${JSON.stringify(main)}));
-    process.stdout.write(JSON.stringify({ compare, plan, smoke }));
+    process.stdout.write(JSON.stringify({ compare, smoke }));
   `);
   assert.deepEqual(out.compare.files, []);
   assert.equal(out.compare.runnerOnly, true, JSON.stringify(out.compare));
   // No runner is registered while this machine has an idle local slot: every check waits for the runner deadline.
-  for (const [name, result] of [['plan', out.plan], ['smoke', out.smoke]]) assert.equal(result.code, 'RUNNER_WAIT_DEADLINE', `${name} did not queue: ${result.message}`);
+  for (const [name, result] of [['smoke', out.smoke]]) assert.equal(result.code, 'RUNNER_WAIT_DEADLINE', `${name} did not queue: ${result.message}`);
   assert.equal(existsSync(marker), false, 'no check fell back to a local process');
 });
 
@@ -156,4 +143,5 @@ test('clause 1: on a runners-only coordinator a sharded landing gate runs on a r
   assert.equal(out.code, undefined, out.message);
   assert.ok(out.output.includes(`gate-ran-at:${remoteHome}`), `the landing gate did not run on the runner: ${out.output}`);
   assert.equal(existsSync(marker), false, 'the landing gate ran as a local process on the coordinator');
+});
 });

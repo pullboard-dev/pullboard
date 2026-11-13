@@ -1,4 +1,4 @@
-/** @pullboard-test-input docs/lifecycle.md packages/landing/index.js packages/state/index.js packages/state/src/logic/engines/source-advance-engine.js */
+/** @pullboard-test-input packages/landing/index.js packages/state/index.js packages/state/src/logic/engines/source-advance-engine.js */
 /** @pullboard-test-loads packages/state/src/io/engine.js packages/state/src/logic/engines/source-advance-engine.js packages/landing/index.js */
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';
@@ -53,16 +53,6 @@ test('a clean main move keeps the accepted verdict on its genuinely checked merg
   assert.deepEqual(repeated.rows.flatMap(row=>row.artifacts ?? []),artifacts,'an unchanged wake preserves the exact prior real phase artifacts');
   assert.equal(state(box).proofs.length,2,'an unchanged wake creates no replacement execution receipt');
   assert.ok(box.board(board=>box.store.events(board).length)>=before);
-});
-
-test('only a generated lifecycle conflict is regenerated and retains the accepted place [C7,V4,H16]',{timeout:180000},async t=>{
-  const box=await mainMovedFixture(t,{generated:true});box.trigger();const terminal=await box.settled();
-  assert.equal(terminal.item.item_status,'verified',JSON.stringify(terminal.rows));const now=state(box);
-  const generated=box.cli('lifecycle');assert.equal(generated.status,0,generated.stderr);
-  assert.equal(box.git(box.repo,'show',`${now.landing}:docs/lifecycle.md`),generated.stdout.trim());
-  assert.deepEqual(now.verdicts,box.original.verdicts);assert.equal(now.events.filter(row=>row.event_kind==='reopen').length,0);
-  const detail=JSON.parse(now.events.find(row=>row.event_kind==='source_advanced').event_detail);
-  assert.deepEqual(detail.generated,['docs/lifecycle.md']);assert.equal(now.item.item_commit,box.accepted);
 });
 
 test('a real source conflict reopens the same item with its exact file and leaves the verdict immutable [C7,V4,H16]',{timeout:180000},async t=>{

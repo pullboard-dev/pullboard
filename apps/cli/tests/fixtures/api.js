@@ -1,4 +1,7 @@
 import { viewApiPorts } from '../../../view/index.js';
+
+/** The view's API ports, handed on so the settings fixture reaches the view through this file, not directly. */
+export { viewApiPorts };
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
@@ -18,6 +21,7 @@ import { serveApi } from '../../../../packages/api/index.js';
 import { apiBoardOpeners } from './board.js';
 import { main } from './native.js';
 import { runCliInProcess } from './process.js';
+import { fixtureSettledMachine } from './testkit.js';
 import { refusalDocument } from '../../index.js';
 import { JSON_SHAPES } from '../../../../packages/config/index.js';
 import { fetchFresh } from './http.js';
@@ -204,6 +208,8 @@ export function apiHttpFixture(t) {
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = apiFixtureEnvironment(dir, bin);
   bindApiFixtureMachine(t, env);
+  // A fixture's submit settles the same way whatever the machine's dispatch default is, so the review it queues is ready [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   mkdirSync(env.HOME);
   /** Run Git only inside the private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });

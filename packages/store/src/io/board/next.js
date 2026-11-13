@@ -59,6 +59,8 @@ import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
 import { lineSettings } from "../../../../state/index.js";
 import { rejectionReturnEnabled } from "../../logic/rework.js";
 import { reworkFamilyRoute } from "../../logic/rework.js";
+import { rejectedFirstEnabled } from "../../logic/rework.js";
+import { isReturned } from "../../logic/rework.js";
 import { FOCUS_BOUNDARY_ENGINE } from '../../../../state/index.js';
 import { heldClaim } from '../claim.js';
 
@@ -304,10 +306,19 @@ export function nextFor(board, options) {
   }
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
+  // Rejected or reopened work leads new work for every seat, its builder's own first: a preference, never a reservation (#5765).
+  if (rejectedFirstEnabled(board)) {
+    const back = new Map(mine.map(({ entry }) => [entry.item_id, isReturned(board, entry) ? 1 + Number(entry.item_built_by === agentId) : 0]));
+    mine.sort((a, b) => back.get(b.entry.item_id) - back.get(a.entry.item_id));
+  }
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
   // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
   const parked = parkedClaims(board, agentId);
   if (parked.size) mine.sort((a, b) => Number(parked.has(b.entry.item_id)) - Number(parked.has(a.entry.item_id)));
+  // An open item whose last gate went red at its own head has a builder's work in it and no seat holding it: it goes to
+  // the next eligible seat ahead of never-built items, so a red never waits for luck (#4014).
+  const redUnowned = new Set(mine.filter(({ entry }) => redGateWithoutHolder(board, entry)).map(({ entry }) => entry.item_id));
+  if (redUnowned.size) mine.sort((a, b) => Number(redUnowned.has(b.entry.item_id)) - Number(redUnowned.has(a.entry.item_id)));
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE) {
     const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
@@ -430,6 +441,21 @@ export function gateAtHead(board, entry) {
     : job.state === 'red' && job.error?.mainRedOnly === true ? 'red only on main reds'
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
+}
+
+/**
+ * Whether an open item was built and its gate for the current head went red on its own work, so it holds a builder's
+ * commit and no seat holds it [C7, #4014]. A gate red only on main reds is not this item's red, and a reopen or
+ * reject after the job sends the item back through its own path.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @returns {boolean}
+ */
+export function redGateWithoutHolder(board, entry) {
+  if (entry.item_status !== 'open' || !entry.item_built_by || !entry.item_commit) return false;
+  const job = submitHandoff(board, entry.item_id);
+  return Boolean(job && job.commit === entry.item_commit && job.state === 'red' && job.gateGreen !== true && job.error?.mainRedOnly !== true);
 }
 
 /**

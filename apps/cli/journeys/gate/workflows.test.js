@@ -90,6 +90,19 @@ test('no workflow requires a DCO sign-off [I1]', () => {
   }
 });
 
+/** Clarification issues close after 14 quiet days with no label added; reopening strips only clarify [I1]. */
+test('the stale workflow closes quiet clarify issues without a clarify-inactive label [I1]', () => {
+  const stale = workflowText(resolve(ROOT, '.github/workflows/stale.yml'));
+  assert.match(stale, /uses: actions\/github-script@/u, 'a github-script step does the closing');
+  assert.doesNotMatch(stale, /actions\/stale/u, 'actions/stale is gone');
+  assert.match(stale, /labels: 'clarify'/u, 'only clarify issues are listed');
+  assert.match(stale, /14 \* 24 \* 60 \* 60 \* 1000/u, 'the cutoff is 14 days');
+  assert.match(stale, /Closed\. No response\. Reply to reopen\./u);
+  assert.match(stale, /state_reason: 'completed'/u);
+  assert.doesNotMatch(stale, /addLabels|clarify-inactive/u, 'no label is added');
+  assert.doesNotMatch(workflowText(resolve(ROOT, '.github/workflows/reopen-clarify.yml')), /clarify-inactive/u);
+});
+
 const workflow = readFileSync(new URL('../../../../.github/workflows/release.yml', import.meta.url), 'utf8');
 
 /** Execute the actual workflow extraction against private input; no GitHub or npm command runs. */

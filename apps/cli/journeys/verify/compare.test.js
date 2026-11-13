@@ -17,6 +17,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const CASES = `import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,6 +58,8 @@ async function fixture(t, { missingRunner = false } = {}) {
   const workerHome = join(box.dir, 'worker-home');
   const workerMachine = join(box.dir, 'worker-machine');
   for (const path of [worker, workerHome, workerMachine]) mkdirSync(path, { recursive: true });
+  // The stand-in worker runs the comparison itself, so its machine settles the way the submitting side does [P7].
+  fixtureSettledMachine(workerMachine);
   installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
   const registered = await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(registered.code, 0, registered.out + registered.err);

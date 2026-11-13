@@ -68,7 +68,7 @@ function milestoneItem(entry, p) {
     titles: renderIndex(source).titles,
     state: read ? stateOf(read) : null,
     stageHtml: read ? stageMarkup(item || { ...read, status: entry.state === 'accepted' || entry.state === 'landed' ? 'verified' : read.status,
-      merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : []) : '',
+      merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : [], false, true) : '',
     stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry, Date.now()) : null,
     block: block(!expanded && !Array.isArray(detail?.item?.history)),
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).
@@ -176,7 +176,7 @@ function roadmapReads(p) {
  * Headers show the backend's summary; accepted and landed rows stay distinct; shipped history carries its commit; old
  * exports keep their legacy completion rule; each part keeps the person's disclosure choice for this visit.
  */
-function roadmapCards(p, titles) {
+function roadmapCards(p, titles, kept = null) {
   const only = roadmapFocus(p), reads = roadmapReads(p);
   const targetLabels = new Map(), addresses = new Map(), headers = new Map(), headings = new Map(), rows = new Map(), notes = new Map(), targets = new Map();
   const observedAt = Date.parse(p.observedAt), now = Number.isFinite(observedAt) ? observedAt : Date.now();
@@ -192,7 +192,16 @@ function roadmapCards(p, titles) {
     headers.set(read, header(read));
     if (read.milestone.note) notes.set(read, rich(read.milestone.note, titles));
   }
-  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets }) };
+  // With kept, each row's markup is recorded by its key and the card holds an empty slot in its place, so the page can
+  // patch only the rows that changed (#6679). A row's key is its release and its item, told apart if one repeats.
+  const slots = kept ? { slotKey: (milestone, row) => {
+    const base = JSON.stringify([milestone.name, row.label]);
+    let key = base;
+    for (let n = 2; kept.has(key); n += 1) key = base + n;
+    kept.set(key, '');
+    return key;
+  }, place: (key, html) => { kept.set(key, html); return '<li data-slot="' + esc(key) + '"></li>'; } } : {};
+  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets, ...slots }) };
 }
 
 `;

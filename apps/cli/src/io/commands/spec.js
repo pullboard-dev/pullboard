@@ -288,6 +288,12 @@ export async function specCommand(io, { first, second, rest, values }) {
         revisionIds.forEach(id => io.say(`${id}: ${first === 'approve' ? 'approved, pending apply' : 'declined; approved row unchanged'}`));
         return 0;
       }
+      // A gate file that was committed and then removed is a lost test: approving its row would turn spec check red for every agent [S4].
+      if (first === 'approve') {
+        const asked = { rows: spec.rows.filter((row) => ids.includes(row.id)).map((row) => ({ ...row, status: 'approved', tier: 'must' })) };
+        const lost = missingGateFindings(asked, ctx.info.root).find((finding) => finding.level === 'error');
+        if (lost) throw new Refused('GATE_FILE_MISSING', `${lost.id}: ${lost.message}`, 'restore the gate file or revise the row to name its new home, then approve again');
+      }
       // An approve keeps a pending answer: plain, it approves the answered text; --text says what it replaces.
       const signedDecision = personSigning(board).signed;
       const kept = first === 'approve' ? pendingAnswers(ctx.info.root, ctx.config, ids, store.rowDecisions(board)) : new Map();
@@ -532,7 +538,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     if (!row) throw new Refused('NO_ROW', `no row ${second ?? ''} in ${ctx.config.spec}`);
     const standing = standings(parsed.rows, signoffs).get(row.id) ?? { met: [], stale: [] };
     io.result?.({ row, standing });
-    io.say(`${row.id} [${row.status}${row.tier ? `, ${row.tier}` : ''}] ${row.text}`);
+    io.say(`${row.id} [${row.status}${row.tier ? `, ${row.tier}` : ''}] ${store.readableRigorText(row.text)}`);
     if (row.stage) io.say(row.stage);
     if (row.reason) io.say(`reason: ${row.reason}`);
     if (row.gate) io.say(`gate: ${row.gate}`);
@@ -549,7 +555,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     const testFiles = citedTestFiles(ctx.info.root);
     const by = standings(spec.rows, signoffs);
     io.result?.({ rows: rows.map((row) => ({ ...row, stage: rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles })) })) });
-    rows.forEach((row) => io.say(`${row.id} [${row.tier || 'no tier'}] ${row.text} — ${rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles }))}`));
+    rows.forEach((row) => io.say(`${row.id} [${row.tier || 'no tier'}] ${store.readableRigorText(row.text)} — ${rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles }))}`));
     io.say(`${rows.length} approved rows without a current sign-off`);
     return 0;
   }

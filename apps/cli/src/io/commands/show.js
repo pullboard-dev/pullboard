@@ -14,6 +14,7 @@ import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index
 import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
+import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../board/read.js';
 import {
   testRuntimeEnvironment,
@@ -56,33 +57,44 @@ import { itemCost } from '../../../../../packages/stats/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { itemFolderPath } from '../item/folder/identity.js';
-import { createRequire } from 'node:module';
-
-const requireModule = createRequire(import.meta.url);
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
+
+/**
+ * The item's newest gate job as its step and, once done, the gate its receipt recorded; null when it has none.
+ * Why: a pulled submit returns queued at once, and this is how a script reads the gate's settled verdict [C7,#6821].
+ */
+function newestGateJob(db, id) {
+  let job;
+  try { job = jobsOf(db, { kind: 'gate', item: id }).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
+  if (!job) return null;
+  const receipt = job.steps.find(step => step.name === 'receipt')?.payload?.receipt ?? null;
+  return { id: job.id, step: job.step, gate: receipt?.gate ?? null };
+}
 
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const id = idArg(first);
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
-  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
+  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, store)), { json: values.json });
   const prices = loadMachineSettings().costPrices;
-  const { item, queuedSubmit, queuedJobId, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, (board) => {
+  const { item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
-    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => requireModule('../alive.js').handoffWorkerAlive(board, job) }) : null;
+    const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
+    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
-    // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
-    if (values.json) return result;
+    // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names
+    // the newest gate job and, once done, its receipt's gate: a pulled gate keeps no hand-off record to read instead [C7].
+    if (values.json) return { ...result, gateJob: newestGateJob(board.db, id) };
     const history = store.events(board, { itemId: id });
     return { ...result, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
@@ -102,7 +114,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
@@ -118,6 +130,7 @@ export async function run(io, { first, values }) {
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
+  if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
     // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
     const seatPath = agents.find((agent) => agent.agent_id === callerId)?.agent_path;
@@ -159,7 +172,7 @@ export async function run(io, { first, values }) {
     const testRuntimes = hasTestRuntimes ? testRuntimeRows(receipt.testRuntimes) : null;
     const environment = hasTestRuntimes ? testRuntimeEnvironment(testRuntimes) : receipt.environment;
     const runtime = environment ? `Node ${environment.node} ${environment.platform}/${environment.arch}` : 'runtime unknown';
-    const counts = Object.values(receipt.counts).some(value => value === null) ? 'test counts unknown'
+    const counts = !receipt.counts || Object.values(receipt.counts).some(value => value === null) ? 'test counts unknown'
       : `${receipt.counts.passed} pass, ${receipt.counts.failed} fail, ${receipt.counts.skipped} skip`;
     io.say(`receipt ${receipt.id}: ${receipt.kind}, item #${receipt.item}`);
     io.say(`  commit ${receipt.commit ?? 'unknown'}; tree ${receipt.tree ?? 'unknown'}; frozen ${receipt.frozenDigest ?? 'unknown'}`);
@@ -170,7 +183,7 @@ export async function run(io, { first, values }) {
       io.say(`  child ${child.pid}: Node ${child.environment.node} ${child.environment.platform}/${child.environment.arch}; ${child.file ?? 'test file unknown'}`);
     }
   }
-  if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item);
+  if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
   sayBrief(io, item.item_brief);
   for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
@@ -185,7 +198,7 @@ export async function run(io, { first, values }) {
   }
   if (frozen) {
     io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
+    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${store.readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
   }
   if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
   if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);

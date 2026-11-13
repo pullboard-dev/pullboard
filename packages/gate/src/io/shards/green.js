@@ -6,6 +6,8 @@
  * pullboard check --yes (~250 s), then the gate ran it a third time. Reuse is exact: the same tree, the same runner
  * command and file set, and the same runner tooling; anything else runs again.
  */
+import { posix } from 'node:path';
+import { tryGit } from '../../../../git/index.js';
 import { shardPassStore } from './proof.js';
 
 /** Recorded runs past this size run again rather than fill the machine home. */
@@ -81,3 +83,59 @@ export function reusableGreenRun({ tree, head, runner, files, tooling, timingRun
   const from = `# reused green run ${pass.timingRunId ?? 'unknown'} of ${files.length} file(s) at tree ${tree.slice(0, 12)}, commit ${String(pass.run.executionSource.commit ?? '').slice(0, 12)}, on ${pass.run.executionRunner ?? 'a runner'}\n`;
   return { ...pass.run, output: from + output, executionSource: { ...pass.run.executionSource, commit: head ?? pass.run.executionSource.commit }, reusedGreen: true };
 }
+
+const IMPORT_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/gu;
+
+/** Git's trimmed output, or null when it fails. */
+function readGit(root, args) {
+  const result = tryGit(root, args);
+  return result.status === 0 ? result.stdout : null;
+}
+
+/**
+ * Every repo file the test files import, directly or through each other, with the test files themselves; a path no reader
+ * returns text for stays in the set, so an unreadable import is never assumed untouched.
+ *
+ * @param {string[]} files
+ * @param {(path: string) => string|null} read - The file's text at the earlier tree, or null.
+ * @returns {Set<string>}
+ */
+export function importClosure(files, read) {
+  const seen = new Set(), queue = [...files];
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    if (!/\.[cm]?js$/u.test(file)) continue;
+    const text = read(file);
+    if (text === null) continue;
+    for (const match of text.matchAll(IMPORT_SPECIFIER)) queue.push(posix.normalize(posix.join(posix.dirname(file), match[1])));
+  }
+  return seen;
+}
+
+/**
+ * The recorded green run at the tree a merge of main started from, when the merge changed no file the check's files import.
+ * Why: submit merges main when it moved, so the tree differs from the one the builder's run proved; a merge that touches
+ * nothing in the import closure (or the test files) cannot change that run's outcome, so it stays the proof [C7].
+ *
+ * @param {string} root
+ * @param {{ tree: string, head: string, runner: string, files: string[], tooling: string|null, timingRunId?: string|null, folder?: string }} wanted - The merged tree and head.
+ * @param {{ git?: (root: string, args: string[]) => string|null }} [options]
+ * @returns {object|null}
+ */
+export function reusableAcrossMerge(root, wanted, { git = readGit } = {}) {
+  const parents = String(git(root, ['rev-list', '--parents', '-n', '1', wanted.head]) ?? '').trim().split(/\s+/u).slice(1);
+  if (parents.length !== 2) return null;
+  const priorTree = String(git(root, ['rev-parse', `${parents[0]}^{tree}`]) ?? '').trim();
+  if (!priorTree || priorTree === wanted.tree) return null;
+  const run = reusableGreenRun({ ...wanted, tree: priorTree });
+  if (!run) return null;
+  const changed = git(root, ['diff', '--name-only', priorTree, wanted.tree]);
+  if (changed === null) return null;
+  const closure = importClosure(wanted.files, path => git(root, ['show', `${priorTree}:${path}`]));
+  return changed.split('\n').filter(Boolean).some(path => closure.has(path)) ? null : run;
+}
+
+/** The recorded green run at exactly this tree, else the one a main merge left untouched, else null [C7]. */
+export function reusableProof(root, wanted, options) { return reusableGreenRun(wanted) ?? reusableAcrossMerge(root, wanted, options); }

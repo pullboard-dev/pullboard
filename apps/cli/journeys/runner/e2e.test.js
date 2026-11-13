@@ -76,6 +76,9 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
     const configured = (await box.runLocal(box.repo, 'settings', key, value));
     assert.equal(configured.code, 0, configured.err || configured.out);
   }
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const kept = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  writeFileSync(settingsFile, JSON.stringify({ ...kept, gate: { ...kept.gate, runnerDispatch: 'controller' } }));
 
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
@@ -126,7 +129,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.match((await box.runLocal(light, 'run', '--agent-mid', `sh ${agent}`)).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
   const ran = await box.runLocal(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
-  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\nsubmit changed static: \d+\.\d+s\nsubmit doctrine: \d+\.\d+s\nsubmit static: \d+\.\d+s\nsubmit cells: \d+\.\d+s\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
+  // A fresh seat's first delivery starts at the board head (#6152), so the lane's earlier moves are no news to it.
+  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\nsubmit changed static: \d+\.\d+s\nsubmit doctrine: \d+\.\d+s\nsubmit static: \d+\.\d+s\nsubmit cells: \d+\.\d+s\nno new shouts or activity\nsubmitted #1 at [0-9a-f]{12};/);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
   assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
@@ -163,7 +167,7 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   assert.match((await box.runLocal(webRunner, 'run', '--agent-light', good, '--attempts', '1')).out, /submitted #1/);
   const commit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', commit);
-  assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'ran the check, then emptied the file and saw it fail')).out, /verified #1/);
+  assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--no-next', '--note', 'ran the check, then emptied the file and saw it fail')).out, /verified #1/);
   const apiRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'mid')).out.match(/^made (\S+) /)[1];
   const ran = await box.runLocal(apiRunner, 'run', '--agent-light', weak, '--agent-mid', strong, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);

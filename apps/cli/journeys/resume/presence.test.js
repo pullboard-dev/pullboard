@@ -32,6 +32,95 @@ import {
 import {
   fixtureAdd,
 } from '../../tests/fixtures/testkit.js';
+import { fixture as dispatchFixture } from '../../tests/fixtures/next/take.js';
+import { cli as dispatchCli } from '../../tests/fixtures/next/take.js';
+
+test('ready work waiting past the limit while agents are idle warns the coordinator once [B3,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  const ready = box.add('Ready idle-seat work');
+  const blocked = box.add('Dependent work', { after: [ready] });
+  const future = box.add('Future milestone work');
+  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange dispatch fixture', name: 'Current', items: [ready, blocked] });
+  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange dispatch fixture', name: 'Later', items: [future] });
+  const warnings = () => store.allShouts(box.board).filter(row => row.shout_to === 'coordinator' && row.shout_text.startsWith(`Stuck: ${box.seats.actor.id} beside #`) && row.shout_text.includes('UNPAIRED_WORK'));
+  box.scan();
+  box.advance(299999);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 0);
+  box.advance(1);
+  box.scan();
+  assert.equal(warnings().length, 1);
+  assert.match(warnings()[0].shout_text, new RegExp(`${box.seats.actor.id}.*#${ready}.*5 min`, 'u'));
+  box.scan();
+  assert.equal(warnings().length, 1, 'the same idle spell is reported once');
+  const selected = await dispatchCli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(selected.code, 0, selected.out + selected.err);
+  assert.equal(selected.document.item.item_id, ready);
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 1, 'dependent and future work do not count as ready');
+});
+
+test('changing the eligible item does not repeat an idle-seat warning until a claim [B3,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  const first = box.add('First eligible item');
+  const warnings = () => store.allShouts(box.board).filter(row => row.shout_to === 'coordinator'
+    && row.shout_text.startsWith(`Stuck: ${box.seats.actor.id} beside #`) && row.shout_text.includes('UNPAIRED_WORK'));
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 1);
+  assert.match(warnings()[0].shout_text, new RegExp(`#${first}\\b`, 'u'));
+  const second = box.add('Replacement eligible item');
+  store.holdItem(box.board, first, { agentId: 'coordinator', reason: 'The first fixture item is held' });
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 1, 'changing next selection does not create another warning in the same idle spell');
+  const claimed = await dispatchCli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  assert.equal(claimed.document.item.item_id, second);
+  store.release(box.board, second, box.seats.actor.id, 'Reopen the private fixture item', 'OTHER');
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 2, 'a claim starts a new idle spell');
+  assert.match(warnings()[1].shout_text, new RegExp(`#${second}\\b`, 'u'));
+});
+
+test('work becoming ready beside an already idle seat warns without another five-minute wait [B3,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  box.advance(300001);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  const ready = box.add('Work becomes ready after the idle limit');
+  box.scan();
+  const warnings = store.allShouts(box.board).filter(row => row.shout_to === 'coordinator'
+    && row.shout_text.startsWith(`Stuck: ${box.seats.actor.id} beside #${ready} `)
+    && row.shout_text.includes('UNPAIRED_WORK'));
+  assert.equal(warnings.length, 1, 'a seat already idle past the limit is reported when work becomes ready');
+});
+
+test('two idle seats offered the same ready item are each warned [B3,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  const ready = box.add('One ready item for two idle seats');
+  const warned = seat => store.allShouts(box.board).filter(row => row.shout_to === 'coordinator'
+    && row.shout_text.startsWith(`Stuck: ${seat.id} beside #${ready} `) && row.shout_text.includes('UNPAIRED_WORK'));
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  store.heartbeatSeat(box.board, box.seats.builder.id);
+  box.scan();
+  assert.equal(warned(box.seats.actor).length, 1, 'the first idle seat is warned');
+  assert.equal(warned(box.seats.builder).length, 1, 'the second idle seat is warned about the same item');
+  box.scan();
+  assert.equal(warned(box.seats.actor).length + warned(box.seats.builder).length, 2, 'each seat is warned once per idle spell');
+});
 
 test('a locked presence sidecar retains cached timestamps and next reports its bounded fallback [B3,N2,C7]', async t => {
   const { createE2eHelpers } = await import('../../tests/fixtures/e2e.js');
@@ -67,7 +156,8 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
     assert.equal(next.code, 0, next.err + next.out);
     assert.equal(JSON.parse(next.out).item.item_id, item, 'actual next reaches its native work result');
     assert.match(next.err, /PRESENCE_BUSY.*presence sidecar remained locked/su);
-    assert.ok(Date.now() - started < 15_000, 'the busy sidecar cannot hang next'); // budget: generous private CLI hang ceiling, not a latency target.
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed < 15_000, `the busy sidecar cannot hang next (took ${elapsed} ms; stderr ${next.err.length} chars)`); // budget: generous private CLI hang ceiling, not a latency target.
   } finally { writer.exec('ROLLBACK'); }
   assert.equal(store.agentById(board, 'web-1').heartbeatAt, local.heartbeatAt, 'fallback never persisted its cached projection');
 });

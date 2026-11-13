@@ -34,7 +34,10 @@ const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
  * Why: the runner's checkout is the candidate; its files are data the trusted entry reads, never code it loads.
  */
 export const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -58,10 +61,17 @@ try {
   const metadata = join(directory, '.objects');
   git('init', '--quiet', '--bare', metadata);
   writeFileSync(join(metadata, 'objects/info/alternates'), objects + '\\n', { flag: 'wx' });
-  mkdirSync(join(metadata, 'info'), { recursive: true });
-  writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
-  const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
-  run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  // A project whose main is not Pullboard's own tree (no packages/items) is judged by the runner's installed Pullboard, never by its own code (#6265).
+  if (spawnSync('git', ['--no-replace-objects', '--git-dir', metadata, 'cat-file', '-e', request.main + ':packages/items/index.js'], { cwd: root, env }).status !== 0) {
+    const installed = env.PULLBOARD_RUNNER_TOOLS;
+    if (!installed || !existsSync(join(installed, 'packages/items/index.js'))) throw new Error('trusted tooling missing: main has no packages/items and this runner names no installed Pullboard');
+    for (const name of readdirSync(installed)) if (!name.startsWith('.')) symlinkSync(join(installed, name), join(directory, name));
+  } else {
+    mkdirSync(join(metadata, 'info'), { recursive: true });
+    writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
+    const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
+    run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  }
   const entry = join(directory, 'pullboard-trusted-entry.mjs');
   writeFileSync(entry, request.entry, { flag: 'wx', mode: 0o600 });
   // The step's stderr is its own pipe, replayed after its result line is whole, so a warning can never land inside a large result.

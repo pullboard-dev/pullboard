@@ -32,9 +32,6 @@ import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import { packageFiles } from '../../../../../packages/runners/index.js';
 import { copyPackageSubset } from '../../../tests/fixtures/copy.js';
 import { selectTestTreeGuards } from '../../../../../packages/gate/index.js';
-import { installSubmitTestTreeCases } from '../../../tests/fixtures/submit/cases.js';
-
-installSubmitTestTreeCases();
 
 /** Make a real committed ES-module graph without executing any candidate source. */
 function graph(t) {
@@ -538,7 +535,7 @@ test('gate source changes still select the static failure regression [C7]', () =
   const root = join(import.meta.dirname, '../../../../..');
   const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['packages/gate/src/io/main.js'] });
   assert.equal(selection.full, false, selection.reason);
-  assert.ok(selection.files.includes('apps/cli/journeys/submit/gate.test.js'),
+  assert.ok(selection.files.includes('apps/cli/journeys/submit/gate/sandbox.test.js'),
     'the test that imports refuseSandboxBlocked stays selected for gate changes');
 });
 

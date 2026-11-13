@@ -1,4 +1,5 @@
 import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
+import { REJECTED_FIRST_ENGINE } from '../../../state/index.js';
 import { lineSettings } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { REJECTION_RETURN_ENGINE } from "../../../state/index.js";
@@ -98,4 +99,33 @@ export function isReturnedRework(board, id) {
 /** Keep new boards and historical replay on the prior rework policy until explicitly enabled [B35,H16]. */
 export function rejectionReturnEnabled(board) {
   return (board.executionEngineVersion ?? ENGINE_VERSION) >= REJECTION_RETURN_ENGINE && lineSettings(board).returnRejectedWork === true;
+}
+
+/** Whether rejected or reopened work leads new work in next for every seat, with no window for its builder [C7,#5765]. */
+export function rejectedFirstEnabled(board) {
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= REJECTED_FIRST_ENGINE;
+}
+
+/** Whether an open item is back from a reject or reopen; never-built work reads no events [C7,#5765]. */
+export function isReturned(board, item) {
+  return Boolean(item.item_built_by && returnedEpisode(board, item));
+}
+
+/** How long a returned item may sit open while its lane idles before the coordinator hears of it [#5765]. */
+export const STUCK_RETURN_MS = 60 * 60_000;
+
+/**
+ * Returned items in a lane open over STUCK_RETURN_MS and not yet shouted about for this episode [C7,#5765].
+ * Why: 131 of 141 rejected items open over 1 h sat while some seat's next came back empty.
+ *
+ * @returns {{ id: number, episode: number, since: string }[]}
+ */
+export function stuckReturns(board, lane) {
+  if (!rejectedFirstEnabled(board) || !lane) return [];
+  const cutoff = new Date(board.clock.now().getTime() - STUCK_RETURN_MS).toISOString();
+  const said = board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='shout' AND json_valid(event_detail) AND json_extract(event_detail, '$.stuckReturn')=? LIMIT 1");
+  return board.db.prepare("SELECT * FROM item WHERE item_status='open' AND item_lane=? AND item_built_by IS NOT NULL AND COALESCE(item_hold_reason, '')='' ORDER BY item_id").all(lane)
+    .map(item => ({ item, episode: returnedEpisode(board, item) }))
+    .filter(({ item, episode }) => episode && episode.event_at <= cutoff && !said.get(item.item_id, episode.event_id))
+    .map(({ item, episode }) => ({ id: item.item_id, episode: episode.event_id, since: episode.event_at }));
 }

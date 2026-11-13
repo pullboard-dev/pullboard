@@ -5,7 +5,7 @@
  * each change in turn and runs the test that should judge it.
  */
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -23,7 +23,7 @@ const COPIED = ['src', 'bin', 'test', 'apps', 'packages', 'skills', 'docs', '.gi
 export function audit(mutants) {
   const copy = mkdtempSync(join(tmpdir(), 'pullboard-proof-'));
   try {
-    for (const entry of COPIED) cpSync(join(ROOT, entry), join(copy, entry), { recursive: true });
+    for (const entry of COPIED.filter((name) => existsSync(join(ROOT, name)))) cpSync(join(ROOT, entry), join(copy, entry), { recursive: true });
     /**
      * Run one test by name in the copy: whether it passed, and how many tests the name matched. When
      * no test matches, Node reports the file itself as one passing test, so only results whose

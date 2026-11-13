@@ -51,6 +51,8 @@ import {
   headCommit,
   tryGit,
   withGitCommandMemo,
+  checkoutBranch,
+  checkoutRefCommit,
   isClean,
   repoInfo,
   untracked,
@@ -60,6 +62,7 @@ import {
   applyFixers,
   commitCitationWarnings,
   commitMsgProblems,
+  fixCommitHeader,
   FIX_NOTE,
   preCommitProblems,
   prePushProblems,
@@ -100,7 +103,7 @@ import {
  */
 export function refuseSeatItemWork(root, seat) {
   if (!seat?.agent_path) return;
-  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim());
+  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(checkoutBranch(root) ?? '');
   if (!match) return;
   const folder = itemFolderPath(seat.agent_path, Number(match[1]));
   throw new Refused('ITEM_WORK_IN_SEAT', `item work for #${match[1]} is committed in the seat checkout ${root}; item work is built in its item folder ${folder}`,
@@ -138,7 +141,9 @@ export async function hookCommand(io, { first, second }) {
         && !pendingSubmitHandoff(board, item));
       return claims.length === 1 && claims[0].item_frozen ? JSON.parse(claims[0].item_frozen).criterion ?? '' : '';
     }) ?? '' : '';
-    const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
+    const trunk = trunkRef(info.root);
+    // The trunk branch's commit comes from Git's ref files when they can answer, so no process is started for it.
+    const accepted = (trunk?.startsWith('refs/heads/') ? checkoutRefCommit(info.root, trunk) : null) || tryGit(info.root, ['rev-parse', '--verify', trunk]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
     const staticProblems = await stagedStaticProblems(info.root, process.env);
     problems = [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
@@ -160,7 +165,10 @@ export async function hookCommand(io, { first, second }) {
     }) ?? {};
     const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));
     const prepared = prepareCommitMetadata(originalMessage, { ...metadataContext, spec, syncMerge: existsSync(gitPath(info.root, 'MERGE_HEAD')) });
-    const message = prepared.message;
+    // Mechanical header style is fixed here and said, never refused, so it costs no retry [C7,#5775].
+    const styled = fixCommitHeader(prepared.message, ctx.config.commits);
+    styled.notes.forEach((note) => io.err(`pullboard commit-msg: fixed: ${note}`));
+    const message = styled.message;
     const signoff = pendingCommitSignoffProblem(info.root, message);
     if (signoff) { io.err(signoff); return 1; }
     commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
@@ -213,5 +221,6 @@ export async function hookCommand(io, { first, second }) {
 
 /** Run `pullboard hook` and return its exit code. */
 export async function run(io, args) {
-  return await hookCommand(io, args);
+  // One memo for the whole hook run: the fixers and static checks ask Git the same read-only questions as the hook checks.
+  return await withGitCommandMemo(() => hookCommand(io, args));
 }

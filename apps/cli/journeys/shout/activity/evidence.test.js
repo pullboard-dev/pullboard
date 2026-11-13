@@ -61,15 +61,16 @@ test('activity shows each submit note and verdict with landing evidence [N26]', 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!data?.project');
     await press(chrome, "document.querySelector('[data-tab=activity]')");
-    await chrome.waitFor("document.querySelector('#activity [data-activity-kind=main-moved]')");
+    await chrome.waitFor("document.querySelector('#activity [data-activity-kind=merged]')");
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const result = JSON.parse(await chrome.stable(`JSON.stringify({ text: document.querySelector('#activity').innerText, html: document.querySelector('#activity').innerHTML, overflow: document.documentElement.scrollWidth > innerWidth })`));
       assert.match(result.text, /Builder note <safe>[\s\S]*Checks: test\/example\.test\.js[\s\S]*Focused evidence[\s\S]*Check passed/u);
       assert.match(result.text, /Reviewer note <safe>/u);
       assert.match(result.text, /Reason: rigor[\s\S]*Rejection note <safe>/u);
-      assert.match(result.text, /Landed at a{12}/u);
-      assert.match(result.text, /Items: #1[\s\S]*Main at b{12}/u);
+      assert.match(result.text, /The coordinator landed #1\s+Readable evidence/u, 'a landing is one row: the item chip, then its title');
+      assert.doesNotMatch(result.text, /moved main|Items: #1|Landed at|Main at/u, 'its main move folds in, with no bare item, commit or main lines');
+      assert.match(result.html, /title="Landed at a{12} · Main at b{12}"/u, 'the commit and main tip stay on hover');
       assert.doesNotMatch(result.html, /<safe>/u, 'event prose is escaped');
       assert.equal(result.overflow, false, `${width}px stays within the viewport`);
     }

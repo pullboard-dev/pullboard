@@ -5,6 +5,7 @@ import { replayDeferredNotices } from '../deferred/notices.js';
 import { cadenceApplies } from '../../logic/cadence.js';
 import { cadenceDeferral } from '../../logic/cadence.js';
 import { requireOutsideOwner } from '../../../../items/index.js';
+import { itemFolderPath } from '../../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../../merge/index.js';
 import { warnMainMoved } from '../../../../merge/index.js';
 import { randomUUID } from 'node:crypto';
@@ -72,32 +73,13 @@ import { landOnTrunk } from './trunk.js';
 import { flakeRatchetBeforeGate } from './trunk.js';
 import { finishTrunk } from './publish.js';
 import { timedPhase } from '../timing.js';
-import { scanRidesRunner } from '../scan.js';
+import { pruneRetiredWorktrees } from '../prune.js';
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
   if (config.landing?.parallel === true && inheritedGateSlot({ root, namedFiles: true })) {
     throw new Refused('LAND_PARALLEL_NESTED_GATE', 'parallel landing needs separately admitted gate slots; run pullboard land outside the current gate command');
   }
-}
-
-/**
- * Refuse a merged tree that adds an unplaced bin/ or src/ path before main moves, with the same placement check submit
- * runs; false when it returned the adding items to their builders with the path [C7,#3210]. A repository with no
- * packages/codemap/data/plan/cells.json on base or in the merge has no placement rules to enforce, so the check passes there.
- */
-export async function placedMerge(state, items) {
-  if (scanRidesRunner(state)) return true; // the runner job checks a named batch's placement beside its static checks [C7,#5559]
-  if (!existsSync(join(state.root, 'packages/codemap/data/plan/cells.json')) || !existsSync(join(state.batch.root, 'packages/codemap/data/plan/cells.json'))) return true;
-  const { unplanned, readPlan, addedPlacementProblems } = await import('../../../../codemap/index.js');
-  const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
-  if (!problems.length) return true;
-  const touched = item => new Set(git(state.root, ['diff', '--name-only', '--no-renames', state.batch.base, item.commit]).split('\n'));
-  const owners = items.filter(item => { const files = touched(item); return problems.some(row => files.has(row.path)); });
-  const failures = problems.map(row => ({ file: row.path, name: `CELLS_PLAN_UNPLACED: ${row.message}; place it with node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay), commit the plan with the source, then submit again` }));
-  for (const item of owners.length ? owners : items) await returnCulprit(state, item, failures, { isolated: true });
-  state.say(`nothing landed: ${problems.map(row => row.message).join('; ')}`);
-  return false;
 }
 
 /** Name this machine on the public board by a digest, never by its host name. */
@@ -364,6 +346,46 @@ export async function returnStaleVerdicts(board, selected, write, say) {
   selected.blocked = kept;
 }
 
+/**
+ * Why a landed item's folder may not be pruned right now, read from the board afresh; null when the item is landed and its
+ * builder seat is not live and holds no claim. The folder belongs to one item; the seat's own checkout is never a target.
+ */
+export function seatPruneProblem(board, agent, id) {
+  const item = store.getItem(board, id);
+  if (!item || item.item_status !== 'verified' || !item.item_merged_commit) return `#${id} is not landed`;
+  const [seat] = store.withLocalSeatPresence(board, [{ agent_id: agent }]);
+  if (seat.presence === 'live') return 'seat is live';
+  const claimed = store.listItems(board, { all: true }).find(row => row.item_owner === agent && row.item_status === 'claimed');
+  return claimed ? `seat holds a claim on #${claimed.item_id}` : null;
+}
+
+/**
+ * Prune the item folder of each landed item with the guarded pruner, so a landed batch's checkouts do not pile up beside
+ * the active seats. Local dirt, a process cwd, a lock or an unlanded HEAD keep a folder; the landing is already recorded,
+ * so nothing here can fail it [R3,C7].
+ */
+export async function pruneLandedSeats(state) {
+  const { board, batch, say } = state;
+  if (batch?.state !== 'landed' || !batch.tip) return null;
+  const targets = [];
+  for (const entry of batch.items ?? []) {
+    const agent = store.getItem(board, entry.id)?.item_built_by;
+    const seat = agent ? store.agentById(board, agent) : null;
+    const path = seat?.agent_path ? itemFolderPath(seat.agent_path, entry.id) : null;
+    if (!path || !existsSync(path)) continue;
+    targets.push({ agent, path, batch: batch.id, at: board.clock.now().toISOString(),
+      items: [{ item: entry.id, commit: entry.commit, merge: entry.merge }] });
+  }
+  if (!targets.length) return null;
+  try {
+    return await pruneRetiredWorktrees(state.root, { tip: batch.tip, targets, exclude: [batch.root],
+      revalidate: target => seatPruneProblem(board, target.agent, target.items[0].item), say });
+  } catch (error) {
+    say(`landed item folders kept: ${String(error?.message ?? error).slice(0, 200)}`);
+    return null;
+  }
+}
+
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts, spawnRefresh, named = null }) {
   landingPorts = landingOperations(landingPorts);
@@ -485,6 +507,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       if (state.config.landing?.parallel === true && !state.batch.external) {
         await parallelLanding(state, initialItems);
         await returnMergeConflicts(state);
+        await pruneLandedSeats(state);
         return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map(entry => entry.id) : [],
           conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
       }
@@ -494,7 +517,6 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
         ? `#${entry.id} waits on overlapping files ${entry.files.join(', ')}; once this batch lands, its reviewer must merge current main and re-accept it without reopening`
         : `${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}${entry.message ? `: ${entry.message}` : ''}`);
       if (!build.items.length) await save(state, { state: 'blocked' });
-      else if (!await placedMerge(state, build.items)) await save(state, { state: 'blocked', culprits: state.culprits });
       else if (landsOnTrunk(state.config)) await landOnTrunk(state);
       else if (!await inlineDeferredGuards(state)) await save(state, { state: 'blocked' });
       else {
@@ -557,6 +579,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     say(error.message);
   }
   await returnMergeConflicts(state);
+  await pruneLandedSeats(state);
   return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map((entry) => entry.id) : [],
     conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
 }

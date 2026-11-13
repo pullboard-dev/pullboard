@@ -10,22 +10,31 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import {
   mainPolicy,
   policyAt,
   trunkRef,
 } from '../../../../../packages/sandbox/light.js';
-import { tryGit } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/light.js';
 
-const requireModule = createRequire(import.meta.url);
-/** The stats cell, loaded at the first anchor or counter: a command on a board without exit rules never pays for it [C7]. */
-function stats() { return requireModule('../../../../../packages/stats/index.js'); }
-/** The items cell's session digests, loaded only once exit rules are on. */
-function items() { return requireModule('../../../../../packages/items/index.js'); }
-/** The store's exit claims, loaded only once exit rules are on. */
-function store() { return requireModule('../../../../../packages/store/index.js'); }
+// Every command imports this module for its policy check, so these cells load only once exit rules are on [C7,#6483].
+let cells = null;
+/** Load the stats, items and store cells the exit rules use, then return the synchronous rules that need them. */
+export async function loadExitRules() {
+  cells ??= await Promise.all([
+    import('../../../../../packages/stats/light.js'),
+    import('../../../../../packages/items/index.js'),
+    import('../../../../../packages/store/index.js'),
+  ]);
+  return { captureExitAnchor, contextCeilingRefusal };
+}
+/** The stats cell's light door, loaded by loadExitRules. */
+function stats() { return cells[0]; }
+/** The items cell's session digests, loaded by loadExitRules. */
+function items() { return cells[1]; }
+/** The store's exit claims, loaded by loadExitRules. */
+function store() { return cells[2]; }
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */
 function sourceBytes(source, previous) {
@@ -103,6 +112,7 @@ export async function enforceExitBoundary(io, command) {
     policy = policyAt(ctx.info.root, resolved.stdout.trim());
   }
   if (policy.config.exitRules?.enabled !== true) return;
+  await loadExitRules();
   const { withBoard } = await import('../context.js');
   await io.prepareProcessPorts?.();
   ctx.nativeBoard = io.nativeBoard ??= await io.loadNativeBoard();

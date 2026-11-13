@@ -79,6 +79,7 @@ export { LANDING_LEASE_ENGINE } from './src/logic/engines/landing-lease-engine.j
 export { LANDING_LOCAL_LEASE_ENGINE } from './src/logic/engines/landing-local-lease-engine.js';
 export { LAND_COLLISION_ENGINE } from './src/logic/engines/landing-collision-engine.js';
 export { LANE_LEAD_ENGINE } from './src/logic/engines/lane-lead-engine.js';
+export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { LEASE_LAPSE_ENGINE } from './src/logic/engines/lease-lapse-engine.js';
 export { LEDGER_QUARANTINE_ENGINE } from './src/logic/engines/ledger-quarantine-engine.js';
 export { LINE_CAPACITY_ENGINE } from './src/logic/engines/line-capacity-engine.js';
@@ -95,6 +96,7 @@ export { MAIN_RED_WITHDRAW_ENGINE } from './src/logic/engines/main-red-withdraw-
 export { MECHANICAL_MERGE_ENGINE } from './src/logic/engines/mechanical-merge-engine.js';
 export { MERGE_ONLY_VERDICT_ENGINE } from './src/logic/engines/merge-only-verdict-engine.js';
 export { MILESTONE_LIMIT_ENGINE } from './src/logic/engines/milestone-limit-engine.js';
+export { MILESTONE_PERSON_LIMIT_ENGINE } from './src/logic/engines/milestone-person-limit-engine.js';
 export { MILESTONE_PLACEMENT_ENGINE } from './src/logic/engines/milestone-placement-engine.js';
 export { MILESTONE_QUEUE_ORDER_ENGINE } from './src/logic/engines/milestone-queue-order-engine.js';
 export { MILESTONE_RANK_ENGINE } from './src/logic/engines/milestone-rank-engine.js';
@@ -124,6 +126,7 @@ export { QUEUED_START_GRANT_ENGINE } from './src/logic/engines/queued-start-gran
 export { QUEUE_FAIRNESS_ENGINE } from './src/logic/engines/queue-fairness-engine.js';
 export { QUEUE_PREEMPT_ENGINE } from './src/logic/engines/queue-preempt-engine.js';
 export { QUOTED_LANDING_FAILURE_ENGINE } from './src/logic/engines/quoted-landing-failure-engine.js';
+export { REJECTED_FIRST_ENGINE } from './src/logic/engines/rejected-first-engine.js';
 export { RECURRING_JOB_ENGINE } from './src/logic/engines/job-engine.js';
 export { REFERENCE_ENGINE } from './src/logic/engines/reference-engine.js';
 export { REJECTED_WORK_RETURN_ENGINE } from './src/logic/engines/rejected-work-return-engine.js';

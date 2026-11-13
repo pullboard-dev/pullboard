@@ -9,16 +9,20 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
+import { userInfo } from 'node:os';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { apiHttpBox } from '../../tests/fixtures/api.js';
 import { apiHttpFixture } from '../../tests/fixtures/api.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { jobView } from '../../../../packages/jobs/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
+import { localNetworkHost } from '../../../../packages/runners/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
@@ -151,6 +155,7 @@ async (t) => {
   assert.equal(installed.status, 0, installed.stdout + installed.stderr);
   const { service } = JSON.parse(installed.stdout);
   assert.equal(service.loaded, true);
+  assert.equal(service.form, 'agent', 'a loopback board needs no LaunchDaemon: macOS Local Network privacy leaves loopback alone');
   assert.equal(service.plist, runner.plist, 'a login agent in the runner user\'s LaunchAgents');
   const uid = process.getuid();
   assert.ok(readFileSync(runner.log, 'utf8').split('\n').includes(`bootstrap gui/${uid} ${runner.plist}`), 'launchd loads it in the login session');
@@ -165,6 +170,7 @@ async (t) => {
   const args = programArguments(plist);
   assert.equal(args[0], process.execPath, 'it runs with the runner\'s registered Node');
   assert.equal(args[2], `${box.origin}${box.path}`);
+  assert.match(args[5], /macOS Local Network privacy blocks this LaunchAgent/u, 'the service carries the fix it logs when the board stays unreachable');
 
   // What launchd runs claims a job from the board, fetches its commit from the trunk remote and posts the receipt.
   const db = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'));
@@ -193,4 +199,73 @@ async (t) => {
   assert.ok(readFileSync(runner.log, 'utf8').split('\n').includes(`bootout gui/${uid}/dev.pullboard.runner-serve`), 'the running service is stopped');
   assert.equal(existsSync(runner.plist), false, 'the login agent is gone');
   assert.equal(existsSync(join(runner.root, 'serve')), false, 'its files and key are gone');
+});
+
+test('clause 1: runner install-serve chooses a LaunchDaemon run as the runner user for a board on the local network, staged with the one sudo line that loads it [P7]', { timeout: 60_000 }, // budget: four CLI runs.
+async (t) => {
+  assert.deepEqual(['192.168.1.98', '10.0.0.5', '172.20.1.1', 'studio.local', 'studio'].map(localNetworkHost), [true, true, true, true, true]);
+  assert.deepEqual(['127.0.0.1', 'localhost', '100.101.102.103', 'board.example.com', 'studio.tailnet.ts.net'].map(localNetworkHost), [false, false, false, false, false]);
+  const box = await apiHttpBox(t);
+  const runner = fakeRunner(box.dir);
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'pull' },
+    runners: [{ host: 'runner-a', slots: 1, browser: 0, node: process.execPath, root: runner.root }] });
+  const env = { ...box.env, PATH: `${runner.bin}:${box.env.PATH}` };
+  delete env.PULLBOARD_BOARD_KEY;
+  const cli = (...args) => runCliInProcess(args, { cwd: box.root, env });
+
+  const installed = await cli('runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json');
+  assert.equal(installed.status, 1, 'nothing runs until the person loads the daemon');
+  const { service } = JSON.parse(installed.stdout);
+  assert.equal(service.form, 'daemon');
+  assert.equal(service.loaded, false);
+  const daemonPlist = '/Library/LaunchDaemons/dev.pullboard.runner-serve.plist';
+  assert.equal(service.daemonPlist, daemonPlist);
+  const staged = join(runner.root, 'serve', 'dev.pullboard.runner-serve.daemon.plist');
+  assert.equal(service.plist, staged, 'the daemon is staged in the runner\'s own folder, since install-serve never runs sudo');
+  assert.equal(service.sudo, `sudo sh -c "launchctl bootout system/dev.pullboard.runner-serve 2>/dev/null; install -m 644 -o root -g wheel '${staged}' '${daemonPlist}' && launchctl bootstrap system '${daemonPlist}'"`);
+  const plist = readFileSync(staged, 'utf8');
+  assert.ok(plist.includes(`<key>UserName</key><string>${userInfo().username}</string>`), 'the daemon runs as the runner user');
+  assert.ok(plist.includes(`<key>HOME</key><string>${runner.home}</string>`), 'with the runner user\'s home');
+  assert.match(plist, /<key>KeepAlive<\/key><true\/>/u);
+  const calls = readFileSync(runner.log, 'utf8').split('\n');
+  assert.ok(!calls.some(call => call.startsWith('bootstrap')), 'no LaunchAgent is loaded where macOS would block it');
+  assert.equal(existsSync(runner.plist), false, 'no login agent is left behind');
+  assert.ok(programArguments(plist)[5].endsWith(`on this runner run ${service.sudo}`), 'the service logs the same sudo line when the board stays unreachable');
+
+  const doctor = await cli('doctor');
+  assert.ok(doctor.stdout.includes('runner runner-a: runner serve is staged as a LaunchDaemon but not loaded, so nothing pulls from 192.168.1.98; a LaunchAgent or a process left by ssh is blocked by macOS Local Network privacy'), doctor.stdout + doctor.stderr);
+  assert.ok(doctor.stdout.includes(`repair: on runner-a run: ${service.sudo}`), 'doctor prints the exact fix');
+
+  const removed = await cli('runner', 'install-serve', 'runner-a', '--remove', '--json');
+  assert.equal(removed.status, 0, removed.stdout + removed.stderr);
+  assert.ok(!(await cli('doctor')).stdout.includes('runner runner-a:'), 'a removed service is no longer diagnosed');
+});
+
+test('clause 2: an installed runner service that cannot reach its board logs the likely macOS Local Network block and its fix instead of retrying silently [P7]', { timeout: 60_000 }, // budget: one CLI run and backoffs of 1 s and 2 s.
+async (t) => {
+  const box = await apiHttpBox(t);
+  const runner = fakeRunner(box.dir);
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'pull' },
+    runners: [{ host: 'runner-a', slots: 1, browser: 0, node: process.execPath, root: runner.root }] });
+  const env = { ...box.env, PATH: `${runner.bin}:${box.env.PATH}` };
+  const installed = await runCliInProcess(['runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json'], { cwd: box.root, env });
+  const { service } = JSON.parse(installed.stdout);
+  const args = programArguments(readFileSync(service.plist, 'utf8'));
+  // The installed program, pointed at a closed loopback port so no request reaches a board, as the blocked agent saw.
+  const closed = createServer();
+  await new Promise(done => closed.listen(0, '127.0.0.1', done));
+  const { port } = closed.address();
+  await new Promise(done => closed.close(done));
+  const child = startFixtureChild(args[0], [args[1], `http://127.0.0.1:${port}${box.path}`, ...args.slice(3)], { cwd: join(runner.root, 'serve'), env: { HOME: runner.home, PATH: process.env.PATH }, stdio: ['ignore', 'pipe', 'pipe'] });
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+  let output = '';
+  await new Promise(done => {
+    child.stdout.setEncoding('utf8').on('data', part => { output += part; if (output.includes('likely cause')) done(); });
+    child.once('close', done);
+  });
+  const lines = output.split('\n');
+  assert.equal(lines.filter(line => line.includes('board unreachable')).length, 3, output);
+  const hint = lines.find(line => line.includes('likely cause')) ?? '';
+  assert.ok(hint.includes('board still unreachable after 3 tries; likely cause: macOS Local Network privacy blocks a LaunchAgent or a process left by ssh from 192.168.1.98'), output);
+  assert.ok(hint.endsWith(`run runner serve as a LaunchDaemon: on this runner run ${service.sudo}`), 'the log names the exact fix');
 });

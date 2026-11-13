@@ -70,10 +70,51 @@ function observations(root, file) {
   });
 }
 
+/**
+ * Find the commit that broke a red in about log2(n) probes over the first-parent commits that touch the test's closure.
+ * Why: a red's cause is one of the few closure commits between the last green and the first red; halving finds it without a run per commit [C7].
+ *
+ * @param {string} root
+ * @param {string} file - Repository-relative test file.
+ * @param {{ green: string, red: string, probe: (commit: string) => boolean, closureReader?: Function }} range - probe returns true when the file passes at that commit.
+ * @returns {{ file: string, commit: string, item: string|null, candidates: number, probes: string[] }}
+ */
+export function bisectRed(root, file, { green, red, probe, closureReader = testClosures }) {
+  const found = closureReader(root, red).closures.get(file);
+  if (!found?.files) throw new Error(`no import closure for ${file}: ${found?.reason ?? 'test is absent from the import graph'}`);
+  const between = git(root, 'rev-list', '--first-parent', '--reverse', `${green}..${red}`);
+  if (between === null) throw new Error('main history unavailable between the green and the red');
+  const candidates = between.split('\n').filter(Boolean).filter(commit =>
+    (git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--first-parent', commit) ?? '').split('\n').some(path => found.files.includes(path)));
+  if (!candidates.length) throw new Error('no commit between the green and the red touches the test closure');
+  // candidates[hi] is known red; everything before index lo is known green.
+  let lo = -1, hi = candidates.length - 1;
+  const probes = [];
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    probes.push(candidates[mid]);
+    if (probe(candidates[mid])) lo = mid; else hi = mid;
+  }
+  const commit = candidates[hi];
+  const item = /(?:^|\s)#(\d+)\b|Pullboard-Item: #(\d+)/u.exec(git(root, 'show', '-s', '--format=%s%n%b', commit) ?? '');
+  return { file, commit, item: item?.[1] ?? item?.[2] ?? null, candidates: candidates.length, probes };
+}
+
 /** Report recorded red history and the source commits that touch the test closure. */
 export async function run(io, { first, second }) {
-  if (first !== 'explain' || !second) { io.err('usage: pullboard red explain <repository-relative-test-file>'); return 1; }
+  if (!['explain', 'bisect'].includes(first) || !second) { io.err('usage: pullboard red explain|bisect <repository-relative-test-file>'); return 1; }
   const root = context(io).info.root;
+  if (first === 'bisect') {
+    try {
+      const known = explainObservations(root, second, observations(root, second));
+      if (!known.green || !known.red) throw new Error(`bisect needs a recorded green and red for ${second}: ${known.unavailable ?? 'none recorded'}`);
+      if (typeof io.redProbe !== 'function') throw new Error('RED_NO_PROBE: red bisect needs a runner prober (a pullboard test job per probed commit); none is wired yet, so use red explain to list the suspects');
+      const found = bisectRed(root, second, { green: known.green, red: known.red, probe: io.redProbe });
+      io.result?.(found);
+      io.say(`Breaking commit: ${found.commit}${found.item ? ` #${found.item}` : ''} (${found.probes.length} probes over ${found.candidates} closure commits)`);
+      return 0;
+    } catch (error) { io.err(error.message); return 1; }
+  }
   let result;
   try { result = explainObservations(root, second, observations(root, second)); }
   catch (error) { io.err(error.message); return 1; }

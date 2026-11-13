@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { boardJobQueueCall } from '../../../../packages/api/index.js';
 import { SHARD_JOB_KIND } from '../../../../packages/api/index.js';
+import { keptOutputFolder } from '../../../../packages/drive/index.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { itemThread } from '../../../../packages/store/index.js';
@@ -20,7 +21,7 @@ import { submitOne } from '../../tests/fixtures/pull.js';
  * the files it was handed; a file named `red` makes its run fail. The runners are processes on this host, so their
  * cores are the planner's.
  */
-function shardTooling(red = null) {
+function shardTooling(red = null, redOutput = '') {
   return {
     'packages/gate/index.js': `${TOOLING['packages/gate/index.js'].replace(/export function submitGatePlan[\s\S]*?\n\}\n/u, '')}import { availableParallelism } from 'node:os';
 export function submitGatePlan(root, config, options) {
@@ -32,7 +33,7 @@ export function submitGatePlan(root, config, options) {
 `,
     'bin/proof.js': `import { appendFileSync } from 'node:fs';
 appendFileSync(process.env.PULLBOARD_FIXTURE_STEPS, JSON.stringify({ step: 'proof', files: process.argv.slice(2) }) + '\\n');
-if (${JSON.stringify(red)} && process.argv.includes(${JSON.stringify(red)})) process.exit(1);
+if (${JSON.stringify(red)} && process.argv.includes(${JSON.stringify(red)})) { process.stdout.write(${JSON.stringify(redOutput)}); process.exit(1); }
 `,
   };
 }
@@ -50,8 +51,8 @@ function facts(board, id) {
 }
 
 /** Submit one item, serve its gate job on one runner, and return the board with the shard jobs the gate's receipt offered. */
-async function shardedGate(t, red) {
-  const box = await pullProject(t, 1, { tooling: shardTooling(red) });
+async function shardedGate(t, red, redOutput = '') {
+  const box = await pullProject(t, 1, { tooling: shardTooling(red, redOutput) });
   const [id] = box.ids;
   const submitted = submitOne(box, id);
   const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
@@ -99,5 +100,48 @@ async t => {
   assert.deepEqual(shards.map(row => row.steps.find(step => step.name === 'receipt').payload.receipt.gate.green), [false, true]);
   const after = getItem(board, id);
   assert.deepEqual([after.item_status, after.item_owner], ['claimed', before.item_owner], 'red: the item stays with its builder');
-  assert.match(facts(board, id), /red at [0-9a-f]{12}; failing parts:\nproof exited 1/u, 'the combined result is red, recorded once the last shard posted');
+  assert.match(facts(board, id), /red at [0-9a-f]{12}; failing parts:\n(?:.*\n)*proof exited 1/u, 'the combined result is red, recorded once the last shard posted');
+});
+
+/** A red shard's TAP: two failing cases, then enough passing subtests that its tail and exit lines show only passes. */
+const RED_TAP = ['TAP version 13',
+  'not ok 1 - merges a stale base', '  ---', '  duration_ms: 1', "  location: './web/p0.test.js:3:1'", "  failureType: 'testCodeFailure'", "  error: 'stale base'", '  ...',
+  'not ok 2 - keeps the guard', '  ---', '  duration_ms: 1', "  location: './web/p0.test.js:9:1'", "  failureType: 'testCodeFailure'", "  error: 'guard lost'", '  ...',
+  ...Array.from({ length: 300 }, (_, n) => `ok ${n + 3} - passing subtest ${n}`), '1..302', '# fail 2', ''].join('\n');
+
+test('a red pulled proof shard\'s fact lists each not ok file and case and its log path ahead of the tail [C7]', { timeout: 240_000 }, // budget: as clause 1 of the shard journey.
+async t => {
+  const { box, id, board, url } = await shardedGate(t, './web/p0.test.js', RED_TAP);
+  for (const runner of ['r-red', 'r-green']) assert.equal((await serveOnce(box, url, runner)).code, 0);
+  const [red] = jobsOf(board.db, { kind: SHARD_JOB_KIND, item: id });
+  const proof = red.steps.find(step => step.name === 'receipt').payload.receipt.gate.phases.find(phase => phase.role === 'proof');
+  assert.doesNotMatch(`${proof.tail}\n${proof.exit}`.slice(-600), /not ok/u, 'the shard\'s tail shows only passing subtests');
+  const fact = facts(board, id).split('Gate job ').find(text => /failing parts/u.test(text)) ?? '';
+  const log = join(keptOutputFolder(join(box.runnerHome, 'r-red'), red.id, 1), 'proof.log');
+  const lines = fact.split('\n');
+  const at = pattern => lines.findIndex(line => pattern.test(line));
+  const first = at(/^proof not ok: web\/p0\.test\.js :: merges a stale base \(shard \S+:shard:1\)$/u);
+  const second = at(/^proof not ok: web\/p0\.test\.js :: keeps the guard \(shard \S+:shard:1\)$/u);
+  const kept = lines.indexOf(`proof shard ${red.id} log: ${log} on runner r-red`);
+  const tail = at(/^proof exited 1: /u);
+  assert.ok(first > 0 && second > first && kept > second && tail > kept, fact);
+  assert.match(readFileSync(log, 'utf8'), /^not ok 2 - keeps the guard$/mu, 'the named log holds the shard\'s full output');
+});
+
+/** A red shard's TAP with `count` failing cases, then passing subtests that fill its tail. */
+function manyRedTap(count) {
+  const failing = Array.from({ length: count }, (_, n) => [`not ok ${n + 1} - case number ${n}`, '  ---', '  duration_ms: 1', `  location: './web/p0.test.js:${n + 1}:1'`,
+    "  failureType: 'testCodeFailure'", "  error: 'x'", '  ...']).flat();
+  return ['TAP version 13', ...failing, ...Array.from({ length: 300 }, (_, n) => `ok ${count + n + 1} - passing subtest ${n}`), `1..${count + 300}`, `# fail ${count}`, ''].join('\n');
+}
+
+test('a red pulled proof shard with more than 50 not ok cases still names every one in the fact [C7]', { timeout: 240_000 }, // budget: as clause 1 of the shard journey.
+async t => {
+  const count = 60;
+  const { box, id, board, url } = await shardedGate(t, './web/p0.test.js', manyRedTap(count));
+  for (const runner of ['r-red', 'r-green']) assert.equal((await serveOnce(box, url, runner)).code, 0);
+  const fact = facts(board, id).split('Gate job ').find(text => /failing parts/u.test(text)) ?? '';
+  const named = fact.split('\n').filter(line => /^proof not ok: web\/p0\.test\.js :: case number \d+ \(shard /u.test(line));
+  assert.equal(named.length, count, 'every not ok case is named, none cut to a cap');
+  assert.doesNotMatch(fact, /more in shard/u, 'no case is left to the log');
 });

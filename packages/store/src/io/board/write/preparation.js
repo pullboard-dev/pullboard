@@ -10,6 +10,26 @@ import { boardWritesLog } from '../hold/log.js';
 /** The tail of the machine's write log read to name a writer; a refusal never reads more. */
 const WRITE_LOG_TAIL_BYTES = 64 * 1024;
 
+/** Per board: how many of this connection's own row changes were made by acknowledged bookkeeping writes. */
+const ACKNOWLEDGED_OWN_CHANGES = new WeakMap();
+
+/**
+ * Run bookkeeping this connection writes on its own account (the lapsed-claim observation before a move) without
+ * voiding the snapshots prepared before it. Only this connection's rows are excused; another connection's commit
+ * still moves the data version, so a real concurrent change still refuses BOARD_BUSY [B2,C7].
+ * Why: a submit that merged main for minutes was refused BOARD_BUSY by its own observation write (#5327).
+ * @template T
+ * @param {any} board
+ * @param {() => Promise<T>|T} work
+ * @returns {Promise<T>}
+ */
+export async function acknowledgeOwnWrites(board, work) {
+  const total = () => board.db.prepare('SELECT total_changes() AS n').get().n;
+  const before = total();
+  try { return await work(); }
+  finally { ACKNOWLEDGED_OWN_CHANGES.set(board, (ACKNOWLEDGED_OWN_CHANGES.get(board) ?? 0) + total() - before); }
+}
+
 /**
  * Capture other connections' commits and this connection's own intervening writes without a lock.
  * The latest event id and the wall-clock instant only name the writers a stale refusal reports.
@@ -17,11 +37,12 @@ const WRITE_LOG_TAIL_BYTES = 64 * 1024;
  * @returns {{version:number, changes:number, eventId:number|null, at:number}}
  */
 export function boardWriteSnapshot(board) {
+  const own = ACKNOWLEDGED_OWN_CHANGES.get(board) ?? 0;
   let eventId = null;
   try { eventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id; }
   catch { /* A board without an event table still compares its data version. */ }
   return { version: board.db.prepare('PRAGMA data_version').get().data_version,
-    changes: board.db.prepare('SELECT total_changes() AS n').get().n, eventId, at: Date.now() };
+    changes: board.db.prepare('SELECT total_changes() AS n').get().n - own, eventId, at: Date.now() };
 }
 
 /**

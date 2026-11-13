@@ -1,4 +1,3 @@
-/** @pullboard-test-input test-tree */
 /** One split command moves every per-file registry row to the new files, and refuses a rising budget [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

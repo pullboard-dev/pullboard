@@ -8,17 +8,17 @@
  */
 import { audit } from './harness.mjs';
 
-const BAD_LANE = ['test/lanes.test.js', 'a config with a bad lane refuses and names the field'];
-const LANE_NAMES = ['test/lanes.test.js', 'lane names list the coordinator first'];
-const LONGEST = ['test/lanes.test.js', "the longest owned prefix decides a path's lane"];
+const BAD_LANE = ['packages/seats/tests/io/lanes.test.js', 'a config with a bad lane refuses and names the field'];
+const LANE_NAMES = ['packages/seats/tests/io/lanes.test.js', 'lane names list the coordinator first'];
+const LONGEST = ['packages/seats/tests/io/lanes.test.js', "the longest owned prefix decides a path's lane"];
 const IN_LANE = ['apps/cli/journeys/list/board.test.js', 'a lane commits only inside its folders'];
 const HEADER = ['apps/cli/journeys/hooks/main.test.js', 'header format, length, case and period'];
 const CITES = ['apps/cli/journeys/hooks/main.test.js', 'feat and fix cite ids; cited ids exist'];
-const PRE_PUSH = ['apps/cli/journeys/spec/e2e.test.js', 'pre-push runs the gate once per tree'];
+const PRE_PUSH = ['apps/cli/journeys/spec/e2e/next.test.js', 'pre-push runs the gate once per tree'];
 const MERGE_HINT = ['apps/cli/journeys/hooks/main.test.js', 'a refused merge message points to the message git writes'];
 const FIXERS = ['apps/cli/journeys/runner/e2e.test.js', 'pre-commit runs the fixers on fully staged files'];
-const CI = ['test/ci.test.js', 'CI runs the gate on every push and pull request'];
-const BADGE = ['test/ci.test.js', "the README shows the workflow's status badge"];
+const CI = ['packages/gate/tests/ci.test.js', 'CI runs the gate on every push and pull request'];
+const BADGE = ['packages/gate/tests/ci.test.js', "the README header shows the board's own badges, not the CI status badge"];
 const BADGE_LINE = '[![gate](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml/badge.svg)](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml)\n\n';
 const PRE_PUSH_RUN = '        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });\n        if (gate.isCached)';
 

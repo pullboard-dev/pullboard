@@ -5,6 +5,8 @@ export * from "./src/io/findings.js";
 export * from "./src/io/returns.js";
 export * from "./src/io/command.js";
 export * from "./src/io/cpu.js";
+export * from "./src/io/memory.js";
+export * from "./src/logic/memory.js";
 export * from "./src/io/runner.js";
 export * from "./src/io/main.js";
 export * from "./src/io/serve.js";

@@ -31,6 +31,22 @@ export const STAGED_TEST_CHECKS = Object.freeze([
 ]);
 
 /**
+ * The repository pre-commit's step: fix the mechanical import style in place and say so, then judge the staged bytes.
+ * Why: this check ran before the CLI hook's fixer, so a fixable binding line was refused and each retry cost a full
+ * hook run (#5775). The fixer is idempotent, so the CLI hook running it again changes nothing. It loads lazily, so
+ * importers that only judge staged bytes keep the one-second refusal budget (#2571).
+ *
+ * @param {string} root - Checkout root.
+ * @param {(note: string) => void} say - Prints one fix.
+ * @returns {Promise<string[]>} One `path:line: message` per failure the fix left; empty when clean.
+ */
+export async function fixThenStagedHookFailures(root, say) {
+  const { fixStagedImportBindings } = await import('../../../../../commits/index.js');
+  fixStagedImportBindings(root).forEach(note => say(`pullboard pre-commit: fixed: ${note}`));
+  return stagedHookFailures(root);
+}
+
+/**
  * The pre-commit hook's check: the gate's changed-file static list plus STAGED_TEST_CHECKS, on the exact index bytes.
  *
  * @param {string} root - Checkout root.
@@ -42,7 +58,7 @@ export function stagedHookFailures(root) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const staged = process.argv[2] === '--staged';
-  const failures = process.argv[2] === '--staged-hook' ? stagedHookFailures(process.cwd())
+  const failures = process.argv[2] === '--staged-hook' ? await fixThenStagedHookFailures(process.cwd(), note => process.stderr.write(`${note}\n`))
     : changedStaticFailures(process.cwd(), process.argv.slice(staged ? 3 : 2), { staged });
   if (failures.length) { process.stderr.write(`${failures.join('\n')}\n`); process.exitCode = 1; }
 }

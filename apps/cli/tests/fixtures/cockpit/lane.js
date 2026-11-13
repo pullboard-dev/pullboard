@@ -10,6 +10,8 @@ export function includeLaneReleaseCapture(error, detail) {
 /** Observe page boxes and native scroll events around the lane-release press without changing the action. */
 export async function armLaneReleaseCapture(chrome, selector, stableRoot = "document.querySelector('#lanes')") {
   const trace = { events: [], matching: 0, dropped: 0, complete: false, startError: null, endError: null };
+  /** Settles when Chrome reports Tracing.tracingComplete, so cleanup waits on the event instead of polling. */
+  trace.completed = new Promise(resolve => { trace.markComplete = resolve; });
   const traceLimit = 24;
   const traceByteLimit = 10_000;
   let traceBytes = 0;
@@ -28,7 +30,7 @@ export async function armLaneReleaseCapture(chrome, selector, stableRoot = "docu
   const onTraceMessage = ({ data }) => {
     let message;
     try { message = JSON.parse(String(data)); } catch { return; }
-    if (message.method === 'Tracing.tracingComplete') trace.complete = true;
+    if (message.method === 'Tracing.tracingComplete') { trace.complete = true; trace.markComplete(); }
     if (message.method !== 'Tracing.dataCollected') return;
     for (const event of message.params?.value ?? []) {
       if (!['FindAnchor', 'ComputeAdjustment'].includes(event.name)) continue;
@@ -222,8 +224,8 @@ export async function finishLaneReleaseCapture(chrome, capture) {
     try {
       await chrome.send('Tracing.end');
       /** Budget: bounded wait for the trace-complete event after Tracing.end, not a browser timing assertion. */
-      const deadline = Date.now() + 2000;
-      while (!capture.trace.complete && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+      const bound = AbortSignal.timeout(2000);
+      await Promise.race([capture.trace.completed, new Promise(resolve => bound.addEventListener('abort', resolve, { once: true }))]);
       if (!capture.trace.complete) capture.trace.endError = 'Tracing.tracingComplete was not observed within the cleanup bound';
     } catch (error) { capture.trace.endError = String(error.message || error).slice(0, 240); }
   }

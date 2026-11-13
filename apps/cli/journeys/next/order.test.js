@@ -284,7 +284,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', async
 
 test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
-  const web = box.json((await box.runAsLocal(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json')));
+  const web = box.json((await box.runAsLocal(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--lock-lane', '--json')));
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
   const peerBinding = box.binding(peer.root);
   const api = box.seat('owned-api', 'api', box.session);
@@ -341,7 +341,7 @@ test('a seat that holds nothing is never told it holds another seat\'s claim [N2
 
 test('next names the lane to open for work the agent lacks, and creates no seat [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
-  const web = box.seat('owned-mid-web', 'web', box.session, 'mid');
+  const web = box.seat('owned-mid-web', 'web', box.session, 'mid', true);
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
   const peerBinding = box.binding(peer.root);
   const tooStrong = box.add('api', 'A strong-only earlier release');

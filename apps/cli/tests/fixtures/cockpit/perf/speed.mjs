@@ -78,7 +78,7 @@ function inputScript() {
         if (sample.ready === false) return;
         const box = pane?.getBoundingClientRect();
         const targets = { spec: '#spec-list .row', doctrine: '#doctrine-list .row', items: '#chain .row',
-          roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-hero' };
+          roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-live .dash-stage' };
         const content = pane?.querySelector(targets[sample.tab]);
         const ready = Boolean(view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0);
         const key = ready ? [revision, box.x, box.y, box.width, box.height, content.getBoundingClientRect().x, content.getBoundingClientRect().y].join(':') : null;

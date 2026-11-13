@@ -5,6 +5,9 @@ import {
   doctrineProblems,
   reviewFamilyCover,
 } from '../../../../../packages/health/index.js';
+import { boardRemote } from '../../../../../packages/config/index.js';
+import { roleHosts } from '../../../../../packages/config/index.js';
+import { trunkRemote } from '../../../../../packages/config/index.js';
 import { withBoardRead } from '../context.js';
 import {
   bareWorktreeFinding,
@@ -25,12 +28,23 @@ import {
   context,
 } from '../entry.js';
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
+import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
+import { unclaimedGateJobs } from '../../../../../packages/jobs/index.js';
+import { anyRunnerLive } from '../runner/local.js';
+
+/** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
+function runHosts(io) {
+  const roles = roleHosts({ boardUrl: boardRemote()?.url, trunk: trunkRemote(io.cwd) });
+  io.result?.({ hosts: roles });
+  for (const [role, hosts] of Object.entries(roles)) io.say(`${role}: ${hosts.join(' ') || 'no network host'}`);
+  return 0;
+}
 
 // A malformed bare checkout must be diagnosed before trying to open its board.
 export const nativeBoardRequired = false;
 
 /** Run `pullboard doctor` and return its exit code. */
-export async function run(io) {
+export async function run(io, { values = {} } = {}) {
   const bare = bareWorktreeFinding(io.cwd);
   if (bare) {
     const problems = [bare];
@@ -38,11 +52,12 @@ export async function run(io) {
     for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
     return 1;
   }
+  if (values.hosts) return runHosts(io);
   await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
-  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
   // Preserve doctor's read-only diagnosis of a missing or incompatible board before projecting its rows.
   const incompatible = new Set(['BOARD_MISSING', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
   const cover = problems.some(problem => incompatible.has(problem.code)) ? { missingFamilies: [] }
@@ -50,6 +65,10 @@ export async function run(io) {
   for (const family of cover.missingFamilies) problems.push({ code: 'REVIEW_FAMILY_COVER',
     message: `${family} has no registered reviewer wake from another declared family`,
     next: `enroll an independent reviewer from another family with pullboard join <lane> --family <vendor> --wake <executable>` });
+  // A gate job nobody has claimed for 2 minutes while no runner is live waits on a missing runner, not on a slow gate.
+  if (!problems.some(problem => incompatible.has(problem.code)) && !anyRunnerLive()) for (const job of withBoardRead(ctx, board => unclaimedGateJobs(board.db))) problems.push({ code: 'GATE_NO_RUNNER',
+    message: `gate job ${job.id} waited over 2 min with no runner`,
+    next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
   const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
   if (checkpointProblem) problems.push(checkpointProblem);
   const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);

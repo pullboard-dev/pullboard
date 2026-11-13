@@ -28,9 +28,25 @@ function fixtureResult(result) {
 }
 
 /** Join a fixture worktree with the model and route required by current admission rules; an awaited runner gives an awaited result. */
-export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  const result = run(root, 'join', lane, '--model', model, '--route', route, '--json');
+export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', lockLane = false, run = box.run } = {}) {
+  const result = run(root, 'join', lane, '--model', model, '--route', route, ...(lockLane ? ['--lock-lane'] : []), '--json');
   return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
+}
+
+/**
+ * Run a fixture add; when the likely-duplicate guard refuses it, file it again naming the item it resembles.
+ *
+ * Why: fixture boards file many near-identical items by design, and the guard is for people, so the kit answers it once
+ * here instead of every journey inventing distinct titles [C7].
+ */
+function addAnsweringDuplicate(run, root, addArgs) {
+  const nearest = raw => {
+    const result = fixtureResult(raw);
+    return result.code === 0 ? null : /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.out + result.err)?.[1] ?? null;
+  };
+  const again = (raw, id) => id === null ? raw : run(root, ...addArgs.slice(0, -1), '--not-duplicate-of', `${id} fixture items repeat by design`, '--json');
+  const first = run(root, ...addArgs);
+  return typeof first?.then === 'function' ? first.then(raw => again(raw, nearest(raw))) : again(first, nearest(first));
 }
 
 /** Add a fixture item with a complete route-specific build brief and return its parsed item; a diagnosis fact routes the item light, so pass diagnose: false to keep the declared route. */
@@ -38,9 +54,10 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
   const buildBrief = brief ?? `Files:\n- ${lane}/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- ${title} passes.`;
   const addArgs = ['add', lane, title, '--route', route, '--criterion', criterion];
   if (check !== null) addArgs.push('--check', check);
+  if (check === 'true') addArgs.push('--accept-green', 'fixture check keeps passing');
   addArgs.push('--brief', buildBrief, ...args, '--json');
   if (wait) addArgs.splice(addArgs.length - 1, 0, '--wait');
-  const added = run(root, ...addArgs);
+  const added = addAnsweringDuplicate(run, root, addArgs);
   const afterAdd = raw => {
     const result = fixtureResult(raw);
     assert.equal(result.code, 0, `${result.out}\n${result.err}`);
@@ -154,6 +171,26 @@ export function fixtureProjectPolicy(repo, { config = {}, spec } = {}) {
  */
 export function fixtureMachineSettings(machineHome, settings) {
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify(settings));
+}
+
+/**
+ * The gate dispatch under which a fixture's submit, test run or comparison settles inside the command that started it.
+ * Why one constant: fixtures name their dispatch here instead of inheriting the machine default. Pull is the only dispatch:
+ * a plain fixture project is judged by the runner's installed Pullboard (#6265), on the loopback local runner [P7,#5821].
+ */
+export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'pull' });
+
+/**
+ * Make a fixture machine home whose submits settle the same way whatever the machine's runnerDispatch default is:
+ * the folder, and its settings with FIXTURE_GATE_DISPATCH under any gate fields the fixture names.
+ *
+ * @param {string} machineHome - The fixture's machine home folder.
+ * @param {object} [settings] - Further machine settings; its gate fields keep their own values beside the dispatch.
+ * @returns {void}
+ */
+export function fixtureSettledMachine(machineHome, settings = {}) {
+  mkdirSync(machineHome, { recursive: true });
+  fixtureMachineSettings(machineHome, { ...settings, gate: { ...settings.gate, ...FIXTURE_GATE_DISPATCH } });
 }
 
 /**

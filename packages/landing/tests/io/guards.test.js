@@ -13,10 +13,6 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { accountedFailures } from '../../index.js';
 import { land } from '../../index.js';
-import { runLandingBatch } from '../../index.js';
-import { runLandingCandidate } from '../../index.js';
-import { shardProcesses } from '../../index.js';
-import { runLandingShards } from '../../index.js';
 import { landingWaivers } from '../../index.js';
 import { requireLandingModuleResolution } from '../../index.js';
 import { requireLandingSecretFree } from '../../index.js';
@@ -121,20 +117,9 @@ test('missing landing providers refuse before admission or work can begin [B3,R3
   for (const ports of [undefined, ...['flakeLedger', 'quarantineWaivers', 'observeNativeFailure', 'quarantineVerdictSnapshot',
     'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns'].map(name => ({ ...landingPorts, [name]: undefined }))]) {
     await assert.rejects(land({ root: '/missing-landing-provider', board: untouched, landingPorts: ports }), /explicit canonical operation ports/u);
-    await assert.rejects(runLandingBatch({ root: '/missing-landing-provider', board: untouched, landingPorts: ports }), /explicit canonical operation ports/u);
-    await assert.rejects(runLandingCandidate({ root: '/missing-landing-provider', board: untouched, landingPorts: ports,
-      checkLease() { called = true; } }), /explicit canonical operation ports/u);
   }
-  await assert.rejects(runLandingShards({ root: '/missing-landing-parser' }), /explicit process census parser/u);
   assert.throws(() => landingWaivers(untouched), /explicit quarantine reader/u);
   assert.equal(called, false, 'missing providers never read the board or enter the lease callback');
-});
-
-/** Explicit unavailable census evidence must remain unavailable without a replacement read. */
-test('an unavailable shard census stays unavailable without another process read [Q1,Q3]', () => {
-  let reads = 0;
-  assert.equal(shardProcesses(process.pid, null, () => { reads += 1; return new Map(); }), null);
-  assert.equal(reads, 0);
 });
 
 /** A fake AWS key built at run time, so this file's own source never matches the pre-commit scanner. */

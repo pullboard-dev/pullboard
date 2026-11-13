@@ -81,13 +81,14 @@ export {
   lineCapacitySnapshot,
   lineCapacityProblem,
   takeoverReady,
+  seatSessionGone,
+  SEAT_SESSION_STALE_MS,
 } from './src/logic/line/capacity.js';
 export {
   lineOrderEnabled,
   waitedOnItems,
   reviewerScarcity,
   lineBuildOrder,
-  barReadyForOrder,
 } from './src/io/order.js';
 export {
   lineSettingsCommand,

@@ -29,6 +29,7 @@ import {
   git,
   gitChildEnv,
   gitPath,
+  checkoutHead,
   gitConfig,
   invalidateGitFacts,
   mainCheckout,
@@ -264,7 +265,7 @@ export function commitCitationWarnings(raw, { spec, doctrine }) {
  * @returns {{ touched: string[], written: string[] }}
  */
 export function stagedPaths(root, base = null) {
-  const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
+  const fields = git(root, ['diff', '--cached', '--name-status', '-z', '-M', ...(base ? [base] : [])]).split('\0'); // -M matches the move-detection call below, so one memo answer serves both.
   const touched = [], companion = new Set(JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593, #2614: a companion's own paths are exempt against the merged parent too
   const written = [];
   let index = 0;
@@ -429,7 +430,7 @@ function stagedChangedLines(root, path) {
   if (shared) {
     if (shared.lines === undefined) {
       try {
-        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
+        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
         shared.lines = new Map();
         for (const row of rows) shared.lines.set(row.path, [...(shared.lines.get(row.path) ?? []), `${row.path}:${row.line}`]);
       } catch { shared.lines = null; }
@@ -439,7 +440,7 @@ function stagedChangedLines(root, path) {
     if (shared.lines && !treeRaw(root, ':index', path)) return [];
   }
   try {
-    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     return addedLines(diff).filter(row => row.path === path).map(row => `${path}:${row.line}`);
   } catch { return []; }
 }
@@ -545,7 +546,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     try {
       if (resolution) added = resolution();
       else {
-        const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+        const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
         if (readCache) readCache.diff = diff;
         added = addedLines(diff);
       }
@@ -565,7 +566,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
       read: (revision, path) => {
         // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
         if (revision !== ':index') {
-          if (!revisions.has(revision)) revisions.set(revision, tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
+          if (!revisions.has(revision)) revisions.set(revision, (revision === 'HEAD' ? checkoutHead(root) : undefined) ? true : tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
           if (!revisions.get(revision)) return undefined;
         }
         const entry = importFileEntry(root, revision, path);
@@ -656,11 +657,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
  */
 export function deletedGateProblems(root, config) {
   if (!config?.spec) return [];
-  const status = tryGit(root, ['diff', '--cached', '--name-status', '-M', '--no-color']);
-  if (status.status !== 0) return [];
+  let raw;
+  try { raw = git(root, ['diff', '--cached', '--name-status', '-z', '-M']); } catch { return []; } // the same call kind as stagedPaths, so one memo answer serves both
   const gone = new Map();
-  for (const line of status.stdout.split('\n').filter(Boolean)) {
-    const [code, from, to] = line.split('\t');
+  const fields = raw.split('\0');
+  for (let at = 0; at < fields.length - 1;) {
+    const code = fields[at], from = fields[at + 1], to = /^[RC]/u.test(code) ? fields[at + 2] : undefined;
+    at += to === undefined ? 2 : 3;
     if (code.startsWith('D')) gone.set(from, 'deletes');
     else if (code.startsWith('R')) {
       const before = tryGit(root, ['rev-parse', `HEAD:${from}`]);
@@ -834,10 +837,9 @@ export function unwiredHookProblems(root) {
  * @returns {string[] | null}
  */
 function mainMergeHeads(root, preMergeHook) {
-  const gitPath = tryGit(root, ['rev-parse', '--git-path', 'MERGE_HEAD']);
-  if (gitPath.status !== 0) return null;
+  let mergeFile;
+  try { mergeFile = gitPath(root, 'MERGE_HEAD'); } catch { return null; }
   let merges;
-  const mergeFile = resolve(root, gitPath.stdout.trim());
   try {
     if (existsSync(mergeFile)) merges = readFileSync(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
     else if (preMergeHook) {
@@ -1214,7 +1216,7 @@ function addedLinesInBatches(root, written) {
     if (!paths.length) continue;
     let diff;
     try {
-      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+      diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     } catch (error) {
       if (error.code !== 'ENOBUFS') throw error;
       if (paths.length === 1) throw new Refused('DIFF_TOO_LARGE', `${paths[0]} alone exceeds the safe scan limit; split that file into smaller commits, then retry`);

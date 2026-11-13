@@ -5,6 +5,8 @@ export const workHelp = `Work
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
+    [--accept-green "reason"]           keep a check that already passes on main, saying why (add and edit)
+    [--not-duplicate-of "<id> why"]     file an item that reads like an open one, saying why it differs
     [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
@@ -20,7 +22,7 @@ export const workHelp = `Work
                                         move one open or verified item between this repo's team and private boards; old IDs forward
                                         private references start with ~; ambiguous bare handles require owner/handle
   pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
-                     [--expected-minutes <minutes|unknown>]
+                     [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--sensitive]           select Strict review; edit can set it while open
                 [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
@@ -93,6 +95,7 @@ export const workHelp = `Work
                                         the person adds --cause <key> --never-again --as person: rigor lists it at once
   pullboard why <id>                    the decisions that imply an item, newest first, and what superseded them
   pullboard why <file>[:<line>]         the decisions, rows and items behind a file or line, each with its origin
+  pullboard why [<release>] [--json]    the release flow on one screen: each unlanded item's cause, each idle seat, and recent landings
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
   pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
@@ -111,6 +114,8 @@ export const workHelp = `Work
                                         the result comes back through pullboard next; --wait blocks
   pullboard test --status <run id>      print a queued test run's state once
   pullboard test --cancel <run id>      stop your queued or running test run and free its slot
+  pullboard test --census [prefix..]    every tracked test file (or those under prefixes) in a few shards per runner
+                                        --out <jsonl> names the file that gets one row per test file
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill
@@ -127,7 +132,7 @@ export const workHelp = `Work
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
                                         --precheck: run cheap submit checks only, without cells or gate
-    submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
+    submit.handoff: true in pullboard.json is a deprecated no-op; submit always settles through the pull gate.
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result\n  pullboard verify <id> accept [--no-next] [--read <clauses>] --note "what you broke or which edge you tried, and what happened"

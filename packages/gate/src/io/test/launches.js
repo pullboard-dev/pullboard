@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /** CLI launches in tests (journeys most) are a ceiling that only falls: convert to runCliInProcess, never add a process [C7]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { blobOid } from '../static/cache.js';
 import { lex } from '../scan.js';
@@ -26,7 +28,7 @@ const CLI_NAME = /pullboard(?:Bin|Cli|Entry)|\b(?:BIN|CLI|CLI_ENTRY|ENTRY|cli|bi
 /** Any call on a box (`box` is the kit's own name); the member counts only when its helper starts a process. */
 const BOX_CALL = /(?<![\w$.])box\s*\.\s*([\w$]+)\s*\(/gu;
 /** The kit box members that run the CLI as a child process (apps/cli/tests/fixtures/e2e.js), for a box the test file does not build itself. */
-const KIT_LAUNCH = new Set(['run', 'runAs', 'cli', 'cliAt', 'runGate', 'launch']);
+const KIT_LAUNCH = new Set(['run', 'runAs', 'cli', 'cliAt', 'launch']);
 /** A bare call of a name, not a member call; the name is the helper a local closure may define. */
 const BARE_CALL = /(?<![\w$.])([\w$]+)\s*\(/gu;
 
@@ -218,8 +220,8 @@ function launchReach(source, code) {
 }
 
 /** Inspect every test file as text; `cache` keeps a file's sites by blob. */
-export function cliLaunchReport(root, { cache = null } = {}) {
-  return walk(root, JOURNEY).flatMap(path => {
+export function cliLaunchReport(root, { cache = null, only = null } = {}) {
+  return (only ? only.filter(path => JOURNEY.test(path) && existsSync(join(root, path))).sort() : walk(root, JOURNEY)).flatMap(path => {
     const text = readText(root, path);
     return cache ? cache.get(path, blobOid(text), () => cliLaunchSites(text, path)) : cliLaunchSites(text, path);
   });

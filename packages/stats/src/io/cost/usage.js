@@ -63,3 +63,21 @@ export function unknownInputSplit() {
 
 /** Identify additive numeric payloads so their move can retain the legacy replay floor otherwise. */
 
+
+/**
+ * A seat's allowance from the latest Codex `rate_limits.primary` in parsed session rows: percent left and reset time.
+ * Why: a seat that nears its limit must be seen before it stalls; a row without the numbers yields unknown, never a guess [C7].
+ *
+ * @param {object[]} rows parsed session rows, oldest first
+ * @returns {{known: true, percentLeft: number, windowMinutes: number, resetsAt: string}|{known: false}}
+ */
+export function allowanceFromRows(rows) {
+  let primary = null;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const found = row?.type === 'event_msg' && row.payload?.type === 'token_count' ? row.payload.rate_limits?.primary : null;
+    if (found && typeof found === 'object') primary = found;
+  }
+  const { used_percent: used, window_minutes: windowMinutes, resets_at: resets } = primary ?? {};
+  if (![used, windowMinutes, resets].every(Number.isFinite) || used < 0 || used > 100) return { known: false };
+  return { known: true, percentLeft: Math.round((100 - used) * 100) / 100, windowMinutes, resetsAt: new Date(resets * 1000).toISOString() };
+}

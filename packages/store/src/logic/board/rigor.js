@@ -11,7 +11,7 @@ import { NATIVE_FLAKE_ENGINE } from "../../../../state/light.js";
 import {
   historyPathMap,
   mappedCause,
-} from "../../../../codemap/index.js";
+} from "../../../../codemap/light.js";
 import {
   conflictCause,
   reopenConflictEvidence,

@@ -87,16 +87,20 @@ function closureRerun({ detail, proof, baseTree, base, tree, tooling, landed, tr
  * With `closure` (a tiered repository, whose tests reach what they import), the trees may instead differ by main's
  * commits since the submit, and a proof with deferred journeys is reused too: `rerun` lists only the candidates whose
  * import closure those commits reach, plus files the submit itself deferred [C7].
+ * With `wholeSuite` (a landing that pushes), only a whole-suite receipt (proof.full) for the identical tree reuses [C7,#6271].
  *
  * @param {{ items: Array<{ id: number, commit: string }>, readEvents: (id: number) => object[], tree: string,
- *   base: string, tooling: string | null, full: boolean, files: string[], treeOf: (rev: string) => string | null,
+ *   base: string, tooling: string | null, full: boolean, wholeSuite?: boolean, files: string[], treeOf: (rev: string) => string | null,
  *   generated?: string[], changedPaths?: (from: string, to: string) => string[] | null,
  *   verdictOf?: (item: number, candidate: string) => object | null,
  *   closure?: { candidates: () => string[], closureChanged: (file: string, changed: Set<string>) => boolean } | null }} input
  * @returns {{ reuse: boolean, code: string | null, item?: number, commit?: string, tree?: string, rerun?: string[],
  *   mainOwned?: Array<{ file: string, name: string }> }}
  */
-export function landingReceiptReuse({ items, readEvents, tree, base, tooling, full, files, treeOf, generated = [], changedPaths = () => null, verdictOf, closure = null }) {
+export function landingReceiptReuse({ items, readEvents, tree, base, tooling, full, wholeSuite = false, files, treeOf, generated = [], changedPaths = () => null, verdictOf, closure = null }) {
+  // A landing that pushes (the default shape) reuses only a whole-suite receipt for the identical tree: no closure
+  // drift, no batch of receipts, no plan narrower than the suite [C7,#6271].
+  if (wholeSuite) { closure = null; full = true; }
   if (items.length !== 1 && !closure) return { reuse: false, code: 'BATCH_OF_MANY' };
   if (items.length !== 1) return batchReceiptReuse({ items, readEvents, tree, base, tooling, full, files, treeOf, generated, changedPaths, verdictOf, closure });
   const [entry] = items;

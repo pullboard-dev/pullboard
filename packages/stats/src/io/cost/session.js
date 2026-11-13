@@ -1,5 +1,6 @@
 /** Locate only the caller's native session and keep transcript bytes on its machine [N2]. */
 import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute } from 'node:path';
@@ -7,6 +8,7 @@ import { join } from 'node:path';
 import { cursorSnapshot } from './cursor.js';
 import { SPLIT_COUNTS } from './usage.js';
 import { unknownInputSplit } from './usage.js';
+import { allowanceFromRows } from './usage.js';
 
 /** The variables a seat wrapper exports to name the transcript its tokens land in: one file, or a folder whose newest transcript is meant. */
 export const AGENT_TRANSCRIPT_ENV = Object.freeze(['PULLBOARD_SESSION_LOG', 'PULLBOARD_SESSION_DIR']);
@@ -117,4 +119,15 @@ export function usageDifference(before, after, fallbackModel) {
     const difference = (name) => current?.[name] !== null && old[name] !== null && Number.isSafeInteger(current?.[name] - old[name]) && current[name] >= old[name] ? current[name] - old[name] : null;
     return { model, ...Object.fromEntries(['inputTokens', 'outputTokens', ...SPLIT_COUNTS].map(name => [name, difference(name)])) };
   });
+}
+
+/** A seat's allowance read from its Codex session file; an unreadable file or one without rate limits is unknown [C7]. */
+export function seatAllowance(file) {
+  let text;
+  try { text = readFileSync(file, 'utf8'); } catch { return { known: false }; }
+  const rows = [];
+  for (const line of text.split('\n')) {
+    try { rows.push(JSON.parse(line)); } catch { /* a torn or blank line carries no allowance */ }
+  }
+  return allowanceFromRows(rows);
 }

@@ -12,16 +12,14 @@ jobs:
   close-clarification-issues:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v11.0.0
+      - uses: actions/github-script@v7.0.1
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          only-issue-labels: clarify
-          stale-issue-label: clarify-inactive
-          days-before-issue-stale: 14
-          days-before-issue-close: 0
-          remove-issue-stale-when-updated: true
-          close-issue-message: "Closed. No response. Reply to reopen."
-          close-issue-reason: completed
-          days-before-pr-stale: -1
-          days-before-pr-close: -1
-          remove-pr-stale-when-updated: false
+          script: |
+            const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+            const { owner, repo } = context.repo;
+            const issues = await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', labels: 'clarify', per_page: 100 });
+            for (const issue of issues) {
+              if (issue.pull_request || Date.parse(issue.updated_at) > cutoff) continue;
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body: 'Closed. No response. Reply to reopen.' });
+              await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: 'closed', state_reason: 'completed' });
+            }

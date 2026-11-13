@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json docs/tools/update-docs.js packages/codemap/data/plan/cells.json packages/gate/data/tests/tiers.json packages/landing/src/io/step/merge.js */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json docs/tools/update-docs.js packages/codemap/data/plan/cells.json packages/gate/data/tests/tiers.json packages/landing/src/io/derive.js */
 /** @pullboard-test-input docs-tree */
 /** Clean landing merges regenerate shared documentation before the real gate [B3,C7,V4]. */
 import assert from 'node:assert/strict';
@@ -13,6 +13,7 @@ import {
 import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
+import { fixtureMachineSettings } from '../testkit.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -31,7 +32,11 @@ function success(box, cwd, ...args) {
   return JSON.parse(result.stdout);
 }
 
-/** Import the full fixture in bounded normal commits, keeping every installed hook enabled. */
+const IMPORT_CHUNK_BYTES = 6 * 1024 * 1024;
+
+/** Import the full fixture in bounded normal commits, keeping every installed hook enabled.
+ * Why 6 MB: each chunk's staged diff stays under the hook's 8 MB secret-scan limit, and a few large commits
+ * replace forty 1 MB ones whose hook runs alone took two minutes on a loaded runner (#6235). */
 function commitFixture(box) {
   const files = [...new Set(box.git(box.repo, 'ls-files', '--modified', '--others', '--exclude-standard', '-z').split('\0').filter(Boolean))].sort();
   let chunk = [], bytes = 0, number = 0;
@@ -45,7 +50,7 @@ function commitFixture(box) {
   for (const file of files) {
     const size = readFileSync(join(box.repo, file)).length;
     assert.ok(size <= 1024 * 1024, `single fixture file needs a different normal setup: ${file}`);
-    if (bytes + size > 1024 * 1024 || chunk.length === 100) flush();
+    if (bytes + size > IMPORT_CHUNK_BYTES || chunk.length === 1000) flush();
     chunk.push(file); bytes += size;
   }
   flush();
@@ -57,6 +62,8 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
+  // This landing settles its submit and gate in the commands' own processes, so the fixture pins controller dispatch (#6249).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   // The archive goes to a file, not a captured buffer: the committed tree outgrew any fixed in-memory limit.
   const tarball = join(box.dir, 'candidate-archive.tar');
   const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'packages', 'apps', 'docs', 'skills', 'package.json',
@@ -88,7 +95,7 @@ function project(disableRefresh) {
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd(), undefined, { openBoard }), [], 'stale generated files: ' + generatedDocDrift(process.cwd(), undefined, { openBoard }).join(', ')); });`,
   ].join('\n') + '\n');
   if (disableRefresh) {
-    const file = join(box.repo, 'packages/landing/src/io/step/merge.js');
+    const file = join(box.repo, 'packages/landing/src/io/derive.js');
     const source = readFileSync(file, 'utf8');
     const call = 'refreshLandingDocs(root);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
@@ -135,7 +142,7 @@ export function runLandingDocsRefresh(disabled) {
     const box = project(disabled);
     const entry = verifiedDeclaration(box);
     const before = box.git(box.repo, 'rev-parse', 'main');
-    const oldDocs = box.git(box.repo, 'show', 'main:docs/cli-help.txt');
+    const oldDocs = box.git(box.repo, 'show', 'main:apps/cli/src/logic/help/additions.js');
     // This private persistent board is shared by separate native submit, verify and landing CLI processes.
     const outcome = command(box, box.repo, 'land');
     let report;
@@ -144,7 +151,7 @@ export function runLandingDocsRefresh(disabled) {
     assert.deepEqual(report.conflicts ?? [], [], 'the declaration merges without any textual conflict');
     if (disabled) {
       assert.deepEqual(report.landed ?? [], [], output);
-      assert.match(output, /docs\/cli-help\.txt/u, 'the actual failed landing names the stale shared file');
+      assert.match(output, /apps\/cli\/src\/logic\/help\/additions\.js/u, 'the actual failed landing names the stale shared file');
       assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'stale documentation never advances trunk');
       assert.equal(success(box, box.repo, 'show', String(entry.item)).item_merged_commit, null);
     } else {
@@ -153,7 +160,7 @@ export function runLandingDocsRefresh(disabled) {
       assert.equal(report.batch.state, 'landed');
       const tip = box.git(box.repo, 'rev-parse', 'main');
       assert.notEqual(tip, before);
-      const regenerated = box.git(box.repo, 'show', `${tip}:docs/cli-help.txt`);
+      const regenerated = box.git(box.repo, 'show', `${tip}:apps/cli/src/logic/help/additions.js`);
       assert.notEqual(regenerated, oldDocs, 'landing commits actual regenerated bytes');
       assert.match(regenerated, /Clean landing documentation fixture/u);
       assert.equal(success(box, box.repo, 'show', String(entry.item)).item_merged_commit, tip);

@@ -1,19 +1,7 @@
-/** @pullboard-test-input apps/cli/tests/fixtures/landing/ports.js apps/lib/index.js apps/lib/src/io/landing/candidate.js apps/runner/index.js packages/config/index.js packages/landing/index.js packages/store/index.js */
+/** @pullboard-test-input packages/landing/index.js */
 /** A landing gate red only on runner refusals is a landing fault that retries, never a diagnosis or a park [C7,#3693]. */
 import assert from 'node:assert/strict';
-import {
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import {
-  after,
-  test,
-} from 'node:test';
-import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { test } from 'node:test';
 import {
   runnerRefusalOnly,
   requireNoRunnerRefusalOnlyRed,
@@ -21,11 +9,6 @@ import {
 import { repeatedBlockedCause } from '../../../../../packages/landing/index.js';
 import { retryableLandingRefusal } from '../../../../../packages/landing/index.js';
 import { landingFault } from '../../../../../packages/landing/index.js';
-
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
-const { sandbox, project, commitFile } = e2e;
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 /** The shape of #2550's candidate-1.log (batch bc96678a): one shard refused twice, the rest green or stopped. */
 const REFUSED_SHARDS = [
@@ -61,103 +44,4 @@ test('the repeat guard never parks on a landing fault and still parks on a repea
   const batch = (id, code) => ({ id, state: 'blocked', base: 'b'.repeat(40), items: [{ id: 7, commit: item.item_commit }], refusal: { code, message: code } });
   for (const code of ['LAND_RUNNER_FAULT', 'SLOT_DB_LOCKED', 'BOARD_BUSY']) assert.equal(repeatedBlockedCause([batch('a', code), batch('b', code)], item), null, code);
   assert.equal(repeatedBlockedCause([batch('a', 'LAND_DIAGNOSTIC'), batch('b', 'LAND_DIAGNOSTIC')], item)?.key, 'LAND_DIAGNOSTIC');
-});
-
-/** A separate-publish landing project whose fixture gate prints #2550's runner refusals while LAND_RUNNER_REFUSAL is set. */
-function refusingProject() {
-  const box = landProject({ withWorktree: false });
-  const path = join(box.repo, 'pullboard.json');
-  writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
-  const gate = join(box.dir, 'land-gate.cjs');
-  const refusing = "process.env.LAND_RUNNER_REFUSAL === '1' && !alone";
-  const source = readFileSync(gate, 'utf8')
-    .replace("console.log('TAP version 13'); let failed = 0;",
-      `if (${refusing}) console.log(${JSON.stringify(REFUSED_SHARDS.join('\n'))}); console.log('TAP version 13'); let failed = 0;`)
-    .replace('process.exitCode = failed || cancelled ? 1 : 0;',
-      `process.exitCode = failed || cancelled ? 1 : 0; if (${refusing}) { console.log(${JSON.stringify(STOPPED.join('\n'))}); process.exitCode = 1; }`);
-  assert.notEqual(source, readFileSync(gate, 'utf8'));
-  writeFileSync(gate, source);
-  return box;
-}
-
-/** Submit and accept one item with its red suppressed, then move main so the landing runs its own gate. */
-function acceptedItem(box, number, contents) {
-  box.env.LAND_SUPPRESS_RED = '1';
-  try {
-    const entry = itemWorktree(box, number);
-    submitItem(box, entry, contents);
-    acceptItem(box, entry);
-    const moved = commitFile(box, box.repo, `web/main-moved-${number}.txt`, 'main moved\n', `chore(web): main moves past the submit ${number} [G1]`);
-    assert.equal(moved.status, 0, moved.stderr);
-    return entry;
-  } finally { delete box.env.LAND_SUPPRESS_RED; }
-}
-
-/** Run one real landing batch on the fixture board and return its record, the landing's lines and the item. */
-function landBatch(box, itemId) {
-  const source = [
-    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/store/index.js')).href)};`,
-    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../lib/index.js')).href)};`,
-    `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/config/index.js')).href)};`,
-    `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
-    `import { landingPorts } from ${JSON.stringify(new URL('../../../tests/fixtures/landing/ports.js', import.meta.url).href)};`,
-    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../runner/index.js')).href)};`,
-    `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../../../../lib/src/io/landing/candidate.js'))};`,
-    "import { join } from 'node:path';",
-    'const [root, itemId] = process.argv.slice(1);',
-    'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
-    'const lines = [];',
-    'try {',
-    'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
-    'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (failure) { error = failure.code ?? String(failure); }',
-    'const batch = store.landingBatches(board).at(-1); const item = store.getItem(board, Number(itemId));',
-    'console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit, status: item.item_status, held: item.item_hold_at ?? null }));',
-    '} finally { store.closeBoard(board); }',
-  ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(itemId)], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-  assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
-  return JSON.parse(run.stdout.trim().split('\n').at(-1));
-}
-
-test('clause 1: a real landing gate red only on runner refusals is retried as a landing fault, never LAND_DIAGNOSTIC and never parked [C7,#3693]', { timeout: 300_000 }, // budget: one real submit and accept, three real landings; hang ceiling only.
-() => {
-  const box = refusingProject();
-  const entry = acceptedItem(box, 1, 'PASS\n');
-  box.env.LAND_RUNNER_REFUSAL = '1';
-  const batches = new Set();
-  for (const round of [1, 2]) {
-    const result = landBatch(box, entry.item);
-    const why = JSON.stringify({ round, error: result.error, refusal: result.batch?.refusal, lines: result.lines });
-    assert.equal(result.error, 'LAND_RUNNER_FAULT', why);
-    assert.equal(result.batch.refusal?.code, 'LAND_RUNNER_FAULT', why);
-    assert.match(result.batch.refusal.message, /only runner refusals stopped it \(SLOT_DB_LOCKED\)/u, why);
-    assert.ok(!(result.batch.refusals ?? []).some(row => row.code === 'LAND_DIAGNOSTIC'), why);
-    assert.deepEqual(result.batch.culprits ?? [], [], 'no item is charged');
-    assert.equal(result.status, 'verified', 'the item stays accepted');
-    assert.equal(result.held, null, `round ${round}: a landing fault never counts toward parking`);
-    assert.ok(!result.merged, 'nothing lands on a fault');
-    batches.add(result.batch.id);
-  }
-  assert.equal(batches.size, 2, 'each retry is its own batch, as #2550 had two');
-  delete box.env.LAND_RUNNER_REFUSAL;
-  const retried = landBatch(box, entry.item);
-  assert.equal(retried.error, null, JSON.stringify(retried.lines));
-  assert.ok(retried.merged, 'once the runners answer, the retried item lands');
-});
-
-test('clause 2: a real landing gate with a failing case beside runner refusals still diagnoses the case [C7,#3693]', { timeout: 300_000 }, // budget: one real submit and accept, one real landing; hang ceiling only.
-() => {
-  const box = refusingProject();
-  const entry = acceptedItem(box, 1, '// RED NAME:batch-red-case\n');
-  box.env.LAND_RUNNER_REFUSAL = '1';
-  const result = landBatch(box, entry.item);
-  const why = JSON.stringify({ error: result.error, batch: result.batch, lines: result.lines });
-  assert.notEqual(result.error, 'LAND_RUNNER_FAULT', why);
-  assert.notEqual(result.batch.refusal?.code, 'LAND_RUNNER_FAULT', why);
-  assert.ok(!result.merged, 'the red item stays off main');
-  assert.ok((result.batch.culprits ?? []).some(culprit => culprit.id === entry.item
-    && culprit.tests.some(row => row.file === entry.file && row.name === 'batch-red-case')), why);
-  assert.equal(result.status, 'open', 'the item goes back with its failing case');
 });

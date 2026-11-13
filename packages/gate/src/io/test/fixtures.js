@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { lex } from '../scan.js';
 import { lineAt } from '../scan.js';
@@ -141,8 +142,8 @@ export function fixtureSites(source, path) {
  * @param {string} root
  * @param {{ sitesOf?: (path: string, text: string) => ReturnType<typeof fixtureSites> }} [options] - `sitesOf` lets a caller answer a file's sites from a cache keyed by its text.
  */
-export function fixtureReport(root, { sitesOf = (path, text) => fixtureSites(text, path) } = {}) {
-  return walk(root, TEST_SOURCE).flatMap(path => sitesOf(path, readText(root, path)));
+export function fixtureReport(root, { sitesOf = (path, text) => fixtureSites(text, path), only = null } = {}) {
+  return (only ? only.filter(path => TEST_SOURCE.test(path) && existsSync(join(root, path))).sort() : walk(root, TEST_SOURCE)).flatMap(path => sitesOf(path, readText(root, path)));
 }
 
 /** Count sites per file and kind, so removing one kind cannot pay for another. */
@@ -189,9 +190,9 @@ function baseText(root, base, path) {
  * @param {string | URL} [ceilingsPath]
  * @param {{ base?: string | null, read?: (root: string, base: string, path: string) => string | null, sitesOf?: (path: string, text: string) => ReturnType<typeof fixtureSites> }} [options]
  */
-export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText, sitesOf } = {}) {
+export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText, sitesOf, only = null } = {}) {
   const committed = JSON.parse(readFileSync(ceilingsPath, 'utf8'));
-  const problems = fixtureReport(root, sitesOf ? { sitesOf } : {});
+  const problems = fixtureReport(root, { ...(sitesOf ? { sitesOf } : {}), only });
   let ceilings = committed;
   if (base && fixtureGrowth(problems, committed).length) {
     ceilings = { ...committed };

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
 import { runFixtureChild } from './child.js';
-import { runFixtureGit } from './child.js';
+import { runFixtureSetupGit } from './child.js';
 import { performance } from 'node:perf_hooks';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -17,6 +17,7 @@ import { statSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join } from 'node:path';
@@ -26,12 +27,13 @@ import { openBoard } from '../../../lib/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
+import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { runCliInProcess } from './process.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
-import { fixtureMachineSettings } from './testkit.js';
+import { fixtureSettledMachine } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
@@ -41,11 +43,62 @@ export const FIXTURE_MODEL = 'fixture-model';
 /**
  * A copy of an environment with every PULLBOARD_ variable removed, so a fixture never inherits the
  * agent's identity or home. Each fixture sets the PULLBOARD_ values it needs on top of this copy.
+ * The copy sets PULLBOARD_FIXTURE_ADD_DISTINCT=1: fixture items carry numbered, near-identical titles, so the duplicate
+ * guard of `add` stays off in every fixture board; its own journey deletes the variable to prove the guard (#6864).
  * @param {Record<string, string | undefined>} source The parent process environment.
  * @returns {Record<string, string | undefined>} A new object without PULLBOARD_ keys.
  */
 export function withoutPullboardEnv(source) {
-  return Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_')));
+  return { ...Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_'))), PULLBOARD_FIXTURE_ADD_DISTINCT: '1' };
+}
+
+/** The commands that may offer a runner job (a gate, test or land job) a journey then reads the outcome of. */
+const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit']);
+/** Budget: how long a fixture command waits for the loopback local runner to finish the jobs it offered. */
+const SETTLE_MS = 180_000;
+
+/**
+ * Whether the fixture machine pins gate.runnerDispatch to controller; an absent or unreadable settings file is the pull default.
+ * Why: only a pull gate is a job the loopback local runner settles, so only pull has a queue worth waiting for.
+ *
+ * @param {object} env - The fixture environment.
+ * @returns {boolean}
+ */
+function controllerDispatch(env) {
+  try { return JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gate?.runnerDispatch === 'controller'; }
+  catch { return false; /* No settings file: the product default, pull. */ }
+}
+
+/**
+ * Wait until the fixture board's runner job queue holds no unfinished job, so a journey reads a settled gate or landing.
+ * Why: under pull dispatch a submit offers its gate as a job the loopback local runner takes and returns at once; the
+ * journeys assert what the gate decided, so the fixture command returns once the queue is done [P7,#5821].
+ *
+ * @param {string} cwd - Where the command ran.
+ * @param {string[]} args - The command's arguments.
+ * @param {object} env - The fixture environment.
+ */
+function settlePulledJobs(cwd, args, env) {
+  // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
+  // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
+  // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
+  // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
+  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || controllerDispatch(env) || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
+  const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
+  if (common.status !== 0) return;
+  const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
+  if (!existsSync(file)) return;
+  const deadline = Date.now() + SETTLE_MS;
+  for (;;) {
+    let open = false;
+    // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
+    try {
+      const db = new DatabaseSync(file, { readOnly: true });
+      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
+    } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
+    if (!open || Date.now() >= deadline) return;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
 }
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
@@ -58,6 +111,7 @@ export function createE2eHelpers() {
    */
   const cleanup = () => {
     for (const dir of sandboxes) {
+      stopFixtureLocalRunner(join(dir, 'machine-home'));
       const deadline = Date.now() + 30_000;
       for (;;) {
         try { rmSync(dir, { recursive: true, force: true }); break; }
@@ -102,13 +156,14 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_CLAIM_BEATER: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
+    // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
+    ...(process.env.PULLBOARD_TEST_RUNNER_PID ? { PULLBOARD_TEST_RUNNER_PID: process.env.PULLBOARD_TEST_RUNNER_PID } : {}),
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
-  // Journeys here hold their gate in the submitting process, so they pin controller dispatch and the default may move to pull [P7].
-  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
+  // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
+  const git = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const declaredFamilies = new Map();
   /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
@@ -133,12 +188,14 @@ function sandbox({ declareFamilies = false } = {}) {
   const run = (cwd, ...args) => {
     prepare(cwd, args);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    if (result.status === 0) settlePulledJobs(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
     prepare(cwd, args);
     const result = await runCliInProcess(args, { cwd, env });
+    if (result.status === 0) settlePulledJobs(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
   return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
@@ -181,7 +238,8 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   box.git(repo, 'config', 'user.name', 'Test Agent');
   box.git(repo, 'config', 'user.email', 'agent@example.com');
   if (inheritedModel !== undefined) box.env.PULLBOARD_MODEL = inheritedModel;
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate }, null, 2));
+  // One live claim per seat, as the journeys assume, whatever free runner slots the machine reports [C7].
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, claims: { ...CONFIG.claims, perSeat: 1 }, gate }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
@@ -428,10 +486,10 @@ export function crossLaneFixture(t) {
     return JSON.parse(result.out);
   }
   /** An existing seat is joined by the actual owner session, rather than a test-only owner flag. */
-  function seat(name, lane, identity, route = 'strong') {
+  function seat(name, lane, identity, route = 'strong', lockLane = false) {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    return { ...json(joinFixtureSeat(box, root, lane, { route, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
+    return { ...json(joinFixtureSeat(box, root, lane, { route, lockLane, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
   }
   /** Add an ordinary routed item through the coordinator CLI with its lane's approved row; each title names its own file so items never collide on one path. */
   function add(lane, title, route = 'strong') {
