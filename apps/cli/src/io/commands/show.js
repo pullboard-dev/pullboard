@@ -65,7 +65,7 @@ export async function run(io, { first, values }) {
   const ctx = context(io);
   const id = idArg(first);
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
-  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
+  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, store)), { json: values.json });
   const prices = loadMachineSettings().costPrices;
   const { item, queuedSubmit, queuedJobId, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));

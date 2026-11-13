@@ -121,7 +121,7 @@ function writeChrome() {
   const shown = p && data.root === view.root ? p : null;
   store.paint($('status-board'), shown ? store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml) : '');
   if (!shown) return;
-  // The navigation's numbers: the notch, the switcher's rulings, each page's one fact, and Progress's words (#6614).
+  // The navigation's numbers: the notch, the switcher's rulings, each page's one fact (#6614).
   drawNav(shown, store.select('nav-numbers', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers));
   const spec = $('tabs').querySelector?.('[data-tab=spec]');
   if (spec) {
