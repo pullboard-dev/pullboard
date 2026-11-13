@@ -193,7 +193,9 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     await search('greeting');
     const shout = (await read()).hits.find((hit) => hit.go.startsWith('shout:')).go;
     await tap(`#find-results [data-find="${shout}"]`);
-    await chrome.waitFor(`view.tab === 'shouts' && document.getElementById('shout-${shout.slice(6)}')?.classList.contains('found')`);
+    await chrome.waitFor(`view.tab === 'shouts' && document.getElementById('shout-${shout.slice(6)}')?.classList.contains('found')`).catch(async (e) => {
+      throw new Error(e.message.slice(0, 200) + ' DIAG ' + await chrome.stable(`JSON.stringify({ tab: view.tab, shout: view.shout, thread: view.shoutThread, filter: view.shoutFilter, hidden: view.agentsHidden, card: document.getElementById('shout-${shout.slice(6)}')?.className ?? null, cards: [...document.querySelectorAll('#feed .shout')].map((e) => e.id), rows: [...document.querySelectorAll('#feed [data-shout-thread]')].map((e) => e.dataset.shoutThread), status: document.querySelector('#shout-address-status')?.textContent ?? null })`));
+    });
 
     // "/" opens the palette from the page, never from a field.
     await chrome.stable("document.activeElement.blur(); document.body.focus()");
