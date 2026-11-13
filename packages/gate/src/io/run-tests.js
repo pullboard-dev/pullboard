@@ -67,6 +67,7 @@ import { formatTestOutcomes } from './test/outcomes.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
 // The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
 import { testRunPhaseClock } from './test/run/phases.js';
+import { storeName } from './store-names.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */
@@ -537,7 +538,7 @@ function watchLandingChildCustody(startsPath, attempt) {
     if (!child || typeof child.once !== 'function') return;
     child.once('spawn', () => {
       if (!Number.isInteger(child.pid)) return;
-      const recordPath = join(directory, `${prefix}${sequence++}.${randomUUID()}.json`);
+      const recordPath = join(directory, storeName(`${prefix}${sequence++}.${randomUUID()}`));
       const record = { type: 'child-pending', attempt, file: process.env.PULLBOARD_TEST_FILE,
         parentPid: process.pid, pid: child.pid, spawnFile: child.spawnfile,
         spawnArgs: Array.isArray(child.spawnargs) ? child.spawnargs : [] };

@@ -8,6 +8,7 @@ import { readyLanding } from '../../tests/fixtures/flakes/landing.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { openBoard } from '../../../lib/index.js';

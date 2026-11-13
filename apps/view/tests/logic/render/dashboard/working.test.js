@@ -19,20 +19,20 @@ const project = {
     { id: 2, status: 'submitted', reviewer: 'reviewer-1', reviewUntil: new Date(now + 600_000).toISOString(), claim: { by: 'someone-else' } },
   ],
 };
-/** What the hero says and what the Agents card's heading says, as drawn. */
+/** What the Agents section's count says, and the rows its groups hold, as drawn (the /live-style Dashboard, #6847). */
 const shown = model => {
   const html = dashboardHtml(model);
-  return { hero: /(\d+) agents? at work\./u.exec(html)?.[1], heading: /(\d+) working/u.exec(html)?.[1] };
+  return { heading: /title="Agents at work">(\d+)<\/button>/u.exec(html)?.[1], rows: [...html.matchAll(/data-dashboard-agent="([^"]+)"/gu)].map(([, id]) => id).sort() };
 };
 
-test('clause 1: the Dashboard hero and the Agents heading count the list the notch counts [N26]', () => {
+test('clause 1: the Dashboard Agents count and its rows follow the list the notch counts [N26]', () => {
   // Alone, the model reads its own list: both holders and the agent that moved ten minutes ago.
   const own = dashboardModel(project, [], { now, complete: false });
-  assert.deepEqual(shown(own), { hero: '3', heading: '3' });
-  // Given the notch's list, the hero, the heading and the groups all follow it, whatever the model would have counted.
+  assert.deepEqual(shown(own), { heading: '3', rows: ['builder-1', 'recent-1', 'reviewer-1'] });
+  // Given the notch's list, the count, the rows and the groups all follow it, whatever the model would have counted.
   const given = dashboardModel(project, [], { now, complete: false, working: ['builder-1', 'idle-1'] });
   assert.equal(given.totals.working, 2);
-  assert.deepEqual(shown(given), { hero: '2', heading: '2' });
+  assert.deepEqual(shown(given), { heading: '2', rows: ['builder-1', 'idle-1'] });
   assert.deepEqual(Object.fromEntries(given.agents.map(agent => [agent.id, agent.group])),
     { 'builder-1': 'building', 'reviewer-1': 'quiet', 'recent-1': 'quiet', 'idle-1': 'between items' });
   const none = dashboardModel(project, [], { now, complete: false, working: [] });
