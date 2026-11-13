@@ -14,8 +14,6 @@ import { readSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
@@ -47,9 +45,6 @@ const FINAL_LINE = /^pullboard test: (red|green) on (\S+) in (\d+(?:\.\d+)?)s/mu
 
 /** How often a worker renews its lease: well inside the 2-minute liveness window. */
 const RENEW_MS = 30_000;
-
-/** The CLI entry a worker runs, the same build that queued it. */
-const BIN = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../apps/cli/pullboard.js');
 
 /**
  * True when this `pullboard test` call belongs to an agent seat and so queues instead of blocking: a joined seat
@@ -138,10 +133,10 @@ export function testRunItem({ named, folder = null, claims = [] }) {
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
  * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
- * @param {{ launch?: typeof spawn, now?: number }} [options]
+ * @param {{ launch?: typeof spawn, now?: number, entry?: string }} [options] - `entry`: the CLI file a worker runs, the build that queued it; the caller names it because the drive cell never reaches an app. It defaults to this process's own entry.
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
  */
-export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.now() } = {}) {
+export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.now(), entry = process.argv[1] } = {}) {
   const id = randomUUID();
   const log = workerLog(ctx, id);
   withBoard(board => {
@@ -152,7 +147,7 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
   mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
   const out = openSync(log, 'a', 0o600);
   try {
-    const args = [BIN, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
+    const args = [entry, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.

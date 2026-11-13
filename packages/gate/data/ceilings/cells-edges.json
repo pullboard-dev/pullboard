@@ -6083,9 +6083,6 @@
     }
   },
   "packageApps": {
-    "packages/drive/src/io/queue.js": [
-      "apps/cli"
-    ],
     "packages/gate/src/io/main/audit/worker.js": [
       "apps/cli"
     ],
