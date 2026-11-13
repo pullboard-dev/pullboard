@@ -141,7 +141,8 @@ test('a second clean acceptance inside cadence lands at once with no wake queued
 });
 
 
-test('a real detached wake lands accepted work after the accepting CLI exits [B35,B3,R3]', async t => {
+// The detached wake is the batch engine's own worker; a pulled landing is a runner job, so #6807 deletes this case with it.
+test('a real detached wake lands accepted work after the accepting CLI exits [B35,B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
   const { box, config, id, reviewer } = await fixture(t, true);
   await json(box, reviewer, 'verify', String(id), 'accept', '--note', 'The actual frozen file check passed.');
   assert.equal((await json(box, box.repo, 'show', String(id))).item_merged_commit, null);
