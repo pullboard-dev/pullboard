@@ -53,8 +53,7 @@ function refuseEveryCommit(box) {
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }
 
-// CONTROLLER_ONLY: landing.first is the batch engine's selection policy; the pulled land job takes items in board order and ignores it [C7].
-test('landing.first in accepted trunk policy lands the named item ahead of the accept order, then the order resumes [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6807' }, // budget: two real submits, accepts and two landings; hang ceiling only.
+test('landing.first in accepted trunk policy lands the named item ahead of the accept order, then the order resumes [C7]', { timeout: 300_000 }, // budget: two real submits, accepts and two landings; hang ceiling only.
 async () => {
   const box = landProject();
   const first = await item(box, 1), second = await item(box, 2);
