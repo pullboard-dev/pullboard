@@ -65,6 +65,8 @@ test('clause 1: only explicit relay commands open outbound connections; the view
     (file === 'packages/transport/src/io/pull/http.js' && /node:https?\b/u.test(line)) ||
     // The remote-board client is an I/O adapter behind the board.url opt-in: the person sets board.url, so it may import node:http(s) [P7].
     (file === 'apps/cli/src/io/remote/board.js' && /^import \{ request as https?Request \} from 'node:https?';$/u.test(line.trim())) ||
+    // The serve handoff only calls Server.prototype.close on the listening server it was handed, to stop it accepting; it opens nothing [C7].
+    (file === 'packages/drive/src/io/handoff.js' && line.trim() === "import { Server } from 'node:net';") ||
     // Scanners that name network calls in order to refuse them.
     (file === 'apps/view/src/io/coverage.js' && /^const BROWSER_CALLS = \/\\b\(\?:/u.test(line.trim())) ||
     (file === 'packages/gate/src/io/board/write.js' && line.trim() === "if (['fetch', 'WebSocket', 'EventSource', 'globalThis.fetch', 'globalThis.WebSocket', 'globalThis.EventSource'].includes(name)) {") ||
