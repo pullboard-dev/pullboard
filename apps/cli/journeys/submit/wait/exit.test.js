@@ -82,7 +82,7 @@ test('submit --wait exits with the actual candidate-only gate refusal [V4,B3]', 
   assert.equal(submittedProof(box), null);
 });
 
-test('a claim-holding seat gets the queued acknowledgment at once and still reaches the exact known-main outcome through show [V4,B3,P7]', async t => {
+test('a claim-holding seat gets the queued acknowledgment at once and still reaches the exact known-main outcome through show [V4,B3,P7]', { skip: 'CONTROLLER_ONLY: deleted with #6833' }, async t => {
   const { box, child } = await submitToGate(t, { handoff: true });
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
   assert.equal(JSON.parse(child.stdoutText).queued, true, 'a claim-holding seat gets the queued acknowledgment, not the final outcome');
