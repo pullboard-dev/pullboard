@@ -119,7 +119,8 @@ test('the submitted value is repaired', () => assert.equal(readFileSync(new URL(
   const more = (result.document.next.more ?? []).map(next => next.item.item_id);
   assert.equal(more.length, 1, `exactly one more: ${more.join(', ')}`);
   assert.ok([third, fourth].includes(more[0]));
-  assert.deepEqual(heldBy(box, seat), [second, more[0]].sort((a, b) => a - b), 'the seat holds the named item and one more');
+  // The submitted item keeps its claim while its pulled gate runs, so the seat holds it, the named item and one more.
+  assert.deepEqual(heldBy(box, seat), [first, second, more[0]].sort((a, b) => a - b), 'the seat holds the submitted item, the named item and one more');
 });
 
 test('clause 3: with claims.perSeat 1, next claims exactly one item and records N=1 [C7]', async t => {
