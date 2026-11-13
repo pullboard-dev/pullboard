@@ -141,7 +141,7 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ho
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // PULLBOARD_AGENT_CORES above: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job (#6734).
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
-  const child = spawn('/bin/sh', ['-c', (skipAgent ? withoutAgent(remoteCommand) : remoteCommand).replace('nohup sh -c', 'nohup sh -x -c').replace('< /dev/null > /dev/null 2>&1 &', '< /dev/null > "$HOME/agent.out" 2>&1 &')], { cwd: worker, env,
+  const child = spawn('/bin/sh', ['-c', (pullEnqueue && !skipAgent ? 'exec 2>>"$HOME/trace.out"; ' : '') + (skipAgent ? withoutAgent(remoteCommand) : remoteCommand).replace('nohup sh -c', 'nohup sh -x -c').replace('< /dev/null > /dev/null 2>&1 &', '< /dev/null > "$HOME/agent.out" 2>&1 &')], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   // READY and ordinary results stream; only a held-return fault withholds its receipt.
@@ -192,7 +192,7 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
     if (hold === 'return') setInterval(() => {}, 60_000);
     cancelDropWait();
     record({ workerStarted: true, code, signal, stdinBytes, stdinSha256: stdinHash.digest('hex'),
-      agentOut: pullEnqueue && existsSync(home + '/agent.out') ? readFileSync(home + '/agent.out', 'utf8').slice(-1200) : null, agentLoad: existsSync(home + '/.pullboard-runner/load'), agents, agentCtx: pullEnqueue && !skipAgent ? remoteCommand.slice(Math.max(0, remoteCommand.indexOf('nohup') - 120), remoteCommand.indexOf('nohup') + 60) + ' ...... ' + remoteCommand.slice(-500) : null,
+      agentOut: pullEnqueue && existsSync(home + '/agent.out') ? readFileSync(home + '/agent.out', 'utf8').slice(-1200) : null, traceOut: existsSync(home + '/trace.out') ? readFileSync(home + '/trace.out', 'utf8').slice(-1500) : null, lateAgents: pullEnqueue && !skipAgent ? execFileSync('/bin/sh', ['-c', 'ps -axo pid,ppid,etime,command | grep -E "nohup|runner-agent" | grep -v grep | cut -c1-100']).toString() : null, agentLoad: existsSync(home + '/.pullboard-runner/load'), agents, agentCtx: pullEnqueue && !skipAgent ? remoteCommand.slice(Math.max(0, remoteCommand.indexOf('nohup') - 120), remoteCommand.indexOf('nohup') + 60) + ' ...... ' + remoteCommand.slice(-500) : null,
       droppedAfterSetup,
       secretInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_RUNNER_FIXTURE_SECRET'),
       localPoolMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_POOL'),
