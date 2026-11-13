@@ -902,7 +902,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual([shippedLater.into, shippedLater.moved, shippedLater.notMoved], [null, [], []], 'an empty milestone ships with nothing to move');
   await json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
   await json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
-  const reopenItem = (await json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true'], 'add')).item;
+  const reopenItem = (await json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
   assert.equal((await json(source, source.repo, 'check', ['accept', String(reopenItem.item_id)], 'accept')).check, 'true', 'the person accepts the check as it reads');
   await json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
   await commitItemChange(source, source.repo, reopenItem.item_id);
@@ -913,7 +913,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   await json(source, source.repo, 'reopen', [String(reopenItem.item_id), '--note', 'exercise the versioned reopen result']);
   // A cause repeated on two items becomes a draft row once its check is proved red, then green (#714).
   for (const title of ['Rigor catalog one', 'Rigor catalog two']) {
-    const caused = (await json(source, source.repo, 'add', ['coordinator', title, '--criterion', 'Exercise a caused reopen.', '--check', 'true'], 'add')).item;
+    const caused = (await json(source, source.repo, 'add', ['coordinator', title, '--criterion', 'Exercise a caused reopen.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
     await json(source, source.repo, 'claim', [String(caused.item_id)]);
     await commitItemChange(source, source.repo, caused.item_id);
     await json(source, source.repo, 'submit', [String(caused.item_id), '--no-next']);
@@ -1000,7 +1000,7 @@ catalogCase('[A1,C7] map exposes its main stamp and every rendered view through 
   assert.equal(card.main, main);
   assert.match(card.map, /src\/map-fixture\.js#mapFixture/u);
   const item = await json(box, box.repo, 'add', ['coordinator', 'Map source', '--specs', 'G1',
-    '--criterion', 'src/map-fixture.js defines mapFixture', '--check', 'true']);
+    '--criterion', 'src/map-fixture.js defines mapFixture', '--check', 'true', '--accept-green', 'catalog fixture']);
   const slice = await json(box, box.repo, 'map', ['--for', String(item.item.item_id)]);
   assert.equal(slice.main, main);
   assert.match(slice.map, /src\/map-fixture\.js/u);
@@ -1053,7 +1053,7 @@ catalogCase('[A1,H11] sync shares a board through a real Git remote without an a
 
 catalogCase('[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON', async () => {
   const source = await project();
-  const parent = (await json(source, source.repo, 'add', ['coordinator', 'Slice parent', '--criterion', 'Every slice inherits this bar.', '--check', 'true'], 'add')).item;
+  const parent = (await json(source, source.repo, 'add', ['coordinator', 'Slice parent', '--criterion', 'Every slice inherits this bar.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
   await json(source, source.repo, 'check', ['accept', String(parent.item_id)], 'accept');
   await json(source, source.repo, 'claim', [String(parent.item_id)]);
   const { item } = await uncataloguedRootJSON(source, source.repo, 'slice', [String(parent.item_id), 'Slice part', '--files', 'app/part.js', '--check', 'true']);
