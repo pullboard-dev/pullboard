@@ -3712,10 +3712,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/state/tests/fixtures/api.js": {
-      "cells": 6,
-      "deep": 0
-    },
     "packages/stats/light.js": {
       "cells": 1,
       "deep": 0
@@ -6172,11 +6168,6 @@
     ],
     "packages/runners/tests/fixtures/fleet.js": [
       "apps/cli"
-    ],
-    "packages/state/tests/fixtures/api.js": [
-      "apps/cli",
-      "apps/lib",
-      "apps/view"
     ],
     "packages/store/tests/fixtures/cell.js": [
       "apps/cli"
