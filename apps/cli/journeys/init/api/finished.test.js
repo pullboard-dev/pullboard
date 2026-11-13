@@ -1,15 +1,15 @@
 /** A first state read carries open work first; finished and withdrawn items come from their own read, and deltas keep both honest (A2, N26). */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { viewApiPorts } from '../../../../apps/view/index.js';
-import { expandItemSummaries } from '../../../../apps/view/index.js';
-import { apiHttpFixture } from '../../../../apps/cli/tests/fixtures/api.js';
-import { apiBoardOpeners } from '../../../../apps/cli/tests/fixtures/board.js';
-import { main } from '../../../../apps/cli/tests/fixtures/native.js';
-import { refusalDocument } from '../../../../apps/cli/index.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
-import { applyStateDelta } from '../../index.js';
-import { serveApi } from '../../index.js';
+import { viewApiPorts } from '../../../../view/index.js';
+import { expandItemSummaries } from '../../../../view/index.js';
+import { apiHttpFixture } from '../../../tests/fixtures/api.js';
+import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
+import { main } from '../../../tests/fixtures/native.js';
+import { refusalDocument } from '../../../index.js';
+import { fetchFresh } from '../../../tests/fixtures/http.js';
+import { applyStateDelta } from '../../../../../packages/api/index.js';
+import { serveApi } from '../../../../../packages/api/index.js';
 
 const BRIEF = 'Files:\n- app/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- the fixture case passes';
 
@@ -31,7 +31,7 @@ async function served(t) {
 test('[A2, N26] a first state read sends open work only with the finished counts, GET /finished sends the rest, and together they are the whole board [#6588]', async (t) => {
   const { box, call, path, add } = await served(t);
   const [keep, gone] = [await add('Keep working'), await add('Withdraw this')];
-  box.cli(box.root, 'withdraw', String(gone), 'superseded by a design choice');
+  await box.cliLocal(box.root, 'withdraw', String(gone), 'superseded by a design choice');
   const open = (await call(path + '/state?items=compact&finished=omit')).json.state;
   const everything = expandItemSummaries((await call(path + '/state?items=compact')).json.state);
   const first = expandItemSummaries(open);
@@ -50,9 +50,9 @@ test('[A2, N26] a first state read sends open work only with the finished counts
 test('[A2, N26] a delta applied to an open-first state holds no hole for an item it was never sent, and counts the finished items again [#6588]', async (t) => {
   const { box, call, path, add } = await served(t);
   const [keep, gone, later] = [await add('Keep working'), await add('Withdraw this'), await add('Withdraw later')];
-  box.cli(box.root, 'withdraw', String(gone), 'superseded by a design choice');
+  await box.cliLocal(box.root, 'withdraw', String(gone), 'superseded by a design choice');
   const first = expandItemSummaries((await call(path + '/state?items=compact&finished=omit')).json.state);
-  box.cli(box.root, 'withdraw', String(later), 'superseded by a later design choice');
+  await box.cliLocal(box.root, 'withdraw', String(later), 'superseded by a later design choice');
   const reply = (await call(path + '/state?since=' + first.sequence)).json;
   assert.ok(reply.delta, 'a delta from the open-first base');
   const next = applyStateDelta(first, reply.delta);
