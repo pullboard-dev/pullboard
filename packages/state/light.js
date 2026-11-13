@@ -1,6 +1,6 @@
 import * as self from './light.js';
 /** Pure state source classification, without loading the native board [C7]. */
-export { EXIT_RULES_ENGINE } from "./src/logic/engine/metadata.js";
+export { EXIT_RULES_ENGINE } from "./src/logic/engines/exit-rules-engine.js";
 export { correctedBar } from "./src/logic/bar.js";
 export { engineAtLeast } from "./src/logic/engine/minimum.js";
 export { MACHINE } from "./src/logic/machine/declaration.js";
