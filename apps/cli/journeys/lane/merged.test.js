@@ -21,8 +21,6 @@ import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 async function mergedPlacement(t) {
   const box = await plannedProject(t, { companionLanes: true });
-  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   // The board's model table determines fixture seat routes since b95e1aa538.
@@ -54,6 +52,8 @@ async function mergedPlacement(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(view): accept an independent main placement [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   await publishAcceptedCells(t, box.repo, main.trim(), box.env.PULLBOARD_MACHINE_HOME);
+  // Publishing the cells rewrites the machine settings, so the pin follows it: the submit's gate receipt is read inline, which a pull submit does not return [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const mainRow = readPlan(box.repo).cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === mainFile);
   const merged = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'],
     { cwd: view, env: box.env, encoding: 'utf8' });
