@@ -6,12 +6,14 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+/** This file names the app path in its own source, so the scan skips it. */
+const SELF = 'packages/store/tests/fixtures/submit-home.test.js';
 
 /** Tracked package files that name the app's fixture path (a package test importing the app kit). */
 function importersOfAppSubmit() {
   try {
     return execFileSync('git', ['grep', '-l', 'apps/cli/tests/fixtures/board/submit.js', '--', 'packages/*/tests/*.js', 'packages/*/tests/**/*.js'],
-      { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+      { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(file => file && file !== SELF);
   } catch (error) {
     if (error.status === 1) return [];
     throw error;
