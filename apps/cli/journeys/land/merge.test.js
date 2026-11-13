@@ -34,7 +34,6 @@ import {
 } from '../../../../packages/merge/index.js';
 import { resolveMechanicalMerge } from '../../../../packages/merge/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import {
   createHash,
@@ -187,7 +186,6 @@ for (const [name, path, base, left, right] of [
 /** Configure an ordinary private board and actual publication remote for public landing controls. */
 function boardFixture() {
   const box = e2e.project('true');
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } }); // Public land settles in the command's own process, not as a runner land job (#6249).
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('docs/', 'test/');
   // The board's model table determines fixture seat routes since b95e1aa538.
