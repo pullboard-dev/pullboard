@@ -16,6 +16,7 @@ return `function showFlow(shown) {
 function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
+  document.documentElement.dataset.tab = view.tab;
   showNav();
   writeChrome();
   if (view.tab === 'shouts') foldShouts();
@@ -40,7 +41,8 @@ function placeAtAddress(page = data) {
   const root = named ? repo?.root || group.key : null;
   if (named) parts.shift();
   const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && !addressReady && startupTabMigration) || (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
-  const tab = requested === 'home' ? 'dashboard' : requested;
+  // Home and the retired Progress page are Dashboard's old addresses.
+  const tab = requested === 'home' || requested === 'progress' ? 'dashboard' : requested;
   return { root, tab, detail: parts[0] ?? null, query };
 }
 
@@ -49,7 +51,7 @@ function placePairs(tab = view.tab) {
   const kind = tab === 'spec' || tab === 'doctrine' ? tab : null;
   return placeQuery({ tab, state: view.state, stateDefault: snapshot ? 'all' : 'active', lane: view.lane, q: $('q')?.value ?? '',
     rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
-    shouts: view.shoutFilter, activity: view.activityFilter || 'all', range: view.range || '6h',
+    shouts: view.shoutFilter, activity: view.activityFilter || 'all',
     shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null });
 }
 
@@ -107,7 +109,6 @@ function applyPlace(place, kept = null) {
   if (view.tab === 'spec' || view.tab === 'doctrine') view.rows[view.tab] = query.rows || (place.detail !== null ? 'all' : view.tab === 'spec' ? 'decide' : 'all');
   if (view.tab === 'shouts') view.shoutFilter = query.shouts || 'all';
   if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; }
-  if (view.tab === 'progress') view.range = query.range === '24h' ? '24h' : '6h';
   if (view.tab === 'roadmap') view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
   if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
   keep('pb.project', view.root);
@@ -147,7 +148,7 @@ function showNav() {
 function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
-  const html = pageControlsHtml({ tab: view.tab, state: view.state, range: view.range || '6h', shouts: view.shoutFilter || 'all',
+  const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
     shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && !readOnly });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
@@ -170,7 +171,8 @@ function pageControl(target) {
   const later = (then) => requestAnimationFrame(() => setTimeout(then, 0));
   if (kind === 'new') { view.adding = true; later(() => { render(); $('add-title').focus(); }); return; }
   if (kind === 'state') view.state = value;
-  else if (kind === 'range') view.range = value === '24h' ? '24h' : '6h';
+  else if (kind === 'lane') view.lane = value || null;
+  else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
   else if (kind === 'by') view.activityBy = value || null;
   else if (kind === 'shouts') { view.shoutFilter = value; view.shoutThread = null; view.shout = null; view.addressDetail = null; }
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
@@ -591,7 +593,7 @@ function moveMessage(move, result) {
 }
 
 /**
- * One sentinel draft in Needs-you: a watch the person has not approved, with the proof Rigor drafted it from.
+ * One sentinel draft in Rulings: a watch the person has not approved, with the proof Rigor drafted it from.
  * It says draft and waiting, never watching, so an unapproved check cannot pass for an approved one.
  */
 /** Keep sentinel controls identical on the full list and Dashboard, including the reviewed digest. */
@@ -612,7 +614,7 @@ function sentinelDraftRow(row) {
     + '<div class="muted sentinel-proof">' + esc(repeats) + (proof ? ' ' + proof : '') + '</div>'
     + '<div class="muted">Command: <code>' + esc(row.check) + '</code></div><div class="muted">Directory: ' + esc(row.directory) + '</div>'
     + '<div class="muted">Schedule: ' + esc(row.every) + '</div><div class="muted">Owner: ' + esc(row.owner) + '</div>'
-    + '<div class="meta"><span class="why"><b>NEEDS YOU</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
+    + '<div class="meta"><span class="why"><b>RULING</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
 }
 
 /** One blueprint fit proposal: its decision, its new text or reason, and where it came from. */
@@ -968,7 +970,7 @@ $('shouts-pane').addEventListener('click', (event) => {
 });
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
-// A Needs-you row stays as the person left it: each open or close is kept per board and screen before the native toggle,
+// A Rulings row stays as the person left it: each open or close is kept per board and screen before the native toggle,
 // so a live redraw neither reopens a closed row nor shuts an open one.
 document.addEventListener('click', (event) => {
   const summary = event.target.closest?.('details[data-needs-key] > summary');
@@ -1030,9 +1032,8 @@ document.addEventListener('click', (event) => {
     itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
     return;
   }
-  if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
-  if (!event.target.closest('.side, #proj-switch')) fold(false);
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
+  if (!event.target.closest('.side, #proj-switch, #proj-menu')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const control = event.target.closest('button[data-page-ctl]');
   if (control) { pageControl(control); return; }
@@ -1042,8 +1043,8 @@ document.addEventListener('click', (event) => {
   if (!t) return;
   // A pick in the project list's tools (Settings) closes the list, as a board pick does.
   if (t.dataset.tab && event.target.closest('.side')) fold(false);
-  if (t.id === 'proj-switch' && projectMenuToggle()) return;
-  if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
+  if (t.id === 'proj-switch' && $('side').classList.contains('open')) { fold(false); return; }
+  if (t.id === 'proj-switch') { projectMenuToggle(); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costWindow) { view.costWindow = t.dataset.costWindow; view.costOpen = null; render(); return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costCopy !== undefined) { navigator.clipboard?.writeText('Add model prices to Pullboard'); t.textContent = 'Copied'; return; }
@@ -1063,25 +1064,16 @@ document.addEventListener('click', (event) => {
   if (t.dataset.firstRunCopy !== undefined) { navigator.clipboard?.writeText(t.previousElementSibling.textContent); t.textContent = 'Copied'; return; }
   if (t.dataset.firstRunHide !== undefined) { keep('pb.firstrun.' + view.root, 'hidden'); render(); return; }
   if (t.dataset.firstRunPhone !== undefined) { event.preventDefault(); $('share-start')?.click(); return; }
-  if (t.dataset.statsToggle !== undefined) {
-    view.statsOpen = !view.statsOpen;
-    render();
-    $('proof-stats-summary').focus({ preventScroll: true });
-    return;
-  }
   if (t.dataset.status) { statusGo(t.dataset.status); return; }
   if (t.dataset.roadmapJump) { jumpToRoadmap(t.dataset.roadmapJump); return; }
-  if (t.dataset.filterToggle !== undefined) { view.filterOpen = !view.filterOpen; render(); return; }
   if (t.dataset.filterChoice) {
     if (t.dataset.filterKind === 'state') view.state = t.dataset.filterValue;
     else view.lane = t.dataset.filterValue || null;
-    view.filterOpen = false;
     address();
+    drawPageControls();
     render();
-    $('filter-toggle').focus({ preventScroll: true });
     return;
   }
-  if (t.dataset.itemsView) { view.itemsView = t.dataset.itemsView; view.addressDetail = null; address(); render(); return; }
   if ('roadmapKey' in t.dataset) {
     const key = t.dataset.roadmapKey, open = t.getAttribute('aria-expanded') !== 'true';
     view.roadmapOpen.set(JSON.stringify([view.root, key]), open);
@@ -1173,14 +1165,6 @@ function moveItemsWindow() {
 }
 document.addEventListener('scroll', moveItemsWindow, { passive: true });
 if (typeof addEventListener === 'function') addEventListener('resize', moveItemsWindow, { passive: true });
-/** Close the expanded stats card and return focus to the list's summary control on Escape. */
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || !view.statsOpen || view.tab !== 'items' || document.querySelector('[data-pane="items"]')?.hidden) return;
-  event.preventDefault();
-  view.statsOpen = false;
-  render();
-  $('proof-stats-summary').focus({ preventScroll: true });
-});
 /** Let a Roadmap row with independent inline links keep its keyboard button behavior. */
 document.addEventListener('keydown', (event) => {
   if (!['Enter', ' '].includes(event.key)) return;
@@ -1214,8 +1198,6 @@ for (const kind of ['spec', 'doctrine']) $(kind + '-list').addEventListener('key
     else askDecline(kind, view.row[kind], 'list');
   }
 });
-// The form covers the picked item rather than dropping it, so Cancel brings it back.
-$('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('upgrade-note').addEventListener('click', (event) => {
   if (!event.target.closest('[data-upgrade-dismiss]')) return;
   const notice = releaseNotices.get(data.project?.root);
@@ -1275,7 +1257,6 @@ function flipTheme() {
   keep('pb.theme', next);
   theme(next);
 }
-$('theme').addEventListener('click', flipTheme);
 $('ob-theme').addEventListener('click', flipTheme);
 // Each search has its own address; typing replaces the entry rather than adding one a keystroke.
 $('q').addEventListener('input', () => { search(); address(false); view.foundAt = 0; showFound(); });
@@ -1296,25 +1277,6 @@ $('q').addEventListener('blur', () => {
   // Esc and opening a result already close explicitly; their blur must keep that reason.
   if ($('find-results').hidden) return;
   closingFound = setTimeout(() => hideFound('left the field'), 120);
-});
-document.addEventListener('keydown', (event) => {
-  if (!view.filterOpen) return;
-  if (event.key === 'Escape') {
-    event.preventDefault();
-    view.filterOpen = false;
-    render();
-    $('filter-toggle').focus({ preventScroll: true });
-    return;
-  }
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    const choices = [...$('filter-menu').querySelectorAll('[data-filter-choice]')];
-    const at = choices.indexOf(document.activeElement);
-    if (choices.length) {
-      event.preventDefault();
-      const next = at < 0 ? (event.key === 'ArrowDown' ? 0 : choices.length - 1) : (at + (event.key === 'ArrowDown' ? 1 : choices.length - 1)) % choices.length;
-      choices[next].focus({ preventScroll: true });
-    }
-  }
 });
 // A select among the page controls (the time range, the person) acts on its change.
 document.addEventListener('change', (event) => { const control = event.target.closest?.('select[data-page-ctl]'); if (control) pageControl(control); });

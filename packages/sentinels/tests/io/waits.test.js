@@ -21,6 +21,7 @@ import { openWaitKey } from '../../index.js';
 import { recordWaits } from '../../index.js';
 import { waitBudgets } from '../../index.js';
 import { waitItemFields } from '../../index.js';
+import { waitKey } from '../../index.js';
 import { waitLines } from '../../index.js';
 import { waitsSnapshot } from '../../index.js';
 import { startServeSentinel } from '../../index.js';
@@ -313,4 +314,37 @@ test('waits record files a mid item add accepts: Files: naming the holder\'s sou
   assert.equal(item.item_check, "node apps/cli/pullboard.js waits check 'checkout-lease:repo:checkout-session:abc:coordinator'", 'its check is the audit for this one cause');
   const bare = { by: 'coordinator', lane: 'core', title: 'bare', criterion: '1. It holds. [test]', brief: 'no sections', route: 'mid', check: item.item_check };
   assert.throws(() => addItem(m.board, bare), /NO_BRIEF|Files:/u, 'a brief without Files: and Test: is the refusal this guards against');
+});
+
+/** #6121's gate job: claimed by a runner, no step or span for six minutes while its phases ran, lease renewed a moment ago. */
+function runnerHeldGate(m, now) {
+  m.board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run('gate:6121:ae14aa8fd0f8:x', 'gate', 6121, 'claimed', 'auxiliary-53-anvil-50f9f9', now + 110_000, now - 6 * MINUTE, now);
+  m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
+}
+
+test('clause 1: the audit files no stall item for a runner-held gate whose lease renews through a six-minute claim [C7]', async t => {
+  const m = machine(t);
+  runnerHeldGate(m, Date.now());
+  const snapshot = await m.snapshot();
+  const [gate] = snapshot.rows.filter(entry => entry.surface === 'gate');
+  assert.equal(gate.breach, false, `a live lease is progress: ${gate.ageMs} ms old`);
+  const recorded = await recordWaits(snapshot, m.ports());
+  assert.deepEqual(recorded.filed, [], 'no item is filed for a hold that is still renewing its lease');
+  assert.deepEqual(m.items(), [], 'the board holds no waits: item for it');
+});
+
+test('clause 2: the hold read from #6121\'s job ends within budget: its age counts from the last lease renewal [C7]', async t => {
+  const m = machine(t);
+  runnerHeldGate(m, Date.now());
+  const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
+  assert.ok(gate.ageMs < gate.budgetMs, `${gate.ageMs} ms is inside the ${gate.budgetMs} ms gate progress budget`);
+  assert.ok(gate.ageMs < 60_000, 'it is a renewal old, not the six minutes since the claim');
+});
+
+test('a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {
+  const key = waitKey({ surface: 'board-write', key: '/Users/dev/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
+  assert.equal(key, 'board-write:.git/pullboard/board.sqlite:edit');
+  assert.doesNotMatch(key, /Open Source|\/Users/u, 'no absolute path or space survives');
+  assert.equal(waitKey({ surface: 'gate', key: 'gate:#7:gate' }), 'gate:gate:#7:gate', 'a key without a path is unchanged');
 });
