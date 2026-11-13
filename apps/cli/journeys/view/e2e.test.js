@@ -377,7 +377,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
     // Facts (the gate job note, the tier-1 shadow, a review comparison when one runs) are noted apart from the moves.
-    assert.deepEqual(item.history.map((event) => event.kind).filter((kind) => kind !== 'fact'), ['add', 'milestone_placed', 'claim', 'proof-run', 'submit', 'reject', 'escalate']);
+    assert.deepEqual(item.history.map((event) => event.kind).filter((kind) => kind !== 'fact' && kind !== 'renew'), ['add', 'milestone_placed', 'claim', 'proof-run', 'submit', 'reject', 'escalate']);
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       const [receipt] = store.proofReceipts(board, item.id);

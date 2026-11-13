@@ -92,7 +92,7 @@ export function countPairs() {
     for (const head of list.querySelectorAll('.spec-section-head')) {
       let rows = 0, node = head.nextElementSibling;
       while (node && !node.matches('.spec-section-head')) { if (node.matches('[data-row]')) rows++; node = node.nextElementSibling; }
-      add(kind + '/section/' + head.querySelector('h4').textContent, number(head.querySelector('.section-count')), rows);
+      add(kind + '/section/' + head.querySelector('.hd2').firstChild.textContent.trim(), number(head.querySelector('.section-count')), rows);
       const approve = head.querySelector('[data-section-approve]');
       if (approve) add('Spec/section decisions', Number(/Approve all (\d+)/.exec(approve.textContent)?.[1]), p.spec.filter(row => row.section === approve.dataset.sectionApprove && (['pending', 'draft'].includes(row.status) && !row.decision || row.staleDecision)).length);
     }
@@ -216,7 +216,7 @@ export function countPairs() {
     add('Floor/seen agents note', number(document.querySelector('[data-floor-group="agents"] h2 span')), agents.length);
     add('Floor/day landed note', number(document.querySelector('[data-floor-group="recent"] h2 span')), dayIds.size);
     // Tile sub-lines moved into each tile's hover title (2ad0017969).
-    add('Floor/unreviewed note', Number(/; (\d+) waiting for a reviewer$/u.exec(document.querySelector('[data-floor-stat="in-review"]')?.title ?? '')?.[1]), review.filter(item => !item.reviewer || !(Date.parse(item.reviewUntil) > Date.now())).length);
+    add('Floor/unreviewed note', Number(/; (\d+) pending review$/u.exec(document.querySelector('[data-floor-stat="in-review"]')?.title ?? '')?.[1]), review.filter(item => !item.reviewer || !(Date.parse(item.reviewUntil) > Date.now())).length);
     const headline = document.querySelector('.floor-hero h1').textContent.replaceAll(',', '').match(/\d+/g).map(Number);
     // The headline reads landings in 24 hours, then peak agents (f1fb1e6fb7); the peak is never below the live count.
     add('Floor/headline/landed', headline[0], dayIds.size);
