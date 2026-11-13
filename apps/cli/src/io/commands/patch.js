@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { itemPolicy } from '../../../../../packages/sandbox/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
-import { claimedItemRoot } from '../item/folder/identity.js';
+import { claimedItemRoot } from '../../../../../packages/items/index.js';
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';

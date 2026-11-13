@@ -14,6 +14,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fixtureJoin } from './testkit.js';
+import { fixtureProjectPolicy } from './testkit.js';
+import { FIXTURE_MODEL } from './testkit.js';
 import { fixtureMachineSettings } from './testkit.js';
 import { runCliInProcess } from './process.js';
 
@@ -73,15 +75,14 @@ export async function project(box) {
   // The spec is in place before init, so the board's approval baseline holds its approved rows as the person's (#960).
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   assert.equal((await box.run(repo, 'init')).code, 0);
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
+  fixtureProjectPolicy(repo, { spec: SPEC, config: {
     gate: 'test ! -f RED', spec: 'SPEC.md', verify: { policy: 'any', family: 'off' },
     lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [],
-  }, null, 2) + '\n');
-  writeFileSync(join(repo, 'SPEC.md'), SPEC);
+  } });
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize fixture');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  box.env.PULLBOARD_MODEL ||= 'Fixture builder';
+  box.env.PULLBOARD_MODEL ||= FIXTURE_MODEL;
   assert.match((await fixtureJoin(box.run, web, 'web')).out, /joined as web-1/);
   return { repo, web };
 }
