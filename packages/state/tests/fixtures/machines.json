@@ -283,6 +283,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -319,6 +320,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -339,6 +352,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -375,6 +389,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -392,9 +418,11 @@
       "serves": "no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing",
       "states": [
         "request",
+        "pending",
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -402,6 +430,18 @@
       ],
       "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
       "transitions": [
+        {
+          "from": "(none)",
+          "to": "pending",
+          "trigger": "the board writes the job with its whole request, unclaimable until its run row commits",
+          "at": "packages/store/src/io/board/runs.js:intend"
+        },
+        {
+          "from": "pending",
+          "to": "offered",
+          "trigger": "the run row has committed, so the job is offered",
+          "at": "packages/store/src/io/board/runs.js:confirm"
+        },
         {
           "from": "(none)",
           "to": "offered",
@@ -431,6 +471,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -450,6 +502,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -486,6 +539,18 @@
           "to": "done",
           "trigger": "the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released",
           "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
