@@ -29,7 +29,8 @@ export function routePulledOwnership(board, { job, id, candidate, main, submit, 
   try {
     wait = store.deferOwnership(board, id, { agentId: submit.agentId, root: submit.root, commit: candidate, tree: submit.tree, main, receiptIds });
   } catch (error) {
-    return { refused: `${error.code}: ${error.message} ${String(error.stack).slice(0, 1500)}` };
+    if (!error?.code) throw error;
+    return { refused: `${error.code}: ${error.message}` };
   }
   store.appendFact(board, id, { agentId: submit.agentId, kind: 'note',
     text: `Gate job ${job} green at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; it waits on ${wait.owners.join(', ')} for ${wait.paths.join(', ')}, and the builder's claim is released.`.slice(0, 2000) });

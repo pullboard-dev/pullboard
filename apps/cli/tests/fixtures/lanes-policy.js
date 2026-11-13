@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e.js';
 import { fixtureAdd } from './testkit.js';
+import { whenRunnerSettles } from './runner/local-start.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { fixtureProjectPolicy } from './testkit.js';
 
@@ -18,12 +19,19 @@ export const policyFixtures = createE2eHelpers();
  */
 export async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
-  for (const dir of [process.env.TMPDIR ?? '/tmp', join(box.dir, '..'), box.dir, box.env.TMPDIR ?? '']) { try { console.error('APPLY', dir, readFileSync(join(dir, 'ownerhold.debug'), 'utf8').slice(-3000)); } catch (error) { console.error('APPLY none', dir); } }
-  console.error('DEBUG', JSON.stringify((item.thread ?? []).filter(row => row.type === 'fact').map(row => row.text)).slice(-4000));
+  // The pulled gate's receipt is applied just after its job row closes, so settle on the routing event itself [P7].
+  const item = await whenRunnerSettles(box.env, async () => {
+    const row = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
+    return row.item_hold_reason ? row : null;
+  }, { deadlineMs: 120_000, what: `the owner routing of #${id} ${label}` });
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
+  const waiting = (item.thread ?? []).findLast(row => row.kind === 'ownership-wait')?.detail;
+  assert.ok(waiting, `${label}: the thread records the ownership wait`);
+  assert.deepEqual(waiting.owners, [owner], label);
+  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
+  return waiting;
 }
 
 /** Claim a real item before the coordinator moves one API path into its web lane. */
