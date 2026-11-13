@@ -162,7 +162,7 @@ test('clause 1: an agent grant narrows at claim without trapping its own handoff
   for (const id of [1, 2]) {
     const baseline = withBoard(box.repo, board => store.getItem(board, id).item_check_baseline);
     assert.ok(baseline, 'each setup item retains its baseline observation');
-    assert.equal(baseline.result, 'pending', 'with no runner a setup baseline stays pending, so no worker writes after replica export');
+    assert.notEqual(baseline.result, 'pending', 'add --wait settles the setup baseline before replica export, so no worker writes after it');
   }
   const snapshot = withBoard(box.repo, exportBoard);
   const peer = join(box.dir, 'handoff-grant-replica');
@@ -206,7 +206,7 @@ test('clause 1: an agent grant narrows at claim for accepted numeric-text item i
   for (const id of [1, 2]) {
     const baseline = withBoard(box.repo, board => store.getItem(board, id).item_check_baseline);
     assert.ok(baseline, 'each setup item retains its baseline observation');
-    assert.equal(baseline.result, 'pending', 'no runner: no setup baseline can append after replica export');
+    assert.notEqual(baseline.result, 'pending', 'add --wait settles the setup baseline, so none can append after replica export');
   }
   const snapshot = withBoard(box.repo, exportBoard);
   const peer = join(box.dir, 'text-id-grant-replica');
