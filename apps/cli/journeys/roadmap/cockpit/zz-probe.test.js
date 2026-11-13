@@ -1,3 +1,4 @@
+// pullboard: browser
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 import { roadmapStagesBoard } from '../../../tests/fixtures/cockpit/roadmap-stages.js';
