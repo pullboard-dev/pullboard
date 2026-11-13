@@ -244,6 +244,7 @@ async function checkCounts(chrome, phase) {
 
 /** Open a real pane through the navigation and verify its current native snapshot's counts. */
 async function pane(chrome, name, phase) {
+  if (name === 'settings') await press(chrome, 'document.querySelector("#account")'); // Settings is a row in the account menu.
   await press(chrome, 'document.querySelector("[data-tab=' + name + ']")');
   await chrome.waitFor('view.tab === ' + JSON.stringify(name) + ' && !document.querySelector("[data-pane=' + name + ']").hidden');
   await checkCounts(chrome, phase + '/' + name);
