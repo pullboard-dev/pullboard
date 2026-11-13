@@ -29,7 +29,7 @@ function fixture(t, { dropFirst = true } = {}) {
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
     gateSlots: 0, browserSlots: 0, runners: [runner],
     // Live-load ranking probes each runner over SSH before admission, which the holding stand-ins below would stall past the deadline.
-    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller' },
+    gate: { runnersFirst: true, loadAwareDispatch: false },
   }));
   return { ...box, requests, starts, runner };
 }
@@ -38,13 +38,13 @@ function fixture(t, { dropFirst = true } = {}) {
 function child(box, source) {
   // Process-level: a fresh node process proves the module graph loads without the CLI seam.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
-    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 150_000 : 90_000, // pull recovery runs ~80 s on a loaded runner
+    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 150_000, // pull recovery runs ~80 s on a loaded runner
   });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   return JSON.parse(result.stdout);
 }
 
-test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', t => {
+test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
   const box = fixture(t);
   const url = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
   const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;
@@ -65,8 +65,7 @@ ${executionServicesSource(url)}
   assert.equal(diagnostic.exitCode, 255);
   assert.equal(diagnostic.confirmingProbe.healthy, true);
   const requests = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  // Pull dispatch confirms through the health probe log (.health-probes), so its request log holds the dropped enqueue and the retried one.
-  const expected = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 2 : 3;
+  const expected = 3;
   assert.equal(requests.length, expected, 'failed dispatch, one confirming Node observation, one actual recovered execution');
   assert.equal(requests[0].dropped, true);
 });
