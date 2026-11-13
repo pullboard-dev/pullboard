@@ -149,15 +149,21 @@ function readMilestone(milestone, p) {
   return readMilestoneModel(milestone, milestone.items.map(entry => milestoneItem(entry, p)));
 }
 
+// Each board state's next release, read once: the navigation and the status bar ask on every click and tab switch,
+// and reading every release's items took them 30 to 300 ms (#6851). A change on another board reads it again.
+const nextMilestones = new WeakMap();
 /** Pick the first release with remaining work in roadmap order; empty plans wait behind it. */
 function nextMilestone(p) {
-  const next = (p.milestones || []).find((milestone) => {
+  const kept = nextMilestones.get(p);
+  if (kept && kept.projects === data?.projects) return kept.next;
+  const found = (p.milestones || []).find((milestone) => {
     const read = readMilestone(milestone, p);
     return read.rows.length > 0 && !read.shipped;
   });
-  if (!next) return next;
-  const read = readMilestone(next, p);
-  return { ...next, done: read.done, total: read.total };
+  const read = found ? readMilestone(found, p) : null;
+  const next = found ? { ...found, done: read.done, total: read.total } : found;
+  nextMilestones.set(p, { projects: data?.projects, next });
+  return next;
 }
 
 /** The release focused on, if the person picked one that is still on the board. */

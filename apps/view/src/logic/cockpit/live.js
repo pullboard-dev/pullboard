@@ -84,6 +84,9 @@ async function refresh(fresh = null, attempt = 1) {
   const text = boardText(next);
   const changed = text !== seen;
   if (text !== seen) {
+    // Reading the board and drawing it run as two tasks, so a live update never blocks the page for both at once (#6851).
+    await new Promise((later) => { setTimeout(later, 0); });
+    if (root !== view.root || generation < refreshDrawn.generation) return;
     seen = text;
     data = store.set(next, true);
     syncBoardMode(view.root);

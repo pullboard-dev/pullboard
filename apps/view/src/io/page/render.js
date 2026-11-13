@@ -193,6 +193,9 @@ function paintRoadmap(html, rows, board) {
 // The Items rows drawn last, and the slice of them on screen (#6676).
 let itemsList = null;
 let itemsPitch = 0;
+// The Items rows on screen by item id: a live update, a click or a scroll replaces only the rows whose markup changed (#6851).
+let itemsNodes = new Map();
+let itemsDrawn = null;
 /** Draw only the Items rows near the viewport; the list's height stays whole so the scrollbar and every anchor stay right. */
 function paintItemsWindow() {
   const chain = $('chain'), list = itemsList;
@@ -206,7 +209,20 @@ function paintItemsWindow() {
   // Without a measured row height or a viewport (a page with no layout), every row is drawn.
   const windowed = rows.length > 0 && itemsPitch > 0 && viewport > 0 && typeof chain.getBoundingClientRect === 'function';
   const at = windowed ? rowWindow({ count: rows.length, top: chain.getBoundingClientRect().top, viewport, pitch: itemsPitch }) : { start: 0, end: rows.length };
-  store.paint(chain, rows.length ? rows.slice(at.start, at.end).map(list.rowHtml).join('') : list.empty);
+  // A page that cannot parse rows into nodes (a bare test page) draws the slice whole, as it always did.
+  if (!rows.length || !document.createElement('template').content) {
+    store.paint(chain, rows.length ? rows.slice(at.start, at.end).map(list.rowHtml).join('') : list.empty);
+    itemsNodes = new Map();
+    itemsDrawn = null;
+  } else {
+    const markup = new Map(rows.slice(at.start, at.end).map(item => [String(item.id), list.rowHtml(item)]));
+    // A list someone else rewrote since is drawn whole again.
+    const kept = itemsDrawn !== null && [...itemsNodes.values()].every(entry => entry.node.parentNode === chain);
+    const done = patchKeyedRows({ host: chain, doc: document, nodes: kept ? itemsNodes : new Map(), drawn: kept ? itemsDrawn : null,
+      html: [...markup.keys()].map(key => '<li data-slot="' + key + '"></li>').join(''), rows: markup, scope: String(view.root), ageless: true });
+    itemsNodes = done.nodes;
+    itemsDrawn = done.drawn;
+  }
   chain.style.paddingTop = windowed && at.start ? at.start * itemsPitch + 'px' : '';
   chain.style.paddingBottom = windowed && at.end < rows.length ? (rows.length - at.end) * itemsPitch + 'px' : '';
 }
@@ -311,7 +327,8 @@ function render({ tab: switching = false } = {}) {
   // on the board with who holds it; it is the agents' to move.
   const needsTab = draw && ['items', 'dashboard'].includes(view.tab);
   const needsProject = { ...p, agents: (p.agents || []).map(agent => ({ ...agent, displayName: agentName(agent.agent_id, p) })) };
-  const personalNeeds = needsTab || draw && ['spec', 'doctrine'].includes(view.tab) ? personNeeds(needsProject) : [];
+  // The person's rulings are read once per board state, not on every click (#6851).
+  const personalNeeds = needsTab || draw && ['spec', 'doctrine'].includes(view.tab) ? store.select('person-needs', [data.project], () => personNeeds(needsProject)) : [];
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
   if (needsTab) {
   const person = !snapshot && (!readOnly || requests);
@@ -328,21 +345,23 @@ function render({ tab: switching = false } = {}) {
     const date = new Date(value), hour = date.getHours();
     return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ' ' + date.getDate() + ', ' + (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
   };
-  const needsModel = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, quiet: true });
+  // The model and its presentation are made only when a panel is drawn: Items keeps its drawn panel through a click (#6851).
+  let modelKept = null, presentationKept = null;
+  const needsModel = () => modelKept || (modelKept = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, quiet: true }));
   // Browser-dependent presentation is prepared from the same descriptors the pure renderer consumes.
-  const needsPresentation = new Map([...needsModel.questions,...needsModel.approvals].map(row => {
+  const needsPresentation = () => presentationKept || (presentationKept = new Map([...needsModel().questions,...needsModel().approvals].map(row => {
     const approvedAt = row.fields.find(([label]) => label === 'Approved in Git')?.[3]?.date;
     return [row.key, {
       ageHtml: row.ageAt ? age(row.ageAt) : '', bodyHtml: row.body ? rich(row.body,titles,!readOnly) : '',
       feedbackHtml: needsFeedback(row.source), controlsHtml: needsControls(row.source),
       approvalDateLabel: Number.isFinite(Date.parse(approvedAt)) ? approvalDateLabel(approvedAt) : 'Date unknown',
     }];
-  }));
+  })));
   const needsPanel = ${needsPanelHtml.toString()};
   if (view.tab === 'dashboard') {
     const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: openNeeds('dashboard'), compact: true });
-    const behind = dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
-      needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
+    const behind = dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation()), {
+      needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation()),
       quick: switching,
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
@@ -350,13 +369,21 @@ function render({ tab: switching = false } = {}) {
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
-    const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
-    const nothing = !itemsNeeds.questions.length && !itemsNeeds.approvals.length && !itemsNeeds.drafts;
-    $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
+    const open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
+    const hidden = view.state !== 'active' || Boolean(view.lane);
+    $('needs').hidden = hidden;
     $('needs').tabIndex = -1;
-    store.paint($('needs'), nothing ? needsPanel(needsModel, needsPresentation) : itemsNeedsHtml(itemsNeeds, { open,
-      questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation),
-      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }));
+    // Hidden under a filter, the panel is not drawn. Shown, it is made once per board state, address and the person's
+    // choices in it, so a filter click or an opened item never makes its markup again (#6851).
+    const needsChoices = JSON.stringify([location.href, open, expandedNeeds, view.root, person, view.specFeedback ?? null, view.declining ?? null,
+      view.declineKind ?? null, view.declineRoot ?? null, view.declineFrom ?? null, view.declineAnchor ?? null, view.declineDigest ?? null]);
+    if (!hidden) store.paint($('needs'), store.select('items-needs', [data.project, needsChoices], () => {
+      const itemsNeeds = itemsNeedsModel(needsModel());
+      const nothing = !itemsNeeds.questions.length && !itemsNeeds.approvals.length && !itemsNeeds.drafts;
+      return nothing ? needsPanel(needsModel(), needsPresentation()) : itemsNeedsHtml(itemsNeeds, { open,
+        questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation()),
+        restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation()) });
+    }));
   }
   }
 
