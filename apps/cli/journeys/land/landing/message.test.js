@@ -183,14 +183,11 @@ test('docs shard ${name} completes [G1]', () => { appendFileSync(${JSON.stringif
   const changed = box.git(entry.path, 'diff', '--name-only', 'main...HEAD');
   assert.equal(changed, 'docs/note.md', 'the item changes only documentation');
   writeFileSync(log, '');
-  const run = await box.runLocal(box.repo, 'land', '--max', '1', '--json');
+  const run = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(run.code, 0, run.err + run.out);
-  const landed = JSON.parse(run.out);
-  assert.deepEqual(landed.landed, [entry.id]);
+  const landed = await settleLand(box, JSON.parse(run.out));
+  assert.deepEqual(landed.landed, [entry.id], JSON.stringify(landed.landJob));
+  assert.equal(landed.batch.state, 'landed');
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').sort(), ['one', 'two'], 'both actual shard files complete once');
-  assert.ok(landed.batch.gateResults.length > 0, 'a real landing gate is recorded');
-  for (const gate of landed.batch.gateResults) {
-    assert.equal(gate.isGreen, true);
-    assert.doesNotMatch(readFileSync(gate.logPath, 'utf8'), /AbortError|This operation was aborted/u);
-  }
+  assert.doesNotMatch(JSON.stringify(landed.landJob.receipt), /AbortError|This operation was aborted/u);
 });

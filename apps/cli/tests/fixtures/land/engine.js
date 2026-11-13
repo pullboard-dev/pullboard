@@ -8,6 +8,7 @@ import {
 import { join } from 'node:path';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
+import { settleLand } from './settle.js';
 import {
   exportBoard,
   importBoard,
@@ -32,7 +33,7 @@ function numberAt(box, commit, name) {
  * @param {object} helpers - land.test.js's own project, item, verdict and output helpers.
  * @param {number[]} order - The verdict order, which is the landing order.
  */
-export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order) {
+export async function landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order) {
   const box = landProject();
   // The trunk already has one landed engine, and its documented move engine; the fixture lane owns src/ too.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -57,7 +58,7 @@ export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acce
   });
   for (const index of order) acceptItem(box, entries[index]);
   const base = box.git(box.repo, 'rev-parse', 'main');
-  const result = json(box, box.repo, 'land', '--max', '2');
+  const result = await settleLand(box, json(box, box.repo, 'land')); // plain pulled land job: one offer lands both in verdict order
   assert.deepEqual(result.landed, order.map((index) => entries[index].item), 'the train lands in verdict order');
   for (const [position, index] of order.entries()) {
     const merge = json(box, box.repo, 'show', String(entries[index].item)).item_merged_commit;
