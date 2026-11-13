@@ -75,7 +75,7 @@ export function roadmapRemainingCount(reads) {
  * markup goes to place(key, html) and what place returns stands in the list, so the page can patch rows by key (#6679).
  */
 export function roadmapCardsHtml(read, presentation = {}) {
-  const { only = null, root, held, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map(), slotKey = null, place = null } = presentation;
+  const { only = null, root, held, page = null, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map(), slotKey = null, place = null } = presentation;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   /** Format the latest shipped date; keep this dependency inside the renderer embedded in the page script. */
   function shippedDate(milestone) {
@@ -109,11 +109,22 @@ export function roadmapCardsHtml(read, presentation = {}) {
     const nearLimit = limit === 0 ? count === 0 : count >= limit * .9 && count <= limit * 1.1;
     return '<span class="milestone-limit">' + count + (count === 1 ? ' item' : ' items') + (nearLimit ? ' · limit ' + limit : '') + '</span>';
   };
+  /** Landed items show one page of 50 at a time; building, in review, ready and blocked items always come first [#6841]. */
+  const PAGE_SIZE = 50;
+  const landed = row => row.stage !== 'accepted' && (row.stage === 'merged' || row.state === 'verified');
+  const moving = row => row.stage === 'claimed' ? 0 : row.stage === 'submitted' || row.stage === 'accepted' ? 1 : row.held || row.block?.dot || row.after?.length ? 3 : 2;
   /** Render the existing milestone items, progress and complete note when opened. */
   const body = (read) => {
     const { milestone, rows, done, total } = read;
     const progress = headerFor(read) ? '' : '<svg class="milestone-progress" viewBox="0 0 100 1" preserveAspectRatio="none" role="progressbar" aria-label="' + esc(milestone.name) + ': ' + done + ' of ' + total + ' landed" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + done + '"><rect width="' + (total ? (100 * done) / total : 0) + '" height="1"/></svg>';
-    return (rows.length ? progress + '<ul>' + rows.map((row) => { const slot = slotKey ? slotKey(milestone, row) : null, html = milestoneRowHtml(row, { ...rowPresentation.get(row), hidden: held === milestone.name && !row.held, slot }); return slot !== null && place ? place(slot, html) : html; }).join('') + '</ul>' : '<p class="milestone-empty">No items yet.</p>')
+    const done_rows = rows.filter(landed), pages = Math.max(1, Math.ceil(done_rows.length / PAGE_SIZE));
+    const at = page && page.release === milestone.name ? Math.min(Math.max(1, Number(page.page) || 1), pages) : 1;
+    const first = (at - 1) * PAGE_SIZE, last = Math.min(done_rows.length, first + PAGE_SIZE);
+    const shown = rows.filter(row => !landed(row)).map((row, index) => [row, index]).sort((a, b) => moving(a[0]) - moving(b[0]) || a[1] - b[1]).map(([row]) => row).concat(done_rows.slice(first, last));
+    const step = (label, to, off) => '<button type="button" class="roadmap-page-step" data-roadmap-page="' + esc(milestone.name) + '" data-page="' + to + '"' + (off ? ' disabled' : '') + '>' + label + '</button>';
+    const pager = done_rows.length > PAGE_SIZE ? '<nav class="roadmap-pager" aria-label="Landed items, ' + PAGE_SIZE + ' to a page">' + step('Previous', at - 1, at <= 1)
+      + '<span class="roadmap-page-of">Landed ' + (first + 1) + '–' + last + ' of ' + done_rows.length + ' · page ' + at + ' of ' + pages + '</span>' + step('Next', at + 1, at >= pages) + '</nav>' : '';
+    return (rows.length ? progress + '<ul>' + shown.map((row) => { const slot = slotKey ? slotKey(milestone, row) : null, html = milestoneRowHtml(row, { ...rowPresentation.get(row), hidden: held === milestone.name && !row.held, slot }); return slot !== null && place ? place(slot, html) : html; }).join('') + '</ul>' + pager : '<p class="milestone-empty">No items yet.</p>')
       + (milestone.note ? '<p class="milestone-note">' + (notes.get(read) ?? esc(milestone.note)) + '</p>' : '');
   };
   /** Keep folding consistent while the roadmap disclosure reuses the shared release-header presentation. */
