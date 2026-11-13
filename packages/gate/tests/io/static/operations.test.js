@@ -10,6 +10,7 @@ import { OPERATIONS } from '../../../src/io/static/operations.js';
 import { operationSites } from '../../../src/io/static/operations.js';
 import { operationReport } from '../../../src/io/static/operations.js';
 import { operationEntryGrowth } from '../../../src/io/static/operations.js';
+import { operationEntryFiles } from '../../../src/io/static/operations.js';
 import { operationEntryCounts } from '../../../src/io/static/operations.js';
 import { operationRatchetGrowth } from '../../../src/io/static/operations.js';
 import { tightenOperationBaseline } from '../../../src/io/static/operations.js';
@@ -26,8 +27,8 @@ function git(cwd, args) {
   runFixtureGit(['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd });
 }
 
-test('#5846 clause 1: the registry names one entry point for each of the six operations [C7]', () => {
-  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code']);
+test('#5846 clause 1: the registry names one entry point for each operation [C7]', () => {
+  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'create-worktree']);
   for (const { entry } of OPERATIONS) assert.ok(readFileSync(new URL(entry, ROOT), 'utf8').length > 0, `${entry} exists`);
 });
 
@@ -93,4 +94,25 @@ test('#5846 clause 2: the entry-point count may only fall; a baseline row main d
   tree.write(BASELINE, JSON.stringify({ 'run-tests': ['packages/demo/src/io/old.js', 'packages/demo/src/io/runner.js'] }) + '\n');
   assert.match(check.run(tree.root).join('\n'), /operation-entries\.json:1: run-tests gains a second entry point packages\/demo\/src\/io\/runner\.js/u,
     'recording the new spawn in the baseline is refused against main');
+});
+
+const ADD_TREE = "export const make = (git, path) => git(['worktree', 'add', '--detach', path]);\n";
+
+test('#6750 clause 1: create-worktree has one entry point, and a new git worktree add outside it fails the registry test [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'create-worktree');
+  assert.equal(entry?.entry, 'packages/git/src/io/worktree.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function addWorktree/u);
+  const sites = operationSites(ADD_TREE, 'packages/demo/src/io/tree.js');
+  assert.deepEqual(sites.map(row => [row.operation, row.line]), [['create-worktree', 1]]);
+  assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new file is refused');
+  assert.deepEqual(operationSites(ADD_TREE, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites("export const list = git => git(['worktree', 'list']);\n", 'packages/demo/src/io/tree.js'), [], 'worktree list is not a creation');
+});
+
+test('#6750 clause 2: the baseline lists the 18 current worktree-add files as known violations, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.equal(baseline['create-worktree'].length, 18);
+  assert.deepEqual(baseline['create-worktree'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['create-worktree']);
+  const grown = { ...baseline, 'create-worktree': [...baseline['create-worktree'], 'packages/demo/src/io/tree.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /create-worktree gains a second entry point/u);
 });
