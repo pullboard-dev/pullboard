@@ -20,7 +20,7 @@ import { stopFixtureLocalRunner } from '../runner/local-stop.js';
  * misses the relay's close, reuses the dead socket, and the case fails with 'fetch failed' (ECONNRESET) [H16].
  */
 export function closingFetch(url, init = {}) {
-  return fetch(url, { ...init, headers: { ...init.headers, connection: 'close' } }); 
+  return fetch(url, { ...init, headers: { ...init.headers, connection: 'close' } });
 }
 
 /** Start the private relay fixture; its pulled gates run on the machine's loopback local runner, stopped when the test ends [P7]. */
