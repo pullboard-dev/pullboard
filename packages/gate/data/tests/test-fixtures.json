@@ -1046,11 +1046,36 @@
     "raw-cli": 1,
     "model": 1
   },
-  "apps/cli/journeys/withdraw/items.test.js": {
-    "raw-cli": 38,
-    "raw-board": 4,
-    "tempdir": 10,
+  "apps/cli/journeys/withdraw/items/detail.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/detail-phone.test.js": {
+    "tempdir": 2,
     "model": 1
+  },
+  "apps/cli/journeys/withdraw/items/pipeline.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/pipeline-click.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/withdraw/items/baseline.test.js": {
+    "raw-board": 2
+  },
+  "apps/cli/journeys/withdraw/items/list.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/sentback.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/toolbar.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/toolbar-open.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/withdraw/items/toolbar-wide.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/export/lan.test.js": {
     "raw-cli": 1,
@@ -2313,9 +2338,6 @@
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "raw-board": 1
-  },
-  "packages/landing/tests/io/plan/check/merged.test.js": {
-    "tempdir": 2
   },
   "apps/cli/tests/fixtures/drill.js": {
     "model": 1
@@ -4182,5 +4204,8 @@
   },
   "apps/cli/tests/fixtures/cockpit/roadmap-stages.js": {
     "raw-cli": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/pipeline.js": {
+    "raw-board": 2
   }
 }
