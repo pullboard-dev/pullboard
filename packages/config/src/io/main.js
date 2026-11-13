@@ -17,7 +17,7 @@ import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
 import { trunkProblems } from '../logic/trunk.js';
 
-import { CONFIG_FILE } from '../logic/config-file.js';
+import { CONFIG_FILE } from '../../../kernel/light.js';
 export { CONFIG_FILE };
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
