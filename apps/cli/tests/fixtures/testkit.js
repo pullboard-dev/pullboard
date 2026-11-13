@@ -372,6 +372,31 @@ export function rigorFixtureBoard(store) {
   return { root, board, submit, reject, close: () => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); } };
 }
 
+/**
+ * File `count` items on a joined project's board and give the seat a closed claim on each, so each has one usage revision pending.
+ *
+ * Why: a usage-drain journey needs many pending revisions on a real board; the raw board writes live in this one kit seam [C7].
+ *
+ * @param {object} store - The store module, passed in so the kit takes on no cell import.
+ * @param {object} board - An open board of the project.
+ * @param {{ agent: string, lane: string, main: string, count: number, now?: number }} seed - The seat, its lane, main's commit and the item count.
+ * @returns {number[]} The item ids, oldest first.
+ */
+export function seedPendingUsage(store, board, { agent, lane, main, count, now = Date.now() - 100000 }) {
+  const ids = [];
+  store.atomic(board, () => {
+    for (let n = 0; n < count; n++) {
+      const id = store.addItem(board, { by: 'coordinator', lane, title: `Usage drain ${n}`, specIds: ['G1'],
+        criterion: 'Usage stays attributed once.', check: 'test -f web/ready',
+        checkBaseline: { command: 'test -f web/ready', result: 'red', main, seconds: 0 } });
+      ids.push(id);
+      store.logEvent(board, agent, 'claim', id, { model: 'unknown', leaseUntil: new Date(now + n * 100 + 90).toISOString() }, new Date(now + n * 100));
+      store.logEvent(board, agent, 'release', id, {}, new Date(now + n * 100 + 50));
+    }
+  });
+  return ids;
+}
+
 /** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
 export function requireSessionIndependence(dir) {
   const file = join(dir, 'pullboard.json');
