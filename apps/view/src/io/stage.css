@@ -41,7 +41,6 @@
 /* Roadmap and Activity match their approved mockups (#2080); stage hues come from the shared --stage-* tokens. */
 .roadmap-panel h2 { margin: 0 0 var(--space-3); font: 600 var(--text-xs) var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .roadmap-last-shipped > span { font: 600 var(--text-xs) var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
-.roadmap-release-progress { background: var(--line); }
 .roadmap-has-summary .roadmap-summary-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
 /* One line per row: who or why, the sent-back mark, then a plain sans stage chip. */
 .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) auto 86px; }

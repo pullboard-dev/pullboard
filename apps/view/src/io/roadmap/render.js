@@ -135,14 +135,20 @@ export function roadmapCardsHtml(read, presentation = {}) {
   };
   /** Summarize one shipped milestone with its first note line and total count. */
   const line = (m) => wrap('div', 'milestone shipped-one', 'm:' + m.milestone.name, false, '<h2>' + esc(m.milestone.name) + '</h2><small>' + esc(firstLine(m.milestone.note)) + '</small>' + '<span class="milestone-count">' + m.total + (m.total === 1 ? ' item' : ' items') + '</span>' + capacity(m), body(m), (m.milestone.shipped?.commit ? '<button class="hash-copy" type="button" title="' + esc(m.milestone.shipped.commit) + '" aria-label="Copy full hash ' + esc(m.milestone.shipped.commit) + '" data-copy="' + esc(m.milestone.shipped.commit) + '"><code class="roadmap-shipped-commit" title="' + esc(m.milestone.shipped.commit) + '">' + esc(m.milestone.shipped.commit.slice(0, 12)) + '</code></button>' : ''));
+  /** One compact row per release: its full version, its name cut only at the row's width, landed/total and a thin stage-coloured bar [#6842]. */
   const releaseButtons = coming.map((m) => {
-    const key = 'm:' + m.milestone.name;
+    const key = 'm:' + m.milestone.name, name = String(m.milestone.name);
     const total = Math.max(1, m.total), done = Math.min(m.done, total);
-    const progress = '<svg class="roadmap-release-progress" viewBox="0 0 ' + total + ' 1" preserveAspectRatio="none" role="img" aria-label="' + esc(m.milestone.name) + ': ' + m.done + ' of ' + m.total + ' landed"><rect width="' + done + '" height="1"/></svg>';
-    return '<button class="roadmap-release" data-roadmap-jump="' + esc(key) + '" type="button"><span>' + esc(m.milestone.name) + '</span><b>' + m.done + '/' + m.total + '</b>' + progress + '</button>';
+    const split = /^([^:\s][^:]*?):\s+(.+)$/u.exec(name), version = split ? split[1] : name, title = split ? split[2] : '';
+    const summary = m.milestone.summary, parts = ['landed', 'landing', 'review', 'building', 'waiting', 'held'];
+    const staged = summary && Number.isInteger(summary.total) && summary.total > 0 && parts.every(part => Number.isInteger(summary[part]) && summary[part] >= 0);
+    let offset = 0;
+    const segments = staged ? parts.map(part => { const x = offset; offset += summary[part]; return summary[part] ? '<rect class="' + part + '" x="' + x + '" width="' + summary[part] + '" height="1"/>' : ''; }).join('') : '<rect class="landed" width="' + done + '" height="1"/>';
+    const progress = '<svg class="roadmap-release-progress" viewBox="0 0 ' + (staged ? summary.total : total) + ' 1" preserveAspectRatio="none" role="img" aria-label="' + esc(name) + ': ' + m.done + ' of ' + m.total + ' landed">' + segments + '</svg>';
+    return '<button class="roadmap-release" data-roadmap-jump="' + esc(key) + '" type="button" title="' + esc(name) + '"><span class="roadmap-release-version">' + esc(version) + '</span><span class="roadmap-release-name">' + esc(title) + '</span><b>' + m.done + '/' + m.total + '</b>' + progress + '</button>';
   }).join('');
   const shippedButton = shipped.length
-    ? '<button class="roadmap-release" data-roadmap-jump="shipped" type="button"><span>Shipped</span><b>' + shipped.length + '</b></button>' : '';
+    ? '<button class="roadmap-release" data-roadmap-jump="shipped" type="button"><span class="roadmap-release-version">Shipped</span><span class="roadmap-release-name"></span><b>' + shipped.length + '</b></button>' : '';
   const releasePanel = '<aside class="card-panel roadmap-panel" id="roadmap-panel" aria-label="Roadmap releases and shipping">'
     + '<section class="roadmap-release-index"><h2>Releases</h2><nav class="roadmap-releases" id="roadmap-releases" aria-label="Roadmap releases">' + releaseButtons + shippedButton + '</nav></section>'
     + '<section class="roadmap-shipping roadmap-desktop-shipping" aria-label="Shipping counts"><h2>Shipping</h2><h3 class="roadmap-next-release">' + esc(next?.milestone.name || 'No upcoming release') + '</h3>'
