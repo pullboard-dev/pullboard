@@ -120,7 +120,8 @@ test('a view commit creating its own file and one plan row passes the hook and n
   // A seat's commit names its item in the Pullboard-Item trailer, the history the plan-row authority reads [L3].
   box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]', '-m', `Pullboard-Item: #${box.id}`);
   rmSync(box.marker, { force: true });
-  const submitted = await settleSubmit(t, box, success(box, box.view, 'submit', String(box.id), '--wait'));
+  // A 60 s deadline fails before the runner's 90 s silence watchdog, so a stuck pulled gate prints the local runner log.
+  const submitted = await settleSubmit(t, box, success(box, box.view, 'submit', String(box.id), '--wait'), { deadlineMs: 60_000 });
   assert.equal(submitted.gate?.green, true, JSON.stringify(submitted.gate?.analysis ?? submitted).slice(0, 3000));
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
