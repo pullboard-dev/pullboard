@@ -327,7 +327,7 @@ export async function liveMove(chrome, move, witness, phase) {
     });
     window.countSweepObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
   })()`);
-  move();
+  await move();
   await chrome.waitFor(witness);
   await checkCounts(chrome, phase);
   const errors = await chrome.stable('(() => { window.countSweepObserver.disconnect(); return window.countSweepErrors; })()');

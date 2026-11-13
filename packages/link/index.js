@@ -20,7 +20,7 @@ export { SENDER_BACKGROUND_ENV, SENDER_CLAIM_STALE_MS, alive, boardNote, localFi
 export { locked } from './src/io/relay/lock.js';
 export { acceptDeviceEnrollment, beginDeviceEnrollment, readRelayMachine, relayMachineOwner, relayPersonRoot, removeRecordedDevice, updateRelayMachine, wrapForRecordedDevice } from './src/io/relay/machine.js';
 export { authorizeMember, memberAuthorityStamp, prepareBoardMembers } from './src/io/relay/membership.js';
-export { baselineNotAccepted, transientRelayFailure, transportFailure } from './src/logic/relay/fallback.js';
+export { baselineNotAccepted, permanentRelayRefusal, transientRelayFailure, transportFailure } from './src/logic/relay/fallback.js';
 export { briefLines, detailLines, outboxLines } from './src/io/relay/output.js';
 export { executePersonRequests } from './src/io/relay/execution.js';
 export { personRequestRecords, personRequestStatuses, receivePersonRequest, recordRequestMove, relayPerson, requestIntentDigest, requestMoveProblem, requestPerson, requestStageText } from './src/io/relay/requests.js';
@@ -28,8 +28,8 @@ export { boardPhones, joinedComputers, relayRoster, rosterLines } from './src/io
 export { actorTransport, cacheSeatToken, ensurePersonCoordinator, nameNextSeat, refuseRevokedSeat, seatReceipt, withSeatName } from './src/io/relay/seats.js';
 export { autoLinkProject, cancelViewSignIn, offerRelayAtInit, relayOnAll, relayOnAllCommand, revokeRelayDevice, startViewSignIn, unlinkedRelayProjects, viewSignInPairingNavigation, viewSignInStatus } from './src/io/relay/setup.js';
 export { signSshVouch, verifySshVouch } from './src/io/relay/proof.js';
-export { recoveryRefusalMatches, recoverySummary, unlinkedRelayStatus } from './src/logic/relay/fields.js';
+export { RECOVER_COMMAND, parkedHealth, parkedMoves, recoveryRefusalMatches, recoverySummary, unlinkedRelayStatus } from './src/logic/relay/fields.js';
 export { relayStorage, relayStorageLine } from './src/logic/relay/storage.js';
 export { clearUploadPauseNotices, firstUploadPauseNotice, permanentUploadRefusal, safePauseMessage, uploadPauseType, uploadRetryReady } from './src/io/relay/pause.js';
-export { DEFAULT_RELAY, assertRehomeSourceItemOrdered, deliverDeviceWraps, formatSnapshotLimit, localRecords, originRepository, pendingCheckpointProblem, pendingSnapshotSize, publishLatestCheckpoint, relayCommandReceipt, relayCommandReceiptReported, relayDeviceRequest, relayLinkAvailability, relayLinked, relayMachineContext, relayMachineSignIn, relayOff, relayOn, relayOperation, relayOrigin, relayPersonCoordinator, relayRecover, relayRecovered, relayRequestDevice, relayRevoke, relayRevokeDevice, relayRosterRead, relayStatus, relayTokens, request, restoreCheckpoint, revokeRelayPersonSession, saveLink, syncRelay } from './src/io/relay.js';
+export { DEFAULT_RELAY, assertRehomeSourceItemOrdered, deliverDeviceWraps, formatSnapshotLimit, localRecords, originRepository, pendingCheckpointProblem, pendingSnapshotSize, publishLatestCheckpoint, relayCommandReceipt, relayCommandReceiptReported, relayDeviceRequest, relayLinkAvailability, relayLinked, relayMachineContext, relayMachineSignIn, relayOff, relayOn, relayOperation, relayOrigin, relayPersonCoordinator, relayRecover, relayRecoverParked, relayRecovered, relayRequestDevice, relayRevoke, relayRevokeDevice, relayRosterRead, relayStatus, relayTokens, request, restoreCheckpoint, revokeRelayPersonSession, saveLink, syncRelay } from './src/io/relay.js';
 export { landingRelayCallbacks } from './src/logic/landing.js';

@@ -39,7 +39,7 @@ import {
   missingPathGrowth,
   readMissingPathBaseline,
 } from '../paths/lint.js';
-import { STATIC_CHECKS } from '../../../index.js';
+import { STATIC_CHECKS } from './check/registry.js';
 import { cliReachRows } from '../../../index.js';
 import { keylessRows } from '../../../index.js';
 import { repoPath } from '../../../../kernel/light.js';
