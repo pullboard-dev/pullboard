@@ -107,7 +107,7 @@ export { createItemSlice } from "./src/io/board/item/slice.js";
 
 export { nextIdleChanged } from './src/io/board/record/idle.js';
 
-export { prepareSubmit, sealStrictRenames } from './src/io/board/submit.js';
+export { prepareSubmit, sealStrictRenames, clauseInspectionNotes } from './src/io/board/submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/io/board/checkpoint.js';
 
 export { endedSubmitHandoff, handoffRecord, handoffRecords } from './src/io/submit/handoff/records.js';
