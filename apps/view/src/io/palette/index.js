@@ -15,7 +15,7 @@ export function paletteScript() {
 (() => {
   pbPalette({
     document,
-    mac: /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
+    mac: typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
     box: $('q'),
     pages: () => [...document.querySelectorAll('#tabs [data-tab]')].map((b) => ({ id: b.dataset.tab, name: b.textContent.trim() })).filter((p) => p.id !== 'settings'),
     hasTab: (id) => Boolean(document.querySelector('[data-tab="' + id + '"]')),
