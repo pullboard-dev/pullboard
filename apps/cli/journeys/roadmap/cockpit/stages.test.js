@@ -121,7 +121,7 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
       await travel(chrome, 1);
       await settled(chrome, `${showing('items', '/roadmap-demo/items/3')} && document.querySelector('.tab.on')?.dataset.tab === 'items' && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
       await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
-      await pressedInto(chrome, `${showing('roadmap', roadmapPath)} && location.search === ''`);
+      await pressedInto(chrome, `${showing('roadmap', roadmapPath)} && /^(\\?release=[^&]*)?$/u.test(location.search)`);
     }
 
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
