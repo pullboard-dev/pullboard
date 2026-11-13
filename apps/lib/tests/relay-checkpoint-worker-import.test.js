@@ -14,3 +14,10 @@ test('clause 1: the seven undo cases stay in the outbox cell and the worker-impo
   assert.equal(titles(read('../../../packages/outbox/tests/io/relay/undo.test.js')).length, 7, 'the seven undo cases keep their place');
   assert.deepEqual(titles(read('../../cli/journeys/relay/checkpoint.test.js')).filter(title => title.startsWith('importing the checkpoint process entry')), [], 'the journey no longer holds the import case');
 });
+
+test('clause 2: the outbox undo test imports no other cell past a front door and this file imports only its own cell [C7]', () => {
+  const imports = (path) => [...readFileSync(new URL(path, import.meta.url), 'utf8').matchAll(/from '(\.[^']+)'/gu)].map(match => match[1]);
+  const undo = imports('../../../packages/outbox/tests/io/relay/undo.test.js');
+  assert.deepEqual(undo.filter(path => /\/apps\/|\/src\//u.test(path) && !path.includes('outbox')), [], 'the undo test reaches no other cell internals');
+  assert.deepEqual(imports('./relay-checkpoint-worker-import.test.js'), [], 'this file imports only through dynamic import of its own worker');
+});
