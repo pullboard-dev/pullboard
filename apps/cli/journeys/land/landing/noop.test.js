@@ -14,13 +14,13 @@ import { startFixtureChild } from "../../../tests/fixtures/child.js";
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-/** A plain `land` now offers a runner land job; `--max` keeps these journeys on the lease path they prove [E25]. */
 /** Use production board functions only within this test's private fixture. */
 function onBoard(box, work) {
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
+// A plain `land` now offers a runner land job; `--max 1` keeps these journeys on the lease path they prove [E25].
 test('an idle empty land takes no lease and writes no event [E25,E26,B3]', async () => {
   const box = helpers.project('true');
   const before = onBoard(box, board => ({ events: store.events(board), lease: store.landingLeaseState(board) }));
