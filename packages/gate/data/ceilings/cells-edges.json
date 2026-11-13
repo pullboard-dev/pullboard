@@ -720,10 +720,6 @@
       "cells": 6,
       "deep": 1
     },
-    "apps/cli/tests/fixtures/board/submit.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/bridge.js": {
       "cells": 1,
       "deep": 0
@@ -4322,6 +4318,10 @@
     },
     "packages/store/tests/fixtures/cell.js": {
       "cells": 5,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/submit.js": {
+      "cells": 1,
       "deep": 0
     },
     "packages/store/tests/fixtures/dispatch.js": {
