@@ -47,7 +47,7 @@ export function committedToolingSnapshot(sourceRoot, env) {
   mkdirSync(home, { recursive: true });
   try {
     copyPackageFiles(key, root);
-    const gitEnv = { ...env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'),
+    const gitEnv = { ...env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(home, '.pullboard'),
       PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_COUNT: '0',
       GIT_AUTHOR_NAME: 'Runner Tooling Fixture', GIT_AUTHOR_EMAIL: 'runner-tooling@example.invalid',

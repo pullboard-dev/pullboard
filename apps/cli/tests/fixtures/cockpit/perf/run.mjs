@@ -584,6 +584,17 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     } finally {
       if (liveBoard) closeBoard(liveBoard);
     }
+    // Under load the last live write's response bytes can land just after the fixed window; wait (bounded, never
+    // throwing) until every marker has rendered so the sample holds its bytes. The window's start and checks are unchanged.
+    await chrome.stable(`(async () => {
+      const deadline = performance.now() + 10000; // budget: ten-second hang ceiling for the render wait, not action performance.
+      while (performance.now() < deadline) {
+        window.__pb606IdleScan?.();
+        if ([...(window.__pb606IdleExpected?.values() ?? [])].every(at => at !== null)) return true;
+        await new Promise(resolve => setTimeout(resolve, 50)); // budget: poll tick for the render wait, not action performance.
+      }
+      return false;
+    })()`, "document.querySelector('#feed .conversation-row, #feed .shout')");
     const idle = await chrome.stable(`(() => {
       window.__pb606IdleScan?.();
       const endAt = performance.now();

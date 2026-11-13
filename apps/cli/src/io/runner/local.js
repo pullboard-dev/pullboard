@@ -22,7 +22,7 @@ import { machineHome } from '../../../../../packages/resources/index.js';
 export { BOARD_HOST } from '../../../../../packages/drive/index.js';
 const CLI = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
 /** What the local runner keeps from the starting command's environment: where machine and account state live. */
-const KEPT = new Set(['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME', 'PULLBOARD_TEST_RUNNER_PID']);
+const KEPT = new Set(['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME', 'PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_FIXTURE_BOARD']);
 
 /** The machine's local runner folder: its boards, state, lock, log and caches. */
 export function localRunnerFolder() {
@@ -30,7 +30,7 @@ export function localRunnerFolder() {
 }
 
 /** The environment the local runner starts with: no seat's identity, only where this machine keeps its state. */
-function runnerEnv(env) {
+export function runnerEnv(env) {
   const kept = Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('PULLBOARD_') || KEPT.has(key)));
   delete kept.NODE_TEST_CONTEXT;
   return kept;
