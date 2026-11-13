@@ -1,9 +1,7 @@
 /** Inherited failures can pass submit without disguising new failures as known [V4,B3]. */
 import '../../../index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { test } from 'node:test';
-import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../../packages/store/index.js';
 import { fixtureBoard } from '../../../tests/fixtures/board.js';
 import { submissionProof } from '../../../../../packages/state/light.js';
@@ -16,11 +14,9 @@ import { applyEngineMove } from '../../../../../packages/state/index.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import { importBoard } from '../../../../../packages/store/index.js';
 import { boundedMainRedShout } from '../../../src/io/commands/submit.js';
-
-import { fixture } from '../../../tests/fixtures/submit/red.js';
-import { cli } from '../../../tests/fixtures/submit/red.js';
-import { submittedProof } from '../../../tests/fixtures/submit/red.js';
-import { source } from '../../../tests/fixtures/submit/red.js';
+import { fixture as frozen } from '../../../tests/fixtures/init/known-frozen.js';
+import { rows as frozenRows } from '../../../tests/fixtures/init/known-frozen.js';
+import { settledSubmit } from '../../../tests/fixtures/init/known-frozen.js';
 
 test('known main receipts preserve exact identities and refuse unsupported historical envelopes [V4,B3,H16]', () => {
   const failure = { file: 'test/one.test.js', name: 'one failure [V4]', signature: 'a'.repeat(64) };
@@ -119,20 +115,15 @@ test('ordered submit refuses a closed repair and an old-engine linked envelope w
 });
 
 // #1986 accepts exact unowned main reds while retaining their durable accounting.
-test('a long infra note submits with one bounded automatic shout [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
-  const box = fixture(t, { mainRed: false });
-  const note = 'a'.repeat(2000);
-  const result = cli(box, box.builder, 'submit', String(box.item), '--infra', note, '--no-next');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.ok(submittedProof(box));
-  const db = new DatabaseSync(join(box.root, '.git/pullboard/board.sqlite'), { readOnly: true });
-  try {
-    const shouts = db.prepare('SELECT * FROM shout').all().filter(row => row.shout_to === 'coordinator'
-      && row.shout_decision === 1 && String(row.shout_text).includes(`#${box.item}: known main red`));
-    assert.equal(shouts.length, 1);
-    assert.ok(Array.from(shouts[0].shout_text).length <= 400);
-    assert.match(shouts[0].shout_text, new RegExp(`pullboard show ${box.item}`));
-  } finally { db.close(); }
+test('a long unowned main red settles pulled with one bounded decision shout [V4,B3]', { timeout: 240_000 }, async t => { // budget: one pulled gate job and its main comparison on the fixture runner.
+  const box = frozen(t, { name: `${'a'.repeat(500)} [G1]` });
+  const report = await settledSubmit(t, box, { submitted: true });
+  assert.equal(report.submission?.gateGreen, true, JSON.stringify(report.gate));
+  const shouts = frozenRows(box, 'SELECT * FROM shout').filter(row => row.shout_to === 'coordinator'
+    && row.shout_decision === 1 && String(row.shout_text).includes(`#${box.item}: known main red`));
+  assert.equal(shouts.length, 1, 'exactly one decision shout');
+  assert.ok(Array.from(shouts[0].shout_text).length <= 400, `bounded: ${Array.from(shouts[0].shout_text).length}`);
+  assert.match(shouts[0].shout_text, new RegExp(`pullboard show ${box.item}`, 'u'));
 });
 
 test('an oversized main red decision preserves the show pointer [V4,B3]', async () => {

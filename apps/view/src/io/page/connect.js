@@ -76,7 +76,7 @@ const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html:
   current: () => view.root, view: () => view, project: () => data?.project, active: () => view.tab === 'activity',
   working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds,
   controls: () => pageControlsHtml({ tab: 'activity', by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24 }),
-  onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(),
+  onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(), drawn: () => drawHistoryNotes(),
   remember: (root, value) => value === undefined ? (Number(keep('pb.activity.left.' + root)) || null) : keep('pb.activity.left.' + root, String(value)) });
 // The Insights Pipeline page (#6869): the held event history the Dashboard reads, this machine's CPU samples, and the pure model and markup.
 const pipelineView = (${pipelineRuntime.toString()})({ model: (${pipelineWatchModel.toString()}), html: (${pipelineWatchHtml.toString()}), history: project => dashboardView.history(project), api, current: () => view.root,
@@ -640,13 +640,16 @@ const span = (ms) => {
  */
 function timeline(item, { newestFirst = false } = {}) {
   const fromThread = Array.isArray(item.thread) && item.thread.length > 0;
-  const entries = (fromThread
+  const recorded = fromThread
     ? item.thread
-    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry })))
-    // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
-    // verifier's background review-comparison receipts stay out of the person's history.
-    .filter((entry) => !['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
-      && !(entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: ')));
+    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+  // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
+  // verifier's background review-comparison receipts stay out of the person's history.
+  const bookkeeping = (entry) => ['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
+    || (entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: '));
+  const entries = recorded.filter((entry) => !bookkeeping(entry));
+  // A placement keeps its event identity with the row of the event before it, so every API event is still found once [B33,B29].
+  const folded = recorded.flatMap((entry, at) => entry.kind === 'milestone_placed' ? [{ eventId: entry.eventId, after: recorded.slice(0, at).findLast((before) => !bookkeeping(before))?.eventId ?? null }] : []);
   // Native thread moves keep their event detail nested; project it through the shared lifecycle adapter
   // before replay so retained refreezes and other declared event facts match the API history projection.
   const replayEntries = entries.map((entry) => entry.type === 'move' && fromThread
@@ -669,7 +672,7 @@ function timeline(item, { newestFirst = false } = {}) {
     : entry);
   const presentedSteps = steps.map((step) => ({ ...step, kindLabel: eventWords(step.kind), momentLabel: eventMoment(step.kind), timeLabel: step.at ? when(step.at) : '',
     ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
-  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
+  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW, folded,
     open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [], newestFirst });
 }
 
