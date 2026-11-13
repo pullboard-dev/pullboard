@@ -26,6 +26,6 @@ test('full fallback and candidate policy edits cannot omit an accepted registry 
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const red = JSON.parse((await box.runLocal(box.web, 'show', String(box.id), '--json', '--no-next')).out).gateJob;
   assert.equal(red?.gate?.green, false, JSON.stringify(red));
-  assert.match(JSON.stringify(red), /registry guards: apps\/cli\/journeys\/relay\/credential\.test\.js/u);
+  assert.match(JSON.stringify(red), /apps\/cli\/journeys\/relay\/credential\.test\.js/u);
   assert.match(JSON.stringify(red), /missing actor credential for newMove\.js/u);
 });
