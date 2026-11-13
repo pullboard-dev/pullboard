@@ -38,6 +38,7 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
   const buildBrief = brief ?? `Files:\n- ${lane}/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- ${title} passes.`;
   const addArgs = ['add', lane, title, '--route', route, '--criterion', criterion];
   if (check !== null) addArgs.push('--check', check);
+  if (check === 'true') addArgs.push('--accept-green', 'fixture check keeps passing');
   addArgs.push('--brief', buildBrief, ...args, '--json');
   if (wait) addArgs.splice(addArgs.length - 1, 0, '--wait');
   const added = run(root, ...addArgs);
