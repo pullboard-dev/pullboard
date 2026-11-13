@@ -91,7 +91,7 @@ export function notchHtml({ agents = null, perHour = null, rulings = null } = {}
   const shoulder = (path) => '<svg class="sh" viewBox="0 0 50 26" preserveAspectRatio="none" aria-hidden="true"><path d="' + path + '"/></svg>';
   return shoulder('M0 0 C20 0 27 26 50 26 L50 0 Z')
     + '<span class="notch-body">'
-    + '<button class="notch-it" type="button" data-peek="agents" data-status="agents" title="Agents at work: open the agent floor"><b data-notch="agents">' + number(agents) + '</b> agents</button>'
+    + '<button class="notch-it" type="button" data-peek="agents" data-status="agents" title="Agents at work: open the Agents table"><b data-notch="agents">' + number(agents) + '</b> agents</button>'
     + '<span class="notch-sp" aria-hidden="true"></span>'
     + '<button class="notch-it" type="button" data-peek="perHour" data-status="dashboard" title="Items landed per hour, the last 6 hours: open the Dashboard"><b class="g" data-notch="perHour">' + pace + '</b></button>'
     + '<span class="notch-sp" aria-hidden="true"></span>'

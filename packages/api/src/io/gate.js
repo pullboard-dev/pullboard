@@ -36,6 +36,32 @@ function latestGateJob(db, item) {
   return db.prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
 }
 
+/**
+ * The item's pulled gates that came back red on a failing test phase, oldest first: each with the event id of the red
+ * fact applyGateReceipt wrote, the candidate the gate judged, and the failing cases it named.
+ * Why the red fact: it is written only for a receipt applied to the live claim at its bar, so a stale receipt never
+ * counts, and its event id orders the red against the holder's later facts [P7,C7].
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board
+ * @param {number} item
+ * @returns {{ eventId: number, commit: string, failures: { file?: string, name?: string }[] }[]}
+ */
+export function pulledGateReds(board, item) {
+  let jobs;
+  try { jobs = board.db.prepare("SELECT job_id, job_candidate FROM job WHERE job_kind = 'gate' AND job_item = ? AND job_step = 'done' ORDER BY job_created, rowid").all(item); }
+  catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
+  const redFact = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind = 'fact' AND json_extract(event_detail, '$.text') LIKE ?");
+  const reds = [];
+  for (const job of jobs) {
+    const receipt = postedReceipt(board.db, job.job_id)?.receipt;
+    // Only a test phase that ran and failed is a red loop; an analysis refusal or an infrastructure stop is not the item's code.
+    const failed = (receipt?.gate?.phases ?? []).filter(phase => phase.status !== 0);
+    const fact = job.job_candidate && failed.length ? redFact.get(item, `Gate job ${job.job_id} red at %`)?.id : null;
+    if (fact) reds.push({ eventId: fact, commit: job.job_candidate, failures: failed.flatMap(phase => phase.failures ?? phase.errors ?? []) });
+  }
+  return reds;
+}
+
 /** The job's kind, item, candidate, base, frozen check and the submit fields its offer recorded; null when the job is gone. */
 function offeredGate(db, job) {
   const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step

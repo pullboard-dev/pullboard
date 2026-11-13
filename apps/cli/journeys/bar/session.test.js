@@ -16,8 +16,7 @@ import { runFixtureChild } from "../../tests/fixtures/child.js";
 import { join } from 'node:path';
 import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
-import { HOST } from '../../tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import * as store from "../../../../packages/store/index.js";
 import { openBoard } from "../../../lib/index.js";
 import { parentSessionDigest } from "../../../../packages/items/index.js";
@@ -47,13 +46,9 @@ async function setup(wholeCoverage = false) {
   const sandbox=fixtures.sandbox();delete sandbox.env.NODE_TEST_CONTEXT;
   sandbox.env.PULLBOARD_MODEL='Private fixture';
   const box=fixtures.project('true',sandbox);
-  const bin=join(box.dir,'baseline-bin'), worker=join(box.dir,'baseline-worker'), home=join(box.dir,'baseline-home');
-  const machine=box.env.PULLBOARD_MACHINE_HOME;
-  for (const path of [bin,worker,home,join(home,'.pullboard'),machine]) mkdirSync(path,{recursive:true});
-  installSshStandIn({bin,worker,home,machineHome:join(home,'.pullboard'),requests:join(box.dir,'baseline-ssh.jsonl'),nodeCommand:process.execPath});
-  box.env.PATH=`${bin}:${box.env.PATH}`;
-  fixtureMachineSettings(machine,{gateSlots:0,browserSlots:0,gate:{runnerDispatch:'controller',browserFreeChecks:true,timingRunner:false},
-    runners:[{host:HOST,slots:2,browser:2,node:process.execPath,root:join(home,'.pullboard-runner')}]});
+  // No registered runner: the machine's local runner pulls the baseline and gate jobs on loopback, as a plain project does [P7].
+  const machine=box.env.PULLBOARD_MACHINE_HOME;mkdirSync(machine,{recursive:true});
+  fixtureMachineSettings(machine,{gate:{browserFreeChecks:true,timingRunner:false}});
   succeeds(await act(box,'private-author-a',box.repo,'join','coordinator','--model','Private author'));
   mkdirSync(join(box.repo,'test'));
   writeFileSync(join(box.repo,'test/witness.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\ntest('named witness',()=>assert.ok(existsSync('web/ready.txt')));\ntest('neighbor witness',()=>assert.ok(true));\n");
@@ -92,7 +87,7 @@ function readItem(box,id) {
   try{return store.getItem(board,id);}finally{store.closeBoard(board);}
 }
 
-test('[B4,V1,V2,H16] real native sessions sign and freeze one bar before normal submit and review',async ()=>{
+test('[B4,V1,V2,H16] real native sessions sign and freeze one bar before normal submit and review',async (t)=>{
   const box=await setup(true);const id=add(box,'private-author-a');
   const builder=join(box.dir,'private-builder');box.git(box.repo,'worktree','add','-qb','web/private-builder',builder,'main');
   box.git(builder,'merge','--ff-only','main');
@@ -117,7 +112,10 @@ test('[B4,V1,V2,H16] real native sessions sign and freeze one bar before normal 
   mkdirSync(join(builder,'web'),{recursive:true});writeFileSync(join(builder,'web','ready.txt'),'ready');
   box.git(builder,'add','web/ready.txt');box.git(builder,'commit','-qm','feat(web): ready output [G1]');
   // Process-level: submit's gate and verify's check take the fixture runner lease, which an in-process call waits on past the 180 s file budget.
-  succeeds(actProcess(box,'private-builder',builder,'submit',String(id)));
+  const submitted=succeeds(actProcess(box,'private-builder',builder,'submit',String(id),'--json'));
+  // The submit queues its gate for the local runner; review waits for that pulled gate's receipt [P7].
+  const settled=await settleSubmit(t,{repo:box.repo,env:box.env,run:(cwd,...args)=>box.runLocal(cwd,...args)},JSON.parse(submitted.out));
+  assert.equal(settled.gate?.green,true,`the pulled gate is green: ${JSON.stringify(settled.gateJob)}`);
   const head=box.git(builder,'rev-parse','HEAD');box.git(reviewer,'switch','--detach',head);
   succeeds(actProcess(box,'private-reviewer',reviewer,'verify',String(id),'accept','--note','The real named witness passes with ready output present.'));
   assert.equal(readItem(box,id).item_status,'verified');

@@ -43,17 +43,31 @@ export const FIXTURE_MODEL = 'fixture-model';
 /**
  * A copy of an environment with every PULLBOARD_ variable removed, so a fixture never inherits the
  * agent's identity or home. Each fixture sets the PULLBOARD_ values it needs on top of this copy.
+ * The copy sets PULLBOARD_FIXTURE_ADD_DISTINCT=1: fixture items carry numbered, near-identical titles, so the duplicate
+ * guard of `add` stays off in every fixture board; its own journey deletes the variable to prove the guard (#6864).
  * @param {Record<string, string | undefined>} source The parent process environment.
  * @returns {Record<string, string | undefined>} A new object without PULLBOARD_ keys.
  */
 export function withoutPullboardEnv(source) {
-  return Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_')));
+  return { ...Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_'))), PULLBOARD_FIXTURE_ADD_DISTINCT: '1' };
 }
 
 /** The commands that may offer a runner job (a gate, test or land job) a journey then reads the outcome of. */
 const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit']);
 /** Budget: how long a fixture command waits for the loopback local runner to finish the jobs it offered. */
 const SETTLE_MS = 180_000;
+
+/**
+ * Whether the fixture machine pins gate.runnerDispatch to controller; an absent or unreadable settings file is the pull default.
+ * Why: only a pull gate is a job the loopback local runner settles, so only pull has a queue worth waiting for.
+ *
+ * @param {object} env - The fixture environment.
+ * @returns {boolean}
+ */
+function controllerDispatch(env) {
+  try { return JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gate?.runnerDispatch === 'controller'; }
+  catch { return false; /* No settings file: the product default, pull. */ }
+}
 
 /**
  * Wait until the fixture board's runner job queue holds no unfinished job, so a journey reads a settled gate or landing.
@@ -67,7 +81,9 @@ const SETTLE_MS = 180_000;
 function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
   // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
-  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
+  // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
+  // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
+  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || controllerDispatch(env) || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
   if (common.status !== 0) return;
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');

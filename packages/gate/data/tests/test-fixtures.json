@@ -11,9 +11,6 @@
     "tempdir": 1,
     "model": 1
   },
-  "apps/cli/journeys/submit/handoff/worker.test.js": {
-    "raw-board": 4
-  },
   "docs/api.test.js": {
     "repo-read": 3
   },
@@ -969,8 +966,12 @@
     "tempdir": 1
   },
   "apps/cli/journeys/hold/demo.test.js": {
-    "raw-cli": 5,
-    "tempdir": 10
+    "raw-cli": 1,
+    "tempdir": 6
+  },
+  "apps/cli/journeys/hold/demo-widths.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/cli/journeys/hold/demo-lanes.test.js": {
     "raw-cli": 2,
@@ -1046,11 +1047,36 @@
     "raw-cli": 1,
     "model": 1
   },
-  "apps/cli/journeys/withdraw/items.test.js": {
-    "raw-cli": 38,
-    "raw-board": 4,
-    "tempdir": 10,
+  "apps/cli/journeys/withdraw/items/detail.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/detail-phone.test.js": {
+    "tempdir": 2,
     "model": 1
+  },
+  "apps/cli/journeys/withdraw/items/pipeline.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/pipeline-click.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/withdraw/items/baseline.test.js": {
+    "raw-board": 2
+  },
+  "apps/cli/journeys/withdraw/items/list.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/sentback.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/toolbar.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/toolbar-open.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/withdraw/items/toolbar-wide.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/export/lan.test.js": {
     "raw-cli": 1,
@@ -1310,9 +1336,8 @@
     "tempdir": 1
   },
   "apps/cli/journeys/shout/search.test.js": {
-    "hand-policy": 4,
-    "tempdir": 4,
-    "raw-cli": 4
+    "hand-policy": 2,
+    "tempdir": 2
   },
   "apps/cli/journeys/shout/toggle.test.js": {
     "raw-cli": 1,
@@ -1466,12 +1491,6 @@
     "tempdir": 2,
     "hand-policy": 2,
     "model": 1
-  },
-  "apps/cli/journeys/handoff/dead/ends.test.js": {
-    "raw-board": 4
-  },
-  "apps/cli/journeys/handoff/dead/running.test.js": {
-    "raw-board": 1
   },
   "apps/cli/journeys/fact/mid.test.js": {
     "raw-board": 1,
@@ -1700,9 +1719,6 @@
   "apps/cli/journeys/gate/requeue.test.js": {
     "hand-policy": 1
   },
-  "apps/cli/journeys/gate/stalled.test.js": {
-    "raw-board": 2
-  },
   "apps/cli/journeys/gate/profile.test.js": {
     "tempdir": 1,
     "env-spread": 1,
@@ -1726,10 +1742,6 @@
     "hand-policy": 4,
     "model": 1,
     "raw-board": 6
-  },
-  "apps/cli/tests/fixtures/generated/handoff.js": {
-    "model": 1,
-    "raw-board": 1
   },
   "apps/lib/tests/fixtures/generated/doc/pipeline.js": {
     "raw-board": 1
@@ -1784,10 +1796,6 @@
   "packages/resources/tests/io/handoff/worker/dispatcher/capacity.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/handoff/dispatcher/session.test.js": {
-    "raw-board": 1,
-    "model": 1
-  },
   "apps/cli/journeys/handoff/orphan.test.js": {
     "tempdir": 1,
     "model": 1,
@@ -1796,17 +1804,6 @@
   "packages/resources/tests/io/handoff/prune.test.js": {
     "tempdir": 1,
     "repo-read": 1
-  },
-  "apps/cli/journeys/handoff/tools.test.js": {
-    "tempdir": 1,
-    "raw-board": 1
-  },
-  "apps/cli/journeys/handoff/verdict.test.js": {
-    "raw-board": 2
-  },
-  "apps/cli/journeys/handoff/snapshot.test.js": {
-    "raw-board": 1,
-    "tempdir": 2
   },
   "packages/runners/tests/io/handoff/capacity/cap.test.js": {
     "tempdir": 1,
@@ -2196,9 +2193,6 @@
   "apps/cli/journeys/fact/budget.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/handoff/ticket.test.js": {
-    "raw-board": 1
-  },
   "packages/gate/tests/generator.test.js": {
     "repo-read": 1
   },
@@ -2313,9 +2307,6 @@
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "raw-board": 1
-  },
-  "packages/landing/tests/io/plan/check/merged.test.js": {
-    "tempdir": 2
   },
   "apps/cli/tests/fixtures/drill.js": {
     "model": 1
@@ -3689,9 +3680,6 @@
     "raw-board": 2,
     "hand-policy": 1
   },
-  "apps/cli/journeys/submit/handoff/move.test.js": {
-    "model": 1
-  },
   "apps/cli/journeys/submit/handoff/recovery.test.js": {
     "raw-board": 3
   },
@@ -3703,9 +3691,6 @@
   },
   "apps/cli/journeys/submit/handoff.test.js": {
     "raw-board": 3
-  },
-  "apps/cli/journeys/submit/handoff/barrier.test.js": {
-    "raw-board": 1
   },
   "apps/cli/journeys/submit/invariants.test.js": {
     "raw-board": 9
@@ -4182,5 +4167,8 @@
   },
   "apps/cli/tests/fixtures/cockpit/roadmap-stages.js": {
     "raw-cli": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/pipeline.js": {
+    "raw-board": 2
   }
 }

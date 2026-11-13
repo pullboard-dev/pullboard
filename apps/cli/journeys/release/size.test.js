@@ -57,7 +57,7 @@ function measureCommands(box) {
   seed(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const dir = join(box.dir, 'web-budget');
   box.git(box.repo, 'worktree', 'add', '-q', dir, '-b', 'web/budget');
-  assert.equal(joinFixtureSeat(box, dir, 'web').code, 0, 'the seat joins');
+  assert.equal(joinFixtureSeat(box, dir, 'web', { lockLane: true }).code, 0, 'the seat joins and keeps its lane');
   const samples = { next: [], 'next --take': [], 'next --verify': [], claim: [], release: [] };
   for (let round = 0; round < ROUNDS; round++) {
     const ids = [0, 1].map(n => fileFixtureItem(box, box.repo, { lane: 'web', title: `Budget work ${round}.${n}` }).item_id);
@@ -69,12 +69,13 @@ function measureCommands(box) {
     assert.ok(held, `next --take names the item it claimed: ${taken.out}`);
     samples['next --verify'].push(timed(box, dir, 'next', '--verify').ms);
     const other = ids.find(id => id !== held);
-    const claim = timed(box, dir, 'claim', String(other));
-    samples.claim.push(claim.ms);
-    assert.equal(claim.code, 0, `claim: ${claim.err}${claim.out}`);
+    // The seat's claim allowance may be one (it follows the free runner slots), so the held item goes before the next claim.
     const release = timed(box, dir, 'release', String(held), '--reason', 'OTHER', '--note', 'measured the release', '--no-next');
     samples.release.push(release.ms);
     assert.equal(release.code, 0, `release: ${release.err}${release.out}`);
+    const claim = timed(box, dir, 'claim', String(other));
+    samples.claim.push(claim.ms);
+    assert.equal(claim.code, 0, `claim: ${claim.err}${claim.out}`);
     assert.equal(box.run(dir, 'release', String(other), '--reason', 'OTHER', '--note', 'round done', '--no-next').code, 0);
   }
   return samples;

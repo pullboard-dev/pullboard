@@ -3,7 +3,7 @@ import { QUEUE_PREEMPT_ENGINE } from '../../../state/light.js';
 /** Item conversation labels and context-pack presentation, without board-wide messages [B29,B31,B32,N14]. */
 import { ENGINE_VERSION } from '../../../state/light.js';
 import { ITEM_NOTES_ENGINE } from '../../../state/light.js';
-import { Refused } from "../../../kernel/index.js";
+import { Refused } from "../../../kernel/browser.js";
 
 const LEGACY_FACT_KINDS = Object.freeze(['capture', 'measurement', 'note', 'diff', 'decision', 'rejection', 'supersession', 'root-cause', 'bar-check', 'bar-answer']);
 /** Conversation answers are observations, never signed decisions or person approvals. */
