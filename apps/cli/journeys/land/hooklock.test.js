@@ -6,6 +6,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   after,
   test,
@@ -159,7 +160,7 @@ async (t) => {
     }
   });
   hook = startFixtureChild('git', ['commit', '-m', 'feat: change approved promise [G1]'], {
-    cwd: box.repo, env: { ...box.env, NODE_OPTIONS: `--import=${probe}`, APPROVED_READ_MARKER: marker, APPROVED_READ_READY: ready },
+    cwd: box.repo, env: { ...box.env, NODE_OPTIONS: `--import=${pathToFileURL(probe).href}`, APPROVED_READ_MARKER: marker, APPROVED_READ_READY: ready },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   hook.stderrText = '';
@@ -229,7 +230,7 @@ async (t) => {
   });
   hook = startFixtureChild('git', ['commit', '-m', 'feat: change approved promise [G1]'], {
     cwd: box.repo,
-    env: { ...box.env, NODE_OPTIONS: `--import=${probe}`, APPROVED_READ_MARKER: marker, APPROVED_READ_READY: ready, APPROVED_READ_RELEASE: release },
+    env: { ...box.env, NODE_OPTIONS: `--import=${pathToFileURL(probe).href}`, APPROVED_READ_MARKER: marker, APPROVED_READ_READY: ready, APPROVED_READ_RELEASE: release },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   hook.stderrText = '';

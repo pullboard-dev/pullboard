@@ -138,7 +138,7 @@ test('grouped repos each get their own address [N38,N26]', { timeout: 180_000 },
       await onePlace(chrome, 'document.querySelector(\'[data-tab="shouts"]\')', `/${name}/shouts`, 'shouts', repo.repo);
     }
     await openAddress(chrome, server, '/alpha/items/1');
-    if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) await press(chrome, "document.querySelector('#proj-switch')");
+    if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) { await press(chrome, "document.querySelector('#proj-switch')"); await press(chrome, 'document.querySelector("[data-proj-all]")'); }
     await onePlace(chrome, 'document.querySelector(\'[data-root="' + beta.repo + '"]\')', '/beta/items', 'items', beta.repo);
     await travel(chrome, -1);
     await settled(chrome, `${SCRIPT} && view.root === ${JSON.stringify(alpha.repo)}`);

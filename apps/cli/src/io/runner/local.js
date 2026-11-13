@@ -67,3 +67,13 @@ export async function ensureLocalRunner(root, { start = startLocalRunner } = {})
   const pid = await start(board);
   return { running: pid !== null, started: pid !== null, pid, reason: pid === null ? 'the local runner did not start' : null };
 }
+
+/**
+ * Whether any runner can take a job now: a registered runner, or this machine's local runner alive in its folder.
+ * Why: a baseline or gate job with no live runner waits forever, and the reads must say so instead of "running" [C7,#6559].
+ *
+ * @returns {boolean}
+ */
+export function anyRunnerLive() {
+  return (loadMachineSettings().runners ?? []).length > 0 || localRunnerState(localRunnerFolder()) !== null;
+}

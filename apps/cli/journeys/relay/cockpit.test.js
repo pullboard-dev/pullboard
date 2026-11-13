@@ -271,7 +271,7 @@ test('served connection reaches an authenticated API on another origin and path 
     await chrome.waitFor('typeof data === "object" && !!data?.project');
     assert.equal(await chrome.stable('data.project.items[0].title'), 'Remote original');
     await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
-    await chrome.click(`document.querySelector('#new-item')`); await chrome.stable(`document.querySelector('#add-title').value = 'Remote added'`); await chrome.stable(`document.querySelector('#add-form').requestSubmit()`);
+    await chrome.click(`document.querySelector('[data-page-ctl=new]')`); await chrome.stable(`document.querySelector('#add-title').value = 'Remote added'`); await chrome.stable(`document.querySelector('#add-form').requestSubmit()`);
     await chrome.waitFor('data.project.items.some(item => item.title === "Remote added")');
     assert.ok(seen.some((entry) => entry.method === 'POST' && entry.path.endsWith('/moves')), 'a real browser action reaches the configured API');
     assert.ok(seen.every((entry) => entry.authorization === `Bearer ${credential}` && entry.localKey === undefined && entry.path.startsWith('/mirror/api/v1/')), 'only the supplied credential and API base reach the stand-in');

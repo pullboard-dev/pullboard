@@ -6,6 +6,7 @@
 import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
+import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
@@ -13,6 +14,7 @@ import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
+import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
@@ -174,7 +176,9 @@ else {
   if (ownership) refusals.push({ part: 'authorization', code: 'OUTSIDE_LANE', message: ownership.message, paths: ownership.paths });
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
-    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
+    // The cells machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
+    machinery: (analysis.cells?.machinery ?? []).slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
@@ -205,6 +209,16 @@ fitReceipt(receipt, ${RECEIPT_FIT_BYTES});
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
 `;
+
+/**
+ * The item's pulled gates that came back red on a failing test phase, read through the board API.
+ * Why here: the submit command loads this module only when it needs it, and its red-loop stop counts these reds [C7].
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board
+ * @param {number} id
+ */
+export function itemPulledReds(board, id) {
+  return pulledGateReds(board, id);
+}
 
 /**
  * True when this item's submit offers its gate as a row instead of driving it: under gate.runnerDispatch pull, or when
@@ -263,19 +277,21 @@ export function offerGateJob(db, { item, main, source, request, now = Date.now()
  * @param {object} ctx
  * @param {{ held: object, me: { id: string }, commit: string, trunk: { commit: string }, main: { commit: string, config: object },
  *   claimHead: string | null, files: string[], requireComposition: boolean, authorize: boolean, full: boolean,
- *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null }} submission - files: what the
+ *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null }} submission - files: what the
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
- *   attached companions composed onto the builder head, or null.
+ *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function }} ports - The sandbox and store reads the submit command already holds.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null }, { frozenCheck, policyAt, listItems }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems }) {
   const { root } = ctx.info;
   const id = held.item_id;
   // The gate judges what would land: the builder head, or the companions composed onto it.
   const source = companion?.commit ?? commit;
   const configured = submitGateConfig(full || companion ? policyAt(root, source).config : ctx.config, main.config);
   const config = full ? { ...configured, affectedTests: '', submitGate: 'full' } : configured;
+  // A repo with no gate command is refused before any job row is written, as the controller path refuses it (NO_GATE).
+  if (!config.gate?.trim()) throw missingGate(root);
   const crossRun = withBoard(ctx, board => {
     board.gitRoot = root;
     return itemCollisionPlan(board, held, listItems(board, { all: true }));
@@ -290,7 +306,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
   request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files,
-    ...(companion ? { companion } : {}) };
+    ...(companion ? { companion } : {}), ...(infra ? { infra } : {}) };
   // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
   withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);

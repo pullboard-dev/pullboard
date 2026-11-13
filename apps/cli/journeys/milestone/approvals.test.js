@@ -37,10 +37,11 @@ test('agent approvals show full rows and styled actions at narrow width and reso
     // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
     await chrome.waitFor('!!data?.project');
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await chrome.waitFor('innerWidth === 375 && document.querySelector("#dashboard [data-needs-field=approved-in-git] time")');
-    assert.equal(await chrome.stable('document.querySelector("#dashboard [data-needs-field=approved-in-git] time").textContent'), 'Oct 25, 2:51 PM', 'Dashboard uses the approved minute display without a locale date, year or seconds');
+    // The /live-style Dashboard (#6847) draws no Rulings rows; the approvals are ruled on in Items.
+    await chrome.waitFor('innerWidth === 375 && !!document.querySelector("#dashboard .dash-live")');
     await chrome.click("document.querySelector('[data-tab=items]')");
-    await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
+    await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2 && document.querySelector("#needs [data-needs-field=approved-in-git] time")');
+    assert.equal(await chrome.stable('document.querySelector("#needs [data-needs-field=approved-in-git] time").textContent'), 'Oct 25, 2:51 PM', 'Items uses the approved minute display without a locale date, year or seconds');
     await openItemsNeeds(chrome);
     for (const row of before.spec) await chrome.click(`document.querySelector('#needs [data-agent-approved="${row.id}"] summary')`);
     await chrome.waitFor(`view.tab === 'items' && [...document.querySelectorAll('#needs [data-agent-approved], #needs [data-row-decision]')].every(element => {

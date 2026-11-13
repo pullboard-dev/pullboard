@@ -111,3 +111,28 @@ function detached(command, args, { cwd, env, log }) {
   } catch { return { pid: null, launchd: false }; }
   finally { if (typeof out === 'number') closeSync(out); }
 }
+
+/**
+ * Start `command args` as a detached child with the given stdio and return the child, for a caller that must hold its
+ * handle (a descriptor handed over, an IPC channel). Why: every detached start lives in this file, the one entry point [C7].
+ *
+ * @param {string} command - The executable.
+ * @param {string[]} args - Its arguments.
+ * @param {{ cwd: string, env: NodeJS.ProcessEnv, stdio: import('node:child_process').StdioOptions }} options
+ * @returns {import('node:child_process').ChildProcess}
+ */
+export function spawnDetachedChild(command, args, { cwd, env, stdio }) {
+  return spawn(command, args, { cwd, env, detached: true, stdio });
+}
+
+/**
+ * Signal a detached child's whole process group, the one entry point that stops a process tree [C7,#6751].
+ * Why: a detached start leads its own group, so the negative pid reaches the children it spawned; a gone group is no error.
+ *
+ * @param {number} pid - The group leader's pid.
+ * @param {NodeJS.Signals | number} [signal] - Signal to send, TERM by default.
+ * @returns {boolean} True when the signal was delivered, false when the group is already gone.
+ */
+export function stopProcessTree(pid, signal = 'SIGTERM') {
+  try { process.kill(-pid, signal); return true; } catch (error) { if (error?.code === 'ESRCH') return false; throw error; }
+}

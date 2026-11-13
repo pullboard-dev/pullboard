@@ -22,6 +22,13 @@ import {
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
+/** Pin the fixture machine to controller dispatch: pull is the default and would offer a runner job none serves here. */
+function pinController(box) {
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const kept = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...kept, gate: { ...kept.gate, runnerDispatch: 'controller' } }));
+}
+
 const PASSES = "import { test } from 'node:test';\ntest('passes', () => {});\n";
 const HANGS = "import { test } from 'node:test';\ntest('hangs', () => new Promise(() => {}));\n";
 const FAILS = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('fails here', () => assert.equal(1, 2));\n";
@@ -41,6 +48,7 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
     const set = await box.runLocal(box.repo, 'settings', key, value);
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
+  pinController(box);
   // Main holds the focused runner, with its per-test timeout, and a test that hangs on main as well.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
@@ -85,6 +93,8 @@ test('pullboard test names why it ran on this machine, and every installed hook 
   writeFileSync(join(box.repo, 'test/ok.test.js'), PASSES);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: focused runner and one test file');
+  // Pull dispatch is the default and would offer a runner job none serves here; this case judges the local run.
+  pinController(box);
   const ran = await box.runLocal(box.repo, 'test', 'test/ok.test.js', '--json');
   assert.equal(ran.code, 0, ran.err);
   const result = JSON.parse(ran.out);
@@ -95,7 +105,8 @@ test('pullboard test names why it ran on this machine, and every installed hook 
   for (const hook of ['commit-msg', 'pre-commit', 'pre-merge-commit', 'pre-push']) {
     assert.match(readFileSync(join(box.repo, '.githooks', hook), 'utf8'), /pullboard test <test files>/u, `${hook} names pullboard test`);
   }
-  assert.match(readFileSync(join(box.repo, 'AGENTS.md'), 'utf8'), /pullboard test <test files>/u, 'the agent guidance names it too');
+  // The approved agents block (10 Nov) hands test running to Pullboard rather than naming the command.
+  assert.match(readFileSync(join(box.repo, 'AGENTS.md'), 'utf8'), /\*\*Gate:\*\* Pullboard runs it; never run whole suites/u, 'the agent guidance leaves test running to Pullboard');
 });
 
 test('a runner-bound test run passes a local memory hold [C7]', async () => {

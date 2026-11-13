@@ -13,6 +13,7 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
     .filter(item => !query || matched.has(item.id));
 
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
+  if (state === 'building') names.building = 'Building';
   if (state === 'verify') names.verify = 'In review';
   if (state === 'gated') names.gated = 'Gated';
   if (state === 'ready') names.ready = 'Ready, in rank order';
@@ -20,6 +21,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   if (state === 'building') names.building = 'Building';
   if (state === 'passed') names.passed = 'Passed, landing next';
   if (state === 'landed') names.landed = 'Landed';
+  // The Dashboard's Sent back counts open this one (#6847): open or rebuilding items whose latest verdict sent them back.
+  if (state === 'sent-back') names['sent-back'] = 'Sent back';
 
   const selectedLane = lane && !matching.some(item => item.lane === lane) ? null : lane;
   const inLane = item => !selectedLane || item.lane === selectedLane;
@@ -27,7 +30,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
     : value === 'all' || (value === 'active' ? !['verified', 'withdrawn'].includes(stateOf(item))
       : value === 'gated' ? gatedOf(item)
         : value === 'passed' ? stateOf(item) === 'verified' && !mergedOf(item)
-          : value === 'landed' ? mergedOf(item) : stateOf(item) === value);
+          : value === 'landed' ? mergedOf(item)
+            : value === 'sent-back' ? ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT' : stateOf(item) === value);
   const stateOptions = Object.entries(names).map(([value, label]) => ({
     value, label, count: matching.filter(inLane).filter(inState(value)).length,
   }));
