@@ -18,7 +18,7 @@ const folders = [];
 after(() => { e2e.cleanup(); for (const dir of folders) rmSync(dir, { recursive: true, force: true }); });
 
 /** The pullboard-owned objects an older release never made, as the 11 Nov website board lacked them. */
-const ADDITIVE = ['job', 'job_step', 'job_kind_item', 'shout_target_id', 'board_meta_agent_session_value_v1',
+const ADDITIVE = ['job', 'job_step', 'job_kind_item', 'job_step_lease', 'job_lease_live', 'job_step_name_seq', 'job_step_name_at', 'shout_target_id', 'board_meta_agent_session_value_v1',
   'board_meta_grant_activation_v2', 'board_meta_grant_activation_unsafe_v1'];
 /** The six guards whose SQL that board carried from an older release. */
 const CHANGED = ['machine_item_move', 'machine_fields_claimed', 'machine_fields_submitted', 'machine_fields_verified',

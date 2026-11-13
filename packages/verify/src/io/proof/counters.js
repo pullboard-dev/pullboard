@@ -46,7 +46,12 @@ const STATEMENTS = new WeakMap();
 /** The connection's prepared statement for this SQL, prepared once. */
 function statement(db, sql) {
   let known = STATEMENTS.get(db);
-  if (!known) { known = new Map(); STATEMENTS.set(db, known); }
+  if (!known) {
+    known = new Map(); STATEMENTS.set(db, known);
+    // A prepared statement holds its connection natively, so a cached one kept every closed connection, and everything cached on it, in memory: drop them as the connection closes.
+    const close = db.close;
+    db.close = function closeAndForget(...args) { STATEMENTS.delete(db); return close.apply(this, args); };
+  }
   let prepared = known.get(sql);
   if (!prepared) { prepared = db.prepare(sql); known.set(sql, prepared); }
   return prepared;
@@ -209,6 +214,7 @@ export function appendProofCounter(board, event) {
 
 /** Refresh the derived forecast using bounded indexed sample dates, never native history. */
 function refreshCapacityCache(board, options) {
+  options = { presence: board.runtimePorts?.verification?.withLocalSeatPresence, ...options };
   refreshCapacity(board, key => proofCounter(board, key), (key, value) => put(board, key, value),
     (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : board.db.prepare(
       'SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
@@ -224,6 +230,7 @@ function refreshCapacityCache(board, options) {
 export function refreshCapacityOutsideWrite(board, atomic, options) {
   const writes = new Map();
   const read = key => writes.has(key) ? writes.get(key) : proofCounter(board, key);
+  options = { presence: board.runtimePorts?.verification?.withLocalSeatPresence, ...options };
   refreshCapacity(board, read, (key, value) => writes.set(key, value),
     (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : board.db.prepare(
       'SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')

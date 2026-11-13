@@ -14,6 +14,8 @@ import { offeredRequest } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { applyMainTestReceipt } from './recheck.js';
+import { applyCheckBaselineReceipt } from './baseline.js';
+import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
@@ -32,6 +34,32 @@ const MAX_SHARDS = 32;
 /** The newest gate job offered for an item, so an older candidate's receipt reads as stale. */
 function latestGateJob(db, item) {
   return db.prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
+}
+
+/**
+ * The item's pulled gates that came back red on a failing test phase, oldest first: each with the event id of the red
+ * fact applyGateReceipt wrote, the candidate the gate judged, and the failing cases it named.
+ * Why the red fact: it is written only for a receipt applied to the live claim at its bar, so a stale receipt never
+ * counts, and its event id orders the red against the holder's later facts [P7,C7].
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board
+ * @param {number} item
+ * @returns {{ eventId: number, commit: string, failures: { file?: string, name?: string }[] }[]}
+ */
+export function pulledGateReds(board, item) {
+  let jobs;
+  try { jobs = board.db.prepare("SELECT job_id, job_candidate FROM job WHERE job_kind = 'gate' AND job_item = ? AND job_step = 'done' ORDER BY job_created, rowid").all(item); }
+  catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
+  const redFact = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind = 'fact' AND json_extract(event_detail, '$.text') LIKE ?");
+  const reds = [];
+  for (const job of jobs) {
+    const receipt = postedReceipt(board.db, job.job_id)?.receipt;
+    // Only a test phase that ran and failed is a red loop; an analysis refusal or an infrastructure stop is not the item's code.
+    const failed = (receipt?.gate?.phases ?? []).filter(phase => phase.status !== 0);
+    const fact = job.job_candidate && failed.length ? redFact.get(item, `Gate job ${job.job_id} red at %`)?.id : null;
+    if (fact) reds.push({ eventId: fact, commit: job.job_candidate, failures: failed.flatMap(phase => phase.failures ?? phase.errors ?? []) });
+  }
+  return reds;
 }
 
 /** The job's kind, item, candidate, base, frozen check and the submit fields its offer recorded; null when the job is gone. */
@@ -145,7 +173,7 @@ function offerProofShards(board, { job, receipt, offered }) {
     const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
     // Each shard carries the ledger's proven rows for its own files; its runner runs only the misses [P7,CD2].
     const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
-    return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
+    return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
         input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }).id;
   });
@@ -366,7 +394,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
       const companion = submit.companion ? { ...submit.companion, receiptIds: phaseReceipts.map(row => row.id),
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
-      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green,
+      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green, ...(submit.infra ? { infra: submit.infra } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
         submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : ''}` } });
       if (mainOnly) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
@@ -463,6 +491,7 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
+  if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
@@ -472,17 +501,37 @@ export function applyJobReceipt(board, posted, ports = {}) {
 }
 
 /**
- * Record a red land receipt on each unmerged item the job named, as a note leading with the receipt's first
- * line (the run-tests refusal or first failing test), so `pullboard show` prints why the landing went red.
- * Why: the receipt otherwise stayed on the job, and the item sat accepted with no word of its red landing.
+ * Settle the items a land receipt gives back, as 0.9.3's landing did: each red or colliding item goes back to its
+ * builder with its accept withdrawn, or under separate publish parks on a hold, and its note leads with the receipt's
+ * first line (the run-tests refusal or first failing test) and keeps the failing case's lines, so `pullboard show` prints why. A red receipt with no
+ * returned list names every unmerged item it carried. Why: a red receipt only wrote a note, so the item stayed accepted
+ * and the next accept bundled it into a land job that went red again (#6469) [P7].
  */
-function recordRedLanding(board, job, named, receipt) {
-  const first = String(receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
-  for (const id of named) {
-    const item = store.getItem(board, id);
+function returnLandedReds(board, job, named, receipt, separate) {
+  const rows = Array.isArray(receipt.returned) && receipt.returned.length ? receipt.returned
+    : receipt.outcome === 'red' ? [...named].map(id => ({ id, reason: 'red', detail: receipt.detail })) : [];
+  const back = [];
+  for (const row of rows) {
+    const item = named.has(row?.id) ? store.getItem(board, row.id) : null;
     if (!item || item.item_merged_commit) continue;
-    store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} red: ${first}`.slice(0, 600) });
+    const first = String(row.detail ?? receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
+    // The note keeps the failing case's lines too, so the builder reads the assertion, not only the case name.
+    store.appendFact(board, row.id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${row.reason === 'conflict' ? 'conflict' : 'red'}: ${String(row.detail ?? receipt.detail ?? first).trim() || first}`.slice(0, 900) });
+    // Only an accepted item moves; any other unmerged item (a forced landing's, say) keeps the note alone.
+    if (item.item_status !== 'verified' || item.item_hold_at) continue;
+    const why = `land job ${job} ${row.reason === 'conflict' ? 'could not merge it' : 'checked the merged tree red'}: ${first}`.slice(0, 400);
+    try {
+      if (separate) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });
+      else {
+        store.reopen(board, row.id, { agentId: 'coordinator', withdrawVerdict: true, note: `${why}; merge current main, fix it, commit and resubmit` });
+        if (item.item_built_by) store.persistShout(board, { from: 'coordinator', to: item.item_built_by, text: `#${row.id} is back with you: ${why}`.slice(0, 600) });
+      }
+      back.push(row.id);
+    } catch (error) {
+      store.appendFact(board, row.id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} could not return #${row.id}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 200)}` });
+    }
   }
+  return back;
 }
 
 /**
@@ -521,18 +570,19 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
 
 /**
  * Mark each item a landed receipt names merged at the trunk commit the runner pushed: the items it merged and those
- * trunk already held. An item no longer accepted and unmerged is left as it is. Any other outcome (a conflict, a red
- * check, a busy trunk) changes no item; the items stay accepted for the next landing.
+ * trunk already held. An item no longer accepted and unmerged is left as it is. The items the receipt gives back (red
+ * or colliding) return to their builders or park (returnLandedReds); a busy trunk or lost lease changes no item, and
+ * those stay accepted for the next landing.
  *
  * @param {any} board
  * @param {{ job: string, receipt: Record<string, any> }} posted
- * @returns {{ applied: boolean, outcome: string, merged?: number[] }}
+ * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
 export function applyLandingReceipt(board, { job, receipt }) {
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
-  if (receipt?.outcome === 'red') recordRedLanding(board, job, named, receipt);
-  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: false, outcome: String(receipt?.outcome ?? 'unknown') };
+  const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
+  if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
   const merged = [];
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
@@ -541,5 +591,5 @@ export function applyLandingReceipt(board, { job, receipt }) {
     store.merged(board, id, { agentId: 'coordinator', commit: receipt.trunk, note: `landed by runner job ${job}` });
     merged.push(id);
   }
-  return { applied: merged.length > 0, outcome: 'landed', merged };
+  return { applied: merged.length > 0 || returned.length > 0, outcome: 'landed', merged, returned };
 }

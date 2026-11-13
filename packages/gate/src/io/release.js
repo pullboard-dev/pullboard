@@ -51,13 +51,23 @@ export function releaseSource(root) {
   return { head, tree, command: createHash('sha256').update(policy.config.gate).digest('hex'), policy };
 }
 
+/** The folder of a repository's native release receipts: the one place that names it (registry owner, #6743). */
+export function releaseReceiptDirectory(root) {
+  return join(repoInfo(root).commonDir, 'pullboard', 'release-receipts');
+}
+
+/** The path of one native release receipt. */
+export function releaseReceiptFile(root, id) {
+  return join(releaseReceiptDirectory(root), `${id}.json`);
+}
+
 /** Verify only this repository's privately recorded execution and its native gate bytes, never an imported file. */
 export function verifyNativeReleaseReceipt(root, id, executionServices) {
   if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/u.test(id)) return null;
   try {
     const source = releaseSource(root);
     const { releaseExecutors } = requireGateExecutionServices(executionServices).landing;
-    const file = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${id}.json`);
+    const file = releaseReceiptFile(root, id);
     // Current registration is independently observed; a caller cannot shrink the required machine set.
     const expected = { head: source.head, tree: source.tree, command: source.command,
       required: releaseExecutors().map(entry => entry.id) };
@@ -90,9 +100,8 @@ export async function runReleaseGate(root, { agent = 'release', onWait, executio
   }
   const coordinator = checkCoordinatorRelease(root, { personOverride });
   // Only this execution path writes native release custody. The structural reader has no writer.
-  const directory = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const file = join(directory, `${request.id}.json`);
+  mkdirSync(releaseReceiptDirectory(root), { recursive: true, mode: 0o700 });
+  const file = releaseReceiptFile(root, request.id);
   const body = releaseReceiptBody(envelope, expected);
   writeFileSync(file, body, { flag: 'wx', mode: 0o600 });
   recordCoordinatorRelease(root, request.id, source.head, coordinator);
