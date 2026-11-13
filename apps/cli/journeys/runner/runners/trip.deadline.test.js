@@ -20,6 +20,7 @@ import {
   shellQuote,
   takeResource,
   test,
+  waitForCondition,
   tmpdir,
   writeFileSync,
 } from '../../../tests/fixtures/scenarios/runners.js';
@@ -92,6 +93,8 @@ test('a queued runner run finishes or fails by name within its deadline [C7]', {
     assert.equal(real.status, 0, fixtureResultContext(real));
     assert.match(real.stdout, /ROUND_TRIP_DONE/u);
     assert.equal(gateResult(real.stdout).runner, HOST);
+    // The controller can take the worker's result and exit before the ssh stand-in records its return on exit (#5743).
+    await waitForCondition(() => phaseCounts(`${requests}.phases`).returned >= 1, 'the ssh stand-in recorded its return', { state: () => phaseCounts(`${requests}.phases`), signal: AbortSignal.timeout(30_000) }); // budget: a ceiling for the stand-in's exit record on a loaded runner.
     assert.deepEqual(phaseCounts(`${requests}.phases`), { dispatched: 1, returned: 1 });
 
     /** Hold the fake runner at one phase and expect the round trip to fail naming it, in time. */
@@ -102,7 +105,8 @@ test('a queued runner run finishes or fails by name within its deadline [C7]', {
         new RegExp(`runner round trip stuck in phase "${phase}"`, 'u'), `a runner held at ${hold} fails naming the ${phase} phase`);
       const elapsed = Date.now() - started;
       assert.ok(elapsed < ceiling, `the ${phase} failure arrives in ${elapsed} ms, under ${ceiling} ms`);
-      assert.deepEqual(processesUnder(dir), [], `nothing from the held ${phase} round trip keeps running`);
+      // The stand-in's agent hosts belong to the fixture and end with the test, not with a round trip.
+      assert.deepEqual(processesUnder(dir).filter(line => !line.includes('/.agent-host-')), [], `nothing from the held ${phase} round trip keeps running`);
     };
     // With the default deadlines a runner that never answers fails by name within about a minute.
     // A loaded runner can spend most of the default 20 s dispatch deadline starting the controller, so this case widens only that phase.

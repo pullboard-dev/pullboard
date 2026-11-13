@@ -103,7 +103,7 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
     document(box.run(box.web, 'claim', String(id), '--json'));
     historicalSubmission(box, id, commit);
     const before = phaseCounts(requests + '.phases');
-    const child = startToolingCli(reviewer, box.env, ['verify', String(id), 'accept', '--note', 'trusted remote review fixture', '--json']);
+    const child = startToolingCli(reviewer, box.env, ['verify', String(id), 'accept', '--note', 'trusted remote review fixture', '--no-next', '--json']);
     let stdout = '', stderr = '';
     child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
     child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });

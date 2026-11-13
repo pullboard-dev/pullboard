@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/cost.css apps/view/src/io/main.css */
 /** @pullboard-world-pin reads cost.css and main.css to prove the width rules the page ships. */
 /** Cost draws its frame and last known numbers at once, and Cost and Settings use the page's full width [N26]. */
 import assert from 'node:assert/strict';

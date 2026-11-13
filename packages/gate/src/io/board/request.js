@@ -25,22 +25,31 @@ const CALLBACK_LISTS = Object.freeze([
   { file: 'apps/cli/src/io/commands/serve.js', list: /settingsProviders:\s*\{([^}]*)\}/u, what: 'settingsProviders' },
 ]);
 const RUN_COMMAND = 'apps/cli/src/io/main.js#main';
-// Calls that block the event loop until a child exits; `gitSpawnSync` is git's own wrapper over spawnSync.
-const BLOCKING = /^(?:(?:node:)?child_process#(?:spawnSync|execSync|execFileSync)|.*#(?:gitSpawnSync|gitExecFileSync))$/u;
+// Calls that block the event loop: a child until it exits (`gitSpawnSync` is git's own wrapper over spawnSync), a
+// whole directory listing, and a thread parked on `Atomics.wait` [#6754].
+const BLOCKING = /^(?:(?:node:)?child_process#(?:spawnSync|execSync|execFileSync)|(?:node:)?fs#readdirSync|global:Atomics#wait|.*#(?:gitSpawnSync|gitExecFileSync))$/u;
+/** `Atomics.wait` is a global, so no import resolves it: a call by that name is the blocking one unless the module declares its own `Atomics`. */
+const ATOMICS_WAIT = Object.freeze({ builtin: 'global:Atomics', name: 'wait' });
 
 /**
- * Today's request-path synchronous calls, keyed by the first function outside packages/git that makes them. The set may
+ * Today's request-path synchronous calls, keyed by the file and function that make the call. The set may
  * only shrink: a key that no longer fires fails the check, so a fix must delete its row. Why: one synchronous git
  * inside a request froze the board API for 10 hours on 12 Nov [#6718].
  */
 export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
+  'apps/relay/src/io/retention.js#backupFiles': 'relay retention lists its backup files with a whole-directory synchronous read',
+  'apps/relay/src/io/retention.js#createRelayRetention': 'relay retention lists its backup folder with a whole-directory synchronous read',
   'packages/activity/src/io/inbox.js#gitPaths': 'state read lists claim worktree files with synchronous git',
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
-  'packages/activity/src/io/inbox.js#activityWorkingFiles': 'state read asks git for each claim worktree status',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
-  'packages/api/src/io/main.js#boardStateRevision': 'state revision request reads the trunk ref with synchronous git',
   'apps/view/src/io/serve.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
-  'packages/items/src/io/claim.js#itemFolderIdentity': 'gate-receipt submit finds an item folder with synchronous git',
+  'packages/git/src/io/main.js#bareWorktreeFinding': 'state read lists a claim worktree folder with a synchronous directory read',
+  'packages/git/src/io/main.js#readMainCheckout': 'merge-only submit reads the main checkout with synchronous git',
+  'packages/git/src/io/main.js#gitCall': 'merge-only submit runs git through a synchronous helper',
+  'packages/git/src/io/main.js#worktreeStatus': 'state read asks git for each claim worktree status',
+  'packages/git/src/io/main.js#git': 'gate-receipt submit finds an item folder through a synchronous git helper',
+  'packages/git/src/io/main.js#rawGit': 'code viewer request resolves a commit through a synchronous git helper',
+  'packages/git/src/io/main.js#prefetchedShow': 'code viewer request reads a blob through a synchronous git helper',
   'packages/items/src/io/patch/compose.js#git': 'gate-receipt submit composes item patches through a synchronous git helper',
   'packages/items/src/io/patch/compose.js#mergeFromOrigin': 'gate-receipt submit merges main with synchronous git',
   'packages/items/src/io/patch/compose.js#composeItemPatches': 'gate-receipt submit composes patches with synchronous git',
@@ -49,12 +58,17 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/keys/src/io/relay.js#removeKeychainValue': 'relay forget removes a keychain value through a synchronous child process',
   'packages/keys/src/io/relay.js#readBoardKey': 'relay move reads the board key through a synchronous child process',
   'packages/keys/src/io/relay.js#forgetBoardKey': 'relay forget deletes the board key through a synchronous child process',
+  'packages/keys/src/io/relay.js#scrubLegacyPersonSessions': 'relay move lists legacy person sessions with a synchronous directory read',
   'packages/landing/src/io/main/red/receipt.js#treeOf': 'mainReceipts resolves the main tree with synchronous git on every submit-time comparison',
   'packages/landing/src/io/main/red/receipt.js#unchangedDescendants': 'one synchronous git log per cached main candidate file',
-  'packages/merge/src/io/only/source.js#deriveMergeOnly': 'merge-only submit reads the main checkout with synchronous git',
+  'packages/link/src/io/relay/lock.js#locked': 'relay lock check lists the lock folder with a synchronous directory read',
+  'packages/link/src/io/relay/machine.js#readRelayMachine': 'relay machine read lists its folder with a synchronous directory read',
+  'packages/link/src/io/relay/machine.js#updateRelayMachine': 'relay machine update lists its folder with a synchronous directory read',
   'packages/merge/src/io/only/source.js#readGit': 'merge-only submit captures its source with synchronous git',
   'packages/sandbox/src/io/trusted/policy/committed.js#policyGit': 'mainReceipts reads the main committed policy with synchronous git',
   'packages/spec/src/io/signature.js#runTool': 'spec approval evidence runs a signing tool in a synchronous child process',
+  'packages/store/src/io/board/busy.js#beginImmediateQueued': 'a queued board write parks the thread on Atomics.wait between retries',
+  'packages/store/src/io/board/write/lock.js#boardWriteHolderText': 'busy-board error text lists lock holders with a synchronous directory read',
   'packages/store/src/io/board/write/lock.js#identities': 'busy-board error text lists lock holders through a synchronous process lookup',
   'packages/verify/src/io/verdict/freshness.js#readGit': 'verdict freshness reads git synchronously while building relay state',
   'packages/verify/src/io/verdict/freshness.js#pathPatchId': 'verdict freshness computes patch ids with synchronous git',
@@ -82,10 +96,10 @@ export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS }
     const model = modules.get(file), fn = model?.functions.get(name);
     if (!fn) return;
     const body = model.code.slice(fn.bodyStart, fn.end), base = model.source.slice(0, fn.bodyStart).split('\n').length;
-    for (const call of calls(body)) for (const target of targets(file, call.name)) {
+    for (const call of calls(body)) for (const target of call.name === 'Atomics.wait' && !model.imports.has('Atomics') ? [ATOMICS_WAIT] : targets(file, call.name)) {
       const id = (target.builtin ?? target.file) + '#' + target.name;
       if (BLOCKING.test(id)) {
-        const owner = [...chain, key].filter(row => !row.startsWith('packages/git/')).at(-1) ?? key;
+        const owner = key; // the call site itself, so the row never depends on which caller reached it first [#6755]
         const line = base + body.slice(0, call.at).split('\n').length - 1;
         found.set(owner + ':' + id, { file, line, call: id, owner, chain: [...chain, key] });
       } else if (target.file) walk(target.file, target.name, [...chain, key]);

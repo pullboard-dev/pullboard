@@ -7,6 +7,7 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import { calls } from '../../tests/fixtures/land/board.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 /** Exercise an expired landing waiver against real private Git worktrees, split from the adoption journey to keep each file inside its time budget [B3,R3]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -15,6 +16,8 @@ const { FILES, landProject, itemWorktree, submitItem, acceptItem, moveMainPastSu
 
 test('land stops again with an expired waiver, and a changed test on main releases the held batch [B3,R3]', () => {
   const box = landProject();
+  // The fixture gate runs inside the submit, which a pull submit does not do before accept; pinned to controller until #6832 [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   box.env.LAND_SUPPRESS_RED = '1';
   assert.equal(commitFile(box, box.repo, FILES[0], 'FLAKE\n', 'chore: install a flaky fixture test').status, 0);
   const entry = itemWorktree(box, 1, 'web/feature.js');
@@ -41,5 +44,7 @@ test('land stops again with an expired waiver, and a changed test on main releas
   assert.deepEqual(landed.landed, [entry.item]);
   assert.notEqual(landed.batch.id, held.batch.id);
   assert.equal(landed.batch.proof.failures.length, 0);
-  assert.deepEqual(calls(box).slice(regated), [[]], 'corrected test is gated afresh');
+  // landing.publish now defaults to the full suite, so a landing may run the gate once more at publish: at least one whole-gate call, never a named one [C7].
+  const gated = calls(box).slice(regated);
+  assert.ok(gated.length >= 1 && gated.every(call => call.length === 0), 'corrected test is gated afresh');
 });

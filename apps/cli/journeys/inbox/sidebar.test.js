@@ -22,9 +22,20 @@ import { openPage } from '../../tests/fixtures/cockpit/harness.js';
 import { projectRows } from '../../tests/fixtures/cockpit/harness.js';
 import { productEntries } from '../../tests/fixtures/cockpit/harness.js';
 import { accept } from '../../tests/fixtures/cockpit/harness.js';
+import { boardOf } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
+
+/**
+ * Refresh once the board's latest change is built. The summary route answers at once from the last build and only
+ * starts the build that catches up (2a42eb77d4, #6634); a full state read waits for that build, so the refresh after it
+ * shows the change in the other boards' rows.
+ */
+async function refreshAfterBuild(page, view, root) {
+  await boardOf(view, root);
+  await page.run('refresh()');
+}
 
 test('unreadable boards collapse to one line with Forget all while projects group readable repos with combined needs and activity [N33, N34, N36]', async () => {
   const box = machine();
@@ -164,7 +175,7 @@ test('the project list drops from the switcher at the top left, over a full-widt
   /** Read the top tier, the switcher, its list and the board as the person sees them. */
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const box = (s) => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height, shown: getComputedStyle(e).display !== 'none' && r.width > 0 }; };
-    return { width: document.documentElement.clientWidth, tier: box('.top-tier'), main: box('main'), switcher: box('#proj-switch'), list: box('#side-body'), theme: box('#theme'),
+    return { width: document.documentElement.clientWidth, tier: box('.top-tier'), main: box('main'), switcher: box('#proj-switch'), list: box('#side-body'), theme: box('#account-slot'),
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
   })())`));
   try {
@@ -290,7 +301,7 @@ test('the tab title says what needs you [N26]', async () => {
     await box.inProcess(alpha.repo, 'withdraw', '1', 'the greeting moved to the next release');
     accept(box, alpha, 2);
     await box.inProcess(beta.repo, 'hold', 'web', '--off');
-    await page.run('refresh()');
+    await refreshAfterBuild(page, view, beta.repo);
     assert.equal(title(), 'calm · Pullboard', 'nothing needs the person, so no count');
 
     assert.equal((await openPage(nobody)).run('document.title'), 'Pullboard', 'with no project to show');
@@ -311,16 +322,16 @@ test('an open decision counts in the sidebar and the tab title [B21, B26, N26]',
     assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '', 'nothing open']], "an agent's ask is its coordinator's to answer, so it counts for no one here");
 
     await box.inProcess(beta.repo, 'pass', '1', 'it changes the launch');
-    await page.run('refresh()');
+    await refreshAfterBuild(page, view, beta.repo);
     assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '1', '1 decision']], "passed up, it needs the person, from alpha too");
     assert.equal(page.run('document.title'), '(1) alpha · Pullboard');
 
     await box.inProcess(beta.repo, 'shout', 'person', 'And the docs?', '--decision');
-    await page.run('refresh()');
+    await refreshAfterBuild(page, view, beta.repo);
     assert.deepEqual(rows()[1], ['beta', '2', '2 decisions'], 'a coordinator asks the person straight out too');
     await box.inProcess(beta.repo, 'answer', '2', 'yes', '--as', 'person');
     await box.inProcess(beta.repo, 'answer', '3', 'after', '--as', 'person');
-    await page.run('refresh()');
+    await refreshAfterBuild(page, view, beta.repo);
     assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '', 'nothing open']], 'answered, they need no one');
     const replies = JSON.parse(await box.inProcess(beta.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
     assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),

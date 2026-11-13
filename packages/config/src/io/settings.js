@@ -18,6 +18,7 @@ import {
 } from '../../../resources/index.js';
 import { validateRunner } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
+import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
@@ -146,6 +147,22 @@ export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);
   const current = loadMachineSettings();
   const next = { ...current, gate: { ...current.gate, runnerWaitMs: milliseconds } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
+ * Store one runner's rate card in machine settings, refusing a card with a missing or invalid field.
+ * Why: a later cost figure is only as honest as its inputs, so only a whole, valid card is stored.
+ *
+ * @param {string} host - The runner host the card belongs to.
+ * @param {unknown} card - { price, months, watts, kwhPrice }.
+ * @returns {object} The settings now stored.
+ */
+export function setRunnerRate(host, card) {
+  const parsed = parseRunnerRate(card, host);
+  const current = loadMachineSettings();
+  const next = { ...current, runnerRates: { ...current.runnerRates, [host]: parsed } };
   writeMachineSettings(next);
   return next;
 }

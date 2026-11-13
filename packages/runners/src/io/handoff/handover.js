@@ -129,9 +129,9 @@ export function recordStopSignals(running, exit) {
  *
  * @param {string | null} tools - The current tools folder, or null when another dispatcher took over.
  * @param {(code: number) => void} exit
- * @param {{ launch?: typeof ensureHandoffDispatcher, running?: Map<unknown, object>, finish?: typeof finishRunningWorkers, release?: typeof releaseLifelines, signals?: typeof recordStopSignals, owner?: string, startOf?: (pid: number) => string }} [ports]
+ * @param {{ launch?: typeof ensureHandoffDispatcher, running?: Map<unknown, object>, finish?: typeof finishRunningWorkers, release?: typeof releaseLifelines, signals?: typeof recordStopSignals, owner?: string, startOf?: (pid: number) => string, entry?: string }} [ports] - `entry`: the dispatcher file the successor runs, named by the app
  */
-export async function handOver(tools, exit, { launch = ensureHandoffDispatcher, running = new Map(), finish = finishRunningWorkers, release = releaseLifelines, signals = recordStopSignals, owner = process.env[HANDOFF_DISPATCHER_OWNER_ENV], startOf } = {}) {
+export async function handOver(tools, exit, { launch = ensureHandoffDispatcher, running = new Map(), finish = finishRunningWorkers, release = releaseLifelines, signals = recordStopSignals, owner = process.env[HANDOFF_DISPATCHER_OWNER_ENV], startOf, entry } = {}) {
   const stopRecording = signals(running, exit);
   let released = 0;
   try { released = await release(running); }
@@ -140,7 +140,7 @@ export async function handOver(tools, exit, { launch = ensureHandoffDispatcher, 
   // The dispatcher's stderr is its log, so the hand-over is recorded there.
   logLine(`${line}; ${released} running gate driver(s) finish on their own`);
   if (tools) {
-    try { await launch(tools, process.cwd(), { ...(startOf ? { startOf } : {}), ...(owner ? { owner } : {}) }); }
+    try { await launch(tools, process.cwd(), { ...(startOf ? { startOf } : {}), ...(owner ? { owner } : {}), ...(entry ? { entry } : {}) }); }
     catch (error) { process.stderr.write(`hand-over launch failed: ${error.message}; the next submit launches a dispatcher\n`); }
   }
   await finish(running);

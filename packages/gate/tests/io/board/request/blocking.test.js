@@ -20,10 +20,12 @@ test('clause 1: every known violation names why, and the seeded set includes mai
   assert.ok('packages/landing/src/io/main/red/receipt.js#unchangedDescendants' in KNOWN_REQUEST_BLOCKERS);
 });
 
-test('clause 1: a new spawnSync, execSync or gitSpawnSync call reached from a handler outside the list fails [C7]', () => {
+test('clause 1: a new spawnSync, execSync, gitSpawnSync, readdirSync or Atomics.wait call reached from a handler outside the list fails [C7]', () => {
   const calls = { spawn: "import { spawnSync } from 'node:child_process';\nexport function helper() { return spawnSync('ls'); }",
     exec: "import { execSync } from 'node:child_process';\nexport function helper() { return execSync('ls'); }",
-    git: "import { gitSpawnSync } from '../../../git/index.js';\nexport function helper() { return gitSpawnSync(['status']); }" };
+    git: "import { gitSpawnSync } from '../../../git/index.js';\nexport function helper() { return gitSpawnSync(['status']); }",
+    readdir: "import { readdirSync } from 'node:fs';\nexport function helper() { return readdirSync('.'); }",
+    atomics: "export function helper() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5); }" };
   for (const [kind, text] of Object.entries(calls)) {
     const injected = [...sources.filter(row => row.file !== 'packages/api/src/io/main.js'), ...[sources.find(row => row.file === 'packages/api/src/io/main.js')]
       .map(row => ({ ...row, source: row.source + "\nimport { helper } from './added.js';\nexport function addedHandler() { return helper(); }\n" })),
@@ -97,4 +99,34 @@ test('#6756 clause 2: a callback list the check cannot find fails instead of pas
 test('clause 2: every known violation is listed by file and function, and the check finds no blocker beyond them [C7]', () => {
   for (const owner of Object.keys(KNOWN_REQUEST_BLOCKERS)) assert.match(owner, /^[\w./-]+\.js#[\w$]+$/u, owner);
   assert.deepEqual(apiRequestIoProblems(sources), []);
+});
+
+test('#6755 clause 1: a known-violation row is keyed by the file and function of the call site itself, whatever order the tree is walked in [C7]', () => {
+  const owners = rows => rows.map(row => `${row.owner} ${row.call}`).sort();
+  const shared = { file: 'packages/git/src/io/added-shared.js', source: "import { spawnSync } from 'node:child_process';\nexport function sharedGit() { return spawnSync('git'); }\n" };
+  const callers = ['a', 'b'].map(name => ({ file: `packages/api/src/io/added-${name}.js`, source: `import { sharedGit } from '../../../git/src/io/added-shared.js';\nexport function ${name}Handler() { return sharedGit(); }\n` }));
+  const injected = [...sources, shared, ...callers];
+  const forward = apiRequestIoProblems(injected, { known: {} });
+  assert.deepEqual(owners(apiRequestIoProblems([...injected].reverse(), { known: {} })), owners(forward), 'walk order changes no row');
+  const rows = forward.filter(row => row.file === shared.file);
+  assert.deepEqual(rows.map(row => row.owner), ['packages/git/src/io/added-shared.js#sharedGit'], 'the row names the call site, not the caller that reached it first');
+  for (const row of forward) assert.equal(row.owner, `${row.file}#${row.chain.at(-1).split('#')[1]}`, 'owner is the call site');
+});
+
+test('clause 2: the known set holds the current Atomics.wait and readdirSync sites by file and function [C7]', () => {
+  assert.ok('packages/store/src/io/board/busy.js#beginImmediateQueued' in KNOWN_REQUEST_BLOCKERS);
+  for (const owner of ['apps/relay/src/io/retention.js#backupFiles', 'packages/keys/src/io/relay.js#scrubLegacyPersonSessions', 'packages/link/src/io/relay/lock.js#locked', 'packages/link/src/io/relay/machine.js#readRelayMachine', 'packages/store/src/io/board/write/lock.js#boardWriteHolderText']) {
+    assert.ok(owner in KNOWN_REQUEST_BLOCKERS, owner);
+  }
+  const rows = apiRequestIoProblems(sources, { known: {} }).map(row => row.call);
+  assert.ok(rows.includes('global:Atomics#wait') && rows.includes('node:fs#readdirSync'));
+});
+
+test('clause 1: Atomics.wait and readdirSync are listed as blocking calls, and a local Atomics binding is not the global one [C7]', () => {
+  const entry = 'packages/api/src/io/main.js', row = sources.find(found => found.file === entry);
+  const inject = text => [...sources.filter(found => found.file !== entry), { ...row, source: row.source + "\nimport { helper } from './added.js';\nexport function addedHandler() { return helper(); }\n" }, { file: 'packages/api/src/io/added.js', source: text }];
+  const owners = text => apiRequestIoProblems(inject(text)).filter(found => found.owner === 'packages/api/src/io/added.js#helper').map(found => found.call);
+  assert.deepEqual(owners("import { readdirSync } from 'node:fs';\nexport function helper() { return readdirSync('.'); }"), ['node:fs#readdirSync']);
+  assert.deepEqual(owners("export function helper() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5); }"), ['global:Atomics#wait']);
+  assert.deepEqual(owners("import { Atomics } from './mine.js';\nexport function helper() { return Atomics.wait(1); }"), []);
 });
