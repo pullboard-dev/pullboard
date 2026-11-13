@@ -206,6 +206,15 @@ const unaccounted = (files, outcomes, text) => {
   try { gate.requireTestTierAccount({ green: true, testOutcomes: outcomes, profile: { tests: typeof gate.tapTests === 'function' ? gate.tapTests(text, root) : [] } }, files); return null; }
   catch (error) { return String(error?.message ?? error).replace(/^\\[\\w+\\] /u, ''); }
 };
+/**
+ * The checkout's HEAD and its tracked-file changes, or null when Git cannot read them. Why: a gate that moves the
+ * checkout it judges proves some other tree, so its phases are bracketed by this read (MOVED_DURING_GATE) [V16,C7].
+ */
+const checkoutState = () => {
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  const tracked = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' });
+  return head.status === 0 && tracked.status === 0 ? { head: head.stdout.trim(), tracked: tracked.stdout.trim() } : null;
+};
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
@@ -276,7 +285,7 @@ else {
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
     message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
   if (!refusals.length && !receipt.analysis.infra) {
-    const PATH = cliPath();
+    const PATH = cliPath(), before = checkoutState();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
     const plan = analysis.plan ?? {}, cores = availableParallelism();
     // Test tiers make the controller demand an account for every selected file; the pulled proof demands the same [C7].
@@ -291,6 +300,10 @@ else {
     } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
     // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
     for (const phase of receipt.phases) if (phase.unreported) refusals.push({ part: phase.role, code: 'TEST_SELECTION_UNVERIFIED', message: phase.unreported });
+    // A gate that commits or edits a tracked file in this checkout no longer proves the candidate it was given, as the controller refused it [V16,C7].
+    const after = checkoutState();
+    if (before && JSON.stringify(after) !== JSON.stringify(before)) refusals.push({ part: 'gate', code: 'MOVED_DURING_GATE',
+      message: 'the gate left the checkout changed (' + (after?.head !== before.head ? 'a new commit ' + String(after?.head).slice(0, 12) : 'edited tracked files: ' + String(after?.tracked).split('\\n').slice(0, 5).join(', ')) + ') while checking ' + before.head.slice(0, 12) + '; next: leave the worktree alone until the gate finishes, then submit again' });
   }
 }
 }
