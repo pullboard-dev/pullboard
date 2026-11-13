@@ -47,7 +47,7 @@ function fixture(t, { dropFirst = true } = {}) {
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, {
     gateSlots: 0, browserSlots: 0, runners: [runner],
     // Live-load ranking probes each runner over SSH before admission, which the holding stand-ins below would stall past the deadline.
-    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller' },
+    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: 'pull' },
   });
   return { ...box, requests, starts, runner };
 }
