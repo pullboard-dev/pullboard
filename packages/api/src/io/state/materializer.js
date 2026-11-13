@@ -208,14 +208,18 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
     /** Whether the worker still runs; a server whose worker failed reads on the request thread instead. */
     get alive() { return failure === null; },
     /** A state read's JSON, validator and report validator, from the latest materialized record, or the kept one for a kept read. */
-    async stateJson(board, seen, { detail = null, items = null, stateDetail = 'summary', kept = false } = {}) {
+    async stateJson(board, seen, { detail = null, items = null, finished = null, stateDetail = 'summary', kept = false } = {}) {
       const compact = items === 'compact';
       const full = !compact && (detail ?? stateDetail) === 'full';
       const record = await latest(board, { full, kept });
       const unseen = seen === null ? null : { since: seen, count: shoutsAfter(record.shouts, seen) };
-      const variant = full ? record.full : compact ? record.compact : record.summary;
+      const variant = full ? record.full : compact ? (finished === 'omit' ? record.open : record.compact) : record.summary;
       if (!full) hold(board, record.sequence);
       return { json: joined(variant.json, unseen), validator: joined(variant.validator, unseen), reportValidator: record.reportValidator };
+    },
+    /** The finished items of the latest build, as the JSON text GET /boards/:id/finished serves; a read of an unchanged board starts no build. */
+    async finishedJson(board) {
+      return (await latest(board)).finished;
     },
     /** A delta read: the change since a held sequence, or a reset naming why there is none. */
     async delta(board, seen, { since, eventLogVersion = null }, refusalDocument) {
@@ -233,10 +237,20 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       const unseen = seen === null ? null : { since: seen, count: shoutsAfter(record.shouts, seen) };
       return Object.defineProperty({ ...answer, delta: JSON.parse(joined(parts, unseen)) }, 'reportValidator', { value: record.reportValidator });
     },
-    /** The ids of the items a search shows, from the latest record's search texts. */
+    /**
+     * The ids of the items a search shows, from the held record's search texts, answered at once and never after a build.
+     * Why: on a live board the revision moves every few seconds and a build takes 4-30 s, so a search that waited for the
+     * newest build waited 6-7 s [A2,C7]. A changed board starts the build that catches up, and the next search finds
+     * the change; a board never read before has no held record and waits for its first build.
+     */
     async search(board, text) {
       const words = String(text).trim().toLowerCase();
-      const record = await latest(board);
+      const entry = boardEntry(board);
+      let record = entry.record;
+      if (record) {
+        const revision = revisionOf(entry);
+        if (revision === null || record.revision !== revision) { entry.wanted = revision; if (entry.inflight === null) request(entry); }
+      } else record = await latest(board);
       return record.search.filter(([, searched]) => !words || searched.includes(words)).map(([id]) => id);
     },
     /**

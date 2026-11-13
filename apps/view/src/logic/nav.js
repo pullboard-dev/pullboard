@@ -14,7 +14,7 @@
  */
 export function navPages({ cost = false } = {}) {
   const groups = [
-    { group: 'Work', id: 'work', pages: [['progress', 'Progress', 'What is happening, in plain words'], ['items', 'Items', 'Every piece of work'], ['shouts', 'Shouts', 'Agents talking to the coordinator'], ['roadmap', 'Roadmap', 'What ships next, in order']] },
+    { group: 'Work', id: 'work', pages: [['items', 'Items', 'Every piece of work'], ['shouts', 'Shouts', 'Agents talking to the coordinator'], ['roadmap', 'Roadmap', 'What ships next, in order']] },
     { group: 'Rules', id: 'rules', pages: [['spec', 'Spec', 'What the product must do'], ['doctrine', 'Doctrine', 'How the work must be done']] },
     { group: 'Insights', id: 'insights', pages: [['dashboard', 'Dashboard', 'Every number on the board'], ['activity', 'Activity', 'What happened, in order'], ['cost', 'Cost', 'Time and tokens per item']] },
   ];
@@ -49,6 +49,35 @@ export function navStripHtml({ tab = null, cost = false, open = null, facts = {}
 }
 
 /**
+ * Which layout the navigation takes: the sidebar only when this device chose it with the pin and the screen is wide
+ * enough; a phone, and anything the device never chose, gets the top tabs [N26].
+ *
+ * @param {{ stored?: string|null, wide?: boolean }} [state]
+ * @returns {'top'|'side'}
+ */
+export function navLayout({ stored = null, wide = true } = {}) {
+  return stored === 'side' && wide ? 'side' : 'top';
+}
+
+/**
+ * The sidebar layout's page list: the same pages as the strip, under quiet group labels, each a 28 px row with its
+ * one fact at the right (amber when it needs the person, muted otherwise). Every row is a `[data-tab]` button, so the
+ * strip's click handler and active mark serve it too; the board fills each `[data-nav-fact]` in place.
+ *
+ * @param {{ tab?: string|null, cost?: boolean, facts?: Record<string, string|number|null>, amber?: string[] }} [state]
+ * @returns {string}
+ */
+export function navSideHtml({ tab = null, cost = false, facts = {}, amber = [] } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const pages = navPages({ cost });
+  const fact = (id) => facts[id] === null || facts[id] === undefined || facts[id] === '' ? '' : String(facts[id]);
+  return ['work', 'rules', 'insights'].map(groupId => {
+    const members = pages.filter(page => page.groupId === groupId);
+    return '<div class="side-h">' + members[0].group + '</div>' + members.map(page => '<button class="side-row' + (page.id === tab ? ' on' : '') + '" data-tab="' + page.id + '" type="button"' + (page.id === tab ? ' aria-current="page"' : '') + '><span class="side-name">' + page.name + '</span><span class="f' + (amber.includes(page.id) ? ' a' : '') + '" data-nav-fact="' + page.id + '">' + esc(fact(page.id)) + '</span></button>').join('');
+  }).join('');
+}
+
+/**
  * The notch's three numbers, in the rules' order (activity, pace, attention): agents at work, landed per hour and
  * rulings. One number and at most two words each; colour carries meaning (green pace, amber rulings). Each item
  * carries data-peek, the hook a hover preview attaches to, and opens its page on click.
@@ -73,12 +102,13 @@ export function notchHtml({ agents = null, perHour = null, rulings = null } = {}
 
 /**
  * A place's filters and search as query pairs, leaving out each default so a plain tab keeps a plain address.
- * Items' Show and Lane, the search words, Spec and Doctrine's row filter, Shouts' filter and Activity's filter.
+ * Items' Show and Lane, the search words, Spec and Doctrine's row filter, Shouts' filter, Activity's filter and person,
+ * whether the Roadmap shows what shipped: each control in a page's strip has its key here [N38].
  *
- * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string }} place
+ * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string, shipped?: boolean, by?: string|null }} place
  * @returns {[string, string][]}
  */
-export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all' }) {
+export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', shipped = false, by = null }) {
   const pairs = [];
   const words = String(q ?? '').trim();
   if (tab === 'items' && state && state !== stateDefault && !(words && state === 'all')) pairs.push(['state', state]);
@@ -87,6 +117,8 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
   if ((tab === 'spec' || tab === 'doctrine') && rows && rows !== rowsDefault) pairs.push(['rows', rows]);
   if (tab === 'shouts' && shouts && shouts !== 'all') pairs.push(['shouts', shouts]);
   if (tab === 'activity' && activity && activity !== 'all') pairs.push(['activity', activity]);
+  if (tab === 'activity' && by) pairs.push(['by', by]);
+  if (tab === 'roadmap' && shipped) pairs.push(['shipped', '1']);
   return pairs;
 }
 
@@ -94,24 +126,24 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
  * Read a place's filters and search back from a query string; a key the address leaves out reads as null.
  *
  * @param {string} search - "?a=b" or "a=b".
- * @returns {{ state: string|null, lane: string|null, q: string|null, rows: string|null, shouts: string|null, activity: string|null }}
+ * @returns {{ state: string|null, lane: string|null, q: string|null, rows: string|null, shouts: string|null, activity: string|null, shipped: string|null, by: string|null }}
  */
 export function readPlaceQuery(search) {
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   const value = (key) => { const read = params.get(key); return read === null || read === '' ? null : read; };
-  return { state: value('state'), lane: value('lane'), q: value('q'), rows: value('rows'), shouts: value('shouts'), activity: value('activity') };
+  return { state: value('state'), lane: value('lane'), q: value('q'), rows: value('rows'), shouts: value('shouts'), activity: value('activity'), shipped: value('shipped'), by: value('by') };
 }
 
 /**
  * Join a query string's other keys (the session's, say) with a place's pairs, in that order; the place keys are
- * state, lane, q, rows, shouts and activity.
+ * state, lane, q, rows, shouts, activity, shipped and by.
  *
  * @param {string} search - The current "?…" whose place keys are replaced.
  * @param {[string, string][]} pairs
  * @returns {string} "" or "?…".
  */
 export function withPlaceQuery(search, pairs) {
-  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity'];
+  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'shipped', 'by'];
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   for (const key of keys) params.delete(key);
   for (const [key, value] of pairs) params.append(key, value);
@@ -120,20 +152,23 @@ export function withPlaceQuery(search, pairs) {
 }
 
 /**
- * Progress in plain words until its own page lands: who is at work, the pace, and what waits for the person.
+ * The controls a page puts at the right of the navigation strip (the sidebar layout puts them on the title row):
+ * Items shows Open, Building, In review, All and New item; Shouts For you and All; Roadmap Show
+ * shipped; Activity a person filter. A page with nothing to control gets nothing. Each control carries data-page-ctl,
+ * the hook the page's one handler reads, and the state each one shows is the state the address holds.
  *
- * @param {{ agents?: number|null, perHour?: number|null, landedDay?: number|null, rulings?: number, building?: number, review?: number }} numbers
+ * @param {{ tab?: string|null, state?: string, shouts?: string, shipped?: boolean, by?: string|null, people?: string[], writable?: boolean }} [place]
  * @returns {string}
  */
-export function progressHtml({ agents = null, perHour = null, landedDay = null, rulings = 0, building = 0, review = 0 } = {}) {
-  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
-  const lines = [
-    Number.isFinite(agents) ? '<b>' + plural(agents, 'agent is', 'agents are') + '</b> at work.' : '',
-    building || review ? '<b>' + building + '</b> building and <b>' + review + '</b> in review.' : 'Nothing is building or in review.',
-    Number.isFinite(perHour) ? 'Work lands at about <b class="g">' + Math.round(perHour) + ' an hour</b>' + (Number.isFinite(landedDay) ? ', <b>' + landedDay + '</b> in the last 24 hours.' : '.') : '',
-    rulings ? '<b class="a">' + plural(rulings, 'ruling waits', 'rulings wait') + '</b> for you.' : 'Nothing waits for you.',
-  ].filter(Boolean);
-  return '<section class="card-panel progress-words"><h1>Progress</h1>' + lines.map(line => '<p>' + line + '</p>').join('') + '</section>';
+export function pageControlsHtml({ tab = null, state = 'active', shouts = 'all', shipped = false, by = null, people = [], writable = true } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' + (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + name + '</button>').join('') + '</span>';
+  const select = (label, kind, current, options) => '<select class="sel" data-page-ctl="' + kind + '" aria-label="' + label + '">' + options.map(([value, name]) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select>';
+  if (tab === 'items') return seg('Show', 'state', state, [['active', 'Open'], ['building', 'Building'], ['verify', 'In review'], ['all', 'All']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
+  if (tab === 'shouts') return seg('Shouts', 'shouts', shouts === 'you' ? 'you' : shouts === 'all' ? 'all' : '', [['you', 'For you'], ['all', 'All']]);
+  if (tab === 'roadmap') return '<button class="sel" type="button" data-page-ctl="shipped" aria-pressed="' + Boolean(shipped) + '">' + (shipped ? 'Hide shipped' : 'Show shipped') + '</button>';
+  if (tab === 'activity') return select('Person', 'by', by || '', [['', 'Everyone'], ...people.map((name) => [name, name === 'person' ? 'You' : name === 'coordinator' ? 'The coordinator' : name])]);
+  return '';
 }
 
 /**
@@ -152,8 +187,8 @@ export function accountHtml({ signedIn = false, login = '' } = {}) {
 }
 
 /**
- * The account menu: who you are, Settings, Theme, Pair a phone and Sign out; signed out it offers Sign in with GitHub in
- * place of a name and has no Sign out. The page embeds this function's source, so it uses only its argument.
+ * The account menu: who you are, Settings, Theme and Pair a phone; signed out it offers Sign in with GitHub in
+ * place of a name. There is no Sign out row yet: the view has no real sign-out, and relay off is destructive (Studio, 12 Nov). The page embeds this function's source, so it uses only its argument.
  *
  * @param {{ signedIn?: boolean, login?: string, theme?: string }} [account] - theme is what the person kept: light, dark or system.
  * @returns {string}
@@ -165,5 +200,5 @@ export function accountMenuHtml({ signedIn = false, login = '', theme = 'system'
     ? '<div class="who"><b>' + (login ? '@' + esc(login) : 'Signed in') + '</b><small>GitHub</small></div>'
     : '<div class="who"><b>Not signed in</b><small>Sign in to open your boards on any device</small></div>' + row('data-account-signin', 'Sign in with GitHub');
   return who + row('data-tab="settings"', 'Settings', ',') + row('data-theme-flip', 'Theme', '<i data-theme-label>' + (theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System') + '</i>')
-    + row('data-account-pair', 'Pair a phone') + (signedIn ? row('data-account-signout', 'Sign out') : '');
+    + row('data-account-pair', 'Pair a phone');
 }

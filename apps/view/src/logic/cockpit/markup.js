@@ -1,6 +1,7 @@
 import { navStripHtml } from "../nav.js";
 import { accountHtml } from "../nav.js";
 import { notchHtml } from "../nav.js";
+import { navSideHtml } from "../nav.js";
 
 /** Return the original markup section of the self-contained cockpit document, its shell the top layout of the approved navigation [N26]. */
 export function cockpitMarkup(sections) {
@@ -32,7 +33,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <span class="brand" id="side-toggle" title="Pullboard"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></span>
     <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body" title="Switch project"><span id="proj-name">Projects</span><span class="badge" id="proj-rulings" title="Rulings on this board"></span><small aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></small></button>
     </div>
-    <span class="pin" aria-hidden="true" title="Navigation at the top"><span class="pg">⇤</span></span>
+    <button class="pin" id="nav-pin" type="button" aria-pressed="false" aria-label="Move the navigation to the sidebar" title="Move the navigation to the sidebar (\\)"><span class="pg">⇤</span></button>
     <span class="crumb">/ <b id="crumb-page"></b></span>
     <span class="notch" id="notch" aria-label="The board now">${notchHtml()}</span>
     <div class="top-right">
@@ -46,11 +47,13 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </div>
 </header>
 <main>
+  <div class="page-title" id="page-title"><h2 id="page-title-text"></h2></div>
   <section class="card-panel first">
     <h2>No boards yet</h2>
     <p>Run <code>pullboard init</code> in a git repo, or ask an agent to. Its board shows up here by itself.</p>
   </section>
   <p class="empty" id="project-loading" role="status" hidden>Loading project…</p>
+  <section class="board-frame" id="board-frame" aria-hidden="true" hidden><div class="frame-primary"><div class="card-panel frame-card"></div><div class="card-panel frame-card frame-list"></div></div><div class="card-panel frame-card frame-detail"></div></section>
   ${hostedMarkup('http://127.0.0.1:4890', { looking: Boolean(hostedLocal) && !snapshot, signIn })}
   <button class="ob-gh share-gh" id="share-start" type="button" hidden>Sign in with GitHub</button>
   <section class="card-panel" id="share-panel" aria-label="Link these boards" hidden>
@@ -59,11 +62,10 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <button class="ghost" id="share-close" type="button">Cancel sign-in</button>
   </section>
   <section id="group-view" class="group-view" hidden>
-    <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
+    <section class="card-panel group-panel"><h2>Rulings</h2><div id="group-needs"></div></section>
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
   </section>
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
-  <section data-pane="progress" id="progress" class="progress-pane" aria-label="Progress"></section>
   <section data-pane="dashboard" id="dashboard" class="dashboard" aria-label="Dashboard"></section>
   <section data-pane="items" class="two">
     <div class="primary">
@@ -74,7 +76,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
         <button class="go" id="new-item" type="button" aria-label="New item"><span class="new-item-wide">New item</span><span class="new-item-narrow" aria-hidden="true">New</span></button>
       </div>
       <section class="card-panel upgrade-note" id="upgrade-note" aria-label="What is new" hidden></section>
-      <div class="card-panel list-card" id="item-list"><ol class="needs" id="needs" aria-label="What needs you" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
+      <div class="card-panel list-card" id="item-list"><ol class="needs" id="needs" aria-label="Rulings" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
       <ol class="pipeline" id="pipeline" aria-label="Item pipeline" hidden></ol>
     </div>
     <aside class="card-panel detail" aria-label="Item detail">
@@ -92,7 +94,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </section>
   <section data-pane="shouts" class="two narrow" id="shouts-pane">
     <div class="primary">
-      <div class="card-panel shouts-card"><form id="shout-form" class="shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div><span class="asks-slot" id="asks-slot"></span></form><section class="needs-you" id="coordinator-decisions" aria-label="Coordinator decision queue" hidden></section><section class="needs-you" id="decisions" aria-label="Decisions needed" hidden></section><div class="feed" id="feed"></div></div>
+      <div class="card-panel shouts-card"><form id="shout-form" class="shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div><span class="asks-slot" id="asks-slot"></span></form><section class="rulings-box" id="coordinator-decisions" aria-label="Coordinator decision queue" hidden></section><section class="rulings-box" id="decisions" aria-label="Decisions needed" hidden></section><div class="feed" id="feed"></div></div>
     </div>
     <aside class="card-panel detail" aria-label="Agents and lanes">
       <div><h3 class="panel-head">Agents<button class="link" data-agents-toggle type="button">hide</button></h3><div id="agents"></div><section id="credentials" aria-label="Agent credentials"></section></div>
@@ -119,6 +121,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   ${hostedLocal && !snapshot ? starMarkup() : ''}
 </main>
 </div>
+<nav class="sidenav" id="sidenav" aria-label="Pages">${navSideHtml({ cost: privateCost, amber: ['shouts'] })}</nav>
 </div>
 <footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span>${snapshot ? `<div class="snapshot-controls" id="snapshot-controls" aria-label="Snapshot replay">
   <button class="snapshot-play" id="replay-play" type="button" aria-label="Play from first event" title="Play from first event"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5 13 8l-9 5.5z" fill="currentColor"/></svg></button>

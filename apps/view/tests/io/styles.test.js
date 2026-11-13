@@ -8,7 +8,7 @@ import { composeViewStyles as composerModule } from '../../src/io/styles.js';
 
 const SHELL = new URL('../../src/io/', import.meta.url);
 const MARKER = /\/\* @pullboard-([\w-]+)-styles \*\//gu;
-const STYLESHEETS = { dashboard: 'dashboard', 'items-row': 'item/rows', stage: 'stage', nav: 'nav' };
+const STYLESHEETS = { dashboard: 'dashboard', 'items-row': 'item/rows', nav: 'nav', palette: 'palette/palette', 'project-menu': 'project-menu', stage: 'stage' };
 
 test('clause 1: composeViewStyles(), re-exported by apps/view/index.js, returns view.css with every @pullboard-*-styles marker replaced by its stylesheet [C7,#3020]', () => {
   assert.equal(composeViewStyles, composerModule, 'apps/view/index.js re-exports the composer from src/io/styles.js');
@@ -27,4 +27,10 @@ test('clause 2: serve.js builds SHARED_VIEW_CSS only through composeViewStyles()
   const css = composeViewStyles();
   assert.doesNotMatch(css, /@pullboard-[\w-]+-styles/u, 'no marker is left unfilled');
   for (const selector of ['.row.item-row', '.stage-word', '.roadmap-status']) assert.ok(css.includes(selector), `${selector} reaches the shared stylesheet`);
+});
+
+test('Items never cuts a question id off: the folded group shows each id whole [N26]', () => {
+  const css = composeViewStyles();
+  assert.match(css, /\.needs-fold \.needs-id \{ max-width: none; overflow: visible; \}/u, 'Items shows doctrine:RG4901 whole');
+  assert.match(css, /\.needs-fold-questions \.needs-group-head \{ display: none; \}/u, 'the folded group names itself once');
 });

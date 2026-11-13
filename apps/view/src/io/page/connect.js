@@ -276,8 +276,29 @@ function theme(pick) {
 }
 theme(keep('pb.theme'));
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => theme(keep('pb.theme')));
-/** The navigation sits at the top (#6614): the project list is always the switcher's dropdown, never a docked sidebar. */
+/** The project list is always the switcher's dropdown, never a docked sidebar. */
 document.documentElement.dataset.side = 'collapsed';
+/** The navigation sits at the top or in the sidebar, as the pin last chose on this device; a phone always gets the top. */
+const widePage = matchMedia('(min-width: 901px)');
+function placeNav() {
+  const layout = navLayout({ stored: keep('pb.nav'), wide: widePage.matches });
+  document.documentElement.dataset.nav = layout;
+  const pin = document.getElementById('nav-pin');
+  if (!pin) return;
+  const words = layout === 'side' ? 'Move the navigation to the top' : 'Move the navigation to the sidebar';
+  pin.setAttribute?.('aria-pressed', String(layout === 'side'));
+  pin.setAttribute?.('aria-label', words);
+  pin.title = words + ' (\\\\)';
+  pin.querySelector?.('.pg')?.classList?.toggle('up', layout === 'side');
+}
+/** The pin flips the layout and this device remembers it. */
+function flipNav() {
+  keep('pb.nav', document.documentElement.dataset.nav === 'side' ? 'top' : 'side');
+  placeNav();
+  placeControls();
+}
+placeNav();
+widePage.addEventListener?.('change', () => { placeNav(); placeControls(); });
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
@@ -492,7 +513,7 @@ const ruleSourceTitle = (row) => row.standardVersion != null ? 'Pullboard v' + r
 // The same data-in, HTML-out renderer runs here and in the pure view tests.
 const recordRow = (${recordRowHtml.toString()});
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
-// What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
+// What needs the person in a project, as its Rulings list counts it: only the person's calls (B26),
 // the decisions passed up to them, spec rows waiting for them, and held lanes, which only the main
 // checkout, the person's seat, can set. Work waiting for a verdict or sent back belongs to the agents,
 // and the line under the project says so without counting it.
