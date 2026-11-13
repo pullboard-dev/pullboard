@@ -22,6 +22,7 @@ import {
   HOST,
   installSshStandIn,
 } from '../../tests/fixtures/runner/ssh.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { mixedModeProject } from '../../tests/fixtures/drill.js';
 
 /** Run a public command without blocking the loopback provider or fabricating its result. */
@@ -86,6 +87,8 @@ test('a local developer, a runner developer and a pull-request developer share o
     const commit = box.git(path, 'rev-parse', 'HEAD');
     const submitted = await cli(box, path, box.env, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
+    // Pull dispatch returns queued at once; wait for the pulled gate so the item is marked submitted before main moves.
+    if (JSON.parse(submitted.out).queued) await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => cli(box, cwd, box.env, ...args) }, JSON.parse(submitted.out));
     // Main moves onto a file the item changed (same bytes), so the sealed submit receipt cannot stand and verify runs its own check.
     assert.equal(box.commitFile(box, box.repo, `web/${name}.js`, 'PASS\n', `chore(web): main reaches the ${name} file [G1]`).status, 0);
     const before = receipts(box.repo).length;
