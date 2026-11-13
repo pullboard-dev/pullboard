@@ -279,8 +279,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   // Store upkeep reads every key memo and result record; a runner dispatch never pays it (maintain: false) [C7].
   if (maintain) maintainPartsStore(store, env);
   return memoizedActionKeys(store, identity, files, async () => {
-  const { testClosures } = await import('../../affected/tests.js');
-  const { closures, modules, blobs, reach } = testClosures(root, commit);
+  const { testClosures, codeMapGraph } = await import('../../affected/tests.js');
+  const { closures, modules, blobs, reach } = testClosures(root, commit, priorGraph(root, env, codeMapGraph));
   const index = treeIndex(blobs);
   // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
   // and reporting modules) is an input of every result, as well as the runner files themselves.
@@ -288,8 +288,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const harness = reach(RUNNER_INPUTS, { withoutSelectedRunnerModules: true }).filter(path => !TEST_SIDE_PATH.test(path) && !path.startsWith('docs/'));
   const runner = [...new Set([...RUNNER_INPUTS, ...harness])].sort().map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
-  for (const [test, closure] of closures) {
-    if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
+  // An explicit file list keys only those files: one key never depends on another test's, and a cold tree spent ~20 s keying all 2,000 [C7,#6672].
+  for (const [test, closure] of files ? files.filter(file => closures.has(file)).map(file => [file, closures.get(file)]) : closures) { if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
     const reads = declaredReads(test, closure.files, modules, index, closure.helpers);
     if (reads.history) { keys.set(test, { key: null, reason: 'it reads the git history of its own checkout' }); continue; }
     if (reads.undeclaredListing) { keys.set(test, { key: null, reason: 'it lists the tracked files of its own checkout without declaring them' }); continue; }
@@ -303,6 +303,20 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   }
   return keys;
   }, { prune: maintain });
+}
+
+/** The variable naming the base commit a run's candidate forked from: a pulled test job sets it to the job's main. */
+const TEST_PRIOR_ENV = 'PULLBOARD_TEST_PRIOR';
+
+/**
+ * The cached graph of the run's base commit, or null when none is named or it cannot be read. Why: the candidate's
+ * graph then parses only the modules that differ from main, ~10 s less on a runner's cold tree; its keys still hash
+ * the candidate's own blobs, so a result stays keyed to the exact tree [C7,#6672].
+ */
+function priorGraph(root, env, codeMapGraph) {
+  const base = env[TEST_PRIOR_ENV];
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(base ?? '')) return null;
+  try { return codeMapGraph(root, base); } catch { return null; }
 }
 
 /** The store folder for this repository, shared by every worktree through the common git dir. */

@@ -3382,6 +3382,9 @@
   "apps/cli/journeys/runner/lost.test.js": {
     "hand-policy": 1
   },
+  "apps/cli/journeys/runner/lost.transient.test.js": {
+    "hand-policy": 1
+  },
   "apps/cli/tests/fixtures/runner/redispatch.js": {
     "model": 1
   },
@@ -3426,9 +3429,14 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/runner/runners/trip.test.js": {
-    "tempdir": 2,
-    "hand-policy": 4,
-    "env-spread": 2
+    "tempdir": 1,
+    "hand-policy": 2,
+    "env-spread": 1
+  },
+  "apps/cli/journeys/runner/runners/trip.deadline.test.js": {
+    "tempdir": 1,
+    "hand-policy": 2,
+    "env-spread": 1
   },
   "apps/cli/journeys/runner/runners/refusals.test.js": {
     "tempdir": 2,
@@ -4047,9 +4055,8 @@
     "model": 8
   },
   "apps/cli/journeys/inbox/events.test.js": {
-    "model": 5,
-    "raw-board": 6,
-    "hand-policy": 1
+    "model": 2,
+    "raw-board": 3
   },
   "packages/store/tests/fixtures/stats/time.js": {
     "tempdir": 2,
@@ -4162,5 +4169,10 @@
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
     "hand-policy": 3
+  },
+  "apps/cli/journeys/inbox/events-stream.test.js": {
+    "model": 3,
+    "raw-board": 3,
+    "hand-policy": 1
   }
 }

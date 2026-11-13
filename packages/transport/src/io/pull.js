@@ -3,7 +3,7 @@ import { createPublicKey } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { verify } from 'node:crypto';
 import { Refused } from '../../../kernel/light.js';
-import { isObjectId } from '../../../pin/index.js';
+import { isObjectId } from '../../../pin/light.js';
 import { mintJobToken } from '../logic/token.js';
 import { readJobToken } from '../logic/token.js';
 import { parseResult } from '../logic/result.js';
