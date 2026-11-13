@@ -1322,7 +1322,7 @@
     },
     "table:run": {
       "kind": "table",
-      "owner": "packages/store/src/io/board/jobs.js"
+      "owner": "packages/store/src/io/board/run.js"
     },
     "table:runner_draining": {
       "kind": "table",
