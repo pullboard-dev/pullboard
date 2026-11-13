@@ -418,6 +418,6 @@
   "claims": {
     "releaseGone": false,
     "releaseCooldownMinutes": 30,
-    "perSeat": 4
+    "perSeat": 5
   }
 }
