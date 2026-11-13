@@ -30,7 +30,6 @@ export * from "./src/io/run.js";
 export * from "./src/io/test/policy.js";
 export * from "./src/logic/waivers.js";
 export * from "./src/io/worker.js";
-export { inProcessLandingBatch, landingProgress } from "./src/io/in/process.js";
 export * from "./src/io/prune.js";
 export * from "./src/io/main/matches.js";
 export * from "./src/io/main/red.js";
