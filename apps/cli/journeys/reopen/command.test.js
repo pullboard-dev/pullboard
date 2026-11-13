@@ -15,6 +15,7 @@ import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -191,20 +192,19 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const nonCoordinator = await reopenCommand(box, item.cwd, String(item.id), '--note', 'coordinator only', '--json');
   assert.equal(JSON.parse(nonCoordinator.out).error.code, 'COORDINATOR_ONLY');
 
-  const landing = (await fixtureCommand(box, box.repo, 'land', '--max', '1', '--json'));
-  // land exits 1 when nothing lands and every candidate is a culprit (d8505b797a).
-  assert.equal(landing.code, 1, `${landing.err}\n${landing.out}`);
-  const landingResult = JSON.parse(landing.out);
-  assert.deepEqual(landingResult.culprits.map((culprit) => culprit.id), [item.id], JSON.stringify(landingResult));
-  assert.equal(landingResult.culprits[0].mergeCommit, landingResult.batch.tip);
-  assert.equal(landingResult.culprits[0].tests[0].file, 'web/landing.test.js');
+  const landing = (await fixtureCommand(box, box.repo, 'land', '--json'));
+  assert.equal(landing.code, 0, `${landing.err}\n${landing.out}`);
+  const landingResult = await settleLand(box, JSON.parse(landing.out));
+  assert.equal(landingResult.batch.state, 'blocked', JSON.stringify(landingResult.landJob));
+  assert.deepEqual(landingResult.landed, []);
+  assert.deepEqual(landingResult.returned.map((culprit) => culprit.id), [item.id], JSON.stringify(landingResult.landJob));
+  assert.match(landingResult.returned[0].detail ?? '', /web\/landing\.test\.js/u, 'the returned red names its failing test file');
   const returned = readItem(box, item.id);
   assert.equal(returned.item_status, 'open', 'land reopens its named culprit automatically');
   const automaticReopen = returned.thread.find((event) => event.type === 'move' && event.kind === 'reopen');
   assert.ok(automaticReopen);
   assert.equal(automaticReopen.detail.supersedes, originalAccept.eventId);
-  assert.equal(automaticReopen.detail.landingFailure.mergeCommit, landingResult.batch.tip);
-  assert.deepEqual(automaticReopen.detail.landingFailure.tests, landingResult.culprits[0].tests);
+  assert.equal(automaticReopen.detail.landingFailure.tests[0].file, 'web/landing.test.js');
   assert.ok(returned.thread.some((event) => event.type === 'move' && event.eventId === originalAccept.eventId && event.kind === 'accept'),
     'the original accept remains in append-only item history');
   assert.deepEqual(returned.thread.find((event) => event.eventId === originalAccept.eventId), originalAccept,
@@ -233,9 +233,9 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const awaitingFreshAccept = readItem(box, item.id);
   assert.equal(awaitingFreshAccept.item_status, 'submitted');
   assert.equal(awaitingFreshAccept.item_verified_by, null, 'the older accept does not verify the resubmission');
-  const firstDryLand = (await fixtureCommand(box, box.repo, 'land', '--dry-run', '--json'));
-  assert.equal(firstDryLand.code, 0, firstDryLand.err);
-  assert.ok(!JSON.parse(firstDryLand.out).items.includes(item.id), 'the earlier accept cannot make the resubmission eligible to land');
+  const firstOffer = (await fixtureCommand(box, box.repo, 'land', '--json'));
+  assert.equal(firstOffer.code, 0, firstOffer.err);
+  assert.ok(!JSON.parse(firstOffer.out).items.includes(item.id), 'the earlier accept cannot make the resubmission eligible to land');
   await acceptLandingFixture(box, item);
   const firstResubmission = readItem(box, item.id);
   const firstFreshAccept = firstResubmission.thread.filter((event) => event.type === 'move' && event.kind === 'accept').at(-1);
@@ -259,18 +259,18 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const secondAwaitingAccept = readItem(box, item.id);
   assert.equal(secondAwaitingAccept.item_status, 'submitted');
   assert.equal(secondAwaitingAccept.item_verified_by, null, 'the prior accepts do not verify the second resubmission');
-  const secondDryLand = (await fixtureCommand(box, box.repo, 'land', '--dry-run', '--json'));
-  assert.equal(secondDryLand.code, 0, secondDryLand.err);
-  assert.ok(!JSON.parse(secondDryLand.out).items.includes(item.id), 'the earlier accepts cannot make the second resubmission eligible to land');
+  const secondOffer = (await fixtureCommand(box, box.repo, 'land', '--json'));
+  assert.equal(secondOffer.code, 0, secondOffer.err);
+  assert.ok(!JSON.parse(secondOffer.out).items.includes(item.id), 'the earlier accepts cannot make the second resubmission eligible to land');
   await acceptLandingFixture(box, item);
   const readyToLand = readItem(box, item.id);
   assert.equal(readyToLand.thread.filter((event) => event.type === 'move' && event.kind === 'accept').length, 3,
     'the resubmitted work has a fresh accept');
   assert.equal(JSON.parse((await fixtureCommand(box, item.cwd, 'reopen', String(item.id), '--note', landingNote, '--json')).out).error.code, 'COORDINATOR_ONLY');
 
-  const greenLanding = (await fixtureCommand(box, box.repo, 'land', '--max', '1', '--json'));
+  const greenLanding = (await fixtureCommand(box, box.repo, 'land', '--json'));
   assert.equal(greenLanding.code, 0, greenLanding.err);
-  assert.deepEqual(JSON.parse(greenLanding.out).landed, [item.id]);
+  assert.deepEqual((await settleLand(box, JSON.parse(greenLanding.out))).landed, [item.id]);
   const merged = readItem(box, item.id);
   assert.equal(merged.item_status, 'verified');
   assert.ok(merged.item_merged_commit);

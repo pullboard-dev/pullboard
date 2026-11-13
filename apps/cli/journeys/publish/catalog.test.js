@@ -863,9 +863,8 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const bar = await uncataloguedRootJSON(source, source.repo, 'bar', [String(catalog.item_id)]);
   assert.equal(bar.id, catalog.item_id);
   assert.ok(Array.isArray(bar.missing), 'bar reports current readiness omissions for this item');
-  const landing = await json(source, source.repo, 'land', ['--dry-run']);
-  assert.equal(landing.batch, null);
-  assert.deepEqual(landing.landed, []);
+  const landing = await json(source, source.repo, 'land');
+  assert.equal(landing.offered, null, 'nothing is verified, so no land job is offered');
   assert.deepEqual(landing.items, []);
   const published = join(source.dir, 'published.git');
   await source.git(source.dir, 'init', '-q', '--bare', published);

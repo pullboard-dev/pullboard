@@ -21,6 +21,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { copyPackageSubset } from '../../tests/fixtures/copy.js';
 import { packageFiles } from '../../../../packages/runners/index.js';
 import { json } from '../../tests/fixtures/land/board.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import {
   mergeMechanicalSources,
   resolveMechanicalMerge,
@@ -88,11 +89,11 @@ function item(box, number, text) {
 }
 
 /** Exercise the identical native acceptance assertions under serial and speculative-prefix landing. */
-function assertAdditions(parallel) {
+async function assertAdditions(parallel) {
   const box = project(parallel);
   const first = item(box, 1, BASE.replace('  base:', '  alpha: { item: true },\n  base:'));
   const second = item(box, 2, BASE.replace('  base:', '  beta: { item: true },\n  base:'));
-  const landed = json(box, box.repo, 'land', '--max', '2');
+  const landed = await settleLand(box, json(box, box.repo, 'land'));
   assert.deepEqual(landed.landed, [first, second], 'both independently verified additions land');
   assert.deepEqual(landed.conflicts, []);
   const source = box.git(box.repo, 'show', `main:${FILE}`);
@@ -107,12 +108,13 @@ function assertAdditions(parallel) {
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), box.git(box.repo, 'rev-parse', 'main'));
 }
 
-test('the train keeps both added registry entries and lands without a reopen [B3,R3,C7]', () => {
-  assertAdditions(false);
+// The pulled lander merges items with plain git and has no mechanical registry resolution, so there is nothing to land here but the batch engine's.
+test('the train keeps both added registry entries and lands without a reopen [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async () => {
+  await assertAdditions(false);
 });
 
-test('parallel train promotion retains its mechanical resolution receipt [B3,R3,C7]', () => {
-  assertAdditions(true);
+test('parallel train promotion retains its mechanical resolution receipt [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async () => {
+  await assertAdditions(true);
 });
 
 test('non-UTF8 bytes outside a registry stay untouched when resolution is refused [B3,R3,C7]', () => {
@@ -139,12 +141,12 @@ test('non-UTF8 bytes outside a registry stay untouched when resolution is refuse
   assert.deepEqual(readFileSync(join(root, FILE)), before, 'refusal preserves every byte of the unmerged working file');
 });
 
-test('a registry edit remains a conflict and reopens instead of being unioned [B3,R3,C7]', () => {
+test('a registry edit remains a conflict and reopens instead of being unioned [B3,R3,C7]', async () => {
   const box = project();
   const first = item(box, 1, BASE.replace('item: true', 'item: false'));
   const second = item(box, 2, BASE.replace('item: true', "positions: ['id']"));
-  const landed = json(box, box.repo, 'land', '--max', '2');
-  assert.ok(landed.conflicts.some(entry => entry.id === second));
+  const landed = await settleLand(box, json(box, box.repo, 'land'));
+  assert.ok((landed.returned ?? []).some(entry => entry.id === second && entry.reason === 'conflict'), JSON.stringify(landed.landJob));
   assert.equal(json(box, box.repo, 'show', String(second)).item_status, 'open');
   assert.deepEqual(landed.landed, [first]);
 });
