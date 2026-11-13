@@ -40,6 +40,18 @@ function landingTrunk(root, remote, main) {
 }
 
 /**
+ * What a land job's runner does with a red: pair its failing cases when accepted main turns flakes.rerun on, with the
+ * runner prefix of the item's check and of the proof command; with it off, still name them, so the board records an
+ * unclassified observation. Null when the board's policy reads cannot name a prefix.
+ */
+function landingFlakes(root, policy, item, head, pairPrefix) {
+  const rerun = policy.config.flakes?.rerun === true;
+  const config = policy.config, pin = { head, main: policy.commit };
+  const proof = typeof config.affectedTests === 'string' && config.affectedTests.trim() ? config.affectedTests : config.gate;
+  return { rerun, prefixes: rerun ? { check: pairPrefix(root, item?.item_check ?? null, config, pin), proof: pairPrefix(root, proof, config, pin) } : { check: null, proof: null } };
+}
+
+/**
  * Offer the board's accepted, unmerged, unheld items as one land job, or return null when this machine lands them
  * itself (no trunk remote of record, and not pull or no local runner). While a land job is open no second automatic
  * one is offered: its receipt settles the items first. Named ids offer only those items; forced (the person's reason)
@@ -48,13 +60,13 @@ function landingTrunk(root, remote, main) {
  *
  * @param {object} ctx - The command context at the main checkout.
  * @param {string} root - The main checkout.
- * @param {{ mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
+ * @param {{ pairPrefix?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
  *   policy and board reads the lander already holds.
  * @param {{ local?: typeof ensureLocalRunner, ids?: number[] | null, forced?: string | null, board?: object | null }} [options] - board: the
  *   board a command already holds open, so a hand landing writes its offer there.
  * @returns {Promise<{ offered: string | null, items: number[], waiting: boolean, forced?: string } | null>}
  */
-export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
+export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
   const policy = mainPolicy(root);
   const configured = configTrunkRemote(policy.config);
   // No trunk remote: the board host's repository is trunk, landed by the local runner, which this starts again if it died.
@@ -85,7 +97,9 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     }
     const listed = tryGit(root, ['ls-remote', '--', remote, TRUNK]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
-    const job = offerLandingJob(board.db, { items, expect, trunk: TRUNK, forced, badges: badgeDocuments?.(board) ?? [],
+    // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
+    const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen[0], items[0].commit, pairPrefix) : null;
+    const job = offerLandingJob(board.db, { items, expect, trunk: TRUNK, forced, flakes, badges: badgeDocuments?.(board) ?? [],
       ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true } : { config: policy.config }) });
     ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${items.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
     return { offered: job.id, items: items.map(entry => entry.id), waiting: false, ...(forced ? { forced } : {}) };
