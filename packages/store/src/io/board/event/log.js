@@ -6,6 +6,7 @@ import { requireHandoffActive } from "../../../../../state/light.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { writeSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Refused } from "../../../../../kernel/index.js";
 import { agentModel } from "../query.js";
 import { appendProofCounter } from "../../../../../verify/index.js";
@@ -24,6 +25,18 @@ import {
 
 import { BOARD_PROGRESS_ENGINE } from '../../../../../state/index.js';
 import { notifyUnblocked } from '../../../logic/board/notices.js';
+
+const OWN_FILE = fileURLToPath(import.meta.url);
+
+/**
+ * The first stack frame outside this module: the caller whose write body held the lock. Naming this module's own file
+ * (as the old filename check did after the rename to log.js) reports every hold as this file's line [#2282,#6825].
+ * @param {string|undefined} stack - An Error stack captured inside the transaction.
+ * @returns {RegExpExecArray|undefined} Match groups: path, line.
+ */
+export function writeOrigin(stack) {
+  return stack?.split('\n').slice(1).map(line => /(\/[^\s():]+\.js):(\d+):\d+/u.exec(line)).find(match => match && match[1] !== OWN_FILE);
+}
 
 const TRANSACTION_DEPTH = new WeakMap();
 const AFTER_COMMIT = new WeakMap();
@@ -99,8 +112,8 @@ export function atomic(board, work, { reviewPolicy = true, writePolicy = true } 
   const deferred = AFTER_COMMIT.get(board);
   const deferredStart = deferred.length;
   TRANSACTION_DEPTH.set(board, depth + 1);
-  const origin = new Error().stack?.split('\n').slice(1).map(line => /\/([^/\s()]+\.js):(\d+):\d+/u.exec(line)).find(match => match && match[1] !== 'board-event-log.js');
-  const workPhase = origin ? `work:${origin[1]}:${origin[2]}` : 'work';
+  const origin = writeOrigin(new Error().stack);
+  const workPhase = origin ? `work:${origin[1].slice(origin[1].lastIndexOf('/') + 1)}:${origin[2]}` : 'work';
   // A local-first move records the rows it changed, so the relay's order can take it back later (#1013).
   let capture;
   let released = false;
