@@ -137,7 +137,7 @@
     "policy": "any",
     "unrelatedTrunkMoves": true,
     "composeAtAdmission": true,
-    "family": "require",
+    "family": "prefer",
     "familyRelaxAt": 5
   },
   "check": {
