@@ -322,6 +322,8 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
       const trunkRoute = /^\/api\/v1\/boards\/([^/]+)\/trunk\/([^/]+)\.pack$/.exec(url.pathname);
       const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? proofRoute?.[1] ?? trunkRoute?.[1] ?? null;
       const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
+      // Health answers on the request thread from what it holds, never through a handler, so a busy pool still answers it [A2,C7].
+      if (url.pathname === '/api/v1/health') return json(res, 200, { ok: true, ...(await adapter.health?.(who)) });
       if (url.pathname === '/api/v1/settings') {
         if (req.method !== 'GET') throw new Refused('READ_ONLY', 'settings are read-only here; use the supported settings commands');
         if (typeof adapter.settings !== 'function') throw new Refused('SETTINGS_NOT_AVAILABLE', 'read machine and repository settings from the local API');
@@ -530,7 +532,7 @@ export function applyStateDelta(state, delta) {
 /** Choose the same HTTP refusal class for local and sealed relay adapters. */
 export function apiStatus(error) {
   if (error instanceof Refused && error.code === 'ACCOUNT_STORAGE_LIMIT') return 507;
-  return { RELAY_BOARD_DELETED: 410, AUTH_REQUIRED: 401, DEVICE_REVOKED: 403, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, NO_SHOUT: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, BASELINE_EXISTS: 412, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409 }[error.code] ?? (error instanceof Refused ? 400 : 500);
+  return { RELAY_BOARD_DELETED: 410, AUTH_REQUIRED: 401, DEVICE_REVOKED: 403, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, NO_SHOUT: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, BASELINE_EXISTS: 412, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409, API_BUSY: 503, API_WORKER_FAILED: 503, API_CALL_TIMEOUT: 503, API_CLOSED: 503 }[error.code] ?? (error instanceof Refused ? 400 : 500);
 }
 
 // Relay-only snapshot/delete routes reuse the exact shared bounded-body and refusal boundary.

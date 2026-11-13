@@ -9,7 +9,8 @@ export function viewFlowSummary(flow) {
 
 /** Keep the totals and grouped summaries consumed by the view, leaving detailed CLI stats intact. */
 export function viewProofSummary(stats) {
-  const { agents: _agents, bars: _bars, caught: _caught, ...summary } = stats;
+  // notesPerSubmit and workFreeReleases are read only by pullboard stats, never by the page (#6666).
+  const { agents: _agents, bars: _bars, caught: _caught, notesPerSubmit: _notes, workFreeReleases: _releases, ...summary } = stats;
   return { ...summary, flow: viewFlowSummary(stats.flow) };
 }
 

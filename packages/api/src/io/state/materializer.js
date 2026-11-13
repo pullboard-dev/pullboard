@@ -16,7 +16,7 @@ const CLOSE_GRACE_MS = 2_000;
 const HELD_SEQUENCES = 24;
 
 /** The error a worker reported, as a Refused when it was one, so a refusal still reaches the caller by name. */
-function workerError(error, Refused) {
+export function workerError(error, Refused) {
   if (error?.name === 'Refused' && typeof error.code === 'string') {
     const prefix = `[${error.code}] `;
     return new Refused(error.code, String(error.message).startsWith(prefix) ? String(error.message).slice(prefix.length) : String(error.message), error.next);

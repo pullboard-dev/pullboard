@@ -19,7 +19,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
   'apps/cli/journeys/shout/words.test.js': { kind: 'journey', reason: 'Genuine legacy model-less seat, ordered native health/review/fact events, authenticated HTTP and Chrome scan of person-visible names, words and chart hover text; pure label assertions retain explicit timestamp inputs.' },
   'apps/cli/journeys/verify/item/timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
   'apps/cli/journeys/verify/item/panel.test.js': { kind: 'journey', reason: 'A private native item with real sent-back and accepted verdicts, recorded red/green check baselines, brief files and lifecycle events is inspected through authenticated Chrome tabs, disclosures and measured desktop/phone layout.' },
-  'apps/cli/journeys/submit/notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Needs you and item details, including full-hash copy.' },
+  'apps/cli/journeys/submit/notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Rulings and item details, including full-hash copy.' },
   "apps/view/tests/logic/needs/actions.test.js": {
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."
