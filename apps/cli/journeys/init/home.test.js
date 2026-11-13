@@ -141,7 +141,7 @@ test('Settings capacity stays readable at phone and desktop widths in real Chrom
     await chrome.send('Page.navigate', { url: view.link.href });
     await holdLive(chrome, "data?.project?.spec.some(row => row.id === 'G1')");
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await press(chrome, 'document.querySelector("[data-tab=settings]")');
+    await chrome.stable("(() => { view.tab = 'settings'; render(); return true; })()"); // the tab strip folds away at phone width
     await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=settings]').hidden");
     assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true, 'the real served Settings mounts the capacity card');
     for (const width of [375, 1280]) {
@@ -256,7 +256,7 @@ test('Settings renders the real board capacity at phone and desktop widths [N26,
     let fetchedBoardState = false;
     for (const request of chrome.requests) if (isBoardStateRequest(request, board)) fetchedBoardState = true;
     assert.ok(fetchedBoardState, 'Chrome fetched board state over the real view HTTP route');
-    await press(chrome, 'document.querySelector("[data-tab=settings]")');
+    await chrome.stable("(() => { view.tab = 'settings'; render(); return true; })()"); // the tab strip folds away at phone width
     await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=settings]').hidden");
     assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true,
       'the real Settings card is mounted without setting data.project.capacityForecast in the page');
