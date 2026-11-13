@@ -59,7 +59,7 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
   execFileSync('git', ['worktree', 'add', '-q', '-b', 'builder-policy', builder, 'HEAD'], { cwd: box.root, env: box.env });
   /** Run native setup commands from the real linked builder worktree. */
   const runBuilder = (...args) => {
-    const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), ...args, '--json'], { cwd: builder, env: box.env, encoding: 'utf8' });
+    const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: builder, env: box.env, encoding: 'utf8' });
     assert.equal(result.error, undefined);
     assert.equal(result.status, 0, result.stderr || result.stdout || 'the real native CLI prepares a fresh claim under the pinned main policy');
     return JSON.parse(result.stdout);
