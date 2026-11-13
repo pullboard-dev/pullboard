@@ -30,7 +30,7 @@ writeFileSync('${REGISTRY}', JSON.stringify({ files: added }, null, 2) + '\\n');
 process.stdout.write(JSON.stringify(['${REGISTRY}']) + '\\n');
 `;
 
-test('a pulled landing lands the refreshed test registry and badge documents in its merge on main [C7]', { timeout: 240_000 }, async () => { // budget: real Git, native submit/review and a complete pulled landing.
+test('clause 1: a pulled landing lands the refreshed test registry and badge documents in its merge on main [C7]', { timeout: 240_000 }, async () => { // budget: real Git, native submit/review and a complete pulled landing.
   const box = landProject({ withWorktree: false });
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
