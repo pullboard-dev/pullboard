@@ -113,7 +113,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.equal(submitted.queued, true, 'the real submit queues its gate for the local runner');
   // The fixture command returns once the runner has settled the queued gate, so show reads its outcome.
   const settled = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out);
-  assert.equal(settled.queuedSubmit?.state, 'green', 'the fixture gate is green');
+  assert.equal(settled.queuedSubmit?.state, 'green', 'the fixture gate is green: ' + JSON.stringify(settled.queuedSubmit));
 
   const stored = join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`);
   assert.ok(existsSync(stored), 'the packet is stored when the gate goes green, before anyone asks for it');
@@ -236,7 +236,7 @@ test('a test clause with no case of its own is proved by the item\'s check cases
   assert.equal(submitted.queued, true, 'the real submit queues its gate for the local runner');
   // The fixture command returns once the runner has settled the queued gate, so show reads its outcome.
   const settled = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out);
-  assert.equal(settled.queuedSubmit?.state, 'green', 'the fixture gate is green');
+  assert.equal(settled.queuedSubmit?.state, 'green', 'the fixture gate is green: ' + JSON.stringify(settled.queuedSubmit));
   const packet = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`), 'utf8'));
   const [greeting, legacy, old] = packet.clauses;
   assert.ok(greeting.runs.length, 'the greeting clause is matched by its words');
