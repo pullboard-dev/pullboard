@@ -29,17 +29,21 @@ const RUN_COMMAND = 'apps/cli/src/io/main.js#main';
 const BLOCKING = /^(?:(?:node:)?child_process#(?:spawnSync|execSync|execFileSync)|.*#(?:gitSpawnSync|gitExecFileSync))$/u;
 
 /**
- * Today's request-path synchronous calls, keyed by the first function outside packages/git that makes them. The set may
+ * Today's request-path synchronous calls, keyed by the file and function that make the call. The set may
  * only shrink: a key that no longer fires fails the check, so a fix must delete its row. Why: one synchronous git
  * inside a request froze the board API for 10 hours on 12 Nov [#6718].
  */
 export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/activity/src/io/inbox.js#gitPaths': 'state read lists claim worktree files with synchronous git',
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
-  'packages/activity/src/io/inbox.js#activityWorkingFiles': 'state read asks git for each claim worktree status',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
   'apps/view/src/io/serve.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
-  'packages/items/src/io/claim.js#itemFolderIdentity': 'gate-receipt submit finds an item folder with synchronous git',
+  'packages/git/src/io/main.js#readMainCheckout': 'merge-only submit reads the main checkout with synchronous git',
+  'packages/git/src/io/main.js#gitCall': 'merge-only submit runs git through a synchronous helper',
+  'packages/git/src/io/main.js#worktreeStatus': 'state read asks git for each claim worktree status',
+  'packages/git/src/io/main.js#git': 'gate-receipt submit finds an item folder through a synchronous git helper',
+  'packages/git/src/io/main.js#rawGit': 'code viewer request resolves a commit through a synchronous git helper',
+  'packages/git/src/io/main.js#prefetchedShow': 'code viewer request reads a blob through a synchronous git helper',
   'packages/items/src/io/patch/compose.js#git': 'gate-receipt submit composes item patches through a synchronous git helper',
   'packages/items/src/io/patch/compose.js#mergeFromOrigin': 'gate-receipt submit merges main with synchronous git',
   'packages/items/src/io/patch/compose.js#composeItemPatches': 'gate-receipt submit composes patches with synchronous git',
@@ -50,7 +54,6 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/keys/src/io/relay.js#forgetBoardKey': 'relay forget deletes the board key through a synchronous child process',
   'packages/landing/src/io/main/red/receipt.js#treeOf': 'mainReceipts resolves the main tree with synchronous git on every submit-time comparison',
   'packages/landing/src/io/main/red/receipt.js#unchangedDescendants': 'one synchronous git log per cached main candidate file',
-  'packages/merge/src/io/only/source.js#deriveMergeOnly': 'merge-only submit reads the main checkout with synchronous git',
   'packages/merge/src/io/only/source.js#readGit': 'merge-only submit captures its source with synchronous git',
   'packages/sandbox/src/io/trusted/policy/committed.js#policyGit': 'mainReceipts reads the main committed policy with synchronous git',
   'packages/spec/src/io/signature.js#runTool': 'spec approval evidence runs a signing tool in a synchronous child process',
@@ -84,7 +87,7 @@ export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS }
     for (const call of calls(body)) for (const target of targets(file, call.name)) {
       const id = (target.builtin ?? target.file) + '#' + target.name;
       if (BLOCKING.test(id)) {
-        const owner = [...chain, key].filter(row => !row.startsWith('packages/git/')).at(-1) ?? key;
+        const owner = key; // the call site itself, so the row never depends on which caller reached it first [#6755]
         const line = base + body.slice(0, call.at).split('\n').length - 1;
         found.set(owner + ':' + id, { file, line, call: id, owner, chain: [...chain, key] });
       } else if (target.file) walk(target.file, target.name, [...chain, key]);
