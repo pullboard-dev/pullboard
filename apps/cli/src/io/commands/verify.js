@@ -694,6 +694,31 @@ export async function reviveStalledComparison(ctx, id) {
 }
 
 /**
+ * Detach a pulled green submission's comparison worker for the board API, which recorded it pending; a launch that
+ * fails is recorded unavailable on the board, so no review waits on a comparison that never ran (#7267) [C7,V4].
+ *
+ * @param {{ root: string, item: number, source: string, digest: string }} request - root: the board's repository.
+ * @returns {Promise<void>}
+ */
+export async function launchPulledComparison({ root, item, source, digest }) {
+  const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  try {
+    await launchComparisonWorker({ origin: root, commonDir, toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
+      item, source, digest }, COMPARISON_TOOLS);
+  } catch (error) {
+    const { openBoard, closeBoard } = await import('../../../../lib/index.js');
+    const board = openBoard(store.boardFilePath(commonDir));
+    try {
+      const current = store.getItem(board, item);
+      if (current?.item_commit === source && current.item_frozen_digest === digest) {
+        store.appendFact(board, item, { agentId: current.item_owner ?? 'coordinator', kind: 'measurement',
+          text: VERIFICATION_COMPARISON_PREFIX + JSON.stringify({ item, status: 'unavailable', source, digest, error: String(error?.message ?? error).slice(0, 500) }) });
+      }
+    } finally { closeBoard(board); }
+  }
+}
+
+/**
  * The tooling tree a review judges under (RFC 0007 SC8), or null when the pin is unreadable, so nothing is reused.
  *
  * @param {string} root - The reviewer's checkout.
