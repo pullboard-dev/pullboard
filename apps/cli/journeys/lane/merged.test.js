@@ -102,8 +102,11 @@ test('a builder editing the accepted main row itself still fails public submit b
   // The pulled gate settles on the runner and the owner routing follows it, so wait for the hold, which names owner and path.
   const item = await whenRunnerSettles(box.env, () => { const row = success(box, box.view, 'show', String(box.id)); return row.item_status === 'open' && row.item_hold_reason ? row : null; },
     { deadlineMs: 120_000, what: `owner routing of #${box.id}` });
-  assert.equal(item.item_hold_reason.includes('core'), true, item.item_hold_reason);
-  assert.equal(item.item_hold_reason.includes('packages/codemap/data/plan/01-app-view.json'), true, 'the main-row edit is what waits on its owner');
+  // The hold reason carries only a digest; owners and paths are in the thread's ownership-wait event.
+  const waiting = (item.thread ?? []).findLast(row => row.kind === 'ownership-wait')?.detail;
+  assert.ok(waiting, 'the thread records the ownership wait');
+  assert.deepEqual(waiting.owners, ['core']);
+  assert.equal(waiting.paths.includes('packages/codemap/data/plan/01-app-view.json'), true, 'the main-row edit is what waits on its owner');
   assert.equal(existsSync(box.marker), true, 'the gate runs green first; only then do foreign paths wait on their owner');
   assert.equal(item.item_status, 'open');
   assert.equal(item.item_commit, null, 'owner waiting is not a submission');
