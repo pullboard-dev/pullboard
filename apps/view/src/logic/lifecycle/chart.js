@@ -9,7 +9,7 @@ export function lifecycleChart(project, moves, sentBack) {
   const states = [
     ['open', 'Ready', sentBack + ' of them sent back', 'Items ready for an agent to take, including items sent back.'],
     ['claimed', 'Building', 'one agent each', 'Items taken by one agent to build.'],
-    ['submitted', 'In review', 'a different agent checks', 'Submitted items waiting for an independent review.'],
+    ['submitted', 'In review', 'a different agent checks', 'Submitted items pending review by an independent agent.'],
     ['verified', 'Verified', 'passed review', 'Items that passed independent review, including landed items.'],
   ];
   const text = (x, y, words, cls, anchor = 'start') => '<text class="' + cls + '" x="' + x + '" y="' + y + '" text-anchor="' + anchor + '">' + esc(words) + '</text>';
@@ -42,7 +42,7 @@ export function lifecycleChart(project, moves, sentBack) {
     + '<g class="s-withdrawn"><title>Items withdrawn from the board.</title><rect class="box withdrawn" x="10" y="6" width="150" height="44" rx="8"/>' + text(24, 33, 'Withdrawn', 'name') + text(146, 33, number(withdrawn), 'tag', 'end') + '</g></svg>';
   const parts = (from, verbs) => verbs.map(([verb, meaning]) => tip(made(from, 'open', [verb]), meaning) + ' ' + meaning).join(' · ');
   const handedBack = parts('claimed', [['release', 'let go'], ['refreeze', 'check re-frozen'], ['lapse', 'went idle'], ['escalate', 'moved to a stronger agent']]);
-  const reviewedBack = parts('submitted', [['reject', 'rejected'], ['reopen', 'reopened'], ['refreeze', 'check re-frozen']]);
+  const reviewedBack = parts('submitted', [['reject', 'sent back'], ['reopen', 'reopened'], ['refreeze', 'check re-frozen']]);
   const kept = [
     ['submitted', 'reserve', 'reviews started'], ['claimed', 'claim', 'claimed again while building'],
     ['claimed', 'patch-claimed', 'updated while building'],

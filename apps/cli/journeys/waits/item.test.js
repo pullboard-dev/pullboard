@@ -69,14 +69,14 @@ test('wait references stay on one line and link to every prerequisite at phone a
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Prerequisite one')");
       const itemIds = await chrome.stable('data.project.items.map(item => item.id + ":" + item.title + ":" + item.blockedBy.join(","))');
       assert.ok(await chrome.stable('!!document.querySelector(\'#chain [data-item="3"]\')'), `${width}: blocked item appears among ${itemIds.join('; ')}`);
-      // The row now names the native Gated stage and its first prerequisite; every prerequisite link lives in the detail below.
+      // The row now names the native Blocked stage and its first prerequisite; every prerequisite link lives in the detail below.
       const list = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const row=document.querySelector('#chain [data-item="3"]');
         const word=row.querySelector('.stage-word'), detail=row.querySelector('.stage-detail');
         return {stage:word.textContent,detail:detail.textContent};
       })())`));
-      assert.equal(list.stage, 'Gated', `${width}: the blocked row shows the Gated stage`);
-      assert.equal(list.detail, 'by #1', `${width}: the Gated row names a prerequisite`);
+      assert.equal(list.stage, 'Blocked', `${width}: the blocked row shows the Blocked stage`);
+      assert.equal(list.detail, 'by #1', `${width}: the Blocked row names a prerequisite`);
 
       await click('#chain [data-item="3"] .t');
       await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");

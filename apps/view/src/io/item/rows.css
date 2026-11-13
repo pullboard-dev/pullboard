@@ -1,7 +1,7 @@
 .row.item-row > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; }
 /* Approved Items rows keep two copy lines beside a whole seat address [N26]. */
 .row.item-row { grid-template-areas: none; gap: var(--space-3); padding: var(--space-3); }
-.row.item-row > .dot { grid-area: auto; background: var(--surface-2); color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--line); }
+.row.item-row > .dot { grid-area: auto; background: var(--surface-2); color: var(--ink-faint); box-shadow: var(--inset-line); }
 .row.item-row > .row-copy { display: block; min-width: 0; }
 .row.item-row .t { line-height: 1.4; }
 .row.item-row > .row-side { display: grid; justify-items: end; gap: var(--space-1); min-width: 0; }
@@ -14,7 +14,7 @@
 .row.item-row .dot.back { background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); box-shadow: none; }
 .row.item-row .dot.verify { background: color-mix(in oklab, var(--stage-review) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-review) 60%, var(--ink)); box-shadow: none; }
 .row.item-row .dot.verified { background: var(--stage-merged); color: var(--surface); box-shadow: none; }
-/* Ready work is a purple dot; open work that waits is the same dot in Gated grey. */
+/* Ready work is a purple dot; open work that waits is the same dot in Blocked grey. */
 .row.item-row .dot.open { --stage: var(--stage-ready); background: radial-gradient(circle, var(--stage) 0 3.5px, color-mix(in oklab, var(--stage) 16%, var(--surface)) 4px); box-shadow: none; }
 .row.item-row.gated .dot.open { --stage: var(--stage-gated); }
 .row.item-row.on { background: var(--surface-2); }

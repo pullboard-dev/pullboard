@@ -71,7 +71,7 @@ test('Items walk renders short context hashes, plain waiting chips and colored h
           copy:[...document.querySelectorAll('#detail .hash-copy')].map(node => [node.textContent,node.dataset.copy]) };
       })())`));
       assert.doesNotMatch(actual.visible, /\b[0-9a-f]{40}\b/u);
-      assert.equal(actual.waiting, 'Gated'); assert.equal(actual.waitingDetail, 'by #2');
+      assert.equal(actual.waiting, 'Blocked'); assert.equal(actual.waitingDetail, 'by #2');
       assert.ok(['rgba(0, 0, 0, 0)', 'transparent'].includes(actual.border), width + ': no warning outline');
       assert.equal(new Set(actual.kinds.map(row => row.icon)).size, 5, 'each native kind has its approved verb icon');
       assert.equal(new Set(actual.kinds.map(row => row.color)).size, 5, 'build/review/back/sentinel/note have distinct tones');

@@ -115,10 +115,24 @@ function ownerLive(owner) {
   catch { return true; }
 }
 
-/** Capture finite exact-main obligations; an active landing completes before this worker starts a gate. */
-function snapshot(root, info, { landingLeaseState, openBoardForRead }) {
+/**
+ * Whether a runner land job is offered and not yet done, read through the injected openLandingJob (packages/api); false
+ * when none is injected or the board has no job table yet.
+ */
+function landJobOpen(board, openLandingJob) {
+  if (typeof openLandingJob !== 'function') return false;
+  try { return openLandingJob(board.db) !== null; } catch { return false; }
+}
+
+/**
+ * Capture finite exact-main obligations; an active landing completes before this worker starts a gate. A pulled land
+ * job is an active landing too: its runner merges current trunk and checks that tree, and its receipt lands or returns
+ * the items. Why: a source advance beside it ran the same check again on the board host and reopened the item before
+ * the land job's receipt arrived [C7,H16].
+ */
+function snapshot(root, info, { landingLeaseState, openBoardForRead, openLandingJob }) {
   return readBoard(info, board => {
-    if (landingLeaseState(board).holder) return [];
+    if (landingLeaseState(board).holder || landJobOpen(board, openLandingJob)) return [];
     return store.listItems(board, { all: true }).filter(item => ['submitted','verified'].includes(item.item_status)
       && item.item_commit && !item.item_merged_commit && !store.reviewHolder(board, item)).flatMap(item => {
       try {

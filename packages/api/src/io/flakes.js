@@ -160,3 +160,44 @@ export function judgePulledFlakes(board, gateJob) {
   }
   return excused;
 }
+
+/**
+ * Record what a red land job's runner read: one flake observation per failing case, as the coordinator. A case the
+ * runner paired is classified from its paired and main results; with reruns off (or a case beyond the pair budget) the
+ * observation is unclassified with no paired run, so the ledger still retains the original red. The red stays the verdict;
+ * every failure is a note on the item, never a changed outcome [C7,H16].
+ *
+ * @param {any} board
+ * @param {{ job: string, receipt: Record<string, any>, item: number | null }} landing - item: the first item the receipt returned red, whose lane owns any repair item.
+ * @returns {{ observations: number } | null} null when the receipt carries no red record.
+ */
+export function recordLandedRed(board, { job, receipt, item }) {
+  const red = receipt?.red;
+  const ports = boardPorts(board);
+  if (!ports || !Array.isArray(red?.failures) || !red.failures.length || !SHA.test(String(red.head)) || !SHA.test(String(red.tree))) return null;
+  const lane = item === null ? undefined : store.getItem(board, item)?.item_lane;
+  const evidenceRoot = join(dirname(ports.receipts.boardReceiptStore(board)), 'flake-evidence');
+  const main = SHA.test(String(receipt.base)) ? receipt.base : null;
+  const load = Array.isArray(red.load?.average) && red.load.average.length === 3 ? red.load : { average: [0, 0, 0], cpus: 1, freeMB: 0 };
+  const pairs = Array.isArray(red.pairs) ? red.pairs : [];
+  let observations = 0;
+  const problems = [];
+  for (const { file, name } of red.failures) {
+    try {
+      const id = randomUUID(), directory = join(evidenceRoot, id);
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const pair = pairs.find(row => row?.file === file && Array.isArray(row.names) && row.names.includes(name) && row.paired);
+      const [classification, reason] = pair ? classify(pair.paired.results?.[name] ?? null, pair.main ? pair.main.results?.[name] ?? null : null)
+        : ['unclassified', 'The landing ran no paired rerun for this case; its original red is retained.'];
+      const observation = { id, file, name, head: red.head, tree: red.tree, main, kind: 'land', classification, reason,
+        commandSha256: DIGEST.test(pair?.commandSha256 ?? '') ? pair.commandSha256 : createHash('sha256').update(`${file}\n${name}`).digest('hex'),
+        at: new Date().toISOString(), diagnosticMs: pair ? (pair.paired.ms ?? 0) + (pair.main?.ms ?? 0) : 0, load: pair?.load ?? load,
+        original: evidence(directory, id, 'original', red.tail, false), paired: pair ? evidence(directory, id, 'paired', pair.paired.tail, pair.paired.status === 0) : null,
+        mainReceipt: pair?.main ? evidence(directory, id, 'main', pair.main.tail, pair.main.status === 0) : null };
+      ports.moves.recordFlakeObservation(board, { agentId: 'coordinator', observation, lane });
+      observations += 1;
+    } catch (error) { problems.push(`${file} :: ${name}: ${error?.code ?? 'FLAKE_DIAGNOSTIC_FAILED'}`); }
+  }
+  if (item !== null) store.appendFact(board, item, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} red: ${observations} flake observation(s) recorded${pairs.length ? ' with paired reruns' : ', no paired rerun'}; the red stands; see pullboard flakes.${problems.length ? `\nNot recorded: ${problems.join('; ')}` : ''}`.slice(0, 2000) });
+  return { observations };
+}

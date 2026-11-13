@@ -15,7 +15,11 @@ import { itemListFields } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 import { withdrawnFromStatus } from "../../logic/pipeline/model.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
+import { stageSentence } from "../../logic/pipeline/model.js";
 import { pipelineHtml } from "../../logic/pipeline/render.js";
+import { pipelineWatchModel } from "../../logic/pipeline/watch.js";
+import { pipelineWatchHtml } from "../../logic/pipeline/watch.js";
+import { pipelineRuntime } from "../pipeline/runtime.js";
 import { lifecycleDiagramHtml } from "../../logic/lifecycle/diagram.js";
 import { timelineHtml as renderTimelineHtml } from "../../logic/timeline/render.js";
 import { timelineBodyHtml } from "../../logic/timeline/body.js";
@@ -31,6 +35,24 @@ export function pageScriptPart2(scope) {
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
+/**
+ * The page's one runtime stylesheet: geometry that only the running page can measure (a windowing spacer, a menu's
+ * position, a scroll margin). An element names its rule with data-geo="key" and the rule is written here, so no element
+ * carries an inline style; the sheet is built through the style API, which the page's policy allows. Declarations are
+ * { 'css-property': 'value' }; a key given null or no declarations drops its rule.
+ */
+const geometryRules = new Map();
+let geometrySheet = null;
+function geometry(key, declarations) {
+  if (declarations && Object.keys(declarations).length) {
+    const rule = '[data-geo="' + key + '"]{' + Object.entries(declarations).map(([property, value]) => property + ':' + value).join(';') + '}';
+    if (geometryRules.get(key) === rule) return;
+    geometryRules.set(key, rule);
+  } else if (!geometryRules.delete(key)) return;
+  if (typeof CSSStyleSheet !== 'function' || !('adoptedStyleSheets' in document)) return;
+  if (!geometrySheet) { geometrySheet = new CSSStyleSheet(); document.adoptedStyleSheets = [...document.adoptedStyleSheets, geometrySheet]; }
+  geometrySheet.replaceSync([...geometryRules.values()].join(''));
+}
 const sharedRowHtml = (${sharedRowHtml.toString()});
 const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});
@@ -56,6 +78,10 @@ const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html:
   controls: () => pageControlsHtml({ tab: 'activity', by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24 }),
   onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(),
   remember: (root, value) => value === undefined ? (Number(keep('pb.activity.left.' + root)) || null) : keep('pb.activity.left.' + root, String(value)) });
+// The Insights Pipeline page (#6869): the held event history the Dashboard reads, this machine's CPU samples, and the pure model and markup.
+const pipelineView = (${pipelineRuntime.toString()})({ model: (${pipelineWatchModel.toString()}), html: (${pipelineWatchHtml.toString()}), history: project => dashboardView.history(project), api, current: () => view.root,
+  redraw: () => { if (view.tab === 'pipeline' && data?.project) render(); }, windowMinutes: () => ({ '15m': 15, '30m': 30, '3h': 180 })[view.pipelineWindow] ?? 60,
+  itemsHref: ids => itemsIdsHref(ids), itemHref: id => itemAddress(id), openItems: ids => openPipelineItems(ids), machineHere: privateCost });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
@@ -561,6 +587,7 @@ const pipelineStage = (${pipelineStage.toString()});
 const itemStagePresentation = (${itemStagePresentation.toString()});
 const withdrawnFromStatus = (${withdrawnFromStatus.toString()});
 const itemStageKey = (${itemStageKey.toString()});
+const stageSentence = (${stageSentence.toString()});
 const pipelineSince = (${pipelineSince.toString()});
 const itemListFields = (${itemListFields.toString()});
 /** Bind the current lifecycle declaration at the page adapter boundary. */

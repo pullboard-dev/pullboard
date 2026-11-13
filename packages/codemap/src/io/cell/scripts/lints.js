@@ -2,8 +2,8 @@
 import { fileURLToPath } from 'node:url';
 /** Report cells migration debt, or explicitly check/initialize/lower its root ratchet [C7,CD64]. */
 import { existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { dirname } from 'node:path';
+import { tryGit } from '../../../../../git/index.js';
 import { resolve } from 'node:path';
 import { readCellLintBaseline } from '../../../../index.js';
 import { writeCellLintBaseline } from '../../../../index.js';
@@ -37,7 +37,7 @@ withCellLintParser(compile => {
     if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
     // The cell inventory reads tracked files only, so the new shards are staged before the verify re-reads them [C7].
-    const stage = () => { spawnSync('git', ['add', '--', dirname(CELL_BASELINE_DESCRIPTOR)], { cwd: root, stdio: 'ignore' }); };
+    const stage = () => { tryGit(root, ['add', '--', dirname(CELL_BASELINE_DESCRIPTOR)]); };
     writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => { stage(); return JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline); } });
   } else if (mode === '--update') {
     if (!existsSync(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
