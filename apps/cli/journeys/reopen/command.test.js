@@ -218,10 +218,14 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const stillRed = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "RED"; // unchanged behavior\n', 'fix(web): retry without fixing the landing behavior [G1]');
   assert.equal(stillRed.status, 0, stillRed.stderr);
   const unchangedLandingHead = (await fixtureCommand(box, item.cwd, 'submit', String(item.id), '--json'));
-  assert.equal(unchangedLandingHead.code, 1);
   const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
-  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, reclaimedHead === item.commit ? 'HEAD_NOT_NEW' : 'GATE_RED',
-    'the original head is refused before proof; a claim that merged main still fails the unchanged red behavior');
+  if (reclaimedHead === item.commit) {
+    assert.equal(unchangedLandingHead.code, 1, unchangedLandingHead.out);
+    assert.equal(JSON.parse(unchangedLandingHead.out).error.code, 'HEAD_NOT_NEW', 'the original head is refused before proof');
+  } else {
+    // A claim that merged main still fails the unchanged red behavior: the pulled gate settles red on the item's thread, never submitted.
+    assert.match(JSON.stringify(readItem(box, item.id).thread), /Gate job \S+ red at /u, `the unchanged red behavior fails its gate: ${unchangedLandingHead.out}${unchangedLandingHead.err}`);
+  }
   assert.equal(readItem(box, item.id).item_status, 'claimed', 'neither refusal records another submission');
   assert.equal(box.tryGit(item.cwd, 'merge-base', '--is-ancestor', item.commit, 'HEAD').status, 0,
     'the builder reclaims on top of the accepted commit');
