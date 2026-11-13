@@ -12,6 +12,7 @@ import { plainNeedWords } from "../../logic/needs/list.js";
 import { ruleListModel } from "../../logic/rules.js";
 import { selectItemsView } from "../../logic/selection.js";
 import { overlapHtml } from "../../logic/overlap.js";
+import { rowWindow } from "../../logic/page/window.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -20,6 +21,7 @@ const agentsPanelModel = (${agentsPanelModel.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
 const selectItemsView = (${selectItemsView.toString()});
+const rowWindow = (${rowWindow.toString()});
 const overlapHtml = (${overlapHtml.toString()});
 const PLAIN_FALLBACK = (${JSON.stringify(PLAIN_FALLBACK)});
 const LEAKS = [${LEAKS.map(String).join(",")}];
@@ -110,6 +112,27 @@ function itemStageMarks(item, project) {
   if (stale) marks.push(stale);
   if (item.status === 'withdrawn') marks.push(stageMark('Withdrawn', item.withdrawnReason || 'reason unavailable', 'no'));
   return marks;
+}
+
+// The Items rows drawn last, and the slice of them on screen (#6676).
+let itemsList = null;
+let itemsPitch = 0;
+/** Draw only the Items rows near the viewport; the list's height stays whole so the scrollbar and every anchor stay right. */
+function paintItemsWindow() {
+  const chain = $('chain'), list = itemsList;
+  if (!chain || !list) return;
+  const rows = list.shown;
+  if (!itemsPitch && typeof getComputedStyle === 'function') {
+    const style = getComputedStyle(chain), row = parseFloat(style.getPropertyValue('--item-row-h')), gap = parseFloat(style.rowGap) || 0;
+    if (row > 0) itemsPitch = row + gap;
+  }
+  const viewport = typeof innerHeight === 'number' ? innerHeight : 0;
+  // Without a measured row height or a viewport (a page with no layout), every row is drawn.
+  const windowed = rows.length > 0 && itemsPitch > 0 && viewport > 0 && typeof chain.getBoundingClientRect === 'function';
+  const at = windowed ? rowWindow({ count: rows.length, top: chain.getBoundingClientRect().top, viewport, pitch: itemsPitch }) : { start: 0, end: rows.length };
+  store.paint(chain, rows.length ? rows.slice(at.start, at.end).map(list.rowHtml).join('') : list.empty);
+  chain.style.paddingTop = windowed && at.start ? at.start * itemsPitch + 'px' : '';
+  chain.style.paddingBottom = windowed && at.end < rows.length ? (rows.length - at.end) * itemsPitch + 'px' : '';
 }
 
 // The parts that scroll on their own: each keeps its place through any draw (#6613).
@@ -276,7 +299,8 @@ function render({ tab: switching = false } = {}) {
   const found = searchIds(p, q);
   // Gated is shared by the rows, filter and status bar. Capture all clocks/derived state here;
   // the pure selector receives observations and ids, never the page's data/view globals.
-  const readyIds = dashboardModel(p, [], { complete: false, now: Date.now() }).next.map(item => item.id);
+  // The ready order is only read when Show is Ready, so the whole dashboard is not worked out for any other choice (#6676).
+  const readyIds = view.state === 'ready' ? dashboardModel(p, [], { complete: false, now: Date.now() }).next.map(item => item.id) : [];
   const stateById = new Map(p.items.map(item => [item.id, { state: stateOf(item), gated: gatedOf(item) }]));
   const itemsSelection = selectItemsView({ items: p.items, query: q, matchedIds: found, readyIds, stateById, state: view.state,
     lane: view.lane, pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
@@ -314,7 +338,8 @@ function render({ tab: switching = false } = {}) {
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   // While another project loads, the item picked there waits for its own board.
 
-  store.paint($('chain'), shown.length ? shown.map((i) => {
+  // Items draws only the rows near the screen (#6676): the list is kept here and paintItemsWindow draws its slice.
+  itemsList = { shown, rowHtml: (i) => {
     const s = stateOf(i);
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
     const hold = s === 'open' ? heldLanes.get(i.lane) : null;
@@ -332,9 +357,10 @@ function render({ tab: switching = false } = {}) {
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
       metaHtml: (rejected(i) ? '<b class="item-reason">' + reasonHtml(i.verdict.reason) + '</b> <span class="why">' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
         : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills + overlapHtml(data.claimOverlaps, i.id) });
-  }).join('') : '<li class="empty">' + (finishedUnderAll
+  }, empty: '<li class="empty">' + (finishedUnderAll
     ? 'Finished work is under All. <button class="link" data-filter-choice="state:all" data-filter-kind="state" data-filter-value="all" type="button">Show all</button>'
-    : items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>');
+    : items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>' };
+  paintItemsWindow();
 
   const selected = p.items.find((i) => i.id === view.item);
   // The form shows when asked for, or when the project has no item at all, withdrawn ones included.
