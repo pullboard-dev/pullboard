@@ -251,8 +251,8 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await click('[data-tab=items]');
     await filter('state', 'active');
     await click('.notch [data-status="agents"]');
-    await chrome.waitFor("view.tab === 'dashboard' && view.addressDetail === 'floor'");
-    assert.ok(Number(await chrome.stable("document.querySelector('.notch [data-notch=agents]').textContent")) > 0, 'the notch\'s agents open the agent floor they count');
+    await chrome.waitFor("view.tab === 'dashboard' && view.addressDetail === 'agents'");
+    assert.ok(Number(await chrome.stable("document.querySelector('.notch [data-notch=agents]').textContent")) > 0, 'the notch\'s agents open the Dashboard\'s Agents table they count (#6847)');
     // The release part opens the Roadmap on that release alone: its rows are the ones it counts.
     await click('.status [data-status="release"]');
     await chrome.waitFor("view.tab === 'roadmap'");
