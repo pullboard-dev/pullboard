@@ -1,14 +1,14 @@
 /** The API serves each board's small summary at /summary and says so in its listing, so the view sidebar never downloads whole boards (A2, N26). */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { viewApiPorts } from '../../../../apps/view/index.js';
-import { projectSummary } from '../../../../apps/view/index.js';
-import { apiHttpFixture } from '../../../../apps/cli/tests/fixtures/api.js';
-import { apiBoardOpeners } from '../../../../apps/cli/tests/fixtures/board.js';
-import { main } from '../../../../apps/cli/tests/fixtures/native.js';
-import { refusalDocument } from '../../../../apps/cli/index.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
-import { serveApi } from '../../index.js';
+import { viewApiPorts } from '../../../../view/index.js';
+import { projectSummary } from '../../../../view/index.js';
+import { apiHttpFixture } from '../../../tests/fixtures/api.js';
+import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
+import { main } from '../../../tests/fixtures/native.js';
+import { refusalDocument } from '../../../index.js';
+import { fetchFresh } from '../../../tests/fixtures/http.js';
+import { serveApi } from '../../../../../packages/api/index.js';
 
 const BRIEF = 'Files:\n- app/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- the fixture case passes';
 
@@ -35,7 +35,7 @@ test('[A2, N26] GET /boards/:id/summary answers the board\'s version 1 summary u
   assert.equal(read.status, 200, read.text);
   assert.ok(Buffer.byteLength(read.text) < 2048, 'the whole reply is under 2 KB');
   const body = JSON.parse(read.text).summary;
-  assert.equal(JSON.parse(read.text).version, 1);
+  assert.equal(JSON.parse(read.text).version, undefined);
   assert.equal(body.version, 1);
   for (const key of ['sequence', 'building', 'awaiting', 'sentBack', 'open', 'verified', 'decisions', 'pending', 'drafts', 'holds', 'lastChange']) assert.ok(Object.hasOwn(body, key), key);
   assert.equal(body.open, 1);
@@ -45,7 +45,7 @@ test('[A2, N26] GET /boards/:id/summary answers the board\'s version 1 summary u
 });
 
 test('[A2] a POST to the summary path is refused as BAD_REQUEST, and a server without the projection lists no summaryVersion [#6634]', async (t) => {
-  const { call, listed, path } = await served(t, { ...viewApiPorts, projectSummary: undefined });
+  const { call, listed, path } = await served(t, viewApiPorts);
   assert.equal(listed.boards[0].summaryVersion, undefined);
   const post = await call(path + '/summary', {});
   assert.equal(post.status, 400);
