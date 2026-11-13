@@ -56,7 +56,7 @@ test('Dashboard is the landing page, Settings carries the rules, and migrates sa
     assert.ok(tabs.includes('dashboard') && !tabs.includes('progress'), 'Dashboard is a tab and Progress is not');
     assert.doesNotMatch(html, /data-tab="home"|data-pane="home"/u, 'the retired Home tab and pane are absent');
 
-    // A new board opens on Dashboard, which retains the rules and the calls waiting on the person.
+    // A new board opens on Dashboard; the rules move to Settings and the calls waiting on the person to the notch and Items (#6847).
     const fresh = await openPage(view, { store: storage() });
     assert.equal(fresh.run('view.tab'), 'dashboard', 'a board with no items yet opens on Dashboard');
     assert.match(fresh.show('dashboard'), /data-first-run-tour/, 'a new board first presents the setup tour');
@@ -67,8 +67,8 @@ test('Dashboard is the landing page, Settings carries the rules, and migrates sa
     assert.match(rules, /data-go="tab:spec"/, 'the rules card opens the Spec');
     fresh.run("view.tab = 'dashboard'; render();");
     const dashboard = fresh.show('dashboard');
-    assert.match(dashboard, /aria-label="Rulings"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
-    assert.doesNotMatch(dashboard, /Nothing to rule on/u, 'a visible call suppresses the calm state');
+    assert.doesNotMatch(dashboard, /aria-label="Rulings"|needs-card/u, 'the /live-style Dashboard draws no Rulings card');
+    assert.ok(fresh.run("JSON.stringify(data.project.needs)").includes('Should the page greet a visitor?'), 'the call waiting on the person is still on the board for the notch and Items');
     assert.doesNotMatch(dashboard, /dashboard-rules|dashboard-capacity|Your rules|Useful agents/u, 'the rules and capacity cards are on Settings, not the Dashboard');
 
     // Existing work also opens on Dashboard; the person's explicit Items choice is remembered.
