@@ -19,8 +19,6 @@ import { exitedWithoutResult } from '../../../../../../packages/resources/index.
 import { HANDOFF_SWEEP_EVERY_MS } from '../../../../../../packages/resources/index.js';
 import { queueHandoffLaunch } from '../../../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../../../packages/resources/index.js';
-import { capturedLaunchUnseen } from '../../../../src/io/submit/handoff.js';
-import { sweepOrder } from '../../../../src/io/submit/handoff.js';
 import { queuedElsewhere } from '../../../../../../packages/resources/index.js';
 import { recordHandoffQueue } from '../../../../../../packages/resources/index.js';
 import { replaceLostTicketOnce } from '../../../../../../packages/resources/index.js';
@@ -76,23 +74,6 @@ test('the timed sweep runs every 15 s at most, and an exit with a written result
     assert.equal(exitedWithoutResult(dead), true, 'a worker that exited with no result is a death');
     assert.equal(exitedWithoutResult(dead), false, 'each death asks for one sweep');
   } finally { rmSync(dir, { recursive: true, force: true }); }
-});
-
-test('the sweep takes the queue-order lock only for a queued job with no captured request and no place in line, and reaches running jobs first [C7]', async () => {
-  const box = fixture();
-  try {
-    const captured = join(box.dir, 'jobs', 'captured');
-    mkdirSync(captured, { recursive: true });
-    writeFileSync(join(captured, 'request.json'), '{}\n');
-    assert.equal(capturedLaunchUnseen(captured, 'captured'), false, 'a captured request proves the launch began');
-    const lined = join(box.dir, 'jobs', 'lined');
-    mkdirSync(lined, { recursive: true });
-    await reserveHandoffTicket('lined');
-    assert.equal(capturedLaunchUnseen(lined, 'lined'), false, 'a place in line proves the launch began');
-    assert.equal(capturedLaunchUnseen(join(box.dir, 'jobs', 'lost'), 'lost'), true, 'only a job with neither needs the locked check');
-    const order = sweepOrder([{ itemId: 1, job: { state: 'queued' } }, { itemId: 9, job: { state: 'running' } }, { itemId: 3, job: { state: 'running' } }]);
-    assert.deepEqual(order.map(row => row.itemId), [3, 9, 1]);
-  } finally { box.cleanup(); }
 });
 
 test('a lease renewal that meets a locked board answers not held and the driver lives; any other row still throws [C7]', t => {

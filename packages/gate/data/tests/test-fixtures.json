@@ -1931,8 +1931,11 @@
   "apps/cli/journeys/patch/item/diff.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/fact/item/presubmit.test.js": {
-    "raw-board": 2
+  "apps/cli/journeys/fact/item/presubmit/seal.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/companion/presubmit.js": {
+    "raw-board": 1
   },
   "apps/cli/journeys/patch/item/patches.test.js": {
     "raw-board": 12
@@ -3711,9 +3714,6 @@
   "packages/resources/tests/io/handoff/worker/cap/exit.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/submit/handoff/worker/gone.test.js": {
-    "raw-board": 4
-  },
   "apps/cli/journeys/submit/handoff.test.js": {
     "raw-board": 3
   },
@@ -3768,9 +3768,6 @@
   "apps/cli/journeys/submit/retry.test.js": {
     "repo-read": 1,
     "raw-board": 1
-  },
-  "apps/cli/journeys/submit/wait/exit.test.js": {
-    "raw-board": 2
   },
   "apps/cli/journeys/submit/wait.test.js": {
     "raw-board": 1
