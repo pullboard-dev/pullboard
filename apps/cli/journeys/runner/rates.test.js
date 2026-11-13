@@ -1,7 +1,17 @@
-/** A runner's rate card is stored in settings and validated [C7]. */
+/** @pullboard-test-input source-tree */
+/** @pullboard-world-pin reads docs/formats.md to prove it names the rate card form. */
+/** A runner's rate card is stored in settings and validated, and the CLI sets it [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { SETTING_DESCRIPTIONS } from '../../../../packages/config/index.js';
+import { fileURLToPath } from 'node:url';
+import {
+  SETTING_DESCRIPTIONS,
+  loadMachineSettings,
+} from '../../../../packages/config/index.js';
+import { buildHelp } from '../../index.js';
+import { main } from '../../tests/fixtures/native.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import {
   parseRunnerRate,
   runnerRate,
@@ -27,4 +37,31 @@ test('a runner with no card reads back as not set [C7]', () => {
   assert.equal(runnerRate(validateRunnerRates(undefined), 'studio.local'), null);
   assert.equal(runnerRate({ other: CARD }, 'studio.local'), null);
   assert.equal(runnerRate(undefined, 'studio.local'), null);
+});
+
+/** Runs the real CLI in process against a private machine home and returns its exit code and output. */
+async function settings(t, args) {
+  const { root } = privateFixtureFiles('pullboard-rates-');
+  const before = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = root;
+  t.after(() => { if (before === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = before; });
+  let stdout = '', stderr = '';
+  const code = await main(['settings', ...args], { cwd: root, stdout: { isTTY: false, write: text => { stdout += text; } }, stderr: { write: text => { stderr += text; } } });
+  return { code, stdout, stderr };
+}
+
+test('the CLI form stores a card that reads back, and a bad field stores nothing [C7]', async t => {
+  const ok = await settings(t, ['runnerRates', 'studio.local', '1200', '36', '85', '0.14']);
+  assert.equal(ok.code, 0, ok.stderr + ok.stdout);
+  assert.deepEqual(runnerRate(loadMachineSettings().runnerRates, 'studio.local'), CARD);
+  const bad = await settings(t, ['runnerRates', 'studio.local', '1200', '0', '85', '0.14']);
+  assert.notEqual(bad.code, 0);
+  assert.match(bad.stderr, /BAD_RUNNER_RATES/u);
+  assert.equal(runnerRate(loadMachineSettings().runnerRates, 'studio.local'), null, 'a refused card is not stored');
+});
+
+test('help and the formats doc name the rate card form [C7]', () => {
+  const form = 'pullboard settings runnerRates <runner> <price> <months> <watts> <kwhPrice>';
+  assert.ok(JSON.stringify(buildHelp()).includes(form), 'help names the form');
+  assert.ok(readFileSync(fileURLToPath(new URL('../../../../docs/formats.md', import.meta.url)), 'utf8').includes(form), 'the formats doc names the form');
 });
