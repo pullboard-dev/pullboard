@@ -288,8 +288,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const harness = reach(RUNNER_INPUTS, { withoutSelectedRunnerModules: true }).filter(path => !TEST_SIDE_PATH.test(path) && !path.startsWith('docs/'));
   const runner = [...new Set([...RUNNER_INPUTS, ...harness])].sort().map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
-  for (const [test, closure] of closures) {
-    if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
+  // An explicit file list keys only those files: one key never depends on another test's, and a cold tree spent ~20 s keying all 2,000 [C7,#6672].
+  for (const [test, closure] of files ? files.filter(file => closures.has(file)).map(file => [file, closures.get(file)]) : closures) { if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
     const reads = declaredReads(test, closure.files, modules, index, closure.helpers);
     if (reads.history) { keys.set(test, { key: null, reason: 'it reads the git history of its own checkout' }); continue; }
     if (reads.undeclaredListing) { keys.set(test, { key: null, reason: 'it lists the tracked files of its own checkout without declaring them' }); continue; }
