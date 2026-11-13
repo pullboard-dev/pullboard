@@ -66,9 +66,9 @@ export function settingsContentHtml(entry, scope = 'machine') {
     groups.get(key).rows.push(row);
   }
   const ranked = [...groups.values()].sort((a, b) => (order.indexOf(a.name) < 0 ? 99 : order.indexOf(a.name)) - (order.indexOf(b.name) < 0 ? 99 : order.indexOf(b.name)));
-  const cards = ranked.map(group => '<section class="set-group"><div class="ghead"><h3>' + esc(group.name) + (group.root ? ' · ' + esc(String(group.root).replaceAll('\\', '/').split('/').at(-1)) : '') + '</h3><p>' + esc(about[group.name] || '') + '</p><span>' + group.rows.filter(changed).length + ' changed</span></div>' + group.rows.map(rowHtml).join('') + '</section>').join('');
+  const cards = ranked.map(group => '<section class="set-sect"><div class="shd ghead"><h2 class="hd1">' + esc(group.name) + (group.root ? ' · ' + esc(String(group.root).replaceAll('\\', '/').split('/').at(-1)) : '') + '</h2><span class="cap2">' + esc(about[group.name] || '') + '</span><span class="cnt">' + group.rows.filter(changed).length + ' changed</span></div><div class="set-group">' + group.rows.map(rowHtml).join('') + '</div></section>').join('');
   const boards = scope === 'board' ? '<button class="ghost" type="button" data-settings-open aria-pressed="' + Boolean(entry.all) + '">All local boards</button>' : '';
-  return '<section class="settings-head"><h2>Settings</h2><p>How Pullboard runs on this computer. Change a setting with the copy button beside it; this page shows what is in effect.</p>'
+  return '<section class="settings-head"><p>How Pullboard runs on this computer. Change a setting with the copy button beside it; this page shows what is in effect.</p>'
     + '<div class="settings-bar"><div class="seg settings-scopes" role="tablist" aria-label="Settings scope">' + scopes + '</div>' + boards + '<button class="ghost settings-refresh" type="button" data-settings-refresh>Refresh</button></div>'
     + (source && !entry.loading && !entry.error ? '<p class="settings-where">From <code>' + esc(home(source)) + '</code> · ' + rows.filter(changed).length + ' changed from the default</p>' : '') + '</section>'
     + (entry.error ? '<p class="setting-error" role="alert">' + esc(plain(entry.error)) + '</p>' : '')

@@ -223,10 +223,12 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'All'], 'Shouts: For you and All');
   assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'roadmap' })), ['Show shipped'], 'Roadmap: Show shipped');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'cost' })), ['Today', '7 days', '30 days'], 'Cost: its window sits in the strip');
+  assert.match(pageControlsHtml({ tab: 'cost', costWindow: '30d' }), /data-page-ctl="costwindow" data-value="30d" class="on" aria-pressed="true">30 days</u, 'the shown window is the pressed one');
   assert.match(pageControlsHtml({ tab: 'roadmap', shipped: true }), /aria-pressed="true">Hide shipped</u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'activity', people: ['agent-1', 'coordinator', 'person'] })), ['Everyone', 'agent-1', 'The coordinator', 'You'], 'Activity: a person filter');
   assert.match(pageControlsHtml({ tab: 'activity', by: 'coordinator', people: ['coordinator'] }), /<option value="coordinator" selected>/u);
-  for (const tab of ['spec', 'doctrine', 'dashboard', 'cost', 'settings', null]) assert.equal(pageControlsHtml({ tab }), '', `${tab}: nothing to control shows nothing`);
+  for (const tab of ['spec', 'doctrine', 'dashboard', 'settings', null]) assert.equal(pageControlsHtml({ tab }), '', `${tab}: nothing to control shows nothing`);
 
   // The served shell: the controls live in the strip, and the sidebar layout's title row waits to take them.
   const html = shell(false);
