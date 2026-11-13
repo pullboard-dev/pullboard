@@ -33,8 +33,6 @@ import { cellLintBaseline } from '../../../../packages/codemap/index.js';
 import { cellReadPathMap as readPathMap } from '../../../../packages/codemap/index.js';
 import { mappedPath } from '../../../../packages/codemap/index.js';
 import { checkCuts } from '../../../../packages/codemap/index.js';
-import { entryPlacementProblems } from '../../../../packages/codemap/index.js';
-import { processEntry } from '../../../../packages/codemap/index.js';
 import { cutTitle } from '../../../../packages/codemap/index.js';
 import {
   frontDoorBypasses,
@@ -49,7 +47,6 @@ import { readPlan } from '../../../../packages/codemap/index.js';
 import { shardFile } from '../../../../packages/codemap/index.js';
 import { unplanned } from '../../../../packages/codemap/index.js';
 import { stalePlanRows } from '../../../../packages/codemap/index.js';
-import { engineStayTransition } from '../../../../packages/codemap/index.js';
 import { scriptMentions } from '../../../../packages/codemap/index.js';
 import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
@@ -112,49 +109,10 @@ function refuse(problems) {
   if (problems.length) throw new Refused('CELLS_SUBMIT', problems.join('; '));
 }
 
-/**
- * An accepted row may leave its cell as a plan stay only when the item's frozen criterion, written by the coordinator,
- * names it exactly as `plan stay <path>`, the file still sits at its old path and nothing occupies its old target.
- * The candidate's own stays list never authorizes itself (#2446).
- */
-function approvedStay(after, row, candidateRoot, criterion) {
-  const [from, to] = row;
-  // The path ends at whitespace, the text end, or one of , ; . before them: apps/relay/src/io/deploy/x.js.map, x.js+copy and x.jsé never approve apps/relay/src/io/deploy/x.js.
-  const named = new RegExp(`(?:^|[^\\w./-])plan stay ${from.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
-  if (!named.test(criterion) || !(after.stays ?? []).some(stay => stay.path === from)) return false;
-  try { if (!lstatSync(join(candidateRoot, from)).isFile()) return false; } catch { return false; }
-  return !existsSync(join(candidateRoot, to));
-}
-
-/**
- * An accepted process entry may leave the plan's entries only when the item's frozen criterion, written by the coordinator,
- * names it exactly as `plan retire entry <path>` and its file is absent (ENOENT) or readable and no longer runs as a process (#3519).
- * The candidate's own plan never authorizes itself; a file that still runs as a process keeps its ownership.
- */
-function approvedEntryRetirement(entry, candidateRoot, criterion, map) {
-  const named = new RegExp(`(?:^|[^\\w./-])plan retire entry ${entry.path.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
-  if (!named.test(criterion)) return false;
-  const file = join(candidateRoot, mappedPath(map, entry.path));
-  // Only a path that is genuinely absent (ENOENT) or readable source that no longer runs as a process retires; any other failure refuses.
-  try {
-    if (!lstatSync(file).isFile()) return false;
-    return !processEntry(entry.path, readFileSync(file, 'utf8'));
-  } catch (error) { return error?.code === 'ENOENT'; }
-}
-
-/** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
+/** Cell identity, order and door rules; stays, entries and row ownership are no longer read from the plan [C7]. */
 export function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
-  const engineStays = engineStayTransition({ beforeRoot: mainRoot, afterRoot: candidateRoot, before, after, afterMap });
-  problems.push(...engineStays.problems);
-  const entryProblems = entryPlacementProblems(candidateRoot, after);
-  problems.push(...entryProblems);
-  const afterEntries = Array.isArray(after.entries) ? after.entries : [];
-  const entries = new Set(entryProblems.length ? [] : afterEntries.map(row => row.path));
-  for (const entry of before.entries ?? []) {
-    if (!afterEntries.some(row => row.path === entry.path && row.cell === entry.cell) && !(!afterEntries.some(row => row.path === entry.path) && approvedEntryRetirement(entry, candidateRoot, criterion, afterMap))) problems.push(`accepted process entry ownership changed: ${entry.path}`);
-  }
-  const rows = new Map(), targets = new Set(), orders = new Set(), roots = new Set();
+  const orders = new Set(), roots = new Set();
   const relative = value => typeof value === 'string' && value.length > 0 && !/[\\:\x00-\x1f]/u.test(value)
     && value.split('/').every(part => part && part !== '.' && part !== '..');
   for (const cell of after.cells) {
@@ -163,12 +121,6 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
     if (!relative(cell.root) || !relative(cell.frontDoor) || !cell.frontDoor.startsWith(cell.root + '/')) problems.push(`invalid cell root/front door: ${cell.name}`);
     if ([...roots].some(root => root === cell.root || root.startsWith(cell.root + '/') || cell.root.startsWith(root + '/'))) problems.push(`overlapping cell root: ${cell.root}`);
     roots.add(cell.root);
-  }
-  for (const cell of after.cells) for (const row of cell.paths) {
-    if (!Array.isArray(row) || row.length !== 3 || !relative(row[0]) || !relative(row[1]) || !row[1].startsWith(cell.root + '/') || targets.has(row[1])) problems.push(`invalid or duplicate placement target in ${cell.name}: ${row?.[1]}`);
-    targets.add(row[1]);
-    if (rows.has(row[0])) problems.push(`plan repeats ${row[0]}`);
-    rows.set(row[0], { cell, row });
   }
   for (const cell of before.cells) {
     const next = cells.get(cell.name);
@@ -188,20 +140,6 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
     if (cell.pureDoor === undefined && next.pureDoor !== undefined) {
       problems.push(...pureDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
     }
-    for (const row of cell.paths) {
-      const current = rows.get(row[0]);
-      const retired = after.retired?.some(entry => entry.cell === cell.name && JSON.stringify(entry.row) === JSON.stringify(row));
-      if (!current && !retired && !engineStays.rows.has(row[0]) && !approvedStay(after, row, candidateRoot, criterion)) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
-      if (current && current.cell.order > cell.order && !entries.has(row[0])) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
-    }
-  }
-  for (const entry of before.retired ?? []) if (!after.retired?.some(row => JSON.stringify(row) === JSON.stringify(entry))) {
-    problems.push(`accepted retired provenance changed: ${entry.row[0]}`);
-  }
-  for (const [from, to] of afterMap) {
-    if (beforeMap.get(from) === to) continue;
-    const row = rows.get(from);
-    if (!row || row.row[1] !== to) problems.push(`path map ${from} -> ${to} has no exact declared move row`);
   }
   for (const [from, to] of beforeMap) if (!afterMap.has(from)) problems.push(`accepted path map disappeared: ${from} -> ${to}`);
   return problems;
