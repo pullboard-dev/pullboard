@@ -12,6 +12,7 @@ import { plainNeedWords } from "../../logic/needs/list.js";
 import { ruleListModel } from "../../logic/rules.js";
 import { selectItemsView } from "../../logic/selection.js";
 import { overlapHtml } from "../../logic/overlap.js";
+import { patchKeyedRows } from "../../logic/page/rows.js";
 import { navPages } from "../../logic/nav.js";
 import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
@@ -23,10 +24,12 @@ import { rowWindow } from "../../logic/page/window.js";
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
   return `let drawnRoadmap = null;
+let roadmapNodes = new Map();
 const agentsPanelModel = (${agentsPanelModel.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
 const selectItemsView = (${selectItemsView.toString()});
+const patchKeyedRows = (${patchKeyedRows.toString()});
 const rowWindow = (${rowWindow.toString()});
 const overlapHtml = (${overlapHtml.toString()});
 const PLAIN_FALLBACK = (${JSON.stringify(PLAIN_FALLBACK)});
@@ -169,6 +172,19 @@ function drawFrame() {
   $('live').textContent = '';
 }
 
+/**
+ * Draw the Roadmap by row key (#6679): a row whose markup is unchanged keeps its DOM node, and a live update replaces only
+ * the rows that changed.
+ *
+ * @param {string} html - The cards, each row an empty slot.
+ * @param {Map<string, string>} rows - Each row's markup by its slot key.
+ * @param {string|null} board - The board the Roadmap shows.
+ */
+function paintRoadmap(html, rows, board) {
+  const done = patchKeyedRows({ host: $('roadmap'), doc: document, nodes: roadmapNodes, drawn: drawnRoadmap, html, rows, scope: JSON.stringify([view.root, board]) });
+  roadmapNodes = done.nodes;
+  drawnRoadmap = done.drawn;
+}
 
 // The Items rows drawn last, and the slice of them on screen (#6676).
 let itemsList = null;
@@ -248,6 +264,10 @@ function render({ tab: switching = false } = {}) {
   if (!p) return;
   // A tab switch to a pane drawn from this same board and view shows it as it is, with nothing drawn again.
   const draw = !(switching && store.paneFresh(view.tab, store.paneKey(view, $('q').value)));
+  // A switch to the Roadmap after an update shows it as it was last drawn at once; the patch for the update follows once
+  // that frame is on screen, so the switch never waits on the rows that changed (#6679).
+  const roadmapBehind = draw && switching && view.tab === 'roadmap' && drawnRoadmap !== null
+    && drawnRoadmap.scope === JSON.stringify([view.root, p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null]);
   $('proof-stats').hidden = view.tab !== 'items';
   if (view.tab === 'items') store.paint($('proof-stats'), proofStatsCard(p.proofStats, view.statsOpen));
   // Polling replaces this card's controls; keep the person's keyboard position through that redraw.
@@ -267,18 +287,17 @@ function render({ tab: switching = false } = {}) {
     const history = readCostHistory(p, switching);
     store.paint($('cost'), costPaneHtml(history, p));
   }
-  if (draw && view.tab === 'roadmap') {
+  if (roadmapBehind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'roadmap') render(); }, 0));
+  if (draw && !roadmapBehind && view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
   roadmapAhead.clear();
   roadmapDetails.clear();
-  const roadmap = roadmapCards(p, titles), roadmapHtml = roadmap.html;
+  const roadmapRows = new Map();
+  const roadmap = roadmapCards(p, titles, roadmapRows), roadmapHtml = roadmap.html;
   const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
-  if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {
-    $('roadmap').innerHTML = roadmapHtml;
-    drawnRoadmap = { root: view.root, board: roadmapBoard, html: roadmapHtml };
-  }
+  paintRoadmap(roadmapHtml, roadmapRows, roadmapBoard);
   restoreRoadmapArrival();
   // The mark sets its chip in bold, which widens it, and the fresh row has no mark yet. Restored first, the scroll
   // would clamp to a row narrower by that bold and leave the chips short of where they were (#452).
@@ -826,7 +845,7 @@ function render({ tab: switching = false } = {}) {
   view.activityPeople = [...new Set([...activityRows.map(entry => entry.by).filter(Boolean), ...(view.activityBy ? [view.activityBy] : [])])].sort();
   store.paint(activity, activityHtml({ ...activityModelData, rows: view.activityBy ? activityRows.filter(entry => entry.by === view.activityBy) : activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
   }
-  if (draw) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
+  if (draw && !roadmapBehind) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
   drawPageControls();
   revealPlace();
