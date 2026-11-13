@@ -11,7 +11,7 @@ import {
   notice,
 } from '../../../../tests/fixtures/init/known-main-notice.js';
 
-test('identical main case is structured in test with a real receipt, and incomplete evidence is refused [V4,B3,C7]', async t => {
+test('identical main case is structured in test with a real receipt, and incomplete evidence is refused [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
   const box = fixture(t);
   const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);

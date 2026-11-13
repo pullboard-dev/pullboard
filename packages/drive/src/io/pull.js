@@ -351,7 +351,7 @@ async function dropCheckout(git, cache, { folder, primary }, exclusive = work =>
 }
 
 /** What a runner operator may hand every job beyond the runner-owned values: progress reporting and fixture markers. */
-const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
+const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
 
 /**
  * A pulled job's own environment and the folders it lives in: a per-job HOME and temp folder beside the checkout, and

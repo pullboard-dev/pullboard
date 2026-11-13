@@ -35,6 +35,7 @@ import { serveListen } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
 import { provideComparisonStart } from '../../../../../packages/api/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
@@ -43,6 +44,7 @@ import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
 import { provideMainTestRecorder } from '../../../../../packages/api/index.js';
 import { recordPulledBaseline } from '../../../../../packages/gate/index.js';
 import { recordMainTestReceipt } from '../../../../../packages/landing/index.js';
+import { mainRedMessage } from '../../../../../packages/landing/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import {
@@ -92,6 +94,7 @@ export async function serveHere(io, values) {
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
+  provideMainRedNotes(MAIN_RED_NOTES);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
@@ -157,6 +160,9 @@ function startPulledComparison(request) {
   return import('./verify.js').then(module => module.launchPulledComparison(request)).catch(() => { /* A comparison is observation only. */ });
 }
 
+/** The inline gate's main-red wording, which pulled gate facts name an inherited red's owning rework with [V1,C7]. */
+const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(root, board, null, comparison) };
+
 /**
  * The board API on loopback for the boards `projects` lists, composed as `pullboard serve` composes it, for the local
  * runner [P7]. boards() names each board's id, read once per board.
@@ -168,6 +174,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
+  provideMainRedNotes(MAIN_RED_NOTES);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
@@ -199,6 +206,7 @@ export function boardStatePorts() {
 export function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
+  provideMainRedNotes(MAIN_RED_NOTES);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
