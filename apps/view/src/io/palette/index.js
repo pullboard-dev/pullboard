@@ -15,9 +15,9 @@ export function paletteScript() {
 (() => {
   pbPalette({
     document,
-    mac: /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
+    mac: typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
     box: $('q'),
-    pages: () => [...document.querySelectorAll('#tabs [data-tab]')].map((b) => ({ id: b.dataset.tab, name: b.textContent.trim() })).filter((p) => p.id !== 'settings'),
+    pages: () => [...document.querySelectorAll('#tabs [data-tab]')].map((b) => ({ id: b.dataset.tab, name: (b.querySelector('.tab-name b, .side-name') || b).textContent.trim(), count: (b.querySelector('[data-nav-fact]')?.textContent || '').trim() })).filter((p) => p.id !== 'settings'),
     hasTab: (id) => Boolean(document.querySelector('[data-tab="' + id + '"]')),
     items: () => (data?.project?.items || []).map((i) => ({ id: i.id, title: i.title, updatedAt: i.updatedAt, state: stateLabel(i) })),
     go: (target) => go(target),

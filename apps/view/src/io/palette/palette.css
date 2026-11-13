@@ -10,8 +10,11 @@
 .pal-res { max-height: 340px; overflow: auto; padding: 6px; }
 .pal-r { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .pal-r.on { background: var(--surface-2); }
-.pal-r span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pal-r small { color: var(--ink-faint); white-space: nowrap; }
+.pal-r > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-r small { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-faint); white-space: nowrap; }
+.pal-r > span:first-child { flex: none; max-width: 60%; }
+.pal-end { display: flex; align-items: center; gap: 8px; margin-left: auto; padding-left: 10px; flex: none; }
+.pal-end em { font: normal 12px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--ink-muted); }
 .pal-r kbd, .pal-help kbd { margin-left: auto; font: 11px/1 var(--mono); color: var(--ink-muted); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; background: var(--surface); }
 .pal-sec { padding: 10px 10px 4px; color: var(--ink-faint); font: 600 11px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; }
 .pal-help { width: 420px; max-width: 92vw; box-sizing: border-box; padding: 16px 18px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, .18); }
