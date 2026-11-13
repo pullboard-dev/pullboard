@@ -10,9 +10,17 @@ import { exportBoard } from '../../../index.js';
 import { importBoard } from '../../../index.js';
 import { RUN_OBJECT_NAMES } from '../../../index.js';
 
-/** Every schema object on the board except the run table's, by name, with its SQL. */
+/** Every schema object on the board except the run table's and SQLite's own statistics tables, by name, with its SQL. */
 function otherObjects(db) {
-  return db.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT IN ('run', 'run_item_kind', 'run_open') ORDER BY type, name").all().map(row => ({ ...row }));
+  return db.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT IN ('run', 'run_item_kind', 'run_open') AND name NOT LIKE 'sqlite_stat%' ORDER BY type, name").all().map(row => ({ ...row }));
+}
+
+/** The names of objects added, removed or rewritten between two schema listings, for a readable failure. */
+function changedNames(before, after) {
+  const key = row => `${row.type}:${row.name}`;
+  const was = new Map(before.map(row => [key(row), row.sql]));
+  const now = new Map(after.map(row => [key(row), row.sql]));
+  return [...new Set([...was.keys(), ...now.keys()])].filter(name => was.get(name) !== now.get(name)).sort();
 }
 
 /** The run rows of a board, in a stable order. */
@@ -42,7 +50,7 @@ test('a board without the run table gains it on its next open, and no other tabl
   const again = openCellBoard(file);
   t.after(() => closeCellBoard(again));
   for (const name of RUN_OBJECT_NAMES) assert.ok(again.db.prepare('SELECT 1 FROM sqlite_master WHERE name = ?').get(name), `${name} is back`);
-  assert.deepEqual(otherObjects(again.db), before, 'the upgrade only adds the run table and its indexes');
+  assert.deepEqual(changedNames(before, otherObjects(again.db)), [], 'the upgrade only adds the run table and its indexes');
   assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, version);
 });
 
