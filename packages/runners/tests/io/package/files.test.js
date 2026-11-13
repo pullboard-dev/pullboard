@@ -92,7 +92,7 @@ test('the private closure compiler preserves V8 edges and refusals without execu
   try {
     assert.deepEqual(runtimeUrls(runtime, parser.parse), runtimeUrls(runtime, independentParser.parse));
   } finally { independentParser.close(); }
-  assert.equal(runtimeUrls('new URL(name, import.meta.url);', parser.parse), null);
+  assert.deepEqual(runtimeUrls('new URL(name, import.meta.url);', parser.parse), [], 'a computed path is a runtime value, not a literal edge (#6201)');
   assert.throws(() => importsIn(['import {'], parser.parse), /does not compile/u);
   assert.throws(() => readFileSync(marker), { code: 'ENOENT' }, 'compile-only source never executes its filesystem effect');
 });
@@ -356,10 +356,14 @@ test('an installed worker executes coverage with its source-relative reporter de
 test('runtime URL closure rejects missing unsafe and opaque paths while generated text stays data [C7,P3]', t => {
   const f = fixture(t);
   for (const expression of ["new URL('./missing.js', import.meta.url)",
-    "new URL('../../outside.js', import.meta.url)", "new URL(name, import.meta.url)",
-    "new URL('./reporter.js', unknownBase)"]) {
+    "new URL('../../outside.js', import.meta.url)"]) {
     f.write('apps/runner/src/io/scripts/worker.js', `const runtime = ${expression};\n`);
     assert.throws(() => runnerPackage(f.root), error => error.code === 'RUNNER_TOOLING_FILES');
+  }
+  for (const expression of ["new URL(name, import.meta.url)", "new URL('./reporter.js', unknownBase)"]) {
+    f.write('apps/runner/src/io/scripts/worker.js', `const runtime = ${expression};\n`);
+    assert.deepEqual(Object.keys(runnerPackage(f.root).files), ['apps/runner/src/io/scripts/worker.js', 'package.json'],
+      `${expression} resolves at run time and adds no edge (#6201)`);
   }
   f.write('apps/runner/src/io/scripts/worker.js', `// new URL('./missing.js', import.meta.url)\nconst generated = "new URL('./missing.js', import.meta.url)";\n`);
   assert.deepEqual(Object.keys(runnerPackage(f.root).files), ['apps/runner/src/io/scripts/worker.js', 'package.json']);
@@ -428,7 +432,7 @@ function controllerFixture(t) {
 test('controller provider freshness follows its real package composition, not unrelated shipped engine leaves [C7,P3]', t => {
   const { installed } = controllerFixture(t);
   const loaded = captureRunnerTooling(installed);
-  const unrelated = join(installed, 'packages/state/src/logic/engines/check-timing-engine.js');
+  const unrelated = join(installed, 'packages/state/src/logic/engines/engine-next.js'); // check-timing-engine.js is composed through the state light door
   writeFileSync(unrelated, readFileSync(unrelated, 'utf8') + '\n// unrelated private generation\n');
   assert.deepEqual(currentRunnerTooling(installed, loaded), runnerPackage(installed),
     'an unrelated shipped file is not part of this controller generation');

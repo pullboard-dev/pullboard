@@ -9,6 +9,7 @@
     "jsconfig.json"
   ],
   "pinned": {
+    "board.sqlite": "packages/store/src/io/board/sqlite.js",
     "resources.sqlite": "packages/resources/src/io/main.js"
   },
   "stores": {
@@ -90,7 +91,7 @@
     },
     "board.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/api/src/io/main.js"
+      "owner": "packages/store/src/io/board/sqlite.js"
     },
     "board.sqlite.presence.sqlite": {
       "kind": "sqlite",

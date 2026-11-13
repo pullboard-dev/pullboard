@@ -3,8 +3,12 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null }) {
   const histories = new Map();
+  // The Agents table's between-items rows stay open across live redraws once the person opens them (#6847).
+  let quietOpen = false;
+  // The Agents notch opens #dashboard/agents: the page scrolls to the table once per opening, never on a live redraw.
+  let shownAgents = false;
   // The first-run tour keeps its stop across live redraws, so a refresh never sends it back to the start.
   const tour = { index: 0, auto: true, timer: null };
   let drawnFloor = null;
@@ -94,7 +98,6 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     // Browser preferences enter through this DOM adapter; pure renderers never discover host defaults.
     const note = held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'';
     let quietRows;
-    const quietOpen = expanded.includes('quiet');
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, seen(held, prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
@@ -106,18 +109,24 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     // Opening or leaving the floor starts at its top; a live redraw of the same page keeps the reader's place.
     if (drawnFloor !== null && drawnFloor !== onFloor) globalThis.scrollTo?.(0, 0);
     drawnFloor = onFloor;
-    const quiet = [...region.querySelectorAll('[data-dashboard-disclosure="quiet"]')][0];
-    /** Fill current quiet rows before native summary activation exposes them. */
-    function materializeQuiet() {
-      // A detached prior render cannot materialize its old root or model into the current page.
+    const quiet = region.querySelector?.('[data-dashboard-quiet]'), quietBody = region.querySelector?.('[data-dashboard-quiet-rows]');
+    /** Show or hide the between-items rows, filling them from the current model the first time they open. */
+    function showQuiet(open) {
+      // A detached prior render cannot fill its old root or model into the current page.
       if (!quiet?.isConnected || current() !== project.root || !region.contains(quiet)) return;
-      const target = quiet.querySelector('[data-dashboard-quiet-rows]');
-      if (quietRows && target) { target.innerHTML = quietRows(); quietRows = null; }
+      if (open && quietRows) { quietBody.innerHTML = quietRows(); quietRows = null; }
+      quietBody.hidden = !open;
+      quiet.setAttribute('aria-expanded', String(open));
+      quiet.firstChild.textContent = open ? '▾ ' : '▸ ';
     }
-    if (quiet && quietRows) {
-      quiet.querySelector('summary').addEventListener('click', materializeQuiet);
-      quiet.addEventListener('toggle', () => { if (quiet.open) materializeQuiet(); });
+    if (quiet && quietBody) {
+      quiet.addEventListener('click', () => { quietOpen = quietBody.hidden; showQuiet(quietOpen); });
+      if (quietOpen) showQuiet(true);
     }
+    const wantsAgents = Boolean(agentsTable?.()) && !onFloor;
+    // After the frame, so the page's own scroll restoring for an address never lands after it.
+    if (wantsAgents && !shownAgents) (globalThis.requestAnimationFrame ?? (step => step()))(() => region.querySelector?.('#dashboard-agents')?.scrollIntoView?.({ block: 'start' }));
+    shownAgents = wantsAgents;
     for (const disclosure of region.querySelectorAll('details')) if (expanded.includes(disclosure.dataset.dashboardDisclosure)) disclosure.open = true;
     return behind;
   }

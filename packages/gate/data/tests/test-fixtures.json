@@ -966,8 +966,12 @@
     "tempdir": 1
   },
   "apps/cli/journeys/hold/demo.test.js": {
-    "raw-cli": 5,
-    "tempdir": 10
+    "raw-cli": 1,
+    "tempdir": 6
+  },
+  "apps/cli/journeys/hold/demo-widths.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
   },
   "apps/cli/journeys/hold/demo-lanes.test.js": {
     "raw-cli": 2,
@@ -1332,9 +1336,8 @@
     "tempdir": 1
   },
   "apps/cli/journeys/shout/search.test.js": {
-    "hand-policy": 4,
-    "tempdir": 4,
-    "raw-cli": 4
+    "hand-policy": 2,
+    "tempdir": 2
   },
   "apps/cli/journeys/shout/toggle.test.js": {
     "raw-cli": 1,
