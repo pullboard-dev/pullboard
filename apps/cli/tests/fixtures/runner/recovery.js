@@ -61,7 +61,7 @@ export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
       const bin = join(box.dir, 'health-bin'), worker = join(box.dir, 'worker');
       const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard');
       for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
-      pinDispatch(box);
+      pinControllerDispatch(box); // the pinned SSH worker is the controller's own launch; pull dispatch hangs its probe child for 90 s
       const requests = join(box.dir, 'requests.jsonl');
       installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: failures });
       const runner = { host: HOST, node: process.execPath, slots: 1, browser: 0 };
