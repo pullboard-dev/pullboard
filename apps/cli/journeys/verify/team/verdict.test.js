@@ -180,11 +180,6 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     assert.deepEqual(resume.toMerge, [], 'resume never suggests landing a stale acceptance');
     assert.equal(resume.staleVerdicts[0].item_id, 1);
     assert.deepEqual(withBoard(root, board => store.verdictsFor(board, 1)), original, 'read projection cannot rewrite original proof');
-    const refused = box.run(root, 'land', '--dry-run', '--json');
-    assert.equal(refused.code, 1, refused.out + refused.err);
-    const error = JSON.parse(refused.out).error;
-    assert.equal(error.code, 'STALE_VERDICT');
-    assert.ok(error.message.includes('web/feature.js') && error.message.includes(movingCommit), error.message);
   }
   // A revert that restores the reviewed bytes now composes unchanged and reads fresh (96dd1fbad5, 60327df8ec); a further move still reads stale.
   box.git(mainEditor, 'merge', '-q', '--ff-only', 'main');

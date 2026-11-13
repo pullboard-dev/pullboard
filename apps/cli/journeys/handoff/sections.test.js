@@ -1,7 +1,5 @@
-/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
 /** Durable B0: driveOnce runs a whole submit gate with the hand-off worker's own sections and result [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   privateFixtureFiles,
@@ -24,15 +22,9 @@ import {
   handoffRefusedResult,
 } from '../../src/io/submit/handoff/worker.js';
 
-const SUBMIT_SOURCE = new URL('../../src/io/commands/submit.js', import.meta.url);
-
-/** The stage names canonical Submit hands its stage runner, in the order its source declares them. */
+/** The stage names the hand-off gate runs, in order; the inline submit gate that also declared them is gone (#6832). */
 function submitStageOrder() {
-  const source = readFileSync(SUBMIT_SOURCE, 'utf8');
-  const call = source.indexOf('(ctx.runGateStages ?? runGateStages)([');
-  assert.ok(call > 0, 'submitHere passes its stages through ctx.runGateStages when a driver sets it');
-  const end = source.indexOf('\n  ]);', call);
-  return [...source.slice(call, end).matchAll(/^ {4}(?:\.\.\.\(remoteMode \? \[)?\{ name: '([a-z]+)'/gmu)].map(match => match[1]);
+  return ['preflight', 'selection', 'cells', 'doctrine', 'static', 'tests'];
 }
 
 /** A repo with one commit, so the gate job has a candidate tree to capture. */

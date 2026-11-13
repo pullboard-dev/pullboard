@@ -14,6 +14,7 @@ import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
+import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
@@ -63,6 +64,8 @@ const RECEIPT_FIT_BYTES = 56 * 1024;
 const PLAN_ROWS = 200;
 const PLAN_COMMAND_CHARS = 2000;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
+/** Where the browser journeys look for Chrome (apps/cli/tests/fixtures/chrome.js), besides PULLBOARD_CHROME. */
+const KNOWN_BROWSERS = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
@@ -193,6 +196,17 @@ const changedRunner = command => {
   const script = proofScript(command), trusted = script ? importsOf(join(tools, script)) : null;
   return trusted && JSON.stringify(importsOf(join(root, script))) !== JSON.stringify(trusted) ? script : null;
 };
+/**
+ * The selected files this runner cannot prove for want of a browser: every file of a full selection, else each whose first
+ * line declares one; none when PULLBOARD_CHROME names one or Chrome sits where the journeys look, unless it is none.
+ * Why: a browser journey skips itself without Chrome, and a proof of skipped journeys read green [C7].
+ */
+const browserless = (files, full) => {
+  const named = process.env.PULLBOARD_CHROME;
+  if (named !== 'none' && [named, ...${JSON.stringify(KNOWN_BROWSERS)}].some(path => path && existsSync(path))) return [];
+  return full ? ['the full suite'] : (Array.isArray(files) ? files : []).filter(file => { try { return readFileSync(join(root, file), 'utf8').replace(/^\\uFEFF/u, '').split(/\\r?\\n/u, 1)[0].trimEnd() === ${JSON.stringify(BROWSER_MARKER)}; } catch { return false; } });
+};
+const browserRefusal = files => 'this runner offers no browser, so ' + files.slice(0, 20).join(', ') + ' would skip to green; next: serve the gate on a runner with Chrome';
 /** Run one phase as written, inside the candidate checkout, as the controller does; the files and the frozen check are the candidate's own. */
 // The board's ledger hits for this job's files: written once, named to the proof phase only, never to the item's own check.
 const ledger = (shard ? shard.ledger : input.ledger) ?? null;
@@ -207,6 +221,15 @@ const unaccounted = (files, outcomes, text) => {
   if (typeof gate?.requireTestTierAccount !== 'function') return null;
   try { gate.requireTestTierAccount({ green: true, testOutcomes: outcomes, profile: { tests: typeof gate.tapTests === 'function' ? gate.tapTests(text, root) : [] } }, files); return null; }
   catch (error) { return String(error?.message ?? error).replace(/^\\[\\w+\\] /u, ''); }
+};
+/**
+ * The checkout's HEAD and its tracked-file changes, or null when Git cannot read them. Why: a gate that moves the
+ * checkout it judges proves some other tree, so its phases are bracketed by this read (MOVED_DURING_GATE) [V16,C7].
+ */
+const checkoutState = () => {
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  const tracked = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' });
+  return head.status === 0 && tracked.status === 0 ? { head: head.stdout.trim(), tracked: tracked.stdout.trim() } : null;
 };
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
@@ -236,9 +259,10 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
-  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run [V4,C7].
+  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run;
+  // a plain single-file check prints TAP only, so its cases are read from that TAP as the in-process gate did [V4,C7].
   let outcomes = null, blocked = null;
-  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; } catch { outcomes = null; }
+  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; outcomes ??= typeof gate?.singleFileTapOutcomes === 'function' ? gate.singleFileTapOutcomes(command, text) : null; } catch { outcomes = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
   const unreported = ran.status === 0 && selected?.length ? unaccounted(selected, outcomes, text) : null;
@@ -249,7 +273,9 @@ const runPhase = async (role, command, PATH, selected = null) => {
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
     ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
-if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
+const shardBrowserless = shard ? browserless(shard.files, false) : [];
+if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
+else if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
 else {
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
 writeFileSync(entry, input.analysisEntry, { flag: 'wx', mode: 0o600 });
@@ -278,8 +304,10 @@ else {
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
     message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
+  const unbrowsed = !refusals.length && analysis.plan?.proofCommand ? browserless(analysis.plan.proofFiles, analysis.plan.selection?.full === true) : [];
+  if (unbrowsed.length) refusals.push({ part: 'proof', code: 'BROWSER_UNAVAILABLE', paths: unbrowsed.slice(0, 200), message: browserRefusal(unbrowsed) });
   if (!refusals.length && !receipt.analysis.infra) {
-    const PATH = cliPath();
+    const PATH = cliPath(), before = checkoutState();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
     const plan = analysis.plan ?? {}, cores = availableParallelism();
     // Test tiers make the controller demand an account for every selected file; the pulled proof demands the same [C7].
@@ -294,6 +322,10 @@ else {
     } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
     // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
     for (const phase of receipt.phases) if (phase.unreported) refusals.push({ part: phase.role, code: 'TEST_SELECTION_UNVERIFIED', message: phase.unreported });
+    // A gate that commits or edits a tracked file in this checkout no longer proves the candidate it was given, as the controller refused it [V16,C7].
+    const after = checkoutState();
+    if (before && JSON.stringify(after) !== JSON.stringify(before)) refusals.push({ part: 'gate', code: 'MOVED_DURING_GATE',
+      message: 'the gate left the checkout changed (' + (after?.head !== before.head ? 'a new commit ' + String(after?.head).slice(0, 12) : 'edited tracked files: ' + String(after?.tracked).split('\\n').slice(0, 5).join(', ')) + ') while checking ' + before.head.slice(0, 12) + '; next: leave the worktree alone until the gate finishes, then submit again' });
   }
 }
 }
@@ -457,7 +489,9 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
-  if (ctx.json) ctx.io.result({ item: id, commit, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
+  // id and pin keep the fields the inline submit document carried, so a script reading .id still reads the item (#6832).
+  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null };
+  if (ctx.json) ctx.io.result(acknowledgment);
   // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued (#7076).
   else await deliverSubmitActivity(ctx, id);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
@@ -465,5 +499,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).
   const sizeNote = oversizeNote(changedLines(root, main.commit, commit), main.config.itemSizeBudget);
   if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);
+  // The submit hands the seat its next work, and tops it up to its N claims, as the controller path did [N2,V4,C7].
+  if (ctx.afterSubmission) await ctx.afterSubmission(acknowledgment);
   return 0;
 }

@@ -32,11 +32,11 @@ test('clause 2: the ETA tile has a border and no shadow at any width [N26,#7309]
   assert.doesNotMatch(widths.split('\n').filter(line => /dash-stat/u.test(line)).join('\n'), /shadow/u, 'no width brings one back');
 });
 
-test('clause 3: a test run with no item names its files where the item id goes, never a dash [N26,#7309]', () => {
+test('clause 3: a test run with no item leaves the id empty and reads files done of total, never a dash [N26,#7309,#7403]', () => {
   const html = render(project => ({ ...project, dashboardRunners: { runners: [{ runner: 1, busy: true, cpu: 40, ram: 50, jobs: [{ kind: 'test run', item: null, selected: 1, done: 0 }] }],
     runs: [{ kind: 'test run', item: null, items: [], runners: [1], selected: 3, done: 1 }] } }));
   const runners = section(html, 'Runners');
-  assert.match(runners, /<span class="dash-id">1 file<\/span><span class="dash-t">test run <small>· 0 done<\/small>/u);
-  assert.match(runners, /<span class="dash-id">3 files<\/span>/u);
+  assert.match(runners, /<span class="dash-id"><\/span><span class="dash-t">test run <small>· 0 of 1 file<\/small>/u);
+  assert.match(runners, /<small>· 1 of 3 files<\/small>/u);
   assert.doesNotMatch(runners, /<span class="dash-id">—<\/span>/u, 'no dash in an id cell');
 });
