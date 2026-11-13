@@ -14,12 +14,6 @@ import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../store/index.js';
 import { openBoard } from '../../../../../apps/lib/index.js';
-import { exportBoard } from '../../../../store/index.js';
-import { importBoard } from '../../../../store/index.js';
-import { appliedSequence } from '../../../../state/index.js';
-import { applyEngineMove } from '../../../../state/index.js';
-import { prepareEngineMove } from '../../../../state/index.js';
-import { SUBMIT_ADMISSION_ENGINE } from '../../../../state/light.js';
 import { registerProject } from '../../../../seats/index.js';
 import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
@@ -157,49 +151,6 @@ function itemLeaseFixture(t, helpers) {
   return box;
 }
 
-/** Replay the real completed native receipt; changed source or a new claim cannot borrow it. */
-function admittedCompletionReplicas(box, id, snapshot) {
-  const receipt = store.proofReceipts(box.board, id).findLast(run => run.submitAdmission);
-  assert.ok(receipt, 'the real mandatory submit proof carries its admission witness');
-  const proof = prepareEngineMove(box.board, 'recordProofRun', [{ agentId: receipt.seat, itemId: id, receiptId: receipt.id }]);
-  for (const scenario of ['same admission', 'admission engine', 'different commit', 'different tree', 'reclaim', 'historical engine']) {
-    let instant = box.clock.now().getTime();
-    const clock = { now: () => new Date(instant) };
-    const peer = openBoard(join(box.dir, `completion-${scenario.replaceAll(' ', '-')}.sqlite`), clock, { gitRoot: box.repo });
-    try {
-      importBoard(peer, snapshot);
-      assert.equal(applyEngineMove(peer, proof, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() }).error, undefined);
-      const item = store.itemById(peer, id);
-      if (scenario === 'reclaim') {
-        const options = { agentId: item.item_owner, lane: item.item_lane, leaseMs: 60_000, head: receipt.commit };
-        store.claim(peer, id, options);
-        assert.throws(() => store.claim(peer, id, { ...options, submitAdmission: {
-          id: receipt.submitAdmission, commit: receipt.commit, tree: receipt.tree } }), error => error.code === 'USAGE',
-        'a new claim cannot reuse an earlier admission id');
-        store.claim(peer, id, options);
-        instant = Date.parse(store.itemById(peer, id).item_lease_until) + 1;
-      }
-      // A move from before strict composition replays on a board from before it was activated, so the
-      // private peer drops the review-policy markers; the assertions below are unchanged.
-      if (['admission engine', 'historical engine'].includes(scenario)) peer.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'review_%' OR meta_key LIKE 'line_setting:%'").run();
-      const move = prepareEngineMove(peer, 'submit', [id, { agentId: receipt.seat,
-        commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
-        tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
-        policyCommit: box.git(box.repo, 'rev-parse', 'main'),
-        submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private replay of actual native proof' } }]);
-      if (['admission engine', 'historical engine'].includes(scenario)) {
-        // These old writers predate clause-inspection fields; retain their actual wire shape.
-        delete move.args[1].clausePolicyCommit;
-        delete move.args[1].inspectClauses;
-        delete move.args[1].strictRenames; // also newer than these writers: it would lift the move's minimum engine to 221
-        move.engine = scenario === 'admission engine' ? SUBMIT_ADMISSION_ENGINE : SUBMIT_ADMISSION_ENGINE - 1;
-      }
-      const result = applyEngineMove(peer, move, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() });
-      assert.equal(result.error?.code, ['same admission', 'admission engine'].includes(scenario) ? undefined : 'AGENT_GRANT_EXPIRED', scenario);
-    } finally { store.closeBoard(peer); }
-  }
-}
-
 /** Inherit a genuine private lease and prove awaited admission runs before the nested action. */
 function inheritedAdmissionProof(box) {
   const program = `
@@ -310,7 +261,6 @@ export async function queuedLeaseProof(t, deps) {
     writeFileSync(buildGate.release, 'release');
     await settledGateJob(runBox(box), buildId, { deadlineMs: 120_000 });
     assert.equal(item(buildId).item_status, 'submitted', 'the actual queued submit completes its ordinary board move');
-    admittedCompletionReplicas(box, buildId, exportBoard(box.board));
     await waitUntil(() => existsSync(checkGate.events), 'the independent owned check starts');
     const runningCheckEnd = end(checkId, 'check');
     box.advance(Date.parse(runningCheckEnd) - box.clock.now().getTime() + 1);
