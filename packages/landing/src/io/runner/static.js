@@ -1,8 +1,32 @@
 /** The land job's static guard: the project's staticChecks on the merged tree, as the batch landing ran it [C7,#7492]. */
 import { tryGit } from '../../../../git/index.js';
-import { scopedStaticConfig } from '../static.js';
-import { staticRows } from '../static.js';
 import { commandCheck } from './job.js';
+
+// The gate's static scope variable and whole-repo inputs (packages/gate STATIC_SCOPE_ENV, analysisScope), named here so
+// the runner bundle stays free of the gate package, which reaches the CLI.
+const STATIC_SCOPE_ENV = 'PULLBOARD_STATIC_SCOPE';
+const WHOLE_REPO_INPUT = /^(?:pullboard\.json|package\.json|DOCTRINE\.md)$|\.json$/u;
+// A scope list longer than this is not exported into a shell command line; the guard runs whole instead.
+const SCOPE_PATH_LIMIT = 1000;
+
+/** The `path:line: text` rows a static check prints, one per violation, as packages/landing static.js reads them. */
+function staticRows(output) {
+  return String(output ?? '').split('\n').map(line => /^(\S+?):(\d+): (.+)$/u.exec(line.trim())).filter(Boolean)
+    .map(match => ({ file: match[1], line: Number(match[2]), text: match[3] }));
+}
+
+/**
+ * The guard command handed the merged tree's changed paths, as submit scopes its static run; the whole command when a
+ * path was deleted, is an input every rule reads, or the diff cannot be read.
+ */
+function scopedGuard(root, base, command) {
+  const ran = tryGit(root, ['--no-replace-objects', 'diff', '--no-renames', '--name-status', base, 'HEAD']);
+  if (ran.status !== 0) return command;
+  const changes = ran.stdout.split('\n').filter(Boolean).map(row => { const [status, ...path] = row.split('\t'); return { status: status[0], path: path.join('\t') }; });
+  if (changes.some(change => change.status === 'D' || WHOLE_REPO_INPUT.test(change.path)) || changes.length > SCOPE_PATH_LIMIT) return command;
+  const files = changes.map(change => change.path).sort();
+  return `export ${STATIC_SCOPE_ENV}='${JSON.stringify(files).replaceAll("'", "'\\''")}'; ${command}`;
+}
 
 /**
  * The static guard part of a land job's check: run the board's staticChecks command on the tree being checked, scoped
@@ -18,7 +42,7 @@ export function staticGuardCheck(command) {
   const guard = typeof command === 'string' && command.trim() && !/\0/u.test(command) ? command.trim() : null;
   if (!guard) return null;
   return async ({ root, base }) => {
-    const scoped = scopedStaticConfig(root, base, { staticChecks: guard }).staticChecks;
+    const scoped = scopedGuard(root, base, guard);
     const result = await commandCheck(['sh', '-c', scoped])({ root });
     if (result.ok) return { ok: true, detail: null };
     const changed = new Set(tryGit(root, ['diff', '--no-renames', '--name-only', base, 'HEAD']).stdout.split('\n').filter(Boolean));
