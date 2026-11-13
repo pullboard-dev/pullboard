@@ -143,9 +143,14 @@ test('a refused later checkpoint names its repair once on every native agent com
   const recovered = await box.cliAtLocal(agentRoot, 'status');
   assert.equal((recovered.document.diagnostics ?? []).length, 0, 'fresh accepted checkpoint clears the refusal');
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal, undefined);
+  // A move acknowledged late by a slow runner can reach the relay after `records` was read, so the checkpoint is judged against every event the relay holds once it is current [H16,B26].
   const finalSequence = (await uploadedState(box)).sequence;
-  assert.equal(finalSequence, baselineSequence + records.length + 1,
-    `sequence parts: baseline ${baselineSequence}, records ${JSON.stringify(records.map(record => [record.event_id, record.sender.kind, record.operation ?? record.type ?? record.kind]))}, final ${finalSequence}`);
+  const settled = await closingFetch(box.origin + '/api/v1/boards/' + refused.board + '/events?after=' + baselineSequence, {
+    headers: { authorization: 'Bearer ' + refused.token, 'x-pullboard-engine': String(ENGINE_VERSION) },
+  });
+  const settledIds = (await settled.json()).events.map(record => record.event_id);
+  assert.ok(settledIds.length > records.length, 'the repair shout adds an event after the refused ones');
+  assert.equal(finalSequence, baselineSequence + settledIds.length, `sequence parts: baseline ${baselineSequence}, events ${JSON.stringify(settledIds)}, final ${finalSequence}`);
 });
 
 /** One long-lived caller can acknowledge several distinct moves without hiding later warnings. */
