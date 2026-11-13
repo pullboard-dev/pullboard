@@ -5,7 +5,7 @@ import { wording } from '../../../../verify/browser.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../state/light.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";
-import { checkTimingEngine } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
 import { REJECT_CLAUSE_ENGINE } from "../../../../state/light.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/light.js";
 import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
@@ -13,7 +13,7 @@ import { ITEM_PATCH_ENGINE } from "../../../../state/light.js";
 import { requiredReviewFamilyEngine } from "../../../../verify/browser.js";
 import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
-import { LANDED_VERDICT_ENGINE } from "../../../../state/index.js";
+import { LANDED_VERDICT_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */
 import {
   CAUSE_ENGINE,
@@ -25,7 +25,7 @@ import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { IMPLIES_ENGINE } from "../../../../state/light.js";
 import { carriesImplies } from "../../../../state/light.js";
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/light.js";
-import { outsideSource } from "../../../../items/light.js";
+import { outsideSource } from "../../../../items/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

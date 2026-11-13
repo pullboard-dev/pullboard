@@ -105,15 +105,15 @@ function functions(source, facts, code) {
 }
 
 /**
- * Report forbidden named/imported I/O reached by actual atomic callback source.
- * @param {{file:string,source:string}[]} sources Runtime source inventory, not event or command output.
- * @param {{pending?:Record<string,number|{item:number,via:string}>}} [options] Exact coordinator-owned temporary repair boundaries.
- * @returns {{file:string,line:number,call:string,chain:string[]}[]}
+ * Index every product source's functions, imports and aliases, and resolve a call name to its provider without running code.
+ * @param {{file:string,source:string}[]} sources Runtime source inventory.
+ * @param {{barrels?:boolean}} [options] `barrels` also reads each package's top-level index, so cross-package imports resolve.
+ * @returns {{modules: Map<string, object>, targets: (file:string, name:string, seen?: Set<string>) => ({file?:string,builtin?:string,name:string})[]}}
  */
-export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS } = {}) {
+export function callGraph(sources, { barrels = false } = {}) {
   const modules = new Map();
   for (const { file, source } of sources) {
-    if (!/^(?:src\/|packages\/[^/]+\/src\/|apps\/[^/]+\/)/u.test(file) || !/\.[cm]?js$/u.test(file)) continue;
+    if (!(/^(?:src\/|packages\/[^/]+\/src\/|apps\/[^/]+\/)/u.test(file) || (barrels && /^packages\/[^/]+\/[^/]+\.js$/u.test(file))) || !/\.[cm]?js$/u.test(file)) continue;
     // Product source only: the old root test/ folder was never read, and it now lives in apps' journeys/ and tests/ [V32].
     if (!/(?:^|\/)src\//u.test(file) && /(?:^|\/)(?:tests?|journeys)\//u.test(file)) continue;
     const facts = scanSource(file, source), { code } = lex(source);
@@ -128,12 +128,6 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
     const aliases = new Map();
     for (const match of code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*;/gu)) aliases.set(match[1], match[2]);
     modules.set(file, { file, source, code, facts, imports, aliases, functions: functions(source, facts, code) });
-  }
-  const problems = new Map();
-  /** Temporary repairs are exact function names, optionally restricted to one actual writer. */
-  function pendingRepair(key, chain) {
-    const repair = pending[key] ?? pending[writeIdentity(key)];
-    return typeof repair === 'number' || Boolean(repair && chain.some(identity => writeIdentity(identity) === repair.via));
   }
   /** Resolve only repository-relative modules and actual declarations/reexports, without module evaluation. */
   function exported(file, name, seen = new Set()) {
@@ -177,6 +171,23 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
       return [{ builtin: 'global:network', name: member ?? base }];
     }
     return [];
+  }
+  return { modules, targets };
+}
+
+/**
+ * Report forbidden named/imported I/O reached by actual atomic callback source.
+ * @param {{file:string,source:string}[]} sources Runtime source inventory, not event or command output.
+ * @param {{pending?:Record<string,number|{item:number,via:string}>}} [options] Exact coordinator-owned temporary repair boundaries.
+ * @returns {{file:string,line:number,call:string,chain:string[]}[]}
+ */
+export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS } = {}) {
+  const { modules, targets } = callGraph(sources);
+  const problems = new Map();
+  /** Temporary repairs are exact function names, optionally restricted to one actual writer. */
+  function pendingRepair(key, chain) {
+    const repair = pending[key] ?? pending[writeIdentity(key)];
+    return typeof repair === 'number' || Boolean(repair && chain.some(identity => writeIdentity(identity) === repair.via));
   }
   /** Keep direct source and its causal imported-call chain, without board data or private arguments. */
   function inspect(file, start, end, chain, visited) {

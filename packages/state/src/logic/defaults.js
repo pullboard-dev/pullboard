@@ -537,6 +537,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "SPEC_SECTION": "name a section the spec has; see pullboard spec",
   "SSH_KEY_FAILED": "check the SSH key and that ssh-keygen is installed: ssh-keygen -l -f <key>",
   "SSH_KEY_NOT_FOUND": "pass the key path: --key ~/.ssh/id_ed25519.pub",
+  "STATE_WORKER_STOPPED": "restart pullboard serve, then retry the read",
   "TOKEN_EXPIRED": "ask the coordinator for a fresh seat: pullboard worktree <lane> --model \"<model name>\"; for the coordinator's own token, the person runs pullboard relay on in the main checkout",
   "TOKEN_REVOKED": "stop using this seat and ask the coordinator for a fresh one: pullboard worktree <lane> --model \"<model name>\"",
   "TOKENS_NOT_AVAILABLE": "manage agent tokens in pullboard view or the signed-in relay account",

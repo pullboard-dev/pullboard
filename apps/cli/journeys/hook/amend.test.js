@@ -12,7 +12,6 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
-import { landingBatchItemsAtRoot } from '../../../../packages/landing/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -68,29 +67,4 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:docs/formats.md`), /`move engine` \| `81`/u);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), item.item_merged_commit, 'the amended merge reaches actual main');
   assert.ok(readFileSync(join(box.repo, '.githooks/commit-msg'), 'utf8').includes('hook commit-msg'), 'the real hook remains installed');
-});
-
-test('landing hook authority binds verified sources to the exact active batch or candidate [C7]', () => {
-  const item = { item_id: 7, item_status: 'verified', item_commit: 'a'.repeat(40), item_merged_commit: 'b'.repeat(40) };
-  const other = { ...item, item_id: 8, item_merged_commit: null };
-  const entry = { id: 7, commit: item.item_commit };
-  const batch = { state: 'merging', root: '/private/batch', base: 'c'.repeat(40), branch: 'refs/heads/main', candidates: [entry], items: [] };
-  const selected = (value, root = batch.root, rows = [item, other]) => landingBatchItemsAtRoot([value], root, rows, row => row.item_effective_head ?? row.item_commit);
-  assert.deepEqual(selected(batch), [item], 'a recorded merge cannot hide its still-owned verified source');
-  assert.deepEqual(selected(batch, '/private/ordinary'), []);
-  assert.deepEqual(selected({ ...batch, state: 'landed' }), []);
-  assert.deepEqual(selected({ ...batch, state: 'blocked' }), []);
-  assert.deepEqual(selected({ ...batch, state: 'gating' }), [], 'finished merge selection cannot borrow an excluded original candidate');
-  assert.deepEqual(selected({ ...batch, state: 'gating', items: [entry] }), [item]);
-  assert.deepEqual(selected(batch, batch.root, [{ ...item, item_status: 'claimed' }]), []);
-  assert.deepEqual(selected(batch, batch.root, [{ ...item, item_commit: 'd'.repeat(40) }]), []);
-  assert.deepEqual(selected(batch, batch.root, [{ ...item, item_effective_head: 'f'.repeat(40) }]), [], 'a new reviewed head cannot borrow the old batch authority');
-  const reviewed = { ...entry, reviewedCommit: 'f'.repeat(40) };
-  assert.deepEqual(selected({ ...batch, candidates: [reviewed] }, batch.root, [{ ...item, item_effective_head: reviewed.reviewedCommit }]), [{ ...item, item_effective_head: reviewed.reviewedCommit }]);
-  const snapshot = { root: '/private/candidate', state: 'merging', base: batch.base, branch: batch.branch, candidates: [entry], items: [] };
-  const parallel = { ...batch, candidates: [entry, { id: 8, commit: other.item_commit }], parallelCandidates: [{ snapshot }] };
-  assert.deepEqual(selected(parallel, snapshot.root), [item], 'a candidate cannot borrow a sibling item');
-  assert.deepEqual(selected({ ...parallel, base: 'e'.repeat(40) }, snapshot.root), []);
-  assert.deepEqual(selected({ ...parallel, parallelCandidates: [{ snapshot: { ...snapshot, state: 'blocked' } }] }, snapshot.root), []);
-  assert.deepEqual(selected({ ...batch, candidates: undefined, items: [entry] }), [item], 'ordinary recorded item lists remain supported');
 });

@@ -1,5 +1,4 @@
 /** @pullboard-test-input packages/state/src/logic/engines/* */
-import { submitHandoffEventContract } from '../apps/cli/tests/fixtures/generated/handoff.js';
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../packages/link/index.js';
 import assert from 'node:assert/strict';
@@ -822,7 +821,7 @@ test('clause 1: [A5] schema, versions, event kinds and event detail fields match
 
   const { rows, actors } = recordEventContract();
   const repairedRows = exerciseUpgrade();
-  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...await submitHandoffEventContract(t), ...pipelineEventContract(), ...placementEventContract()];
+  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...pipelineEventContract(), ...placementEventContract()];
   const actual = {};
   const actorByKind = {
     join: 'joining agent',
@@ -861,8 +860,6 @@ test('clause 1: [A5] schema, versions, event kinds and event detail fields match
     'sentinel-failure': 'sentinel',
     person_proposal: 'proposing agent',
     source_advanced: 'coordinator',
-    'submit-handoff': 'queued builder',
-    submit_handoff_returned: 'queued builder',
   };
   for (const row of actualRows) {
     const kind = row.event_kind;

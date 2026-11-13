@@ -173,7 +173,7 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock, 
   git(root, ['merge-base', '--is-ancestor', commit, trunk], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'packages/codemap/data/plan/cells.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
   // The pinned commit's checker is recorded here: produceAcceptedCells warms in-process only when the running tooling is
-  // the pinned one and otherwise re-runs apps/cli/src/io/landing/audit.js from the pinned checkout, so readers find it by the commit alone.
+  // the pinned one and otherwise re-runs the app's landing audit from the pinned checkout, so readers find it by the commit alone.
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
   let prior;
   const ancestors = git(root, ['log', '--first-parent', '--max-count=201', '--format=%H %T', commit], { env: gitChildEnv(root) }).split('\n').slice(1);
@@ -277,6 +277,7 @@ function stillPending(commit, message) {
  * live, calling `beat` after each poll so the job log shows the wait is alive. A producer that is dead or absent is
  * nudged once more; if it is still not running after that, or dies again, the wait ends at once with a clear
  * CELLS_INVENTORY_PENDING stop instead of sleeping out the deadline. limitMs bounds the whole wait.
+ * `workerUrl` is the app's landing audit entry, passed in because no package names an app; without it no re-nudge starts.
  * Why: a landing starts a 2 to 5 minute producer, longer than the quick infrastructure retries, so the gate waits on
  * the producer instead of spending those retries (#3316).
  *
@@ -286,7 +287,7 @@ function stillPending(commit, message) {
  * @returns {Promise<{ available: true, waited: number }>}
  */
 export async function waitForAcceptedCells(root, commit, { now = Date.now, sleep = defaultSleep, limitMs = 15 * 60_000, intervalMs = 15_000,
-  workerUrl = new URL('../../../../apps/cli/src/io/landing/audit.js', import.meta.url), read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState, beat = () => {} } = {}) {
+  workerUrl, read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState, beat = () => {} } = {}) {
   const started = now(), deadline = started + limitMs;
   let renudged = false;
   for (let waited = 0; ; waited += 1) {
