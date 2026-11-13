@@ -58,7 +58,7 @@ child.once('close',(code,signal)=>{
 }
 
 // The release gate places its shards on registered SSH runners; pull dispatch never takes that placement, so the run hangs [C7].
-const SSH_CAPSULES = 'CONTROLLER_ONLY: fake SSH capsule placement, deleted with #6579';
+const SSH_CAPSULES = 'CONTROLLER_ONLY: fake SSH capsule placement, deleted with #7526';
 
 /** A tiny committed file records actual completion and asserts that private orchestration tokens do not reach test bodies. */
 function tinyTest(name, box, red) {

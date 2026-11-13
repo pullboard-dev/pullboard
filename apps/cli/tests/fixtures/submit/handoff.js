@@ -17,6 +17,8 @@ import { endedSubmitHandoff } from '../../../../../packages/store/index.js';
 import { fixtureAdd } from '../testkit.js';
 import { driverRecord } from '../gate/driver.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
+import { jobsOf } from '../../../../../packages/jobs/index.js';
+import { DatabaseSync } from 'node:sqlite';
 import { DISPATCHER_JOB } from '../../../../../packages/drive/index.js';
 
 /** Require authentic command success before interpreting any native result. */
@@ -34,6 +36,18 @@ export function state(box, id, endedId) {
       returns: board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='submit_handoff_returned'").get(id).n,
       shouts: board.db.prepare("SELECT shout_text FROM shout WHERE shout_to='coordinator'").all().map(row => row.shout_text) };
   } finally { board.db.close(); }
+}
+
+/** Run `use` on the fixture's board file as a plain connection, closed after; the runner and the CLI write the same file, so a busy wait is set. */
+export function withBoardFile(box, use) {
+  // @pullboard-board-file journey: read and edit the pulled gate job's persisted steps and lease after its runner stopped or died.
+  const db = new DatabaseSync(box.boardFile);
+  try { db.exec('PRAGMA busy_timeout = 10000'); return use(db); } finally { db.close(); }
+}
+
+/** The item's newest gate job, with its steps and lease, read from the fixture's board file. */
+export function gateJob(box) {
+  return withBoardFile(box, db => { const job = jobsOf(db, { kind: 'gate', item: box.id }).at(-1); return job ? jobView(db, job.id) : null; });
 }
 
 /** Quote a private fixture path for the actual configured shell command. */

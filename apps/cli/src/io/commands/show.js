@@ -11,7 +11,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
-import { verifiedPasskeyRowDecision } from '../../../../../packages/person/light.js';
+import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
 import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';

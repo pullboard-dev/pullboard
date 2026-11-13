@@ -41,9 +41,9 @@ async function fileMainRed(box, file, bar = file) {
     brief: `Files: web/repair.js\nChange: repair the red file\nTest: ${bar} passes`, args: ['--specs', 'G1'], run: box.runLocal });
 }
 
-/** Run the red file with --compare-main and parse its result. */
-async function compare(box) {
-  const json = await box.runLocal(box.web, 'test', 'test/red.test.js', '--compare-main', '--json');
+/** Run the red file with --compare-main and parse its result; `child` runs the CLI as a child process so a pulled runner's sockets die with it [C7]. */
+async function compare(box, { child = false } = {}) {
+  const json = await (child ? box.runAsync : box.runLocal)(box.web, 'test', 'test/red.test.js', '--compare-main', '--json');
   assert.equal(json.code, 1, json.err);
   return JSON.parse(json.out);
 }
@@ -93,12 +93,12 @@ test('an unsigned generic red cache cannot suppress an executor-bound comparison
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const failure = { file: 'test/red.test.js', name: 'red case', signature: 'a'.repeat(64) };
   writeFileSync(join(folder, 'main-red.json'), JSON.stringify({ version: 2, entries: { [main]: { 'test/red.test.js': { result: 'red', failures: [failure], signatureVersion: 4 } } } }), { mode: 0o600 });
-  const result = await compare(box);
+  const result = await compare(box, { child: true });
   assert.equal(result.main, main, 'unbound generic cache must not suppress the main comparison');
   assert.equal(result.known[0].result, 'red');
 });
 
-test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => { // budget: one real child process driver.
+test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => { // budget: one real child process driver.
   const box = await redProject();
   const gate = new URL('../../../../packages/gate/index.js', import.meta.url).href;
   const landing = new URL('../../../../packages/landing/index.js', import.meta.url).href;
