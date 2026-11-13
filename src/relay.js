@@ -124,6 +124,8 @@ import { environmentLink } from './relay-environment.js';
 import { locked } from './relay-lock.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { relayOrdering } from './relay-ordering.js';
+import { discardUnpublished } from './relay-local-recovery.js';
+import { withLocalRecoveryBoundary } from './relay-recovery-boundary.js';
 import { nudgeRelaySender } from './relay-local-first.js';
 import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import {
@@ -972,7 +974,7 @@ function reportRecoveredReply(record, io) {
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
 const ordering = relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord,
   flush: (root, file, state, io) => flushOutbox(outboxLink(root, file, state, io)) });
-const { applyRecords, fetchCheckpoint, catchUp, postPending, sendPending } = ordering;
+const { applyRecords, advanceCheckpoint, fetchCheckpoint, catchUp, postPending, sendPending } = ordering;
 
 /** Set up this machine's coordinator token inside a paired join's own person sign-in (#579). */
 export async function relayPersonCoordinator(root, session, io) {
@@ -1017,7 +1019,8 @@ function keepMoveForLaterBaseline(file, state, error, io) {
 /** The relay transport the ordered outbox queues and replays through (#922). */
 function outboxLink(root, file, state, io) {
   return { root, file, state, io, request, sealedRecord, localRecords, saveLink, safePauseCode, safePauseMessage,
-    applyRecords, fetchCheckpoint: (key) => fetchCheckpoint(state, io, key), postPending };
+    applyRecords, advanceCheckpoint: (key, checkpoint, records, minimum) => advanceCheckpoint(key, state, checkpoint, records, minimum),
+    fetchCheckpoint: (key) => fetchCheckpoint(state, io, key), postPending };
 }
 
 /**
@@ -1053,6 +1056,7 @@ async function queueLocally(root, file, operation, args, io, command, applyLocal
   const result = await withOutboxGuard(file, () => {
     // A revoke can finish while this move waits: admission uses the cache protected by this guard, never its earlier snapshot.
     const current = loadLink(file);
+    if (current?.recovery) throw new Refused('RELAY_RECOVERY_PENDING', 'finish the exact selected recovery before queuing another move');
     return !current ? guarded.apply() : queueMove(outboxLink(root, file, current, io),
       { operation, args, command, applyLocally: guarded.apply, quiet: true });
   });
@@ -1077,7 +1081,9 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     const applyPausedMoveLocally = guarded.apply;
     if (!state && deletedRecovery(root)) return deletedMoveResult(root, operation, args, command, io, applyPausedMoveLocally);
     if (!state || state.unlinking) throw new Refused('RELAY_UNLINK_PENDING', 'finish unlinking this device with pullboard relay off before sending a move');
-    if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} before sending a linked move`);
+    if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', state.recovery.kind === 'discard-unpublished'
+      ? 'finish the exact operator-selected local recovery before sending a linked move; relay recover --skip is not this operation'
+      : `finish the saved recovery for sequence ${state.recovery.skip} before sending a linked move`);
     if (credentialActor({ operation, args, personRequest: io?.personRequest }) === 'person') {
       throw new Refused('HUMAN_REQUIRED', 'send this person action from the paired phone');
     }
@@ -1218,7 +1224,9 @@ export async function syncRelay(root, io) {
     if (!state) return null;
     if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state); }
     try {
-      if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
+      if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', state.recovery.kind === 'discard-unpublished'
+        ? 'finish the exact operator-selected local recovery before syncing; relay recover --skip is not this operation'
+        : `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
       if (!await ensureOrdered(root, file, state, io)) return summary(root, state);
       await flushOutbox(outboxLink(root, file, state, io));
       await catchUp(root, file, state, io);
@@ -1379,6 +1387,20 @@ export async function relayCommandReceiptReported(root, moveId) {
 export function relayRecovered(root, { includePending = false } = {}) {
   const state = loadLink(linkFile(root));
   return state ? state.recovered?.move ?? (includePending ? state.pending?.move : null) ?? null : deletedRecovery(root)?.move ?? null;
+}
+
+/**
+ * Operator recovery API: explicitly abandon a selected unpublished local queue, keeping authenticated order.
+ * The runtime owner must quiesce old writers/publishers and supply the real principal loss decision; this API
+ * neither impersonates a person nor changes relay credentials, identity, remote state or source files.
+ */
+export async function relayDiscardUnpublished(root, queueSha256, decision, io) {
+  const file = linkFile(root);
+  return withLocalRecoveryBoundary(file, async () => {
+    const state = loadLink(file);
+    if (!state) throw new Refused('RELAY_NOT_LINKED', 'this board has no retained relay link');
+    return discardUnpublished({ ...outboxLink(root, file, state, io), loadLink }, { queueSha256, decision });
+  }, io);
 }
 
 /** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */

@@ -48,9 +48,10 @@ import {
   unseal,
 } from './seal.js';
 import { captureBoardChanges } from './board-capture.js';
-import { undoQueued } from './relay-outbox-undo.js';
+import { capturedInserts, undoQueued } from './relay-outbox-undo.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
 import { Refused } from './refused.js';
+import { impliesSeed } from './implies.js';
 import {
   outboxFile,
   outboxSummaryFile,
@@ -465,14 +466,98 @@ function encodeChanges(changes) {
   return changes.map((change) => Buffer.from(change).toString('base64'));
 }
 
+/**
+ * Validate retained local inputs before any undo/restore, without executing a move or requiring its item to exist.
+ * The captures supply original identities and exactly derivable lease clocks, never replacement queued payloads.
+ * Other original intra-operation timestamps are not recoverable from queuedAt and remain a separate obligation.
+ */
+function retainedLocalInput(board, entry) {
+  const { move } = entry;
+  const input = { at: entry.queuedAt, identities: {} };
+  if (typeof input.at !== 'string' || !Number.isFinite(Date.parse(input.at))) {
+    throw new Refused('RELAY_OUTBOX', 'a queued move has no valid original time; keep the outbox for recovery');
+  }
+  let events;
+  try { events = capturedInserts(board, entry.changes, 'event').map(row => ({ ...row, detail: JSON.parse(row.event_detail) })); }
+  catch { throw new Refused('RELAY_OUTBOX', 'a queued move has an unreadable native capture; keep the original board and outbox for recovery'); }
+  if (entry.changes?.length && ['appendFact', 'verify', 'answerDecision'].includes(move.operation)) {
+    const facts = events.filter(row => row.event_kind === 'fact');
+    if (move.operation === 'appendFact') {
+      const originals = facts.filter(row => row.item_id === move.args[0] && !row.detail.decision);
+      if (originals.length !== 1 || originals[0].detail.kind !== move.args[1]?.kind || originals[0].detail.text !== move.args[1]?.text ||
+          typeof originals[0].detail.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/u.test(originals[0].detail.id)) {
+        throw new Refused('RELAY_OUTBOX', 'a queued fact has no unambiguous original identity in its native capture; keep the outbox for recovery');
+      }
+      input.identities.factId = originals[0].detail.id;
+    } else if (facts.length) {
+      const seeds = facts.map(({ item_id: item, detail }) => {
+        const suffix = `-${detail.supersededBy ? 's' : 'i'}${item}`;
+        if (!detail.decision || typeof detail.id !== 'string' || !detail.id.endsWith(suffix)) {
+          throw new Refused('RELAY_OUTBOX', 'a queued decision has an unreadable implied-fact identity; keep the outbox for recovery');
+        }
+        return detail.id.slice(0, -suffix.length);
+      });
+      if (new Set(seeds).size !== 1 || !/^[A-Za-z0-9_-]{1,72}$/u.test(seeds[0])) {
+        throw new Refused('RELAY_OUTBOX', 'a queued decision has conflicting implied-fact identities; keep the outbox for recovery');
+      }
+      input.identities.impliesId = seeds[0];
+    }
+  }
+  if (['claim', 'reserveReview', 'reserveNextReview'].includes(move.operation)) {
+    const claim = move.operation === 'claim';
+    const options = move.args[move.operation === 'reserveNextReview' ? 0 : 1];
+    const leases = events.filter(row => (claim ? ['claim', 'renew'].includes(row.event_kind) : row.event_kind === 'reserve') &&
+      (move.operation === 'reserveNextReview' || row.item_id === move.args[0]));
+    if (leases.length) {
+      const deadline = leases[0].detail[claim ? 'leaseUntil' : 'until'];
+      const at = Date.parse(deadline) - options?.leaseMs;
+      if (leases.length !== 1 || typeof options?.leaseMs !== 'number' || !Number.isFinite(options.leaseMs) ||
+          typeof deadline !== 'string' || !Number.isFinite(at) || !Number.isFinite(new Date(at).getTime())) {
+        throw new Refused('RELAY_OUTBOX', 'a queued lease has no unambiguous original computation time; keep the outbox for recovery');
+      }
+      input.at = new Date(at).toISOString();
+    }
+  }
+  return input;
+}
+
+/** Refuse original identities the authoritative move cannot reproduce, using its canonical implied-seed rule. */
+function refuseUnrepresentedIdentities(move, { identities }) {
+  if ((identities.factId !== undefined && identities.factId !== move.id) ||
+      (identities.impliesId !== undefined && (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/u.test(move.id) ||
+        identities.impliesId !== impliesSeed(move.id)))) {
+    throw new Refused('RELAY_OUTBOX_IDENTITY', 'a queued move has original fact identities missing from its sealed payload; keep the original queue and native captures for supported identity recovery before sending');
+  }
+}
+
+/** Use only prevalidated original identities in local reconstruction, never in the authoritative ordered engine. */
+function localExecutableArgs(board, move, input) {
+  const args = executableArgs(move, board);
+  if (Object.keys(input.identities).length) Object.assign(args[1], input.identities);
+  return args;
+}
+
 /** Make one queued move on this board again, recording its rows; null when the board now refuses it. */
-async function reapply(link, outbox, entry) {
+async function reapply(link, outbox, entry, input) {
   const { root, localRecords } = link;
   const { move } = resolveMove(entry, outbox, { local: true });
   entry.sequences = localRecords(root, rowCounters);
   const applied = await captureBoardChanges(() => localRecords(root, (board) => {
-    try { return store.atomic(board, () => store[move.operation](board, ...executableArgs(move, board))); }
-    catch (error) { if (!(error instanceof Refused)) throw error; return null; }
+    // Reconstitute the local history, not a new execution now: renewing old leases here strands later claims.
+    // This never sets a relay receipt or changes the timestamp used by the authoritative ordered engine.
+    const args = localExecutableArgs(board, move, input);
+    const clock = board.clock;
+    board.clock = { now: () => new Date(input.at) };
+    try { return store.atomic(board, () => store[move.operation](board, ...args)); }
+    catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      // A refused operation captures no rows. Do not erase the only retained identity evidence and then send
+      // the legacy chain on this or a later process's attempt. Throw before replacing/persisting any captures;
+      // the original sealed outbox remains the recovery input even if this rebuild advanced the local prefix.
+      refuseUnrepresentedIdentities(entry.move, input);
+      return null;
+    }
+    finally { board.clock = clock; }
   }));
   entry.changes = encodeChanges(applied.changes);
   return applied.result;
@@ -490,6 +575,8 @@ function takeBack(link, outbox) {
     return false;
   }
   return localRecords(root, (board) => {
+    // An interrupted round already advanced the ordered prefix. Its stale captures must not undo that prefix.
+    if (appliedSequence(board) !== outbox.baseSequence) return false;
     const cursors = board.db.prepare('SELECT agent_id, agent_last_shout_id FROM agent').all();
     const problem = undoQueued(board, outbox.moves);
     if (problem) {
@@ -511,6 +598,38 @@ function keepNewerCursors(board, cursors) {
   for (const row of cursors) if (Number.isSafeInteger(row.agent_last_shout_id)) keep.run(row.agent_last_shout_id, row.agent_id, row.agent_last_shout_id);
 }
 
+/** Numeric shout/event references that the current wire contract does not bind to their producer move. */
+function positionalTables(entries) {
+  const tables = new Set();
+  for (const { move } of entries) {
+    if (['answerDecision', 'passDecision'].includes(move.operation) ||
+        move.operation === 'shout' && move.args[0]?.answers != null) tables.add('shout');
+    if (['recordActivityDelivery', 'actOnActivity'].includes(move.operation)) tables.add('event');
+  }
+  return tables;
+}
+
+/**
+ * Refuse a demonstrated positional shift before replacing any native state. Equal counters are not a proof of
+ * complete reference fidelity: refused producers and other dependency changes still need their owning contract.
+ */
+function refuseShiftedReferences(outbox, checkpoint) {
+  const receipts = new Set(checkpoint.native.tables.board_meta.map(row => row.meta_key));
+  const waiting = outbox.moves.filter(entry => !receipts.has('relay_receipt_' + entry.move.id));
+  const tables = positionalTables(waiting);
+  if (!tables.size) return;
+  const before = waiting[0]?.sequences;
+  const current = checkpoint.native.tables.sqlite_sequence;
+  if (!Array.isArray(before) || !Array.isArray(current)) {
+    throw new Refused('RELAY_OUTBOX_REFERENCE', 'queued numeric references have no original row-counter boundary; keep the original board and queue for supported reference recovery');
+  }
+  for (const table of tables) {
+    if ((before.find(row => row.name === table)?.seq ?? 0) !== (current.find(row => row.name === table)?.seq ?? 0)) {
+      throw new Refused('RELAY_OUTBOX_REFERENCE', `ordered ${table} positions differ from the original queued reference boundary; keep the original board and queue until their producer identities can be reconciled`);
+    }
+  }
+}
+
 /**
  * Read every record the relay ordered after the outbox's base image. Network only: the board is not touched. When
  * the relay compacted that prefix, its checkpoint stands in for the base.
@@ -530,10 +649,25 @@ async function pullSinceBase(link, key, { fromCheckpoint = false } = {}) {
     return remote.events;
   };
   if (fromCheckpoint) {
-    const checkpoint = await link.fetchCheckpoint(key);
-    // A checkpoint older than the moves' base cannot stand in for it: the board would go back past what it shows.
-    if (checkpoint.sequence < outbox.baseSequence) throw new Refused('RELAY_OUTBOX', `this machine cannot take its queued moves back, and the relay checkpoint (sequence ${checkpoint.sequence}) is older than the board they sit on (sequence ${outbox.baseSequence}); keep the board as it is and ask the person to publish a newer checkpoint from another machine`);
-    return { baseSequence: outbox.baseSequence, checkpoint, events: await events(checkpoint.sequence) };
+    let checkpoint = await link.fetchCheckpoint(key);
+    const minimum = Math.max(outbox.baseSequence, link.localRecords(link.root, appliedSequence));
+    const prefix = await events(checkpoint.sequence);
+    if (checkpoint.sequence < minimum) {
+      // An interrupted rebuild can leave durable ordered receipts but the previous sealed outbox. Never install
+      // an older checkpoint into that live board: first reconstruct a covering prefix in a disposable replica.
+      while ((prefix.at(-1)?.event_id ?? checkpoint.sequence) < minimum) {
+        const more = await events(prefix.at(-1)?.event_id ?? checkpoint.sequence);
+        if (!more.length) throw new Refused('RELAY_OUTBOX', 'the relay checkpoint history ends before this board\'s current prefix; keep the board and queued moves until the missing records or a newer checkpoint are available');
+        prefix.push(...more);
+      }
+      checkpoint = await link.advanceCheckpoint(key, checkpoint, prefix, minimum);
+      return { baseSequence: outbox.baseSequence, checkpoint, events: [] };
+    }
+    if (prefix.length && positionalTables(outbox.moves).size) {
+      checkpoint = await link.advanceCheckpoint(key, checkpoint, prefix, checkpoint.sequence);
+      return { baseSequence: outbox.baseSequence, checkpoint, events: [] };
+    }
+    return { baseSequence: outbox.baseSequence, checkpoint, events: prefix };
   }
   try { return { baseSequence: outbox.baseSequence, events: await events(outbox.baseSequence) }; }
   catch (error) {
@@ -545,9 +679,16 @@ async function pullSinceBase(link, key, { fromCheckpoint = false } = {}) {
 }
 
 /** Put the board back to an image the relay ordered, keeping each seat's newer shout-read position. */
-function restoreBase(link, image, sequence) {
+function restoreBase(link, image, sequence, reconstructed = false) {
   link.localRecords(link.root, (board) => {
     const cursors = board.db.prepare('SELECT agent_id, agent_last_shout_id FROM agent').all();
+    if (reconstructed) {
+      const receipts = new Map(image.tables.board_meta.map(row => [row.meta_key, row.meta_value]));
+      const existing = board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB 'relay_receipt_*' OR meta_key GLOB 'relay_refusal_*'").all();
+      if (existing.some(row => receipts.get(row.meta_key) !== row.meta_value)) {
+        throw new Refused('RELAY_RECOVERY_MISMATCH', 'the reconstructed prefix differs from a retained native receipt; keep the local board and queue and inspect the disagreement');
+      }
+    }
     restoreRelaySnapshot(board, image, sequence);
     // Reading shouts is this machine's own progress; the restore keeps the newer read position.
     keepNewerCursors(board, cursors);
@@ -609,8 +750,15 @@ async function rebuild(link, key, pulled) {
   if (outbox.baseSequence !== pulled.baseSequence) return true;
   // Nothing new from the relay: the board already shows the base and every queued move on top.
   if (!pulled.checkpoint && !pulled.events.length && outbox.restored !== true) return true;
+  // Preflight the complete retained capture before the first mutation, not halfway through local reconstruction.
+  const inputs = localRecords(root, board => new Map(outbox.moves.map(entry => [entry.move.id, retainedLocalInput(board, entry)])));
+  if (positionalTables(outbox.moves).size) {
+    // Inspect a fully materialized ordered prefix before undo/restore, never after publishing shifted rows.
+    if (!pulled.checkpoint || pulled.events.length) return 'checkpoint';
+    refuseShiftedReferences(outbox, pulled.checkpoint);
+  }
   // Back to the relay's order: the relay's checkpoint, an older outbox's image, or the queued moves taken back.
-  if (pulled.checkpoint) restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence);
+  if (pulled.checkpoint) restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence, pulled.checkpoint.reconstructed === true);
   else if (outbox.base) restoreBase(link, outbox.base, outbox.baseSequence);
   else if (!takeBack(link, outbox)) return 'checkpoint';
   await link.applyRecords(root, key, state, pulled.events);
@@ -647,7 +795,7 @@ async function rebuild(link, key, pulled) {
     return false;
   }
   for (const entry of outbox.moves) {
-    const result = await reapply(link, outbox, entry);
+    const result = await reapply(link, outbox, entry, inputs.get(entry.move.id));
     // A re-applied add may get another number here; later moves reach it through their bound add, not the number.
     const shown = entryCreatedItems(entry);
     rememberCreatedItems(entry, result);
@@ -669,6 +817,14 @@ async function rebuild(link, key, pulled) {
 async function sendQueued(link, key) {
   const { root, file, state, io, localRecords, sealedRecord } = link;
   const outbox = await readOutbox(outboxFile(file), key, state.board);
+  // A locally returned legacy UUID absent from the sealed move cannot be reconstructed by another replica.
+  // Stop before even the first POST; preserve this whole ordered chain until its identity contract can express it.
+  localRecords(root, board => {
+    for (const entry of outbox?.moves ?? []) {
+      if (engineReceipt(board, entry.move.id)) continue;
+      refuseUnrepresentedIdentities(entry.move, retainedLocalInput(board, entry));
+    }
+  });
   let sent = 0;
   for (const entry of outbox?.moves ?? []) {
     if ((entry.refs ?? []).some((ref) => outbox.moves.some((other) => other.move.id === ref.add))) break;
