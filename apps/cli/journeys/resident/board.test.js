@@ -166,7 +166,7 @@ before(() => {
       last = runIn(repo, ['version'], { modules: true });
       if (last.status === 0 && last.loaded.length < 20 && residentPid()) return last;
     }
-    assert.fail(`no resident process answered within 20 s; last client loaded ${last?.loaded.length} modules`);
+    assert.fail(`no resident process answered within 20 s; last client loaded ${last?.loaded.length} modules: ${(last?.loaded ?? []).map(url => url.replace(/^.*\/(apps|packages)\//, '$1/')).join(', ')}`);
   };
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, env });
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: 'true',
