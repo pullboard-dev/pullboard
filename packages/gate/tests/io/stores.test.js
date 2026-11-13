@@ -145,6 +145,20 @@ test('clause 2: stores.json has a dirs section seeded with the directory stores,
   assert.ok(!JSON.stringify(shipped).includes('dir:'), 'directory ceilings live in their dirs rows');
 });
 
+test('clause 1: the coordinator release audit imports the release-receipts path from release.js and writes no second receipt [CD2]', () => {
+  const read = file => readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8');
+  const coordinator = read('packages/gate/src/io/coordinator/release.js');
+  assert.match(coordinator, /import \{ releaseReceiptFile \} from '\.\.\/release\.js';/u);
+  assert.equal(storeSites(coordinator, 'packages/gate/src/io/coordinator/release.js').filter(site => site.store === 'dir:release-receipts').length, 0);
+  assert.equal(storeSites(read('packages/gate/src/io/release.js'), 'packages/gate/src/io/release.js').filter(site => site.store === 'dir:release-receipts').length, 1, 'release.js names the folder once');
+});
+
+test('clause 2: the release-receipts second-home row is gone from the registry ceilings [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  assert.equal(registry.dirs['release-receipts'].owner, 'packages/gate/src/io/release.js');
+  assert.deepEqual(registry.dirs['release-receipts'].homes ?? {}, {});
+});
+
 test('clause 2: the repository adds no unregistered store or second home past the shipped baseline [CD2]', () => {
   const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
   const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));

@@ -150,10 +150,7 @@
     },
     "release-receipts": {
       "kind": "dir",
-      "owner": "packages/gate/src/io/release.js",
-      "homes": {
-        "packages/gate/src/io/coordinator/release.js": 1
-      }
+      "owner": "packages/gate/src/io/release.js"
     },
     "review-comparisons": {
       "kind": "dir",
