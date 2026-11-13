@@ -173,7 +173,9 @@ export function freeRunnerSlots(file = join(machineHome(), 'resources.sqlite'), 
 function freeBrowserSlots(db, runners, gui) {
   let free = 0;
   for (const runner of runners) {
-    if (!(runner.browser >= 1) || gui && runner.gui === false) continue;
+    // Admission treats a runner whose GUI session is unobserved as having none, so the plan must too: counting it planned
+    // GUI shards that queued for a runner that never takes them, a gate wait with no holder (#6783, 13 Nov).
+    if (!(runner.browser >= 1) || gui && runner.gui !== true) continue;
     const held = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(browser = 1), 0) AS browsers FROM holder WHERE name = ?').get(`runner:${runner.host}`);
     free += Math.max(0, Math.min(runner.slots - Number(held.n), runner.browser - Number(held.browsers)));
   }
