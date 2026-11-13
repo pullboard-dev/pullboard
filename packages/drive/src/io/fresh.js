@@ -16,6 +16,7 @@ const run = promisify(execFile);
  * Why: a process started before a landing lazily imports the landing's modules against the ones it loaded at start,
  * and from 12 Nov 12:15Z every board read failed that way until a hand restart; a fresh process loads one tree.
  * Leases live on the board, never in the process, so a runner's lease outlives the restart.
+ * With `handoff`, `relaunch` runs first and answers once the new process listens on the old one's socket, so the port never closes.
  * With `affects`, a move that changes nothing the server loads is only noted: no restart and no gap in listening.
  *
  * @param {{ root: string, revision: () => string | null, close: () => Promise<unknown>,
@@ -23,7 +24,7 @@ const run = promisify(execFile);
  *   affects?: (from: string, to: string) => boolean | Promise<boolean>, log?: (line: string) => void }} options revision reads the commit the code at root is at, null when it cannot tell.
  * @returns {{ restarted: Promise<{ from: string, to: string, pid: number | null }>, stop: () => void }}
  */
-export function restartOnCodeMove({ root, revision, close, relaunch, affects = () => true, interval = 5_000, drain = 20_000, log = (line) => process.stderr.write(line + '\n') }) {
+export function restartOnCodeMove({ root, revision, close, relaunch, handoff = false, affects = () => true, interval = 5_000, drain = 20_000, log = (line) => process.stderr.write(line + '\n') }) {
   let from = revision();
   let timer = null;
   let settle;
@@ -34,10 +35,12 @@ export function restartOnCodeMove({ root, revision, close, relaunch, affects = (
     if (!to || to === from) { schedule(); return; }
     if (!await affects(from, to)) { from = to; schedule(); return; }
     log(`pullboard: the code at ${root} moved from ${from.slice(0, 10)} to ${to.slice(0, 10)}; restarting on the new code`);
+    // With `handoff` the new process holds the listening socket before the old one lets go, so no request is refused.
+    const early = handoff ? await relaunch() : null;
     let drained;
     await Promise.race([close(), new Promise((done) => { drained = setTimeout(done, drain); })]);
     clearTimeout(drained);
-    const { pid } = await relaunch();
+    const { pid } = early ?? await relaunch();
     log(`pullboard: restarted as process ${pid ?? 'unknown'}`);
     settle({ from, to, pid });
   };

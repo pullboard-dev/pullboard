@@ -111,3 +111,29 @@ function detached(command, args, { cwd, env, log }) {
   } catch { return { pid: null, launchd: false }; }
   finally { if (typeof out === 'number') closeSync(out); }
 }
+
+/** How long a child handed a listening socket has to say it listens before the caller goes on without its word. */
+const SOCKET_WAIT_MS = 20_000;
+
+/**
+ * Start the command as a detached child that inherits the descriptor `fd` as its descriptor 3, and answer once the child
+ * sends its first message (it listens), exits, fails to start, or the wait ends. The caller keeps its own copy of the
+ * socket until it closes it.
+ * Why: a restarted server that holds its predecessor's listening socket never refuses a request in between (#6723).
+ *
+ * @param {string} command
+ * @param {string[]} args
+ * @param {{ fd: number, env: Record<string, string | undefined>, cwd?: string, log?: string }} options
+ * @returns {Promise<{ pid: number | null }>}
+ */
+export function spawnOnSocket(command, args, { fd, env, cwd = process.cwd(), log }) {
+  const out = log ? openSync(log, 'a', 0o600) : 'ignore';
+  try {
+    const child = spawn(command, args, { cwd, env, detached: true, stdio: ['ignore', out, out, fd, 'ipc'] });
+    return new Promise(done => {
+      const finish = () => { clearTimeout(timer); child.removeAllListeners(); if (child.connected) child.disconnect(); child.unref(); done({ pid: child.pid ?? null }); };
+      const timer = setTimeout(finish, SOCKET_WAIT_MS);
+      child.once('message', finish); child.once('error', finish); child.once('exit', finish);
+    });
+  } finally { if (typeof out === 'number') closeSync(out); }
+}
