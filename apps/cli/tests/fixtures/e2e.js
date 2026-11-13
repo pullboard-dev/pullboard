@@ -43,11 +43,13 @@ export const FIXTURE_MODEL = 'fixture-model';
 /**
  * A copy of an environment with every PULLBOARD_ variable removed, so a fixture never inherits the
  * agent's identity or home. Each fixture sets the PULLBOARD_ values it needs on top of this copy.
+ * The copy sets PULLBOARD_FIXTURE_ADD_DISTINCT=1: fixture items carry numbered, near-identical titles, so the duplicate
+ * guard of `add` stays off in every fixture board; its own journey deletes the variable to prove the guard (#6864).
  * @param {Record<string, string | undefined>} source The parent process environment.
  * @returns {Record<string, string | undefined>} A new object without PULLBOARD_ keys.
  */
 export function withoutPullboardEnv(source) {
-  return Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_')));
+  return { ...Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_'))), PULLBOARD_FIXTURE_ADD_DISTINCT: '1' };
 }
 
 /** The commands that may offer a runner job (a gate, test or land job) a journey then reads the outcome of. */

@@ -376,7 +376,7 @@ export function configProblems(config) {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
   }
   if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
-    problems.push('"submit.handoff" is a boolean; false keeps synchronous submit');
+    problems.push('"submit.handoff" is a boolean; deprecated, no effect');
   }
   // Absent, a check already green on main is only a warning, as on boards made before the setting.
   if (config.checks !== undefined && (typeof config.checks !== 'object' || config.checks === null || Array.isArray(config.checks)

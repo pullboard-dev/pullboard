@@ -119,7 +119,7 @@ before(() => {
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
     PATH: `${shims}${delimiter}${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log'),
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log'),
     PULLBOARD_RESIDENT_TRACE: join(dir, 'resident-trace.log') };
   for (const name of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_RELAY_KEY']) delete env[name];
   copyCode(code, env);
@@ -166,7 +166,7 @@ before(() => {
       last = runIn(repo, ['version'], { modules: true });
       if (last.status === 0 && last.loaded.length < 20 && residentPid()) return last;
     }
-    assert.fail(`no resident process answered within 20 s; last client loaded ${last?.loaded.length} modules`);
+    assert.fail(`no resident process answered within 20 s; last client loaded ${last?.loaded.length} modules: ${(last?.loaded ?? []).map(url => url.replace(/^.*\/(apps|packages)\//, '$1/')).join(', ')}`);
   };
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, env });
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: 'true',
@@ -175,8 +175,9 @@ before(() => {
   assert.equal(runIn(repo, ['init']).status, 0);
   runFixtureGit(['add', '-A'], { cwd: repo, env });
   runFixtureGit(['commit', '-q', '-m', 'chore(repo): set up the resident fixture'], { cwd: repo, env });
-  for (const title of ['First', 'Second']) {
-    const added = runIn(repo, ['add', 'core', title, '--specs', 'H24', '--criterion', 'it works', '--brief', 'Files: src/a.js\nTest: it works.']);
+  // Distinct titles and bars, so the likely-duplicate guard does not read the second as a copy of the first.
+  for (const [title, criterion] of [['Warm the show path', 'show answers from the warm process'], ['Cache inbox rows', 'the inbox reads cached rows']]) {
+    const added = runIn(repo, ['add', 'core', title, '--specs', 'H24', '--criterion', criterion, '--brief', 'Files: src/a.js\nTest: it works.']);
     assert.equal(added.status, 0, added.stdout + added.stderr);
   }
   const worktree = join(dir, 'core-1');
