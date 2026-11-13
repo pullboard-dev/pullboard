@@ -274,3 +274,7 @@ test('#7015 clause 1: no store-file site in any package or app builds its name f
   const failures = judge({ [OTHER]: 'const f = join(dir, `${id}.json`);' }, { registry: REGISTRY });
   assert.match(failures[0], /CD2_UNREGISTERED_STORE: stem:\*\.json is not in/u);
 });
+
+test('#7013 clause 1: no store-file site under packages/link builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/link/'), [], 'name each file from the link registry const storeName(key)');
+});

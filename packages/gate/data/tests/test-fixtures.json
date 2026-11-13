@@ -553,11 +553,6 @@
     "raw-board": 3,
     "model": 1
   },
-  "apps/cli/journeys/milestone/api.test.js": {
-    "model": 5,
-    "hand-policy": 2,
-    "raw-board": 7
-  },
   "apps/cli/tests/fixtures/cadence.js": {
     "raw-board": 1
   },
@@ -3474,7 +3469,7 @@
     "model": 5,
     "tempdir": 1
   },
-  "packages/state/tests/fixtures/api.js": {
+  "apps/cli/tests/fixtures/api/settings.js": {
     "tempdir": 3,
     "raw-board": 1,
     "hand-policy": 8
@@ -4170,5 +4165,24 @@
   },
   "apps/cli/tests/fixtures/cockpit/pipeline.js": {
     "raw-board": 2
+  },
+  "apps/cli/journeys/milestone/api.test.js": {
+    "model": 1
+  },
+  "apps/cli/journeys/milestone/api/detail.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/journeys/milestone/api/incremental.test.js": {
+    "raw-board": 4,
+    "model": 2
+  },
+  "apps/cli/journeys/milestone/api/schema.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/journeys/milestone/api/serve.test.js": {
+    "model": 1
+  },
+  "apps/cli/journeys/milestone/api/state-shouts.test.js": {
+    "raw-board": 1
   }
 }

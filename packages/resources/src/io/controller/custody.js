@@ -127,9 +127,7 @@ export const CONTROLLER_GONE = 'controller process is gone';
 function orphanReason(record, holder, sameProcess) {
   if (!record.holderStarted || record.holderStarted !== holder.started) return null;
   const controllerAlive = sameProcess(record.controllerPid, record.started);
-  // A killed `pullboard test` is both holder and controller. With the controller dead too, nothing still drives the job, so
-  // this is the same orphan as a dead controller: its runner stays in service. Holding the runner out for 4 to 12 minutes
-  // until a probe ran kept coreyolson@192.168.1.52 over its runnerUnavailableMs budget five times on 13 Nov (#7022) [C7].
+  // Holder and controller both dead: the same orphan as a dead controller, so its runner stays in service (#7022) [C7].
   if (!sameProcess(holder.pid, holder.started)) return controllerAlive ? 'holder process is gone' : CONTROLLER_GONE;
   if (!controllerAlive) return CONTROLLER_GONE;
   const source = record.source;
