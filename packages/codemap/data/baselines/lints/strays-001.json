@@ -353,7 +353,6 @@
     "apps/cli/journeys/study/metrics.test.js": 1,
     "packages/github/tests/fixtures/stale.js": 1,
     "apps/cli/src/io/landing/advance.js": 1,
-    "apps/lib/src/io/landing/candidate.js": 1,
     "apps/cli/src/io/landing/audit.js": 1,
     "packages/landing/src/io/verify/release.js": 1,
     "packages/landing/tests/fixtures/known-main-red/shards.json": 1,

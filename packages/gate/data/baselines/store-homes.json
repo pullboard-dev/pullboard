@@ -377,9 +377,6 @@
     "pending.json": 3,
     "timer.json": 1
   },
-  "packages/landing/src/io/candidates.js": {
-    "board.sqlite": 1
-  },
   "packages/landing/src/io/computed/conflict/return.js": {
     "board.sqlite": 1
   },

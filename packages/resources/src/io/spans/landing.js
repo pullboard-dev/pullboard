@@ -4,7 +4,7 @@
  * their own folder beside the gate spans; `pullboard gate-health` reads them with the board's accept and merged events,
  * so a slow accept-to-merged names the step that ate the time.
  *
- * Why the environment carries the sink: a landing runs its candidate in a spawned worker (apps/lib/src/io/landing/candidate.js),
+ * Why the environment carries the sink: a landing may run its candidate in a spawned worker,
  * and that child must record into the same landing run as its parent without a new argument through every layer.
  */
 import { randomUUID } from 'node:crypto';
