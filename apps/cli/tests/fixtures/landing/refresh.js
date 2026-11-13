@@ -173,7 +173,7 @@ export async function runLandingDocsRefresh(disabled) {
       assert.match(regenerated, /Clean landing documentation fixture/u);
       // The board records the merge when the land job's receipt is applied, which can follow the settled command [P7,C7].
       await waitForCondition(() => success(box, box.repo, 'show', String(entry.item)).item_merged_commit === tip, `the board records #${entry.item} merged at ${tip}`, {
-        signal: AbortSignal.timeout(60_000), state: () => { const row = success(box, box.repo, 'show', String(entry.item)); return { status: row.item_status, merged: row.item_merged_commit, main: box.git(box.repo, 'rev-parse', 'main'), receipt: landJobs(box).at(-1)?.receipt?.trunk ?? null }; } });
+        signal: AbortSignal.timeout(60_000), state: () => { const row = success(box, box.repo, 'show', String(entry.item)); return { status: row.item_status, merged: row.item_merged_commit, main: box.git(box.repo, 'rev-parse', 'main'), receipt: landJobs(box).at(-1)?.receipt?.trunk ?? null, hist: command(box, box.repo, 'show', String(entry.item), '--history').text.slice(-3000) }; } });
       const checked = runFixtureChild(process.execPath, ['docs/tools/update-docs.js', '--check'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
       assert.equal(checked.status, 0, checked.context);
       assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', tip).split(' ').length, 3,
