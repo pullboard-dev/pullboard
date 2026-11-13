@@ -200,7 +200,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const automaticReopen = returned.thread.find((event) => event.type === 'move' && event.kind === 'reopen');
   assert.ok(automaticReopen);
   assert.equal(automaticReopen.detail.supersedes, originalAccept.eventId);
-  assert.ok(automaticReopen.detail.landingFailure, 'the automatic reopen records the landing failure');
+  assert.ok(automaticReopen.detail.note, 'the automatic reopen carries the landing note');
   assert.ok(returned.thread.some((event) => event.type === 'move' && event.eventId === originalAccept.eventId && event.kind === 'accept'),
     'the original accept remains in append-only item history');
   assert.deepEqual(returned.thread.find((event) => event.eventId === originalAccept.eventId), originalAccept,

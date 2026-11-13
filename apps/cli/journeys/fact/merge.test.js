@@ -22,6 +22,7 @@ import { copyPackageSubset } from '../../tests/fixtures/copy.js';
 import { packageFiles } from '../../../../packages/runners/index.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import {
   mergeMechanicalSources,
   resolveMechanicalMerge,
@@ -69,7 +70,7 @@ function project(parallel = false) {
 }
 
 /** Submit and independently verify a real item from its own private checkout. */
-function item(box, number, text) {
+async function item(t, box, number, text) {
   const path = join(box.dir, `builder-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
   json(box, path, 'join', 'web', '--model', 'fixture-model');
@@ -81,7 +82,9 @@ function item(box, number, text) {
   const commit = e2e.commitFile(box, path, FILE, text, `feat(web): registry addition ${number} [G1]`);
   assert.equal(commit.status, 0, commit.stderr);
   const head = box.git(path, 'rev-parse', 'HEAD');
-  json(box, path, 'submit', String(id));
+  const submitted = box.run(path, 'submit', String(id), '--json');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  await settleSubmit(t, box, JSON.parse(submitted.out));
   box.git(box.repo, 'checkout', '-q', '--detach', head);
   try { json(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private registry item checked'); }
   finally { box.git(box.repo, 'checkout', '-q', 'main'); }
@@ -89,10 +92,10 @@ function item(box, number, text) {
 }
 
 /** Exercise the identical native acceptance assertions under serial and speculative-prefix landing. */
-async function assertAdditions(parallel) {
+async function assertAdditions(t, parallel) {
   const box = project(parallel);
-  const first = item(box, 1, BASE.replace('  base:', '  alpha: { item: true },\n  base:'));
-  const second = item(box, 2, BASE.replace('  base:', '  beta: { item: true },\n  base:'));
+  const first = await item(t, box, 1, BASE.replace('  base:', '  alpha: { item: true },\n  base:'));
+  const second = await item(t, box, 2, BASE.replace('  base:', '  beta: { item: true },\n  base:'));
   const landed = await settleLand(box, json(box, box.repo, 'land'));
   assert.deepEqual(landed.landed, [first, second], 'both independently verified additions land');
   assert.deepEqual(landed.conflicts, []);
@@ -109,12 +112,12 @@ async function assertAdditions(parallel) {
 }
 
 // The pulled lander merges items with plain git and has no mechanical registry resolution, so there is nothing to land here but the batch engine's.
-test('the train keeps both added registry entries and lands without a reopen [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async () => {
-  await assertAdditions(false);
+test('the train keeps both added registry entries and lands without a reopen [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
+  await assertAdditions(t, false);
 });
 
-test('parallel train promotion retains its mechanical resolution receipt [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async () => {
-  await assertAdditions(true);
+test('parallel train promotion retains its mechanical resolution receipt [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
+  await assertAdditions(t, true);
 });
 
 test('non-UTF8 bytes outside a registry stay untouched when resolution is refused [B3,R3,C7]', () => {
@@ -141,10 +144,10 @@ test('non-UTF8 bytes outside a registry stay untouched when resolution is refuse
   assert.deepEqual(readFileSync(join(root, FILE)), before, 'refusal preserves every byte of the unmerged working file');
 });
 
-test('a registry edit remains a conflict and reopens instead of being unioned [B3,R3,C7]', async () => {
+test('a registry edit remains a conflict and reopens instead of being unioned [B3,R3,C7]', async t => {
   const box = project();
-  const first = item(box, 1, BASE.replace('item: true', 'item: false'));
-  const second = item(box, 2, BASE.replace('item: true', "positions: ['id']"));
+  const first = await item(t, box, 1, BASE.replace('item: true', 'item: false'));
+  const second = await item(t, box, 2, BASE.replace('item: true', "positions: ['id']"));
   const landed = await settleLand(box, json(box, box.repo, 'land'));
   // The pulled lander merges in its own order; the item that merges second is the one the registry edit conflicts with.
   const conflict = (landed.returned ?? []).find(entry => entry.reason === 'conflict');
