@@ -49,7 +49,8 @@ function placePairs(tab = view.tab) {
   const kind = tab === 'spec' || tab === 'doctrine' ? tab : null;
   return placeQuery({ tab, state: view.state, stateDefault: snapshot ? 'all' : 'active', lane: view.lane, q: $('q')?.value ?? '',
     rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
-    shouts: view.shoutFilter, activity: view.activityFilter || 'all' });
+    shouts: view.shoutFilter, activity: view.activityFilter || 'all', range: view.range || '6h',
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null });
 }
 
 /** Name each repo even beneath a group; one repo needs no prefix. */
@@ -105,7 +106,9 @@ function applyPlace(place, kept = null) {
   if (view.tab === 'items' || query.state || query.lane) { view.state = query.state || (query.q ? 'all' : snapshot ? 'all' : 'active'); view.lane = query.lane; view.before = query.q && !query.state ? (snapshot ? 'all' : 'active') : null; }
   if (view.tab === 'spec' || view.tab === 'doctrine') view.rows[view.tab] = query.rows || (place.detail !== null ? 'all' : view.tab === 'spec' ? 'decide' : 'all');
   if (view.tab === 'shouts') view.shoutFilter = query.shouts || 'all';
-  if (view.tab === 'activity') view.activityFilter = query.activity || 'all';
+  if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; }
+  if (view.tab === 'progress') view.range = query.range === '24h' ? '24h' : '6h';
+  if (view.tab === 'roadmap') view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
   if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
   keep('pb.project', view.root);
   if (place.tab !== 'roadmap') keep('pb.tab', place.tab);
@@ -119,6 +122,7 @@ function showNav() {
   const pages = navPages({ cost: privateCost });
   const page = pages.find((entry) => entry.id === view.tab);
   if ($('crumb-page')) $('crumb-page').textContent = page ? page.name : view.tab === 'settings' ? 'Settings' : '';
+  placeControls();
   document.querySelectorAll?.('[data-nav-group]').forEach((button) => {
     const group = button.dataset.navGroup, current = pages.find((entry) => entry.groupId === group && entry.id === view.tab);
     const name = pages.find((entry) => entry.groupId === group)?.group ?? '';
@@ -134,6 +138,45 @@ function showNav() {
     button.classList.toggle('on', button.dataset.tab === view.tab);
     if (button.dataset.tab === view.tab) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
   });
+}
+
+/**
+ * Draw the controls the open page puts at the right of the strip (the title row in the sidebar layout), and put them
+ * where the layout wants them. Each one reads the state the address holds, so a refresh, Back and Forward keep it.
+ */
+function drawPageControls() {
+  const slot = $('page-controls');
+  if (!slot) return;
+  const html = pageControlsHtml({ tab: view.tab, state: view.state, range: view.range || '6h', shouts: view.shoutFilter || 'all',
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && !readOnly });
+  const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
+  if (slot.innerHTML !== html) slot.innerHTML = html;
+  if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
+  placeControls();
+}
+
+/** Put the page controls on the strip in the top layout and on the page's title row in the sidebar layout. */
+function placeControls() {
+  const slot = $('page-controls'), home = document.documentElement.dataset.nav === 'side' ? $('page-title') : $('nav-strip');
+  if (slot && home && slot.parentElement !== home) home.appendChild?.(slot);
+  const page = navPages({ cost: privateCost }).find((entry) => entry.id === view.tab);
+  if ($('page-title-text')) $('page-title-text').textContent = page ? page.name : view.tab === 'settings' ? 'Settings' : '';
+}
+
+/** A press on one of the page controls: set that page's state, put it in the address and draw again. */
+function pageControl(target) {
+  const kind = target.dataset.pageCtl, value = target.tagName === 'SELECT' ? target.value : target.dataset.value ?? '';
+  // The control answers at once: it shows its new state and the address takes it now; the page redraws on the next turn.
+  const later = (then) => requestAnimationFrame(() => setTimeout(then, 0));
+  if (kind === 'new') { view.adding = true; later(() => { render(); $('add-title').focus(); }); return; }
+  if (kind === 'state') view.state = value;
+  else if (kind === 'range') view.range = value === '24h' ? '24h' : '6h';
+  else if (kind === 'by') view.activityBy = value || null;
+  else if (kind === 'shouts') { view.shoutFilter = value; view.shoutThread = null; view.shout = null; view.addressDetail = null; }
+  else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
+  drawPageControls();
+  address();
+  later(render);
 }
 
 /** Open one of the strip's menus, or close it; a second press on its button closes it. */
@@ -991,6 +1034,8 @@ document.addEventListener('click', (event) => {
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side, #proj-switch')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
+  const control = event.target.closest('button[data-page-ctl]');
+  if (control) { pageControl(control); return; }
   const navGroup = event.target.closest('[data-nav-group]');
   if (navGroup) { openNavMenu(navGroup.dataset.navGroup); return; }
   if (view.navOpen) openNavMenu(null);
@@ -1271,6 +1316,8 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
+// A select among the page controls (the time range, the person) acts on its change.
+document.addEventListener('change', (event) => { const control = event.target.closest?.('select[data-page-ctl]'); if (control) pageControl(control); });
 // Esc closes an open navigation menu. Cmd+K, "/" and the backslash belong to the palette (io/palette), which asks the
 // layout to move by this event; the pin does the same, so one press flips it once.
 document.addEventListener('keydown', (event) => {
