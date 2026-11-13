@@ -124,7 +124,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     const listRead = "JSON.stringify([...document.querySelectorAll('#chain > li[data-item]')].map(row => ({id:Number(row.dataset.item),title:row.title,meta:row.querySelector('.meta').textContent,tag:row.lastElementChild.textContent})))";
     const listBefore = await chrome.stable(listRead);
-    await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
+    await press(chrome, "document.querySelector('[data-page-ctl=view][data-value=pipeline]')");
     assert.equal(await chrome.stable('location.pathname'), '/items/pipeline', 'Pipeline has its own shareable address');
     await chrome.waitFor("typeof data !== 'undefined' && location.pathname === '/items/pipeline' && !document.querySelector('#pipeline').hidden");
     const expectedCounts = [0, status.open, status.claimed, status.submitted, 1, 0, 1];
@@ -176,7 +176,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
     await box.inProcess(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
     await chrome.waitFor("document.querySelector('[data-stage-count=verified]').textContent === '0' && document.querySelector('[data-stage-count=merged]').textContent === '2'");
     assert.equal(await chrome.stable("document.querySelector('#pipeline [data-pipeline-stage=verified] .pipeline-oldest').textContent"), 'No items', 'a recorded merge advances only the verified item and leaves an honest empty stage');
-    await press(chrome, "document.querySelector('[data-items-view=\"list\"]')");
+    await press(chrome, "document.querySelector('[data-page-ctl=view][data-value=list]')");
     await chrome.waitFor("!location.hash && !document.querySelector('#item-list').hidden && document.querySelector('#pipeline').hidden");
     assert.equal(await chrome.stable(listRead), listBefore, 'returning to List preserves its Active rows, metadata and ordering');
     assert.deepEqual(JSON.parse(listBefore).map(row => row.id).sort((a,b)=>a-b), [3,4,5,6]);
@@ -208,7 +208,7 @@ test('the pipeline opens the clicked item under a 6× CPU throttle [N26,N38,C7]'
     await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
-    await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
+    await press(chrome, "document.querySelector('[data-page-ctl=view][data-value=pipeline]')");
     await chrome.waitFor("location.pathname === '/items/pipeline' && !document.querySelector('#pipeline').hidden");
     await chrome.send('Emulation.setCPUThrottlingRate', { rate: 6 });
     await installPipelinePressDiagnostics(chrome);
@@ -253,7 +253,7 @@ test('a refresh between pointer down and up does not lose the click [N26,N38,C7]
     await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
-    await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
+    await press(chrome, "document.querySelector('[data-page-ctl=view][data-value=pipeline]')");
     await chrome.waitFor("location.pathname === '/items/pipeline' && !document.querySelector('#pipeline').hidden");
     await chrome.send('Emulation.setCPUThrottlingRate', { rate: 6 });
     await installPipelinePressDiagnostics(chrome);
