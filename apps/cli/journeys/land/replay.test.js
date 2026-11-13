@@ -20,6 +20,7 @@ import { mergeSubjects } from '../../tests/fixtures/land/board.js';
 import { settleRecordedSourceWake } from '../../tests/fixtures/land/board.js';
 import { recordManualMergedItems } from '../../tests/fixtures/land/board.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 /** Exercise landing replay, hook headers and publish against real private Git worktrees [B3,R3,H16]. */
@@ -70,7 +71,7 @@ test('landing records replay identically with native sender and engine boundarie
   assert.equal(spoof.error?.code, 'RELAY_PERSON_ONLY');
 });
 
-test('an item with no spec rows lands under a header its commit hook accepts [B3,R3]', () => {
+test('an item with no spec rows lands under a header its commit hook accepts [B3,R3]', async () => {
   const box = landProject();
   // A docs-lane item with no spec rows: its commit cites none, and its merge header names its lane's type.
   const config = loadConfig(box.repo);
@@ -97,7 +98,7 @@ test('an item with no spec rows lands under a header its commit hook accepts [B3
   assert.equal(box.run(path, 'submit', String(item), '--no-next').code, 0, 'the docs commit submits');
   acceptItem(box, entry);
   const base = box.git(box.repo, 'rev-parse', 'main');
-  const result = json(box, box.repo, 'land', '--max', '1');
+  const result = await settleLand(box, json(box, box.repo, 'land'));
   assert.deepEqual(result.landed, [item]);
   const [subject] = mergeSubjects(box, base, result.batch.tip);
   assert.equal(subject, 'docs(merge): docs fixture with no rows', 'a docs-lane item with no rows lands under docs(merge)');

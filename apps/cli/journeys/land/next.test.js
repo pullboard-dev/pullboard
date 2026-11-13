@@ -1,4 +1,4 @@
-/** An accept names the exact landing step for its repo, and a dry run refuses a push the real land would refuse [I1,B3]. */
+/** An accept names the exact landing step for its repo, and land refuses a push it cannot make [I1,B3]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
@@ -8,6 +8,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
@@ -55,7 +56,7 @@ async function refusal(box, ...args) {
   return JSON.parse(result.out).error;
 }
 
-test('an accept says how to land, and a dry run catches a missing origin [I1,B3]', async () => {
+test('an accept says how to land, and land catches a missing origin [I1,B3]', async () => {
   const box = await withReviewer(project());
 
   // Clause 1, repo without a remote: the accept prints the exact git merge command for this repo.
@@ -64,12 +65,10 @@ test('an accept says how to land, and a dry run catches a missing origin [I1,B3]
   const printed = merge.exec(first.out);
   assert.ok(printed, `the accept names the hand merge for a repo without origin:\n${first.out}`);
 
-  // Clause 2: the dry run refuses LAND_PUSH, with exactly the refusal the real land gives.
-  const dry = await refusal(box, 'land', '--dry-run');
-  assert.equal(dry.code, 'LAND_PUSH', JSON.stringify(dry));
-  assert.match(dry.message, /the landing push failed: this repo has no origin remote to push main to; add one with git remote add origin <url>/u);
+  // Clause 2: land refuses a push this repo cannot make, before it gates anything.
   const real = await refusal(box, 'land');
-  assert.deepEqual(real, dry, 'the real land refuses the same way, before it gates anything');
+  assert.equal(real.code, 'LAND_PUSH', JSON.stringify(real));
+  assert.match(real.message, /the landing push failed: this repo has no origin remote to push main to; add one with git remote add origin <url>/u);
 
   // The printed command is exact: running it lands the item and records the merge.
   const ran = spawnSync('/bin/sh', ['-c', printed[1]], { cwd: box.dir, env: box.env, encoding: 'utf8' });
@@ -87,9 +86,9 @@ test('an accept says how to land, and a dry run catches a missing origin [I1,B3]
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   const second = await acceptedItem(box, 'web/second.txt');
   assert.match(second.out, new RegExp(`^next: the coordinator lands it: cd ${literal(box.repo)} && pullboard land$`, 'mu'));
-  const preview = await box.runLocal(box.repo, 'land', '--dry-run', '--json');
-  assert.equal(preview.code, 0, preview.out);
-  assert.deepEqual(JSON.parse(preview.out).items, [second.id]);
+  const landed = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(landed.code, 0, landed.out + landed.err);
+  assert.deepEqual((await settleLand(box, JSON.parse(landed.out))).landed, [second.id]);
 });
 
 test('an accept names the primary checkout when Git metadata is stored separately [I1,B3]', async () => {
