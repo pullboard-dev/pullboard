@@ -6077,9 +6077,6 @@
     "packages/gate/src/io/run-tests.js": [
       "apps/cli"
     ],
-    "packages/gate/src/io/run/tests.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/clone.js": [
       "apps/cli"
     ],
