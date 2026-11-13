@@ -94,6 +94,20 @@ export async function retryCheckBaselines(root, io, services) {
 }
 
 /**
+ * Record a pulled check-baseline job's result on its item, as the detached worker records a push runner's: the same
+ * baseline shape, the same stale-request guard and, when main's policy says so, the same hold on a green check [#6560].
+ *
+ * @param {{ gitRoot?: string, db: object }} board - The open board the job came from.
+ * @param {{ item: number, expected: { command: string, main: string, request: string }, run: { exitCode: number, output: string }, seconds: number }} result
+ * @returns {boolean} False when the item's request has moved on, so nothing was recorded.
+ */
+export function recordPulledBaseline(board, { item, expected, run, seconds }) {
+  const baseline = runnerBaseline(expected, run, seconds);
+  return store.completeCheckBaseline(board, item, { agentId: 'coordinator', expected, baseline,
+    ...(baseline.result === 'green' && board.gitRoot && holdsProvesNothing(board.gitRoot) ? { holdProvesNothing: true } : {}) });
+}
+
+/**
  * Start a detached child with independent streams so the caller exits while its check is running.
  * With `wait`, the child stays attached and the result is a promise that settles once the worker has
  * exited, so none of its writes (the result commit, the relay flush) can race the caller's next command.

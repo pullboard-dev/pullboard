@@ -2,6 +2,7 @@ import { cockpitMarkup } from "../../logic/cockpit/markup.js";
 import { cockpitLive } from "../../logic/cockpit/live.js";
 import { cockpitReplay } from "../../logic/cockpit/replay.js";
 import { cockpitSidebar } from "../../logic/cockpit/sidebar.js";
+import { cockpitProjectMenu } from "../../logic/cockpit/project-menu.js";
 import { cockpitRoadmap } from "./roadmap.js";
 import { cockpitProse } from "../../logic/cockpit/prose.js";
 import { costTabScript } from "../cost/tab.js";
@@ -58,6 +59,7 @@ import { pageScriptPart1 } from "../../logic/page/session.js";
 import { pageScriptPart2 } from "../page/connect.js";
 import { pageScriptPart3 } from "../page/boards.js";
 import { pageScriptPart4 } from "../page/actions.js";
+import { paletteScript } from "../palette/index.js";
 import { settingsMarkup } from "../../logic/settings/page.js";
 import { settingsPageScript } from "../../logic/settings/page.js";
 import { agentApprovalScript } from "../../logic/agent/approval.js";
@@ -127,7 +129,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
     milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
-    agentApprovalScript, pageScriptPart4, historyLoadingScript };
-  return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections)
+    agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript };
+  return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections) + cockpitProjectMenu()
     + cockpitRoadmap(sections) + cockpitProse(sections);
 }
