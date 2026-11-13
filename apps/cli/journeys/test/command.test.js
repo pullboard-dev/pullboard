@@ -55,7 +55,7 @@ test('pullboard test runs files as a pulled job with a per-file timeout [C7]', {
   assert.ok(seconds < 200, `the hung file never holds the run past its timeout (${seconds}s)`); // budget: hang ceiling far above the 3 s test timeout; not a speed target.
 });
 
-test('pullboard test names a failure main already has, per file [C7]', { skip: 'PULL_GAP: un-skipped by #7104' }, async () => {
+test('pullboard test names a failure main already has, per file [C7]', async () => {
   // The pulled receipt does not yet name the failing file of a case or a per-file main verdict, so `known` stays empty
   // and the text form cannot say "file also fails on main" (it prints "main comparison unavailable").
   const box = focusedProject();
