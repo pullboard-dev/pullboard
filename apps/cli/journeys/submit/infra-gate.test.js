@@ -22,8 +22,7 @@ test('a new test file needs no note [C7,V4]', async (t) => {
   await drainComparisons(box, t);
 });
 
-test('a gate named by a quoted path or a shell separator receives a drafted note [C7,V4]', async (t) => {
-  // An unnormalized path names the same file Git reports, so it needs the note too (#814 review); the other two spellings are in infra-gate-paths.test.js.
+test('a gate named by a quoted path receives a drafted note [C7,V4]', async (t) => {
+  // The other spellings are in infra-gate-paths.test.js, split under the per-file budget.
   await draftedNoteCase(t, "node 'src/check gate.js'", 'src/check gate.js');
-  await draftedNoteCase(t, 'node src/check.js; true', 'src/check.js');
 });
