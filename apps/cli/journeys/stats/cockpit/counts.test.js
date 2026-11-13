@@ -57,14 +57,17 @@ test('[V2,N26] real Chrome page data carries matching proof stats and a group dr
     // The proof stats card left the Items tab on purpose (#6727); the counts still arrive in the page data.
     assert.equal(await chrome.stable("document.querySelector('#proof-stats') === null"), true, 'the Items tab no longer draws a proof stats card');
     const shown = JSON.parse(await chrome.stable('JSON.stringify(data.project.proofStats)'));
-    for (const key of ['submissions', 'rejections', 'rejectionShare', 'merged', 'mergedWithoutAccept', 'agentCount', 'firstEventAt', 'lastEventAt']) {
+    for (const key of ['submissions', 'rejections', 'rejectionShare', 'merged', 'mergedWithoutAccept', 'agentCount', 'firstEventAt']) {
       assert.deepEqual(shown[key], expected[key], `page data ${key} matches pullboard stats --json`);
     }
+    // Opening the view records its own events, so the last one may be newer than the CLI's reading.
+    assert.ok(shown.lastEventAt >= expected.lastEventAt, 'page data lastEventAt is not older than pullboard stats --json');
     await pickProject(chrome, `document.querySelector('[data-root="group:Proof project"]')`);
     await chrome.waitFor("data?.group?.name === 'Proof project' && document.querySelector('#group-view:not([hidden])')");
     assert.equal(await chrome.stable("document.querySelector('#proof-stats') === null"), true, 'a grouped view draws no stats card');
     const { flow: currentFlow, ...currentTotals } = (await boardOf(view, alpha.repo)).proofStats;
-    const { flow: expectedFlow, agents, bars, caught, ...expectedTotals } = expected;
+    const { flow: expectedFlow, agents, bars, caught, lastEventAt: expectedLast, ...expectedTotals } = expected;
+    delete currentTotals.lastEventAt;
     for (const key of ['agents', 'bars', 'caught']) assert.equal(Object.hasOwn(currentTotals, key), false, `native state omits historical ${key}`);
     assert.ok(agents && bars && caught, 'the full CLI stats retain historical proof detail');
     assert.deepEqual(currentTotals, expectedTotals, 'the comparison reads the same live API stats source; queue ages may advance');
