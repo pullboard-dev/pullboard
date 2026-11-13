@@ -1,6 +1,6 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
 export * from "./light.js";
-export { diskStores } from "./src/io/stores.js";
+export { diskStores, diskStoresFrom, storeRegistry } from "./src/io/stores.js";
 export { removeTestSandbox } from "./src/io/test/cleanup.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/io/refusal/trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";

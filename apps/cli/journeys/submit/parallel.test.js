@@ -5,26 +5,27 @@ import { test } from 'node:test';
 import { project } from '../../tests/fixtures/submit/parallel.js';
 import { submit } from '../../tests/fixtures/submit/parallel.js';
 
-// Budget: two deliberately twenty-second fixture checks; a pulled gate runs them one after the other, so the whole CLI gets twice the longer plus the pulled gate's setup.
+// Budget: two deliberately twenty-second fixture checks; a pulled gate runs them together, so the whole CLI gets the longer plus the pulled gate's setup.
 const SLOW_MS = 20_000;
 const SETUP_MS = 40_000; // audited: the pulled gate spent 22.4 s outside the two checks when measured.
 
-test('submit runs two slow checks within the audited serial bound of a pulled gate and preserves both receipts [V4,C7]', { timeout: 120_000 }, async t => { // budget: a twenty-second check also runs once at add for its frozen baseline.
+test('submit runs two slow checks together in a pulled gate and preserves both receipts [V4,C7]', { timeout: 120_000 }, async t => { // budget: a twenty-second check also runs once at add for its frozen baseline.
   const { box, observations } = project(t, SLOW_MS);
   const { result, gate, started, wallMs } = await submit(t, box, 'green');
   assert.equal(result.code, 0, result.err + result.out);
   const runs = readFileSync(observations, 'utf8').trim().split('\n').map(line => JSON.parse(line)).slice(-2);
   assert.deepEqual(new Set(runs.map(run => run.role)), new Set(['criterion', 'proof']));
-  // Audited exception (#7044, fact 9f2115e6): a pulled gate job runs its check phase and then its proof phase one after the
-  // other (apps/cli/src/io/submit/pull.js GATE_JOB_ENTRY), measured 20.0 s then 20.0 s with a 0.3 s gap, so the V4 overlap
-  // cannot hold under pull yet; the 0.9.5 item "pulled gate runs criterion and proof checks in parallel lanes" restores it.
-  // Measured wall 62.5 s: 20.6 s before the first check (runner start, checkout, analysis), 20.0 s, 0.3 s gap, 20.0 s, 1.8 s after.
-  // Until then the bound is the measured serial span plus that setup, and a gate that also stalled between the two checks still fails.
+  // A pulled gate job starts its check phase and its proof phase together (apps/cli/src/io/submit/pull.js GATE_JOB_ENTRY):
+  // the proof starts within 1 s of the check, and the two 20 s phases finish in under 30 s of wall time (were 40.3 s serial; #7077).
   const slower = Math.max(...runs.map(run => run.end - run.start));
   assert.ok(slower >= SLOW_MS, `the inner check interval is at least the fixture sleep: ${slower}ms`);
+  const gap = Math.max(...runs.map(run => run.start)) - Math.min(...runs.map(run => run.start));
+  const span = Math.max(...runs.map(run => run.end)) - Math.min(...runs.map(run => run.start));
   const where = `before the checks ${Math.min(...runs.map(run => run.start)) - started}ms, after them ${started + wallMs - Math.max(...runs.map(run => run.end))}ms`;
-  t.diagnostic(`submit ${wallMs}ms; inner check ${slower}ms; ${where}; intervals ${JSON.stringify(runs)}`);
-  assert.ok(wallMs <= slower * 2 + SETUP_MS, `submit ${wallMs}ms, inner check ${slower}ms; ${where}`);
+  t.diagnostic(`submit ${wallMs}ms; inner check ${slower}ms; start gap ${gap}ms; span ${span}ms; ${where}; intervals ${JSON.stringify(runs)}`);
+  assert.ok(gap < 1000, `the proof phase starts within 1 s of the check phase: ${gap}ms apart`);
+  assert.ok(span < 30_000, `two ${SLOW_MS}ms phases overlap to under 30 s: ${span}ms`);
+  assert.ok(wallMs <= slower + SETUP_MS, `submit ${wallMs}ms, inner check ${slower}ms; ${where}`);
   // A pulled gate posts one receipt whose phases are the two commands' own raw results.
   const phases = gate?.phases ?? [];
   assert.deepEqual(phases.map(phase => phase.role).toSorted(), ['check', 'proof'], 'each command retains its own raw phase result');

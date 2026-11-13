@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/disk/use.js packages/gate/data/baselines/stores.json */
 /** @pullboard-world-pin reads the disk module's own source to prove it names no store by hand. */
 /** Disk use is reported per store with a warning threshold, and retention ages out raw material but never a referenced record [C7]. */
 import assert from 'node:assert/strict';
@@ -20,8 +20,8 @@ import { diskUse } from '../../../src/io/disk/use.js';
 import { startDiskMeasure } from '../../../src/io/disk/use.js';
 import { pruneDisk } from '../../../src/io/disk/use.js';
 import { refusingBadPolicy } from '../../../src/io/disk/use.js';
-import { diskStoresFrom } from '../../../../../packages/gate/src/io/stores.js';
-import { storeRegistry } from '../../../../../packages/gate/src/io/stores.js';
+import { diskStoresFrom } from '../../../../../packages/gate/index.js';
+import { storeRegistry } from '../../../../../packages/gate/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureChild } from '../../fixtures/child.js';
