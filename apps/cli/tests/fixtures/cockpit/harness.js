@@ -260,6 +260,9 @@ function element(id) {
     // The palette's search box hint is added beside its box.
     parentNode: { appendChild() {} },
     querySelectorAll: () => [],
+    querySelector: () => null,
+    prepend() {},
+    replaceWith() {},
   };
 }
 
