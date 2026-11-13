@@ -17,7 +17,8 @@ import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
 import { trunkProblems } from '../logic/trunk.js';
 
-export const CONFIG_FILE = 'pullboard.json';
+import { CONFIG_FILE } from '../logic/config-file.js';
+export { CONFIG_FILE };
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
 import { labelDeclarationProblems } from '../../../queue/light.js';

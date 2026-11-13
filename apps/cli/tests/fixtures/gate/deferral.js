@@ -57,7 +57,7 @@ export function makeDeferralFixtures(e2e, store) {
     for (const name of [BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV]) delete box.env[name];
     // The landing runs the deferred files on this machine: give the fixture its own gate and browser slots.
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1, gate: { memoryFloorMB: 0, timingRunner: false } });
+    fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1, gate: { runnerDispatch: 'controller', memoryFloorMB: 0, timingRunner: false } });
     delete box.env.NODE_TEST_CONTEXT;
     const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
     /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
