@@ -16,6 +16,9 @@ import { storeOwnerProblems } from '../../src/io/stores.js';
 import { storeReport } from '../../src/io/stores.js';
 import { storeDirGrowth } from '../../src/io/stores.js';
 import { storeSites } from '../../src/io/stores.js';
+import { stemlessSites } from '../../src/io/stores.js';
+import { isStoreSource } from '../../src/io/stores.js';
+import { walk } from '../../src/io/scan.js';
 import { storeWriteProblems } from '../../src/io/stores.js';
 import { tightenStoreBaseline } from '../../src/io/stores.js';
 
@@ -245,4 +248,23 @@ test('#6742 clause 1: a new store whose owner writes nothing is refused, and a r
   assert.deepEqual(storeWriteProblems({ ...silent, writeOwnerDebt: ['fresh.json'] }, read), []);
   const repaired = { stores: { 'fresh.json': { kind: 'json', owner: OTHER } }, writeOwnerDebt: ['fresh.json'] };
   assert.match(storeWriteProblems(repaired, read)[0].text, /fresh\.json now has a writing owner or is repo-data; remove it from writeOwnerDebt/u);
+});
+
+/** The stemless templated store names under one package: every one must come from the cell's registry const [CD2]. */
+function stemlessIn(cell) {
+  return walk(ROOT, /\.js$/u).filter(path => isStoreSource(path) && path.startsWith(cell))
+    .flatMap(path => stemlessSites(readFileSync(new URL(`../../../../${path}`, import.meta.url), 'utf8'), path).map(row => `${row.path}:${row.line} ${row.text}`));
+}
+
+test('#7003 clause 1: a stemless templated store-file name is found, and no site under packages/gate or packages/api holds one [CD2]', () => {
+  assert.deepEqual(stemlessSites('const a = `${id}.json`;\nconst b = `exit-${id}.json`;\nconst c = id + EXT;', OTHER).map(row => [row.line, row.text]), [[1, '${id}.json']]);
+  assert.deepEqual([...stemlessIn('packages/gate/'), ...stemlessIn('packages/api/')], [], 'name each file from a registry const such as storeName(key)');
+});
+
+test('#7012 clause 1: no store-file site under packages/runners builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/runners/'), [], 'name each file from the runners registry const storeName(key)');
+});
+
+test('#7014 clause 1: no store-file site under packages/landing builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/landing/'), [], 'name each file from the landing registry const storeName(key)');
 });

@@ -35,6 +35,9 @@ import { serveListen } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideRefusalTrials } from '../../../../../packages/api/index.js';
+import { machineryRefusal } from '../../../../../packages/gate/index.js';
+import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
 import { provideMainTestRecorder } from '../../../../../packages/api/index.js';
 import { recordPulledBaseline } from '../../../../../packages/gate/index.js';
@@ -66,6 +69,9 @@ import {
 /** The address `pullboard serve` keeps when no setting or flag names another. */
 const LOOPBACK = '127.0.0.1';
 
+/** The ledger port for a pulled gate's machinery diagnostics: the board repository's refusal-trial ledger, as the inline gate kept it [C7]. */
+const pulledRefusalTrials = { refuse: machineryRefusal, count: countTrialGate };
+
 /** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
 export async function serveHere(io, values) {
   traceServeStartup('serve-context-start');
@@ -86,6 +92,7 @@ export async function serveHere(io, values) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
+  provideRefusalTrials(pulledRefusalTrials);
   traceServeStartup('serve-listen-start');
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
@@ -150,6 +157,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
+  provideRefusalTrials(pulledRefusalTrials);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -179,6 +187,7 @@ export function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
+  provideRefusalTrials(pulledRefusalTrials);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');
