@@ -225,6 +225,8 @@ const unaccounted = (files, outcomes, text) => {
   try { gate.requireTestTierAccount({ green: true, testOutcomes: outcomes, profile: { tests: typeof gate.tapTests === 'function' ? gate.tapTests(text, root) : [] } }, files); return null; }
   catch (error) { return String(error?.message ?? error).replace(/^\\[\\w+\\] /u, ''); }
 };
+// The proof runs the repo gate with pipefail, as the controller's gate does, so a red early stage of a pipe stays red [V16,C7].
+const pipefailShell = [true, 'bash'].find(shell => spawnSync('set -o pipefail', { shell, stdio: 'ignore' }).status === 0) ?? null;
 /**
  * The checkout's HEAD and its tracked-file changes, or null when Git cannot read them. Why: a gate that moves the
  * checkout it judges proves some other tree, so its phases are bracketed by this read (MOVED_DURING_GATE) [V16,C7].
@@ -236,6 +238,7 @@ const checkoutState = () => {
 };
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
+  if (role === 'proof' && !pipefailShell && /(?:^|[^|])\\|(?:[^|]|$)/u.test(command)) return { role, status: 1, signal: null, tail: 'PIPEFAIL_UNAVAILABLE: the runner shell cannot enable pipefail; rewrite the gate without a pipe', exit: ['PIPEFAIL_UNAVAILABLE'] };
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
   // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
@@ -244,7 +247,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) };
   const capture = role === 'proof' && typeof sandbox?.captureTestRuntimes === 'function' ? sandbox.captureTestRuntimes(phaseEnv) : null;
   const ran = await new Promise(resolve => {
-    const child = spawn('(' + command + '\\n) 2>&1', { shell: true, cwd: root, env: capture?.env ?? phaseEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('(' + (role === 'proof' && pipefailShell ? 'set -o pipefail\\n' : '') + command + '\\n) 2>&1', { shell: role === 'proof' && pipefailShell ? pipefailShell : true, cwd: root, env: capture?.env ?? phaseEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     const out = [], err = [];
     let held = 0;
     const keep = into => chunk => { held += chunk.length; if (held > ${PHASE_BUFFER_BYTES}) child.kill('SIGKILL'); else into.push(chunk); };
@@ -296,7 +299,11 @@ if (!analysis) {
   if (kept) receipt.kept = kept;
 }
 else {
-  const refusals = Object.entries(analysis.outcomes ?? {}).filter(([, outcome]) => outcome?.refused).map(([part, outcome]) => ({ part, ...outcome.refused }));
+  // A doctrine refusal that carries its machinery identity (RATCHET_ROSE) is a machinery diagnostic: the board's refusal-trial
+  // ledger judges it as the controller's runMachineryGuard did, so it reports during its trial instead of settling red [C7].
+  const trialed = ([part, outcome]) => part === 'doctrine' && typeof outcome?.refused?.machineryRule === 'string' && outcome.refused.machineryRule;
+  const refusals = Object.entries(analysis.outcomes ?? {}).filter(([, outcome]) => outcome?.refused).filter(entry => !trialed(entry)).map(([part, outcome]) => ({ part, ...outcome.refused }));
+  const doctrineMachinery = Object.entries(analysis.outcomes ?? {}).filter(trialed).map(([part, outcome]) => ({ kind: part, code: outcome.refused.code, message: outcome.refused.message, rule: outcome.refused.machineryRule }));
   if (analysis.refused) refusals.push({ part: 'analysis', ...analysis.refused });
   // A lane-ownership finding is data, not a refusal: the proof still runs, and the board routes green proof to the owners [B3,L1,P7].
   const ownership = analysis.authorization?.ownership;
@@ -304,8 +311,8 @@ else {
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
-    // The cells machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
-    machinery: (analysis.cells?.machinery ?? []).slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+    // The cells and doctrine machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
+    machinery: [...(analysis.cells?.machinery ?? []), ...doctrineMachinery].slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   if (analysis.plan && typeof analysis.plan === 'object') { receipt.plan = planOf(analysis.plan); Object.assign(receipt, deferralOf(analysis.plan, input.analysis.config)); }
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
