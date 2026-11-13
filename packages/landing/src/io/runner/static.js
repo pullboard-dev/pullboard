@@ -11,7 +11,8 @@ import { commandCheck } from './job.js';
  * guard, so an accepted item with a red guard landed as verified; the inline lander refused it LAND_STATIC_RED [C7].
  *
  * @param {unknown} command - The board config's staticChecks command, carried on the job.
- * @returns {((context: { root: string, base: string }) => Promise<{ ok: boolean, detail: string | null }>) | null} null when the job names no guard.
+ * @returns {((context: { root: string, base: string }) => Promise<{ ok: boolean, detail: string | null, guard?: string }>) | null} null when the job names no guard;
+ *   guard: the config row that went red, so the board returns the item to its builder even under separate publish.
  */
 export function staticGuardCheck(command) {
   const guard = typeof command === 'string' && command.trim() && !/\0/u.test(command) ? command.trim() : null;
@@ -25,6 +26,6 @@ export function staticGuardCheck(command) {
     const own = rows.filter(row => changed.has(row.file));
     const named = (own.length ? own : rows).slice(0, 10).map(row => `${row.file}:${row.line}: ${row.text}`);
     const said = named.length ? named.join('; ') : String(result.output ?? result.detail ?? '').split('\n').filter(Boolean).slice(-8).join('\n');
-    return { ok: false, detail: `LAND_STATIC_RED: the static guard staticChecks (${guard.slice(0, 200)}) is red on the merged tree: ${said.slice(0, 600)}; fix those lines and resubmit` };
+    return { ok: false, guard: 'staticChecks', detail: `LAND_STATIC_RED: the static guard staticChecks (${guard.slice(0, 200)}) is red on the merged tree: ${said.slice(0, 600)}; fix those lines and resubmit` };
   };
 }
