@@ -67,7 +67,7 @@ test('the roadmap panel jumps to each release [N26]', {
     const targets = [...list.querySelectorAll(':scope > [data-key]')];
     const rect = element => { const r = element.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,height:r.height}; };
     const bar = document.querySelector('.top').getBoundingClientRect();
-    return {buttons:buttons.map(b=>({key:b.dataset.roadmapJump,name:b.querySelector('span').textContent,count:b.querySelector('b').textContent,current:b.getAttribute('aria-current'),height:rect(b).height})),
+    return {buttons:buttons.map(b=>({key:b.dataset.roadmapJump,name:b.querySelector('span').textContent,count:b.querySelector('b')?.textContent ?? '',current:b.getAttribute('aria-current'),height:rect(b).height})),
       targets:targets.map(e=>({key:e.dataset.key,rect:rect(e),arrival:e.classList.contains('roadmap-arrival'),expanded:e.querySelector(':scope > .milestone-head')?.getAttribute('aria-expanded')})),
       panel:rect(panel),bar:{top:bar.top,bottom:bar.bottom},strip:rect(panel.querySelector('.roadmap-releases')),
       stripWidth:panel.querySelector('.roadmap-releases').scrollWidth,stripClient:panel.querySelector('.roadmap-releases').clientWidth,
@@ -130,7 +130,7 @@ test('the roadmap panel jumps to each release [N26]', {
       }
       const keys = ['m:0.8.7', 'm:0.8.8', 'm:0.8.9', 'm:0.8.10', 'm:0.8.11', 'm:0.8.12', 'm:0.8.13', 'm:0.8.14', 'm:0.8.15', 'm:0.8.16', 'm:0.8.17', 'm:0.8.18', 'm:0.8.19', 'shipped'];
       assert.deepEqual(initial.buttons.map((button) => button.key), keys, `${width}: each upcoming release in order and one Shipped jump`);
-      assert.deepEqual(initial.buttons.map(({ name, count }) => [name, count]), [['0.8.7', '0/1'], ...keys.slice(1, -1).map((key) => [key.slice(2), '0/0']), ['Shipped', '1']], `${width}: release names and done counts are visible`);
+      assert.deepEqual(initial.buttons.map(({ name, count }) => [name, count]), [['0.8.7', ''], ...keys.slice(1, -1).map((key) => [key.slice(2), '']), ['Shipped', '1']], `${width}: release names are visible and the list repeats no landed count`);
       assert.ok(initial.buttons.every((button) => button.height >= tapTarget(width)), `${width}: every release jump meets the target size`);
       assert.ok(initial.pageWidth <= initial.viewport, `${width}: the page never scrolls sideways`);
       if (width < 900) {

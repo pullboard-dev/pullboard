@@ -55,7 +55,7 @@ test('the roadmap panel counts the next release by stage [N26]', {
     return {next:document.querySelector('#roadmap-list > .milestone > .release-header .release-name').textContent,
       railTiles:document.querySelectorAll('#roadmap-panel [data-shipping-stage], #roadmap-panel .roadmap-last-shipped, #roadmap-list .roadmap-mobile-shipping').length,
       railRows:[...document.querySelectorAll('#roadmap-panel .roadmap-release')].map(e=>e.textContent),
-      landedText:document.querySelector('#roadmap-list > .milestone .release-header').textContent.match(/\d+ of \d+ landed/g)||[],
+      landedText:document.querySelector('#roadmap-list > .milestone .release-header').textContent.match(/[0-9]+ of [0-9]+ landed/g)||[],
       heading:rect(document.querySelector('#roadmap-list > .milestone > .release-header .release-name')),
       card:rect(document.querySelector('#roadmap-list > .milestone > .milestone-body')),
       headerCounts:[...document.querySelector('#roadmap-list > .milestone').querySelectorAll('[data-summary-state]')].map(e=>[e.dataset.summaryState,e.querySelector('b').textContent]),
