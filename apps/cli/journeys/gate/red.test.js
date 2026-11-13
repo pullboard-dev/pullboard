@@ -52,7 +52,7 @@ test('a check case red on main with two candidate repairs is reported as known-m
   assert.ok(JSON.stringify(shown.thread).includes(`(beta case [G1]): several candidate repairs #${alpha}, #${shared}`), JSON.stringify(shown.thread.slice(-4)));
 });
 
-test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
+test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7372' }, t => {
   const box = fixture(t, { affected: SHARED, check: CHECK });
   repair(box, "The case 'alpha case' passes on main.");
   repair(box, 'The shared file passes on main.');

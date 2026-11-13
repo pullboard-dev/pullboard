@@ -234,6 +234,8 @@ try {
     readCutItems: () => input.cutRows,
     onInventory: (mode, cause) => result.notes.push('submit cells inventory: ' + mode + (cause ? ': ' + cause : '')),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) })));
+  // The cells advisories ride in the receipt's notes, the one place a pulled gate can tell the submitter about them.
+  for (const line of result.cells?.warnings ?? []) result.notes.unshift(line);
   if (selected('selection')) await part('selection', async () => {
     result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
     if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
