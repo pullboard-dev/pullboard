@@ -720,10 +720,6 @@
       "cells": 6,
       "deep": 1
     },
-    "apps/cli/tests/fixtures/board/submit.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/bridge.js": {
       "cells": 1,
       "deep": 0
@@ -4316,6 +4312,10 @@
       "cells": 5,
       "deep": 0
     },
+    "packages/store/tests/fixtures/submit.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/store/tests/fixtures/dispatch.js": {
       "cells": 2,
       "deep": 0
@@ -6075,9 +6075,6 @@
     }
   },
   "packageApps": {
-    "packages/drive/src/io/queue.js": [
-      "apps/cli"
-    ],
     "packages/gate/src/io/main/audit/worker.js": [
       "apps/cli"
     ],
@@ -6147,12 +6144,6 @@
     ],
     "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
-    ],
-    "packages/runners/src/io/dispatch.js": [
-      "apps/runner"
-    ],
-    "packages/runners/src/io/pull/delegate.js": [
-      "apps/runner"
     ],
     "packages/runners/tests/fixtures/advance.js": [
       "apps/cli"
