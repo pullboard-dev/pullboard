@@ -203,8 +203,11 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   assert.ok(automaticReopen.detail.note, 'the automatic reopen carries the landing note');
   assert.ok(returned.thread.some((event) => event.type === 'move' && event.eventId === originalAccept.eventId && event.kind === 'accept'),
     'the original accept remains in append-only item history');
-  assert.deepEqual(returned.thread.find((event) => event.eventId === originalAccept.eventId), originalAccept,
-    'returning the item does not rewrite its earlier accept event');
+  // The pulled land job marks the accept withdrawn on the read projection; the recorded event itself stays as it was.
+  const { withdrawal, withdrawn, ...acceptNow } = returned.thread.find((event) => event.eventId === originalAccept.eventId);
+  assert.equal(withdrawn, true, 'the returned accept reads as withdrawn');
+  assert.equal(withdrawal.acceptEventId, originalAccept.eventId);
+  assert.deepEqual(acceptNow, originalAccept, 'returning the item does not rewrite its earlier accept event');
   assert.deepEqual(returned.verdicts, initial.verdicts, 'the prior verdict receipt stays byte-for-byte unchanged');
   const landingNote = automaticReopen.detail.note;
 
