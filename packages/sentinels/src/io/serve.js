@@ -1,6 +1,5 @@
 /** Keep each view-served board's health observer running without overlapping scans [A6]. */
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { listProjects } from "../../../seats/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
@@ -12,7 +11,6 @@ export const HEALTH_SENTINEL_INTERVAL_MS = 10 * 60_000;
 export const LANDING_LIVENESS_INTERVAL_MS = 60_000;
 /** The wait audit runs every minute, so no hold, wait or process sits over its budget unseen for longer (C7). */
 const WAITS_AUDIT_INTERVAL_MS = 60_000;
-const CLI = fileURLToPath(new URL('../../../../apps/cli/pullboard.js', import.meta.url));
 
 /** Read the board and machine off switches before starting any background child. */
 function sentinelRunsFor(root) {
@@ -21,9 +19,9 @@ function sentinelRunsFor(root) {
 }
 
 /** Run only the ordered health scan in one owned child and drain it on view shutdown. */
-function refreshBoard(root, signal, words = ['sentinel', 'run', '--health-only', '--json'], degradedIsExpected = false) {
+function refreshBoard(cli, root, signal, words = ['sentinel', 'run', '--health-only', '--json'], degradedIsExpected = false) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, ...words], {
+    const child = spawn(process.execPath, [cli, ...words], {
       cwd: root, env: process.env, stdio: 'ignore', signal,
     });
     let timer;
@@ -43,13 +41,13 @@ function refreshBoard(root, signal, words = ['sentinel', 'run', '--health-only',
 }
 
 /** Run the configured ordinary canary command; a failed round trip is a recorded observation. */
-function refreshCanary(root, signal) {
-  return refreshBoard(root, signal, ['relay', 'canary', 'run', '--json'], true);
+function refreshCanary(cli, root, signal) {
+  return refreshBoard(cli, root, signal, ['relay', 'canary', 'run', '--json'], true);
 }
 
-/** Start after the view listens; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */
-export function startServeSentinel({ projectRoot, run = refreshBoard, projects = listProjects,
-  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = refreshCanary, canary = startRelayCanaryWatch, recover = async () => false, liveEvery = setInterval, liveCancel = clearInterval,
+/** Start after the view listens; `cli` is the CLI entry each scan child runs, named by the caller so this package reaches no app; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */
+export function startServeSentinel({ projectRoot, cli = process.argv[1], run = (root, signal, words, degradedIsExpected) => refreshBoard(cli, root, signal, words, degradedIsExpected), projects = listProjects,
+  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = (root, signal) => refreshCanary(cli, root, signal), canary = startRelayCanaryWatch, recover = async () => false, liveEvery = setInterval, liveCancel = clearInterval,
   audit = (root, signal) => run(root, signal, ['waits', 'record', '--json'], true) } = {}) {
   const canaryWatch = canary({ run: (config, { io }) => runCanary(config.root, io.relaySignal), onError });
   const lifetime = new AbortController();
