@@ -193,7 +193,7 @@ i.dash-seg-held { background: none; border: var(--border-held-thin); }
 .dash-more:hover { color: var(--ink) !important; background: var(--hover) !important; }
 
 /* 6. The four lists */
-.dash-queues { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.dash-queues { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); align-items: start; } /* each card is as tall as its rows, never stretched to its neighbour (#7403) */
 .dash-qquiet { align-self: start; } .dash-qquiet .dash-shd { margin: 0; flex-wrap: wrap; white-space: normal; } .dash-qquiet .dash-cap2 { margin-left: 0; }
 .dash-q { padding: var(--space-2) var(--space-4) !important; }
 .dash-q > .dash-cap { margin-bottom: var(--space-2); }

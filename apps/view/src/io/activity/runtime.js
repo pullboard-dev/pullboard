@@ -79,6 +79,7 @@ export function activityRuntime({ flow, html, tip, step, start, api, boardPath, 
     const atWork = working(project), key = [project.root, project.sequence, project.observedAt, state.version, hours, by ?? '', left, (atWork ?? []).length].join('|');
     if (!state.model || state.key !== key) { state.model = flow(project, state.events, { now, windowHours: hours, left, working: atWork, by }); state.key = key; }
     const model = state.model;
+    state.shown = quiet(project, state);
     // The page opens its starting hour once the board's events are in, so it never settles on an hour the events have not reached.
     if (!state.ui && state.version > 0) state.ui = start(model);
     const ui = state.ui ?? start(model);
@@ -156,18 +157,28 @@ export function activityRuntime({ flow, html, tip, step, start, api, boardPath, 
     });
     const keepLook = () => { const root = current(); if (root) remember(root, Date.now()); };
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') keepLook(); });
-    addEventListener('pagehide', keepLook);
+    if (typeof addEventListener === 'function') addEventListener('pagehide', keepLook);
     if (typeof ResizeObserver === 'function') {
       watcher = new ResizeObserver(() => { clearTimeout(resizing); resizing = setTimeout(() => { const project = held_project(); if (project && node.isConnected && active()) paint(project, true); }, 80); });
       watcher.observe(node);
     }
   }
 
-  /** Draw the page for this snapshot; the first call wires the page's own handlers. */
-  function draw(project) {
+  /** What the drawn page was read from, apart from the snapshot's clock: the board, its events and the page's choices. */
+  function quiet(project, state) {
+    const V = view();
+    return [project.root, project.sequence, state.version, state.hours, V.activityWin || 24, V.activityBy ?? '', V.activityFilter || 'all', state.left, (working(project) ?? []).length].join('|');
+  }
+
+  /** Draw the page for this snapshot; the first call wires the page's own handlers.
+   * A tab switch back to a page drawn from this same board shows it as it was, so its bars do not grow with the clock [#6613].
+   */
+  function draw(project, switching = false) {
     node = document.getElementById('activity'); tipNode = document.getElementById('act-tip');
     if (!node) return;
     wire();
+    const state = held(project.root);
+    if (switching && state.painted && node.dataset.boardRoot === project.root && state.shown === quiet(project, state)) return;
     paint(project);
   }
 
