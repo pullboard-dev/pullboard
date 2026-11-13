@@ -19,6 +19,7 @@ import { runCliInProcess } from './process.js';
 import { closeBoard } from '../../../lib/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { FIXTURE_MODEL } from './e2e.js';
+import { fixtureSettledMachine } from './testkit.js';
 import {
   HOST,
   installSshStandIn,
@@ -60,6 +61,8 @@ export function sandbox() {
     GIT_COMMITTER_NAME: 'Check baseline fixture',
     GIT_COMMITTER_EMAIL: 'check-baseline@example.invalid',
   });
+  // The detached baseline worker measures on the SSH stand-in, which only controller dispatch drives; under the pull default it waits for a pull runner no fixture serves [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run Git with only this fixture's config and identity. */
   function git(cwd, ...args) {
     return runFixtureGit(args, { cwd, env });
@@ -78,6 +81,20 @@ export function sandbox() {
   return { dir, env, git, run, runLocal };
 }
 
+/** Set the machine's gate.runnerDispatch in its settings file, keeping every other setting; 'pull' is the default and removes the field. */
+function setDispatch(box, mode) {
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = JSON.parse(readFileSync(file, 'utf8'));
+  const { runnerDispatch, ...gate } = settings.gate ?? {};
+  writeFileSync(file, JSON.stringify({ ...settings, gate: mode === 'pull' ? gate : { ...gate, runnerDispatch: mode } }));
+}
+
+/** Leave the box with no registered runner and the pull queue, so its baselines are pulled jobs on this machine's local runner [#6560]. */
+export async function useLocalRunner(box) {
+  assert.equal((await box.runLocal(box.repo, ['runner', 'remove', HOST, '--json'])).status, 0, 'the fixture runner is removed');
+  setDispatch(box, 'pull');
+}
+
 /**
  * Register the SSH stand-in as the box's one runner, so the background baseline has a runner to run on.
  * Why: a check baseline runs only on a registered runner (#2520); without one add leaves it pending forever.
@@ -93,6 +110,8 @@ export function registerRunner(box) {
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   assert.equal(box.run(box.repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json']).status, 0);
   assert.equal(box.run(box.repo, ['settings', 'gate.loadAwareDispatch', 'off', '--json']).status, 0);
+  // The stand-in is a push runner; its baselines go through the controller's gate slot, not the pull queue (#6249).
+  setDispatch(box, 'controller');
   return worker;
 }
 

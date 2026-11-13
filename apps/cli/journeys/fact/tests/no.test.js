@@ -15,6 +15,7 @@ import {
 import { pathToFileURL } from 'node:url';
 import {
   after,
+  describe,
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
@@ -25,7 +26,7 @@ import {
 } from '../../../tests/fixtures/runner/ssh.js';
 import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -52,7 +53,7 @@ function runnerProject({ healthDown = false } = {}) {
   for (const path of [worker, sshBin, remoteHome, remoteMachine]) mkdirSync(path, { recursive: true });
   installSshStandIn({ bin: sshBin, worker, home: remoteHome, machineHome: remoteMachine, requests, starts, healthDown, workerHealthDown: healthDown });
   box.env.PATH = `${sshBin}:${box.env.PATH}`;
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
     runners: healthDown ? [] : [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0, ...(healthDown ? { runnerWaitMs: 1000 } : {}) } });
   return { box, marker, remoteHome, starts, main: box.git(box.repo, 'rev-parse', 'HEAD') };
 }
@@ -64,7 +65,7 @@ async function inChild(box, body) {
     const landing = await import(${JSON.stringify(landing)});
     const settle = async run => { try { return { value: await run() }; } catch (error) { return { code: error.code, message: error.message }; } };
     ${body}
-  `], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 150_000 }); // budget: up to three real runner round trips.
+  `], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 230_000 }); // budget: up to three real runner round trips.
   assert.equal(result.status, 0, result.stderr || result.failure);
   return JSON.parse(result.stdout);
 }
@@ -72,6 +73,8 @@ async function inChild(box, body) {
 /** Count real job dispatches the ssh stand-in started. */
 function jobs(starts) { return existsSync(starts) ? readFileSync(starts, 'utf8').split('\n').filter(Boolean).length : 0; }
 
+// The cases each own a box and a runner stand-in, so they run side by side inside the file budget.
+describe('runner-only landing checks [C7,#3011]', { concurrency: true }, () => {
 test('with gate.runnersOnly on, a main comparison and the CLI smoke each run on a runner [C7,#3011]', { timeout: 240_000 }, async () => {
   const { box, marker, remoteHome, starts, main } = runnerProject();
   const module = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/landing/src/io/main/red.js')).href;
@@ -140,4 +143,5 @@ test('clause 1: on a runners-only coordinator a sharded landing gate runs on a r
   assert.equal(out.code, undefined, out.message);
   assert.ok(out.output.includes(`gate-ran-at:${remoteHome}`), `the landing gate did not run on the runner: ${out.output}`);
   assert.equal(existsSync(marker), false, 'the landing gate ran as a local process on the coordinator');
+});
 });

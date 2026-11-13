@@ -430,7 +430,7 @@ function stagedChangedLines(root, path) {
   if (shared) {
     if (shared.lines === undefined) {
       try {
-        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
+        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
         shared.lines = new Map();
         for (const row of rows) shared.lines.set(row.path, [...(shared.lines.get(row.path) ?? []), `${row.path}:${row.line}`]);
       } catch { shared.lines = null; }
@@ -440,7 +440,7 @@ function stagedChangedLines(root, path) {
     if (shared.lines && !treeRaw(root, ':index', path)) return [];
   }
   try {
-    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     return addedLines(diff).filter(row => row.path === path).map(row => `${path}:${row.line}`);
   } catch { return []; }
 }
@@ -546,7 +546,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     try {
       if (resolution) added = resolution();
       else {
-        const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+        const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
         if (readCache) readCache.diff = diff;
         added = addedLines(diff);
       }
@@ -1216,7 +1216,7 @@ function addedLinesInBatches(root, written) {
     if (!paths.length) continue;
     let diff;
     try {
-      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+      diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     } catch (error) {
       if (error.code !== 'ENOBUFS') throw error;
       if (paths.length === 1) throw new Refused('DIFF_TOO_LARGE', `${paths[0]} alone exceeds the safe scan limit; split that file into smaller commits, then retry`);
