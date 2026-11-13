@@ -77,3 +77,18 @@ test('an explicit file list keys only those files, each equal to its key from a 
     assert.equal(existsSync(join(store, 'keys', memo, 'files.json')), true);
   } finally { fx.done(); }
 });
+
+test('a candidate keyed from its base graph gets the same keys as a cold build of its own tree [C7,#6672]', async () => {
+  const fx = fixture();
+  try {
+    const base = fx.commit();
+    fx.put('packages/demo/src/free.js', "import { used } from './used.js';\nexport const free = used;\n");
+    const candidate = fx.commit();
+    const files = [PLAIN, OTHER, WIDE];
+    const cold = await testActionKeys(fx.root, { commit: candidate, env: { ...process.env, PULLBOARD_TEST_PRIOR: '', PULLBOARD_TEST_RESULT_STORE: fx.root + '/.cold' }, maintain: false, files });
+    const forked = await testActionKeys(fx.root, { commit: candidate, env: { ...process.env, PULLBOARD_TEST_PRIOR: base, PULLBOARD_TEST_RESULT_STORE: fx.root + '/.forked' }, maintain: false, files });
+    assert.deepEqual(forked, cold, 'the forked graph keys every file exactly as the cold one');
+    const old = await testActionKeys(fx.root, { commit: base, env: { ...process.env, PULLBOARD_TEST_PRIOR: '', PULLBOARD_TEST_RESULT_STORE: fx.root + '/.base' }, maintain: false, files });
+    assert.notEqual(forked.get(OTHER).inputKey, old.get(OTHER).inputKey, 'the changed closure still changes its key');
+  } finally { fx.done(); }
+});

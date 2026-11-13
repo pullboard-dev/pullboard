@@ -279,8 +279,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   // Store upkeep reads every key memo and result record; a runner dispatch never pays it (maintain: false) [C7].
   if (maintain) maintainPartsStore(store, env);
   return memoizedActionKeys(store, identity, files, async () => {
-  const { testClosures } = await import('../../affected/tests.js');
-  const { closures, modules, blobs, reach } = testClosures(root, commit);
+  const { testClosures, codeMapGraph } = await import('../../affected/tests.js');
+  const { closures, modules, blobs, reach } = testClosures(root, commit, priorGraph(root, env, codeMapGraph));
   const index = treeIndex(blobs);
   // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
   // and reporting modules) is an input of every result, as well as the runner files themselves.
@@ -303,6 +303,20 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   }
   return keys;
   }, { prune: maintain });
+}
+
+/** The variable naming the base commit a run's candidate forked from: a pulled test job sets it to the job's main. */
+const TEST_PRIOR_ENV = 'PULLBOARD_TEST_PRIOR';
+
+/**
+ * The cached graph of the run's base commit, or null when none is named or it cannot be read. Why: the candidate's
+ * graph then parses only the modules that differ from main, ~10 s less on a runner's cold tree; its keys still hash
+ * the candidate's own blobs, so a result stays keyed to the exact tree [C7,#6672].
+ */
+function priorGraph(root, env, codeMapGraph) {
+  const base = env[TEST_PRIOR_ENV];
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(base ?? '')) return null;
+  try { return codeMapGraph(root, base); } catch { return null; }
 }
 
 /** The store folder for this repository, shared by every worktree through the common git dir. */
