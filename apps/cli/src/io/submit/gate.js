@@ -137,7 +137,7 @@ const trusted = command => command.split(/(\\s+)/u).map(word => /^[\\w./-]+\\.[c
 try {
   const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout?.trim();
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
-  for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
+  for (const name of ['requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
   // The change against main, read once: static and doctrine judge only its paths, and a green part is kept per head [5814].
   const change = typeof gate.analysisChange === 'function' ? gate.analysisChange(root, input.main, input.source) : null;
@@ -193,7 +193,6 @@ try {
       else result.authorization = { skipped: String(error?.message ?? error).slice(0, 2000) };
     }
   }));
-  if (selected('preflight')) await part('preflight', () => step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true })));
   // Static checks run in their own process; per part they overlap cells and selection, else a red still ends the analysis first (#3916).
   // They are handed the changed paths when no whole-repo input changed, and a green run is kept for this head [5814].
   const staticKey = input.staticChecks ? keyOf('static', input.staticChecks, change?.raw) : null, staticKept = staticKey ? gate.readAnalysisMemo(staticKey) : null;

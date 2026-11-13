@@ -108,12 +108,16 @@ export function fixture(t, { spec, source, affectedTests = 'node test/runner.js'
 export function addItems(box, rows) {
   return rows.map(({ title, specId, route = 'mid' }) => {
     const file = { G1: 'test/inherited.test.js', G2: 'test/unrelated.test.js', G3: 'test/earlier.test.js', G4: 'test/middle.test.js' }[specId];
-    const result = cli(box.root, box.env, 'add', 'core', title, '--specs', specId, '--route', route === 'light' ? 'mid' : route,
+    const args = ['add', 'core', title, '--specs', specId, '--route', route === 'light' ? 'mid' : route,
       // These recovery cases exercise an unsatisfied item check; the extra failing stage keeps it unaccountable as a known main red (known-main-frozen.test.js covers the accountable case).
       // The submit gate now runs the proof after a red item check, and add runs each check on main as a baseline. Both invoke
       // the same runner, so the check marks its runs (MAIN_RED_STAGE=check) and the counts below see only gate and main runs;
       // --wait still lets each baseline finish before anything is counted (#2349).
-      '--criterion', title, '--check', 'MAIN_RED_STAGE=check node test/runner.js; exit 1', '--brief', `Files: ${file}\nTest: ${title}`, '--wait');
+      '--criterion', title, '--check', 'MAIN_RED_STAGE=check node test/runner.js; exit 1', '--brief', `Files: ${file}\nTest: ${title}`, '--wait'];
+    let result = cli(box.root, box.env, ...args);
+    // These items share one check command by design: answer the near-duplicate guard with the nearest id it names.
+    const nearest = /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.out + result.err)?.[1];
+    if (result.code !== 0 && nearest) result = cli(box.root, box.env, ...args, '--not-duplicate-of', `${nearest} each fixture item owns a different row or role`);
     assert.equal(result.code, 0, result.err || result.out);
     const id = Number(/^#(\d+)$/mu.exec(result.out)?.[1]);
     if (route === 'light') {

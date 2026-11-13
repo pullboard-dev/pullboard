@@ -17,6 +17,10 @@ import { put } from '../../tests/fixtures/submit/gate.js';
 import { planCellLintBaseline } from '../../../../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
 import { recordedToolCommits } from '../../../../packages/git/index.js';
+import { warmAcceptedCells } from '../../../../packages/gate/index.js';
+import { withMainCheckout } from '../../../../packages/landing/index.js';
+import { withFileLock } from '../../../../packages/outbox/index.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 /** Execute the real installed cell tool against this small project, never a simulated transform. */
 function tool(box, name, ...args) {
@@ -101,6 +105,66 @@ function advance(main) {
   put(main.root, 'test/work.test.js', before.replace('assert.equal(value, 1)', 'assert.equal(value, 2)'));
   return commitAll(main, 'feat(core): advance the accepted leaf [G1]');
 }
+
+/**
+ * Settle a pulled submit on the fixture's local runner until the board has submitted the item, and read the item then.
+ * Why: a pull submit returns queued at once; the gate job's receipt, not the submit process, carries the verdict [P7,C7].
+ */
+async function settledSubmit(t, box, submitted) {
+  const run = (cwd, ...args) => {
+    const shown = runFixtureChild(process.execPath, [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), ...args], { cwd, env: box.env, encoding: 'utf8' });
+    return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
+  };
+  let item = null;
+  const settled = await settleSubmit(t, { repo: box.root, env: box.env, run }, submitted,
+    { until: shown => { item = shown; return shown?.item_status === 'submitted'; }, deadlineMs: 180_000 }); // budget: hang ceiling for the runner's real full gate.
+  return { ...settled, item };
+}
+
+for (const command of ['cells-move', 'remove-shims']) test(`clause ${command === 'cells-move' ? 1 : 2}: submit replays recorded ${command} on main and its pulled gate settles with fresh full proof and no verdict [C7,V4,V6,P7]`, { timeout: 300_000 }, // budget: hang ceiling for the project, the replay and one pulled full gate.
+async t => {
+  const { main, box, marker } = await project(t, command === 'remove-shims');
+  let original = move(box, main.dir);
+  if (command === 'remove-shims') {
+    tool(box, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'build');
+    original = commitAll(box, 'refactor(core): remove the leaf shim [G1]');
+  }
+  tool(box, 'cells-plan.js', '--check');
+  tool(box, 'cell-lints.js', '--check');
+  const before = main.git('rev-parse', 'HEAD');
+  assert.equal(recordedToolCommits(box.root, before, original).at(-1).commands[0].tool, command);
+  const currentMain = advance(main);
+  // This private board has no background producer; build its real accepted inventory before offering the gate.
+  const previousHome = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = main.env.PULLBOARD_MACHINE_HOME;
+  try { await warmAcceptedCells(main.root, currentMain, { withCheckout: withMainCheckout, withLock: withFileLock }); }
+  finally { if (previousHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousHome; }
+  assert.equal(existsSync(marker), false);
+  // Process-level: the pulled gate runs on the machine's local runner, which a real submit process starts.
+  const submitted = box.run('submit', '1', '--no-next', '--json', '--infra', 'recorded tool regeneration fixture');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  const document = JSON.parse(submitted.out);
+  assert.equal(document.queued, true, 'the regenerated source goes to a pulled gate job');
+  const head = box.git('rev-parse', 'HEAD');
+  assert.notEqual(head, original, 'the replay made a new head');
+  assert.equal(box.git('rev-parse', command === 'remove-shims' ? 'HEAD~2' : 'HEAD^'), currentMain);
+  assert.match(readFileSync(join(box.root, 'packages/leaf/src/core/leaf.js'), 'utf8'), /value = 2/u);
+  const { gate, gateJob, item } = await settledSubmit(t, box, document);
+  assert.equal(gate?.green, true, JSON.stringify(gate).slice(0, 4000));
+  assert.equal(gate.full, true, 'regeneration runs the full gate even when normal submit defers it');
+  assert.notEqual(gate.deferred, true, 'nothing is deferred to landing');
+  assert.equal(gate.deferredFiles, undefined, 'no selected file is deferred');
+  assert.ok(gate.phases.some(phase => phase.role === 'proof' && phase.status === 0), 'the full gate ran as the proof phase');
+  assert.ok(existsSync(marker), 'the runner ran the project\'s full configured gate');
+  assert.equal(gateJob.step, 'done');
+  assert.ok(item.proofReceipts.some(receipt => receipt.commit === head), `the new head has its own proof receipt: ${JSON.stringify(item.proofReceipts).slice(0, 2000)}`);
+  assert.ok(!item.proofReceipts.some(receipt => receipt.commit === original), 'no receipt is inherited from the original source');
+  assert.equal(item.item_status, 'submitted');
+  assert.equal(item.item_commit, head);
+  assert.equal(item.item_verdict, null);
+  assert.equal(item.item_verified_by, null);
+  assert.equal(recordedToolCommits(box.root, currentMain, head).at(-1).commands[0].tool, command, 'another main advance can replay this new head too');
+});
 
 test('a hand edit mixed into a tool result retains the ordinary main-conflict refusal and its source [C7,V6]', async t => {
   const { main, box, marker } = await project(t);
