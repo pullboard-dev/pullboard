@@ -26,7 +26,7 @@ async function served(t, viewPorts) {
   return { call, listed, path: '/api/v1/boards/' + listed.boards[0].id };
 }
 
-test('[A2, N26] GET /boards/:id/summary answers the board\'s version 1 summary under 2 KB, and each listed board offers it [#6634]', async (t) => {
+test('[A2, N26] GET /boards/:id/summary answers the board\'s version 1 summary under 2 KB, and each row of GET /boards carries summaryVersion: 1 [#6634]', async (t) => {
   const { call, listed, path } = await served(t, { ...viewApiPorts, projectSummary });
   for (const row of listed.boards) assert.equal(row.summaryVersion, 1, 'every listed board offers its summary');
   const added = await call(path + '/moves', { verb: 'add', args: { lane: 'app', title: 'Summary item', criterion: 'complete', specs: 'G1', brief: BRIEF } });
