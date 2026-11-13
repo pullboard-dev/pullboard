@@ -11,6 +11,9 @@ import { needsEntries } from '../../src/logic/needs/list.js';
 import { renderNeedsRow } from '../../src/logic/needs/list.js';
 import { needsPanelHtml } from '../../src/logic/needs/panel.js';
 import { needsPanelModel } from '../../src/logic/needs/panel.js';
+import { itemsNeedsHtml } from '../../src/logic/needs/panel.js';
+import { itemsNeedsModel } from '../../src/logic/needs/panel.js';
+import { itemStagePresentation } from '../../src/logic/pipeline/model.js';
 import { homeRules } from '../../src/logic/home.js';
 import { roadmapSummary } from '../../src/logic/summary/roadmap.js';
 import { roadmapHeaders } from '../../src/logic/summary/roadmap.js';
@@ -453,4 +456,61 @@ test('timeline text keeps quoted words, escapes markup and binds only detected r
   const renewed = timelineHtml({ entries: renewals, steps: renewSteps, flow });
   assert.match(renewed, /continued building twice/u, 'identical native self loops group too');
   assert.match(renewed, /data-event-ids="1 2"/u);
+});
+
+const foldAt = '2026-11-12T12:00:00Z';
+const foldSplit = (id, reopens, items) => ({ kind: 'rigor-draft', id: 'doctrine:' + id, ref: 'doctrine:' + id, target: 'doctrine:' + id, unproved: true, foldAt,
+  text: 'Rigor draft (unproved): Consider splitting apps/cli/src/io/commands/board.js into independently owned modules (for example, one module per command). It caused '
+    + reopens + ' conflict reopens and 2 conflict holds across items ' + items + ' in 14 days; review the architecture before deciding.',
+  what: 'Coordinator: materialize with pullboard spec apply; then the person approves or declines' });
+const foldCalls = [
+  foldSplit('RG4901', 3, '#10, #11'), foldSplit('RG4902', 5, '#12'), foldSplit('RG4903', 9, '#13, #14, #15'),
+  { ...foldSplit('RG4904', 4, '#16'), text: 'Rigor draft (unproved): Consider splitting packages/store/src/io/db.js into independently owned modules. It caused 4 conflict reopens.' },
+  { kind: 'decision', id: 7, ref: 'web-1', text: 'Choose the release words.', foldAt },
+  { kind: 'sentinel-draft', id: 'watch', ref: 'watch', check: 'node check.js', every: 'hourly', owner: 'coordinator', directory: '.' },
+  { kind: 'agent-approved', id: 'G1', approvedAt: foldAt, actions: [] }, { kind: 'draft', count: 2 },
+];
+const foldProject = { holds: [], spec: [{ id: 'G1', text: 'G1 text', gate: 'gate G1', agentApproval: { agent: 'core-1', approvedAt: foldAt, commit: 'a'.repeat(40) } }] };
+
+test('Items folds Rigor drafts proposing the same change into one row with its count, inside one collapsed group [N26]', () => {
+  const model = itemsNeedsModel(needsPanelModel(foldCalls, foldProject, { person: true }));
+  assert.equal(model.questions.length, 4, 'three same-file drafts fold into one row; the other file, the decision and the sentinel stay');
+  const folded = model.questions.find(row => row.folded);
+  assert.equal(folded.folded, 3);
+  assert.deepEqual(folded.members, ['doctrine:RG4901', 'doctrine:RG4902', 'doctrine:RG4903']);
+  assert.equal(folded.title, 'Rigor draft (unproved): Consider splitting apps/cli/src/io/commands/board.js into independently owned modules (for example, one module per command).');
+  assert.equal(folded.context, '3 Rigor drafts propose this change');
+  assert.deepEqual(folded.fields[0], ['Drafted as', 'doctrine:RG4901, doctrine:RG4902, doctrine:RG4903']);
+  assert.equal(model.questions.filter(row => row.source.kind === 'rigor-draft' && !row.folded).length, 1, 'a different file is its own row');
+
+  const questionsHtml = needsPanelHtml({ ...model, approvals: [], drafts: 0 });
+  const restHtml = needsPanelHtml({ ...model, questions: [] });
+  const html = itemsNeedsHtml(model, { questionsHtml, restHtml });
+  assert.match(html, /^<li class="needs-fold"><details data-items-needs><summary>/u, 'one group, collapsed by default');
+  assert.match(html, /<span class="needs-fold-label">Questions and sentinels<\/span><b class="needs-fold-count">4<\/b>/u);
+  assert.match(html, /<small class="needs-fold-more">1 approved in Git · 2 draft spec rows<\/small>/u);
+  assert.equal((html.match(/<details data-items-needs/gu) || []).length, 1);
+  assert.equal((html.match(/Consider splitting apps\/cli/gu) || []).length, 1, 'the repeated change is one row');
+  assert.match(itemsNeedsHtml(model, { questionsHtml, restHtml, open: true }), /^<li class="needs-fold"><details data-items-needs open>/u, 'an opened group stays open on redraw');
+  assert.equal(itemsNeedsHtml({ questions: [], approvals: [], drafts: 0 }), '');
+});
+
+test('Items chips name who or what each row waits on, ids stay whole, and sent-back reasons are plain words [N26]', () => {
+  const model = itemsNeedsModel(needsPanelModel(foldCalls, foldProject, { person: true }));
+  const chip = kind => model.questions.find(row => row.source.kind === kind).action;
+  assert.equal(chip('decision'), 'Your decision');
+  assert.equal(chip('sentinel-draft'), 'Your approval');
+  assert.equal(chip('rigor-draft'), 'Coordinator', 'an unmaterialized draft waits on the coordinator');
+  const materialized = itemsNeedsModel(needsPanelModel([{ ...foldSplit('RG1', 1, '#1'), what: 'Approve or Decline this unproved proposal' }], foldProject));
+  assert.equal(materialized.questions[0].action, 'Your approval');
+  assert.ok(model.questions.every(row => row.action !== 'Review'), 'no question chip is a bare Review');
+
+  const html = needsPanelHtml({ ...model, approvals: [], drafts: 0 });
+  assert.match(html, /<span class="needs-id" title="doctrine:RG4901">doctrine:RG4901<\/span>/u, 'the full id is in the row');
+
+  assert.equal(itemStagePresentation({ status: 'open', route: 'standard' }).stage, 'Ready');
+  assert.equal(itemStagePresentation({ status: 'verified' }).stage, 'Verified');
+  assert.equal(itemStagePresentation({ status: 'claimed', claim: { by: 'core-717' } }).detail, 'by core-717');
+  assert.equal(activityWords({ cause: 'TEST_FAILURE' }).label, 'Tests failed');
+  assert.equal(activityWords({ cause: 'INSUFFICIENT_EVIDENCE' }).label, 'Not enough evidence');
 });

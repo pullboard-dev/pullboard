@@ -17,6 +17,6 @@ test('one focus-approval batch lists each draft row with kind, text and referenc
   assert.match(html, /data-batch-row="G1\.2"><b>G1\.2<\/b> <span class="focus-kind">spec<\/span><p>Keep &lt;one&gt; &amp; two\.<\/p><small>Items: #10, #11<\/small>/u);
   assert.match(html, /data-batch-row="D4"><b>D4<\/b> <span class="focus-kind">doctrine<\/span><p>Prefer small steps\.<\/p><small>Items: #12<\/small>/u);
   assert.match(html, /focus-approval/u);
-  assert.match(html, /<details[^>]* open>/u);
+  assert.doesNotMatch(html, /<details[^>]* open>/u, "the batch starts closed like every other row");
   assert.equal(JSON.stringify(call), before, 'rendering does not consume the call');
 });
