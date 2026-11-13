@@ -10,36 +10,14 @@ import { comparisonStatus } from '../../../../receipt/index.js';
 import {
   MAIN_FAILURE_SIGNATURE_VERSION,
   normalizedFailureDiagnostics,
-} from '../../logic/main/noise.js';
+  tapFailureDiagnostics,
+} from '../../../../kernel/index.js';
 
-export { MAIN_FAILURE_SIGNATURE_VERSION } from '../../logic/main/noise.js';
+export { MAIN_FAILURE_SIGNATURE_VERSION, normalizedFailureDiagnostics } from '../../../../kernel/index.js';
 
 /** Keep deterministic failure diagnostics, excluding only timing, source location and stack presentation. */
 function diagnostics(output, root) {
-  const rows = [];
-  let active;
-  let omitted = false;
-  for (const line of output.split('\n')) {
-    const start = /^(\s*)not ok\s+\d+\s+-\s+(.*)$/u.exec(line);
-    // A `not ok` or `ok` line indented inside the active failure's own diagnostics is text that failure printed, such as a
-    // nested run's TAP; it is part of that failure, never a second failure or the end of this one (#2064).
-    const embedded = active && !active.done && line.startsWith(' '.repeat(active.indent));
-    if (start && !embedded) {
-      active = { name: start[2].replace(/\s+#.*$/u, ''), indent: start[1].length + 2, lines: [], all: [] };
-      rows.push(active); omitted = false; continue;
-    }
-    if (!embedded && /^\s*ok\s+\d+/u.test(line)) { active = null; continue; }
-    if (!active || !line.startsWith(' '.repeat(active.indent))) continue;
-    const value = line.slice(active.indent);
-    active.all.push(value);
-    if (value === '...') active.done = true;
-    if (/^(?:duration_ms|location|stack):/u.test(value)) { omitted = true; continue; }
-    if (/^[\w-]+:/u.test(value)) omitted = false;
-    if (!omitted && value !== '---' && value !== '...') active.lines.push(value);
-  }
-  return rows.map(row => ({ ...row, ...stableFailure(row.all, root),
-    signature: row.lines.some(line => line.startsWith('error:')) && row.lines.some(line => line.startsWith('failureType:'))
-      ? createHash('sha256').update(JSON.stringify([MAIN_FAILURE_SIGNATURE_VERSION, normalizedFailureDiagnostics(row.lines, root)])).digest('hex') : null }));
+  return tapFailureDiagnostics(output, root, text => createHash('sha256').update(text).digest('hex')).map(row => ({ ...row, ...stableFailure(row.all, root) }));
 }
 
 /** Read one failure's `key: value` and `key: |-` fields from its diagnostics, before any are dropped as noise. */
