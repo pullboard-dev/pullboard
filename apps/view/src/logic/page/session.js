@@ -77,10 +77,10 @@ const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
 /** Resolve a routed tab, legacy Home address, or embedded/export fragment before remembered state. */
 function addressTab() {
   if (typeof location === 'undefined') return null;
-  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
+  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const read = value => {
     let parts;
-    try { parts = value.split('/').filter(Boolean).map(decodeURIComponent); }
+    try { parts = value.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent); }
     catch { return null; }
     const tab = tabs.includes(parts[0]) ? parts[0] : null;
     return tab === 'home' ? 'dashboard' : tab;
