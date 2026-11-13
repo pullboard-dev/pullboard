@@ -55,7 +55,10 @@ export function holdReviewLease(board, id, agentId) {
   leases.reserveReview(board.db, id, agentId, { now });
 }
 
-/** End an item's review job inside the verdict, withdraw or reopen write (SM5). */
+/**
+ * End an item's review job inside the verdict, withdraw or reopen write (SM5).
+ * Why the lookup: a replayed move may carry the item id as numeric text; the job id wants the item's integer.
+ */
 export function endReviewLease(board, id) {
-  board.enginePorts?.reviewLease?.releaseReview(board.db, id, { now: board.clock.now().getTime() });
+  board.enginePorts?.reviewLease?.releaseReview(board.db, getItem(board, id)?.item_id ?? id, { now: board.clock.now().getTime() });
 }
