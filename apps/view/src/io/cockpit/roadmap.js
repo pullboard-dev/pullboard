@@ -24,7 +24,7 @@ function renderIndex(project) {
 }
 
 /** Resolve a milestone item from the current render's exact local or foreign board snapshot. */
-function milestoneItem(entry, p) {
+function milestoneItem(entry, p, counting = false) {
   const local = typeof entry.id === 'number';
   const ref = local ? null : /^(.+)#([1-9]\\d*)$/.exec(String(entry.id));
   const named = ref ? data.projects.filter((x) => x.name === ref[1] || String(x.root).split('/').pop() === ref[1]) : [];
@@ -33,12 +33,15 @@ function milestoneItem(entry, p) {
   const source = root === view.root ? p : root ? named[0] : null;
   const item = renderIndex(source).items.get(id) || null;
   const label = local ? '#' + entry.id : String(entry.id);
+  // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
+  const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
+  const stage = entry.state === 'landed' ? 'merged' : entry.state === 'accepted' ? 'accepted' : item ? pipelineStage(item) : entry.status;
+  // A count reads a row's state, stage, hold and place alone, and draws nothing (#6851).
+  if (counting) return { label, position: entry.position, state: read ? stateOf(read) : null, held: item ? heldNote(item, source, entry, Date.now()) : null, stage };
   const expanded = view.tab === 'roadmap' && view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + label])) === true;
   // A folded row holds whatever detail is already kept, so it opens in place whole (#1039).
   const detail = item ? detailOf(source, item, expanded, root) : null;
   if (item && !expanded) roadmapAhead.set('i:' + label, () => detailOf(source, item, 'ahead', root));
-  // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
-  const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
   /** Build one row's real summary detail only when opened, before its first painted frame. */
   const block = summaryOnly => {
     if (!item) return null;
@@ -73,7 +76,7 @@ function milestoneItem(entry, p) {
     block: block(!expanded && !Array.isArray(detail?.item?.history)),
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).
     pending: expanded && Boolean(detail?.loading),
-    stage: entry.state === 'landed' ? 'merged' : entry.state === 'accepted' ? 'accepted' : item ? pipelineStage(item) : entry.status,
+    stage,
     word: entry.status,
     open: item ? { root, id } : null,
     // Why an item does not open, short enough to read beside its id on a phone.
@@ -145,19 +148,25 @@ function milestonePresentation(row, titles) {
 function milestoneRow(row, titles, hidden = false) { return milestoneRowHtml(row, { ...milestonePresentation(row, titles), hidden }); }
 
 /** Read supplied landed counts and explicit shipments; keep old exports readable and omit withdrawn rows. */
-function readMilestone(milestone, p) {
-  return readMilestoneModel(milestone, milestone.items.map(entry => milestoneItem(entry, p)));
+function readMilestone(milestone, p, counting = false) {
+  return readMilestoneModel(milestone, milestone.items.map(entry => milestoneItem(entry, p, counting)));
 }
 
+// Each board state's next release, read once: the navigation and the status bar ask on every click and tab switch,
+// and reading every release's items took them 30 to 300 ms (#6851). A change on another board reads it again.
+const nextMilestones = new WeakMap();
 /** Pick the first release with remaining work in roadmap order; empty plans wait behind it. */
 function nextMilestone(p) {
-  const next = (p.milestones || []).find((milestone) => {
-    const read = readMilestone(milestone, p);
+  const kept = nextMilestones.get(p);
+  if (kept && kept.projects === data?.projects) return kept.next;
+  const found = (p.milestones || []).find((milestone) => {
+    const read = readMilestone(milestone, p, true);
     return read.rows.length > 0 && !read.shipped;
   });
-  if (!next) return next;
-  const read = readMilestone(next, p);
-  return { ...next, done: read.done, total: read.total };
+  const read = found ? readMilestone(found, p, true) : null;
+  const next = found ? { ...found, done: read.done, total: read.total } : found;
+  nextMilestones.set(p, { projects: data?.projects, next });
+  return next;
 }
 
 /** The release focused on, if the person picked one that is still on the board. */

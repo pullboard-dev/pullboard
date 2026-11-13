@@ -236,8 +236,8 @@ function proofStatsCard(stats, expanded = false) {
     + '<div class="proof-stats-head"><b>Proof stats</b><span>from recorded moves</span></div>'
     + '<div class="proof-stats-grid">'
     + '<div><span>Submissions</span><b data-stat="submissions" data-value="' + esc(stats.submissions) + '">' + esc(stats.submissions) + '</b></div>'
-    + '<div><span>Rejections</span><b data-stat="rejections" data-value="' + esc(stats.rejections) + '">' + esc(stats.rejections) + '</b></div>'
-    + '<div><span>Sent back</span><b data-stat="rejectionShare" data-value="' + esc(percentage) + '">' + esc(percentage) + '</b></div>'
+    + '<div><span>Sent back items</span><b data-stat="rejections" data-value="' + esc(stats.rejections) + '">' + esc(stats.rejections) + '</b></div>'
+    + '<div><span>Sent back share</span><b data-stat="rejectionShare" data-value="' + esc(percentage) + '">' + esc(percentage) + '</b></div>'
     + '<div><span>Merged</span><b data-stat="merged" data-value="' + esc(stats.merged) + '">' + esc(stats.merged) + '</b></div>'
     + '<div><span>Without accept</span><b data-stat="mergedWithoutAccept" data-value="' + esc(stats.mergedWithoutAccept) + '">' + esc(stats.mergedWithoutAccept) + '</b></div>'
     + '<div><span>Agents</span><b data-stat="agentCount" data-value="' + esc(stats.agentCount) + '">' + esc(stats.agentCount) + '</b></div>'
@@ -577,6 +577,10 @@ async function revokeCredential(id) {
   if (root === view.root) renderCredentials();
 }
 
+// Each item object's text, and each text's number, for boardText (#6851).
+const itemTexts = new WeakMap();
+const itemNumbers = new Map();
+let itemCount = 0;
 /**
  * A board read as text with its clock readings blanked: root observedAt, the flow's observation time (asOf) and each
  * queue's oldest age (ageMinutes) are stamped afresh on every read, so clock-only changes show the same board (#644).
@@ -587,11 +591,26 @@ async function revokeCredential(id) {
  */
 function boardText(state) {
   const observations = new Set([state?.project, ...(state?.group?.repos ?? []).map(repo => repo.board)]);
-  return JSON.stringify(state, (key, value) => value && typeof value === 'object' && reportValidators.has(value)
+  const blank = (key, value) => value && typeof value === 'object' && reportValidators.has(value)
     ? { reportValidator: reportValidators.get(value) }
     : key === 'statsComparison' ? null
-    : observations.has(value) && value && Object.hasOwn(value, 'observedAt') ? { ...value, observedAt: null } : value)
-    .replace(/"(asOf|ageMinutes)":(?:"[^"]*"|[-+.0-9eE]+|null)/g, '"$1":null');
+    : observations.has(value) && value && Object.hasOwn(value, 'observedAt') ? { ...value, observedAt: null } : value;
+  const clocks = (text) => text.replace(/"(asOf|ageMinutes)":(?:"[^"]*"|[-+.0-9eE]+|null)/g, '"$1":null');
+  // Each item is written as its text's number: a live update keeps every unchanged item's object, so only the items that
+  // changed are written out, and the board's text stays small (#6851). The same text has one number, never reused.
+  const lists = new Set([state?.project?.items, ...(state?.projects ?? []).map(board => board?.items),
+    ...(state?.group?.repos ?? []).map(repo => repo.board?.items)].filter(Array.isArray));
+  if (itemNumbers.size > 100000) itemNumbers.clear();
+  return clocks(JSON.stringify(state, function (key, value) {
+    if (!lists.has(this) || !value || typeof value !== 'object') return blank(key, value);
+    let text = itemTexts.get(value);
+    if (text === undefined) {
+      text = clocks(JSON.stringify(value, blank));
+      itemTexts.set(value, text);
+    }
+    if (!itemNumbers.has(text)) itemNumbers.set(text, itemCount++);
+    return itemNumbers.get(text);
+  }));
 }
 
 /** Show each queue's oldest age from the board on hand in place: the one thing on the page that moves with the clock alone. */

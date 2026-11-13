@@ -7,7 +7,7 @@ export { JOB_CLASSES, DEFAULT_JOB_CLASS, reservedSlots, claimOrder } from "./src
 export { claimableJobs } from "./src/io/priority.js";
 export { shadowSubmitHandoff, recordSubmitHandoff } from "./src/io/shadow.js";
 export { gatePanel, stalledGates, unclaimedGateJobs } from "./src/io/gate/panel.js";
-export { phaseReceiptId, settledGate } from "./src/io/gate/receipt.js";
+export { phaseReceiptId, settledGate } from "./src/io/gate/panel.js";
 export { gatePanelState } from "./src/logic/panel.js";
 export { appendGateSpan, gateSpanFolder, readGateSpans } from "./src/io/gate/span.js";
 export { BLOB_THRESHOLD_BYTES, blobDirOf, putBlob, readBlob, readPayload, stubOf, parseStub } from "./src/io/blobs.js";
