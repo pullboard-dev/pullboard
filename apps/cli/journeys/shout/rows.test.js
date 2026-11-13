@@ -16,7 +16,7 @@ import {
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('Needs you summarizes item809, keeps raw questions in details and places navigation in its header [N26,B26]', { timeout:120_000 }, async () => { // budget: native809-item seed, authenticated HTTP and real Chrome at desktop/phone widths.
+test('Rulings keeps raw questions in details, and the notch opens the full list from the Dashboard [N26,B26]', { timeout:120_000 }, async () => { // budget: native809-item seed, authenticated HTTP and real Chrome at desktop/phone widths.
   const box=machine();
   const spec='# Needs rows\n\n## G · Goals\n- G1 [draft, must] Keep a person decision readable. | gate: browser test\n- G2 [draft, aim] Keep another draft visible in the count. | gate: browser test\n';
   const demo=project(box,'needs-you-rows',spec);
@@ -40,38 +40,21 @@ test('Needs you summarizes item809, keeps raw questions in details and places na
     await chrome.send('Page.navigate',{url:server.link.href});
     await chrome.waitFor('typeof view === "object" && !!view.root');
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await chrome.waitFor('document.querySelectorAll("#dashboard .needs-call").length === 3');
-    for(const width of [1440,375]) {
-      await chrome.send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false});
-      await chrome.waitFor('innerWidth === '+width);
-      const result=JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const card=document.querySelector('#dashboard .needs-card'), rows=[...card.querySelectorAll('.needs-call')];
-        const header=card.querySelector('header'), more=header.querySelector('[data-needs-list]');
-        return {text:card.innerText, header:header.textContent, more:more?.textContent,
-          heading:header.querySelector('h2').textContent, footerRows:card.querySelectorAll('ol > .needs-more').length,
-          titles:rows.map(row=>({text:row.querySelector('.needs-copy b').textContent,nowrap:getComputedStyle(row.querySelector('.needs-copy b')).whiteSpace})),
-          lastBorder:getComputedStyle(rows.at(-1)).borderBottomWidth,
-          actions:rows.map(row=>row.querySelector('.needs-detail .actions [data-go]')?.dataset.go),
-          overflow:document.documentElement.scrollWidth>innerWidth};
-      })())`));
-      assert.equal(result.heading,'Needs you');
-      assert.equal(result.more,'1 more and 2 draft rows →');
-      assert.equal(result.footerRows,0);
-      assert.equal(result.lastBorder,'0px');
-      assert.equal(result.overflow,false);
-      assert.equal(result.titles.length,3);
-      for(const row of result.titles) {assert.equal(row.text,'#809Decide: '+title);assert.equal(row.nowrap,'nowrap');}
-      assert.ok(!result.text.includes(question),'the full question is not the collapsed title');
-      for(const id of asks) assert.doesNotMatch(result.text,new RegExp('#'+id+'\\b','u'),'no visible shout id');
-      assert.deepEqual(result.actions,asks.slice(0,3).map(id=>'decide:'+id),'summary identities never replace the actual native action targets');
-    }
-    await chrome.click('document.querySelector("#dashboard .needs-call summary")');
-    await chrome.waitFor('document.querySelector("#dashboard .needs-call details").open');
-    assert.ok((await chrome.stable('document.querySelector("#dashboard .needs-call .needs-detail").innerText')).includes(question+' Choice 1.'),'expansion preserves the original words');
-    await chrome.stable('render(); true');
-    assert.equal(await chrome.stable('document.querySelector("#dashboard .needs-card header [data-needs-list]").textContent'),'1 more and 2 draft rows →','redraw retains the header navigation');
-    await chrome.click('document.querySelector("#dashboard .needs-card header [data-needs-list]")');
+    // The /live-style Dashboard draws no Rulings card (#6847): the notch carries the count and opens the full list.
+    await chrome.waitFor('Number(document.querySelector("#notch [data-notch=rulings]")?.textContent) >= 4 && !!document.querySelector("#dashboard .dash-live")');
+    assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-card, #dashboard .needs-call").length'),0,'the Dashboard holds no Rulings rows');
+    const openOn = place => 'document.querySelectorAll("'+place+' .needs-call details[open]").length';
+    await chrome.click('document.querySelector("#notch [data-peek=rulings]")');
     await chrome.waitFor('view.tab === "items" && document.querySelectorAll("#needs [data-needs-key]").length === 4');
     assert.equal(await chrome.stable('document.querySelector("#needs .needs-copy b").textContent'),'#'+asks[0]+question+' Choice 1.', 'the complete Needs list retains the original native question after compact navigation');
+    assert.equal(await chrome.stable(openOn('#needs')),0,'#6595: no Items Rulings row opens by default');
+    await chrome.click('document.querySelectorAll("#needs .needs-call summary")[1]');
+    await chrome.waitFor('document.querySelectorAll("#needs .needs-call details")[1].open');
+    await chrome.stable('render(); true');
+    assert.equal(await chrome.stable('document.querySelectorAll("#needs .needs-call details")[1].open && '+openOn('#needs')+' === 1'),true,'#6595: the opened Items row stays open, alone, across a live redraw');
+    await chrome.click('document.querySelectorAll("#needs .needs-call summary")[1]');
+    await chrome.waitFor(openOn('#needs')+' === 0');
+    await chrome.stable('render(); true');
+    assert.equal(await chrome.stable(openOn('#needs')),0,'#6595: the closed Items row stays closed across a live redraw');
   } finally {if(chrome) await closeSnapshotChrome(chrome);await server.stop();}
 });

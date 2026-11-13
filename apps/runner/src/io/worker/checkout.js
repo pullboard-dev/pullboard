@@ -75,11 +75,17 @@ async function ancestorsOf(S, cache, env, tip, commits) {
   return found;
 }
 
+/** How a job repository fetches from the runner's source cache. */
+const CACHE_FETCH = ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags'];
+
 /**
  * A fetch names the job's own base commit as its negotiation tip: a checkout's only have is a detached
  * HEAD, which Git never advertises, so without it the cache resends the whole history on every job.
  */
 function negotiationTip(commit) { return commit ? [`--negotiation-tip=${commit}`] : []; }
+
+/** A pull serve's trunk fetch into its object cache, run by the Git its app hands it [C7]. */
+export const fetchTrunk = (run, store, trunk, refs) => run(store, ['-c', 'protocol.version=2', 'fetch', '-q', '--no-tags', '--', trunk, ...refs]);
 
 /** Receive the negotiated history pack after the worker announces the cache's candidate tips. */
 async function receivePack(S, packFile) {
@@ -288,7 +294,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     measured.reusedCommit = warm?.reusedCommit ?? null;
     if (!measured.reusedCommit) await git(S, root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     if (measured.reusedCommit !== spec.commit) {
-      await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', ...negotiationTip(measured.reusedCommit), cache, `refs/pullboard/candidates/${spec.commit}`], env);
+      await git(S, root, [...CACHE_FETCH, ...negotiationTip(measured.reusedCommit), cache, `refs/pullboard/candidates/${spec.commit}`], env);
       await git(S, root, ['checkout', '--detach', 'FETCH_HEAD'], env);
     }
     // A trunk commit main lands mid-job is fetched from here before a read, never refused as missing (#2534).
@@ -306,7 +312,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
         for (const write of writes) write();
       } else {
         await git(S, root, ['check-ref-format', spec.trunk.ref], env);
-        await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', ...negotiationTip(spec.commit), cache,
+        await git(S, root, [...CACHE_FETCH, ...negotiationTip(spec.commit), cache,
           `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
         await git(S, root, ['config', '--local', '--replace-all', 'pullboard.trunk', spec.trunk.ref], env);
       }
@@ -317,7 +323,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       await git(S, root, ['check-ref-format', mode.trunk.ref], env);
       if (candidateHistory.has(mode.policyCommit) && candidateHistory.has(mode.trunk.commit)) {
         await git(S, root, ['update-ref', '--stdin'], env, `update refs/pullboard/trusted-policy ${mode.policyCommit}\nupdate ${mode.trunk.ref} ${mode.trunk.commit}\n`);
-      } else await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', ...negotiationTip(spec.commit), cache,
+      } else await git(S, root, [...CACHE_FETCH, ...negotiationTip(spec.commit), cache,
         `refs/pullboard/candidates/${mode.policyCommit}:refs/pullboard/trusted-policy`,
         `refs/pullboard/candidates/${mode.trunk.commit}:${mode.trunk.ref}`], env);
       await git(S, root, ['config', '--local', '--replace-all', 'pullboard.trunk', mode.trunk.ref], env);
@@ -331,7 +337,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       });
       await git(S, cache, ['update-ref', '--stdin'], env, `${updates.join('\n')}\n`);
       // Bound actual UTF-8 argv bytes, so short tags do not require needless fixed-count batches.
-      const fetchArgs = ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache];
+      const fetchArgs = [...CACHE_FETCH, cache];
       for (let index = 0; index < spec.tags.length;) {
         const tags = [], refspecs = [];
         let bytes = fetchArgs.reduce((sum, arg) => sum + Buffer.byteLength(arg) + 1, 4);

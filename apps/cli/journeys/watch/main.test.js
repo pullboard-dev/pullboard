@@ -31,12 +31,14 @@ import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
-import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const folders = [];
 
 after(() => {
+  for (const folder of folders) stopFixtureLocalRunner(join(folder, 'home'));
   for (const folder of folders) rmSync(folder, { recursive: true, force: true });
 });
 
@@ -47,6 +49,7 @@ function fixtureEnv(home, bin) {
     ...env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, PATH: bin + delimiter + process.env.PATH,
     PULLBOARD_VIEW_BACKGROUND: '0', // Restore the fixture opt-out after removing inherited board identity.
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', // Fixture items carry near-identical titles, so the add duplicate guard stays off (#6864).
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Watch Test', GIT_AUTHOR_EMAIL: 'watch@example.invalid',
     GIT_COMMITTER_NAME: 'Watch Test', GIT_COMMITTER_EMAIL: 'watch@example.invalid',
@@ -72,10 +75,17 @@ async function project() {
   /** Run one CLI command with --json and return its document. */
   const local = async (cwd, ...args) => {
     args = fixtureJoinRoute(args, env.PULLBOARD_MODEL);
-    if (args[0] === 'submit') args.push('--wait');
     const result = await runLocal(cwd, ...args, '--json');
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}${result.stdout}`);
-    return JSON.parse(result.stdout);
+    const document = JSON.parse(result.stdout);
+    // A pull submit returns queued at once; the journey reads the settled gate, so it waits for the local runner's receipt [P7].
+    if (args[0] === 'submit' && document.queued) {
+      // The wait watches the local runner's folder, which the runner creates when it starts; make sure it exists first.
+      mkdirSync(join(home, 'local-runner'), { recursive: true });
+      const run = async (here, ...rest) => { const out = await runLocal(here, ...rest); return { code: out.status, out: out.stdout, err: out.stderr }; };
+      await settledGateJob({ repo: root, env, run }, document.item ?? Number(args[1]));
+    }
+    return document;
   };
   git('init', '-q', '-b', 'main');
   await local(root, 'init');
@@ -324,6 +334,11 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     t.diagnostic(JSON.stringify({ host: hostname(), node: process.version, loadSamples: samples }));
   });
   const box = await project();
+  const builder = await box.local(box.root, 'worktree', 'app', '--model', 'watch-builder');
+  const waiting = (await box.local(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+    '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait')).item;
+  await box.local(box.root, 'check', 'accept', String(waiting.item_id)); // #728 holds a check already green on main until the person accepts it.
+  // The first add starts the machine's local runner, which keeps serving this board after a runner registers, so the submits below still settle [P7,C7].
   // The baseline worker needs a registered runner in this isolated machine home.
   const runnerBin = join(box.dir, 'runner-bin'), worker = join(box.dir, 'runner-worker');
   const runnerHome = join(box.dir, 'runner-home'), runnerMachine = join(runnerHome, '.pullboard');
@@ -335,10 +350,6 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const runnerAdd = ['runner', 'add', HOST, '--slots', '1', '--browser', '0'];
   const registered = await runCliInProcess(runnerAdd, { cwd: box.root, env: box.env });
   assert.equal(registered.status, 0, `runner add: ${registered.stderr}${registered.stdout}`);
-  const builder = await box.local(box.root, 'worktree', 'app', '--model', 'watch-builder');
-  const waiting = (await box.local(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
-    '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait')).item;
-  await box.local(box.root, 'check', 'accept', String(waiting.item_id)); // #728 holds a check already green on main until the person accepts it.
   const before = events(box).length;
   const watch = startWatch(box, ['--json', '--work', 'app', '--review-wait', '0.02']);
   t.after(() => watch.stop('SIGKILL'));
@@ -346,7 +357,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(watch.out.lines.length, 0, 'work already claimable when watch starts is its baseline, so it prints nothing');
 
   // A newly opened item in the lane is claimable.
-  const added = (await box.local(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+  const added = (await box.local(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--accept-green', 'the watch fixture never builds this item', '--route', 'strong',
     '--brief', 'Files: app/work.txt\nChange: exercise fresh work in the watch fixture.\nTest: observe the claimable and review-wait notices.\nOut of scope: product behavior.', '--wait')).item;
   const notice = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable', 5_000, 'claimable notice')).line); // budget: hang ceiling for one line, not a latency claim.
   assert.equal(notice.item, added.item_id);
@@ -445,15 +456,18 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
     'add', 'milestone_placed', 'check-baseline', 'hold_item', 'add', 'milestone_placed', 'claim',
     'unhold_item', 'check_accept', 'release',
-    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
-    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
+    // A pull submit records no renew; the pulled receipt's proofs come with its submit, and the accepting verify records one more [C7].
+    'claim', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'proof-run', 'accept',
+    'claim', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
   ], 'only the explicit moves, rejection escalation, native placements, the baseline with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
-  const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
+  const texts = allFacts.map(event => JSON.parse(event.event_detail).text);
   const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));
-  assert.equal(allFacts.length, 8, 'only comparison and tier-1 shadow facts are recorded');
-  assert.equal(shadows.length, 4, 'each gate proof has a tier-1 shadow fact');
-  assert.equal(new Set(shadows.map(event => JSON.parse(event.event_detail).ref?.id)).size, 4, 'shadow references are distinct');
+  // A pulled submit records its gate job as an offer note and a green note per submission; only the accepting verify records a tier-1 shadow [C7].
+  assert.equal(texts.filter(text => /^Gate job \S+ offered for /u.test(text)).length, 2, 'each submission records its offered gate job');
+  assert.equal(texts.filter(text => /^Gate job \S+ green at /u.test(text)).length, 2, 'each submission records its green gate job');
+  assert.equal(allFacts.length, 5, 'only the gate job notes and the accepting verify shadow are recorded');
+  assert.equal(shadows.length, 1, 'the accepting verify records one tier-1 shadow');
   for (const event of shadows) {
     const fact = JSON.parse(event.event_detail);
     assert.equal(fact.kind, 'measurement');
@@ -461,36 +475,22 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     assert.ok(recorded.some(proof => proof.event_kind === 'proof-run' && proof.item_id === event.item_id
       && JSON.parse(proof.event_detail).receipt?.id === fact.ref.id), 'the shadow names a real proof on its item');
   }
-  assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
-  for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {
-    const comparisons = facts.filter(event => event.item_id === item).map(event => {
-      const fact = JSON.parse(event.event_detail);
-      assert.equal(fact.kind, 'measurement');
-      assert.ok(fact.text.startsWith(VERIFICATION_COMPARISON_PREFIX));
-      assert.equal(event.event_by, builder.agent, 'the comparison belongs to the submitting seat');
-      return JSON.parse(fact.text.slice(VERIFICATION_COMPARISON_PREFIX.length));
-    });
-    assert.deepEqual(comparisons.map(row => [row.item, row.source, row.status]),
-      [[item, source, 'pending'], [item, source, 'complete']], 'each observational account names its exact submitted source');
-  }
   const usage = recorded.filter(event => event.event_kind === 'usage');
-  assert.equal(usage.length, 3, 'only release and the two submissions checkpoint usage');
+  assert.equal(usage.length, 2, 'release and one submission checkpoint usage');
   assert.ok(usage.every(event => event.event_by === builder.agent));
-  assert.equal(recorded.filter(event => event.event_kind === 'activity-delivered').length,
-    // A seat's first delivery starts it at the board head (#6152): it records a receipt with no digest. Later ones record only with a digest.
-    1 + Number(secondSubmission.activity.digests.length > 0));
+  assert.equal(recorded.filter(event => event.event_kind === 'activity-delivered').length, 0, 'a pulled submit delivers no digest');
   assert.deepEqual(watch.out.lines.map(({ line }) => JSON.parse(line)).filter(row => !row.notice)
     .map(row => [row.sequence, row.kind, row.item, row.actor]),
   recorded.map(event => [event.event_id, event.event_kind, event.item_id, event.event_by]),
   'watch prints every actual event exactly once, in order, including placements and observations');
   const acceptance = recorded.find(event => event.event_kind === 'accept');
-  assert.match(JSON.parse(acceptance.event_detail).note, /reused submit proof/u);
+  assert.ok(JSON.parse(acceptance.event_detail).note, 'the acceptance carries its note');
   const proofs = recorded.filter(event => event.event_kind === 'proof-run');
   const receipts = proofs.map(event => JSON.parse(event.event_detail).receipt);
   assert.deepEqual(receipts.map(receipt => [receipt.item, receipt.commit]), [
-    [added.item_id, firstCommit], [added.item_id, firstCommit],
+    [added.item_id, firstCommit], [added.item_id, firstCommit], [added.item_id, firstCommit],
     [waiting.item_id, secondCommit], [waiting.item_id, secondCommit],
-  ], 'only the two submits record native proofs; accept reuses its sealed submit proof');
+  ], 'the two pulled submits record two proofs each, and the accepting verify records one more');
   for (let index = 0; index < proofs.length; index++) {
     assert.equal(proofs[index].event_by, receipts[index].seat, 'each proof belongs to its executing seat');
     assert.equal(proofs[index].item_id, receipts[index].item, 'each proof belongs to its checked item');

@@ -332,6 +332,13 @@ export function gitReadSignature(root, files, { attribution = false, directories
   return createHash('sha256').update(JSON.stringify([context, repository, inputs])).digest('hex');
 }
 
+/**
+ * Signature options for the API's repository facts: the root and Git directory stats move with every lock file another
+ * command makes, so keying on them missed the cache every few seconds and ran a blocking git rev-parse on the board
+ * API's request thread (12 Nov POST /jobs stalls). The `.git` marker, config, HEAD and ref files keep their markers.
+ */
+const STABLE_DIRECTORIES = Object.freeze({ directories: false });
+
 /** Return a validated cached read fact, refreshing it when its filesystem signature changes. */
 function readFact(key, signature, read) {
   if (currentGitAdapter() !== realGitAdapter) return read();
@@ -1014,7 +1021,7 @@ function boundedRepoInfo(cwd, { env } = {}) {
   if (env) return readRepoInfo(cwd, env);
   const key = `repoInfo:${resolve(cwd)}`;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(cwd), () => readRepoInfo(cwd));
+    return readFact(key, () => repositorySignature(cwd, null, false, STABLE_DIRECTORIES), () => readRepoInfo(cwd));
   }
   return fact(key, () => readRepoInfo(cwd));
 }
@@ -1104,7 +1111,7 @@ function readRepoInfo(cwd, env) {
 export function codeIsFromMain(root = CODE_ROOT) {
   const key = `codeIsFromMain:${resolve(root)}`;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(root), () => readCodeIsFromMain(root));
+    return readFact(key, () => repositorySignature(root, null, false, STABLE_DIRECTORIES), () => readCodeIsFromMain(root));
   }
   return fact(key, () => readCodeIsFromMain(root));
 }
@@ -1212,6 +1219,21 @@ export function resolveCommit(root, ref) {
 }
 
 /**
+ * HEAD's commit and tree from one git process, kept for the rest of the command until a git write clears it.
+ * Why: headCommit and headTree each spawned `git rev-parse`, so one submit paid two processes for one revision [C7].
+ *
+ * @param {string} root
+ * @returns {{ commit: string | null, tree: string | null }}
+ */
+function headPair(root) {
+  return fact(`headPair:${resolve(root)}`, () => {
+    const result = tryGit(root, ['rev-parse', '--quiet', 'HEAD^{commit}', 'HEAD^{tree}']);
+    const [commit, tree] = result.status === 0 ? result.stdout.split('\n') : [];
+    return commit && tree ? { commit, tree } : { commit: null, tree: null };
+  });
+}
+
+/**
  * The commit HEAD points at, or null in a repo with no commits yet.
  *
  * @param {string} root
@@ -1219,12 +1241,9 @@ export function resolveCommit(root, ref) {
  */
 export function headCommit(root) {
   const key = `headCommit:${resolve(root)}`;
-  const read = () => {
-    const result = tryGit(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}']);
-    return result.status === 0 ? result.stdout : null;
-  };
+  const read = () => headPair(root).commit;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(root, null, true), read);
+    return readFact(key, () => repositorySignature(root, null, true, STABLE_DIRECTORIES), read);
   }
   return fact(key, read);
 }
@@ -1237,12 +1256,9 @@ export function headCommit(root) {
  */
 export function headTree(root) {
   const key = `headTree:${resolve(root)}`;
-  const read = () => {
-    const result = tryGit(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{tree}']);
-    return result.status === 0 ? result.stdout : null;
-  };
+  const read = () => headPair(root).tree;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(root, null, true), read);
+    return readFact(key, () => repositorySignature(root, null, true, STABLE_DIRECTORIES), read);
   }
   return fact(key, read);
 }

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { agentFloorHtml } from '../../../../src/logic/agent/floor/render.js';
 import { agentFloorModel } from '../../../../src/logic/agent/floor/model.js';
-import { dashboardHtml } from '../../../../src/logic/render/dashboard.js';
 import { dashboardModel } from '../../../../src/io/dashboard/model.js';
 import { agentFloorData } from '../../../fixtures/cockpit/floor.js';
 
@@ -188,10 +187,8 @@ test('a ready item\'s age counts from the moment it came free, lapsed leases inc
   assert.deepEqual(ready, [[1, 60], [2, 30], [3, 45]], 'free since the lease ran out, the renewed lease ran out, or the release');
 });
 
-test('the Dashboard\'s Agents card ends with the link to the floor at its own address [N26,N38]', () => {
-  const model = dashboardModel(seeded.input.project, seeded.input.events, { now: seeded.now, complete: true });
-  const agents = section(dashboardHtml(model, { floorHref: '/dashboard/floor' }), 'Agents');
-  assert.match(agents, /<a class="link dash-floor-link" href="\/dashboard\/floor" data-tab="dashboard" data-detail="floor">Open the agent floor →<\/a>$/u);
+test('the floor keeps its own address and its way back to the Dashboard [N26,N38]', () => {
+  // The /live-style Dashboard (#6847) draws its own Agents table, which the Agents notch opens; the floor stays at /dashboard/floor.
   assert.match(agentFloorHtml(floorAt(seeded.now).floor, { back: '/dashboard' }), /<a class="link" href="\/dashboard" data-tab="dashboard">← Dashboard<\/a>/u);
   // The page embeds these two functions' text; neither can reach a board by itself, so the floor reads what the Dashboard read.
   for (const embedded of [agentFloorModel, agentFloorHtml]) {

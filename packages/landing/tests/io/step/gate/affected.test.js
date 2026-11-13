@@ -52,7 +52,7 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   writeFileSync(runner, `require('node:fs').writeFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)));\n`);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const state = { batch: { root: box.repo, base, items: proof === null ? [] : [{ id: 1, commit }] }, board: {}, config: {
-    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [], landing: { perItem: false },
+    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [], landing: { perItem: false, publish: 'separate' },
   } };
   const frozen = JSON.stringify({ check: 'node --test test/a.test.js' });
   const digest = createHash('sha256').update(frozen).digest('hex');

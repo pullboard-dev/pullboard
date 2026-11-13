@@ -1,6 +1,7 @@
 /** A board an older release left drifted gains its additive tables and its guards, and only a matching shape is restamped [A5,M3]. */
 import assert from 'node:assert/strict';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { copyFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -18,7 +19,7 @@ const folders = [];
 after(() => { e2e.cleanup(); for (const dir of folders) rmSync(dir, { recursive: true, force: true }); });
 
 /** The pullboard-owned objects an older release never made, as the 11 Nov website board lacked them. */
-const ADDITIVE = ['job', 'job_step', 'job_kind_item', 'shout_target_id', 'board_meta_agent_session_value_v1',
+const ADDITIVE = ['job', 'job_step', 'job_kind_item', 'job_step_lease', 'job_lease_live', 'job_step_name_seq', 'job_step_name_at', 'shout_target_id', 'board_meta_agent_session_value_v1',
   'board_meta_grant_activation_v2', 'board_meta_grant_activation_unsafe_v1'];
 /** The six guards whose SQL that board carried from an older release. */
 const CHANGED = ['machine_item_move', 'machine_fields_claimed', 'machine_fields_submitted', 'machine_fields_verified',
@@ -119,6 +120,14 @@ test('clause 2: pullboard status restores changed pullboard triggers, and doctor
   const found = await project.command('doctor');
   for (const name of CHANGED) assert.match(found.stdout, new RegExp(`board trigger ${name} has changed; repair: run pullboard status`, 'u'));
 
+  // Only the main checkout's code repairs a repository board, and a runner runs this source from a linked worktree: the
+  // same repair runs on a copy outside any repository, and its file is put back where the CLI reads it.
+  const files = privateFixtureFiles('pullboard-drift-');
+  folders.push(files.root);
+  const copy = join(files.root, 'board.sqlite');
+  copyFileSync(project.file, copy);
+  store.closeBoard(openKitBoard(copy));
+  copyFileSync(copy, project.file);
   const status = await project.command('status');
   assert.equal(status.status, 0, status.stderr || status.stdout);
   const repaired = observe(project.file);

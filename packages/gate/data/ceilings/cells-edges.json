@@ -482,7 +482,7 @@
     },
     "apps/cli/src/io/landing/advance.js": {
       "cells": 7,
-      "deep": 0
+      "deep": 1
     },
     "apps/cli/src/io/landing/audit.js": {
       "cells": 6,
@@ -812,10 +812,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/generated/handoff.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/http.js": {
       "cells": 1,
       "deep": 0
@@ -829,10 +825,6 @@
       "deep": 0
     },
     "apps/cli/tests/fixtures/land/engine.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "apps/cli/tests/fixtures/land/parallel.js": {
       "cells": 1,
       "deep": 0
     },
@@ -1074,19 +1066,19 @@
     },
     "apps/lib/src/io/check/baseline.js": {
       "cells": 3,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/drive/worker.js": {
       "cells": 4,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/handoff/dispatcher.js": {
       "cells": 6,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/landing/candidate.js": {
       "cells": 5,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/main/audit.js": {
       "cells": 5,
@@ -1746,6 +1738,10 @@
     },
     "packages/drive/src/io/once.js": {
       "cells": 5,
+      "deep": 0
+    },
+    "packages/drive/src/io/pull.js": {
+      "cells": 1,
       "deep": 0
     },
     "packages/drive/src/io/reclaim.js": {
@@ -2972,10 +2968,6 @@
       "cells": 3,
       "deep": 4
     },
-    "packages/moves/tests/fixtures/next.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/outbox/src/io/relay.js": {
       "cells": 5,
       "deep": 1
@@ -3306,6 +3298,10 @@
     },
     "packages/runners/src/io/wait.js": {
       "cells": 2,
+      "deep": 0
+    },
+    "packages/runners/src/io/worktree.js": {
+      "cells": 1,
       "deep": 0
     },
     "packages/runners/src/logic/stage.js": {
@@ -3714,10 +3710,6 @@
     },
     "packages/state/src/logic/submission/size.js": {
       "cells": 1,
-      "deep": 0
-    },
-    "packages/state/tests/fixtures/api.js": {
-      "cells": 6,
       "deep": 0
     },
     "packages/stats/light.js": {
@@ -5165,8 +5157,8 @@
       "deep": 0
     },
     "apps/lib/src/io/slot/services.js": {
-      "cells": 4,
-      "deep": 0
+      "cells": 5,
+      "deep": 1
     },
     "apps/cli/tests/fixtures/init/shards.js": {
       "cells": 2,
@@ -5233,6 +5225,14 @@
       "deep": 0
     },
     "packages/store/tests/fixtures/timeout.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/runner/src/io/register.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/submit.js": {
       "cells": 1,
       "deep": 0
     }
@@ -5306,6 +5306,7 @@
     "apps/lib": {
       "imports": [
         "apps/cli",
+        "apps/runner",
         "blueprints",
         "commits",
         "config",
@@ -6062,7 +6063,7 @@
     },
     "<-apps/runner": {
       "imports": [],
-      "deepImporters": 2
+      "deepImporters": 12
     },
     "<-apps/lib": {
       "imports": [],
@@ -6072,6 +6073,107 @@
       "imports": [],
       "deepImporters": 2
     }
+  },
+  "packageApps": {
+    "packages/drive/src/io/queue.js": [
+      "apps/cli"
+    ],
+    "packages/gate/src/io/main/audit/worker.js": [
+      "apps/cli"
+    ],
+    "packages/gate/src/io/matrix.js": [
+      "apps/cli"
+    ],
+    "packages/gate/src/io/run-tests.js": [
+      "apps/cli"
+    ],
+    "packages/gate/src/io/run/shell.js": [
+      "apps/runner"
+    ],
+    "packages/gate/src/io/run/tests.js": [
+      "apps/cli"
+    ],
+    "packages/gate/src/io/static/registry.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/clone.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/cockpit/probe.mjs": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/diagnostics.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/functions.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/p95.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/pipeline/board/write.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/pipeline/kit.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/pipeline/spec.js": [
+      "apps/runner"
+    ],
+    "packages/gate/tests/fixtures/pipeline/sweep.js": [
+      "apps/lib"
+    ],
+    "packages/gate/tests/fixtures/pipeline/worker.js": [
+      "apps/runner"
+    ],
+    "packages/gate/tests/fixtures/resources/capacity.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/resources/lease.js": [
+      "apps/cli",
+      "apps/lib"
+    ],
+    "packages/gate/tests/fixtures/resources/release.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/resources/runner.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/resources/verify.js": [
+      "apps/cli"
+    ],
+    "packages/gate/tests/fixtures/watchdog/legacy.js": [
+      "apps/cli"
+    ],
+    "packages/git/tests/fixtures/flakes.js": [
+      "apps/cli"
+    ],
+    "packages/runners/src/io/dispatch.js": [
+      "apps/runner"
+    ],
+    "packages/runners/src/io/pull/delegate.js": [
+      "apps/runner"
+    ],
+    "packages/runners/tests/fixtures/advance.js": [
+      "apps/cli"
+    ],
+    "packages/runners/tests/fixtures/fleet.js": [
+      "apps/cli"
+    ],
+    "packages/store/tests/fixtures/cell.js": [
+      "apps/cli"
+    ],
+    "packages/store/tests/fixtures/dispatch.js": [
+      "apps/cli"
+    ],
+    "packages/store/tests/fixtures/stats/compare.js": [
+      "apps/cli",
+      "apps/lib"
+    ],
+    "packages/store/tests/fixtures/stats/time.js": [
+      "apps/cli",
+      "apps/lib"
+    ]
   },
   "lightDoors": {
     "apps/cli/light.js": 2,

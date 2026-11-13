@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 import { jobWorkers } from '../../../src/io/pull.js';
 import { JOB_WORKERS_ENV } from '../../../light.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
@@ -64,7 +65,7 @@ test('#5919 clause 2: with 3 jobs on a 10-core runner the job env carries 7 work
     const stop = new AbortController();
     // A real pause between idle claims, so the job's child gets the event loop; the first idle wait after the receipt stops the serve.
     const sleep = ms => new Promise(done => setTimeout(() => { if (receipts.length) stop.abort(); done(); }, Math.max(ms, 5)));
-    const served = await serveRunner({ board: BOARD, runner: 'r-workers', capabilities: [], cache, jobs: 3, cores: 10, signal: stop.signal, fetchImpl, sleep, timing: { idleMs: 1 } });
+    const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-workers', capabilities: [], cache, jobs: 3, cores: 10, signal: stop.signal, fetchImpl, sleep, timing: { idleMs: 1 } });
     assert.equal(served.slots, 3);
     assert.equal(receipts.length, 1, JSON.stringify(receipts));
     assert.equal(receipts[0].status, 0, receipts[0].tail);
@@ -100,7 +101,7 @@ test('#6307: a job whose environment folder removal fails with ENOTEMPTY still p
     const removeFolder = folder => { throw Object.assign(new Error(`ENOTEMPTY: directory not empty, rmdir '${folder}/tmp'`), { code: 'ENOTEMPTY' }); };
     const stop = new AbortController();
     const sleep = ms => new Promise(done => setTimeout(() => { if (receipts.length >= 2) stop.abort(); done(); }, Math.max(ms, 5)));
-    const served = await serveRunner({ board: BOARD, runner: 'r-cleanup', capabilities: [], cache, jobs: 1, cores: 2, signal: stop.signal, fetchImpl, sleep,
+    const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-cleanup', capabilities: [], cache, jobs: 1, cores: 2, signal: stop.signal, fetchImpl, sleep,
       timing: { idleMs: 1 }, removeFolder, say: line => said.push(line) });
     assert.deepEqual(receipts.map(call => call.job), ['j1', 'j2'], 'both jobs posted: the failed removal of j1\'s folder never stopped the serve');
     assert.ok(receipts.every(call => call.receipt.status === 0), JSON.stringify(receipts.map(call => call.receipt.tail)));
