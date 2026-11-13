@@ -17,7 +17,7 @@ import {
 } from '../../../../tests/fixtures/init/known-frozen.js';
 
 /** The pulled gate does not yet judge a frozen red against main's receipts (mainOwnedGate runs only in the controller submit), so these journeys wait for it [V4,B3,C7]. */
-const PULLED_MAIN_OWNED = 'pending: the pulled gate records no main-owned verdict; follow-up filed from #7045';
+const PULLED_MAIN_OWNED = 'pending: the pulled gate records no main-owned verdict; remainder is #7104 (filed from #7045)';
 
 test('verify accepts an identical owned main red and records its exact case [V4,B3]', { skip: PULLED_MAIN_OWNED }, async t => {
   const box = fixture(t), repair = fileMainRed(box);

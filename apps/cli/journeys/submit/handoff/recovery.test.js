@@ -71,7 +71,7 @@ function resumeDriver(box, job, { now = Date.now() } = {}) {
 }
 
 /** A detached gate driver exists only under controller dispatch; the pulled gate is a job a runner takes, so these journeys wait for a pulled-job form [V4,H16,E18,C7]. */
-const DRIVER_UNDER_PULL = 'pending: no detached driver exists under the default pulled gate; a pulled-job form is filed from #7045';
+const DRIVER_UNDER_PULL = 'pending: no detached driver exists under the default pulled gate; remainder is #7105 (filed from #7045)';
 
 test('clause 1: a driver stopped mid-check stops its check and leaves the job resumable, and a fresh driver finishes it with one terminal result [V4,H16,E18,C7]', { skip: DRIVER_UNDER_PULL }, async t => {
   const box = fixture(t);
