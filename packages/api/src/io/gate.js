@@ -708,7 +708,7 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -835,6 +835,11 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
     if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
   }
   return settled;
+}
+
+/** Shout the coordinator once that one job was claimed 3 times within 60 s, naming the job and its runners (#7445). */
+export function reportRepeatClaims(board, { job, kind, claims, runners }) {
+  store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `${kind} job ${job} was claimed ${claims} times in 60 s by ${runners.join(', ')}`.slice(0, 600) });
 }
 
 /**
