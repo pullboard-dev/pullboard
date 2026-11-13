@@ -26,7 +26,6 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </div>
   <nav class="side-footer" aria-label="Project tools"><button class="ghost" data-tab="settings" type="button">Settings</button><a class="ghost" href="${repositoryAttribute}" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a></nav>
 </aside>
-<nav class="sidenav" id="sidenav" aria-label="Pages">${navSideHtml({ cost: privateCost, amber: ['shouts'] })}</nav>
 <div class="body">
 <header class="top">
   <div class="top-tier">
@@ -122,6 +121,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   ${hostedLocal && !snapshot ? starMarkup() : ''}
 </main>
 </div>
+<nav class="sidenav" id="sidenav" aria-label="Pages">${navSideHtml({ cost: privateCost, amber: ['shouts'] })}</nav>
 </div>
 <footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span>${snapshot ? `<div class="snapshot-controls" id="snapshot-controls" aria-label="Snapshot replay">
   <button class="snapshot-play" id="replay-play" type="button" aria-label="Play from first event" title="Play from first event"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5 13 8l-9 5.5z" fill="currentColor"/></svg></button>

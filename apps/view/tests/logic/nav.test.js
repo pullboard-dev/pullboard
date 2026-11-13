@@ -169,7 +169,7 @@ test('clause 1: the sidebar lists the same pages in 28 px rows, each with its on
   assert.match(served, /<nav class="sidenav" id="sidenav" aria-label="Pages"><div class="side-h">Work<\/div>/u, 'the shell carries the sidebar list');
   assert.match(served, /data-nav-fact="shouts"/u);
   assert.ok(served.indexOf('id="proj-switch"') < served.indexOf('class="notch"') && served.indexOf('id="proj-rulings"') < served.indexOf('class="pin"'), 'the switcher with its decisions badge is the top left');
-  assert.ok(served.indexOf('id="sidenav"') > served.indexOf('</aside>') && served.indexOf('id="sidenav"') < served.indexOf('<div class="body">'), 'the sidebar sits beside the page, outside the top tier');
+  assert.ok(served.indexOf('id="sidenav"') > served.indexOf('</main>'), 'the sidebar follows the page in the markup, so the strip tabs are the first of each page [data-tab]');
 });
 
 test('clause 2: the pin flips the navigation between the top tabs and the sidebar, this device remembers it, and a phone always gets the top [N26]', () => {
