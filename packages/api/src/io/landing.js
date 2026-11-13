@@ -4,12 +4,33 @@ import { Refused } from '../../../kernel/index.js';
 import { ledgerFiles } from '../../../store/index.js';
 import { ledgerHits } from '../../../store/index.js';
 import { ledgerMainReds } from '../../../store/index.js';
+import { landingWaiverKind } from '../../../store/index.js';
+import { PERSON } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const REF = /^refs\/[A-Za-z0-9._/-]{1,200}$/u;
+// A landing merge's header is one line; its trailers are the builder's Pullboard- lines and nothing else.
+const MESSAGE_HEADER = /^[^\n\r]{1,200}$/u;
+const MESSAGE_TRAILERS = /^Pullboard-[A-Za-z]+: [^\n\r]{1,2000}(?:\nPullboard-[A-Za-z]+: [^\n\r]{1,2000})*$/u;
+
+/**
+ * The person's waivers still live at `now`, oldest first, each with its kind resolved: `{ id, kind, test, until, reason }`.
+ * Why here: a runner never opens the board, so a pulled gate's receipt and a land job's payload read the person's
+ * waivers from the board's own events, with the controller's expiry rule (live while `until` is after now) [B3,R3,#655].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} now - Epoch milliseconds.
+ * @returns {{ id: string, kind: string, test: string, until: string, reason: string }[]}
+ */
+export function livePersonWaivers(db, now) {
+  return db.prepare("SELECT event_by, event_detail FROM event WHERE event_kind = 'landing_waiver' ORDER BY event_id").all()
+    .filter(row => row.event_by === PERSON).map(row => JSON.parse(row.event_detail).waiver)
+    .filter(waiver => typeof waiver?.test === 'string' && Date.parse(waiver.until) > now)
+    .map(({ id, test, until, reason }) => ({ id, kind: landingWaiverKind(test), test, until, reason }));
+}
 
 /** Refuse an accepted-items list a runner could not land as written; return it in landing order. */
 function landingItems(items) {
@@ -18,7 +39,10 @@ function landingItems(items) {
     if (!Number.isSafeInteger(entry?.id) || entry.id < 1 || !SHA.test(entry.commit ?? '') || (entry.ref !== undefined && !REF.test(entry.ref))) {
       throw new Refused('LANDING_ITEMS', 'each landed item is { id, commit, ref? }: a positive item id, its full accepted commit sha, and the refs/ name the trunk remote holds it under');
     }
-    return { id: entry.id, commit: entry.commit, ...(entry.ref ? { ref: entry.ref } : {}) };
+    if (entry.header !== undefined && (typeof entry.header !== 'string' || !MESSAGE_HEADER.test(entry.header) || typeof entry.trailers !== 'string' || !MESSAGE_TRAILERS.test(entry.trailers))) {
+      throw new Refused('LANDING_ITEMS', 'a landed item\'s message is { header, trailers }: one header line and its Pullboard- trailer lines, as the landing message builder writes them');
+    }
+    return { id: entry.id, commit: entry.commit, ...(entry.ref ? { ref: entry.ref } : {}), ...(entry.header !== undefined ? { header: entry.header, trailers: entry.trailers } : {}) };
   });
 }
 
@@ -49,13 +73,15 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   if (forced !== null && (typeof forced !== 'string' || !forced.trim())) throw new Refused('FORCED_REASON', 'a forced landing names why it went around the gate: --forced "<why>"');
   if (!Array.isArray(badges) || badges.some(entry => typeof entry?.path !== 'string' || typeof entry?.text !== 'string' || /^\/|\.\./u.test(entry.path))) throw new Refused('LANDING_BADGES', 'landing badges are { path, text } documents inside the repo, as the view\'s badgeDocuments returns them');
   const landed = landingItems(items);
-  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : [])])).digest('hex').slice(0, 16);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect);
+  // The person's live waivers ride on the job, so its runner holds no landing for a waived test; a new waiver is a new job [#655].
+  const waivers = proof ? livePersonWaivers(db, now) : [];
+  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   const separate = config?.landing?.publish === 'separate';
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
-    payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ? { check: check ?? own.gate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}),
+    payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ? { check: check ?? own.gate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(waivers.length ? { waivers } : {}),
       ...(separate ? { publish: 'separate' } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
 

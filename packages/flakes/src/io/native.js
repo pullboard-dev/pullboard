@@ -93,6 +93,20 @@ function nodePrefix(command, config, root, pin) {
 }
 
 /**
+ * The structured Node runner prefix a paired rerun of `command` may use at the pinned head and main, or null when the
+ * command has none. Why exported: a pulled gate job pairs its own reds, so the submitting host names the prefix [C7].
+ *
+ * @param {string} root
+ * @param {string | null | undefined} command
+ * @param {object} config
+ * @param {{ head: string, main: string | null }} pin
+ * @returns {string | null}
+ */
+export function pairPrefix(root, command, config, pin) {
+  return typeof command === 'string' && command.trim() ? nodePrefix(command.trim(), config, root, pin) : null;
+}
+
+/**
  * Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo: the command's
  * own runner file, named relative to the repo, must match this tool's shipped copy of it at the candidate and at main.
  * Why by command: the runner entry moves between packages and apps, so this package names none and keeps no list.

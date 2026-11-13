@@ -55,6 +55,7 @@ export * from "./src/io/step/publish.js";
 export * from "./src/io/step/trunk.js";
 export * from "./src/io/step/parallel.js";
 export * from "./src/io/step/batch.js";
+export { withoutStaleVerdicts } from "./src/io/pulled/fresh.js";
 export * from "./src/io/train/repoints.js";
 export * from "./src/io/post/land.js";
 export * from "./src/io/plan/check.js";

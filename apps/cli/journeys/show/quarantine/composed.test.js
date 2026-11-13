@@ -17,7 +17,7 @@ import { proofRunReceipt } from '../../../../../packages/store/index.js';
 import { readGateReceipt } from '../../../../../packages/gate/index.js';
 import { receiptStore } from '../../../../../packages/gate/index.js';
 
-test('clause 1: two actual composed Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', async t => {
+test('clause 1: two actual composed Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   // Process-level: the two composed Submit pairs run as real child processes through the builder seat's hooks; only the ledger reads are in-process.
   const companion = true;
   const box = fixture(t, false, companion);
