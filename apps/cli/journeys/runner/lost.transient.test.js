@@ -65,6 +65,8 @@ ${executionServicesSource(url)}
   assert.equal(diagnostic.exitCode, 255);
   assert.equal(diagnostic.confirmingProbe.healthy, true);
   const requests = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.equal(requests.length, 3, 'failed dispatch, one confirming Node observation, one actual recovered execution');
+  // Pull dispatch confirms through the health probe log (.health-probes), so its request log holds the dropped enqueue and the retried one.
+  const expected = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 2 : 3;
+  assert.equal(requests.length, expected, 'failed dispatch, one confirming Node observation, one actual recovered execution');
   assert.equal(requests[0].dropped, true);
 });
