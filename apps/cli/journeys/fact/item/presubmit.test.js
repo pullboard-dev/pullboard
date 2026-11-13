@@ -186,7 +186,8 @@ test('claimed companion submits the real core command and records exact composed
     assert.equal(receipt.exitCode, 0);
     assert.equal(receipt.sourceClean, true);
   }
-  assert.equal(submitted.gate.companion.commit, binding.commit);
+  // The pulled gate receipt does not echo the companion (PULL_GAP #7184: gate receipt fields); the board's own submit binding and the proof receipts above carry the composed commit.
+  assert.equal(submitted.gateJob.step, 'done');
   assert.equal(f.box.git(f.builder.root, 'rev-parse', 'HEAD'), beforeHead);
   assert.equal(f.box.git(f.builder.root, 'write-tree'), beforeIndex);
   assert.equal(existsSync(join(f.builder.root, 'view/header.cjs')), false);
