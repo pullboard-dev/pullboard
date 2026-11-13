@@ -32,7 +32,7 @@ function machine(t, settings = FAST) {
   for (const dir of [bin, home, join(base, 'cwd')]) mkdirSync(dir);
   const ssh = installSshStandIn({ bin, worker: join(base, 'cwd'), home, machineHome: join(home, '.pullboard'), requests: join(base, 'requests') });
   const root = join(home, '.pullboard-runner');
-  const start = version => execFileSync(ssh, ['--', HOST, `${settings} ${runnerAgentStartCommand('', version)}`], { stdio: 'ignore' });
+  const start = (version, extra = settings) => execFileSync(ssh, ['--', HOST, `${extra} ${runnerAgentStartCommand('', version)}`], { stdio: 'ignore' });
   const agentPid = () => Number(existsSync(join(root, 'agent.lock', 'pid')) ? readFileSync(join(root, 'agent.lock', 'pid'), 'utf8') : 0);
   t.after(() => {
     const pid = agentPid();
@@ -147,14 +147,15 @@ test('a worker command that reads its capsule then execs node still sees the res
 });
 
 test('a runner at or above its core count takes no new job, says why, and pulls again once load drops [C7,#5578]', async t => {
-  const { root } = machine(t);
+  const { root, start } = machine(t);
   const loadFile = join(root, '..', 'load-now');
   const setLoad = value => { writeFileSync(`${loadFile}.tmp`, `${value}\n`); renameSync(`${loadFile}.tmp`, loadFile); };
   setLoad('12.5');
   const settings = `${FAST} PULLBOARD_AGENT_CORES=10 PULLBOARD_AGENT_LOAD_FILE=${loadFile}`;
   mkdirSync(join(root, 'queue'), { recursive: true });
   enqueue(root, 'held', { command: 'echo ran', input: '' });
-  execFileSync('sh', ['-c', `${settings} ${runnerAgentStartCommand(root)}`], { stdio: 'ignore' });
+  // Through the stand-in, as an enqueue starts it: a bare sh in a pull runner's LaunchDaemon cannot run nohup (#6917).
+  start(undefined, settings);
   await until('the hold report', root, () => existsSync(join(root, 'load')) && /state=hold load=12.5 cores=10/.test(readFileSync(join(root, 'load'), 'utf8')));
   setLoad('12.6');
   await until('a later tick that still held', root, () => /state=hold load=12.6 /.test(readFileSync(join(root, 'load'), 'utf8')));
