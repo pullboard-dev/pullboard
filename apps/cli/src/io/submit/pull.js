@@ -46,6 +46,9 @@ export const RUNNER_OUTPUT_ENV = 'PULLBOARD_RUNNER_OUTPUT';
 const KEPT_PHASE_BYTES = 8 * 1024 ** 2;
 /** Budget: the receipt line stays under runner serve's 60 KiB receipt-line cap and the board's 64 KiB receipt cap. */
 const RECEIPT_FIT_BYTES = 56 * 1024;
+/** Budget: a receipt's test plan names at most 200 files per list, and each phase command up to 2000 characters. */
+const PLAN_ROWS = 200;
+const PLAN_COMMAND_CHARS = 2000;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 
 /**
@@ -119,6 +122,20 @@ const receipt = shard ? { version: 1, kind: 'shard', main: input.main, source: i
   : { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
+/** The run's own TAP or Node reporter totals, the last ones printed; null when it printed none, so a count is never guessed. */
+const totals = text => {
+  const found = {};
+  for (const line of text.split(/\\r?\\n/u)) { const match = /^(?:#|\\u2139)\\s+(pass|fail|skipped)\\s+(\\d+)$/u.exec(line.trim()); if (match) found[match[1]] = Number(match[2]); }
+  return 'pass' in found || 'fail' in found ? { passed: found.pass ?? null, failed: found.fail ?? null, skipped: found.skipped ?? null } : null;
+};
+/** The selected test plan as the inline gate returned it, each list bounded to ${PLAN_ROWS} rows so the receipt keeps its cap. */
+const planOf = plan => {
+  const rows = list => Array.isArray(list) ? list.slice(0, ${PLAN_ROWS}) : list;
+  const tiers = plan.testTiers && typeof plan.testTiers === 'object' ? Object.fromEntries(Object.entries(plan.testTiers).map(([key, value]) => [key, rows(value)])) : null;
+  const files = Array.isArray(plan.proofFiles) ? plan.proofFiles : [];
+  return { files: rows(files), ...(files.length > ${PLAN_ROWS} ? { filesOmitted: files.length - ${PLAN_ROWS} } : {}), testTiers: tiers,
+    phasePlan: (Array.isArray(plan.phases) ? plan.phases : []).map(phase => ({ role: String(phase.role), command: String(phase.command ?? '').slice(0, ${PLAN_COMMAND_CHARS}) })) };
+};
 /** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
 const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
 /** The modules a script imports by name, sorted: its static and dynamic import specifiers; null when the file is missing. */
@@ -182,7 +199,8 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
-  return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
+  const counts = totals(text);
+  return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
     ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
@@ -209,6 +227,7 @@ else {
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
     // The cells machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
     machinery: (analysis.cells?.machinery ?? []).slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+  if (analysis.plan && typeof analysis.plan === 'object') receipt.plan = planOf(analysis.plan);
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
@@ -243,6 +262,13 @@ for (let phase; Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES
   phase.ledger.omitted += drop;
 }
 fitReceipt(receipt, ${RECEIPT_FIT_BYTES});
+// A plan that still overflows gives up its tiers, then its file rows, which it counts; the run itself is never cut for it.
+if (receipt.plan && Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES}) receipt.plan.testTiers = null;
+while (receipt.plan?.files.length && Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES}) {
+  const drop = Math.ceil(receipt.plan.files.length / 4);
+  receipt.plan.files.splice(-drop);
+  receipt.plan.filesOmitted = (receipt.plan.filesOmitted ?? 0) + drop;
+}
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
 `;
