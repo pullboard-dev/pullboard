@@ -98,7 +98,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   commitAll(candidateOnly.box, 'feat(core): try candidate-only deferral [G1]');
   const ordinary = await submitSettled(t, candidateOnly.box, (...args) => runLocal(candidateOnly.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(ordinary.code, 0, ordinary.err);
-  const ordinaryReceipt = JSON.parse(ordinary.out);
+  const ordinaryReceipt = ordinary.receipt;
   assert.equal(ordinaryReceipt.gate.deferred, false, 'a candidate-only setting is not trusted');
   assert.ok(existsSync(candidateOnly.fullMarker), 'without current-main opt-in the full suite still runs at submit');
   const ordinaryEvent = JSON.parse((await runLocal(candidateOnly.box, 'show', '1', '--json')).out).thread.findLast((event) => event.kind === 'submit');
