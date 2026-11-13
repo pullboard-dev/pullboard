@@ -1,6 +1,6 @@
 /** @pullboard-test-input apps/cli/pullboard.js */
 /** @pullboard-test-loads apps/cli/src/io/entry.js */
-/** A queued review, submit-era check and owned check keep their item lease in the resource pool; split from main.test.js for its file budget [C7,V4]. */
+/** A queued review and an owned check keep their item lease in the resource pool, and a pulled submit settles through its gate job; split from main.test.js for its file budget [C7,V4]. */
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { queuedLeaseProof } from '../../../../packages/gate/tests/fixtures/resources/lease.js';
