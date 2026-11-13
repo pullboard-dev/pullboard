@@ -73,11 +73,8 @@ function settlePulledJobs(cwd, args, env) {
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
   if (!existsSync(file)) return;
   const deadline = Date.now() + SETTLE_MS;
-  const probeStart = Date.now();
-  let probeRows = '';
   for (;;) {
     let open = false;
-    try { const pdb = new DatabaseSync(file, { readOnly: true }); try { const rows = JSON.stringify(pdb.prepare("SELECT job_id, job_kind, job_step FROM job WHERE job_step <> 'done' LIMIT 5").all()); if (rows !== probeRows) { probeRows = rows; process.stderr.write(`# PROBE settle ${args[0]} +${Date.now() - probeStart}ms open=${rows}\n`); } } finally { pdb.close(); } } catch (error) { process.stderr.write(`# PROBE settle read ${error.message}\n`); }
     // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
@@ -174,23 +171,15 @@ function sandbox({ declareFamilies = false } = {}) {
   };
   const run = (cwd, ...args) => {
     prepare(cwd, args);
-    const probeAt = Date.now();
-    process.stderr.write(`# PROBE ${new Date().toISOString()} run ${args.slice(0, 3).join(' ')}\n`);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-    process.stderr.write(`# PROBE run ${args[0]} exit ${result.status} after ${Date.now() - probeAt}ms\n`);
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    process.stderr.write(`# PROBE run ${args[0]} settled after ${Date.now() - probeAt}ms\n`);
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
     prepare(cwd, args);
-    const probeAt = Date.now();
-    process.stderr.write(`# PROBE ${new Date().toISOString()} inProcess ${args.slice(0, 3).join(' ')}\n`);
     const result = await runCliInProcess(args, { cwd, env });
-    process.stderr.write(`# PROBE inProcess ${args[0]} exit ${result.status} after ${Date.now() - probeAt}ms\n`);
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    process.stderr.write(`# PROBE inProcess ${args[0]} settled after ${Date.now() - probeAt}ms\n`);
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
   return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
