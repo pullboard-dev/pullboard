@@ -1,9 +1,9 @@
 /** A served process hands its listening socket to its replacement on new code, so the port is never unanswered [C7,#6723]. */
-import { spawn } from 'node:child_process';
 import { tracingChannel } from 'node:diagnostics_channel';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { Server } from 'node:net';
+import { spawnDetachedChild } from '../../../jobs/index.js';
 
 /** The variable that tells a replacement its predecessor's listening socket is its descriptor 3. */
 export const SERVE_FD_ENV = 'PULLBOARD_SERVE_FD';
@@ -86,7 +86,7 @@ export function spawnOnSocket(command, args, { fd, cwd = process.cwd(), env = pr
   let out = 'ignore';
   try {
     if (log) out = openSync(log, 'a', 0o600);
-    const child = spawn(command, args, { cwd, env: { ...env, [SERVE_FD_ENV]: String(HANDED_FD) }, detached: true, stdio: ['ignore', out, out, fd, 'ipc'] });
+    const child = spawnDetachedChild(command, args, { cwd, env: { ...env, [SERVE_FD_ENV]: String(HANDED_FD) }, stdio: ['ignore', out, out, fd, 'ipc'] });
     return new Promise((done) => {
       const finish = (listening) => {
         clearTimeout(timer);
