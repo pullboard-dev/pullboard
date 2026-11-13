@@ -59,6 +59,12 @@ if (process.argv[2] === 'hook') {
   if (composed !== null) process.exit(composed);
 }
 
+// A bare heartbeat is one sidecar write, so it runs before tool selection and the stale-checkout redirect and loads no dispatcher, resident client or recovery (#3847).
+if (process.argv.length === 3 && process.argv[2] === 'heartbeat') {
+  const beat = (await import('./src/io/heartbeat/thin.js')).runThinHeartbeat({ cwd: process.cwd(), stderr: process.stderr });
+  if (beat !== null) process.exit(beat);
+}
+
 // Select immutable tooling before redirecting a stale worktree to today's CLI.
 // Only these two small modules load here; the dispatcher loads after the resident path declines, so a warm client stays thin [H24].
 const { selectedToolEntry, asksVersion } = await import('./light.js');
