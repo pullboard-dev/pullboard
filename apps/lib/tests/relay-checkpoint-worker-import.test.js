@@ -1,4 +1,4 @@
-/** @pullboard-world-pin: clause 1 reads the outbox undo test and the relay checkpoint journey sources to prove the move. */
+/** @pullboard-world-pin: clause 1 and 2 read the outbox undo test and the relay checkpoint journey sources to prove the move. */
 /** Importing the checkpoint worker entry starts nothing, so only invoking the worker file may publish [H5,C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -18,6 +18,6 @@ test('clause 1: the seven undo cases stay in the outbox cell and the worker-impo
 test('clause 2: the outbox undo test imports no other cell past a front door and this file imports only its own cell [C7]', () => {
   const imports = (path) => [...readFileSync(new URL(path, import.meta.url), 'utf8').matchAll(/from '(\.[^']+)'/gu)].map(match => match[1]);
   const undo = imports('../../../packages/outbox/tests/io/relay/undo.test.js');
-  assert.deepEqual(undo.filter(path => /\/apps\/|\/src\//u.test(path) && !path.includes('outbox')), [], 'the undo test reaches no other cell internals');
+  assert.deepEqual(undo.filter(path => /\/apps\/|\/src\//u.test(path) && !path.startsWith('../../../src/')), [], 'the undo test reaches no other cell internals');
   assert.deepEqual(imports('./relay-checkpoint-worker-import.test.js'), [], 'this file imports only through dynamic import of its own worker');
 });
