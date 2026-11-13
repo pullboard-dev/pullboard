@@ -123,6 +123,8 @@ function machine() {
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
+    // A nested pullboard test in a fixture board skips the machine's load wait (#7257,#7263).
+    PULLBOARD_FIXTURE_BOARD: '1',
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
     ...(process.env.PULLBOARD_TEST_RUNNER_PID ? { PULLBOARD_TEST_RUNNER_PID: process.env.PULLBOARD_TEST_RUNNER_PID } : {}),
