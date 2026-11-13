@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
-  existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -20,7 +19,6 @@ import { main as nativeTestMain } from '../../tests/fixtures/native.js';
 import {
   apiHttpFixture as fixture,
   apiHttpBox as httpBox,
-  registerFixtureRunner,
   shellWord,
   FIXTURE_BRIEF,
 } from '../../tests/fixtures/api.js';
@@ -28,8 +26,9 @@ import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 
-import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { startFixtureLocalRunner } from '../../tests/fixtures/runner/local-start.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
 /** Commit a fixture-owned app change so the native submit move has a real head to capture. */
 function commitAppChange(worktree, filename, env) {
@@ -78,10 +77,9 @@ async function viewHttpBox(t, existing = null) {
 
 test('[A2] real HTTP state, moves and refusals use the CLI and exact committed events', async (t) => {
   const box = await httpBox(t);
-  // This test never registers a runner, so its submit and next --verify must settle in the command: pin controller dispatch [P7].
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
+  // Pull dispatch is the default: the host's local runner takes the submit's gate and posts its receipt.
+  startFixtureLocalRunner(box.env, box.root);
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   const one = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-one');
   const two = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-two');
   const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'HTTP item', criterion: 'complete', specs: 'G1', brief: FIXTURE_BRIEF } });
@@ -112,6 +110,8 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   assert.equal(badAgent.document.error.code, 'NO_AGENT');
   const submitted = await box.call(box.path + '/moves', { verb: 'submit', item: id, agent: one.agent });
   assert.equal(submitted.status, 200, JSON.stringify(submitted.document));
+  await whenRunnerSettles(box.env, async () => (await box.call(box.path + '/items/' + id)).document.item.status !== 'claimed' || null,
+    { deadlineMs: 60_000, what: `the pulled gate of #${id}` });
   const review = await box.call(box.path + '/moves', { verb: 'next', agent: two.agent, args: { verify: true } });
   assert.equal(review.status, 200, JSON.stringify(review.document));
   assert.equal(review.document.result.item.item_id, id);
@@ -156,11 +156,9 @@ test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes
 
 test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', async (t) => {
   const box = await httpBox(t);
-  registerFixtureRunner(t, box);
-  // The stand-in runner serves the baseline inside the command, so pin controller dispatch as test 1 does [P7].
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
+  // Pull dispatch is the default: the host's local runner serves the baseline job that --wait blocks on.
+  startFixtureLocalRunner(box.env, box.root);
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   /** Build a finite check whose completion can be observed independently of the HTTP response. */
   function completedCheck(marker) {
     const script = `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'finished')`;
