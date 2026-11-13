@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { fixtureMachineSettings } from '../testkit.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import {
@@ -54,6 +55,8 @@ function commit(box, root, message) {
 /** A real Node test passes for either item alone and fails when their changes meet. */
 function fixture(helpers) {
   const box = helpers.project('node --test --test-reporter=tap web/landing.test.js');
+  // The landings and their gates settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   // This is an independent Node runner; an inherited worker context makes Node skip recursive runs.
   delete box.env.NODE_TEST_CONTEXT;
   mkdirSync(join(box.repo, 'web'), { recursive: true });
