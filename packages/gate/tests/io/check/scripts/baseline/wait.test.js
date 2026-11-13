@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-tree packages/gate/src/io/inventory.js packages/gate/src/io/check/baseline/worker.js */
 /** @pullboard-world-pin: clause 1 reads the real inventory.js and worker.js sources to prove they name no app path. */
 /** add --wait returns only after its baseline worker has exited, so no worker write races the next command [V2,H16]. */
 import assert from 'node:assert/strict';
