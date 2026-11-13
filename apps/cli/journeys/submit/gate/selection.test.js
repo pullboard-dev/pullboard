@@ -105,9 +105,8 @@ function pythonChildTap(path, { traceback = true, frame = true, prefixMarker = f
   ].join('\n');
 }
 
-// A pulled gate runs on the runner, which neither carries this fixture's listen-denial shim nor classifies a sandbox refusal in its
-// receipt; the classifier itself is proved below on recorded output. Reading it from the pulled receipt is the 0.9.5 follow-up.
-test('a child process listen denial reads as sandbox blocked [C7,B26]', { todo: 'the pulled gate receipt carries no SANDBOX_BLOCKED classification yet' }, async (t) => {
+// A pulled gate runs on the runner, whose receipt names a sandbox refusal; the gate job's receipt carries SANDBOX_BLOCKED [C7,B26].
+test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t) => {
   const box = await childFailureSubmitBox(t, childListenerTestSource());
   const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   const output = `${result.out}\n${result.err}`;
