@@ -21,7 +21,7 @@ export function comparisonHtml(observed, { locale = 'en-US', timeZone = 'UTC' } 
     return '<tr data-stats-comparison="'+esc(group ? group+'.'+key : key)+'" data-current="'+esc(JSON.stringify(a))+'" data-previous="'+esc(JSON.stringify(b))+'" data-change="'+esc(JSON.stringify(d))+'"><th scope="row">'+esc(label)+'</th><td>'+esc(figure(a,share))+'</td><td>'+esc(figure(b,share))+'</td><td>'+esc(figure(d,share,true))+'</td></tr>';
   };
   const totals = [['Landed','landed'],['Agent-hours','agentHours'],['Agent-hours / landing','agentHoursPerLanding'],['Idle share','idleShare',true],['Submits / item','submitsPerItem'],['Reject rate','rejectRate',true],['Coordinator shouts / landing','shoutsPerLanding']].map(row=>line(...row)).join('');
-  const idle = [['Nothing eligible','nothing-eligible'],['Held','held'],['Waiting for review family','review-family'],['Main red','main-red'],['Unknown','unknown']].map(([label,key])=>line('Idle: '+label,key,true,'idleReasons')).join('');
+  const idle = [['Nothing eligible','nothing-eligible'],['Held','held'],['Pending review family','review-family'],['Main red','main-red'],['Unknown','unknown']].map(([label,key])=>line('Idle: '+label,key,true,'idleReasons')).join('');
   const stages = [['Build','build'],['Rework','rework'],['Review wait','reviewWait'],['Review','review'],['Land','land']].map(([label,key])=>line('Stage: '+label,key,true,'stageShares')).join('');
   /** Minute precision and the caller's zone keep both ranges on the person's clock. */
   const stamp = value => new Date(value).toLocaleTimeString(locale, { timeZone, hour: 'numeric', minute: '2-digit' });
@@ -45,7 +45,7 @@ export function comparisonHtml(observed, { locale = 'en-US', timeZone = 'UTC' } 
     if (!measured(a) || !measured(b) || !measured(d)) return label+' is unmeasured for one or both windows.';
     return label+': '+compact(a,share,key)+(d===0?', unchanged.':', '+(d>0?'up':'down')+' from '+compact(b,share,key)+'.');
   }).join(' ');
-  const stageKeys = [['Build','build'],['Rework','rework'],['Waiting for review','reviewWait'],['Review','review'],['Landing','land']];
+  const stageKeys = [['Build','build'],['Rework','rework'],['Pending review','reviewWait'],['Review','review'],['Landing','land']];
   /** Shares already come normalized from the canonical API; no browser lifecycle replay is used. */
   const stack = (period, label) => {
     const shares = observed[period].stageShares;
