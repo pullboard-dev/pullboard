@@ -6,6 +6,7 @@ const OPTIONS = {
   claims: { type: 'boolean' },
   files: { type: 'string' },
   'force-size': { type: 'string' },
+  'not-duplicate-of': { type: 'string' },
   'accept-green': { type: 'string' },
   'split-coordinator': { type: 'boolean' },
   'expected-minutes': { type: 'string' },

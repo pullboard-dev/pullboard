@@ -22,6 +22,7 @@ import { recordWaits } from '../../index.js';
 import { judgeWaits } from '../../src/logic/budgets.js';
 import { waitBudgets } from '../../index.js';
 import { waitItemFields } from '../../index.js';
+import { waitKey } from '../../index.js';
 import { waitLines } from '../../index.js';
 import { waitsSnapshot } from '../../index.js';
 import { startServeSentinel } from '../../index.js';
@@ -363,4 +364,11 @@ test('clause 2: the 147 s, 155 s and 279 s runner-unavailable episodes read from
   const budgets = waitBudgets();
   const rows = [147_000, 155_000, 279_000].map(ageMs => ({ surface: 'runner-unavailable', key: 'h', holder: 'h', pid: null, ageMs, waiters: [] }));
   assert.deepEqual(judgeWaits(rows, budgets).map(row => row.breach), [false, false, false]);
+});
+
+test('a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {
+  const key = waitKey({ surface: 'board-write', key: '/Users/dev/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
+  assert.equal(key, 'board-write:.git/pullboard/board.sqlite:edit');
+  assert.doesNotMatch(key, /Open Source|\/Users/u, 'no absolute path or space survives');
+  assert.equal(waitKey({ surface: 'gate', key: 'gate:#7:gate' }), 'gate:gate:#7:gate', 'a key without a path is unchanged');
 });

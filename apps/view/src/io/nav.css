@@ -113,6 +113,10 @@
 @media (max-width: 900px) {
   :root[data-nav] .pin { display: none; }
 }
+@media (width < 480px) {
+  /* The phone tab keeps a 3px inset so its label never touches the highlight edge. */
+  :root[data-nav="top"] .tabs > .tab { padding: 0 3px; }
+}
 @media (max-width: 600px) {
   :root[data-nav] .crumb { display: none; }
   :root[data-nav] .top-find kbd { display: none; }

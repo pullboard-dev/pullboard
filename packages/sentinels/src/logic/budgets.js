@@ -107,9 +107,19 @@ export function judgeWaits(rows, budgets) {
   });
 }
 
-/** The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item. */
+/** An absolute path cut to its repo-relative tail: from its `.git` folder when it has one, else its last two parts. */
+function relativeTail(path) {
+  const parts = path.split('/').filter(Boolean);
+  const git = parts.indexOf('.git');
+  return parts.slice(git >= 0 ? git : Math.max(0, parts.length - 2)).join('/');
+}
+
+/**
+ * The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item.
+ * Paths are repo-relative so the key survives a checkout under a folder with a space, which a bar cannot carry [C7,#6763].
+ */
 export function waitKey(row) {
-  return `${row.surface}:${row.key ?? row.holder}`.replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid').replace(/\s+/gu, ' ').slice(0, 200);
+  return `${row.surface}:${row.key ?? row.holder}`.replace(/(?<![\w.])(?:\/[^/:]+){2,}/gu, relativeTail).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid').replace(/\s+/gu, ' ').slice(0, 200);
 }
 
 /** The code behind each surface: where a builder starts reading when the holder's own source is not known. */
