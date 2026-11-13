@@ -42,6 +42,8 @@ const scratch = [];
 const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit', 'run']);
 /** Budget: how long a fixture command waits for the loopback local runner to finish the jobs it offered. */
 const SETTLE_MS = 180_000;
+/** Budget: how long a settled submit's item may still read claimed while its gate verdict is applied. */
+const SUBMIT_GRACE_MS = 8_000;
 /** The model later agent commands run under; init and the exposed env carry none, as a scratch machine has no seat identity [C7,N26]. */
 const MACHINE_MODEL = 'Test Model';
 
@@ -84,14 +86,23 @@ function settleOfferedJobs(cwd, args, env) {
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
   if (!existsSync(file)) return;
   const deadline = Date.now() + SETTLE_MS;
+  // A receipt marks its job done in one transaction and the gate's verdict reaches the item just after, so a submit's item
+  // is read again for a short grace once the queue is empty: a gate that sent it back leaves it claimed, and that is the answer.
+  const submitted = args[0] === 'submit' && /^\d+$/u.test(args[1] ?? '') ? Number(args[1]) : null;
+  let graceUntil = 0;
   for (;;) {
     let open = false;
     // @pullboard-board-file journey: a read-only look at the job queue the real CLI wrote.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
-      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
-    } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return;
+      try {
+        open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get());
+        if (!open && submitted !== null) {
+          if (!graceUntil) graceUntil = Date.now() + SUBMIT_GRACE_MS;
+          open = db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(submitted)?.item_status === 'claimed' && Date.now() < graceUntil;
+        }
+      } finally { db.close(); }
+    } catch (error) { if (/unable to open|no such table/u.test(String(error?.message))) return; open = true; }
     // A command that offers a job without starting a runner (a verify, a land) still has one to take it.
     reviveFixtureLocalRunner(cwd, env);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
