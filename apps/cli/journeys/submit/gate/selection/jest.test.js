@@ -15,6 +15,7 @@ import { test } from 'node:test';
 import { configFromSource } from '../../../../../../packages/config/index.js';
 import { coordinatorLocal } from '../local.js';
 import { runLocal } from '../local.js';
+import { submitSettled } from '../local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
@@ -78,9 +79,9 @@ test('a jest project submits with its own gate [V4,C7]', async (t) => {
     put(box.root, 'src/a.js', 'export const value = 2;\n');
     commitAll(box, 'feat(core): change a jest project source [G1]');
 
-    const submitted = await runLocal(box, 'submit', '1', '--json');
+    const submitted = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(submitted.code, 0, submitted.err || submitted.out);
-    const receipt = JSON.parse(submitted.out);
+    const receipt = submitted.receipt;
     if (optedIn) {
       assert.equal(receipt.gate.full, false);
       assert.deepEqual(receipt.gate.files, ['test/a.test.js']);

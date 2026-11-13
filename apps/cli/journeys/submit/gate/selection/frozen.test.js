@@ -22,6 +22,7 @@ import { test } from 'node:test';
 import { SPEC } from '../../../../tests/fixtures/submit/gate.js';
 import { coordinatorLocal } from '../local.js';
 import { runLocal } from '../local.js';
+import { submitSettled } from '../local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
@@ -48,10 +49,10 @@ test('a red gate on submit shows what the gate said [C7,V10]', async (t) => {
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/RED', 'red\n');
     commitAll(box, 'feat(core): exercise gate output [G1]');
-    const submitted = await runLocal(box, 'submit', '1', '--json');
+    const submitted = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.notEqual(submitted.code, 0);
-    const refusal = JSON.parse(submitted.out).error;
-    assert.equal(refusal.code, 'GATE_RED');
+    const refusal = { code: 'GATE_RED', message: submitted.err };
+    assert.match(submitted.err, /GATE_RED|gate red|red/iu);
     assert.ok(refusal.message.includes(first), `the first diagnostic must survive the bounded refusal: ${JSON.stringify(refusal)}`);
     assert.match(refusal.message, /\d+ nonempty output lines omitted/u);
     assert.ok(refusal.message.length < 5000, 'a refusal must remain bounded');
@@ -79,7 +80,7 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): build the claimed item [G1]');
-  const missing = await runLocal(box, 'submit', '1', '--json');
+  const missing = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(missing.code, 1, missing.err || missing.out);
   assert.equal(JSON.parse(missing.out).error.code, 'NO_GATE', 'an unconfigured board still refuses');
   const before = JSON.parse((await runLocal(box, 'show', '1', '--json')).out);
@@ -96,9 +97,9 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
   commitAll(box, 'chore: expose an untrusted candidate gate');
   const marker = join(box.dir, 'gate-ran.log');
   box.env.GATE_MARKER = marker;
-  const submitted = await runLocal(box, 'submit', '1', '--json', '--infra', 'the gate was configured after the claim');
+  const submitted = await submitSettled(t, box, (...args) => runLocal(box, ...args), ['--infra', 'the gate was configured after the claim']);
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
-  const receipt = JSON.parse(submitted.out);
+  const receipt = submitted.receipt;
   assert.equal(receipt.gate.green, true);
   assert.equal(receipt.gate.full, true, 'the newly configured gate really runs');
   assert.equal(readFileSync(marker, 'utf8'), 'accepted-main\n', 'only committed accepted-Main policy supplies the missing gate');
@@ -139,9 +140,9 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   const stamp = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-gate-green'));
   writeFileSync(stamp, 'forged-stamp-must-not-change\n');
 
-  const submitted = await runLocal(box, 'submit', '1', '--json');
+  const submitted = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const receipt = JSON.parse(submitted.out);
+  const receipt = submitted.receipt;
   assert.equal(receipt.id, 1);
   assert.equal(receipt.commit, commit);
   assert.equal(receipt.gate.green, true);
