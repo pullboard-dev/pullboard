@@ -34,14 +34,14 @@ test('Spec and Doctrine selection keeps local decisions, inherited defaults and 
   const before = JSON.stringify(rows);
   const spec = ruleListModel(rows, { kind: 'spec', filter: 'decide', selectedId: 'G2', approvalIds: ['G3'],
     feedback: { id: 'missing', next: 'G4' } });
-  assert.deepEqual(spec.shown.map(row => row.id), ['G1', 'G3', 'G4', 'G5']);
+  assert.deepEqual(spec.shown.map(row => row.id), ['G1', 'G5'], 'an Approved row, in Git or not, never waits for a ruling');
   assert.equal(spec.nextSelectedId, 'G1', 'a filtered selection falls back to the first visible row');
-  assert.equal(spec.feedbackId, 'G4', 'feedback follows its explicit visible next row');
-  assert.deepEqual([...spec.sectionCounts], [['Goals', 1], ['Rules', 2], ['Defaults', 1]]);
-  assert.deepEqual(spec.counts, { decide: 4, defaults: 0, all: 5, approved: 2 });
+  assert.equal(spec.feedbackId, 'G1', 'feedback falls back to the first visible row');
+  assert.deepEqual([...spec.sectionCounts], [['Goals', 1], ['Defaults', 1]]);
+  assert.deepEqual(spec.counts, { decide: 2, defaults: 0, all: 5, approved: 2 });
   assert.equal('defaults' in spec.labels, false, 'Spec never advertises inherited Doctrine defaults');
   const doctrine = ruleListModel(rows, { kind: 'doctrine', filter: 'decide', approvalIds: ['G3'] });
-  assert.deepEqual(doctrine.shown.map(row => row.id), ['G1', 'G4']);
+  assert.deepEqual(doctrine.shown.map(row => row.id), ['G1']);
   assert.equal(doctrine.counts.defaults, 1);
   assert.equal(doctrine.labels.defaults, 'To review');
   const defaults = ruleListModel(rows, { kind: 'doctrine', filter: 'defaults' });
