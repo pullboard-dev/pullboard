@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
@@ -19,6 +20,7 @@ import { fetchFresh } from './http.js';
 import { closeBoard } from '../../../lib/index.js';
 import { createApiHandler } from '../../../../packages/api/index.js';
 import { jobQueueCall } from '../../../../packages/api/index.js';
+import { GATE_RECEIPT } from '../../src/io/submit/pull.js';
 
 /** Accepted main's stand-in tooling: each part records its step, the job that ran it and its pid in the checkout it judged, or in PULLBOARD_FIXTURE_STEPS when a runner's checkout is a worktree. */
 export const TOOLING = {
@@ -165,4 +167,46 @@ export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_0
     // Each new process is its own pause: its startup takes longer than a seat takes to offer its job.
     if (served.code !== 0 || !/nothing to claim/u.test(served.output) || Date.now() > until) return served;
   }
+}
+
+/**
+ * The board's job queue served on loopback, as the board API serves it, and a small runner client of it: claim, read the
+ * request, fetch the candidate from the trunk remote into its own cache, run the job's argv with the request's input
+ * on stdin, and post one receipt. Why in the fixture: the shipped runner loop is #5690's; the pull journeys share this one client and stay off it.
+ */
+export async function loopbackRunner(t, box) {
+  const { board, call } = await pullQueue(t, box, { queue: (current, body) => jobQueueCall(current.db, body, { mode: 'pull' }) });
+  const env = { ...box.env };
+  for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_')) delete env[key];
+  /** Claim one job and check its candidate out; null when the queue is empty. */
+  const take = async runner => {
+    const { claim } = await call({ action: 'claim', runner, capabilities: ['node22'] });
+    if (!claim) return null;
+    const held = { job: claim.job, runner, token: claim.token };
+    const input = await call({ action: 'request', ...held });
+    const folder = join(box.runnerHome, claim.job.replace(/[^\w.-]/gu, '-'));
+    execFileSync('git', ['clone', '-q', '--no-checkout', '--no-tags', box.repo, folder], { env });
+    execFileSync('git', ['fetch', '-q', '--no-tags', 'origin', `refs/pullboard/gate/${input.item}`], { cwd: folder, env });
+    execFileSync('git', ['-c', 'advice.detachedHead=false', 'checkout', '-q', '--detach', input.candidate], { cwd: folder, env });
+    return { held, input, folder };
+  };
+  /** Run a taken job's argv in its checkout and post its one receipt; observe() runs on each event the job's process emits. */
+  const run = async ({ held, input, folder }, observe = () => {}) => {
+    const { run: argv, input: stdin } = input.request;
+    const child = spawn(argv[0] === 'node' ? process.execPath : argv[0], argv.slice(1), { cwd: folder, env: { ...env, PULLBOARD_FIXTURE_JOB: held.job }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const out = [];
+    // Each step a part records is written while the job's processes are alive, so a sample there sees them running.
+    const steps = watch(join(folder, '.git'), observe);
+    child.once('spawn', observe);
+    child.stdout.on('data', chunk => { out.push(chunk); observe(); });
+    child.stderr.on('data', chunk => { out.push(chunk); observe(); });
+    child.stdin.end(JSON.stringify(stdin));
+    const status = await new Promise(done => child.once('close', done)).finally(() => steps.close());
+    const line = Buffer.concat(out).toString('utf8').split('\n').find(row => row.startsWith(GATE_RECEIPT));
+    assert.ok(line, `job ${held.job} printed no receipt:\n${Buffer.concat(out).toString('utf8').slice(-4000)}`);
+    const gate = JSON.parse(line.slice(GATE_RECEIPT.length));
+    await call({ action: 'receipt', ...held, receipt: { status, gate } });
+    return { job: held.job, folder, status, gate };
+  };
+  return { board, take, run };
 }
