@@ -275,15 +275,8 @@ function theme(pick) {
 }
 theme(keep('pb.theme'));
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => theme(keep('pb.theme')));
-/** Collapse the sidebar into the tab bar on a wide screen, or bring it back, as the person last chose. */
-function collapseSide(collapsed) {
-  if (collapsed) document.documentElement.dataset.side = 'collapsed';
-  else delete document.documentElement.dataset.side;
-  $('side-toggle').setAttribute('aria-pressed', String(collapsed));
-  $('side-toggle').title = collapsed ? 'Show the project list' : 'Collapse the project list';
-  $('side-toggle').setAttribute('aria-label', $('side-toggle').title);
-}
-collapseSide(keep('pb.side') === 'collapsed');
+/** The navigation sits at the top (#6614): the project list is always the switcher's dropdown, never a docked sidebar. */
+document.documentElement.dataset.side = 'collapsed';
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
