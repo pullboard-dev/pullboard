@@ -12,8 +12,10 @@ import {
   serveApi,
 } from '../../../../../packages/api/index.js';
 import { apiBoards } from '../../../../../packages/api/index.js';
+import { poolHandlers } from '../../../../../packages/api/index.js';
 import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
 import { servedModuleMoved } from '../../../../../packages/drive/index.js';
+import { startLoopWatchdog } from '../../../../../packages/drive/index.js';
 import { announceListening } from '../../../../../packages/drive/index.js';
 import { catchListeners } from '../../../../../packages/drive/index.js';
 import { inheritedListener } from '../../../../../packages/drive/index.js';
@@ -88,7 +90,7 @@ export async function serveHere(io, values) {
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
   const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
-    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url }));
+    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog }));
   const api = listening.value;
   if (inherited) announceListening();
   traceServeStartup('serve-listen-ready');
@@ -148,7 +150,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
-    refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
+    refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
     const unread = projects().filter(project => !ids.has(project.root));
     if (unread.length) for (const board of apiBoards(() => unread, ctx.allowSchemaUpgrade, openers)) ids.set(board.root, board.id);
@@ -165,6 +167,18 @@ export async function loopbackBoardApi(io, { projects, secret }) {
 export function boardStatePorts() {
   return { viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead },
     snapshotStore: { load: loadKeyedResult, save: saveKeyedResult, saved: savedKeyedResults } };
+}
+
+/**
+ * The ports the API's handler pool workers run with: the native board openers, and the gate's main comparison and
+ * main-test and baseline recorders a posted receipt reaches; provided inside each worker thread, which cannot be
+ * handed functions from the request thread [A2,C7].
+ */
+export function boardHandlerPorts({ isMain } = {}) {
+  provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideMainTestRecorder(recordMainTestReceipt);
+  provideBaselineRecorder(recordPulledBaseline);
+  return { handlers: poolHandlers({ boardOpeners: { openBoard, openBoardForRead } }, { isMain }) };
 }
 
 /** Run `pullboard serve` and return its exit code. */
