@@ -11,6 +11,7 @@ import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
+import { ruleLine } from '../../../../../packages/doctrine/index.js';
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
@@ -104,6 +105,7 @@ ${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
 ${specFailureFiles}
 ${fitReceipt}
+${ruleLine}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
 let light = null, gate = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: red phases carry no cases */ }
@@ -304,7 +306,9 @@ else {
   if (analysis.refused) refusals.push({ part: 'analysis', ...analysis.refused });
   // A lane-ownership finding is data, not a refusal: the proof still runs, and the board routes green proof to the owners [B3,L1,P7].
   const ownership = analysis.authorization?.ownership;
-  receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
+  receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null,
+    // Each doctrine rule's count line rides first in the notes, as the controller submit printed it ("doctrine: Q1 · 1, was 2 · holding") [D1,D3,C7].
+    notes: [...(Array.isArray(analysis.doctrine) ? analysis.doctrine.map(rule => 'doctrine: ' + ruleLine(rule)) : []), ...(analysis.notes ?? [])].slice(0, 20),
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),

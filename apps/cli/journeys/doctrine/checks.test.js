@@ -83,6 +83,12 @@ async function settled(t, box, web, id) {
   return settleSubmit(t, box, JSON.parse(sent.out));
 }
 
+/** The item's thread as text, where the board records a pulled gate's refusal-trial lines [C7]. */
+async function threadText(box, id) {
+  const shown = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json', '--no-next')).out);
+  return shown.thread.map(row => row.text ?? '').join('\n');
+}
+
 /** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
 function assertDoctrineReport(output, expected) {
   const text = output.endsWith('\n') ? output.slice(0, -1) : output;
@@ -101,10 +107,10 @@ function editRule(box, from, to) {
   return box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
 }
 
-test("clause 1: an uncountable doctrine check refuses the pulled gate by name [D1,D3]", async t => {
+test("clause 1: a doctrine rule's check holds its count [D1,D3,C7]", async t => {
   const box = await checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
 
-  // A check that exits other than 0 or 1 cannot count, so the gate refuses by name.
+  // A check that exits other than 0 or 1 cannot count, so it refuses by name.
   rmSync(join(box.web, 'web', 'keep.txt'));
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): drop the keep file [G1]');
@@ -113,27 +119,13 @@ test("clause 1: an uncountable doctrine check refuses the pulled gate by name [D
   const refusal = uncounted.gate.analysis.refusals.find(row => row.part === 'doctrine');
   assert.equal(refusal?.code, 'RATCHET_UNCOUNTED');
   assert.match(refusal.message, /Q4 The keep file stays\. cannot count: its check exited 3/);
-});
 
-test("clause 1: a doctrine rule's check holds its count [D1,D3]", { skip: 'PULL_GAP: un-skipped by #7104' }, async () => {
-  const box = await checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
-
-  // A check that exits other than 0 or 1 cannot count, so it refuses by name.
-  rmSync(join(box.web, 'web', 'keep.txt'));
-  box.git(box.web, 'add', '-A');
-  box.git(box.web, 'commit', '-q', '-m', 'feat(web): drop the keep file [G1]');
-  const uncounted = await box.inProcess(box.web, 'submit', '1');
-  assert.match(uncounted.err, /RATCHET_UNCOUNTED/);
-  assert.match(uncounted.err, /Q4 The keep file stays\. cannot count: its check exited 3/);
-  assert.equal(uncounted.code, 1, uncounted.out);
-
-  // A rise reports what it would refuse during this rule's twenty-clean-gate trial.
-  assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0, 'the refused uncounted check reopened item 1');
+  // A rise reports what it would refuse during this rule's twenty-clean-gate trial; the red pulled gate left item 1 claimed.
   commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
-  const rose = await box.inProcess(box.web, 'submit', '1');
-  const roseOutput = `${rose.out}${rose.err}`;
+  const rose = await settled(t, box, box.web, 1);
+  const roseOutput = `${rose.gate.analysis.notes.join('\n')}\n${await threadText(box, 1)}`;
   assert.doesNotMatch(roseOutput, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
-  assert.equal(rose.code, 0, rose.err);
+  assert.equal(rose.gate.green, true, JSON.stringify(rose.gate.analysis));
   assert.match(roseOutput, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
   assert.match(roseOutput, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
   assert.match(roseOutput, /web\/b\.html:1:TODO three/);
@@ -142,9 +134,9 @@ test("clause 1: a doctrine rule's check holds its count [D1,D3]", { skip: 'PULL_
   // A later gate reports a new per-file problem even when the total falls.
   const gainedItem = await nextWebItem(box, 'Clear the old markers');
   commitWebAt(box, gainedItem.web, { 'a.html': 'done\n', 'b.html': 'TODO three\n' }, 'feat(web): clear the old markers [G1]');
-  const gained = await box.inProcess(gainedItem.web, 'submit', String(gainedItem.id));
-  const gainedOutput = `${gained.out}${gained.err}`;
-  assert.equal(gained.code, 0, gained.err);
+  const gained = await settled(t, box, gainedItem.web, gainedItem.id);
+  const gainedOutput = await threadText(box, gainedItem.id);
+  assert.equal(gained.gate.green, true, JSON.stringify(gained.gate.analysis));
   assert.match(gainedOutput, /would refuse RATCHET_ROSE \(report-only, 1\/20 clean gates\)/);
   assert.match(gainedOutput, /web\/b\.html gains 1 problem/);
   assert.match(gainedOutput, /web\/b\.html:1:TODO three/);
@@ -152,9 +144,9 @@ test("clause 1: a doctrine rule's check holds its count [D1,D3]", { skip: 'PULL_
   // A fall passes and is shown as N, was M.
   const fellItem = await nextWebItem(box, 'Finish the page');
   commitWebAt(box, fellItem.web, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
-  const fell = await box.inProcess(fellItem.web, 'submit', String(fellItem.id));
-  assert.equal(fell.code, 0, fell.err);
-  assert.match(fell.out, /Q1 Web pages carry no TODO markers\. · 1, was 2 · holding/);
+  const fell = await settled(t, box, fellItem.web, fellItem.id);
+  assert.equal(fell.gate.green, true, JSON.stringify(fell.gate.analysis));
+  assert.ok(fell.gate.analysis.notes.includes('doctrine: Q1 Web pages carry no TODO markers. · 1, was 2 · holding'), fell.gate.analysis.notes.join('\n'));
   const report = await box.inProcess(fellItem.web, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
   assertDoctrineReport(report.out, [
@@ -181,13 +173,15 @@ test("clause 1: a doctrine rule's check holds its count [D1,D3]", { skip: 'PULL_
   assert.equal(signed.status, 0, `a raise the person approved commits: ${signed.stdout}${signed.stderr}`);
 });
 
-test("a doctrine rule's check holds its count in watch mode and nightly [D1,D3]", async t => {
+test("a doctrine rule's check holds its count in watch mode and nightly at submit [D1,D3,C7]", async t => {
   const box = await checkedProject('count: 0 | mode: watch',
     ['- Q2 [approved, must] Web pages stay TODO-free overnight. | gate: check grep -rn TODO web | count: 3 | runs: nightly']);
   commitWeb(box, { 'b.html': 'TODO three\n' }, 'feat(web): add a page [G1]');
   const watched = await settled(t, box, box.web, 1);
-  assert.equal(watched.gate.green, true, 'a watched rule and a nightly rule never refuse a submit');
+  const notes = watched.gate.analysis.notes.join('\n');
   assert.doesNotMatch(JSON.stringify(watched.gate.analysis), /Q2 Web pages/, 'a nightly rule does not run at submit');
+  assert.equal(watched.gate.green, true, JSON.stringify(watched.gate.analysis));
+  assert.match(notes, /^doctrine: Q1 Web pages carry no TODO markers\. · 3, was 0 · watching$/m);
   const report = await box.inProcess(box.web, 'doctrine', 'check');
   assert.equal(report.code, 0, 'a watched rule never fails doctrine check');
   assert.match(report.out, /^Q1 Web pages carry no TODO markers\. · 3, was 0 · watching$/m);
@@ -198,49 +192,6 @@ test("a doctrine rule's check holds its count in watch mode and nightly [D1,D3]"
   const rose = await box.inProcess(box.web, 'doctrine', 'check');
   assert.equal(rose.code, 1, 'a rule that rose fails doctrine check');
   assert.match(rose.out, /^Q2 Web pages stay TODO-free overnight\. · 4, was 3 · rose$/m);
-});
-
-test("a doctrine rule's check holds its count in watch mode and nightly at submit [D1,D3]", { skip: 'PULL_GAP: un-skipped by #7104' }, async () => {
-  const box = await checkedProject('count: 0 | mode: watch',
-    ['- Q2 [approved, must] Web pages stay TODO-free overnight. | gate: check grep -rn TODO web | count: 3 | runs: nightly']);
-  commitWeb(box, { 'b.html': 'TODO three\n' }, 'feat(web): add a page [G1]');
-  const watched = await box.inProcess(box.web, 'submit', '1');
-  assert.doesNotMatch(`${watched.out}${watched.err}`, /Q2 Web pages/, 'a nightly rule does not run at submit');
-  assert.equal(watched.code, 0, watched.err);
-  assert.match(watched.out, /Q1 Web pages carry no TODO markers\. · 3, was 0 · watching/);
-  const report = await box.inProcess(box.web, 'doctrine', 'check');
-  assert.equal(report.code, 0, 'a watched rule never fails doctrine check');
-  assert.match(report.out, /^Q1 Web pages carry no TODO markers\. · 3, was 0 · watching$/m);
-  assert.match(report.out, /^Q2 Web pages stay TODO-free overnight\. · 3, was 3 · holding$/m, 'doctrine check runs the nightly rule');
-
-  // doctrine check reports a rule that rose and exits 1, with no submit involved.
-  commitWeb(box, { 'c.html': 'TODO four\n' }, 'feat(web): add another page [G1]');
-  const rose = await box.inProcess(box.web, 'doctrine', 'check');
-  assert.equal(rose.code, 1, 'a rule that rose fails doctrine check');
-  assert.match(rose.out, /^Q2 Web pages stay TODO-free overnight\. · 4, was 3 · rose$/m);
-});
-
-test("clause 2: a doctrine rule's check holds its count when its row is demoted [D1,D3]", async () => {
-  const box = await checkedProject('count: 2');
-  const file = join(box.repo, 'DOCTRINE.md');
-  const committed = readFileSync(file, 'utf8');
-
-  // A status-only demotion would switch the rule off, so it needs the person's approval too.
-  const demoted = editRule(box, 'Q1 [approved, must]', 'Q1 [draft, must]');
-  assert.notEqual(demoted.status, 0, 'an unsigned demotion is refused at commit');
-  assert.match(demoted.stderr, /Q1 takes its check out of force \(draft\) without the person's signature/);
-  writeFileSync(file, committed.replace(/^- Q1 .*\n/mu, ''));
-  box.git(box.repo, 'add', 'DOCTRINE.md');
-  const deleted = box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: drop the quality rule');
-  assert.notEqual(deleted.status, 0, 'deleting the rule is refused at commit');
-  assert.match(deleted.stderr, /approved row Q1 is missing/);
-  writeFileSync(file, committed);
-  box.git(box.repo, 'add', 'DOCTRINE.md');
-  assert.equal(box.git(box.repo, 'status', '--porcelain', '--', 'DOCTRINE.md'), '', 'main keeps the approved rule');
-
-  const report = await box.inProcess(box.web, 'doctrine', 'check');
-  assert.equal(report.code, 0, report.err);
-  assertDoctrineReport(report.out, 'Q1 Web pages carry no TODO markers. · 2, was 2 · holding');
 });
 
 test("clause 2: a doctrine rule's check holds its count when its row is demoted, shown at submit [D1,D3,C7]", async t => {
