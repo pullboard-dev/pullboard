@@ -62,7 +62,6 @@ async function linkedItems(box, name) {
   box.git(alpha.repo, 'switch', '-q', 'main');
   return alpha;
 }
-
 /** Poll Chrome's real target list until a modified anchor click opens its href in another tab. */
 async function targetForHref(profile, href) {
   const port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0].trim();
@@ -78,7 +77,7 @@ async function targetForHref(profile, href) {
 }
 
 test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for the real API, Chrome navigation and linked prose checks.
-  const box = machine(), alpha = await linkedItems(box, 'item-text-links');
+  const { box, alpha } = await sharedLinked();
   await withBrowser(box, async (chrome, server) => {
     await openAddress(chrome, server, '/items/2');
     const refs = JSON.parse(await chrome.stable(`JSON.stringify({
@@ -130,7 +129,7 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
 });
 
 test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for Chrome startup and native modified-click targets.
-  const box = machine(), alpha = await linkedItems(box, 'modified-item-link');
+  const { box, alpha } = await sharedLinked();
   const server = await startView(box);
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove native modified-click behavior');
@@ -193,7 +192,7 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
 test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { timeout: 90_000 }, async () => { // budget: hang ceiling for export, replay, click and reload.
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove exported address reloads');
-  const box = machine(), alpha = await linkedItems(box, 'snapshot-item-address');
+  const { box, alpha } = await sharedLinked();
   const folder = join(box.dir, 'snapshot');
   box.run(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
@@ -273,7 +272,7 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
 });
 test('every place in the view has its own address [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for the complete direct-address matrix.
   const box = machine(), alpha = await addressBoardLocal(box, 'alpha');
-  box.run(alpha.repo, 'shout', 'person', 'Address target shout.');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Address target shout.');
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'Address target shout.');
     assert.ok(shout?.shout_id);
