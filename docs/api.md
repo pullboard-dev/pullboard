@@ -471,6 +471,7 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards/:board/state?seen=N` | The board state, listing item summaries, including open coordinator requests and the unseen shout count since N |
 | `GET /api/v1/boards/:board/state?detail=full` | The same state with every item in full, which static view exports read |
 | `GET /api/v1/boards/:board/state?since=N` | What changed in the summary state since the snapshot this server sent at event N, and the new latest sequence |
+| `GET /api/v1/boards/:board/summary` | `{version: 1, summary}`: the board's counts (`building`, `awaiting`, `sentBack`, `open`, `verified`), the person's calls (`decisions`, `pending`, `drafts`, `holds`), `sequence` and `lastChange {at, eventId}`, under 2 KB however large the board, from the last built state without waiting for a rebuild. Each row of `GET /api/v1/boards` carries `summaryVersion: 1` when the server serves it |
 | `GET /api/v1/boards/:board/state?kept=1` | A snapshot from the state the server keeps, at once, even when a later write is still being built; a first load that then catches up through `since=N`. Refused with `since` |
 | `GET /api/v1/boards/:board/cost-analytics?window=today&#124;7d&#124;30d` | Private local Cost analytics for the selected window; unavailable to hosted and relay clients |
 | `GET /api/v1/boards/:board/proofs/:id` | One item’s full flow proof record, authenticated like board state |
