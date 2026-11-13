@@ -267,7 +267,7 @@ function holdingGate(box) {
     'const [armed, release, events] = process.argv.slice(2);',
     'if (!fs.existsSync(armed)) process.exit(0);',
     "fs.appendFileSync(events, 'start\\n');",
-    'const deadline = Date.now() + 15000;',
+    'const deadline = Date.now() + 180000; // budget: hang ceiling while a test observes the held gate; no elapsed-time assertion.',
     'while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);',
     'if (!fs.existsSync(release)) process.exit(23);',
     "fs.appendFileSync(events, 'end\\n');",

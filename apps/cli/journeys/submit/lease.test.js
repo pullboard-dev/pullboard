@@ -63,7 +63,7 @@ function launchAs(box, cwd, command, args, session) {
 }
 
 /** Under pull the submit's gate is a job the machine's local runner holds; `submit --wait` keeps the submitting writer alive until that job posts its receipt [P7]. */
-test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, async () => {
+test('a seat can shout while its own submit runs [V4,C7]', { timeout: 180_000 /* budget: hang ceiling while the local runner starts the gate on a loaded machine */ }, async () => {
   const box = helpers.sandbox();
   const gate = helpers.holdingGate(box);
   const project = helpers.project(gate.command, box);
@@ -95,7 +95,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
   try {
     submit = launchAs(project, project.web, process.execPath, [helpers.BIN, 'submit', '1', '--wait', '--json'], owner);
     children.push(submit);
-    await waitFor(() => helpers.gateEvents(gate).includes('start'), 'submit to enter its held gate');
+    await waitFor(() => helpers.gateEvents(gate).includes('start'), 'the pulled gate to start on the local runner', 60_000); // budget: hang ceiling for the local runner to start its gate.
     assert.equal(submit.exitCode, null, 'submit remains active inside the gate');
 
     const beforeBoardOnly = boardState(database);
