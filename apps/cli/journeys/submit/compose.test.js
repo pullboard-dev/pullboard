@@ -23,6 +23,7 @@ import {
 import { planRowChange } from '../../../../packages/commits/light.js';
 import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import {
   runFixtureChild,
   runFixtureChildAsync,
@@ -44,7 +45,7 @@ async function completePlacementTrial(t, box) {
   writeFileSync(join(probe, file), 'export const probe = true;\n');
   box.git(probe, 'add', file);
   box.git(probe, 'commit', '-q', '-m', 'feat(view): observe placement trial [G1]');
-  assert.equal(success(box, probe, 'submit', String(id), '--wait').gate.green, true);
+  assert.equal((await settleSubmit(t, box, success(box, probe, 'submit', String(id), '--wait'))).gate?.green, true);
   const head = box.git(probe, 'rev-parse', 'HEAD');
   const main = box.git(box.repo, 'rev-parse', 'main');
   const tool = relative => pathToFileURL(resolve(import.meta.dirname, '../../../..', relative)).href;
@@ -103,7 +104,7 @@ test('a view commit creating its own file and one plan row passes the hook and n
   const box = await ownPlacementFixture(t);
   box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
   rmSync(box.marker, { force: true });
-  const submitted = success(box, box.view, 'submit', String(box.id), '--wait');
+  const submitted = await settleSubmit(t, box, success(box, box.view, 'submit', String(box.id), '--wait'));
   assert.equal(submitted.gate?.green, true, JSON.stringify(submitted).slice(0, 600));
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
@@ -159,7 +160,7 @@ test('native view submit validates its core companion placement on the composed 
   box.git(view, 'restore', '--', 'packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan');
   assert.equal(box.git(view, 'status', '--porcelain'), '', 'the builder keeps its clean original source');
   success(box, box.repo, 'patch', 'attach', String(id), patch, '--key', 'core-placement', '--author', author, '--source', source);
-  const submitted = success(box, view, 'submit', String(id), '--wait');
+  const submitted = await settleSubmit(t, box, success(box, view, 'submit', String(id), '--wait'));
   assert.equal(submitted.gate.green, true);
   assert.equal(submitted.gate.companion.source, source);
   assert.notEqual(submitted.gate.companion.commit, source, 'the actual gate proves the composed source');
