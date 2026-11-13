@@ -57,6 +57,7 @@ export { boardEnginePorts } from './src/io/board/ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap } from './src/io/board/milestones.js';
 export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort } from './src/io/board/sqlite.js';
 export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
+export { INTENT_GRACE_MS, RUN_QUEUED_EVENT, boardRun, recordQueuedRun, queueRun, reconcileQueued } from './src/io/board/run.js';
 export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/logic/board/authority.js';
 export { activityDeliveryState as board_activity_delivery_store_activityDeliveryState, activityInterruptWasDelivered as board_activity_delivery_store_activityInterruptWasDelivered, rejectionRecipient, recordActivityDelivery as board_activity_delivery_store_recordActivityDelivery, actOnActivity as board_activity_delivery_store_actOnActivity } from './src/logic/board/activity/delivery.js';
 export { itemActivity, activityEventDetail, activityInterests, isActivityNews, projectAgentActivity } from './src/logic/board/activity/feed.js';
