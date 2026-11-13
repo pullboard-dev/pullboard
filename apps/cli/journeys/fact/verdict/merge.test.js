@@ -21,6 +21,7 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { captureMergeOnly } from '../../../../../packages/merge/index.js';
 import { mergeOnlyBasis } from '../../../../../packages/merge/index.js';
 import {
@@ -108,6 +109,8 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
   box.git(box.web, 'reset', '--hard', head);
   const pending = state(box, id);
   succeeds(box, box.web, 'submit', String(id));
+  // The carry completes with the pulled gate job's receipt, which can land just after the settled command returns [P7,C7].
+  await waitForCondition(() => state(box, id).item.item_status === 'verified', `the pulled gate carries #${id}`, { signal: AbortSignal.timeout(150_000) });
   const carried = state(box, id);
   assert.equal(carried.item.item_status, 'verified', 'a gated merge-only resubmission keeps its original acceptance');
   assert.equal(carried.item.item_commit, head);

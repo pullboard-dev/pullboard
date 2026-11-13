@@ -1,6 +1,8 @@
 /** Machine-wide settings shared by every Pullboard checkout on this machine. */
 import {
   chmodSync,
+  existsSync,
+  statSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -17,7 +19,10 @@ import {
   updateRunnerSettings,
 } from '../../../resources/index.js';
 import { validateRunner } from '../logic/settings.js';
+import { PERSON_SET } from '../logic/settings.js';
+import { parsePersonSet } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
+import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
@@ -146,6 +151,22 @@ export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);
   const current = loadMachineSettings();
   const next = { ...current, gate: { ...current.gate, runnerWaitMs: milliseconds } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
+ * Store one runner's rate card in machine settings, refusing a card with a missing or invalid field.
+ * Why: a later cost figure is only as honest as its inputs, so only a whole, valid card is stored.
+ *
+ * @param {string} host - The runner host the card belongs to.
+ * @param {unknown} card - { price, months, watts, kwhPrice }.
+ * @returns {object} The settings now stored.
+ */
+export function setRunnerRate(host, card) {
+  const parsed = parseRunnerRate(card, host);
+  const current = loadMachineSettings();
+  const next = { ...current, runnerRates: { ...current.runnerRates, [host]: parsed } };
   writeMachineSettings(next);
   return next;
 }
@@ -292,6 +313,29 @@ function writeMachineSettings(settings) {
     writeFileSync(temporary, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
+}
+
+/**
+ * Set one plain-valued machine setting from what a person typed, or clear it with `off`, keeping every other setting.
+ * A value the loader refuses is rolled back, so a typo never leaves settings.json unreadable [O5,O6,N26].
+ */
+export function setPersonSetting(key, text) {
+  const value = parsePersonSet(key, text);
+  if (PERSON_SET[key] === 'folder' && value !== undefined && !statSync(value, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `scratch must be an absolute folder that exists, or off; run pullboard settings scratch <folder>|off`);
+  }
+  const settings = structuredClone(loadMachineSettings());
+  const names = key.split('.');
+  const parents = names.slice(0, -1).reduce((node, name) => (node[name] = node[name] && typeof node[name] === 'object' ? node[name] : {}), settings);
+  if (value === undefined) delete parents[names.at(-1)]; else parents[names.at(-1)] = value;
+  const file = machineSettingsFile();
+  const before = existsSync(file) ? readFileSync(file) : null;
+  writeMachineSettings(settings);
+  try { loadMachineSettings(); } catch (error) {
+    if (before) writeFileSync(file, before, { mode: 0o600 }); else rmSync(file, { force: true });
+    throw error;
+  }
+  return settings;
 }
 
 /** Persist an explicitly configured canary without changing any board's credentials or project policy. */

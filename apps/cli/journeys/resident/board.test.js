@@ -128,11 +128,11 @@ before(() => {
   chmodSync(join(shims, 'pullboard'), 0o755);
   const hook = moduleHook(dir);
   /** Run the copied CLI in a folder and return its output, exit code and wall time. */
-  const runIn = (cwd, args, { modules = false } = {}) => {
+  const runIn = (cwd, args, { modules = false, maxBuffer } = {}) => {
     if (modules) writeFileSync(env.RESIDENT_MODULE_LOG, '');
     const started = performance.now();
     // Process-level: the thin client and the resident process it reaches are the subject, so every call is a real child.
-    const result = runFixtureChild(process.execPath, [...(modules ? ['--import', hook] : []), bin, ...args], { cwd, env, encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [...(modules ? ['--import', hook] : []), bin, ...args], { cwd, env, encoding: 'utf8', ...(maxBuffer === undefined ? {} : { maxBuffer }) });
     const ms = performance.now() - started;
     const loaded = modules ? [...new Set(readFileSync(env.RESIDENT_MODULE_LOG, 'utf8').split('\n').filter(Boolean))] : null;
     return { status: result.status, stdout: result.stdout, stderr: result.stderr, ms, loaded };
@@ -512,4 +512,15 @@ test('clause 2: pullboard test --status is served by the resident process, a thi
   const warm = fx.runIn(fx.repo, ['test', '--status', 'no-such-run'], { modules: true });
   assert.ok(warm.loaded.length < 20, `test --status was served warm (client loaded ${warm.loaded.length} modules)`);
   assert.match(warm.stdout + warm.stderr, /no-such-run|run/u);
+});
+
+test('clause 1: stats --json answers through the warm resident process with testWallBudgets [C7,#6415]', () => {
+  fx.awaitResident();
+  // The scaled board's document is over spawnSync's default 1 MB buffer, so this child gets room to answer.
+  const warm = fx.runIn(fx.repo, ['stats', '--json'], { modules: true, maxBuffer: 256 * 1024 * 1024 });
+  assert.equal(warm.status, 0, `${warm.stderr}`);
+  const document = JSON.parse(warm.stdout);
+  assert.ok(document.testWallBudgets && typeof document.testWallBudgets === 'object', 'the resident answer carries testWallBudgets');
+  assert.ok(document.stats, 'the resident answer carries the board stats');
+  assert.ok(warm.loaded.length < 20, `stats --json was served warm (client loaded ${warm.loaded.length} modules)`);
 });

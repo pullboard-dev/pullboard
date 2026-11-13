@@ -167,22 +167,10 @@ test('the submit gate counts a red as main\'s own only when main\'s receipt name
   assert.equal(matchingMainFailures([failing('case one')], { main: 'm', files: [] }, 'm'), null, 'no receipt never excuses a red');
 });
 
-/** The submit command's criterion-red block: from the red frozen check's cases to the Main red repair fallback. */
-function criterionBlock() {
-  const source = readFileSync(join(import.meta.dirname, '../../src/io/commands/submit.js'), 'utf8');
-  const start = source.indexOf('if (criterionCases) {');
-  const end = source.indexOf('// A case an open Main red repair', start);
-  assert.ok(start > 0 && end > start, 'the submit gate still has its criterion-red block');
-  return { source, block: source.slice(start, end) };
-}
-
-test('clause 1: the submit gate reads main-red status from the keyed receipt [C7]', async () => {
-  const { block } = criterionBlock();
-  assert.match(block, /criterionMainReceipts\(\{ root, db: board\.db, main: mainFailureBase, cases: criterionCases \}\)/u, 'submit classifies criterion reds through the receipt lookup');
-  assert.doesNotMatch(block, /compareMainFailures/u, 'submit no longer runs the refresh comparison for criterion reds');
+test('clause 1: the main-red lookup reads status from the keyed receipt [C7]', async () => {
   const helper = readFileSync(join(import.meta.dirname, '../../src/io/submit/receipt.js'), 'utf8');
   assert.match(helper, /import \{ classifyGateRed \} from '..\/..\/..\/..\/..\/packages\/drive\/index.js'/u, 'the lookup is the drive cell\'s classifyGateRed');
-  assert.deepEqual([...helper.matchAll(/^import \{ (\w+) \}/gmu)].map((match) => match[1]), ['classifyGateRed', 'mainReceipts'], 'the lookup imports no measuring or process code');
+  assert.deepEqual([...helper.matchAll(/^import \{ (\w+) \}/gmu)].map((match) => match[1]), ['classifyGateRed', 'mainReceipts', 'nearbyMainClass'], 'the lookup imports no measuring or process code');
 
   const box = mainRepo('submit-lookup', { [at.file]: { result: 'red', failures: [failing('case one')], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: 'mr-9' } });
   withBoard('submit-lookup', (db) => {
@@ -207,9 +195,6 @@ test('clause 1: the submit gate reads main-red status from the keyed receipt [C7
 });
 
 test('clause 2: a main-receipt-only red is main\'s own red [C7]', () => {
-  const { source, block } = criterionBlock();
-  assert.match(block, /criterionReceipts = lookup\.classes\.map/u, 'submit keeps each file\'s main receipt');
-  assert.match(source, /criterionMatched && criterionReceipts\.length \? \{ mainRedReceipts: criterionReceipts \}/u, 'the gate result names the receipt ids');
 
   const box = mainRepo('submit-classify', { [at.file]: { result: 'red', failures: [failing('case one'), failing('case two')], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: 'mr-7' } });
   withBoard('submit-classify', (db) => {

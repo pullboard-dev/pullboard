@@ -1,4 +1,5 @@
 /** Bridge private provider attribution to authenticated numeric board moves [N2]. */
+import { performance } from 'node:perf_hooks';
 import { queueUsageCheckpoint } from './due.js';
 import { usageCheckpointInline } from './due.js';
 import { USAGE_BATCH_LIMIT } from './usage.js';
@@ -6,6 +7,13 @@ import { publicUsage } from './usage.js';
 import { usageCheckpoint } from './ledger.js';
 import { sharedSessionTotals } from './shared.js';
 import { storedSeatUsage } from '../cost.js';
+
+/** The batch the first drain write carries, and the lock-hold budget each batch is sized to stay under (the 1 s bar, with margin). */
+const USAGE_WRITE_START = 25;
+const USAGE_WRITE_BUDGET_MS = 400;
+
+/** Let other writers take the board between two batches of a drain. */
+const pause = () => new Promise(resolve => setTimeout(resolve, 5));
 
 /** Moves that end an item's usage: a merge or a withdrawal closes the claim of every seat that held it. */
 const CLOSING_MOVES = new Set(['merged', 'withdraw']);
@@ -45,7 +53,7 @@ function lifecycleIntervals(board, agent, now, lastEventId) {
  * A deferred checkpoint passes the move's own time, last board event and session environment, so it
  * attributes exactly what the in-line checkpoint would have at that move.
  */
-export async function publishUsage(ctx, board, { agent, item, operation }, { ordered, now = ctx.clock.now().getTime(), lastEventId = Number.MAX_SAFE_INTEGER, environment = process.env } = {}) {
+export async function publishUsage(ctx, board, { agent, item, operation }, { ordered, now = ctx.clock.now().getTime(), lastEventId = Number.MAX_SAFE_INTEGER, environment = process.env, drain = false } = {}) {
   const history = lifecycleIntervals(board, agent, now, lastEventId);
   // A closing move runs in the coordinator's shell, so it never lends that shell's session to the seat it closes.
   const closing = CLOSING_MOVES.has(operation);
@@ -55,13 +63,25 @@ export async function publishUsage(ctx, board, { agent, item, operation }, { ord
   // A claim only opens its private anchor: its own zero-length interval publishes at submit, release or refresh.
   // Attribution above reads private files before ordering; the actual writer records only numeric revisions.
   const pendingItems = changes.items.filter(change => operation !== 'claim' || change.item !== item);
-  const items = pendingItems.slice(0, USAGE_BATCH_LIMIT)
-    .map(change => ({ ...change, records: publicUsage(change.records) }));
-  const sharedSessions = changes.sharedSessions.slice(0, USAGE_BATCH_LIMIT - items.length)
-    .map(change => ({ ...change, records: publicUsage(change.records) }));
-  const published = items.length + sharedSessions.length;
-  if (published) await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]);
-  const pending = pendingItems.length + changes.sharedSessions.length - published;
+  const publish = [...pendingItems.map(change => ({ item: change })), ...changes.sharedSessions.map(change => ({ shared: change }))];
+  // The detached worker drains everything in short writes; a command's own checkpoint stays one batch [C7].
+  const limit = drain ? publish.length : Math.min(publish.length, USAGE_BATCH_LIMIT);
+  let size = drain ? USAGE_WRITE_START : limit, published = 0;
+  while (published < limit) {
+    const slice = publish.slice(published, published + Math.min(size, limit - published));
+    const items = slice.filter(entry => entry.item).map(({ item: change }) => ({ ...change, records: publicUsage(change.records) }));
+    const sharedSessions = slice.filter(entry => entry.shared).map(({ shared: change }) => ({ ...change, records: publicUsage(change.records) }));
+    const started = performance.now();
+    await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]);
+    published += slice.length;
+    if (!drain) continue;
+    // Each batch is its own write under the board lock, so one that nears the budget halves the next and a quick one doubles it;
+    // a stopped worker resumes at the first revision the board has not acknowledged, because the next run reads it back.
+    const took = performance.now() - started;
+    size = took > USAGE_WRITE_BUDGET_MS ? Math.max(1, size >> 1) : took * 2 < USAGE_WRITE_BUDGET_MS ? Math.min(USAGE_BATCH_LIMIT, size * 2) : size;
+    await pause();
+  }
+  const pending = publish.length - published;
   if (pending) ctx.io.err(`pullboard: USAGE_PENDING: published ${published} usage revisions in one batch; ${pending} remain for the next native claim, submit or release.`);
 }
 

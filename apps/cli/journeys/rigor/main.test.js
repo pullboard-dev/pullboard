@@ -3,6 +3,7 @@
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { REJECT_CLAUSE_ENGINE } from '../../../../packages/state/light.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -471,7 +472,7 @@ test('rigor reads old events by their structured fields only, never by their not
   assert.match(text.stdout, /^2 rejects and reopens carry no cause key; name one with --cause <key>/mu);
 });
 
-test('a cause key is checked, recorded on reject and reopen, and the person alone marks never-again [D1,V1,H16]', async () => {
+test('a cause key is checked, recorded on reject and reopen, and the person alone marks never-again [D1,V1,H16]', async (t) => {
   const box = await freshBoard();
   const board = history(box.file);
   const id = board.add('Checked');
@@ -508,7 +509,9 @@ test('a cause key is checked, recorded on reject and reopen, and the person alon
   // A submit with no change against the claim head is refused (EMPTY_SUBMIT), so the claim gets a commit.
   writeFileSync(join(box.repo, 'reopen-cause.txt'), 'the work\n');
   box.git('add', 'reopen-cause.txt'); box.git('commit', '-q', '-m', 'chore: work for the reopen cause fixture');
-  await json(box, 'submit', String(reopenItem.item_id), '--wait', '--no-next');
+  // Submit queues its gate job; wait for the local runner to post the receipt before the reopen reads the item as submitted.
+  const queued = await json(box, 'submit', String(reopenItem.item_id), '--no-next');
+  await settleSubmit(t, { ...box, run: async (_cwd, ...args) => { const ran = await box.runLocal(...args); return { code: ran.status, out: ran.stdout, err: ran.stderr }; } }, queued);
   refused(await box.runLocal('reopen', String(reopenItem.item_id), '--note', 'wrong bar', '--cause', 'wrong bar', '--json'), 'BAD_CAUSE', 'a reopen refuses a malformed cause');
   await json(box, 'reopen', String(reopenItem.item_id), '--note', 'the bar cites the wrong row', '--cause', 'row:G1');
   const reopened = (await json(box, 'log', String(reopenItem.item_id))).events.at(-1);

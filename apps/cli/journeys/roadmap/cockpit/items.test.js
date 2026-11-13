@@ -11,7 +11,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 
 import {
   SPEC,
@@ -24,17 +23,6 @@ import {
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
-
-/**
- * A machine whose gate settings pin controller dispatch: build() submits here and expects the gate held in the
- * submitting process, but with pull as the default (#6182-#6185) submit only queues a job and the item stays claimed.
- */
-function pinnedMachine() {
-  const box = machine();
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  return box;
-}
 
 /**
  * web-1 builds an item as the shared build() does, claiming and submitting through this process: the Git work and its
@@ -83,7 +71,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
   /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
   const stage = phase => console.log('roadmap-items-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
   const executable = chromeExecutable(); assert.ok(executable, 'Chrome is required for the roadmap header check.');
-  const box=pinnedMachine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
+  const box=machine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
   const names=['Landed A','Accepted A','Waiting A','Shipped B','Landed C','Accepted C','In review C','Building C','Approve the release','Held C','Withdrawn C','Landed D','Withdrawn D'];
   for(const [index,name] of names.entries()) await box.inProcess(alpha.repo,'add',index===9?'ops':'web',name,'--specs','G1','--criterion','The page renders.');
   /** Land through real Git and the ordinary board receipt; acceptance alone stays unlanded. */
@@ -153,7 +141,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
         assert.match(read.text,/5 to go.*1 of 6 landed/u);assert.doesNotMatch(read.text,/ left|5 remaining/u,'the approved count reads to go');assert.equal(read.releaseCount,'1/6','the header and Releases list share the summary total');assert.match(read.text,/1\.2 items an hour · 7 landed in the last 6 h, 7 in the last 2 h · done in about 6 days, [A-Za-z]+ (?:overnight|morning|afternoon|evening|night)/u);assert.match(read.text,/Rulings:.*#9 Approve the release/u);
         assert.deepEqual(read.legend,[['landed','1'],['landing','1'],['review','1'],['building','1'],['waiting','1'],['held','1']]);
         // The legend's words since aaeff395a3, as roadmap-summary-card.test.js reads them.
-        assert.deepEqual(read.legendText,['1 landed','1 accepted, landing','1 in review','1 building','1 waiting','1 held'],`${width}/${scheme}: every label is separated from its count by actual whitespace`);assert.equal(await chrome.stable(`${milestone('State summary')}.querySelector('.milestone-limit')?.textContent||''`),'',`${width}/${scheme}: the shared release header removes the extra total-and-limit line`);
+        assert.deepEqual(read.legendText,['1 landed','1 accepted, landing','1 in review','1 building','1 blocked','1 held'],`${width}/${scheme}: every label is separated from its count by actual whitespace`);assert.equal(await chrome.stable(`${milestone('State summary')}.querySelector('.milestone-limit')?.textContent||''`),'',`${width}/${scheme}: the shared release header removes the extra total-and-limit line`);
         // An entry declared inline-flex is a flex item of the legend, so Chrome reports its display as flex; card.test.js reads it the same way.
         const legendLayout=JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('State summary')}.querySelectorAll('[data-summary-state]')].map(entry=>{const nodes=[...entry.children],centers=nodes.map(node=>{const r=node.getBoundingClientRect();return r.top+r.height/2;});return {display:getComputedStyle(entry).display,align:getComputedStyle(entry).alignItems,color:getComputedStyle(entry).color,weight:getComputedStyle(nodes[1]).fontWeight,tags:nodes.map(node=>node.tagName),centers,height:entry.getBoundingClientRect().height};}))`));
         assert.ok(legendLayout.every(row=>['flex','inline-flex'].includes(row.display)&&row.align==='center'&&Number(row.weight)>=600&&row.tags.join(',')==='I,B,SPAN'&&row.centers.every(center=>Math.abs(center-row.centers[0])<.75)),`${width}/${scheme}: every entry aligns its dot, bold count and label: ${JSON.stringify(legendLayout)}`);
@@ -169,8 +157,8 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
       }
     }
     const ordered = JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('State summary')}.querySelectorAll('.milestone-item .id')].map(row => row.textContent))`));
-    // Open work follows the backend's queue positions, whatever the shuffled membership; accepted and landed items have none and follow it (36add4ed61, f8e8ce444a, b83469ff53; milestone/order.test.js reads the same).
-    assert.deepEqual(ordered, ['#7', '#8', '#9', '#10', '#6', '#5'], 'a milestone lists open work by backend queue position, then the unpositioned accepted and landed items, despite shuffled membership');
+    // Since #6841 a release lists building first, then in review and accepted, then ready, then held or blocked, then landed; within a group the backend's queue order stands, whatever the shuffled membership (36add4ed61, f8e8ce444a, b83469ff53).
+    assert.deepEqual(ordered, ['#8', '#7', '#6', '#9', '#10', '#5'], 'a milestone lists building, then in review and accepted, then ready, then held work, then landed items, despite shuffled membership');
     // Equal bounds read as one number, and the legend says waiting.
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.summary={...m.summary,estimate:{low:2.5,high:2.5}};render();return true;})()");
     const single=await chrome.stable(`${milestone('State summary')}.querySelector('.roadmap-completion')?.textContent||''`);
@@ -186,7 +174,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
     assert.equal(early.completion,'too few landings yet to estimate',`few landings say so instead of inventing a completion time: ${JSON.stringify(early)}`);
     assert.match(early.pace,/landed in the last 6 h/u,'the landed line stays beside the too-early words');
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.summary={...m.summary,estimate:{low:2.5,high:2.5},window:'6h',reason:null};render();return true;})()");
-    assert.equal(await chrome.stable(`${milestone('State summary')}.querySelector('[data-summary-state=waiting]').textContent.trim()`),'1 waiting','the legend says waiting');
+    assert.equal(await chrome.stable(`${milestone('State summary')}.querySelector('[data-summary-state=waiting]').textContent.trim()`),'1 blocked','the legend says blocked');
     // The API owns counts: changing held item summaries cannot change the supplied milestone summary.
     await chrome.stable("window.__originalItems=data.project.items;window.__originalRoadmapItems=data.project.milestones.find(m=>m.name==='State summary').items;data.project.items=data.project.items.map(item=>({...item,status:'open',stage:'open',merged:null,claim:null}));data.project.milestones.find(m=>m.name==='State summary').items=window.__originalRoadmapItems.map(item=>({...item,status:'open',state:'open'}));render();true");
     assert.equal(await chrome.stable(`${milestone('State summary')}.querySelector('[data-summary-state=building] b').textContent`),'1');

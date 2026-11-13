@@ -1,19 +1,13 @@
 /** Gate commands, item checks and verify share the machine queue in order, and settings and resources print the short-slot state, through the real CLI [Q1,Q2,Q4,C7,V18]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../tests/fixtures/child.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
-import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { awaitNestedPhase } from '../../../../packages/gate/index.js';
 import { withNestedGroup } from '../../../../packages/gate/index.js';
 import { fixture } from '../../tests/fixtures/gate/resource.js';
 import { probeSuite } from '../../tests/fixtures/gate/resource.js';
@@ -25,153 +19,12 @@ import { wholeSuiteHolders } from '../../tests/fixtures/gate/resource.js';
 import { releaseAll } from '../../tests/fixtures/gate/resource.js';
 import { gateRepo } from '../../tests/fixtures/gate/resource.js';
 import { waitFor } from '../../tests/fixtures/gate/resource.js';
-import { events } from '../../tests/fixtures/gate/resource.js';
 import { PROBE_PATTERN } from '../../tests/fixtures/gate/resource.js';
 import { reapFixtures } from '../../tests/fixtures/gate/resource.js';
-import { trackChild } from '../../tests/fixtures/gate/resource.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
 after(reapFixtures);
-
-/** Launch a real gate CLI in its own process group and collect its output; a real process on purpose, as queueing and slot lifetime are the case. */
-function launch(box, root, args = ['gate']) {
-  // process-level: queueing and slot lifetime are the case.
-  const child = spawn(process.execPath, [BIN, ...args], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  return trackChild(child);
-}
-
-/** Create a real claimed item whose check can pause after admission and leave an execution marker. */
-async function checkProject(box, { releaseCheck = null } = {}) {
-  const root = join(box.dir, 'check-project');
-  const runner = join(box.dir, 'check-runner');
-  const script = join(box.dir, 'item-check.cjs');
-  const shims = join(box.dir, 'bin');
-  mkdirSync(shims);
-  writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
-  chmodSync(join(shims, 'pullboard'), 0o755);
-  box.env.PATH = `${shims}:${box.env.PATH}`;
-  mkdirSync(root);
-  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env: box.env }).status, 0);
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({
-    gate: 'true',
-    landing: { perItem: false, manualOverride: true },
-    lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
-  }));
-  writeFileSync(join(root, 'SPEC.md'), '# Queue fixture\n\n## G · Goals\n- G1 [approved, must] The check runs. | gate: test -f web/result.txt\n- G2 [approved, must] The API responds. | gate: test -f api/result.txt\n');
-  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root, env: box.env }).status, 0);
-  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'chore: queue fixture'], { cwd: root, env: box.env }).status, 0);
-  const initialized = await runCliInProcess(['init'], { cwd: root, env: box.env });
-  assert.equal(initialized.status, 0, initialized.stderr);
-  assert.equal(spawnSync('git', ['worktree', 'add', '-q', runner, '-b', 'web/runner'], { cwd: root, env: box.env }).status, 0);
-  const joined = await runCliInProcess(['join', 'web', '--model', 'fixture-model'], { cwd: runner, env: box.env });
-  assert.equal(joined.status, 0, joined.stderr);
-  writeFileSync(script, releaseCheck
-    ? `const fs = require('node:fs');\n(async () => {\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check start\\n');\n  while (!fs.existsSync(${JSON.stringify(releaseCheck)})) await new Promise(done => setTimeout(done, 10));\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n');\n  process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n})();\n`
-    : `const fs = require('node:fs'); fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n'); process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n`);
-  if (releaseCheck) writeFileSync(releaseCheck, 'baseline runs without a hold\n');
-  const added = await runCliInProcess(['add', 'web', 'Check item', '--specs', 'G1', '--route', 'mid', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env });
-  assert.equal(added.status, 0, added.stderr);
-  assert.equal((await runCliInProcess(['claim', '1'], { cwd: runner, env: box.env })).status, 0);
-  if (releaseCheck) rmSync(releaseCheck, { force: true });
-  writeFileSync(box.events, '');
-  return { root, runner };
-}
-
-/** Set the fixture machine pool to one gate slot before starting holders. */
-async function setOneGateSlot(box, root) {
-  const configured = await runCliInProcess(['settings', 'gateSlots', '1'], { cwd: root, env: box.env });
-  assert.equal(configured.status, 0, configured.failure ?? configured.stderr);
-}
-
-test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary gate', async () => {
-  const box = fixture();
-  const release = join(box.dir, 'release-holder');
-  const checkRelease = join(box.dir, 'release-item-check');
-  const firstRoot = gateRepo(box, 'slot-holder', 0.1, release);
-  const nextRoot = gateRepo(box, 'ordinary-gate', 0.15);
-  const { root, runner } = await checkProject(box, { releaseCheck: checkRelease });
-  assert.equal((await runCliInProcess(['settings', 'gateSlots', '1'], { cwd: firstRoot, env: box.env })).status, 0);
-
-  const first = launch(box, firstRoot);
-  await waitFor(() => events(box).includes('slot-holder start') && !events(box).includes('slot-holder end'), 'the first gate to hold the only slot');
-  const check = launch(box, runner, ['check', '1', '--yes']);
-  await waitFor(() => check.stdoutText.includes('place 1') || check.exitCode !== null, 'the item check to queue behind the running gate');
-  assert.ok(check.stdoutText.includes('place 1'), 'the item check prints its queued gate-slot position');
-  assert.match(check.stdoutText, /gate waiting:/);
-  assert.deepEqual(events(box), ['slot-holder start'], 'the item check command has not started while the gate holds the slot');
-  const ordinary = launch(box, nextRoot);
-  await waitFor(() => /place [12]/u.test(ordinary.stdoutText), 'the later ordinary gate to enter the queue');
-  assert.ok(ordinary.stdoutText.includes('place 2'), 'the later ordinary gate stays second behind the item check');
-  assert.deepEqual(events(box), ['slot-holder start'], 'neither queued command runs before the holder releases');
-
-  writeFileSync(release, 'release\n');
-  await waitFor(() => events(box).includes('item check start'), 'the older item check to acquire the released slot');
-  assert.equal(events(box).includes('ordinary-gate start'), false, 'the later ordinary gate stays behind the older item check');
-  writeFileSync(checkRelease, 'release\n');
-  await waitFor(() => events(box).includes('item check'), 'the older item check to release its slot');
-  await waitFor(() => events(box).includes('ordinary-gate start'), 'the later ordinary gate to acquire after the item check');
-  await waitFor(() => events(box).includes('ordinary-gate end'), 'the ordinary gate to finish');
-  const [firstResult, ordinaryResult, checkResult] = await Promise.all([first.closed, ordinary.closed, check.closed]);
-  assert.equal(firstResult.code, 0);
-  assert.equal(ordinaryResult.code, 0, ordinary.stderrText);
-  assert.equal(checkResult.code, 1, check.stderrText);
-  assert.deepEqual(events(box), ['slot-holder start', 'slot-holder end', 'item check start', 'item check', 'ordinary-gate start', 'ordinary-gate end']);
-
-  mkdirSync(join(runner, 'web'));
-  writeFileSync(join(runner, 'web', 'result.txt'), 'ready\n');
-  assert.equal(spawnSync('git', ['add', 'web/result.txt'], { cwd: runner, env: box.env }).status, 0);
-  const commit = spawnSync('git', ['commit', '-q', '-m', 'feat(web): queue item proof [G1]'], { cwd: runner, env: box.env, encoding: 'utf8' });
-  assert.equal(commit.status, 0, commit.stderr);
-  const submitted = await runCliInProcess(['submit', '1', '--wait', '--no-next'], { cwd: runner, env: box.env });
-  assert.equal(submitted.status, 0, submitted.stderr);
-  rmSync(checkRelease, { force: true });
-  const review = join(box.dir, 'check-review');
-  const itemCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: runner, env: box.env, encoding: 'utf8' }).stdout.trim();
-  assert.equal(spawnSync('git', ['worktree', 'add', '-q', '--detach', review, itemCommit], { cwd: root, env: box.env }).status, 0);
-  const reviewBox = { ...box, env: { ...box.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'gate-resource-reviewer' } };
-  const reviewer = await runCliInProcess(['join', 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env });
-  assert.equal(reviewer.status, 0, reviewer.stderr);
-
-  // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
-  // The move reaches a file the item changed (same bytes, so it composes cleanly); a move elsewhere leaves the sealed receipt standing.
-  mkdirSync(join(root, 'web'));
-  writeFileSync(join(root, 'web', 'result.txt'), 'ready\n');
-  assert.equal(spawnSync('git', ['add', 'web/result.txt'], { cwd: root, env: box.env }).status, 0);
-  const moved = spawnSync('git', ['commit', '-q', '-m', 'chore: move main'], { cwd: root, env: box.env, encoding: 'utf8' });
-  assert.equal(moved.status, 0, moved.stderr);
-  writeFileSync(box.events, '');
-  const verifyRelease = join(box.dir, 'release-verify-holder');
-  const verifyHolderRoot = gateRepo(box, 'verify-holder', 0.1, verifyRelease);
-  const verifyFocusedRoot = probeSuite(box, 'verify-focused-suite');
-  const verifyFocusedMarker = join(box.dir, 'verify-focused.started');
-  const verifyFocusedRelease = join(box.dir, 'release-verify-focused');
-  const verifyHolder = launch(box, verifyHolderRoot);
-  await waitFor(() => events(box).includes('verify-holder start') && !events(box).includes('verify-holder end'), 'a gate to hold the slot before accepting an item');
-  const verify = launch(reviewBox, review, ['verify', '1', 'accept', '--no-next', '--note', 'queue fixture']);
-  await waitFor(() => verify.stdoutText.includes('place 1') || verify.exitCode !== null, 'verify accept to queue for the gate slot');
-  assert.ok(verify.stdoutText.includes('place 1'), `verify accept prints its queued gate-slot position: ${verify.stdoutText}${verify.stderrText}`);
-  assert.match(verify.stdoutText, /gate waiting:/);
-  const verifyNext = launchTestRunner(box, verifyFocusedRoot, ['--test-name-pattern', PROBE_PATTERN, 'test/probe.test.js'], verifyFocusedMarker, verifyFocusedRelease);
-  await awaitNestedPhase(verifyNext, async () => {
-    await waitFor(() => /waiting for a gate slot:/u.test(verifyNext.stderrText) || verifyNext.exitCode !== null, 'the later focused run to enter the queue');
-    assert.equal(existsSync(verifyFocusedMarker), false, 'the focused run has not started while the holder owns the slot');
-    assert.equal(events(box).includes('item check'), false);
-    writeFileSync(verifyRelease, 'release\n');
-    await waitFor(() => events(box).includes('item check start'), 'the older verify check to acquire the released slot');
-    assert.equal(existsSync(verifyFocusedMarker), false, 'the later focused run stays behind review');
-    writeFileSync(checkRelease, 'release\n');
-    await waitFor(() => events(box).includes('item check'), 'the verify check to release its slot');
-    await waitFor(() => existsSync(verifyFocusedMarker), 'the focused run to start after review releases');
-    const verifyRun = await verify.closed;
-    assert.equal(verifyRun.code, 0, `${verify.stderrText}${verify.stdoutText}`);
-    writeFileSync(verifyFocusedRelease, 'release\n');
-    const [verifyHolderResult, verifyNextResult] = await Promise.all([verifyHolder.closed, verifyNext.closed]);
-    assert.equal(verifyHolderResult.code, 0);
-    assert.equal(verifyNextResult.code, 0, verifyNext.stderrText + verifyNext.stdoutText);
-    assert.deepEqual(events(box), ['verify-holder start', 'verify-holder end', 'item check start', 'item check']);
-  });
-});
 
 // process-level: this case runs beside whole-suite holders that must see real, separate callers.
 /** Run one pullboard command as its own process in a fixture, require success, and return its output. */

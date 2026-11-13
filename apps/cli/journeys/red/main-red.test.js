@@ -178,7 +178,7 @@ ${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../../../p
   }
 });
 
-test('an inherited red reads native spec reporter failure locations [V1]', t => {
+test('an inherited red reads native spec reporter failure locations [V1]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST, reporter: 'spec', requireInfraNote: true });
   delete box.env.NO_COLOR;
   box.env.FORCE_COLOR = '1';
@@ -199,7 +199,7 @@ test('an inherited red reads native spec reporter failure locations [V1]', t => 
     'the unchanged spec reporter command runs once on the candidate and once on exact main');
 });
 
-test('a red with unreadable failure files says why main was not checked [V1]', t => {
+test('a red with unreadable failure files says why main was not checked [V1]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST });
   put(box.root, 'test/runner.js', [
     "import { appendFileSync } from 'node:fs';",

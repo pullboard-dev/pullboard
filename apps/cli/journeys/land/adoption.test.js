@@ -26,8 +26,9 @@ async function verifiedFourLocal(box) {
   } finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
-test('land adoption recovers an interrupted gate and keeps one receipt under a new coordinator [B3,R3]', async (t) => {
+test('land adoption recovers an interrupted gate and keeps one receipt under a new coordinator [B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async (t) => {
   const box = landProject();
+  // The landing under adoption is this machine's own in-process batch; a pull machine offers a runner land job instead (#6249).
   const entries = await verifiedFourLocal(box);
   writeFileSync(box.hold, 'armed');
   const { child, closed, waitForGate } = startInterruptedLanding(box, BIN, t);

@@ -20,7 +20,7 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 
 const e2e = createE2eHelpers();
 const projects = [];
@@ -45,7 +45,6 @@ const ROWS = Array.from({ length: 36 }, (_, index) => `Z${index + 1}`);
 async function localProject({ batch = false } = {}) {
   const box = sandbox();
   // The gate runs in the submitting command here; a bare sandbox project has no installed tooling for a pulled gate to judge it [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const repo = join(box.dir, 'message-repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
@@ -92,7 +91,7 @@ async function buildAndAccept(box, entry, header = `feat(web): build ${entry.fil
   box.git(box.repo, 'switch', '-q', '--detach', head);
   try {
     const verdict = await box.runLocal(box.repo, 'verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', `${entry.file} exists at the submitted commit`);
-    assert.equal(verdict.code, 0, verdict.err);
+    assert.equal(verdict.code, 0, `${verdict.err}\nsubmit said: ${submitted.out}${submitted.err}`);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
 
@@ -122,7 +121,8 @@ test('a landing batch writes ids that fit then +N, and every frozen row in spec 
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err || landed.out);
-  const receipt = JSON.parse(landed.out);
+  // A pulled landing is a runner land job: wait for its receipt [P7].
+  const receipt = await settleLand(box, JSON.parse(landed.out));
   assert.deepEqual([...receipt.landed].sort(), [many.id, refrozen.id].sort(), JSON.stringify(receipt));
   const merges = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..${receipt.batch.tip}`).split('\n').filter(Boolean);
   const messages = new Map(merges.map((commit) => {
@@ -152,7 +152,8 @@ test('a rowless feat item lands under feat(merge) through the real hooks, and a 
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err || landed.out);
-  assert.deepEqual(JSON.parse(landed.out).landed, [rowless.id]);
+  const settled = await settleLand(box, JSON.parse(landed.out));
+  assert.deepEqual(settled.landed, [rowless.id], JSON.stringify(settled));
   const merge = box.git(box.repo, 'rev-list', '--first-parent', '-n', '1', 'main');
   assert.notEqual(merge, base);
   assert.equal(box.git(box.repo, 'log', '-1', '--format=%B', merge), `feat(merge): rowless feature\n\nPullboard-Item: #${rowless.id}`,
@@ -165,8 +166,14 @@ test('a docs-only item lands green after both selected shard files complete with
   const log = join(box.dir, 'completed-docs-shard');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
   config.lanes.web.owns = ['docs/'];
+  writeFileSync(configFile, JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: let the web lane own docs');
+  const entry = await claimedItem(box, 'Land a docs-only note', ['G1'], 'docs/note.md');
+  await buildAndAccept(box, entry, 'docs(web): add only a landing note [G1]');
+  // Main then gains the two real shard files and the gate that runs only them, so the landing gate is the sharded one.
+  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
   writeFileSync(configFile, JSON.stringify(config));
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   for (const name of ['one', 'two']) writeFileSync(join(box.repo, `test/docs-${name}.test.js`), `import { test } from 'node:test';
@@ -175,21 +182,16 @@ test('docs shard ${name} completes [G1]', () => { appendFileSync(${JSON.stringif
 `);
   box.git(box.repo, 'add', 'pullboard.json', 'test');
   box.git(box.repo, 'commit', '-q', '-m', 'test: configure two real landing shard files [G1]');
-  const entry = await claimedItem(box, 'Land a docs-only note', ['G1'], 'docs/note.md');
-  await buildAndAccept(box, entry, 'docs(web): add only a landing note [G1]');
   advanceMain(box);
   await drainComparisons(box, t.signal);
   const changed = box.git(entry.path, 'diff', '--name-only', 'main...HEAD');
   assert.equal(changed, 'docs/note.md', 'the item changes only documentation');
   writeFileSync(log, '');
-  const run = await box.runLocal(box.repo, 'land', '--max', '1', '--json');
+  const run = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(run.code, 0, run.err + run.out);
-  const landed = JSON.parse(run.out);
-  assert.deepEqual(landed.landed, [entry.id]);
+  const landed = await settleLand(box, JSON.parse(run.out));
+  assert.deepEqual(landed.landed, [entry.id], JSON.stringify(landed.landJob));
+  assert.equal(landed.batch.state, 'landed');
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').sort(), ['one', 'two'], 'both actual shard files complete once');
-  assert.ok(landed.batch.gateResults.length > 0, 'a real landing gate is recorded');
-  for (const gate of landed.batch.gateResults) {
-    assert.equal(gate.isGreen, true);
-    assert.doesNotMatch(readFileSync(gate.logPath, 'utf8'), /AbortError|This operation was aborted/u);
-  }
+  assert.doesNotMatch(JSON.stringify(landed.landJob.receipt), /AbortError|This operation was aborted/u);
 });

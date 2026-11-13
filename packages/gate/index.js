@@ -1,5 +1,6 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
 export * from "./light.js";
+export { diskStores, diskStoresFrom, storeRegistry } from "./src/io/stores.js";
 export { removeTestSandbox } from "./src/io/test/cleanup.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/io/refusal/trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
@@ -44,11 +45,11 @@ export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, aud
 export { withImportParseCache } from "./src/io/imports.js";
 export { importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "../codemap/index.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/logic/budgets.js";
-export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, RELEASE_RECEIPT_MAX_BYTES } from "./src/io/release/receipt.js";
+export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, releaseTiming, RELEASE_BUDGET_SECONDS, RELEASE_RECEIPT_MAX_BYTES } from "./src/io/release/receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/io/release.js";
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
 export { importStyleViolations } from "./src/io/static/style.js";
-export { tapTests, committedTest } from "./src/io/tap.js";
+export { tapTests, committedTest, singleFileTapOutcomes } from "./src/io/tap.js";
 export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
 export { prepareTestResultExchange } from "./src/io/test/action/transfer.js";
 export { testCapacityReport } from "./src/io/test/capacity.js";
@@ -59,7 +60,7 @@ export { dispatchTestFiles, reportDispatchedTests, nativeFileArguments, testFile
 export { testFilePool, testFilePoolValue, occupiedPlaces, takeTestFileToken, reserveTestFileToken, awaitNestedRun, awaitNestedPhase, withNestedGroup, longestFirst, TEST_FILE_POOL_ENV, TEST_FILE_CORES_ENV } from "./src/io/test/file/pool.js";
 export { isolateTestMachine, foreignNodeOptions, ACCOUNT_HOME_ENV, RUNNER_PRELOAD_ENV } from "./src/io/test/isolation.js";
 export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/io/coordinator/guard.js";
-export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, allTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
+export { TEST_OUTCOMES_PREFIX, testOutcomeCollector, formatTestOutcomes, readTestOutcomes, allTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/io/test/outcomes.js";
 export { refreshTestPlacement } from "./src/io/test/placement/report.js";
 export { affectedCommand } from "./src/io/test/affected-command.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/io/test/placement.js";
@@ -98,8 +99,6 @@ export {
   installTestChildDrain,
 } from './src/io/test/drain.js';
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
-export { changedStaticFailures, stagedHookFailures } from './src/io/changed/static.js';
-export { STATIC_CHECKS, runStaticRegistry } from './src/io/static/check/registry.js';
 export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";

@@ -88,6 +88,16 @@ async function refresh(fresh = null, attempt = 1) {
     data = store.set(next, true);
     syncBoardMode(view.root);
     itemSearches.clear();
+    // Reading the board, reading its counts and drawing it run as three tasks, so a live update never blocks the page for
+    // them all at once (#6851). The board is held before the first wait, so a read answered meanwhile builds on it, and
+    // the draw shows whatever the page holds by then. The next task comes from a message, never the page's timers.
+    if (typeof MessageChannel === 'function' && data.project) {
+      const nextTask = () => new Promise((later) => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); later(); }; channel.port2.postMessage(null); });
+      await nextTask();
+      // The chrome's counts and the person's rulings are read first; the draw that follows finds them read.
+      if (data.project) { writeChrome(); personalNeedsOf(data.project); }
+      await nextTask();
+    }
     const reading = detailRead;
     render();
     if (detailRead !== reading) await detailRead;
@@ -307,6 +317,13 @@ function catchUp() {
   });
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && catchWhenShown) { catchWhenShown = false; catchUp(); } });
+// A page the browser keeps in its back-forward cache keeps its open fetches, and each held stream takes one of the six
+// connections a host gets: six pages left behind took them all, and the next page never loaded. A page leaving closes
+// its stream, and one shown again from the cache follows its boards anew and reads what changed meanwhile.
+if (typeof addEventListener === 'function') {
+  addEventListener('pagehide', () => unfollow());
+  addEventListener('pageshow', (event) => { if (event.persisted && data && !snapshot) { catchEvery = true; follow(); } });
+}
 
 `;
 }

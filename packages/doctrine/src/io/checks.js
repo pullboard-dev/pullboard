@@ -50,6 +50,7 @@ import {
 } from '../../../spec/index.js';
 import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../kernel/light.js';
+import { storeName } from './store-names.js';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -363,7 +364,7 @@ function currentMain(root, mainCommit, commit) {
 /** The machine-wide file caching one rule's measured problems at one main tree. */
 function mainMeasureFile(tree, command, timeoutMs) {
   const key = createHash('sha256').update(JSON.stringify([1, tree, command, timeoutMs])).digest('hex');
-  return join(machineHome(), 'doctrine-main', `${key}.json`);
+  return join(machineHome(), 'doctrine-main', `${storeName(key)}`);
 }
 
 /**

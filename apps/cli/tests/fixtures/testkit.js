@@ -343,7 +343,7 @@ export function rigorFixtureBoard(store) {
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Rigor fixture', GIT_AUTHOR_EMAIL: 'rigor@example.invalid',
     GIT_COMMITTER_NAME: 'Rigor fixture', GIT_COMMITTER_EMAIL: 'rigor@example.invalid',
-    PULLBOARD_HOME: join(root, 'private-home'), PULLBOARD_MACHINE_HOME: join(root, 'private-machine') };
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(root, 'private-home'), PULLBOARD_MACHINE_HOME: join(root, 'private-machine') };
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ name: 'Rigor fixture', gate: 'true', spec: 'SPEC.md',
@@ -370,6 +370,31 @@ export function rigorFixtureBoard(store) {
     note: 'synthetic failure receipt', clause: store.getItem(board, id).item_title, head: store.getItem(board, id).item_commit,
     digest: store.getItem(board, id).item_frozen_digest, policy: 'any' }); };
   return { root, board, submit, reject, close: () => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); } };
+}
+
+/**
+ * File `count` items on a joined project's board and give the seat a closed claim on each, so each has one usage revision pending.
+ *
+ * Why: a usage-drain journey needs many pending revisions on a real board; the raw board writes live in this one kit seam [C7].
+ *
+ * @param {object} store - The store module, passed in so the kit takes on no cell import.
+ * @param {object} board - An open board of the project.
+ * @param {{ agent: string, lane: string, main: string, count: number, now?: number }} seed - The seat, its lane, main's commit and the item count.
+ * @returns {number[]} The item ids, oldest first.
+ */
+export function seedPendingUsage(store, board, { agent, lane, main, count, now = Date.now() - 100000 }) {
+  const ids = [];
+  store.atomic(board, () => {
+    for (let n = 0; n < count; n++) {
+      const id = store.addItem(board, { by: 'coordinator', lane, title: `Usage drain ${n}`, specIds: ['G1'],
+        criterion: 'Usage stays attributed once.', check: 'test -f web/ready',
+        checkBaseline: { command: 'test -f web/ready', result: 'red', main, seconds: 0 } });
+      ids.push(id);
+      store.logEvent(board, agent, 'claim', id, { model: 'unknown', leaseUntil: new Date(now + n * 100 + 90).toISOString() }, new Date(now + n * 100));
+      store.logEvent(board, agent, 'release', id, {}, new Date(now + n * 100 + 50));
+    }
+  });
+  return ids;
 }
 
 /** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */

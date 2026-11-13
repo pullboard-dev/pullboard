@@ -227,6 +227,10 @@ const SHOWN = `JSON.stringify((() => {
  * Copied, the failure names what the button says and what each clipboard write did, so a slow or refused write shows.
  */
 async function pressCopy(chrome, button, words) {
+  // A page still reflowing when the press scrolls it shifts the document under the pointer (scrollY 900 became 0 while the
+  // button stayed put), so start from the top and wait until the document height holds still for 400 ms.
+  await chrome.stable('(() => { scrollTo(0, 0); return true; })()');
+  await chrome.waitFor(`(() => { const height = document.documentElement.scrollHeight, now = performance.now(); if (window.__copyHeight !== height) { window.__copyHeight = height; window.__copySince = now; } return now - window.__copySince >= 400; })()`, 5_000); // budget: hang ceiling for a page's layout to stop moving.
   await press(chrome, `document.querySelector(${JSON.stringify(button)})`);
   try {
     await chrome.waitFor(`document.querySelector(${JSON.stringify(button)}).textContent === 'Copied'`, 5_000); // budget: hang ceiling for one granted clipboard write.
@@ -468,6 +472,8 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     await chrome.stable("(() => { sessionStorage.clear(); return true; })()");
     await openState(chrome, '?blocked', 'blocked');
     await chrome.stable("(() => { window.__access = 'granted'; return true; })()");
+    // The page's own round trip to the view starts a new document, which resets the click count; the one click comes after it.
+    await chrome.waitFor("document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for the next re-check and the round trip.
     await openItems(chrome);
     await chrome.waitFor(opened, 30_000); // budget: hang ceiling for the next re-check and the first board read.
     assert.equal(await chrome.stable('window.__clicks'), 1, 'only the Items click was made on the page');

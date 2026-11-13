@@ -446,18 +446,21 @@ function livenessPids(db) {
   catch { /* An older table or damaged identity only leaves that PID to the cache. */ }
   return pids;
 }
-/** Remove a view-port definition only after its last lease has left the resource queue. */
+/** Resource definitions that exist only for one lease or loan, so they leave with their last holder. */
+const TRANSIENT_RESOURCE_PREFIXES = ['view-port-', 'test-file-loan:'];
+
+/** Remove a transient definition (a view port or a per-file test loan) only after its last lease has left the queue. */
 function removeEmptyViewPortResource(db, name) {
-  if (!name.startsWith('view-port-')) return;
+  if (!TRANSIENT_RESOURCE_PREFIXES.some(prefix => name.startsWith(prefix))) return;
   db.prepare(`DELETE FROM resource WHERE name = ?
     AND NOT EXISTS (SELECT 1 FROM holder WHERE name = ?)
     AND NOT EXISTS (SELECT 1 FROM waiter WHERE name = ?)`)
     .run(name, name, name);
 }
 
-/** Sweep only empty view-port definitions after callers have pruned dead lease rows. */
+/** Sweep only empty transient definitions after callers have pruned dead lease rows, so expired loans leave too. */
 function removeEmptyViewPortResources(db) {
-  db.exec(`DELETE FROM resource WHERE name GLOB 'view-port-*'
+  db.exec(`DELETE FROM resource WHERE (name GLOB 'view-port-*' OR name GLOB 'test-file-loan:*')
     AND NOT EXISTS (SELECT 1 FROM holder WHERE holder.name = resource.name)
     AND NOT EXISTS (SELECT 1 FROM waiter WHERE waiter.name = resource.name)`);
 }
@@ -838,9 +841,13 @@ function unavailableRunnerHosts(db, now, runners = []) {
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
-  const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
-  const gui = observed ? observed.gui === 1 : runner.gui === true;
-  return !unavailable.has(runner.host) && (waiter.browser !== 1 || runner.browser >= 1) && (waiter.gui !== 1 || gui);
+  return !unavailable.has(runner.host) && (waiter.browser !== 1 || runner.browser >= 1) && (waiter.gui !== 1 || runnerHasGui(db, runner));
+}
+
+/** A runner's GUI session: the observed fact if recorded, else its setting [#6875]. */
+function runnerHasGui(db, runner) {
+  const seen = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
+  return seen ? seen.gui === 1 : runner.gui === true;
 }
 
 /** List configured runners with active slot usage from the same local admission database. */
@@ -1164,6 +1171,9 @@ export async function takeResource(options) {
             refused.infrastructureAttempt = { kind: 'runner-wait', code: 'RUNNER_WAIT_DEADLINE', runners: runnerDeadline.runners };
             throw refused;
           }
+        }
+        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) {
+          throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
         }
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,

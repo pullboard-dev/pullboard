@@ -151,6 +151,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'land --dry-run': 'shows what would land without landing it',
   'sweep --dry-run': 'shows the items it would file without filing them',
   'stats disk --dry-run': 'shows what --prune would remove without removing it',
+  'compact --dry-run': 'shows which job steps it would archive without archiving them or shrinking the board file',
   '--adopt': 'resumes the batch already recorded instead of choosing items again',
   '--due': 'lands only when the configured age or count is due, and says why when it is not',
   '--replay': 'decides each recorded batch again from its record; no tests, merges or runners',

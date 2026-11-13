@@ -3,7 +3,7 @@ export function roadmapSummary(milestone, context = {}) {
   /** Escape supplied milestone text before placing it in HTML or attributes. */
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
   const summary = milestone.summary;
-  const states = [['landed','landed'],['landing','accepted, landing'],['review','in review'],['building','building'],['waiting','waiting'],['held','held']];
+  const states = [['landed','landed'],['landing','accepted, landing'],['review','in review'],['building','building'],['waiting','blocked'],['held','held']];
   /** Accept only nonnegative integer counts from the backend contract. */
   const number = value => Number.isInteger(value) && value >= 0;
   if (!summary || !number(summary.total) || !number(summary.left) || states.some(([key]) => !number(summary[key]))) return null;
@@ -54,8 +54,8 @@ export function roadmapSummary(milestone, context = {}) {
   const needs = Array.isArray(summary.needsYou) ? summary.needsYou.map(id => {
     const item = context.needs?.get(id);
     const text = escape(item?.label || '#'+id)+(item?.title?' '+escape(item.title):'');
-    return item?.address ? '<a class="ref" href="'+escape(item.address)+'" data-go="item:'+escape(item.id)+'"'+(item.board?' data-board="'+escape(item.board)+'"':'')+'>'+text+'</a>' : '<span>'+text+'</span>';
-  }).join(', ') : '';
+    return '<span class="roadmap-need">' + (item?.address ? '<a class="ref" href="'+escape(item.address)+'" data-go="item:'+escape(item.id)+'"'+(item.board?' data-board="'+escape(item.board)+'"':'')+'>'+text+'</a>' : '<span>'+text+'</span>') + '</span>';
+  }).join('') : '';
   const top = '<div class="release-header-top"><h2 class="release-name" data-release-name="">'+(typeof context.nameHtml === 'string' ? context.nameHtml : escape(milestone.name))+'</h2>'+count+forecast+'</div>';
   const detail = '<div class="roadmap-summary"><div class="roadmap-summary-row"><div class="roadmap-summary-track">'+bar+'</div>'+legend+'</div>'+meta+(needs?'<div class="roadmap-summary-needs"><b>Rulings:</b> '+needs+'</div>':'')+'</div>';
   return { count, top, detail, header: '<div class="release-header">'+top+detail+'</div>' };

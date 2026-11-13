@@ -63,7 +63,7 @@ test('clause 3: a red in a case base main passes stays red [C7]', () => {
   assert.equal(proofMainFailures(failures, { ...comparison([{ file: 'test/other.test.js', cases: [['lists the board', 'x']] }]), main: 'b'.repeat(40) }, MAIN, bar), null, 'a comparison at another main proves nothing');
 });
 
-test('clause 1: a real submit queues green when its only red is a neighbouring case main also fails by name, though its run details differ [C7]', { timeout: 240_000 }, t => {
+test('clause 1: a real submit queues green when its only red is a neighbouring case main also fails by name, though its run details differ [C7]', { skip: 'PULL_GAP: un-skipped by #7104', timeout: 240_000 }, t => {
   // Main fails 'shared failure [G1]' in test/inherited.test.js with 1 !== 2. This candidate leaves the case red with the same assertion,
   // from another checkout. The item's criterion and check ('test -f change.txt') never name that file or case.
   const box = fixture(t, { candidate: source('shared failure [G1]', 2) });

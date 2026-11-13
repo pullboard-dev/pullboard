@@ -19,6 +19,7 @@ import { loadConfig } from "../../../../config/index.js";
 import { repoInfo } from "../../../../git/index.js";
 import { listApiProjects } from "../../../../seats/index.js";
 import { nativeStateClockWindow } from "../../logic/clock.js";
+import { stageLimits } from "../../logic/clock.js";
 import { workProgress } from '../../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../../roadmap/index.js";
 import { proofStats } from "../../../../stats/light.js";
@@ -102,6 +103,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     const allAgents = state.agents;
     state.agents = activeViewAgents(state.agents, observedAt).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
     state.board = boardId;
+    // Minutes each stage may last, from the settings that govern it; a stage with no setting is absent [#6940].
+    state.stageLimits = stageLimits(config);
     state.observedAt = new Date(observedAt).toISOString();
     state.decisionQueue = store.openDecisions(board, COORDINATOR);
     // The browser's state carries each lane hold and each item's own hold with its reason; the native projection says the same so their hashes match (#1256).

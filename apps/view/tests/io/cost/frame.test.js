@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/cost.css apps/view/src/io/main.css */
 /** @pullboard-world-pin reads cost.css and main.css to prove the width rules the page ships. */
 /** Cost draws its frame and last known numbers at once, and Cost and Settings use the page's full width [N26]. */
 import assert from 'node:assert/strict';
@@ -22,11 +22,12 @@ function costPage(stored = {}) {
   return { ...page, kept, calls };
 }
 
-test('clause 1: Cost with nothing read yet draws its heading and period buttons at once, not a blank Loading page [N26]', () => {
+test('clause 1: Cost with nothing read yet draws its frame at once, with no heading and no period buttons of its own, not a blank Loading page [N26]', () => {
   const { readCostHistory, costPaneHtml, calls } = costPage();
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
   assert.equal(calls.api, 1, 'the read starts');
-  assert.match(html, /<h1>Cost<\/h1>[^]*data-cost-window="today"[^]*data-cost-window="7d" aria-pressed="true"[^]*data-cost-window="30d"/u, 'the frame is there');
+  assert.match(html, /class="cost-page"[^]*Only you see this/u, 'the frame is there');
+  assert.doesNotMatch(html, /<h1|data-cost-window/u, 'Cost has no page heading and no in-page window control; the window lives in the strip');
   assert.match(html, /class="cost-card cost-waiting" role="status">Reading cost history…/u, 'the numbers say they are on their way, in place');
   assert.doesNotMatch(html, /Loading cost history/u, 'no blank loading page');
 });
@@ -37,7 +38,7 @@ test('clause 1: Cost draws the last numbers this browser read while the fresh re
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
   assert.equal(calls.api, 1, 'a fresh read still starts');
   assert.match(html, /<p class="cost-big">2<small>hours<\/small>/u, 'the remembered agent time is drawn at once');
-  assert.match(html, /class="cost-updating" role="status">Updating…/u, 'and says it is updating');
+  assert.match(html, /class="cap2 cost-updating" role="status">Updating…/u, 'and says it is updating');
   assert.doesNotMatch(html, /cost-waiting|Loading cost history/u);
   assert.doesNotMatch(costOverviewHtml(last, null, { updating: false }), /cost-updating/u, 'a settled page says nothing');
 });
@@ -46,4 +47,13 @@ test('clause 2: Cost and Settings take the page width and the Agent time card en
   assert.doesNotMatch(css('cost.css'), /\.cost-page\s*\{[^}]*max-width/u, 'Cost has no width cap');
   assert.match(css('cost.css'), /\.cost-summary\s*\{[^}]*align-self: start/u, 'the Agent time card is not stretched to the chart beside it');
   assert.doesNotMatch(css('main.css'), /#settings-pane\s*\{[^}]*(?:max-width|margin-inline)/u, 'Settings has no width cap and is not centred');
+});
+
+test('clause 2: the Agent time card is not stretched by its column, so no blank area sits under the Sent back bar [N26]', () => {
+  assert.match(css('cost.css'), /\.cost-col > \.cost-summary\s*\{[^}]*flex: none/u, 'the column flex:1 on cards does not apply to the summary card');
+});
+
+test('clause 1: an opened item scrolls to just below the two-row phone nav, so its chips are not cut under it [N26]', () => {
+  const top = Number(/#detail \{ scroll-margin-top: (\d+)px; \}/u.exec(css('main.css'))?.[1]);
+  assert.ok(top >= 88, 'the margin clears the sticky two-row nav (about 72 px) with room for a gap, not the old 60 px');
 });

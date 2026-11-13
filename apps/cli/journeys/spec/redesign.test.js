@@ -18,7 +18,7 @@ import {
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('Spec keeps state, tier, gate evidence and person decisions distinct in real Chrome [N26,B26,B23]', { timeout: 120_000 }, async () => { // budget: native Git/API fixtures and real Chrome at desktop and phone widths.
+test('clause 1: Rulings lists only rows waiting for a ruling; clause 2: tabs keep their counts at phone width. Spec keeps state, tier, gate evidence and person decisions distinct in real Chrome [N26,B26,B23]', { timeout: 120_000 }, async () => { // budget: native Git/API fixtures and real Chrome at desktop and phone widths.
   const box = machine();
   const spec = '# Spec layout\n\n## G · Board\n- G1 [draft, must] Keep the complete first requirement in the detail. | gate: test/proof.test.js\n- G2 [approved, aim] Keep tier visible for an approved row. | gate: test/proof.test.js\n\n## H · Gates\n- G3 [draft, aim] Disclose missing proof files. | gate: test/missing.test.js\n';
   const demo = project(box, 'spec-redesign', spec, {}, { agentApproved: true });
@@ -41,39 +41,41 @@ test('Spec keeps state, tier, gate evidence and person decisions distinct in rea
     await chrome.send('Page.navigate', { url: server.link.href });
     await chrome.waitFor('document.querySelector("[data-tab=spec]") && !document.body.classList.contains("loading")');
     await chrome.click('document.querySelector("[data-tab=spec]")');
-    await chrome.waitFor('document.querySelectorAll("#spec-list [data-row]").length === 3');
+    await chrome.waitFor('document.querySelectorAll("#spec-list [data-row]").length === 2');
     const anatomy = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const list = document.querySelector('#spec-list');
       const draft = list.querySelector('[data-row="spec:G1"]');
-      const approved = list.querySelector('[data-row="spec:G2"]');
+      const approvedShown = !!list.querySelector('[data-row="spec:G2"]');
+      const confirms = [...document.querySelectorAll('#spec-list button, #spec-detail button')].filter(button => /^Confirm\b/u.test(button.textContent.trim())).length;
       const missing = list.querySelector('[data-row="spec:G3"] .spec-gate');
       const choice = document.querySelector('[data-rows="spec:decide"]');
       const side = document.querySelector('[data-tab=spec]');
-      return { draftIcon: draft.querySelector('.dot').textContent, approvedIcon: approved.querySelector('.dot').textContent,
-        tier: approved.querySelector('.spec-row-side .chip').textContent, citations: draft.querySelector('.spec-row-side small').textContent,
+      return { draftIcon: draft.querySelector('.dot').textContent, approvedShown, confirms,
+        citations: draft.querySelector('.spec-row-side small').textContent,
         oneLine: getComputedStyle(draft.querySelector('.t')).whiteSpace, gateChip: !!draft.querySelector('.spec-gate.chip'),
         missing: missing.textContent, missingRed: getComputedStyle(missing).color !== getComputedStyle(draft.querySelector('.spec-gate')).color,
-        headingSize: getComputedStyle(list.querySelector('h4')).fontSize, sections: list.querySelectorAll('.spec-section-head').length,
+        headingSize: getComputedStyle(list.querySelector('.spec-section-head .hd2')).fontSize, sections: list.querySelectorAll('.spec-section-head').length,
         choice: choice.textContent, title: choice.title, sideTitle: side.title, sideCount: side.textContent };
     })())`));
     assert.equal(anatomy.draftIcon, '✎');
-    assert.equal(anatomy.approvedIcon, '✓');
-    assert.equal(anatomy.tier, 'aim');
+    assert.equal(anatomy.approvedShown, false, 'the Approved row G2 is not on the Rulings tab');
+    assert.equal(anatomy.confirms, 0, 'no Confirm for an Approved row');
     assert.equal(anatomy.citations, '1 item');
     assert.equal(anatomy.oneLine, 'nowrap');
     assert.equal(anatomy.gateChip, false);
     assert.match(anatomy.missing, /test\/missing.test.js · missing/u);
     assert.equal(anatomy.missingRed, true);
-    assert.equal(anatomy.headingSize, '13.5px');
+    assert.equal(anatomy.headingSize, '12.5px');
     assert.equal(anatomy.sections, 2);
-    assert.match(anatomy.choice, /Needs your decision3/u);
-    assert.equal(anatomy.title, '2 drafts · 1 approved in Git');
-    assert.equal(anatomy.sideTitle, anatomy.title);
-    assert.match(anatomy.sideCount, /3/u);
-    await chrome.click('document.querySelector("[data-section-approve]")');
-    await chrome.waitFor('!document.querySelector("#spec-approve-dialog").hidden');
-    assert.equal(await chrome.stable('document.querySelector("#spec-approve-rows").textContent'), 'Rows: G1, G2');
-    await chrome.click('document.querySelector("#spec-approve-cancel")');
+    assert.match(anatomy.choice, /Rulings2/u);
+    assert.equal(anatomy.title, '2 drafts');
+    assert.equal(await chrome.stable('document.querySelectorAll("[data-section-approve]").length'), 0, 'group headers carry no Approve all');
+    await chrome.click('document.querySelector("[data-rows=\'spec:approved\']")');
+    await chrome.waitFor('document.querySelector(\'#spec-list [data-row="spec:G2"]\')');
+    const approvedRow = JSON.parse(await chrome.stable(`JSON.stringify((() => { const row = document.querySelector('#spec-list [data-row="spec:G2"]'); return { icon: row.querySelector('.dot').textContent, tier: row.querySelector('.spec-row-side .chip').textContent }; })())`));
+    assert.deepEqual(approvedRow, { icon: '✓', tier: 'aim' });
+    await chrome.click('document.querySelector("[data-rows=\'spec:decide\']")');
+    await chrome.waitFor('document.querySelectorAll("#spec-list [data-row]").length === 2');
     await chrome.click(`document.querySelector('[data-row="spec:G1"]')`);
     const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const node = document.querySelector('#spec-detail');
@@ -102,6 +104,8 @@ test('Spec keeps state, tier, gate evidence and person decisions distinct in rea
       await chrome.waitFor('innerWidth === ' + width);
       assert.equal(await chrome.stable(`getComputedStyle(document.querySelector('[data-rows="spec:decide"]')).whiteSpace`), 'nowrap');
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= innerWidth'), true, 'Spec does not overflow the viewport');
+      const tabs = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#spec-chips .seg button')].map(button => { const label = button.querySelector('.seg-label'), count = button.querySelector('b'), box = button.getBoundingClientRect(), number = count.getBoundingClientRect(); return { fits: box.right <= innerWidth + 1 && number.right <= box.right + 1 && number.left >= box.left - 1, count: count.textContent, label: label.scrollWidth <= label.clientWidth || getComputedStyle(label).textOverflow === 'ellipsis' }; }))`));
+      assert.ok(tabs.length >= 3 && tabs.every(tab => tab.fits && tab.count !== '' && tab.label), width + 'px: each Spec tab keeps its number inside the tab and its label ends in an ellipsis if cut');
     }
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

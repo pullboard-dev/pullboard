@@ -36,8 +36,18 @@ export function readActivityDeliveryWith(agentActivity, board, agentId, options 
       const detail = activityEventDetail(event);
       if (detail && rejectionRecipient(board, event, detail) === agentId) entries.set(event.event_id, rejectionEntry(event, agentId));
     }
+    // A seat that never recorded a delivery still owes its own claims' notices: the board-head start skips old history,
+    // never a stalled notice on a claim the seat holds now, which read as "no notice" until the first inbox read [C7].
+    const held = board.db.prepare("SELECT item_id FROM item WHERE item_status='claimed' AND item_owner=?").all(agentId).map(row => row.item_id);
     const notices = board.db.prepare(`SELECT * FROM event WHERE event_kind IN ('claim_stalled','work_notice') AND event_id>? AND event_id<=? ORDER BY event_id`)
       .all(through, activity.cursor);
+    if (!state.started && held.length) {
+      const seen = new Set(notices.map(event => event.event_id));
+      const marks = held.map(() => '?').join(',');
+      const own = board.db.prepare(`SELECT * FROM event WHERE event_kind IN ('claim_stalled','work_notice') AND event_id<=? AND item_id IN (${marks}) ORDER BY event_id`)
+        .all(activity.cursor, ...held);
+      for (const event of own) if (!seen.has(event.event_id)) notices.push(event);
+    }
     for (const event of notices) {
       const detail = activityEventDetail(event);
       if (detail?.holder !== agentId) continue;

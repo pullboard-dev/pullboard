@@ -33,7 +33,7 @@ const MEASURE = `(() => {
     scopes: [...pane.querySelectorAll('.settings-scopes [data-settings-scope]')].map(node => node.textContent.trim()),
     refresh: (() => { const node = pane.querySelector('[data-settings-refresh]'); return node && { text: node.textContent.trim(), ghost: node.classList.contains('ghost'), border: getComputedStyle(node).borderTopStyle }; })(),
     where: pane.querySelector('.settings-where')?.textContent.trim() ?? '',
-    groups: [...pane.querySelectorAll('.set-group')].map(card => ({ name: card.querySelector('.ghead h3')?.textContent, about: card.querySelector('.ghead p')?.textContent, changed: card.querySelector('.ghead span')?.textContent,
+    groups: [...pane.querySelectorAll('.set-sect')].map(card => ({ name: card.querySelector('.ghead h2')?.textContent, about: card.querySelector('.ghead .cap2')?.textContent, changed: card.querySelector('.ghead .cnt')?.textContent,
       rows: card.querySelectorAll('.set').length, changedChips: card.querySelectorAll('.set .changed').length })),
     heights: [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))],
     count: rows.length,
@@ -42,13 +42,16 @@ const MEASURE = `(() => {
     wrapped: values.filter(node => !one(node)).map(node => node.textContent).concat([...pane.querySelectorAll('.changed')].filter(node => !one(node)).map(node => node.textContent)),
     clipped: values.filter(node => /^[0-9]/u.test(node.textContent) && node.scrollWidth > node.clientWidth).map(node => node.textContent),
     open: Boolean(pane.querySelector('[data-settings-open]')),
+    shown: rows.filter(row => row.querySelector('[data-copy-command]')).map(row => { const b = row.querySelector('[data-copy-command]'), box = b.getBoundingClientRect(), group = row.parentElement.getBoundingClientRect(); return { key: row.dataset.settingKey, opacity: getComputedStyle(b).opacity, inside: box.width > 0 && box.right <= group.right && box.left >= group.left }; }),
+    lines: rows.flatMap(row => [row.querySelector('.name .set-title'), row.querySelector('.name p')]).map(node => { const style = getComputedStyle(node); return { one: node.getBoundingClientRect().height < 24, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden' }; }),
+    edge: rows.filter(row => !row.querySelector('[data-copy-command]')).map(row => { const group = row.parentElement.getBoundingClientRect(); return group.right - row.querySelector('.val').getBoundingClientRect().right; }),
     sourceCells: pane.querySelectorAll('.setting-source, table, td').length,
     overflow: document.documentElement.scrollWidth > innerWidth,
     scopeBoxes: [...pane.querySelectorAll('[data-settings-scope]')].map(node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, height: box.height }; }),
   };
 })()`;
 
-test('Settings shows the toggle, grouped cards, one-height rows, human units, chips and copy buttons at desktop and phone widths [O5,O6,N26]', { timeout: 180_000 }, async () => {
+test('clause 1: every copy button shows without hover; clause 2: keys and about lines end in an ellipsis and values reach the edge. Settings shows the toggle, grouped cards, one-height rows, human units, chips and copy buttons at desktop and phone widths [O5,O6,N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Settings redesign proof.');
   const box = machine();
@@ -81,6 +84,9 @@ test('Settings shows the toggle, grouped cards, one-height rows, human units, ch
       assert.equal(shown.overflow, false, at + ': the page fits its width');
       assert.deepEqual(shown.wrapped, [], at + ': no value or chip wraps');
       assert.deepEqual(shown.clipped, [], at + ': no number is cut off');
+      assert.ok(shown.shown.length > 0 && shown.shown.every(button => button.opacity === '1' && button.inside), at + ': every copy button is visible without hovering and inside its group');
+      assert.ok(shown.lines.every(line => line.one && line.ellipsis), at + ': setting keys and about lines stay on one line and end in an ellipsis');
+      assert.ok(shown.edge.every(gap => gap <= 24), at + ': the value column reaches the group right edge (within its padding) on rows with no copy button');
       const { rows } = shown;
       assert.equal(rows.gateSlots.name, 'Checks at once');
       assert.equal(rows.gateSlots.mono, 'gateSlots');
@@ -99,8 +105,8 @@ test('Settings shows the toggle, grouped cards, one-height rows, human units, ch
       assert.equal(rows.gateSlots.copy, 'pullboard settings gateSlots 8');
       assert.equal(rows['gate.runnerWaitMs'].copy, 'pullboard settings gate.runnerWaitMs 900000');
       assert.equal(rows['gate.runnersFirst'].copy, 'pullboard settings gate.runnersFirst on');
-      assert.deepEqual(Object.entries(rows).filter(([, row]) => row.copy).map(([key]) => key).sort(), Object.keys(rows).filter(key => SETTING_FORMS.includes(key)).sort(), at + ': copy buttons only for settings the CLI can set');
-      assert.equal(rows['view.background'].copy, null);
+      assert.deepEqual(Object.entries(rows).filter(([, row]) => row.copy).map(([key]) => key).sort(), Object.keys(rows).filter(key => SETTING_FORMS.includes(key) && key !== 'runnerRates').sort(), at + ': copy buttons only for settings one CLI command sets (runnerRates takes a runner and four numbers, so it has none)');
+      assert.equal(rows['view.background'].copy, 'pullboard settings view.background on');
       for (const [key, row] of Object.entries(rows)) {
         assert.doesNotMatch(row.value, /^(?:true|false)$/u, key + ' shows on/off, not a boolean');
         assert.doesNotMatch(row.text, /(?:\/[\w.~-]+){2,}/u, key + ' carries no path');
@@ -142,6 +148,6 @@ test('the renderer shows what the API row says: changing an inventory descriptio
   assert.match(second, /Second wording\./u);
   assert.doesNotMatch(second, /First wording|Checks at once|Capacity/u, 'no description, label or group is held inside the view');
   assert.match(second, /Parallel runs/u);
-  assert.match(second, /<h3>Order/u);
+  assert.match(second, /<h2 class="hd1">Order/u);
   assert.doesNotMatch(settingsContentHtml({ rows: [{ ...base, cli: null }] }, 'machine'), /data-copy-command/u, 'the copy button follows the row\'s own cli flag');
 });

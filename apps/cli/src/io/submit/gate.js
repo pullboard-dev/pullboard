@@ -7,11 +7,11 @@ import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { shellWord } from '../../../../../packages/runners/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { trunkRemote } from '../../../../../packages/config/index.js';
+import { moveAcross } from '../../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +42,7 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 const request = JSON.parse(Buffer.from(ENCODED, 'base64').toString('utf8'));
 const root = process.cwd();
@@ -55,7 +56,9 @@ const run = (command, args, options = {}) => {
 const git = (...args) => run('git', ['--no-replace-objects', ...args]);
 const objects = git('rev-parse', '--path-format=absolute', '--git-path', 'objects').toString().trim();
 if (!objects || /[\\r\\n]/u.test(objects)) throw new Error('invalid object directory');
-const directory = mkdtempSync(join(tmpdir(), 'pullboard-trusted-main-'));
+// A named scratch root (PULLBOARD_SCRATCH) holds throwaway folders; unset keeps the OS temp root.
+const named = process.env.PULLBOARD_SCRATCH;
+const directory = mkdtempSync(join(named && isAbsolute(named) && existsSync(named) ? named : tmpdir(), 'pullboard-trusted-main-'));
 let status = 1;
 try {
   const metadata = join(directory, '.objects');
@@ -231,6 +234,8 @@ try {
     readCutItems: () => input.cutRows,
     onInventory: (mode, cause) => result.notes.push('submit cells inventory: ' + mode + (cause ? ': ' + cause : '')),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) })));
+  // The cells advisories ride in the receipt's notes, the one place a pulled gate can tell the submitter about them.
+  for (const line of result.cells?.warnings ?? []) result.notes.unshift(line);
   if (selected('selection')) await part('selection', async () => {
     result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
     if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
@@ -377,7 +382,7 @@ function runningToolingId() {
  * @returns {string}
  */
 export function analysisResultFile(artifactDirectory, { main, source, parts, tooling = runningToolingId() }) {
-  return join(artifactDirectory, 'results', `${parts ? parts.join('+') : 'all'}-${main}-${source}-${tooling}.json`);
+  return join(artifactDirectory, 'results', [parts ? parts.join('+') : 'all', main, source, tooling].join('-') + '.json');
 }
 
 /**
@@ -452,7 +457,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
       mkdirSync(dirname(resultFile), { recursive: true, mode: 0o700 });
       const pending = `${resultFile}.${process.pid}.tmp`;
       writeFileSync(pending, JSON.stringify({ version: 1, main, source, tooling: request.tooling ?? runningToolingId(), cuts: cutKey, value, directory, sha256, runner: lease.runner.host }) + '\n', { mode: 0o600 });
-      renameSync(pending, resultFile);
+      moveAcross(pending, resultFile);
     } catch { /* a result that cannot be recorded only means the next attempt runs the part again */ }
   }
   return { ...value, directory, sha256, runner: lease.runner.host };

@@ -64,9 +64,9 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
         const surface = document.createElement('i'); surface.style.background = 'var(--surface)'; document.body.append(surface);
         const opaqueSurface = getComputedStyle(surface).backgroundColor; surface.remove();
         return { pageWidth:document.documentElement.scrollWidth, viewport:innerWidth, feed:box('#feed'), panel:box('#shouts-pane > aside'),
-          composer:box('#shout-form .composer'), toggle:box('#asks-slot .seg'), status:{...box('.status'),visible:style.display !== 'none',background:style.backgroundColor,expected:opaqueSurface},
-          component:document.querySelector('#asks-slot .seg').dataset.segmentedControl,
-          rows:[...document.querySelectorAll('.conversation-row')].map(row => ({key:row.dataset.shoutThread,title:row.querySelector('.conversation-title').textContent,preview:row.querySelector('.conversation-preview').textContent,chip:row.querySelector('.chip').textContent})),
+          composer:box('#shout-form .composer'), toggle:box('#page-controls [data-page-ctl=shouts]'), status:{...box('.status'),visible:style.display !== 'none',background:style.backgroundColor,expected:opaqueSurface},
+          component:document.querySelector('#page-controls [data-page-ctl=shouts]').dataset.pageCtl, rowBox:(r => ({height:r.height,lines:getComputedStyle(document.querySelector('.conversation-row')).whiteSpace}))(document.querySelector('.conversation-row').getBoundingClientRect()), border:getComputedStyle(document.querySelector('.conversation-row')).borderBottomWidth, agentBox:(r => r && r.height)(document.querySelector('#agents .agent-row')?.getBoundingClientRect()), inPage:document.querySelectorAll('#asks-slot [data-shout-filter]').length,
+          rows:[...document.querySelectorAll('.conversation-row')].map(row => ({key:row.dataset.shoutThread,title:row.querySelector('.conversation-title').textContent,preview:row.querySelector('.conversation-preview').textContent,previewLeft:row.querySelector('.conversation-preview').getBoundingClientRect().left,previewWidth:row.querySelector('.conversation-preview').getBoundingClientRect().width,titleRight:row.querySelector('.conversation-title').getBoundingClientRect().right,chip:row.querySelector('.chip').textContent})),
           decisions:!document.querySelector('#coordinator-decisions').hidden,
           agent:{name:document.querySelector('#agents .agent-row .agent-who b')?.textContent,model:document.querySelector('#agents .agent-model')?.textContent,
             avatars:document.querySelectorAll('#agents .avatar').length,title:document.querySelector('#agents .agent-row')?.title,
@@ -76,13 +76,18 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       console.log('PULLBOARD_SHOUTS_REDESIGN ' + JSON.stringify({ width, list }));
       assert.equal(list.pageWidth, list.viewport, 'the feed and compact composer never widen the viewport');
       if (width === 1280) assert.ok(list.feed.right <= list.panel.left, 'the feed column ends before Agents begins');
-      assert.ok(Math.min(list.composer.bottom, list.toggle.bottom) > Math.max(list.composer.top, list.toggle.top), 'composer and shared toggle occupy one row');
-      assert.ok(Math.abs((list.composer.bottom - list.composer.top) - (list.toggle.bottom - list.toggle.top)) <= 16, 'the empty composer stays one line tall beside the toggle');
-      assert.equal(list.component, 'data-shout-filter');
+      assert.ok(list.composer.bottom - list.composer.top <= 60, 'the empty shout box is one compact line');
+      assert.equal(list.component, 'shouts', 'the one filter set lives in the strip');
+      assert.equal(list.inPage, 0, 'no second filter set in the page');
+      assert.ok(list.rowBox.height <= (width >= 600 ? 32 : 44) && list.border === '0px', 'a thread is one line with no rule between rows: ' + JSON.stringify([width, list.rowBox, list.border]));
+      assert.ok(list.agentBox <= 48, 'an agent is one line, a 44px target');
       assert.equal(list.rows.filter(row => row.key === 'item:2').length, 1, 'one item has one conversation');
-      assert.equal(list.rows.find(row => row.key === 'item:2').chip, '2 messages');
+      assert.equal(list.rows.find(row => row.key === 'item:2').chip, '2');
       assert.ok(list.rows.find(row => row.key === 'item:2').preview.startsWith('coordinator: #2: Coordinator reply'));
-      assert.equal(list.rows.find(row => row.key === 'item:1').chip, 'Question open');
+      assert.equal(list.rows.find(row => row.key === 'item:1').chip, '1');
+      // #7311: the shout text stays on a phone, after the title, and every row's text column starts at the same x, No item rows too.
+      assert.ok(list.rows.length >= 4 && list.rows.every(row => row.previewWidth > 20 && row.previewLeft >= row.titleRight), 'each row shows its shout text after the title: ' + JSON.stringify([width, list.rows]));
+      assert.equal(new Set(list.rows.map(row => Math.round(row.previewLeft))).size, 1, 'the text column starts at one x in every row: ' + JSON.stringify(list.rows.map(row => row.previewLeft)));
       assert.equal(list.decisions, false, 'there is no pinned coordinator decisions wall');
       assert.equal(list.agent.name, 'web-1');
       assert.equal(list.agent.model, MACHINE_MODEL);
@@ -123,9 +128,9 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.ok(expanded.height > expanded.lineHeight * 3, 'Show all actually reveals the complete message');
       await press(chrome, 'document.querySelector("#feed .shout:not(.lead) [data-more]")');
       await chrome.waitFor('!document.querySelector("#feed .shout:not(.lead)").classList.contains("open")');
-      await press(chrome, 'document.querySelector("[data-shout-filter=questions]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=questions]")');
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 2');
-      await press(chrome, 'document.querySelector("[data-shout-filter=you]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=you]")');
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 1 && document.querySelector(".conversation-row").dataset.shoutThread === "item:3"');
       await press(chrome, 'document.querySelector(\'[data-shout-thread="item:3"]\')');
       await chrome.waitFor('!!document.querySelector("#feed .answer[data-go]")');
@@ -133,27 +138,26 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       await chrome.waitFor('!document.querySelector("#answering").hidden');
       const answering = await observe(chrome, `(() => {
         const composer = document.querySelector('#shout-form .composer').getBoundingClientRect();
-        const toggle = document.querySelector('#asks-slot .seg').getBoundingClientRect();
-        return { overlap:Math.min(composer.bottom,toggle.bottom)-Math.max(composer.top,toggle.top),
+        return { overlap:composer.height,
           width:document.documentElement.scrollWidth, viewport:innerWidth,
           question:document.querySelector('#answering-q').textContent,
           locked:document.querySelector('#shout-to').disabled, action:document.querySelector('#shout-send').getAttribute('aria-label') };
       })()`);
-      assert.ok(answering.overlap > 0, 'the answer form keeps the composer beside the shared filter');
+      assert.ok(answering.overlap > 0, 'the answer form keeps the composer visible');
       assert.equal(answering.width, answering.viewport, 'answering never widens the phone or desktop');
       assert.equal(answering.question, '#3: Which greeting should we use?', 'the complete native question reaches the answer form');
       assert.equal(answering.locked, true);
       assert.equal(answering.action, 'Answer');
       await press(chrome, 'document.querySelector("#answer-cancel")');
       await chrome.waitFor('document.querySelector("#answering").hidden && !document.querySelector("#shout-to").disabled');
-      await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=all]")');
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 4');
     }
     await box.inProcess(demo.repo, 'answer', String(question.shout_id), 'Ship the greeting.');
-    await press(chrome, 'document.querySelector("[data-shout-filter=questions]")');
+    await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=questions]")');
     await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 1 && document.querySelector(".conversation-row").dataset.shoutThread === "item:3"');
-    await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
-    await chrome.waitFor('document.querySelector(\'[data-shout-thread="item:1"] .chip\')?.textContent === "2 messages"');
+    await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=all]")');
+    await chrome.waitFor('document.querySelector(\'[data-shout-thread="item:1"] .chip\')?.textContent === "2"');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();

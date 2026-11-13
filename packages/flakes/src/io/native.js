@@ -21,9 +21,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  dirname,
   join,
 } from 'node:path';
+import { pairReds } from './pair.js';
 import {
+  addWorktree,
   headCommit,
   headTree,
   invalidateGitFacts,
@@ -40,6 +43,7 @@ import { runProfiledShell } from "../../../gate/index.js";
 import { runFrozenProof } from "../../../gate/index.js";
 import {
   committedTest,
+  tapFailures,
   tapTests,
 } from "../../../gate/index.js";
 
@@ -90,6 +94,20 @@ function nodePrefix(command, config, root, pin) {
   const configured = typeof config.affectedTests === 'string' ? own.exec(config.affectedTests) : null;
   return configured && knownRunner(root, pin, configured[2]) && config.affectedTests.trim() === configured[1] + ' ' + configured[2]
     ? config.affectedTests.trim() : null;
+}
+
+/**
+ * The structured Node runner prefix a paired rerun of `command` may use at the pinned head and main, or null when the
+ * command has none. Why exported: a pulled gate job pairs its own reds, so the submitting host names the prefix [C7].
+ *
+ * @param {string} root
+ * @param {string | null | undefined} command
+ * @param {object} config
+ * @param {{ head: string, main: string | null }} pin
+ * @returns {string | null}
+ */
+export function pairPrefix(root, command, config, pin) {
+  return typeof command === 'string' && command.trim() ? nodePrefix(command.trim(), config, root, pin) : null;
 }
 
 /**
@@ -339,4 +357,42 @@ async function recordObservations(pending, observations, { record, recordBatch }
     }
     throw error;
   }
+}
+
+// Budget: the receipt keeps the last 1500 characters of the red output and at most 20 failing cases.
+const TAIL = 1500;
+const MOST_CASES = 20;
+
+/** The base commit's tree, checked out by git into a throwaway worktree beside the landing checkout; null when git refuses. */
+function baseTree(root, base) {
+  if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(base))) return null;
+  const folder = join(dirname(root), `pair-main-${randomUUID()}`);
+  try { addWorktree(root, ['--detach', '--force', folder, base]); return folder; } catch { return null; }
+}
+
+/** Remove the worktree baseTree made, with git's own bookkeeping. */
+function dropBaseTree(root, folder) { tryGit(root, ['worktree', 'remove', '--force', folder]); }
+
+/**
+ * Read a red land check: its failing cases by file and name, and with flakes.rerun on one paired rerun of each at the
+ * merged tree and one at the base trunk the job merged onto. The original red stays the job's verdict.
+ *
+ * @param {{ root: string, base: string, output: string, role: string, flakes: { rerun: boolean, prefixes?: Record<string, string | null> }, head: string, tree: string }} input
+ * @returns {Promise<{ role: string, head: string, tree: string, tail: string, failures: { file: string, name: string }[], load: object, pairs: object[] | null } | null>} null when the output names no failing case.
+ */
+export async function diagnoseLandingRed({ root, base, output, role, flakes, head, tree }) {
+  let rows = null;
+  try { rows = tapFailures(output, root); } catch { rows = null; }
+  const failures = (Array.isArray(rows) ? rows : []).filter(row => row?.file && row.name).slice(0, MOST_CASES).map(({ file, name }) => ({ file, name: String(name).slice(0, 500) }));
+  if (!failures.length) return null;
+  const load = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
+  let pairs = null;
+  if (flakes.rerun === true) {
+    let main = null;
+    try {
+      const { NODE_TEST_CONTEXT, ...env } = process.env;
+      pairs = await pairReds({ root, phases: [{ role, status: 1, failures }], flakes, mainRoot: () => (main = baseTree(root, base)), env });
+    } catch { pairs = null; } finally { if (main) dropBaseTree(root, main); }
+  }
+  return { role, head, tree, tail: output.length > TAIL ? output.slice(-TAIL) : output, failures, load, pairs };
 }

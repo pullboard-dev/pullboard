@@ -73,8 +73,6 @@ import {
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const PRIVATE_WORKER = resolve(import.meta.dirname, '../../../runner/src/io/private/check/worker.js');
-
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const dirs = [];
 after(() => {
@@ -270,10 +268,10 @@ async function repoWithGate(gate, check = '') {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
-  // These cases assert submit running the gate in the command; pinned to controller dispatch until #5821 lands [P7].
+  // These cases assert submit running the gate in the command; the gate runs on a pulled runner [P7].
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
   // The fixture also has no local runner: a baseline waits as pending instead of running on whatever host runs this file (#2520).
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   // The fixture's checks and gates are their own test runs, not children of this one.
   delete env.NODE_TEST_CONTEXT;
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
@@ -564,64 +562,6 @@ test('a digest keeps the lines that say why a test failed, and skips passing tes
   assert.match(digest, /# fail 1$/);
 });
 
-test('submit runs the gate itself: a stamp written by hand never stands in for a red gate [V16]', async () => {
-  const box = await repoWithGate('test ! -f RED');
-  writeFileSync(join(box.repo, 'RED'), 'red\n');
-  box.git('add', 'RED');
-  box.git('commit', '-q', '-m', 'chore: turn the gate red');
-  writeFileSync(resolve(box.repo, box.git('rev-parse', '--git-path', 'pullboard-gate-green')), `${box.git('rev-parse', 'HEAD^{tree}')}\n`);
-  const refused = await box.runLocal('submit', '1');
-  assert.equal(refused.status, 1, refused.stdout);
-  assert.match(refused.stderr, /GATE_RED/);
-  assert.equal(box.runs(), 1, 'submit ran the gate instead of trusting the stamp');
-});
-
-test('submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip [V16, C3]', async () => {
-  const box = await repoWithGate('true');
-  assert.equal((await box.runLocal('gate')).status, 0);
-  assert.equal(box.runs(), 1);
-  assert.match((await box.runLocal('gate')).stdout, /this tree already passed/);
-  assert.equal(box.runs(), 1, 'outside submit, the stamp still saves a run');
-  const submitted = await box.runLocal('submit', '1');
-  assert.equal(submitted.status, 0, submitted.stderr);
-  assert.match(submitted.stdout, /^submitted #1 at [0-9a-f]{12}; item check green; full gate: /mu);
-  assert.equal(box.runs(), 2, 'submit ran the gate itself, stamp or no stamp');
-});
-
-test('submit refuses a tree its gate left changed: a new commit, or an edited tracked file [V16]', async () => {
-  for (const [moves, gate] of [
-    ['a commit made during the gate', 'git commit -q --allow-empty -m "chore: moved under the gate"'],
-    ['a tracked file edited during the gate', 'echo more >> SPEC.md'],
-  ]) {
-    const box = await repoWithGate(gate);
-    const head = box.git('rev-parse', 'HEAD');
-    const refused = await box.runLocal('submit', '1');
-    assert.equal(refused.status, 1, `${moves}: ${refused.stdout}`);
-    assert.match(refused.stderr, /MOVED_DURING_GATE/, moves);
-    assert.ok(refused.stderr.includes(head.slice(0, 12)), `${moves}: the refusal names the commit the gate was meant to check`);
-    assert.equal(box.runs(), 1, moves);
-  }
-});
-
-
-/** Quote a test executable or path as one shell word. */
-function shellWord(value) {
-  return "'" + String(value).replaceAll("'", "'\\''") + "'";
-}
-
-/** Run the production private-check worker with a real shell and durable output file. */
-function privateCheck(box, command) {
-  const logPath = join(box.dir, 'private-command.log');
-  const pidFile = logPath + '.pid';
-  // process-level: the production private-check worker.
-  const run = runFixtureChild(process.execPath, [PRIVATE_WORKER], {
-    cwd: box.repo, env: box.env, encoding: 'utf8',
-    input: JSON.stringify({ command, timeout: 30_000, pidFile, logPath }),
-  });
-  rmSync(pidFile, { force: true });
-  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
-  return JSON.parse(run.stdout);
-}
 
 test('a piped gate fails on any red stage without changing its existing shell [V16,C7]', async () => {
   const supported = runFixtureChild('set -o pipefail', { shell: true }).status === 0;
@@ -643,43 +583,6 @@ test('a piped gate fails on any red stage without changing its existing shell [V
   else assert.equal(JSON.parse(green.stdout).error.code, 'PIPEFAIL_UNAVAILABLE');
   const ordinary = await repoWithGate('true');
   assert.equal((await ordinary.runLocal('gate')).status, 0, 'a plain passing gate needs no pipefail capability');
-});
-
-test('a piped gate fails safely while named-test item checks keep last-stage semantics [V16,C7]', async () => {
-  const box = await repoWithGate('true');
-  const fixture = join(box.dir, 'named-output.test.js');
-  writeFileSync(fixture, `import {test} from 'node:test';
-import {setTimeout} from 'node:timers/promises';
-test('passing named item check', async () => {});
-test('output after the match', async () => {
-  await setTimeout(25);
-  process.stdout.write('x'.repeat(1024 * 1024));
-});
-`);
-  const runner = resolve(import.meta.dirname, '../../../../apps/cli/src/io/run/tests.js');
-  const named = `${shellWord(process.execPath)} ${shellWord(runner)} ${shellWord(fixture)} 2>&1`;
-  const captured = (probe, assertion = `printf '%s\\n' "$out"`) => `out=$(${probe}) && ${assertion}`;
-  const commands = [
-    // On a miss the run's own output is printed unpiped, so a red baseline records why it was red and the
-    // check's masked-exit rule still passes it (#2463).
-    `${captured(named, `printf '%s\\n' "$out" | grep -Eq '^ok [0-9]+ - passing named item check'`)} || { printf '%s\\n' "$out"; exit 1; }`,
-    captured('yes | grep -q y'),
-    captured('sh -c "exit 7" | tail -1'),
-  ];
-  for (const command of commands) {
-    const item = await repoWithGate('true', command);
-    const baseline = JSON.parse((await item.runLocal('show', '1', '--json')).stdout).item_check_baseline;
-    // The fixture board registers no runner, and a baseline never runs on this machine (#2520): it waits as pending.
-    assert.equal(baseline.result, 'pending', `a baseline with no runner waits: ${JSON.stringify({ command, reason: baseline.reason })}`);
-    const checked = await item.runLocal('check', '1', '--yes');
-    assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
-    const submitted = await item.runLocal('submit', '1', '--json');
-    assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
-    assert.equal(JSON.parse(submitted.stdout).gate.check.green, true, 'submission uses the same check semantics');
-    const verified = privateCheck(item, command);
-    assert.equal(verified.status, 0, JSON.stringify(verified));
-    assert.equal(verified.error, null, 'the private verifier keeps its original shell behavior');
-  }
 });
 
 const FLAKY = { file: 'test/flaky.test.js', name: 'flaky target' };

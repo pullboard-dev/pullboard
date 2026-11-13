@@ -23,6 +23,12 @@ import { activityModel } from "../../logic/activity/model.js";
 import { activityFilters } from "../../logic/activity/render.js";
 import { lifecycleChart } from "../../logic/lifecycle/chart.js";
 import { activityHtml } from "../../logic/activity/render.js";
+import { activityFlow } from "../../logic/activity/flow.js";
+import { activityPageHtml } from "../../logic/activity/page.js";
+import { activityTipHtml } from "../../logic/activity/page.js";
+import { activityStep } from "../../logic/activity/slot.js";
+import { activityStart } from "../../logic/activity/slot.js";
+import { activityRuntime } from "../activity/runtime.js";
 import { dashboardModel } from "../dashboard/model.js";
 import { dashboardHtml } from "../../logic/render/dashboard.js";
 import { comparisonHtml } from "../../logic/render/comparison.js";
@@ -126,7 +132,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const firstRunCoordinate = commandPhrases().includes('coordinate');
-  const pageScope = { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, comparisonHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, expandItemSummaries, closePageDialog, connection, costPrices: privateCostPrices, costTabScript, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeCapacity, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, privateCost, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, activityFlow, activityPageHtml, activityTipHtml, activityStep, activityStart, activityRuntime, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, comparisonHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, expandItemSummaries, closePageDialog, connection, costPrices: privateCostPrices, costTabScript, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeCapacity, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, privateCost, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   const repositoryAttribute = starRepository().replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,

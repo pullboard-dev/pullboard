@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
 import { runFixtureChild } from './child.js';
+import { runFixtureChildAsync } from './child.js';
 import { runFixtureSetupGit } from './child.js';
 import { performance } from 'node:perf_hooks';
 import { chmodSync } from 'node:fs';
@@ -28,7 +29,10 @@ import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
+import { reviveFixtureLocalRunner } from './runner/local-start.js';
+import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
+import { runCliSync } from './sync/cli.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
@@ -53,7 +57,7 @@ export function withoutPullboardEnv(source) {
 }
 
 /** The commands that may offer a runner job (a gate, test or land job) a journey then reads the outcome of. */
-const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit']);
+const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit', 'run']);
 /** Budget: how long a fixture command waits for the loopback local runner to finish the jobs it offered. */
 const SETTLE_MS = 180_000;
 
@@ -78,9 +82,8 @@ function controllerDispatch(env) {
  * @param {string[]} args - The command's arguments.
  * @param {object} env - The fixture environment.
  */
-function settlePulledJobs(cwd, args, env) {
-  // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
-  // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
+export function settlePulledJobs(cwd, args, env) {
+  // A status or cancel read offers no job and must not hold the command; a journey serving its own runner returns at once (#6660).
   // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
   // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
   if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || controllerDispatch(env) || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
@@ -96,7 +99,7 @@ function settlePulledJobs(cwd, args, env) {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return;
+    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
 }
@@ -137,7 +140,7 @@ function sandbox({ declareFamilies = false } = {}) {
   mkdirSync(shims);
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(shims, 'pullboard'), 0o755);
-  const env = {
+  const env = runnerSwitchedEnv({
     ...withoutPullboardEnv(process.env),
     PATH: `${shims}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -146,6 +149,8 @@ function sandbox({ declareFamilies = false } = {}) {
     GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
+    // A fixture board's nested pullboard test starts at once; the outer gated run owns the load budget (#7257).
+    PULLBOARD_FIXTURE_BOARD: '1',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
@@ -158,7 +163,7 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_MODEL: FIXTURE_MODEL,
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
     ...(process.env.PULLBOARD_TEST_RUNNER_PID ? { PULLBOARD_TEST_RUNNER_PID: process.env.PULLBOARD_TEST_RUNNER_PID } : {}),
-  };
+  });
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
@@ -191,6 +196,13 @@ function sandbox({ declareFamilies = false } = {}) {
     if (result.status === 0) settlePulledJobs(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
+  /** The same call as run in its own process without blocking this one, so a journey runs several CLI calls at once. */
+  const runAsync = async (cwd, ...args) => {
+    prepare(cwd, args);
+    const result = await runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    if (result.status === 0) settlePulledJobs(cwd, args, env);
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
+  };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
     prepare(cwd, args);
@@ -198,7 +210,14 @@ function sandbox({ declareFamilies = false } = {}) {
     if (result.status === 0) settlePulledJobs(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
-  return { dir, env, git, tryGit, run, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
+  /** The same call as inProcess, answered synchronously by a warm worker thread, for synchronous setup such as project() [C7]. */
+  const runSync = (cwd, ...args) => {
+    prepare(cwd, args);
+    const result = runCliSync(args, { cwd, env });
+    return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
+  };
+  runSync.of = run;
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: inProcess, runIn: inProcess, runSync, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -231,7 +250,11 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   box.git(repo, 'init', '-q', '-b', 'main', ...(separateGitDir ? ['--separate-git-dir', join(box.dir, 'separate-git')] : []));
   const inheritedModel = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
-  assert.equal(box.run(repo, 'init').code, 0);
+  // Setup init and join run in the warm worker: a project is what a journey starts from, not what it tests [C7].
+  // A box whose run a test replaced keeps that run, so the test still observes its own setup calls.
+  const setupRun = box.runSync?.of === box.run ? box.runSync : box.run;
+  const initialized = setupRun(repo, 'init');
+  assert.equal(initialized.code, 0, initialized.err);
   if (box.declareFamilies) withFixtureBoard({ ...box, repo }, board => {
     store.register(board, { lane: 'coordinator', path: repo, family: box.declareFamily(repo, 'Fixture Coordinator Vendor') });
   });
@@ -246,7 +269,7 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const joined = joinFixtureSeat(box, web, 'web', { model: 'fixture-model' });
+  const joined = joinFixtureSeat(box, web, 'web', { model: 'fixture-model', run: setupRun });
   assert.equal(joined.code, 0, `fixture join failed (code ${joined.code}): ${joined.err}\n${joined.out}`);
   const seat = JSON.parse(joined.out);
   assert.equal(seat.agent, 'web-1');
@@ -267,7 +290,7 @@ function holdingGate(box) {
     'const [armed, release, events] = process.argv.slice(2);',
     'if (!fs.existsSync(armed)) process.exit(0);',
     "fs.appendFileSync(events, 'start\\n');",
-    'const deadline = Date.now() + 15000;',
+    'const deadline = Date.now() + 180000; // budget: hang ceiling while a test observes the held gate; no elapsed-time assertion.',
     'while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);',
     'if (!fs.existsSync(release)) process.exit(23);',
     "fs.appendFileSync(events, 'end\\n');",

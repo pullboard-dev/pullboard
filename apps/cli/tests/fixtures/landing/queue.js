@@ -31,6 +31,9 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { LANDING_LEASE_MS } from '../../../../../packages/store/index.js';
+import { makeLandProjectFixtures } from '../land/project.js';
+import { landJobs } from '../land/board.js';
+import { settleLand } from '../land/settle.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {
@@ -78,9 +81,7 @@ function withBaselineRunner(box, action) {
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  // A box that pinned its dispatch keeps it: a pull baseline has no puller on a box whose runner is this SSH stand-in.
-  const pinned = previous === null ? null : JSON.parse(String(previous)).gate?.runnerDispatch;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH, ...(pinned ? { runnerDispatch: pinned } : {}) },
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   try { return action(); }
   finally {
@@ -224,8 +225,44 @@ function landingPolicyCalls(box, batches, records) {
   return calls;
 }
 
+/**
+ * The freshness variant on pull: two accepted items, the second changing the first's checked file; the second lands
+ * alone (the first held), moving main under the first's verdict, and the next land reopens the first to its lane with
+ * STALE_VERDICT and offers no land job for it [B3,C7].
+ */
+async function pulledFreshnessCase(helpers) {
+  const { landProject, itemWorktree, submitItem, acceptItem, FILES } = makeLandProjectFixtures(helpers);
+  const box = landProject();
+  const first = itemWorktree(box, 1);
+  const second = itemWorktree(box, 2);
+  submitItem(box, first);
+  // The second item changes the first's checked file on its own branch, so its landing makes the first verdict stale.
+  mkdirSync(join(second.path, 'web'), { recursive: true });
+  writeFileSync(join(second.path, FILES[0]), 'PASS changed\n');
+  submitItem(box, second);
+  acceptItem(box, first);
+  acceptItem(box, second);
+  // Only the second lands now; the first keeps its accept behind a hold.
+  readBoard(box, board => store.holdItem(board, first.item, { agentId: 'coordinator', reason: 'land the second item first' }));
+  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  assert.deepEqual(landed.landed, [second.item], JSON.stringify(landed));
+  readBoard(box, board => store.releaseItemHold(board, first.item, { agentId: 'coordinator' }));
+  const jobs = landJobs(box).length;
+  const again = box.run(box.repo, 'land');
+  assert.equal(again.code, 0, again.err + again.out);
+  assert.match(again.out + again.err, /STALE_VERDICT #\d+ reopened to its lane/u);
+  assert.equal(readBoard(box, board => store.getItem(board, first.item).item_status), 'open', 'the stale item left verified for its lane');
+  assert.equal(readBoard(box, board => store.getItem(board, first.item).item_merged_commit), null);
+  assert.equal(landJobs(box).length, jobs, 'a stale verdict starts no land job');
+}
+
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
+  // Freshness survives under pull: the land offer rechecks each verdict against the main it lands onto [B3,C7].
+  if (staleAfterFirst) return pulledFreshnessCase(helpers);
+  // Every variant is the controller's landing lease: a named waiting lander, its held batch, parent and guardian death. A pulled landing is a runner job with none of these; #6579 deletes the cases with the lease.
+  t.skip('CONTROLLER_ONLY: deleted with #6579');
+  return;
   const sandbox = helpers.sandbox({ declareFamilies: policyAfterFirst });
   const arm = join(sandbox.dir, 'landing-armed');
   const entered = join(sandbox.dir, 'landing-entered');
@@ -247,8 +284,6 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     "console.log('TAP version 13\\nok 1 - landed queue files keep their behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gateFile)}`, sandbox);
-  // The landings and their gates settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   if (policyAfterFirst) {
     const file = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -282,7 +317,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     }
   });
   // The stopped holder keeps its gate slot until its own lease runs out, so the adopting landing needs a second slot of its own.
-  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2, gate: { runnerDispatch: 'controller' } });
+  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2 });
   writeFileSync(arm, 'armed');
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
@@ -421,6 +456,9 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
 
 /** Exercise a real independently closed source-advance gate before the second foreground landing [Q1,B3]. */
 export async function sourceAdvancePolicyCase(t, helpers) {
+  // The case reads the host landing batches and their detached source-advance worker; a pulled landing is a runner job with neither, and #6807 deletes the case with the batch engine.
+  t.skip('CONTROLLER_ONLY: deleted with #6807');
+  return;
   const sandbox = helpers.sandbox({ declareFamilies: true });
   const callsFile = join(sandbox.dir, 'source-policy-calls.jsonl');
   const gate = join(sandbox.dir, 'source-policy-gate.cjs');
@@ -435,8 +473,6 @@ export async function sourceAdvancePolicyCase(t, helpers) {
     "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
-  // The landing and its source gate settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.lanes.web.owns.push('pullboard.json');

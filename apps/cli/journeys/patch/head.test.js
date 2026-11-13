@@ -16,6 +16,7 @@ import { exportBoard } from '../../../../packages/store/index.js';
 import { importBoard } from '../../../../packages/store/index.js';
 import { PATCH_FOLLOW_ENGINE } from '../../../../packages/state/light.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 /** Require the real CLI result, preserving setup refusal diagnostics. */
 function document(result) {
@@ -98,13 +99,14 @@ function mergeMain(f, path = 'docs/new-main.txt', bytes = 'new main\n') {
 /** Read only this item's recorded binding changes. */
 function follows(f) { return store.events(f.board).filter(event => event.item_id === f.id && event.event_kind === 'item_patch_follow'); }
 
-test('a companion follows a clean main merge and real Submit without any coordinator rebind [C7,H16]', t => {
+test('a companion follows a clean main merge and real Submit without any coordinator rebind [C7,H16]', async t => {
   const f = fixture(t);
   const before = store.itemPatches(f.board, f.id)[0];
   const authors = itemPatchAuthors(f.board, f.id);
   const moved = mergeMain(f);
   const index = f.box.git(f.builder.root, 'write-tree');
-  const result = document(run(f, f.builder, 'submit', String(f.id)));
+  // A pulled submit returns queued; the item is submitted once the runner's gate receipt is applied [C7,#7283].
+  const result = await settleSubmit(t, f.box, document(run(f, f.builder, 'submit', String(f.id))));
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
   assert.equal(store.getItem(f.board, f.id).item_commit, moved);
   const after = store.itemPatches(f.board, f.id)[0];
@@ -118,10 +120,11 @@ test('a companion follows a clean main merge and real Submit without any coordin
   assert.equal(follows(f).length, 1);
   assert.deepEqual(JSON.parse(follows(f)[0].event_detail).patches,
     [{ key: before.key, oldHead: f.source, newHead: moved, hash: before.digest }]);
-  assert.notEqual(result.gate.companion.commit, moved);
+  // The pulled gate judges the companions composed onto the builder head: its receipt's source is that composed commit [P7].
+  assert.notEqual(result.gate.source, moved);
   const receipts = store.proofReceipts(f.board, f.id);
   assert.ok(receipts.length > 0);
-  assert.ok(receipts.every(receipt => receipt.commit === result.gate.companion.commit && receipt.exitCode === 0));
+  assert.ok(receipts.every(receipt => receipt.commit === result.gate.source && receipt.exitCode === 0));
   assert.equal(f.box.git(f.builder.root, 'rev-parse', 'HEAD'), moved);
   assert.equal(f.box.git(f.builder.root, 'write-tree'), index);
   assert.equal(existsSync(join(f.builder.root, 'view/header.cjs')), false);

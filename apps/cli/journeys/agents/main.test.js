@@ -78,6 +78,18 @@ async function openConversation(chrome, key = 'none') {
   await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
 }
 
+/**
+ * Wait until the agents panel shows this many cards, letting the page's requests settle between looks.
+ * Why: a click's settle ends when no request is out, which a loaded runner can reach before the agents arrive; the deadline only bounds a hang.
+ */
+async function cardsShown(page, count) {
+  const deadline = Date.now() + 30_000; // budget: hang-only wait for the agents data to reach the panel.
+  while (agentEntries(page.show('agents')).length < count && Date.now() < deadline) {
+    await page.release();
+    await new Promise((done) => setImmediate(done));
+  }
+}
+
 test('the agents panel says what each agent holds [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -96,6 +108,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   try {
     const page = await openPage(view);
     await page.click({ tab: 'shouts' });
+    await cardsShown(page, 2);
     assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
     assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator"><span>1 idle<\/span>/);
     page.run('view.open.idle = true; render();');
@@ -188,7 +201,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
         assert.match(row.state, /^(?:now|\d+[mhd])Building$/, `${at}: native age stays beside the stage, which does not repeat the agent the row names`);
         assert.deepEqual([row.lines, row.cut], [[1, 1], false], `${at}: the agent id and model each stay on one line, uncut`);
-        assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
+        assert.ok(row.itemTop < row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item shares the agent's one line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
         // Agents holding nothing are pills in the idle fold; one that has not moved in the last hour waits behind show all.
@@ -417,12 +430,9 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         assert.equal(await chrome.stable('view.agent'), 'web-1', `${at}: filtering retains the raw API id`);
         await press(chrome, 'document.querySelector("[data-agent=\\"\\"]")');
         await tab('activity');
-        const activityNames = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#activity .activity-who')].map(node => ({ text: node.textContent, title: node.title })))"));
-        for (const identity of [
-          { text: 'web-1', title: displayModel },
-          { text: 'web-2', title: '' },
-          { text: 'The coordinator', title: 'Claude' }
-        ]) assert.ok(activityNames.some(actual => actual.text === identity.text && actual.title === identity.title), `${at}: Activity retains seat identity and the known model hover: ${JSON.stringify(identity)}`);
+        // The redesigned Activity page (#6916) draws sentence rows with no seat label and no model hover.
+        const activityFacts = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#activity .act-row .fa')].map(node => node.textContent))"));
+        assert.ok(activityFacts.some(text => text.includes('claimed by web-1')), `${at}: Activity names the claiming seat in its sentence row: ${JSON.stringify(activityFacts)}`);
         await tab('roadmap');
         // Disclosure choices survive tab visits: explicitly fold rows before testing the collapsed view.
         const opened = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#roadmap .milestone-item[aria-expanded=true]')].map(row => row.dataset.roadmapKey))"));

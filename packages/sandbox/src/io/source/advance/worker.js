@@ -60,6 +60,7 @@ import {
 import {
   withSourceComposition,
 } from '../../../../../merge/index.js';
+import { storeName } from '../../store-names.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -114,10 +115,24 @@ function ownerLive(owner) {
   catch { return true; }
 }
 
-/** Capture finite exact-main obligations; an active landing completes before this worker starts a gate. */
-function snapshot(root, info, { landingLeaseState, openBoardForRead }) {
+/**
+ * Whether a runner land job is offered and not yet done, read through the injected openLandingJob (packages/api); false
+ * when none is injected or the board has no job table yet.
+ */
+function landJobOpen(board, openLandingJob) {
+  if (typeof openLandingJob !== 'function') return false;
+  try { return openLandingJob(board.db) !== null; } catch { return false; }
+}
+
+/**
+ * Capture finite exact-main obligations; an active landing completes before this worker starts a gate. A pulled land
+ * job is an active landing too: its runner merges current trunk and checks that tree, and its receipt lands or returns
+ * the items. Why: a source advance beside it ran the same check again on the board host and reopened the item before
+ * the land job's receipt arrived [C7,H16].
+ */
+function snapshot(root, info, { landingLeaseState, openBoardForRead, openLandingJob }) {
   return readBoard(info, board => {
-    if (landingLeaseState(board).holder) return [];
+    if (landingLeaseState(board).holder || landJobOpen(board, openLandingJob)) return [];
     return store.listItems(board, { all: true }).filter(item => ['submitted','verified'].includes(item.item_status)
       && item.item_commit && !item.item_merged_commit && !store.reviewHolder(board, item)).flatMap(item => {
       try {
@@ -176,7 +191,7 @@ function retainArtifacts(directory, job, gate, composition, { saveMainAudit }) {
 /** Execute one exact composition; any known returned child is cleaned before its terminal advisory state is written. */
 async function advance(root, directory, job, write, services) {
   const { readMainAudit, saveMainAudit, runSubmitGate } = services;
-  const file = join(directory, `${job.key}.json`);
+  const file = join(directory, `${storeName(job.key)}`);
   const old = readMainAudit(file);
   if (old) return; // Unknown/crashed or logically incomplete work is not a hot retry on every health wake.
   saveMainAudit(file, { version: 1, item: job.item.item_id, basis: job.basis, state: 'pending' });

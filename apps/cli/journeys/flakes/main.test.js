@@ -4,6 +4,7 @@ import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js'
 import { TITLE } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { commitFixtureSetup } from '../../../../packages/git/tests/fixtures/flakes.js';
 import * as nativeBoard from '../../../lib/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 import { selectAffectedTests } from '../../../../packages/gate/index.js';
@@ -13,6 +14,7 @@ import { selectTestTreeGuards } from '../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -23,6 +25,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { openBoardForRead } from '../../../lib/index.js';
 import { nudgeMainAudit } from '../../../../packages/gate/index.js';
 import { nudgeSourceAdvances } from '../../../../packages/git/index.js';
@@ -158,4 +161,26 @@ test('an unsupported Node reporter stays unclassified rather than guessing a sel
   assert.equal(report.flakes.length, 0);
   assert.equal(report.unclassified[0].observations[0].paired, null);
   assertReceipts(box, report.unclassified[0].observations[0]);
+});
+
+test('a flake fixture setup commit runs no hook, while an ordinary commit in the same repository still does [C7]', t => {
+  const e2e = createE2eHelpers();
+  t.after(e2e.cleanup);
+  const box = e2e.project('true', undefined, { withWorktree: false });
+  // A plain git runner keeps hooks on commit, unlike box.git, so the two commits below differ only by commitFixtureSetup.
+  const git = (...args) => runFixtureGit(args, { cwd: box.repo, env: box.env });
+  const hooks = join(box.dir, 'marker-hooks');
+  const marker = join(box.dir, 'hook-ran.txt');
+  mkdirSync(hooks);
+  writeFileSync(join(hooks, 'pre-commit'), `#!/bin/sh\necho ran >> "${marker}"\n`);
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  git('config', 'core.hooksPath', hooks);
+  writeFileSync(join(box.repo, 'setup.txt'), 'setup\n');
+  git('add', '-A');
+  commitFixtureSetup(git, 'chore: fixture setup');
+  assert.equal(existsSync(marker), false, 'the setup commit ran no hook');
+  writeFileSync(join(box.repo, 'work.txt'), 'work\n');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'feat: ordinary commit');
+  assert.equal(readFileSync(marker, 'utf8'), 'ran\n', 'an ordinary commit still runs the hook');
 });

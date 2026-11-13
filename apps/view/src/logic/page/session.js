@@ -77,7 +77,7 @@ const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
 /** Resolve a routed tab, legacy Home address, or embedded/export fragment before remembered state. */
 function addressTab() {
   if (typeof location === 'undefined') return null;
-  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
+  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'pipeline', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const read = value => {
     let parts;
     try { parts = value.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent); }
@@ -115,7 +115,7 @@ function landingTab() {
   return kept || 'dashboard';
 }
 
-const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, shoutFilter: 'all', shoutThread: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
+const view = { roadmapOpen: new Map(), roadmapPage: null, root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, shoutFilter: 'all', shoutThread: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;
 // Each board read in the order it started, and the newest one drawn: an answer older than that one is stale.
 let refreshStarted = 0;

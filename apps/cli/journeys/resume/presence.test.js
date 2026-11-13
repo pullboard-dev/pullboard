@@ -157,7 +157,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
     assert.equal(JSON.parse(next.out).item.item_id, item, 'actual next reaches its native work result');
     assert.match(next.err, /PRESENCE_BUSY.*presence sidecar remained locked/su);
     const elapsed = Date.now() - started;
-    assert.ok(elapsed < 15_000, `the busy sidecar cannot hang next (took ${elapsed} ms; stderr ${next.err.length} chars)`); // budget: generous private CLI hang ceiling, not a latency target.
+    assert.ok(elapsed < 5_000, `the busy sidecar cannot hang next (took ${elapsed} ms; stderr ${next.err.length} chars)`); // budget: declared ceiling from the #7417 bar, the busy sidecar answers next under 5 s.
   } finally { writer.exec('ROLLBACK'); }
   assert.equal(store.agentById(board, 'web-1').heartbeatAt, local.heartbeatAt, 'fallback never persisted its cached projection');
 });

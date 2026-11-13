@@ -7,6 +7,47 @@ import { machineSettingsFile } from '../../../resources/index.js';
 import { readMachineSettingsFile } from '../../../queue/index.js';
 import { validateGateQueue } from '../../../queue/index.js';
 const DEFAULT_GATE_SLOTS = 2;
+
+/**
+ * The machine settings a person sets that carry a plain value, by the kind of value each takes. Each one is also a
+ * `pullboard settings <key> <value>` form, so the view can offer a copyable line for it [O5,O6,N26].
+ * Why: a setting with no form leaves a person hand-editing settings.json, which the Settings page cannot teach.
+ */
+export const PERSON_SET = Object.freeze({
+  'budget.dailyUsd': 'usd', 'budget.totalUsd': 'usd', scratch: 'folder',
+  'gate.diskFloorMB': 'mb', 'gate.memoryFloorMB': 'mb', 'gate.queue.agingMinutes': 'minutes',
+  'gate.queue.reviewsFirst': 'switch', 'gate.queue.currentReleaseFirst': 'switch', 'gate.browserFreeChecks': 'switch', 'gate.browserByLaunch': 'switch',
+  'health.sentinel': 'switch', 'view.background': 'switch', 'relay.offerAtInit': 'switch',
+});
+
+/**
+ * Turn what a person typed for one PERSON_SET key into the value to store, or undefined for `off` (clears the key).
+ *
+ * @param {string} key
+ * @param {string} text
+ * @returns {boolean|number|string|undefined}
+ */
+export function parsePersonSet(key, text) {
+  const kind = PERSON_SET[key];
+  const refuse = why => new Refused('BAD_MACHINE_SETTINGS', `${key} ${why}; run pullboard settings ${key} ${kind === 'switch' ? 'on|off' : kind === 'folder' ? '<folder>|off' : kind === 'usd' ? '<dollars>|off' : '<n>|off'}`);
+  if (!kind) throw new Refused('BAD_MACHINE_SETTINGS', `${key} is not a setting a person sets from the command line`);
+  if (kind === 'switch') {
+    if (text !== 'on' && text !== 'off') throw refuse('must be on or off');
+    return text === 'on';
+  }
+  if (text === 'off') return undefined;
+  if (kind === 'folder') {
+    if (!isAbsolute(text)) throw refuse('must be an absolute folder that exists, or off');
+    return text;
+  }
+  if (kind === 'usd') {
+    if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(text) || !(Number(text) > 0)) throw refuse('must be a positive dollar amount, or off');
+    return Number(text);
+  }
+  if (!/^[1-9]\d*$/u.test(text) && !(kind === 'mb' && text === '0') || !Number.isSafeInteger(Number(text))) throw refuse(kind === 'minutes' ? 'must be a whole number of minutes, 1 or more, or off' : 'must be a whole number of megabytes, or off');
+  return Number(text);
+}
+
 const DEFAULT_BROWSER_SLOTS = 1;
 
 /**
@@ -51,7 +92,7 @@ export function validateServe(serve, file) {
   }
   const octets = typeof serve.address === 'string' ? serve.address.split('.') : [];
   if (serve.address !== undefined && (octets.length !== 4 || octets.some(part => !/^(?:0|[1-9]\d{0,2})$/u.test(part) || Number(part) > 255) || serve.address === '0.0.0.0')) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `serve.address in ${file} must be one interface's literal IPv4 address, such as 192.168.1.98; remove it to serve on loopback`);
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.address in ${file} must be one interface's literal IPv4 address, such as 192.168.7.21; remove it to serve on loopback`);
   }
   if (serve.port !== undefined && (!Number.isSafeInteger(serve.port) || serve.port < 0 || serve.port > 65535)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.port in ${file} must be a port from 0 to 65535; 0 chooses a free one`);
