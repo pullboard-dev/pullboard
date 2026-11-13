@@ -18,7 +18,7 @@ import {
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
+const { landProject, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
 test('two land runs on an unchanged board never record the same stop twice [C7,#2901]', { timeout: 300_000 }, // budget: one real submit, accept and three landings; hang ceiling only.
 async () => {

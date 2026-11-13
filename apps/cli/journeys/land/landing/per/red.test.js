@@ -18,7 +18,7 @@ import {
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
+const { landProject, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
 test('clause 2: a red batch isolates its culprit and lands the rest in the same run [C7,#2901,#5815]', { timeout: 300_000 }, // budget: two real submits, accepts and one bisected landing; hang ceiling only.
 async () => {

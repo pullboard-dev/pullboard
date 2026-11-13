@@ -18,7 +18,7 @@ import {
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+const { landProject, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
 
 test('clause 1: one landing batch lands all three verified items that merge cleanly, hooks off, each recorded merged [C7,#2901,#5815]', { timeout: 300_000 }, // budget: three real submits, accepts and one landing; hang ceiling only.
 async () => {
