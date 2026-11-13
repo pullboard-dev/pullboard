@@ -13,7 +13,6 @@ import {
 } from '../main.js';
 import { repoInfo } from '../../../../git/index.js';
 import {
-  databaseFile,
   machineSettingsFile,
 } from '../../../../resources/index.js';
 import {
@@ -176,19 +175,6 @@ function settingError(key) {
     : `Restore ${key} to its documented value in pullboard.json.` };
 }
 
-/** Inspect capacity rows without opening the resource manager, which prunes and initializes storage. */
-function resourceSettings(rows, context, file) {
-  if (!existsSync(file)) return;
-  const db = new DatabaseSync(file, { readOnly: true });
-  try {
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='resource'").get()) return;
-    for (const { name, capacity } of db.prepare('SELECT name, capacity FROM resource ORDER BY name').all()) {
-      add(rows, { ...context, file, raw: {} }, `resources.${name}.capacity`, null, { value: capacity });
-      rows.at(-1).origin = 'configured';
-    }
-  } finally { db.close(); }
-}
-
 /** Read machine configuration and credential presence without migrating legacy relay sessions. */
 function machineSettings(rows, { defaultViewPort, DEFAULT_VIEW_PORT }) {
   const file = machineSettingsFile();
@@ -206,7 +192,6 @@ function machineSettings(rows, { defaultViewPort, DEFAULT_VIEW_PORT }) {
   add(rows, relayContext, 'relay.owner.account', null, { value: relay.owner?.account ?? relay.session?.account, origin: relay.owner?.account !== undefined || relay.session?.account !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.owner.url', null, { value: relay.owner?.url ?? relay.session?.url, origin: relay.owner?.url !== undefined || relay.session?.url !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.session.token', 'not set', { secret: true });
-  resourceSettings(rows, { scope: 'machine' }, databaseFile('machine'));
 }
 
 /** Project every supported repository setting plus its board's relay connection configuration. */
@@ -224,7 +209,6 @@ function repositorySettings(rows, board, { performanceCores }) {
     add(rows, context, key, fallback, { value, origin: key === invalidKey ? 'configured' : origin,
       ...(key === invalidKey ? { error: settingError(key) } : {}) });
   }
-  resourceSettings(rows, context, databaseFile('repo', info.root));
   const relayFile = join(info.commonDir, 'pullboard', 'relay.json');
   const relay = readObject(relayFile);
   const deletedFile = join(info.commonDir, 'pullboard', 'relay-deleted.json');
