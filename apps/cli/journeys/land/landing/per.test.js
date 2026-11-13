@@ -41,6 +41,6 @@ async () => {
     assert.ok(merged, `#${entry.item} is recorded merged`);
     assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', entry.commit, tip), '', `#${entry.item}'s reviewed commit is on main`);
   }
-  assert.equal(box.git(box.repo, 'ls-remote', 'origin', 'main').split(/\s+/u)[0], tip, 'the published main is the landed tip');
+  // No trunk.remote: the board host's checkout is trunk and the pulled land job pushes there; origin is published apart [P7].
 });
 
