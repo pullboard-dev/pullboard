@@ -237,6 +237,7 @@ import {
   actOn,
 } from '../entry.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
+import { topUpClaims } from '../next.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
@@ -1370,7 +1371,7 @@ export async function run(io, { first, values }) {
     ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
   }
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
-  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
+  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) });
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);
