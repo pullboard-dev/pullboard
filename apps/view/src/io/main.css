@@ -455,11 +455,11 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .go:hover { background: var(--accent-strong); color: var(--on-accent); }
 .ghost { border: 1px solid var(--line-strong); background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-2) var(--space-4); cursor: pointer; }
 
-.needs-you { background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--line)); border-radius: var(--radius-card); box-shadow: var(--shadow); padding: var(--space-4) var(--space-4); display: grid; gap: var(--space-1); }
-.needs-you .head { font-weight: 700; display: flex; gap: var(--space-3); align-items: center; }
-.needs-you .head i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
-.needs-you .head.quiet { color: var(--ink-muted); font-weight: 600; }
-.needs-you .more { padding: var(--space-0) var(--space-1); }
+.rulings-box { background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--line)); border-radius: var(--radius-card); box-shadow: var(--shadow); padding: var(--space-4) var(--space-4); display: grid; gap: var(--space-1); }
+.rulings-box .head { font-weight: 700; display: flex; gap: var(--space-3); align-items: center; }
+.rulings-box .head i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
+.rulings-box .head.quiet { color: var(--ink-muted); font-weight: 600; }
+.rulings-box .more { padding: var(--space-0) var(--space-1); }
 .answering { flex: 1 1 100%; display: flex; gap: var(--space-4); align-items: baseline; justify-content: space-between; margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 .answering > span { min-width: 0; overflow-wrap: anywhere; }
 .mark { font: 600 var(--text-2xs) var(--mono); padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-muted); }
@@ -909,7 +909,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   :root:not([data-side="collapsed"]) .switch-btn { cursor: default; }
   :root:not([data-side="collapsed"]) .switch-btn small { display: none; }
 }
-/* Needs you heads the Items list: each call a row shaped like an item, its kind in the warning colour as a sent-back
+/* Rulings heads the Items list: each call a row shaped like an item, its kind in the warning colour as a sent-back
  * verdict is, set off from the items under it by a rule. */
 .list-card { display: grid; gap: var(--space-0); padding: var(--space-2); }
 .list-card > .chain { padding: 0; }
@@ -1145,7 +1145,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 
 /* @pullboard-dashboard-styles */
 
-/* The shared Needs-you rows follow the approved full-list and Dashboard mockup. */
+/* The shared Rulings rows follow the approved full-list and Dashboard mockup. */
 .needs-group, .needs-call, .needs-more { min-width: 0; list-style: none; }
 .needs-group > ol { list-style: none; padding: 0; margin: 0; }
 .needs-group-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }

@@ -512,7 +512,7 @@ const ruleSourceTitle = (row) => row.standardVersion != null ? 'Pullboard v' + r
 // The same data-in, HTML-out renderer runs here and in the pure view tests.
 const recordRow = (${recordRowHtml.toString()});
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
-// What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
+// What needs the person in a project, as its Rulings list counts it: only the person's calls (B26),
 // the decisions passed up to them, spec rows waiting for them, and held lanes, which only the main
 // checkout, the person's seat, can set. Work waiting for a verdict or sent back belongs to the agents,
 // and the line under the project says so without counting it.
