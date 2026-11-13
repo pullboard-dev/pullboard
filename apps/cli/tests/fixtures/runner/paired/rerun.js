@@ -97,8 +97,8 @@ test('remote flaky case [C7]', () => { const n = existsSync(${JSON.stringify(run
       assert.ok(heldCounts.dispatched >= 1 && heldCounts.returned === heldCounts.dispatched,
         `the worker completed and returned before the stand-in held the result receipt: ${JSON.stringify(heldCounts)}`);
       // A loaded host can take a moment to reap the agent host the stand-in started; wait for it to go.
-      await waitForState(() => processesUnder(box.dir).length === 0, 'nothing from the held result-return phase keeps running');
-      assert.deepEqual(processesUnder(box.dir), [], 'nothing from the held result-return phase keeps running');
+      try { await waitForState(() => processesUnder(box.dir).length === 0, 'nothing from the held result-return phase keeps running'); } catch { /* the assertion below names what stayed */ }
+      assert.deepEqual(processesUnder(box.dir), [], 'nothing from the held result-return phase keeps running, 30 s after the deadline');
       return { held: true };
     }
     const finished = await awaitRoundTrip(run.child, run.closed, requests + '.phases', before, ROUND_TRIP_DEADLINES, firstReceiptAccepted);
