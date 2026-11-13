@@ -347,10 +347,13 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const inflight = new Set();
   const requests = [];
   const document = {
-    body: element('body'),
+    body: Object.assign(element('body'), { appendChild() {} }),
     documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
+    // The palette builds its overlay at load: a created element is a plain node the page may append and listen on.
+    createElement: () => element('created'),
+    querySelector: () => null,
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
