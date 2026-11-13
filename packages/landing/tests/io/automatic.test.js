@@ -1,4 +1,5 @@
-/** @pullboard-test-input apps/cli/src/io/landing/automatic.js */
+/** @pullboard-test-input source-tree */
+/** @pullboard-world-pin: the #6817 case reads the committed tree, where no source outside the scheduler may call it. */
 /** Deferred landing has durable, authenticated custody independent of a third acceptance [B35,B3,R3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -9,10 +10,14 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { scheduleAutomaticLanding } from '../../index.js';
-import { resumeAutomaticLanding } from '../../index.js';
-import { recoverAutomaticLanding } from '../../index.js';
-import { automaticLandingDirectory } from '../../index.js';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import * as landing from '../../index.js';
+import * as scheduler from '../../src/io/automatic/scheduler.js';
+import { scheduleAutomaticLanding } from '../../src/io/automatic/scheduler.js';
+import { resumeAutomaticLanding } from '../../src/io/automatic/scheduler.js';
+import { recoverAutomaticLanding } from '../../src/io/automatic/scheduler.js';
+import { automaticLandingDirectory } from '../../src/io/automatic/scheduler.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
 
 /** An isolated real Git repository gives each private pending record its actual common directory. */
@@ -60,4 +65,17 @@ test('an early wake retains a newer deferral, and a failed callback retains reco
   assert.notEqual(pending(root).id, first.id);
   await assert.rejects(resumeAutomaticLanding(root, 'fixture-token', dueAt, async () => { throw new Error('native admission unavailable'); }, { wait: async () => true }), /native admission unavailable/u);
   assert.match(pending(root).error, /native admission unavailable/u);
+});
+
+test('#6817 clauses 1-2: index.js exports nothing from the scheduler and no source outside it calls its timer, owner or wake [C7,#6817]', () => {
+  const exported = Object.keys(scheduler).filter(name => landing[name] === scheduler[name]);
+  assert.deepEqual(exported, []);
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
+  const names = ['scheduleAutomaticLanding', 'resumeAutomaticLanding', 'recoverAutomaticLanding', 'mainLandingWorker'];
+  let found = '';
+  try { found = execFileSync('git', ['grep', '-l', '-w', ...names.flatMap(name => ['-e', name]), '--', '*.js'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  const callers = found.split('\n').filter(Boolean)
+    .filter(file => file !== 'packages/landing/src/io/automatic/scheduler.js' && !/(^|\/)(tests|journeys)\//u.test(file) && !file.endsWith('.test.js'));
+  assert.deepEqual(callers, []);
 });

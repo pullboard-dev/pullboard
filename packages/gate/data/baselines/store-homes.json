@@ -7,7 +7,6 @@
     "temporary-edges.json": 1
   },
   "apps/cli/src/io/cli-main/run.js": {
-    "pending.json": 2,
     "board.sqlite": 1
   },
   "apps/cli/src/io/commands/init.js": {
