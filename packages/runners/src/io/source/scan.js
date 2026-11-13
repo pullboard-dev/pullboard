@@ -26,6 +26,7 @@ import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { scratchFolder } from '../../../../config/index.js';
+import { storeName } from '../store-names.js';
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -226,7 +227,7 @@ function cleanHistoryFile(root, policies) {
   const digest = createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 32);
   const partial = existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'));
   const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
-  return join(partial ? join(common, 'pullboard') : home, 'history-scan', `${digest}.json`);
+  return join(partial ? join(common, 'pullboard') : home, 'history-scan', storeName(digest));
 }
 
 /** Read the cached clean commits, newest first; a missing or unreadable cache is empty. */
