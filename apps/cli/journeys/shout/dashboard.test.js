@@ -126,7 +126,8 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     await chrome.waitFor('view.tab === "items" && view.state === "verify"');
     await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
     await chrome.waitFor('view.tab === "dashboard"');
-    // The Agents notch opens the Dashboard's Agents table at its own address.
+    // The Agents notch opens the Dashboard's Agents table at its own address; the notch shows at desktop widths.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, 'document.querySelector("#notch [data-peek=agents]")');
     await chrome.waitFor('view.tab === "dashboard" && location.pathname.endsWith("/dashboard/agents") && !!document.querySelector("#dashboard #dashboard-agents")');
     await press(chrome, 'document.querySelector("#dashboard [data-dashboard-list=next]")');

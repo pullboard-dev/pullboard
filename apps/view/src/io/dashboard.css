@@ -71,7 +71,7 @@
 /* 1. How work moved */
 .dash-flowcard { overflow: hidden; }
 .dash-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
-.dash-stage { position: relative; display: block; min-width: 0; padding: 9px 14px var(--space-3) !important; background: var(--surface) !important; border-left: 1px solid var(--line) !important; transition: background .12s; }
+.dash-stage { position: relative; display: flex !important; flex-direction: column; justify-content: flex-start; min-width: 0; padding: 9px 14px var(--space-3) !important; background: var(--surface) !important; border-left: 1px solid var(--line) !important; transition: background .12s; }
 .dash-stage:first-child { border-left: 0 !important; }
 .dash-stage:hover { background: var(--hover) !important; }
 .dash-stage:not(:last-child)::after { content: "›"; position: absolute; right: -6px; top: 50%; z-index: 1; width: 11px; transform: translateY(-55%); text-align: center; line-height: 16px; background: var(--surface); color: var(--ink-faint); font-size: 15px; }
