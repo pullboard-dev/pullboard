@@ -113,15 +113,20 @@ test('a checkout lease held past budget while commands wait is filed once, then 
   assert.ok(dead.reclaimed.some(line => /pruned/u.test(line)));
 });
 
-test('a gate waiter queued behind busy runners is a queue wait, not a pool hold, and an unexplained one still is [C7,#6857]', async t => {
+test('clause 1: a gate waiter queued behind busy runners is a queue wait, not a pool hold, so that wait ends within budget [C7,#6857]', async t => {
   const m = machine(t);
-  const waiter = m.sleeper(), stuck = m.sleeper();
+  const waiter = m.sleeper();
   const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
   const busy = JSON.stringify([{ host: 'a', reason: 'busy' }, { host: 'b', reason: 'busy' }]);
   resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
     [{ name: 'gate', pid: waiter.pid, agent: 'view-1', since: ago(5), reasons: busy }]);
   assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a gate waiter behind busy runners files nothing');
-  rmSync(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'));
+});
+
+test('clause 2: the hold reproduced from the evidence: a gate waiter with a free runner and no holder is still over budget [C7,#6857]', async t => {
+  const m = machine(t);
+  const stuck = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
   resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
     [{ name: 'gate', pid: stuck.pid, agent: 'view-2', since: ago(5), reasons: JSON.stringify([{ host: 'a', reason: 'available' }]) }]);
   const row = (await m.snapshot()).rows.find(entry => entry.surface === 'pool');
