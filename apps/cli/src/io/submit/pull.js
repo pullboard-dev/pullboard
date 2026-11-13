@@ -13,6 +13,7 @@ import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
+import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
@@ -276,6 +277,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const source = companion?.commit ?? commit;
   const configured = submitGateConfig(full || companion ? policyAt(root, source).config : ctx.config, main.config);
   const config = full ? { ...configured, affectedTests: '', submitGate: 'full' } : configured;
+  // A repo with no gate command is refused before any job row is written, as the controller path refuses it (NO_GATE).
+  if (!config.gate?.trim()) throw missingGate(root);
   const crossRun = withBoard(ctx, board => {
     board.gitRoot = root;
     return itemCollisionPlan(board, held, listItems(board, { all: true }));
