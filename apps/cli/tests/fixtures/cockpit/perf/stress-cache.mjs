@@ -92,11 +92,12 @@ export function cachedStressBoard(inputs) {
   const built = readFileSync(marker, 'utf8').trim(), source = join(cache, basename(built));
   const workspace = join(tmpdir(), `pullboard-stress-${randomUUID()}`);
   cpSync(source, workspace, { recursive: true });
+  const diag = { cache, built, source, srcHome: readdirSync(join(source, 'home')), dstHome: readdirSync(join(workspace, 'home')), srcTop: readdirSync(source), dstTop: readdirSync(workspace), homedir: userInfo().homedir };
   const manifest = JSON.parse(readFileSync(join(workspace, 'stress-board.json'), 'utf8'));
   const env = JSON.parse(readFileSync(join(workspace, 'env.json'), 'utf8'));
   rmSync(join(workspace, 'env.json'));
   for (const part of ['home', 'machine-home', join('board', '.git', 'pullboard')]) repathFiles(join(workspace, part), built, workspace);
-  return { ...repath(manifest, built, workspace), parent: tmpdir(), workspace, env: repath(env, built, workspace) };
+  return { diag, ...repath(manifest, built, workspace), parent: tmpdir(), workspace, env: repath(env, built, workspace) };
 }
 
 /** Build the cache from a detached process; node:test's per-file budget cannot kill it. */

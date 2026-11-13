@@ -130,7 +130,7 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
       const seen = await chrome.stable("JSON.stringify({ text: document.body.innerText.slice(0, 600), cls: document.body.className, data: typeof data, root: typeof view === 'object' ? view.root : null, project: typeof data === 'object' && data ? Object.keys(data) : null, err: window.__err })").catch(e => e.message);
       const { readFileSync, existsSync, readdirSync } = await import('node:fs');
       let reg; try { reg = readFileSync(join(board.env.PULLBOARD_HOME, 'projects.json'), 'utf8'); } catch (e) { reg = `ERR ${e.message}`; }
-      const extra = JSON.stringify({ pre: board.pre, view: (() => { try { return readFileSync(join(board.env.PULLBOARD_HOME, 'view.json'), 'utf8').slice(0, 300); } catch (e) { return e.message; } })(), root: board.root, rootExists: existsSync(board.root), ws: board.workspace, home: board.env.PULLBOARD_HOME, homeFiles: existsSync(board.env.PULLBOARD_HOME) ? readdirSync(board.env.PULLBOARD_HOME) : null, reg });
+      const extra = JSON.stringify({ pre: board.pre.slice(0, 40), diag: board.diag, view: (() => { try { return readFileSync(join(board.env.PULLBOARD_HOME, 'view.json'), 'utf8').slice(0, 300); } catch (e) { return e.message; } })(), root: board.root, rootExists: existsSync(board.root), ws: board.workspace, home: board.env.PULLBOARD_HOME, homeFiles: existsSync(board.env.PULLBOARD_HOME) ? readdirSync(board.env.PULLBOARD_HOME) : null, reg });
       throw new Error(`DIAG ${extra} ${seen} :: ${error.message.slice(0, 100)} :: ${server.stderr()}`);
     }
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
