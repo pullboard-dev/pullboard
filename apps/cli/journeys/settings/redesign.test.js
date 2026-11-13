@@ -99,7 +99,7 @@ test('Settings shows the toggle, grouped cards, one-height rows, human units, ch
       assert.equal(rows.gateSlots.copy, 'pullboard settings gateSlots 8');
       assert.equal(rows['gate.runnerWaitMs'].copy, 'pullboard settings gate.runnerWaitMs 900000');
       assert.equal(rows['gate.runnersFirst'].copy, 'pullboard settings gate.runnersFirst on');
-      assert.deepEqual(Object.entries(rows).filter(([, row]) => row.copy).map(([key]) => key).sort(), Object.keys(rows).filter(key => SETTING_FORMS.includes(key)).sort(), at + ': copy buttons only for settings the CLI can set');
+      assert.deepEqual(Object.entries(rows).filter(([, row]) => row.copy).map(([key]) => key).sort(), Object.keys(rows).filter(key => SETTING_FORMS.includes(key) && key !== 'runnerRates').sort(), at + ': copy buttons only for settings one CLI command sets (runnerRates takes a runner and four numbers, so it has none)');
       assert.equal(rows['view.background'].copy, null);
       for (const [key, row] of Object.entries(rows)) {
         assert.doesNotMatch(row.value, /^(?:true|false)$/u, key + ' shows on/off, not a boolean');

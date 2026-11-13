@@ -24,7 +24,7 @@ export function settingsContentHtml(entry, scope = 'machine') {
   };
   /** Show the exact value on hover when the human form shortens it. */
   const exact = value => value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
-  const about = { Capacity: 'How much this computer runs at once.', Order: 'What runs first when work is waiting.', Runners: 'Other machines that run checks for this one.',
+  const about = { Capacity: 'How much this computer runs at once.', Spending: 'What agents may spend per day and in total.', Folders: 'Where scratch work and shared files live.', Order: 'What runs first when work is waiting.', Runners: 'Other machines that run checks for this one.',
     Background: 'What keeps running on this computer.', Landing: 'How finished work reaches main.', Checks: 'How work is tested and held to its criterion.',
     Relay: 'Sharing boards with your phone and other devices.', Project: 'Where the project keeps its files and how it names things.',
     Review: 'Who may review work and how reviews are scheduled.', Claims: 'How long work stays claimed.', Commits: 'What a commit message must look like.',
