@@ -21,6 +21,8 @@ import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { quarantinedReds } from './flakes.js';
 import { recordPulledPairs } from './flakes.js';
+import { ownershipOnly } from './owner.js';
+import { routePulledOwnership } from './owner.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -267,6 +269,7 @@ export function failingParts(receipt) {
   if (gate.error) parts.push(`gate: ${clip(gate.error)}`);
   if (gate.analysis?.infra) parts.push(`infrastructure: ${clip(typeof gate.analysis.infra === 'string' ? gate.analysis.infra : JSON.stringify(gate.analysis.infra))}`);
   for (const refusal of gate.analysis?.refusals ?? []) parts.push(`${refusal.part} ${refusal.code ?? 'REFUSED'}: ${clip(refusal.message)}`);
+  if (gate.analysis?.ownership) parts.push(`authorization OUTSIDE_LANE: ${clip(gate.analysis.ownership.message)}`);
   for (const phase of gate.phases ?? []) {
     if (phase.status === 0) continue;
     // A phase whose receipt names its cases lists them as the controller gate does, file :: case name.
@@ -309,7 +312,7 @@ export function failingParts(receipt) {
  */
 export function compareGateWithMain(board, receipt, main, lookup) {
   const gate = receipt?.gate ?? {};
-  if (typeof lookup !== 'function' || !board.gitRoot || !SHA.test(String(main)) || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length) return null;
+  if (typeof lookup !== 'function' || !board.gitRoot || !SHA.test(String(main)) || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || gate.analysis?.ownership) return null;
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
   if (!red.length || red.some(phase => !Array.isArray(phase.failures) || !phase.failures.length
     || phase.failures.some(row => typeof row?.name !== 'string' || !row.name || !PROJECT_FILE.test(row?.file ?? '')))) return null;
@@ -387,7 +390,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
-  if (receipt?.status === 0 && receipt?.gate?.green === true) {
+  const owned = ownershipOnly(receipt);
+  if (receipt?.status === 0 && receipt?.gate?.green === true || owned) {
     try { phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check }); }
     catch (error) {
       // A receipt the board refuses is named on the thread; the gate's result still applies, so the item is never stranded.
@@ -398,13 +402,17 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   // The runner's machinery diagnostics meet the board repository's refusal-trial ledger: one on trial reports, an enforced one refuses [C7].
   const trials = judgeMachinery(board, receipt?.gate?.analysis?.machinery, say => trialNotes.push(say));
   const green = receipt?.status === 0 && receipt?.gate?.green === true && !trials.refused.length;
+  // Green proof whose only finding is lane ownership goes to the owners, as the controller submit routes it [B3,L1,P7].
+  const routed = owned && !trials.refused.length ? routePulledOwnership(board, { job, id, candidate, main, submit, receiptIds: phaseReceipts.map(row => row.id) }) : null;
+  if (routed?.applied) return routed;
   const compared = green ? null : compareGateWithMain(board, receipt, main, compareWithMain);
   const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true);
   const recorded = compared ? { cases: compared.cases } : {};
   let parts = compared ? [...trials.refused, ...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
     ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : [...trials.refused, ...failingParts(receipt)];
+  if (routed?.refused) parts.push(`ownership routing refused: ${routed.refused}`);
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
-  if (green || mainOnly || excused) {
+  if (green || mainOnly || excused && !trials.refused.length) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
     try {
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
