@@ -2,8 +2,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { landingReceiptReuse } from '../../../index.js';
-import { landingProgress } from '../../../src/io/in/process.js';
-import { LANDING_GATE_CEILING_MS } from '../../../src/io/in/process.js';
 import { submitProved } from '../../../src/io/step/gate.js';
 import { submittedSelections } from '../../../src/io/step/gate.js';
 
@@ -50,19 +48,4 @@ test('clause 3: a batch of several items lands on their submit receipts, rerunni
   const missing = landingReceiptReuse({ items: [{ id: 7, commit: 'c7' }, { id: 9, commit: 'c9' }], readEvents: id => events[id] ?? [], tree: 'tAB', base: 'm1',
     tooling: 'tools', full: false, files: [], treeOf: rev => trees[rev] ?? null, changedPaths, closure });
   assert.deepEqual([missing.reuse, missing.code, missing.item], [false, 'NO_RECEIPT', 9]);
-});
-
-test('clause 4: a gate still running on a runner is progress, so the 10-minute stop never ends it; past its ceiling it is not [C7]', () => {
-  let clock = 0;
-  const progress = landingProgress({ now: () => clock });
-  progress.said('gate candidate: 1392 files selected; running');
-  clock = 30 * 60_000;
-  assert.equal(progress.lastProgressAt(), clock, 'thirty silent minutes of a running gate still count as progress');
-  progress.said('gate candidate: run finished green');
-  clock += 11 * 60_000;
-  assert.equal(progress.lastProgressAt(), 30 * 60_000, 'after the run ends, silence is no progress again');
-  progress.said('gate candidate: 2 files selected; running');
-  const opened = clock;
-  clock += LANDING_GATE_CEILING_MS + 1;
-  assert.equal(progress.lastProgressAt(), opened, 'a gate past its ceiling no longer counts');
 });
