@@ -58,11 +58,13 @@ async function builtFixture(t) {
   const id = item.item_id;
   const claimed = await box.runLocal(box.web, 'claim', String(id));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
-  mkdirSync(join(box.repo, 'web'), { recursive: true });
-  writeFileSync(join(box.repo, 'web/result.txt'), 'hand landed\n');
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'feat(web): land the result by hand [G1]');
-  const landing = box.git(box.repo, 'rev-parse', 'HEAD');
+  // The web seat commits the work, so the board knows it as the author; the coordinator then fast-forwards main onto it and lands it by hand.
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web/result.txt'), 'hand landed\n');
+  box.git(box.web, 'add', '-A');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): land the result by hand [G1]');
+  const landing = box.git(box.web, 'rev-parse', 'HEAD');
+  box.git(box.repo, 'merge', '-q', '--ff-only', landing);
   const merged = await box.runLocal(box.repo, 'merged', String(id), landing, '--forced', 'hand landed around the gate');
   assert.equal(merged.code, 0, merged.out + merged.err);
   return { box, id };
