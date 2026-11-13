@@ -190,7 +190,7 @@ export function accountHtml({ signedIn = false, login = '' } = {}) {
 
 /**
  * The account menu: who you are, Settings, Theme and Pair a phone; signed out it offers Sign in with GitHub in
- * place of a name. There is no Sign out row yet: the view has no real sign-out, and relay off is destructive (Studio, 12 Nov). The page embeds this function's source, so it uses only its argument.
+ * place of a name. There is no Sign out row yet: the view has no real sign-out, and relay off is destructive. The page embeds this function's source, so it uses only its argument.
  *
  * @param {{ signedIn?: boolean, login?: string, theme?: string }} [account] - theme is what the person kept: light, dark or system.
  * @returns {string}

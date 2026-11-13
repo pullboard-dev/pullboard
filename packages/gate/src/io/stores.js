@@ -15,9 +15,11 @@ import { report } from './scan.js';
 import { TEST_FILE } from './scan.js';
 import { walk } from './scan.js';
 
+/** The registry file, its one home: the disk report reads it through `diskStores`, and this scan judges it [CD2,C7]. */
 export const STORE_REGISTRY = 'packages/gate/data/baselines/stores.json';
+export const STORE_REGISTRY_URL = new URL('../../data/baselines/stores.json', import.meta.url);
 export const STORE_BASELINE = 'packages/gate/data/baselines/store-homes.json';
-const REGISTRY_URL = new URL('../../data/baselines/stores.json', import.meta.url);
+const REGISTRY_URL = STORE_REGISTRY_URL;
 const BASELINE_URL = new URL('../../data/baselines/store-homes.json', import.meta.url);
 /** Shipped source: a package's or app's src tree and its root modules; tests, fixtures and data are not judged. */
 const SOURCE = /^(?:apps|packages)\/[^/]+\/(?:src\/.+|[^/]+)\.[cm]?js$/u;
@@ -52,10 +54,16 @@ export function isStoreSource(path) {
   return SOURCE.test(path) && !TEST_FILE.test(path);
 }
 
-/** The stem a `${...}` template registers by, or null when its name keeps no literal word (`*.json` names no store). */
+/** The name a `${...}` template gives a store file once each `${...}` is a `*`: `exit-anchor-*.json`, or `*.json` when it keeps no literal word, which no registry row names. */
 function templateStem(text) {
-  const name = text.includes('${') ? TEMPLATE_FILE.exec(text.replace(/\$\{[^}]*\}/gu, '*')) : null;
-  return name && /[a-z]{3}/u.test(name[1].replace(/\.(?:jsonl|json|sqlite)$/u, '')) ? name : null;
+  return text.includes('${') ? TEMPLATE_FILE.exec(text.replace(/\$\{[^}]*\}/gu, '*')) : null;
+}
+
+/** The sites of a source file that name a store file by a template with no literal word (`${id}.json`): each must come from a registry const, so none may remain. */
+export function stemlessSites(source, path) {
+  if (!isStoreSource(path)) return [];
+  return lex(source).strings.filter(string => { const name = templateStem(string.text); return name && !/[a-z]{3}/u.test(name[1].replace(/\.(?:jsonl|json|sqlite)$/u, '')); })
+    .map(string => ({ path, line: lineAt(source, string.start), text: string.text }));
 }
 
 /**
@@ -215,6 +223,27 @@ export function storeOwnerProblems(registry) {
     : [{ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is pinned to ${owner}, not ${registry.stores[store]?.owner ?? 'no owner'}; the writer owns the store` }]);
 }
 
+/** A call that writes a file or a table: what an owner module must hold for the store it owns. */
+const WRITE_CALL = /writeFileSync|appendFileSync|renameSync|writeFile\(|appendFile\(|createWriteStream|writeSync|DatabaseSync|INSERT|UPDATE |DELETE FROM|atomicWrite|writeJson|writeAtomic/u;
+
+/**
+ * Owners that write nothing: a store's owner module must hold a write call to it, unless the row is `kind: "repo-data"`
+ * (a tracked data file the code only reads). The rows whose owner writes nothing today are a measured debt list that
+ * only shrinks; a new row, or a listed row whose owner now writes, is refused (#6742). The static check runs it when a change edits the registry.
+ *
+ * @param {{ stores: Record<string, { kind: string, owner: string }>, writeOwnerDebt?: string[] }} registry
+ * @param {(file: string) => string | undefined} read - A candidate file's text; an owner it cannot read is not judged.
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function storeWriteProblems(registry, read) {
+  const debt = registry.writeOwnerDebt ?? [];
+  const silent = Object.entries(registry.stores).filter(([, row]) => row.kind !== 'repo-data' && row.kind !== 'table' && read(row.owner) !== undefined && !WRITE_CALL.test(read(row.owner)));
+  return [
+    ...silent.filter(([store]) => !debt.includes(store)).map(([store, row]) => ({ path: STORE_REGISTRY, line: 1, text: `CD2_OWNER_NO_WRITE: ${store} is owned by ${row.owner}, which holds no write call; own it by the module that writes it, or mark a read-only data file kind repo-data` })),
+    ...debt.filter(store => !silent.some(([name]) => name === store)).map(store => ({ path: STORE_REGISTRY, line: 1, text: `CD2_OWNER_NO_WRITE: ${store} now has a writing owner or is repo-data; remove it from writeOwnerDebt so the list only shrinks` })),
+  ];
+}
+
 /** Held-exception faults for the exceptions a change touches: its own files, or every row when the registry changed. */
 export function storeExceptionProblems(registry, files, today) {
   const all = files.includes(STORE_REGISTRY);
@@ -236,7 +265,7 @@ export function storeRegistryCheck({ files, sources, text, previous }, today = n
   let baseline;
   try { registry = JSON.parse(text(STORE_REGISTRY)); baseline = JSON.parse(text(STORE_BASELINE)); } catch { return []; } // no registry: not this repository
   const sites = sources.flatMap(row => storeSites(row.source, row.file));
-  const problems = [...storeGrowth(sites, registry, baseline, today), ...storeExceptionProblems(registry, files, today), ...storeOwnerProblems(registry)];
+  const problems = [...storeGrowth(sites, registry, baseline, today), ...storeExceptionProblems(registry, files, today), ...storeOwnerProblems(registry), ...(files.includes(STORE_REGISTRY) ? storeWriteProblems(registry, file => { try { return text(file); } catch { return undefined; } }) : [])];
   if (files.includes(STORE_BASELINE) && previous(STORE_BASELINE)) problems.push(...storeBaselineGrowth(baseline, JSON.parse(previous(STORE_BASELINE))));
   if (previous(STORE_REGISTRY)) problems.push(...storeDirGrowth(registry, JSON.parse(previous(STORE_REGISTRY))));
   return problems.map(row => `${row.path}:${row.line}: ${row.text}`);
@@ -303,4 +332,30 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     }
     else report(storeGrowth(sites, registry, baseline, new Date().toISOString().slice(0, 10)));
   }
+}
+
+/** The shipped registry, parsed. */
+export function storeRegistry() {
+  return JSON.parse(readFileSync(STORE_REGISTRY_URL, 'utf8'));
+}
+
+/**
+ * The names under .git/pullboard that make up each disk group: a row's `disk` group, plus the names the registry lists
+ * as `disk.unlisted` (files with no row of their own, such as SQLite sidecars). Why: one registry names every store, so
+ * a store added there cannot be left out of the disk report.
+ *
+ * @param {{ disk: { groups: string[], unlisted?: Record<string, string[]> }, stores: Record<string, { disk?: string }>, dirs?: Record<string, { disk?: string }> }} registry
+ * @returns {Record<string, string[]>} Group name to top-level names; the group `other` is never listed.
+ */
+export function diskStoresFrom(registry) {
+  const stores = Object.fromEntries(registry.disk.groups.map(group => [group, [...(registry.disk.unlisted?.[group] ?? [])]]));
+  for (const rows of [registry.stores, registry.dirs ?? {}]) {
+    for (const [name, row] of Object.entries(rows)) if (stores[row.disk]) stores[row.disk].push(name);
+  }
+  return stores;
+}
+
+/** The disk groups of the shipped registry (see diskStoresFrom). */
+export function diskStores() {
+  return diskStoresFrom(storeRegistry());
 }

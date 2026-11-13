@@ -47,8 +47,9 @@ function countPairs() {
   const needs = p.needs.reduce((total, row) => total + (row.kind === 'draft' ? row.count : 1), 0);
   if (view.tab !== 'roadmap') add('browser title/person calls', Number(/^\((\d+)\)/.exec(document.title)?.[1] || 0), needs);
   if (view.tab === 'items' && view.itemsView === 'list') {
-    const selected = document.querySelector('[data-filter-kind="state"][aria-checked="true"]');
-    add('Items/selected filter', number(selected?.querySelector('b')), all('#chain > [data-item]').length);
+    const shown = { active: active.length, all: items.length, verify: items.filter(item => item.status === 'submitted').length }[view.state];
+    if (shown !== undefined) add('Items/' + view.state + ' rows', all('#chain > [data-item]').length, shown);
+    add('Items/open fact in the sidebar', number(document.querySelector('[data-nav-fact="items"]')), active.length);
   }
   if (view.tab === 'items' && view.itemsView === 'pipeline') {
     for (const stage of all('#pipeline [data-pipeline-stage]')) {
@@ -136,7 +137,10 @@ function countPairs() {
     add('Dashboard/agents at work', number(document.querySelector('#dashboard [aria-label="Agents"] h2 .dash-pill')), shown + between);
     const since = Date.now() - 24 * 3_600_000;
     const landedInDay = new Set(p.events.filter(event => event.event_kind === 'merged' && Date.parse(event.event_at) > since && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
-    add('Dashboard/landed 24h', number(document.querySelector('#dashboard [title="Landed in the last 24 hours"] b')), p.dashboardPace?.last24h ?? landedInDay.size);
+    // While the history prefix is behind, the strip says "Loading…" in place of its numbers (278325174b); it never shows a wrong one.
+    const dayTile = document.querySelector('#dashboard [title="Landed in the last 24 hours"] b');
+    if (dayTile) add('Dashboard/landed 24h', number(dayTile), p.dashboardPace?.last24h ?? landedInDay.size);
+    else add('Dashboard/landed 24h is loading, not wrong', /Loading…/.test(document.querySelector('#dashboard .dash-strip')?.textContent ?? ''), true);
     const bins = all('#dashboard .dash-spark rect title').map(node => Number(/(\d+) landed$/.exec(node.textContent)?.[1] || 0));
     if (bins.length) {
       add('Dashboard/landing spark total', bins.reduce((sum, count) => sum + count, 0), landedInDay.size);
@@ -243,6 +247,7 @@ async function checkCounts(chrome, phase) {
 
 /** Open a real pane through the navigation and verify its current native snapshot's counts. */
 async function pane(chrome, name, phase) {
+  if (name === 'settings') await press(chrome, 'document.querySelector("#account")'); // Settings is a row in the account menu.
   await press(chrome, 'document.querySelector("[data-tab=' + name + ']")');
   await chrome.waitFor('view.tab === ' + JSON.stringify(name) + ' && !document.querySelector("[data-pane=' + name + ']").hidden');
   await checkCounts(chrome, phase + '/' + name);
@@ -253,15 +258,14 @@ async function sweep(chrome, phase) {
   for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
     await pane(chrome, tab, phase);
     if (tab === 'items') {
-      const states = await chrome.stable('[...document.querySelectorAll("[data-filter-kind=state]")].map(node => node.dataset.filterValue)');
+      const states = await chrome.stable('[...document.querySelectorAll("[data-page-ctl=state]")].map(node => node.dataset.value)');
       for (const state of states) {
-        await press(chrome, 'document.querySelector("#filter-toggle")');
-        await press(chrome, 'document.querySelector(' + JSON.stringify('[data-filter-choice="state:' + state + '"]') + ')');
+        await press(chrome, 'document.querySelector(' + JSON.stringify('[data-page-ctl=state][data-value="' + state + '"]') + ')');
         await checkCounts(chrome, phase + '/Items/' + state);
       }
-      await press(chrome, 'document.querySelector("[data-items-view=pipeline]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=view][data-value=pipeline]")');
       await checkCounts(chrome, phase + '/Pipeline');
-      await press(chrome, 'document.querySelector("[data-items-view=list]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=view][data-value=list]")');
     }
     if (tab === 'shouts') {
       for (const fold of ['idle']) {

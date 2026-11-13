@@ -46,7 +46,7 @@ function cpuLoadShell(e2e, commonjs, stage) {
   const remoteMachineHome = join(remoteHome, '.pullboard');
   const requests = join(box.dir, 'ssh-requests.jsonl');
   for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
-  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
+  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo, ['apps/runner/src/io/controller.js']);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
   const standIn = { bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, nodeCommand: process.execPath };
   installSshStandIn({ ...standIn, requests });

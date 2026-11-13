@@ -177,6 +177,8 @@ export const FLAG_MEANINGS = Object.freeze({
   '--revises': ['--revises <id>', 'the approved row this draft changes'],
   '--status': ['--status <status>', 'the status the row takes'],
   'test --status': ['--status <run id>', 'prints a queued run\'s state once'],
+  'test --census': ['--census [prefix..]', 'runs every tracked test file, or those under the prefixes, in a few shards per runner'],
+  'test --out': ['--out <jsonl>', 'the file that gets one row per test file'],
   '--title': ['--title "<title>"', 'the blueprint\'s title'],
   '--update': 'refreshes unchanged Claude Code skills from the shipped versions',
   '--compare-main': 'compares each red file with main, even for one file',

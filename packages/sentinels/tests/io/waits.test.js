@@ -340,7 +340,7 @@ test('waits record files a mid item add accepts: Files: naming the holder\'s sou
 /** #6121's gate job: claimed by a runner, no step or span for six minutes while its phases ran, lease renewed a moment ago. */
 function runnerHeldGate(m, now) {
   m.board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run('gate:6121:ae14aa8fd0f8:x', 'gate', 6121, 'claimed', 'auxiliary-53-anvil-50f9f9', now + 110_000, now - 6 * MINUTE, now);
+    .run('gate:6121:ae14aa8fd0f8:x', 'gate', 6121, 'claimed', 'pool-53-anvil-50f9f9', now + 110_000, now - 6 * MINUTE, now);
   m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
 }
 
@@ -387,8 +387,8 @@ test('clause 2: the 147 s, 155 s and 279 s runner-unavailable episodes read from
 });
 
 test('a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {
-  const key = waitKey({ surface: 'board-write', key: '/Users/dev/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
+  const key = waitKey({ surface: 'board-write', key: '/Users/user/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
   assert.equal(key, 'board-write:.git/pullboard/board.sqlite:edit');
-  assert.doesNotMatch(key, /Open Source|\/Users/u, 'no absolute path or space survives');
+  assert.doesNotMatch(key, /Open Source|\/Users\b/u, 'no absolute path or space survives');
   assert.equal(waitKey({ surface: 'gate', key: 'gate:#7:gate' }), 'gate:gate:#7:gate', 'a key without a path is unchanged');
 });

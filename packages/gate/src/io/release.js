@@ -37,11 +37,13 @@ import {
   releaseReceiptBody,
   releaseReceiptFields,
   releaseReceiptProblem,
+  releaseTiming,
   readReleaseReceipt,
 } from './release/receipt.js';
 import {
   Refused,
 } from '../../../kernel/index.js';
+import { storeName } from './store-names.js';
 
 /** Bind a release to the accepted coordinator head and accepted command, with no dirty-tree substitute. */
 export function releaseSource(root) {
@@ -58,7 +60,7 @@ export function releaseReceiptDirectory(root) {
 
 /** The path of one native release receipt. */
 export function releaseReceiptFile(root, id) {
-  return join(releaseReceiptDirectory(root), `${id}.json`);
+  return join(releaseReceiptDirectory(root), storeName(id));
 }
 
 /** Verify only this repository's privately recorded execution and its native gate bytes, never an imported file. */
@@ -93,7 +95,8 @@ export async function runReleaseGate(root, { agent = 'release', onWait, executio
   const gateReceipt = readGateReceipt(receiptStore(root), run.receiptId);
   const observed = run.releaseParticipation;
   const expected = { head: source.head, tree: source.tree, command: source.command, required: executors.map(entry => entry.id) };
-  const envelope = { version: 1, gateReceipt, participation: observed };
+  const timing = releaseTiming(observed);
+  const envelope = { version: 1, gateReceipt, participation: observed, ...(timing ? { timing } : {}) };
   const problem = releaseReceiptProblem(envelope, expected);
   if (!run.isGreen || problem) {
     throw new Refused('GATE_RUN_EVIDENCE', `release gate did not produce complete green evidence: ${problem ?? 'the actual gate failed'}; inspect its native gate log`);
@@ -107,6 +110,6 @@ export async function runReleaseGate(root, { agent = 'release', onWait, executio
   recordCoordinatorRelease(root, request.id, source.head, coordinator);
   // This private execution path has now checked the actual full receipt, source and all executor custody.
   writeFileSync(gitPath(root, 'pullboard-gate-green'), `${source.tree}\n`);
-  return { receipt: releaseReceiptFields(envelope, expected), file,
-    seconds: Math.ceil((Date.now() - Date.parse(startedAt)) / 1000), gateLog: run.log, profilePath: run.profilePath };
+  return { receipt: releaseReceiptFields(envelope, expected), file, timing,
+    seconds: timing?.seconds ?? Math.ceil((Date.now() - Date.parse(startedAt)) / 1000), overBudget: timing?.status === 'OVER_BUDGET', gateLog: run.log, profilePath: run.profilePath };
 }

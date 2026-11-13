@@ -22,7 +22,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 
-/** Create actual files and an explicit root import map; no source modules execute during reports. */
+/** Create actual files and an explicit root import map; no source modules execute during reports. Reports stage first because the lint reads tracked files. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -35,7 +35,7 @@ function fixture(t) {
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, remove, git, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
+  return { root, put, remove, git, report: () => { git('add', '-A'); return cellLintReport(root, { importsIn, commonJsIn }); } };
 }
 
 test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
@@ -49,7 +49,7 @@ test('the actual discovered command loader reaches command run and its literal h
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    ['src/discovery.js', 'packages/kernel/index.js'].includes(file)
+    ['src/discovery.js', 'packages/kernel/index.js', 'packages/kernel/light.js'].includes(file)
       || file.startsWith('packages/kernel/src/')) });
   box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
   box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
@@ -84,13 +84,13 @@ test('discovered command reach requires the exact kernel front door and discover
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
+    file === 'packages/kernel/index.js' || file === 'packages/kernel/light.js' || file.startsWith('packages/kernel/src/')) });
   box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
   box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
   box.put('apps/demo/commands/next.js', 'export function run() {}\n');
-  appendFileSync(join(box.root, 'packages/kernel/index.js'), '\n// changed provider\n');
+  appendFileSync(join(box.root, 'packages/kernel/light.js'), '\n// changed provider\n');
   assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
-  copyPackageFiles(source, box.root, { files: ['packages/kernel/index.js'] });
+  copyPackageFiles(source, box.root, { files: ['packages/kernel/light.js'] });
   appendFileSync(join(box.root, 'packages/kernel/src/logic/discovery.js'), '\n// changed discovery\n');
   assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
 });

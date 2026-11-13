@@ -20,6 +20,7 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 const projects = [];
@@ -43,6 +44,8 @@ const ROWS = Array.from({ length: 36 }, (_, index) => `Z${index + 1}`);
 /** A local-only repo with a spec of G1 and Z1..Z36, landing into its own trunk with a trivial gate. */
 async function localProject({ batch = false } = {}) {
   const box = sandbox();
+  // The gate runs in the submitting command here; a bare sandbox project has no installed tooling for a pulled gate to judge it [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const repo = join(box.dir, 'message-repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');

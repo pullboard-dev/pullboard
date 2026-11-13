@@ -35,6 +35,7 @@ import {
 } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
+import { storeName } from '../../store-names.js';
 
 /** Resolve private completion storage beside this repository's shared board. */
 function locations(root) {
@@ -67,7 +68,7 @@ async function complete(root, receipt, io, services) {
 function saveReceipt(root, receipt) {
   const directory = locations(root).receipts;
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const file = join(directory, `${receipt.expected.request}.json`);
+  const file = join(directory, storeName(receipt.expected.request));
   const temporary = `${file}.${process.pid}.tmp`;
   writeFileSync(temporary, JSON.stringify(receipt), { mode: 0o600 });
   renameSync(temporary, file);

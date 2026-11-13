@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/dashboard.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/item/panel.css */
 /** @pullboard-world-pin reads panel.css, which the server adds to main.css at its marker, to prove the rules the page ships. */
 /** The opened-item and preview panels draw cleanly: one header of aligned chips, a check sentence with a sized icon, no clipped row chip [N26]. */
 import assert from 'node:assert/strict';

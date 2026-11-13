@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../index.js';
 import { openCellBoard as openBoard } from './fixtures/cell.js';
-import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from './fixtures/submit.js';
 import {
   exportBoard,
   importBoard,
