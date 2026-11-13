@@ -49,6 +49,6 @@ test('clause 2: next names a seat\'s own red gate as its work instead of offerin
     result: { code: 1, error: { code: 'GATE_RED', message: 'The fixture gate went red.', next: 'Fix the named source.' } } });
   const result = await answer(box, seat, ['next', '--build']);
   assert.equal(result.code, 0, result.text);
-  assert.match(result.text.split(/\r?\n/u, 1)[0], new RegExp(`^red queued gate on #${id}: GATE_RED`, 'u'));
+  assert.match(result.text.split(/\r?\n/u, 1)[0], new RegExp(`^red queued gate on #${id} A red gate stays with its builder: GATE_RED`, 'u'));
   assert.equal(store.getItem(box.board, id).item_owner, seat.id, 'the red gate stays with its builder');
 });
