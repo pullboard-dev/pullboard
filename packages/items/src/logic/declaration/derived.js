@@ -179,8 +179,8 @@ export function sessionSnapshot(board, ids) {
   const seats = new Map(), joins = new Map(), families = new Map();
   for (let offset = 0; offset < ids.length; offset += 500) {
     const chunk = ids.slice(offset, offset + 500), marks = chunk.map(() => '?').join(',');
-    for (const row of board.db.prepare(`SELECT agent_id, agent_path, agent_family FROM agent WHERE agent_id IN (${marks})`).all(...chunk)) seats.set(row.agent_id, row);
-    for (const row of board.db.prepare(`SELECT event_id, event_by, event_kind, event_detail FROM event WHERE event_kind IN ('join','family') AND event_by IN (${marks}) ORDER BY event_id`).all(...chunk)) {
+    for (const row of prepared(board.db, `SELECT agent_id, agent_path, agent_family FROM agent WHERE agent_id IN (${marks})`).all(...chunk)) seats.set(row.agent_id, row);
+    for (const row of prepared(board.db, `SELECT event_id, event_by, event_kind, event_detail FROM event WHERE event_kind IN ('join','family') AND event_by IN (${marks}) ORDER BY event_id`).all(...chunk)) {
       if (row.event_kind === 'join') { if (!joins.has(row.event_by) || joins.get(row.event_by).event_id > row.event_id) joins.set(row.event_by, row); }
       else {
         if (!families.has(row.event_by)) families.set(row.event_by, []);
