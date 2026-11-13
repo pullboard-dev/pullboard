@@ -2,7 +2,6 @@
 /** The Cells reorg-only checks refuse only Cells reorg work; every other item proceeds with printed warnings [C7,D3]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -205,8 +204,8 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   rmSync(marker, { force: true });
   const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  await settleSubmit(t, box, JSON.parse(submitted.out));
-  // The pulled gate runs the cells stage on the runner and writes its warning lines to the runner's own hand-off log.
-  assert.match(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'handoff.log'), 'utf8'), /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place src\/ordinary-added\.js/u);
+  const settled = await settleSubmit(t, box, JSON.parse(submitted.out));
+  // The pulled gate runs the cells stage on the runner; its advisory lines come back in the job receipt's notes.
+  assert.match(JSON.stringify(settled.gateJob), /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place src\/ordinary-added\.js/u);
   assert.equal(existsSync(marker), true, 'the ordinary item proceeds to its check');
 });
