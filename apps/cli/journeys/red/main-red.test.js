@@ -183,7 +183,7 @@ test('a pulled red reads native spec reporter failure files and compares them wi
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST, reporter: 'spec', requireInfraNote: true });
   delete box.env.NO_COLOR;
   box.env.FORCE_COLOR = '1';
-  const [, submitItem] = addItems(box, [
+  const [rework, submitItem] = addItems(box, [
     { title: 'Repair spec-reported failure', specId: 'G1' },
     { title: 'Unrelated submit', specId: 'G2' },
   ]);
@@ -201,6 +201,8 @@ test('a pulled red reads native spec reporter failure files and compares them wi
   const facts = gateFacts(shown, job.id);
   assert.match(facts.at(-1), /^Gate job \S+ red at /u);
   assert.match(facts.at(-1), /also red on main: test\/inherited\.test\.js/u);
+  // The open rework of the one approved row whose gate is the red file owns it, as the inline gate named it [V1,C7].
+  assert.match(facts.at(-1), new RegExp(`^inherited main red for approved row G1 \\(test/inherited\\.test\\.js\\); open rework #${rework} owns it\nnext: land #${rework} first, then submit again$`, 'mu'));
   assert.equal(shown.item_status, 'claimed', 'a red compared with main still goes back to its builder');
   assert.equal(shown.thread.some(entry => entry.kind === 'submit'), false, 'a red gate records no submission');
   assert.equal(runCount(box), before + 2,
