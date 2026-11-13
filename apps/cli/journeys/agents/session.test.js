@@ -265,7 +265,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   assert.deepEqual(readFileSync(file), before, 'the authenticated view does not alter the local agent-session binding');
 });
 
-test('takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 45_000 }, async () => {
+test('takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 90_000 }, async () => {
   const box = await project();
   const started = join(box.dir, 'gate-started');
   const release = join(box.dir, 'gate-release');
@@ -307,7 +307,7 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
   }
   /** Wait on an actual private fixture observation, with an assertion if it never becomes true. */
   async function observed(predicate, label) {
-    const deadline = Date.now() + 10_000;
+    const deadline = Date.now() + 40_000; // a loaded runner takes 18 s just to authorize a submit
     while (!predicate() && Date.now() < deadline) await new Promise((done) => setTimeout(done, 10));
     assert.ok(predicate(), label);
   }
