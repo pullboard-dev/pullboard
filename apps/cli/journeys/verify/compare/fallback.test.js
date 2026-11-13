@@ -8,7 +8,7 @@ import { fixture } from '../../../tests/fixtures/verify/compare.js';
 import { submit } from '../../../tests/fixtures/verify/compare.js';
 import { compare } from '../../../tests/fixtures/verify/compare.js';
 
-test('verify --compare falls back from an unrunnable base to composed head versus main [V4,C7]', async t => {
+test('verify --compare falls back from an unrunnable base to composed head versus main [V4,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
   const box = await fixture(t, { missingRunner: true });
   writeFileSync(join(box.repo, 'web/runner.js'), RUNNER);
   box.git(box.repo, 'add', 'web/runner.js');
