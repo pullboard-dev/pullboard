@@ -7,12 +7,11 @@ import { createReadStream } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { request as httpRequest } from 'node:http';
-import { request as httpsRequest } from 'node:https';
 import { join } from 'node:path';
 import { Refused } from '../../../../kernel/light.js';
 import { pullStatement } from '../pull.js';
+import { createWireServer } from '../wire.js';
+import { wireRequest } from '../wire.js';
 
 // Budget: one posted result file or request body; a larger output belongs in a report file, not the result.
 const BODY_LIMIT = 16 * 1024 * 1024;
@@ -76,10 +75,10 @@ function reply(response, status, body) {
  * Why: plain HTTP, JSON and a tar keep any sandbox able to speak it with curl, tar, sh and an Ed25519 signer.
  *
  * @param {ReturnType<typeof import('../pull.js').pullAdapter>} adapter
- * @returns {import('node:http').Server} A server, not yet listening.
+ * @returns {import('http').Server} A server, not yet listening.
  */
 export function pullServer(adapter) {
-  return createServer(async (request, response) => {
+  return createWireServer(async (request, response) => {
     try {
       const [, root, route, name] = requestPath(request.url).split('/');
       if (root !== 'pull') return reply(response, 404, { code: 'PULL_ROUTE', message: 'no such pull route' });
@@ -110,14 +109,14 @@ export function pullServer(adapter) {
 /**
  * Make one outbound HTTP or HTTPS call to the board and collect the whole reply.
  *
- * Why: the runner only ever dials out, so this is its single network call and it needs nothing past node:http(s).
+ * Why: the runner only ever dials out, so this is its single network call and it needs nothing past the wire door.
  *
  * @param {URL} url
  * @param {{ method?: string, body?: Buffer | string, headers?: object }} [options]
  * @returns {Promise<{ status: number, bytes: Buffer }>}
  */
 function boardCall(url, { method = 'GET', body, headers = {} } = {}) {
-  const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+  const send = wireRequest(url);
   return new Promise((resolve, reject) => {
     const outgoing = send(url, { method, headers }, incoming => {
       const chunks = [];

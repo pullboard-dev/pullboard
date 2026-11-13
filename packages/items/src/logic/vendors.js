@@ -15,7 +15,7 @@ export function vendorFamilyAliases(custom) {
 
 /**
  * The vendor family a model label names, by the first word of it that is a known vendor spelling, or null when none is.
- * Why: a claim records only the model label ("Sonnet 5.5", "gpt-6"), so a landed item that never recorded a builder can
+ * Why: a claim records only the model label, so a landed item that never recorded a builder can
  * still tell which family built it [V1].
  */
 export function vendorOfModel(model) {

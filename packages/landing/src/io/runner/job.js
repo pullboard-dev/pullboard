@@ -121,9 +121,25 @@ export function commandCheck(argv) {
 }
 
 /**
- * The land job's check of the items merged so far: each merged item's own check, the job's command, then the ledger
- * proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a culprit search
- * merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
+ * The controller's two landing guards on the merged tree: the composed module-parse and resolution guard over the
+ * lines merged since the base, then the candidate's CLI smoke on a scratch board. A refusal is the check's red, named
+ * by its code. Why: a pulled land job ran neither, so a duplicate import or a broken help reached trunk [C7,#7307].
+ */
+async function landingGuards({ root, base }) {
+  try {
+    await (await import('../guards.js')).requireLandingModuleResolution(root, base, 'HEAD');
+    (await import('../smoke.js')).runLandingCliSmoke(root);
+    return { ok: true, detail: null };
+  } catch (error) {
+    if (!error?.code) throw error;
+    return { ok: false, detail: `${error.code}: ${String(error.message).slice(0, 600)}` };
+  }
+}
+
+/**
+ * The land job's check of the items merged so far: the landing guards, each merged item's own check, the job's command,
+ * then the ledger proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a
+ * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
 async function landingCheck(payload, env) {
   const prove = payload.proof || payload.deferred ? (await import('./proof.js')).ledgerProofCheck : null;
@@ -131,7 +147,7 @@ async function landingCheck(payload, env) {
     const merged = new Set(context.items);
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
-    const parts = [...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
+    const parts = [['check', landingGuards], ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
       ...(payload.check ? [['proof', commandCheck(payload.check)]] : []),
       ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
@@ -268,7 +284,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
       if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
       receipt.detail ??= result?.detail ?? 'the landing check failed';
       for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.detail ?? result?.detail}`);
-      if (found.red.length && (!separate || found.kept.length === 0)) return done('red');
+      // Per-item landing, the default, lands the clean rest as separate publish does; perItem false lands nothing red [C7,#2901].
+      if (found.red.length && ((!separate && payload.perItem === false) || found.kept.length === 0)) return done('red');
       pending = pending.filter(entry => found.kept.includes(entry.id));
     }
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });

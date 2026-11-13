@@ -29,7 +29,7 @@ function repair(box, criterion) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-test('a check case red on main with two candidate repairs is reported as known-main and the gate passes [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
+test('a check case red on main with two candidate repairs is reported as known-main and the gate passes [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7373' }, t => {
   const box = fixture(t, { affected: SHARED, check: CHECK });
   const alpha = repair(box, "The case 'alpha case' passes on main.");
   const shared = repair(box, 'The shared file passes on main.');
