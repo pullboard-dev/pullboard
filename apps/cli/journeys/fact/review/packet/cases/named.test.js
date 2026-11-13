@@ -12,7 +12,6 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../../../tests/fixtures/e2e.js';
-import { settleSubmit } from '../../../../../tests/fixtures/submit/settle.js';
 import {
   fileFixtureItem,
   fixturePolicy,
@@ -48,7 +47,7 @@ function commit(box, cwd, message) {
 
 const CRITERION = '1. web/cases.test.js shows a greeting [test] 2. web/cases.test.js names the visitor by first name [test]';
 
-test('clause 1 and clause 2: the real submit gate records every case name of a plain node --test check in its exact-head receipt, and show --review lists each named case [C7,V4]', { timeout: 240_000 }, async t => {
+test('clause 1 and clause 2: the real submit gate records every case name of a plain node --test check in its exact-head receipt, and show --review lists each named case [C7,V4]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -77,14 +76,13 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   for (const n of [1, 2]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/cases.test.js case clause ${n}`);
-  const submitted = await settleSubmit(t, box, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out));
+  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
 
   // The exact-head receipts the gate wrote, read from its own store.
   const shown = JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out);
   const receipts = shown.proofReceipts.map(row => JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'gate-receipts', `${row.id}.json`), 'utf8')));
-  // A reused submit proof carries no case outcomes of its own; the receipt that ran the check does.
-  const criterion = receipts.find(receipt => receipt.proof?.submitPhase === 'criterion' && receipt.testOutcomes?.length) ?? receipts.find(receipt => receipt.testOutcomes?.length) ?? receipts[0];
+  const criterion = receipts.find(receipt => receipt.proof?.submitPhase === 'criterion') ?? receipts[0];
   assert.equal(criterion.head, head, 'the receipt is for the exact head');
   const outcomes = (criterion.testOutcomes ?? []).map(({ file, name, passed, skipped }) => `${file} ${passed ? 'pass' : 'fail'}${skipped ? ' skip' : ''} ${name}`).sort();
   assert.deepEqual(outcomes, [
@@ -92,7 +90,7 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
     'web/cases.test.js pass an empty name still greets [G1]',
     'web/cases.test.js pass clause 1: the page shows a greeting [G1]',
     'web/cases.test.js pass clause 2: the visitor is named # by first name [G1]',
-  ].sort(), `every case name with its outcome: ${JSON.stringify(receipts.map(r => ({ id: r.id, head: r.head, phase: r.proof?.submitPhase, reuse: r.proof?.submitReuse, outcomes: r.testOutcomes?.length ?? null })))}`);
+  ].sort(), `every case name with its outcome: ${JSON.stringify(criterion)}`);
 
   // Clause 2 of the bar: show --review lists each [test] clause's named case from that receipt, never a file-level row.
   const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
