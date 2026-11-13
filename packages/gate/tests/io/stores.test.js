@@ -200,3 +200,29 @@ test('clause 2: the store-homes recount under --ratchet raises no per-file ceili
   assert.deepEqual(storeBaselineGrowth(recount, baseline), []);
   assert.equal(recount['packages/api/src/io/main.js']?.['board.sqlite'], undefined, 'the API server asks the store for the path');
 });
+
+test('#6739 clause 1: a ${...} template registers by its literal stem, and a name with no literal word is not a store [CD2]', () => {
+  const source = [
+    'const a = join(dir, `exit-anchor-${claim}.json`);',
+    'const b = `${id}.json`;',
+    'const c = `${a}-${b}.profile.json`;',
+    'const d = `${dir}/${name}.jsonl`;',
+    "const e = `${count} items`;",
+  ].join('\n');
+  assert.deepEqual(storeSites(source, OTHER).map(row => [row.line, row.store]), [[1, 'stem:exit-anchor-*.json'], [3, 'stem:*-*.profile.json']]);
+});
+
+test('#6739 clause 2: the registry lists every current templated stem, and a new unlisted stem fails the check [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const stems = new Set(storeReport(ROOT).map(site => site.store).filter(store => store.startsWith('stem:')));
+  assert.ok(stems.size >= 25, `the repository holds ${stems.size} templated stems`);
+  for (const stem of stems) assert.ok(registry.stems[stem.slice(5)]?.owner, `${stem} has an owner row in stems`);
+  assert.deepEqual(storeSites('const a = `exit-anchor-${claim}.json`;', OTHER).map(row => row.store), ['stem:exit-anchor-*.json']);
+  const failures = judge({ [OTHER]: 'const f = `fresh-${id}.json`;' }, { registry: { ...REGISTRY, stems: {} } });
+  assert.match(failures[0], /CD2_UNREGISTERED_STORE: stem:fresh-\*\.json is not in/u);
+});
+
+test('#6739 clause 2: a stem that gains a second home past its recorded ceiling is refused [CD2]', () => {
+  const registry = { ...REGISTRY, stems: { 'fresh-*.json': { kind: 'json', owner: OWNER, homes: {} } } };
+  assert.match(judge({ [OTHER]: 'const f = `fresh-${id}.json`;' }, { registry })[0], /CD2_SECOND_HOME: stem:fresh-\*\.json belongs to packages\/landing/u);
+});
