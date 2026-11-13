@@ -24,7 +24,7 @@ import {
   relayLinked,
 } from '../../../../../packages/link/index.js';
 import * as store from '../../../../../packages/store/index.js';
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { itemFolderSeat } from '../item/folder/identity.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
@@ -57,8 +57,8 @@ export async function joinRemote(io, { positionals, values }, origin, postMove) 
   const route = values.route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
   const { result } = await postMove({ verb: 'join', args: { lane, model, route, ...(values.family === undefined ? {} : { family: values.family }) } });
   // Per-worktree config, so each seat's worktree in one clone keeps its own name.
-  execFileSync('git', ['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
-  execFileSync('git', ['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
+  gitExecFileSync(['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
+  gitExecFileSync(['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
   io.result?.({ agent: result.agent, lane, route, model, board: origin });
   io.say(`joined as ${result.agent} in the ${lane} lane via ${origin}${route === 'light' ? ', on the light route' : ''}`);
 }

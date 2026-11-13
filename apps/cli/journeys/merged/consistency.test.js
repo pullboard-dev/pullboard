@@ -47,8 +47,9 @@ function countPairs() {
   const needs = p.needs.reduce((total, row) => total + (row.kind === 'draft' ? row.count : 1), 0);
   if (view.tab !== 'roadmap') add('browser title/person calls', Number(/^\((\d+)\)/.exec(document.title)?.[1] || 0), needs);
   if (view.tab === 'items' && view.itemsView === 'list') {
-    const selected = document.querySelector('[data-filter-kind="state"][aria-checked="true"]');
-    add('Items/selected filter', number(selected?.querySelector('b')), all('#chain > [data-item]').length);
+    const shown = { active: active.length, all: items.length, verify: items.filter(item => item.status === 'submitted').length }[view.state];
+    if (shown !== undefined) add('Items/' + view.state + ' rows', all('#chain > [data-item]').length, shown);
+    add('Items/open fact in the sidebar', number(document.querySelector('[data-nav-fact="items"]')), active.length);
   }
   if (view.tab === 'items' && view.itemsView === 'pipeline') {
     for (const stage of all('#pipeline [data-pipeline-stage]')) {
@@ -63,17 +64,17 @@ function countPairs() {
     }
     const draft = document.querySelector(root + ' .needs-drafts .needs-copy b');
     if (draft) add('Needs/draft rows', number(draft), p.needs.find(row => row.kind === 'draft')?.count ?? 0);
-    if (view.tab === 'dashboard' && view.addressDetail !== 'floor') {
-      const approved = p.spec.filter(row => row.status === 'approved');
-      const ruleCounts = all('#dashboard-rules [data-home-count]');
-      add('Dashboard/rules card rows', ruleCounts.length, 3);
-      for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
-        const count = document.querySelector('[data-home-count="' + key + '"] dd');
-        add('Dashboard/rules/' + key + ' exists', Boolean(count), true);
-        add('Dashboard/rules/' + key, number(count), expected);
-      }
-      source('[data-home-count]');
+  }
+  if (view.tab === 'settings') {
+    const approved = p.spec.filter(row => row.status === 'approved');
+    const ruleCounts = all('#settings-reference #dashboard-rules [data-home-count]');
+    add('Settings/rules card rows', ruleCounts.length, 3);
+    for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
+      const count = document.querySelector('[data-home-count="' + key + '"] dd');
+      add('Settings/rules/' + key + ' exists', Boolean(count), true);
+      add('Settings/rules/' + key, number(count), expected);
     }
+    source('[data-home-count]');
   }
   if (view.tab === 'shouts') {
     add('Shouts/working agents footer', number(document.querySelector('[data-status="agents"] b')), all('#agents .agent-card').length);
@@ -124,55 +125,51 @@ function countPairs() {
     add('Roadmap/browser remaining', Number(/^\((\d+) remaining\)/.exec(document.title)?.[1] || 0), remaining);
   }
   if (view.tab === 'dashboard' && view.addressDetail !== 'floor') {
-    add('Dashboard/agents at work', number(document.querySelector('.dash-hero h1')), all('#dashboard .dash-agent-group').reduce((sum, head) => {
+    // The /live-style Dashboard (#6847): every group, list and count agrees with the rows it labels and the board.
+    let shown = 0;
+    for (const head of all('#dashboard .dash-agt tbody:not([hidden]) tr.grp')) {
       let rows = 0, node = head.nextElementSibling;
-      while (node?.matches('.dash-agent')) { rows++; node = node.nextElementSibling; }
+      while (node?.matches('[data-dashboard-agent]')) { rows++; node = node.nextElementSibling; }
       add('Dashboard/agent group/' + head.textContent, Number(head.textContent.split('·').at(-1).trim()), rows);
-      return sum + rows;
-    }, 0));
+      if (!head.closest('[data-dashboard-quiet-rows]')) shown += rows;
+    }
+    const between = number(document.querySelector('#dashboard [data-dashboard-quiet] b'));
+    add('Dashboard/agents at work', number(document.querySelector('#dashboard [aria-label="Agents"] h2 .dash-pill')), shown + between);
     const since = Date.now() - 24 * 3_600_000;
     const landedInDay = new Set(p.events.filter(event => event.event_kind === 'merged' && Date.parse(event.event_at) > since && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
-    add('Dashboard/landed 24h', number(document.querySelector('.dash-accent')), p.dashboardPace?.last24h ?? landedInDay.size);
-    const recentEvents = p.events.filter(event => Date.parse(event.event_at) > Date.now() - 4 * 3_600_000);
-    const recentLandings = new Set(recentEvents.filter(event => event.event_kind === 'merged' && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
-    const chips = all('.dash-chips > span').slice(1);
-    add('Dashboard/4h chip inventory', chips.length, 4);
-    const historyLoading = all('#dashboard [aria-label="Agents"] .muted').some(node => node.textContent === 'Complete history is loading; historical totals are not yet available.');
-    for (const [index, expected] of [recentLandings.size, recentEvents.filter(event => event.event_kind === 'accept').length,
-      recentEvents.filter(event => ['reject', 'reopen'].includes(event.event_kind)).length,
-      recentEvents.filter(event => event.event_kind === 'shout' && JSON.parse(event.event_detail).to === 'person').length].entries()) {
-      const value = chips[index]?.textContent.trim().split(/\s+/)[0];
-      if (chips[index]?.classList.contains('dash-unread')) add('Dashboard/unread count says why on hover/' + index, Boolean(historyLoading && chips[index].title.includes('not read yet')), true);
-      else add('Dashboard/4h chip/' + index, Number.parseInt(value?.replaceAll(',', ''), 10), expected);
-    }
-    const rate = document.querySelector('.dash-rate');
-    add('Dashboard/all-time landed', Number(/(\d[\d,]*) landed all time/.exec(rate.textContent)?.[1].replaceAll(',', '')), p.dashboardLanded.length);
-    const bins = all('.dash-chart rect title').map(node => Number(/(\d+) landed$/.exec(node.textContent)?.[1] || 0));
+    // While the history prefix is behind, the strip says "Loading…" in place of its numbers (278325174b); it never shows a wrong one.
+    const dayTile = document.querySelector('#dashboard [title="Landed in the last 24 hours"] b');
+    if (dayTile) add('Dashboard/landed 24h', number(dayTile), p.dashboardPace?.last24h ?? landedInDay.size);
+    else add('Dashboard/landed 24h is loading, not wrong', /Loading…/.test(document.querySelector('#dashboard .dash-strip')?.textContent ?? ''), true);
+    const bins = all('#dashboard .dash-spark rect title').map(node => Number(/(\d+) landed$/.exec(node.textContent)?.[1] || 0));
     if (bins.length) {
-      add('Dashboard/landing histogram total', bins.reduce((sum, count) => sum + count, 0), landedInDay.size);
-      add('Dashboard/landing histogram peak', Number(/busiest hour (\d+)/.exec(document.querySelector('.dash-chart-caption').textContent)?.[1]), Math.max(...bins));
+      add('Dashboard/landing spark total', bins.reduce((sum, count) => sum + count, 0), landedInDay.size);
+      add('Dashboard/landing spark peak', Number(/peak (\d+)\/h/.exec(document.querySelector('#dashboard .dash-strip').textContent)?.[1]), Math.max(...bins));
     }
-    for (const flight of all('.dash-flight')) add('Dashboard/' + flight.querySelector('h3').textContent, Number(/\d+$/.exec(flight.querySelector('h3').textContent)?.[0] || 0), flight.querySelectorAll('li').length);
-    const building = document.querySelector('[data-dashboard-stat="building"]');
-    add('Dashboard/building', Number(building.dataset.value), items.filter(item => item.status === 'claimed').length);
+    for (const column of all('#dashboard .dash-ifcol')) add('Dashboard/in flight/' + column.querySelector('h3').textContent, number(column.querySelector('h3 .dash-n')), column.querySelectorAll('.dash-row').length);
+    for (const list of all('#dashboard .dash-qsec')) add('Dashboard/list/' + list.getAttribute('aria-label'), Math.min(10, number(list.querySelector('.dash-shd h2 .dash-pill'))), list.querySelectorAll('.dash-q .dash-row').length);
+    const tile = list => number(document.querySelector('#dashboard [aria-label="Now"] [data-dashboard-list="' + list + '"] b'));
+    add('Dashboard/Now/building', tile('building'), items.filter(item => item.status === 'claimed').length);
+    add('Dashboard/Now/in the gate + in review', tile('gate') + tile('review'), items.filter(item => item.status === 'submitted').length);
+    add('Dashboard/Now/to land', tile('passed'), items.filter(item => item.status === 'verified' && !(item.merged || item.stage === 'merged')).length);
     const release = p.milestones.find(milestone => !milestone.shipped && milestone.summary?.left > 0);
     if (release) {
       const entries = release.items.filter(ref => items.some(item => item.id === ref.id));
-      const landed = entries.filter(ref => p.dashboardLanded.some(item => item.id === ref.id)).length;
-      const headline = document.querySelector('.dash-release-card .dash-release-left');
+      const landed = entries.filter(ref => items.some(item => item.id === ref.id && (item.merged || item.stage === 'merged'))).length;
+      const headline = document.querySelector('#dashboard .dash-ship .dash-togo');
       const progress = headline?.querySelector('span')?.textContent.replaceAll(',', '').match(/^(\d+) of (\d+) landed$/);
-      const summary = document.querySelector('.dash-release-card .dash-release-bar');
+      const summary = document.querySelector('#dashboard .dash-ship .dash-sbar');
       add('Dashboard/release remaining', number(headline?.querySelector('b')), entries.length - landed);
       add('Dashboard/release landed', Number(progress?.[1]), landed);
       add('Dashboard/release total', Number(progress?.[2]), entries.length);
       add('Dashboard/release accessible summary source', Boolean(summary?.getAttribute('aria-label')?.includes(release.name)), true);
     }
-    source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child)');
+    source('#dashboard .dash-tile');
   }
   if (view.tab === 'dashboard' && view.addressDetail === 'floor') {
     source('[data-floor-stat], .floor-foot');
     const recent = p.events.filter(event => Date.parse(event.event_at) > Date.now() - 4 * 3_600_000);
-    const landedIds = new Set(p.dashboardLanded.map(item => item.id));
+    const landedIds = new Set(items.filter(item => item.merged || item.stage === 'merged').map(item => item.id));
     const dayIds = new Set(p.events.filter(event => event.event_kind === 'merged'
       && Date.parse(event.event_at) > Date.now() - 24 * 3_600_000
       && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
@@ -250,6 +247,7 @@ async function checkCounts(chrome, phase) {
 
 /** Open a real pane through the navigation and verify its current native snapshot's counts. */
 async function pane(chrome, name, phase) {
+  if (name === 'settings') await press(chrome, 'document.querySelector("#account")'); // Settings is a row in the account menu.
   await press(chrome, 'document.querySelector("[data-tab=' + name + ']")');
   await chrome.waitFor('view.tab === ' + JSON.stringify(name) + ' && !document.querySelector("[data-pane=' + name + ']").hidden');
   await checkCounts(chrome, phase + '/' + name);
@@ -260,15 +258,14 @@ async function sweep(chrome, phase) {
   for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
     await pane(chrome, tab, phase);
     if (tab === 'items') {
-      const states = await chrome.stable('[...document.querySelectorAll("[data-filter-kind=state]")].map(node => node.dataset.filterValue)');
+      const states = await chrome.stable('[...document.querySelectorAll("[data-page-ctl=state]")].map(node => node.dataset.value)');
       for (const state of states) {
-        await press(chrome, 'document.querySelector("#filter-toggle")');
-        await press(chrome, 'document.querySelector(' + JSON.stringify('[data-filter-choice="state:' + state + '"]') + ')');
+        await press(chrome, 'document.querySelector(' + JSON.stringify('[data-page-ctl=state][data-value="' + state + '"]') + ')');
         await checkCounts(chrome, phase + '/Items/' + state);
       }
-      await press(chrome, 'document.querySelector("[data-items-view=pipeline]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=view][data-value=pipeline]")');
       await checkCounts(chrome, phase + '/Pipeline');
-      await press(chrome, 'document.querySelector("[data-items-view=list]")');
+      await press(chrome, 'document.querySelector("[data-page-ctl=view][data-value=list]")');
     }
     if (tab === 'shouts') {
       for (const fold of ['idle']) {
@@ -303,8 +300,8 @@ async function sweep(chrome, phase) {
     }
   }
   await pane(chrome, 'dashboard', phase);
-  await chrome.waitFor('!!document.querySelector(".dash-floor-link")');
-  await press(chrome, 'document.querySelector(".dash-floor-link")');
+  // The floor keeps its own address; the /live-style Dashboard draws its own Agents table (#6847).
+  await chrome.stable("(() => { openTab('dashboard', 'floor'); render(); return true; })()");
   await chrome.waitFor('view.addressDetail === "floor" && !!document.querySelector(".floor")');
   await chrome.waitFor('!document.querySelector(".floor-agents .muted")');
   await checkCounts(chrome, phase + '/floor');
@@ -374,7 +371,7 @@ test('clause 1: every tab count describes its real list or named native set acro
     await pane(chrome, 'settings', 'before add');
     await liveMove(chrome, () => box.run(demo.repo, 'add', 'web', 'Live added item', '--specs', 'G1', '--criterion', 'Count the live addition.'), 'data.project.items.length === 6', 'added');
     await pane(chrome, 'dashboard', 'before claim');
-    await liveMove(chrome, () => box.run(demo.web, 'claim', '3'), 'document.querySelector("[data-dashboard-stat=building]")?.dataset.value === "1" && [...document.querySelectorAll(".dash-chips > span")].slice(1).every(node => /^\\d/.test(node.textContent.trim()))', 'claimed');
+    await liveMove(chrome, () => box.run(demo.web, 'claim', '3'), 'document.querySelector("#dashboard [aria-label=Now] [data-dashboard-list=building] b")?.textContent === "1" && !!document.querySelector("#dashboard .dash-flow .dash-stage")', 'claimed');
     assert.deepEqual(chrome.exceptions, [], 'every tab and live move stays executable');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

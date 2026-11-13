@@ -37,6 +37,7 @@ export function run(io, { first, second, rest, values }) {
     io.say(`carrying capacity ${from} to ${to}: ${carrying.landings} landings, ${carrying.conflicts} conflicts`);
     io.say(`model: k ${carrying.k ?? 'unknown'}; 5% line ${carrying.agentsAtFivePercent ?? 'unknown'} agents; peak ${carrying.peakAgents ?? 'unknown'} agents, ${carrying.peakOutput ?? 'unknown'} output`);
     io.say(`in flight ${carrying.inFlight ?? 'unknown'}: building ${carrying.buildingInFlight ?? 'unknown'}, waiting ${carrying.waitingInFlight ?? 'unknown'}; cells/item ${carrying.cellsPerItem ?? 'unknown'}`);
+    io.say(`kernel churn ${carrying.kernelChurnPerWeek ?? 'unknown'} changes/week; wide items ${carrying.wideItemShare ?? 'unknown'}; busiest cell ${carrying.busiestCell ? `${carrying.busiestCell.cell} (${carrying.busiestCell.share})` : 'unknown'}`);
     io.say(`held-out file conflicts: predicted ${carrying.validation.predictedFileConflicts ?? 'unknown'}, actual ${carrying.validation.actualFileConflicts}; relative error ${carrying.validation.relativeError ?? 'unknown'}`);
     io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} samples`);
     for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
@@ -47,6 +48,7 @@ export function run(io, { first, second, rest, values }) {
   io.say(`carrying capacity ${from} to ${to}: ${carrying.landings} landings, ${carrying.conflicts} conflicts; conflicts/landing ${carrying.conflictsPerLanding ?? 'unknown'}`);
   io.say(`collision k ${carrying.k ?? 'unknown'}; 5% line ${carrying.agentsAtFivePercent ?? 'unknown'} agents; model peak ${carrying.peakAgents ?? 'unknown'} agents, ${carrying.peakOutput ?? 'unknown'} output`);
   io.say(`changes in flight ${carrying.inFlight ?? 'unknown'}: building ${carrying.buildingInFlight ?? 'unknown'}, waiting ${carrying.waitingInFlight ?? 'unknown'}; cells/item ${carrying.cellsPerItem ?? 'unknown'}`);
+  io.say(`kernel churn ${carrying.kernelChurnPerWeek ?? 'unknown'} changes/week; wide items ${carrying.wideItemShare ?? 'unknown'}; busiest cell ${carrying.busiestCell ? `${carrying.busiestCell.cell} (${carrying.busiestCell.share})` : 'unknown'}`);
   io.say(`held-out file conflicts: predicted ${carrying.validation.predictedFileConflicts ?? 'unknown'}, actual ${carrying.validation.actualFileConflicts}; relative error ${carrying.validation.relativeError ?? 'unknown'}`);
   for (const file of carrying.files.slice(0, 10)) io.say(`${file.file}: shared touches ${file.sharedTouches ?? 'unknown'}, conflict rate ${file.rate ?? 'unknown'}, pressure ${file.pressure ?? 'unknown'}`);
   for (const assumption of carrying.assumptions) io.say(assumption);

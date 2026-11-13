@@ -1,4 +1,5 @@
 import { spawnCaptured } from '../../../../sandbox/light.js';
+import { scratchFolder } from '../../../../config/index.js';
 /**
  * Run one shell command in a checkout and keep its output, apart from the gate's queue, runners and receipts. A
  * board read that replays a check baseline needs only this, so it never loads the gate [C7].
@@ -10,13 +11,10 @@ import {
 } from '../../../../sandbox/light.js';
 import { randomUUID } from 'node:crypto';
 import {
-  mkdtempSync,
   readFileSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   gitChildEnv,
   invalidateGitFacts,
@@ -42,10 +40,10 @@ import { sandboxBlockedOperation } from '../../../../sandbox/light.js';
  *
  * @param {string} root
  * @param {string} command
- * @param {{ pipefail?: boolean, env?: NodeJS.ProcessEnv, stages?: boolean, timeoutMs?: number, captureRuntimes?: boolean }} [options] - Gate-only pipefail, additional child environment values and per-stage accounting.
+ * @param {{ pipefail?: boolean, env?: NodeJS.ProcessEnv, stages?: boolean, timeoutMs?: number, captureRuntimes?: boolean, timedShell?: string }} [options] - Gate-only pipefail, additional child environment values and per-stage accounting. A run with `timeoutMs` spawns the bounded-shell program at `timedShell`, which its caller names (the app that owns it), so this package names no app path [C7].
  * @returns {{ isGreen: boolean, output: string, seconds: number, sandboxBlocked: string|null, stages?: Array<{ status: number|null, output: string, pipeline?: Array<{ status: number|null, output: string|null }> }> | null }}
  */
-function* shellExecution(root, command, { pipefail = false, env = {}, stages = false, timeoutMs, captureRuntimes = false } = {}) {
+function* shellExecution(root, command, { pipefail = false, env = {}, stages = false, timeoutMs, captureRuntimes = false, timedShell = process.env.PULLBOARD_TIMED_SHELL } = {}) {
   const started = Date.now();
   const diagnostics = [];
   const options = { cwd: root, env: gitChildEnv(root, { env, report: diagnostics.push.bind(diagnostics) }), shell: true,
@@ -67,14 +65,15 @@ function* shellExecution(root, command, { pipefail = false, env = {}, stages = f
   try {
     const split = stages ? gateStages(command) : null;
     const marker = `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}`;
-    const pipes = split?.some((stage) => stage.pipeline.length > 1) ? mkdtempSync(join(tmpdir(), 'pullboard-pipes-')) : null;
+    const pipes = split?.some((stage) => stage.pipeline.length > 1) ? scratchFolder('pullboard-pipes-') : null;
     // A landing's guardian finds its gate by this token in the shell's command line [Q1,Q3,B3].
     const custody = process.env.PULLBOARD_LANDING_CUSTODY ? `: --landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}\n` : '';
     // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
     const script = `${custody}${prefix}(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`;
-    const timedDirectory = timeoutMs ? mkdtempSync(join(tmpdir(), 'pullboard-timed-output-')) : null;
+    const timedDirectory = timeoutMs ? scratchFolder('pullboard-timed-output-') : null;
     const outputFile = timedDirectory ? join(timedDirectory, 'output.log') : null;
-    const timed = timeoutMs ? yield { command: process.execPath, args: [fileURLToPath(new URL('../../../../../apps/runner/src/io/shell.js', import.meta.url)), ...(process.env.PULLBOARD_LANDING_CUSTODY ? [`--landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}`] : [])], options: { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) } } : null;
+    if (timeoutMs && !timedShell) throw new Refused('TIMED_SHELL_MISSING', 'a run with a timeout needs the timed shell entry from its caller (options.timedShell or PULLBOARD_TIMED_SHELL); pass it from the app that owns the shell');
+    const timed = timeoutMs ? yield { command: process.execPath, args: [timedShell, ...(process.env.PULLBOARD_LANDING_CUSTODY ? [`--landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}`] : [])], options: { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) } } : null;
     if (timed && (timed.status !== 0 || timed.error)) throw new Refused('LAND_TIMEOUT_CUSTODY', 'the timed gate worker did not prove cleanup; inspect its owned processes before landing again');
     const result = timed ? { ...JSON.parse(timed.stdout || '{}'), stdout: '', stderr: timed.stderr } : yield { command: script, args: [], options };
     if (timed && result.error) throw new Refused('LAND_GATE_OUTPUT', `the timed gate stopped and drained after its output failed (${result.error}); inspect free disk space and ${timedDirectory} before landing again`);

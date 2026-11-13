@@ -78,7 +78,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   const home = join(dir, 'home'), machine = join(home, '.pullboard');
   for (const path of [box.repo, box.bin, box.marks, machine, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false } }));
+    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false, runnerDispatch: 'controller' } }));
   for (let i = 0; i < hosts; i++) {
     const host = `synthetic-release-host-${i + 1}`;
     const worker = { home: join(dir, host, 'home'), machine: join(dir, host, 'home', '.pullboard'), root: join(dir, host, 'worker') };
@@ -136,7 +136,7 @@ import {runnerExecutionServices} from './.tooling/packages/runners/index.js';
 import {landingExecutionServices} from './.tooling/packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {isStampedGreen} from './.tooling/packages/gate/index.js';
-import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/packages/gate/index.js';
+import {releaseReceiptBody,releaseParticipationDigest,releaseTiming} from './.tooling/packages/gate/index.js';
 import {closeBoard} from './.tooling/packages/store/index.js';
 import {openBoard} from './.tooling/apps/lib/index.js';
 const root=process.cwd();
@@ -160,9 +160,13 @@ ${checks}
     { cwd: box.repo, env: box.env, encoding: 'utf8' }));
 }
 
-/** Register actual worker-protocol controls; the importing wrapper decides when the native test gate may run them. */
-export function installReleaseProducerCases() {
-  test('native private release producer covers eight simulated executors and binds stored bytes to current source [C7,V4]',
+/**
+ * Register actual worker-protocol controls; the importing wrapper decides when the native test gate may run them.
+ * Each journey file installs one group (native, red, count1 or count7) so every file stays inside its 120 s budget [C7,V4].
+ * The fixture pins controller dispatch: its fake SSH capsules are registered runners that never pull a board job.
+ */
+export function installReleaseProducerCases(group) {
+  if (group === 'native') test('native private release producer covers eight simulated executors and binds stored bytes to current source [C7,V4]',
     { timeout: 180_000, cpuLoad: true }, async t => { // budget: seven real private worker capsules and their owned cleanup.
     const box = fixture(t);
     const result = await producer(box, `
@@ -188,7 +192,7 @@ const substitutions=[
  p=>{p.finishedAt=new Date(Date.parse(p.finishedAt)+1).toISOString();}
 ];
 for(const substitute of substitutions){
- const substituted=structuredClone(receipt);substitute(substituted.participation);
+ const substituted=structuredClone(receipt);substitute(substituted.participation);substituted.timing=releaseTiming(substituted.participation);
  assert.equal(releaseReceiptBody(substituted,expected),null,'changed participation loses the observed gate binding');
  writeFileSync(run.file,JSON.stringify(substituted)+'\\n');
  try { assert.equal(verifyNativeReleaseReceipt(root,id, executionServices)===null,true,'valid participation substitutions cannot inherit native custody'); }
@@ -224,7 +228,7 @@ assert.equal(isStampedGreen(root),false);
     assert.deepEqual([...new Set(calls.map(call => call.host))].sort(), Object.keys(box.workers).sort());
   });
 
-  test('a red private release collects tiny shard results without a native envelope or green stamp [C7,V4]',
+  if (group === 'red') test('a red private release collects tiny shard results without a native envelope or green stamp [C7,V4]',
     { timeout: 180_000, cpuLoad: true }, async t => { // budget: a complete real private eight-shard run, including red collection and cleanup.
     const box = fixture(t, { red: true });
     const result = await producer(box, `
@@ -237,7 +241,7 @@ assert.deepEqual(receipts,[]);
     assert.deepEqual(readdirSync(box.marks).sort(), NAMES.map(name => `${name}.json`), 'full collection still observes all eight tiny files when one is red');
   });
 
-  for (const count of [1, 7]) {
+  for (const count of [1, 7]) if (group === `count${count}`) {
     test(`native private release records all ${count} simulated registered executors [C7,V4]`,
       { timeout: 180_000, cpuLoad: true }, async t => { // budget: actual private worker capsules, full collection and owned cleanup.
       const box = fixture(t, { hosts: count - 1 });

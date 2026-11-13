@@ -203,7 +203,7 @@ async (t) => {
 
 test('clause 1: runner install-serve chooses a LaunchDaemon run as the runner user for a board on the local network, staged with the one sudo line that loads it [P7]', { timeout: 60_000 }, // budget: four CLI runs.
 async (t) => {
-  assert.deepEqual(['192.168.1.98', '10.0.0.5', '172.20.1.1', 'studio.local', 'studio'].map(localNetworkHost), [true, true, true, true, true]);
+  assert.deepEqual(['192.168.7.21', '10.0.0.5', '172.20.1.1', 'studio.local', 'studio'].map(localNetworkHost), [true, true, true, true, true]);
   assert.deepEqual(['127.0.0.1', 'localhost', '100.101.102.103', 'board.example.com', 'studio.tailnet.ts.net'].map(localNetworkHost), [false, false, false, false, false]);
   const box = await apiHttpBox(t);
   const runner = fakeRunner(box.dir);
@@ -213,7 +213,7 @@ async (t) => {
   delete env.PULLBOARD_BOARD_KEY;
   const cli = (...args) => runCliInProcess(args, { cwd: box.root, env });
 
-  const installed = await cli('runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json');
+  const installed = await cli('runner', 'install-serve', 'runner-a', '--board', `http://192.168.7.21:4891${box.path}?k=${box.key}`, '--json');
   assert.equal(installed.status, 1, 'nothing runs until the person loads the daemon');
   const { service } = JSON.parse(installed.stdout);
   assert.equal(service.form, 'daemon');
@@ -233,7 +233,7 @@ async (t) => {
   assert.ok(programArguments(plist)[5].endsWith(`on this runner run ${service.sudo}`), 'the service logs the same sudo line when the board stays unreachable');
 
   const doctor = await cli('doctor');
-  assert.ok(doctor.stdout.includes('runner runner-a: runner serve is staged as a LaunchDaemon but not loaded, so nothing pulls from 192.168.1.98; a LaunchAgent or a process left by ssh is blocked by macOS Local Network privacy'), doctor.stdout + doctor.stderr);
+  assert.ok(doctor.stdout.includes('runner runner-a: runner serve is staged as a LaunchDaemon but not loaded, so nothing pulls from 192.168.7.21; a LaunchAgent or a process left by ssh is blocked by macOS Local Network privacy'), doctor.stdout + doctor.stderr);
   assert.ok(doctor.stdout.includes(`repair: on runner-a run: ${service.sudo}`), 'doctor prints the exact fix');
 
   const removed = await cli('runner', 'install-serve', 'runner-a', '--remove', '--json');
@@ -248,7 +248,7 @@ async (t) => {
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'pull' },
     runners: [{ host: 'runner-a', slots: 1, browser: 0, node: process.execPath, root: runner.root }] });
   const env = { ...box.env, PATH: `${runner.bin}:${box.env.PATH}` };
-  const installed = await runCliInProcess(['runner', 'install-serve', 'runner-a', '--board', `http://192.168.1.98:4891${box.path}?k=${box.key}`, '--json'], { cwd: box.root, env });
+  const installed = await runCliInProcess(['runner', 'install-serve', 'runner-a', '--board', `http://192.168.7.21:4891${box.path}?k=${box.key}`, '--json'], { cwd: box.root, env });
   const { service } = JSON.parse(installed.stdout);
   const args = programArguments(readFileSync(service.plist, 'utf8'));
   // The installed program, pointed at a closed loopback port so no request reaches a board, as the blocked agent saw.
@@ -266,6 +266,6 @@ async (t) => {
   const lines = output.split('\n');
   assert.equal(lines.filter(line => line.includes('board unreachable')).length, 3, output);
   const hint = lines.find(line => line.includes('likely cause')) ?? '';
-  assert.ok(hint.includes('board still unreachable after 3 tries; likely cause: macOS Local Network privacy blocks a LaunchAgent or a process left by ssh from 192.168.1.98'), output);
+  assert.ok(hint.includes('board still unreachable after 3 tries; likely cause: macOS Local Network privacy blocks a LaunchAgent or a process left by ssh from 192.168.7.21'), output);
   assert.ok(hint.endsWith(`run runner serve as a LaunchDaemon: on this runner run ${service.sudo}`), 'the log names the exact fix');
 });

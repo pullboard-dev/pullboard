@@ -63,6 +63,8 @@ async function refresh(fresh = null, attempt = 1) {
   if (!next.project && !next.group && next.projects.some((p) => p.ok)) {
     view.root = next.projects.find((p) => p.ok).root;
     keep('pb.project', view.root);
+    // The switcher names the chosen board now, while its state is on its way (#6715).
+    renderSide();
     return refresh();
   }
   // The project this board is, so a switch still loading never reads it as the next one's.
@@ -305,6 +307,13 @@ function catchUp() {
   });
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && catchWhenShown) { catchWhenShown = false; catchUp(); } });
+// A page the browser keeps in its back-forward cache keeps its open fetches, and each held stream takes one of the six
+// connections a host gets: six pages left behind took them all, and the next page never loaded. A page leaving closes
+// its stream, and one shown again from the cache follows its boards anew and reads what changed meanwhile.
+if (typeof addEventListener === 'function') {
+  addEventListener('pagehide', () => unfollow());
+  addEventListener('pageshow', (event) => { if (event.persisted && data && !snapshot) { catchEvery = true; follow(); } });
+}
 
 `;
 }

@@ -20,7 +20,7 @@ import { cellProject } from './fixtures/cell.js';
 import { cellSeat } from './fixtures/cell.js';
 import { openCellBoard } from './fixtures/cell.js';
 import { closeCellBoard } from './fixtures/cell.js';
-import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from './fixtures/submit.js';
 
 const HOUR = 3_600_000;
 

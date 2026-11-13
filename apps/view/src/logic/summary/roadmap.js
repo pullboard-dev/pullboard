@@ -57,7 +57,7 @@ export function roadmapSummary(milestone, context = {}) {
     return item?.address ? '<a class="ref" href="'+escape(item.address)+'" data-go="item:'+escape(item.id)+'"'+(item.board?' data-board="'+escape(item.board)+'"':'')+'>'+text+'</a>' : '<span>'+text+'</span>';
   }).join(', ') : '';
   const top = '<div class="release-header-top"><h2 class="release-name" data-release-name="">'+(typeof context.nameHtml === 'string' ? context.nameHtml : escape(milestone.name))+'</h2>'+count+forecast+'</div>';
-  const detail = '<div class="roadmap-summary"><div class="roadmap-summary-row"><div class="roadmap-summary-track">'+bar+'</div>'+legend+'</div>'+meta+(needs?'<div class="roadmap-summary-needs"><b>Needs you:</b> '+needs+'</div>':'')+'</div>';
+  const detail = '<div class="roadmap-summary"><div class="roadmap-summary-row"><div class="roadmap-summary-track">'+bar+'</div>'+legend+'</div>'+meta+(needs?'<div class="roadmap-summary-needs"><b>Rulings:</b> '+needs+'</div>':'')+'</div>';
   return { count, top, detail, header: '<div class="release-header">'+top+detail+'</div>' };
 }
 

@@ -15,8 +15,7 @@ import {
   resolve,
 } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { awaitNestedRun } from '../../../../packages/gate/index.js';
-import { runFixtureChildAsync } from './child.js';
+import { runCliInProcess } from './process.js';
 import {
   HOST,
   installSshStandIn,
@@ -47,7 +46,7 @@ function cpuLoadShell(e2e, commonjs, stage) {
   const remoteMachineHome = join(remoteHome, '.pullboard');
   const requests = join(box.dir, 'ssh-requests.jsonl');
   for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
-  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
+  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo, ['apps/runner/src/io/controller.js']);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
   const standIn = { bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, nodeCommand: process.execPath };
   installSshStandIn({ ...standIn, requests });
@@ -68,6 +67,10 @@ function cpuLoadShell(e2e, commonjs, stage) {
   command('runner', 'add', HOST, '--node', process.execPath, '--slots', '1', '--browser', commonjs ? '1' : '0');
   command('settings', 'gate.runnersFirst', 'off');
   command('settings', 'gateSlots', '1');
+  // The gate runs in this process and the case counts its ssh requests, so it pins controller dispatch; pull would run the job on the loopback runner with no ssh request [P7].
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  writeFileSync(settingsFile, JSON.stringify({ ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } }));
   stage('runner-registered');
   const shell = { box, env, requests, standIn, remoteHome, remoteMachineHome, command, probeFile };
   kinds.set(commonjs, shell);
@@ -115,7 +118,6 @@ ${subtest ? '});' : ''}
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: commit declared CPU placement probe');
   stage('source-committed');
-  const cli = join(SOURCE, 'apps/cli/pullboard.js');
   return {
     ...box, env, requests, remoteHome, remoteMachineHome, command,
     /** Count real completed SSH requests without treating a configured host as execution proof. */
@@ -131,8 +133,7 @@ ${subtest ? '});' : ''}
     async runGate() {
       stage('gate-start');
       rmSync(join(box.repo, '.git', 'pullboard-gate.log'), { force: true }); // an earlier case's log must not answer for this gate
-      const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [cli, 'gate', '--landing', '--json'],
-        { cwd: box.repo, env, encoding: 'utf8' }));
+      const result = await runCliInProcess(['gate', '--landing', '--json'], { cwd: box.repo, env });
       stage('gate-returned');
       const log = readFileSync(join(box.repo, '.git', 'pullboard-gate.log'), 'utf8');
       if (result.status !== 0) console.error('CPU placement gate output:', result.stdout, '\nGate log:', log);

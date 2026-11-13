@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
@@ -19,6 +20,7 @@ import { fetchFresh } from './http.js';
 import { closeBoard } from '../../../lib/index.js';
 import { createApiHandler } from '../../../../packages/api/index.js';
 import { jobQueueCall } from '../../../../packages/api/index.js';
+import { GATE_RECEIPT } from '../../src/io/submit/pull.js';
 
 /** Accepted main's stand-in tooling: each part records its step, the job that ran it and its pid in the checkout it judged, or in PULLBOARD_FIXTURE_STEPS when a runner's checkout is a worktree. */
 export const TOOLING = {
@@ -77,20 +79,30 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
+  // No local runner takes the offered jobs: the journey serves its own, so commands must not wait for the queue to empty.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, ...gate } });
   for (const [path, text] of Object.entries({ ...TOOLING, ...tooling })) { mkdirSync(dirname(join(box.repo, path)), { recursive: true }); writeFileSync(join(box.repo, path), text); }
   const configFile = join(box.repo, 'pullboard.json');
-  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), staticChecks: 'node apps/cli/src/io/static/checks.js' }, null, 2) + '\n');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  // A pulled gate holds its item claimed until a runner serves it, so a journey with several items needs a claim for each.
+  writeFileSync(configFile, JSON.stringify({ ...config, claims: { ...config.claims, perSeat: Math.max(1, count) }, staticChecks: 'node apps/cli/src/io/static/checks.js' }, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: stand-in trusted tooling [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  /** Add item n; every item after the first names the first as no duplicate. */
+  const add = (n, first) => fixtureAdd(box.runAsync, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
   const ids = [];
-  for (let n = 1; n <= count; n++) {
-    const added = fixtureAdd(box.run, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json');
+  const head = await add(1);
+  assert.equal(head.code, 0, head.err);
+  ids.push(JSON.parse(head.out).item.item_id);
+  // The rest are added at once: ten sequential add commands were most of a ten-item journey's setup.
+  for (const added of await Promise.all(Array.from({ length: count - 1 }, (_, n) => add(n + 2, ids[0])))) {
     assert.equal(added.code, 0, added.err);
     ids.push(JSON.parse(added.out).item.item_id);
   }
+  ids.sort((a, b) => a - b);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const runnerHome = privateFixtureFiles('pull-runner-').root;
   t.after(() => rmSync(runnerHome, { recursive: true, force: true }));
@@ -109,6 +121,26 @@ export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate
   const submitted = box.run(folder, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
+}
+
+/**
+ * Claim, commit and submit each item at once, every one from its own folder; each submit must return green at once.
+ * Why at once: a submit is a real CLI process, and ten run one after another were most of a ten-item journey's time.
+ *
+ * @param {Awaited<ReturnType<typeof pullProject>>} box
+ * @param {number[]} ids
+ * @returns {Promise<{ folder: string, commit: string, document: object }[]>} One entry per id, in id order.
+ */
+export function submitAll(box, ids) {
+  return Promise.all(ids.map(async id => {
+    const claimed = await box.runAsync(box.web, 'claim', String(id), '--json');
+    assert.equal(claimed.code, 0, claimed.err);
+    const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
+    assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): pulled gate ${id} [G1]`).status, 0);
+    const submitted = await box.runAsync(folder, 'submit', String(id), '--json');
+    assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
+    return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
+  }));
 }
 
 /**
@@ -161,4 +193,46 @@ export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_0
     // Each new process is its own pause: its startup takes longer than a seat takes to offer its job.
     if (served.code !== 0 || !/nothing to claim/u.test(served.output) || Date.now() > until) return served;
   }
+}
+
+/**
+ * The board's job queue served on loopback, as the board API serves it, and a small runner client of it: claim, read the
+ * request, fetch the candidate from the trunk remote into its own cache, run the job's argv with the request's input
+ * on stdin, and post one receipt. Why in the fixture: the shipped runner loop is #5690's; the pull journeys share this one client and stay off it.
+ */
+export async function loopbackRunner(t, box) {
+  const { board, call } = await pullQueue(t, box, { queue: (current, body) => jobQueueCall(current.db, body, { mode: 'pull' }) });
+  const env = { ...box.env };
+  for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_')) delete env[key];
+  /** Claim one job and check its candidate out; null when the queue is empty. */
+  const take = async runner => {
+    const { claim } = await call({ action: 'claim', runner, capabilities: ['node22'] });
+    if (!claim) return null;
+    const held = { job: claim.job, runner, token: claim.token };
+    const input = await call({ action: 'request', ...held });
+    const folder = join(box.runnerHome, claim.job.replace(/[^\w.-]/gu, '-'));
+    execFileSync('git', ['clone', '-q', '--no-checkout', '--no-tags', box.repo, folder], { env });
+    execFileSync('git', ['fetch', '-q', '--no-tags', 'origin', `refs/pullboard/gate/${input.item}`], { cwd: folder, env });
+    execFileSync('git', ['-c', 'advice.detachedHead=false', 'checkout', '-q', '--detach', input.candidate], { cwd: folder, env });
+    return { held, input, folder };
+  };
+  /** Run a taken job's argv in its checkout and post its one receipt; observe() runs on each event the job's process emits. */
+  const run = async ({ held, input, folder }, observe = () => {}) => {
+    const { run: argv, input: stdin } = input.request;
+    const child = spawn(argv[0] === 'node' ? process.execPath : argv[0], argv.slice(1), { cwd: folder, env: { ...env, PULLBOARD_FIXTURE_JOB: held.job }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const out = [];
+    // Each step a part records is written while the job's processes are alive, so a sample there sees them running.
+    const steps = watch(join(folder, '.git'), observe);
+    child.once('spawn', observe);
+    child.stdout.on('data', chunk => { out.push(chunk); observe(); });
+    child.stderr.on('data', chunk => { out.push(chunk); observe(); });
+    child.stdin.end(JSON.stringify(stdin));
+    const status = await new Promise(done => child.once('close', done)).finally(() => steps.close());
+    const line = Buffer.concat(out).toString('utf8').split('\n').find(row => row.startsWith(GATE_RECEIPT));
+    assert.ok(line, `job ${held.job} printed no receipt:\n${Buffer.concat(out).toString('utf8').slice(-4000)}`);
+    const gate = JSON.parse(line.slice(GATE_RECEIPT.length));
+    await call({ action: 'receipt', ...held, receipt: { status, gate } });
+    return { job: held.job, folder, status, gate };
+  };
+  return { board, take, run };
 }

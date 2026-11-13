@@ -20,14 +20,21 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { legacyRelayClientFixture } from '../../tests/fixtures/relay/client.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
-/** Start the private relay fixture with controller dispatch: a pull-dispatch submit only queues a gate job, and these journeys read the submitted row at once (#6182-#6185). */
+/** Start the private relay fixture; its pulled gates run on the machine's loopback local runner, stopped when the test ends [P7]. */
 async function relayClientFixture(t, options) {
   const box = await legacyRelayClientFixture(t, options);
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true, mode: 0o700 });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   return box;
+}
+
+/** Settle a linked checkout's pulled submit: the fixture local runner takes the gate job and its receipt makes the item submitted [P7,#5821]. */
+function settleLinkedSubmit(t, box, cwd, submitted) {
+  const run = async (_root, ...args) => { const ran = await box.cliAt(cwd, ...args.filter(arg => arg !== '--json')); return { code: ran.code, out: JSON.stringify(ran.document), err: '' }; };
+  return settleSubmit(t, { repo: box.root, env: box.env, run }, submitted.document);
 }
 
 // The subtests each start their own private relay fixture, so they run side by side: back to back they outlast the file's wall limit on a loaded runner.
@@ -94,6 +101,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   const submitted = await box.cliAt(agentRoot, 'submit', String(item));
   assert.equal(submitted.code, 0, 'the linked agent submits locally while the baseline is refused');
   assertPaused(submitted.document);
+  await settleLinkedSubmit(t, box, agentRoot, submitted);
   const shouted = await box.cliAt(agentRoot, 'shout', 'all', 'Relay pause fixture remains available');
   assert.equal(shouted.code, 0, 'the linked agent shouts locally while the baseline is refused');
   assertPaused(shouted.document);
