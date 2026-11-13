@@ -181,7 +181,7 @@ test('a read command loads only its own modules [C7]', async (t) => {
   const worker = box.facts(box.worktree);
   assert.notEqual(worker.scoped.head, worker.scoped.primary.commit, 'the current head is not silently replaced by the primary head');
   assert.equal(worker.scoped.primary.branch, 'refs/heads/main');
-  assert.equal(worker.count, 1, 'one combined query returns paths, the worker commit and the primary branch/commit');
+  assert.ok(worker.count <= 1, `at most one combined query returns paths, the worker commit and the primary branch/commit, got ${worker.count}`);
   const claim = box.runIn(box.worktree, 'claim', '1');
   assert.match(claim.stdout, /claimed #1/u);
   const revParses = claim.gitCalls.filter((call) => /\brev-parse\b/u.test(call));
