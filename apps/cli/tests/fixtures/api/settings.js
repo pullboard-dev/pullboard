@@ -1,6 +1,6 @@
-import { viewApiPorts } from '../../../../apps/view/index.js';
+import { viewApiPorts } from '../api.js';
 /** Real Git, SQLite and HTTP settings inventory proof [O5,O6]. */
-import { apiBoardOpeners } from '../../../../apps/cli/tests/fixtures/board.js';
+import { apiBoardOpeners } from '../board.js';
 
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -17,17 +17,17 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { createLocalApiHandler } from '../../../api/index.js';
-import { refusalDocument } from '../../../../apps/cli/index.js';
-import { performanceCores } from '../../../gate/index.js';
+import { createLocalApiHandler } from '../../../../../packages/api/index.js';
+import { refusalDocument } from '../../../index.js';
+import { performanceCores } from '../../../../../packages/gate/index.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from '../../../config/index.js';
-import { defaults } from '../../../config/index.js';
-import * as store from '../../../store/index.js';
-import { openBoard } from '../../../../apps/lib/index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../../../packages/config/index.js';
+import { defaults } from '../../../../../packages/config/index.js';
+import * as store from '../../../../../packages/store/index.js';
+import { openBoard } from '../../../../lib/index.js';
+import { runFixtureGit } from '../child.js';
 
 /** Hash durable fixture files, including the registry, settings, credentials and SQLite bytes. */
 function snapshot(root) {

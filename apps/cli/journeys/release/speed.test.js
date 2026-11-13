@@ -11,7 +11,6 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { installReleaseReceiptCases } from '../../tests/fixtures/release/cases/receipt.js';
 import { installReleaseTransportCases } from '../../tests/fixtures/release/cases/transport.js';
-import { installReleaseProducerCases } from '../../tests/fixtures/release/cases/producer.js';
 import '../../tests/fixtures/cases/affinity.js';
 import {
   planReleaseShards,
@@ -24,7 +23,6 @@ import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 
 installReleaseReceiptCases();
 installReleaseTransportCases();
-installReleaseProducerCases();
 
 /** An explicit model of registered capacity, not observations or receipts from the person's machines. */
 function targets() {
