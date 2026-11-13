@@ -15,6 +15,7 @@ import { itemListFields } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 import { withdrawnFromStatus } from "../../logic/pipeline/model.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
+import { stageSentence } from "../../logic/pipeline/model.js";
 import { pipelineHtml } from "../../logic/pipeline/render.js";
 import { lifecycleDiagramHtml } from "../../logic/lifecycle/diagram.js";
 import { timelineHtml as renderTimelineHtml } from "../../logic/timeline/render.js";
@@ -561,6 +562,7 @@ const pipelineStage = (${pipelineStage.toString()});
 const itemStagePresentation = (${itemStagePresentation.toString()});
 const withdrawnFromStatus = (${withdrawnFromStatus.toString()});
 const itemStageKey = (${itemStageKey.toString()});
+const stageSentence = (${stageSentence.toString()});
 const pipelineSince = (${pipelineSince.toString()});
 const itemListFields = (${itemListFields.toString()});
 /** Bind the current lifecycle declaration at the page adapter boundary. */

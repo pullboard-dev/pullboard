@@ -37,7 +37,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <span class="crumb">/ <b id="crumb-page"></b></span>
     <span class="notch" id="notch" aria-label="The board now">${notchHtml()}</span>
     <div class="top-right">
-      <div class="top-find"><input id="q" type="search" placeholder="Search or jump to…" aria-label="Search items, Spec, Doctrine and shouts" aria-keyshortcuts="Meta+K Control+K" autocomplete="off"><kbd aria-hidden="true">⌘K</kbd><div class="find-results" id="find-results" role="listbox" aria-label="Search results" hidden></div></div>
+      <div class="top-find"><input id="q" type="search" placeholder="Search" aria-label="Search items, Spec, Doctrine and shouts" aria-keyshortcuts="Meta+K Control+K" autocomplete="off"><kbd aria-hidden="true">⌘K</kbd><div class="find-results" id="find-results" role="listbox" aria-label="Search results" hidden></div></div>
       <span class="account-slot" id="account-slot">${accountHtml()}<div class="acct-menu" id="account-menu" role="menu" aria-label="Account" hidden></div></span>
     </div>
   </div>

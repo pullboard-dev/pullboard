@@ -463,7 +463,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(itemRow(page.show('chain'), 1), /<small class="stage-detail" title="awaiting a verdict">awaiting a verdict<\/small>/, 'unassigned submitted work retains its truthful detail below the stage');
     assert.ok(itemRow(page.show('chain'), 2).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">no farewell yet'), 'and work sent back, with why');
     page.run("openTab('shouts'); view.agent = 'web-1'; render();");
-    assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: Gated · Lane held · Sent back', '#1 Greeting: In review'], 'the agent retains both built items, with the shared stages and every applicable mark');
+    assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: Blocked · Lane held · Sent back', '#1 Greeting: In review'], 'the agent retains both built items, with the shared stages and every applicable mark');
     page.run('view.agent = null; render();');
     assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no" title="held by coordinator">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
 

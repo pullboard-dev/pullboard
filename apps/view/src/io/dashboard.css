@@ -95,7 +95,7 @@
 .dash-tile .dash-dot { width: 6px; height: 6px; }
 .dash-x { width: 1px; height: 12px; background: var(--line); margin: 0 var(--space-1); }
 
-/* 3. Shipping now */
+/* 3. Release */
 .dash-ship { padding: var(--space-4) var(--space-5) 14px !important; }
 .dash-ship-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-5); align-items: end; margin-bottom: 10px; }
 .dash-live .dash-ship-name { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.3; }

@@ -990,7 +990,7 @@ document.addEventListener('click', (event) => {
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
     // Every Dashboard count opens Items narrowed to what it counts (#6847): its stage, and its lane when it names one.
-    // Review and Next keep their own order; the gate and review share In review, waiting and held share Gated.
+    // Review and Next keep their own order; the gate and review share In review, waiting and held share Blocked.
     view.dashboardList = dashboardList.dataset.dashboardList;
     view.state = { review: 'verify', gate: 'verify', next: 'ready', building: 'building', passed: 'passed', landed: 'landed', gated: 'gated', held: 'gated', 'sent-back': 'sent-back', active: 'active' }[view.dashboardList] ?? 'ready';
     view.lane = dashboardList.dataset.dashboardLane || null; view.before = null; $('q').value = ''; openTab('items'); render(); return;

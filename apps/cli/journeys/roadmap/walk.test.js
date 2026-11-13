@@ -64,7 +64,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
         const panel = document.querySelector('#dashboard .dash-ship');
         const heads = [...document.querySelectorAll('#dashboard .dash-agt thead th')].map(cell => cell.textContent.trim());
         const row = document.querySelector('#dashboard [data-dashboard-agent]');
-        const waiting = [...panel.querySelectorAll('.dash-ifcol .dash-age')].find(label => label.textContent.includes('waiting for a reviewer'));
+        const waiting = [...panel.querySelectorAll('.dash-ifcol .dash-age')].find(label => label.textContent.includes('pending review'));
         const held = panel.querySelector('.dash-key[data-dashboard-list="held"]');
         const group = document.querySelector('#dashboard .dash-agt tr.grp td');
         const region = document.querySelector('#dashboard').getBoundingClientRect(), main = document.querySelector('main'), mainRect = main.getBoundingClientRect(), mainStyle = getComputedStyle(main);
@@ -95,7 +95,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
       assert.match(dashboard.group.text, /^Building · /u);
       assert.equal(dashboard.group.size, '10px', `${width}/${scheme}: group label is 10px, as in the mockup`);
       assert.equal(dashboard.group.transform, 'uppercase');
-      assert.equal(dashboard.waitingText, 'waiting for a reviewer', `${width}/${scheme}: the reviewer status is complete`);
+      assert.equal(dashboard.waitingText, 'pending review', `${width}/${scheme}: the reviewer status is complete`);
       assert.ok(dashboard.waitingRect.left >= dashboard.waitingParentRect.left - 1
         && dashboard.waitingRect.right <= dashboard.waitingParentRect.right + 1,
       `${width}/${scheme}: reviewer status stays inside its row: ${JSON.stringify(dashboard)}`);

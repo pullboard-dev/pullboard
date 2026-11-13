@@ -526,7 +526,7 @@ test('clause 1: spec rows read as a list, decided in the panel [N26]', { timeout
           // The last layout decides the last two drafts, so only the earlier ones have a row after them to stay untouched.
           if (third) assert.deepEqual(await recorded(kind, third), { stage: 'draft', decided: null }, `${tab}: and nothing else`);
           assert.equal(await chrome.stable(`document.activeElement === document.querySelector('#${kind}-list')`), true, `${tab}: the dialog returns to the list`);
-          // The two decided rows leave Needs your decision.
+          // The two decided rows leave Rulings.
           expected[kind].decide = undecidedNow.filter(([id]) => id !== first && id !== second);
           await chrome.waitFor(`![...document.querySelectorAll('#${kind}-list .srow')].some((row) => ['${kind}:${first}', '${kind}:${second}'].includes(row.dataset.row))`, 15_000); // budget: hang ceiling for decided rows to leave Needs; no throughput claim.
 
@@ -639,7 +639,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       assert.equal(state.spec.find((row) => row.id === 'G2')?.decision, undefined, `${width}: and nothing else`);
       await chrome.waitFor("view.row.spec === 'G2' && document.querySelector('#spec-detail h2 span')?.textContent === 'G2'");
       assert.ok(await chrome.stable(`(() => { const e=document.querySelector('#spec-list [data-row="spec:G2"]'); const r=e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`), `${width}: next undecided G2 stays in the viewport after G1 approval`);
-      assert.equal(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b').textContent"), '30', `${width}: Needs your decision excludes the decided row`);
+      assert.equal(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b').textContent"), '30', `${width}: Rulings excludes the decided row`);
       if (width === 1280) assert.ok(await chrome.stable(`(() => {
         const row=document.querySelector('#spec-list [data-row="spec:G1"]');
         const chip=row.querySelector('.spec-row-side .chip').getBoundingClientRect();
@@ -649,7 +649,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       })()`), '1280: the approved row tier does not cover row text');
 
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
-      assert.equal(await chrome.stable("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')"), false, `${width}: approval immediately leaves Needs your decision`);
+      assert.equal(await chrome.stable("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')"), false, `${width}: approval immediately leaves Rulings`);
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
 
       await diagnosticClick(chrome, '#spec-detail [data-row-decision="decline"]', width, 'detail decline before cancel');
@@ -722,7 +722,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       })`), '1280: the tier of every pending decision has room beside its row text');
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
       await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G3\"]') && !document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !document.querySelector('#spec-list [data-row=\"spec:G2\"]') && !document.querySelector('#spec-list [data-row=\"spec:K1\"]') && !document.querySelector('#spec-list [data-row=\"spec:K2\"]')");
-      assert.ok(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Needs your decision excludes all four decided rows`);
+      assert.ok(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Rulings excludes all four decided rows`);
       assert.equal(await chrome.stable('window.__confirmCalls'), 0, `${width}: Approve all never asks the browser's confirm dialog`);
       assert.deepEqual(chrome.exceptions, [], `${width}: Chrome reports no uncaught exceptions`);
     } finally {

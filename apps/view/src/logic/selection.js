@@ -15,9 +15,9 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
   if (state === 'building') names.building = 'Building';
   if (state === 'verify') names.verify = 'In review';
-  if (state === 'gated') names.gated = 'Gated';
+  if (state === 'gated') names.gated = 'Blocked';
   if (state === 'ready') names.ready = 'Ready, in rank order';
-  // The Dashboard's step cards open these three steps; like Gated, each shows only while chosen.
+  // The Dashboard's step cards open these three steps; like Blocked, each shows only while chosen.
   if (state === 'building') names.building = 'Building';
   if (state === 'passed') names.passed = 'Passed, landing next';
   if (state === 'landed') names.landed = 'Landed';

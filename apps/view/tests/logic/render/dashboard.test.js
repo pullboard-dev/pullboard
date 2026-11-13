@@ -21,8 +21,8 @@ test('Dashboard time and number labels depend on supplied locale and zone, not t
   const before = JSON.stringify(model);
   const utc = dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC' });
   const tokyo = dashboardHtml(model, { locale: 'en-GB', timeZone: 'Asia/Tokyo' });
-  assert.match(section(utc, 'Shipping now'), /Done at this pace<\/span><span class="dash-stat-v"><b>2–4 h<\/b><\/span><small>Wednesday, around 14:00 to 16:00<\/small>/u);
-  assert.match(section(tokyo, 'Shipping now'), /Done at this pace<\/span><span class="dash-stat-v"><b>2–4 h<\/b><\/span><small>Wednesday, around 23:00 to Thursday 1:00<\/small>/u, 'the same estimate on the Tokyo clock crosses midnight');
+  assert.match(section(utc, 'Release'), /ETA<\/span><span class="dash-stat-v"><b>2–4 h<\/b><\/span><small>Wednesday, around 14:00 to 16:00<\/small>/u);
+  assert.match(section(tokyo, 'Release'), /ETA<\/span><span class="dash-stat-v"><b>2–4 h<\/b><\/span><small>Wednesday, around 23:00 to Thursday 1:00<\/small>/u, 'the same estimate on the Tokyo clock crosses midnight');
   assert.match(section(utc, 'Pace and agent time'), /<title>11:00: \d+ landed<\/title>/u);
   assert.match(section(tokyo, 'Pace and agent time'), /<title>20:00: \d+ landed<\/title>/u);
   assert.match(section(utc, 'Agents'), /<th>8:00 → now<\/th>/u, 'the timeline axis starts four hours back on the reader clock');
@@ -37,7 +37,7 @@ test('Dashboard renders the flow, the release, the strip, agents, the four lists
   assert.equal(quietModel.agents.find(agent => agent.id === 'quiet-1')?.group, 'between items', '19 minutes since activity is not quiet');
   assert.equal(quietModel.agents.find(agent => agent.id === 'quiet-2')?.group, 'quiet', '21 minutes since activity folds the agent into Quiet');
   const quietAgents = section(dashboardHtml(quietModel), 'Agents');
-  assert.match(quietAgents, /▸ <b>1<\/b>&nbsp;between items · quiet up to \d+m/u, 'between-items agents sit behind one line');
+  assert.match(quietAgents, /▸ <b>1<\/b>&nbsp;idle · up to \d+m/u, 'between-items agents sit behind one line');
   assert.match(quietAgents, /data-dashboard-agent="quiet-1"/u);
   assert.doesNotMatch(quietAgents, /data-dashboard-agent="quiet-2"/u, 'an agent quiet for 20 minutes is not at work and stays off the table');
   const expiredWindow = dashboardModel(input.project, input.events, { now: clockBase + 5 * 60 * 60_000, complete: true });
@@ -50,7 +50,7 @@ test('Dashboard renders the flow, the release, the strip, agents, the four lists
   assert.match(flow, /<b>11<\/b> claimed → <b>10<\/b> submitted<\/span><span class="dash-stage-b">0 handed back · median 3m/u, 'claims and submits from the folded events');
   assert.match(flow, /<b>4<\/b> accepted · <b>0<\/b> sent back/u);
   assert.match(flow, /<b>3<\/b> landed · <b>1<\/b> to land/u);
-  const shipping = section(html, 'Shipping now');
+  const shipping = section(html, 'Release');
   const summary = model.milestone.summary;
   assert.match(shipping, new RegExp(`>${summary.left} to go</button></b><span>${summary.landed} of ${summary.total} landed</span>`, 'u'));
   assert.match(shipping, new RegExp(`data-release-segment="landed" data-count="${summary.landed}"`, 'u'));
@@ -64,7 +64,7 @@ test('Dashboard renders the flow, the release, the strip, agents, the four lists
 
   assert.match(section(html, 'Landing'), /data-go="item:4"[\s\S]*passed \d+m/u, 'the accepted item shows how long ago it passed');
   const review = section(html, 'In review');
-  assert.match(review, /1 being reviewed · 0 wait for a reviewer/u);
+  assert.match(review, /1 being reviewed · 0 pending review/u);
   assert.equal([...section(html, 'In the gate').matchAll(/class="dash-row"/gu)].length, 5, 'the submitted items no reviewer holds are in the gate');
   assert.equal([...section(html, 'Landed · 4 h').matchAll(/class="dash-row"/gu)].length, 3);
   assert.match(section(html, 'Landed · 4 h'), /All 3 ›/u);
