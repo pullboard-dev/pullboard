@@ -37,7 +37,7 @@ import {
   measureNaturalSpecChips,
 } from '../../tests/fixtures/cockpit/stable.js';
 
-test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N26,N27]', { timeout: 120_000 }, async (t) => {
+for (const only of [375, 1280]) test(`real Chrome keeps the demo board usable at ${only === 375 ? 'phone' : 'desktop'} width [H5,N26,N27]`, { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for viewport checks.');
 
@@ -140,7 +140,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     const sampledFrames = Number(await chrome.stable("document.querySelector('[data-frame-probe]').dataset.frames", "document.querySelector('[data-frame-probe]')"));
     assert.equal(sampledFrames, 40, 'the shared real-Chrome wait does not measure a moving target before its box stops changing');
     await chrome.stable("document.querySelector('[data-frame-probe]').remove()");
-    for (const width of [375, 1280]) {
+    for (const width of [only]) {
       if (width === 1280) {
         box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision');
         await chrome.waitFor("document.querySelector('#feed').textContent.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in the shout feed; no throughput claim.
@@ -488,12 +488,12 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       .filter((shout) => String(shout.shout_text || '').startsWith('Phone answer '))
       .map((shout) => ({ id: shout.shout_id, from: shout.shout_from, textLength: String(shout.shout_text || '').length,
         phone375: shout.shout_text === 'Phone answer 375', phone1280: shout.shout_text === 'Phone answer 1280' })) }));
-    for (const width of [375, 1280]) {
+    for (const width of [only]) {
       assert.ok(state.items.some((item) => item.title === `Phone item ${width}`));
       assert.ok(state.shouts.some((shout) => shout.shout_text === `Phone shout ${width}`));
       assert.ok(state.shouts.some((shout) => shout.shout_from === 'person' && shout.shout_text.includes(`Phone answer ${width}`)));
     }
-    assert.deepEqual(state.holds, [], 'both widths released the held lane');
+    assert.deepEqual(state.holds, [], 'the width released the held lane');
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
     assert.deepEqual(consoleErrors, [], 'Chrome reports no console errors');
   } finally {
