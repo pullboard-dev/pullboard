@@ -48,7 +48,20 @@ export function submitGateInFlight(board, item) {
   if (item?.item_status !== 'claimed' || !item.item_owner) return false;
   // The record lives on the item's gate job, the one place hand-off state is kept [C7].
   const job = handoffRecord(board.db, item.item_id);
-  return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner;
+  return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner || pulledGateInFlight(board, item);
+}
+
+/**
+ * Whether the claim's pulled gate job is still offered or held by a runner: the item's newest gate job is not done and
+ * was offered after the holder's latest claim. A runner that dies loses its lease and the job is offered again, so the
+ * row stays open until a receipt ends it, as the queued hand-off record did [P7,#2561].
+ */
+function pulledGateInFlight(board, item) {
+  const claimAt = Date.parse(board.db.prepare("SELECT event_at FROM event WHERE item_id=? AND event_kind='claim' AND event_by=? ORDER BY event_id DESC LIMIT 1").get(item.item_id, item.item_owner)?.event_at ?? '');
+  let job;
+  try { job = board.db.prepare("SELECT job_step AS step, job_created AS created FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, job_id DESC LIMIT 1").get(item.item_id); }
+  catch { return false; } // an older board has no job tables, so it holds no pulled gate
+  return Boolean(job) && job.step !== 'done' && Number.isFinite(claimAt) && job.created >= claimAt;
 }
 
 /** How long a proof run may sit queued before a worker takes it; matches the drive queue's start bound. */
