@@ -31,7 +31,6 @@ import { resolve } from 'node:path';
 export function record(root, step) { appendFileSync(process.env.PULLBOARD_FIXTURE_STEPS ?? join(root, '.git', 'gate-steps.jsonl'), JSON.stringify({ step, job: process.env.PULLBOARD_FIXTURE_JOB ?? null, pid: process.pid }) + '\\n'); }
 `,
   'packages/items/index.js': `import { record } from '../../bin/record.js';
-export function requirePlannedSource(root) { record(root, 'placement'); }
 export function requireSubmitComposition(root) { record(root, 'composition'); }
 `,
   'packages/gate/index.js': `import { record } from '../../bin/record.js';
@@ -111,11 +110,13 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
 
 /**
  * Claim, commit and submit one item from its own folder; the submit must return green at once.
- * `change` names the one file the item commits; by default a fresh web/<id>.txt.
+ * `change` names the one file the item commits; by default a fresh web/<id>.txt. `compose` turns bar readiness on after the
+ * claim (a bar frozen before activation stays claimable), so the gate composes the change with main on the runner [C7].
  */
-export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }) {
+export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }, { compose = false } = {}) {
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
+  if (compose) assert.equal(box.run(box.repo, 'bar', 'ready', 'on').code, 0);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
   const submitted = box.run(folder, 'submit', String(id), '--json');

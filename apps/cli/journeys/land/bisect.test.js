@@ -21,7 +21,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
 
-test('land bisects a real red: the culprit goes back named by the receipt and the green item lands [B3,R3,E8]', { skip: 'PULL_GAP: un-skipped by #7396' }, async () => {
+test('land bisects a real red: the culprit goes back named by the receipt and the green item lands [B3,R3,E8]', async () => {
   const box = landProject();
   // The init default (no affectedTests, per-item landing, no separate publish) makes the lander run the whole suite on the merged tree, which is what finds a red.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -32,7 +32,7 @@ test('land bisects a real red: the culprit goes back named by the receipt and th
   box.git(box.repo, 'commit', '-q', '-am', 'chore: the init default has no affectedTests');
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   box.env.LAND_SUPPRESS_RED = '1';
-  const entries = [itemWorktree(box, 2, FILES[1]), itemWorktree(box, 1, FILES[0])]; // the red is item 1's file, as in red-returns.test.js
+  const entries = [itemWorktree(box, 1, FILES[0]), itemWorktree(box, 3, FILES[2])];
   submitItem(box, entries[0], 'PASS\n');
   submitItem(box, entries[1], 'RED\n');
   for (const entry of entries) acceptItem(box, entry);
@@ -43,8 +43,8 @@ test('land bisects a real red: the culprit goes back named by the receipt and th
   const result = await settleLand(box, json(box, box.repo, 'land'));
   assert.deepEqual(result.landed, [entries[0].item]);
   assert.deepEqual(result.returned.map(row => [row.id, row.reason]), [[entries[1].item, 'red']], 'the red item is the culprit, named by the receipt');
-  assert.ok(String(result.landJob.receipt.returned[0].detail).includes(FILES[0]), 'the receipt names the failing file');
-  assert.ok(json(box, box.repo, 'show', String(entries[1].item)).thread.some((entry) => entry.type === 'fact' && entry.text.includes(FILES[0])));
+  assert.ok(String(result.landJob.receipt.returned[0].detail).includes(FILES[2]), 'the receipt names the failing file');
+  assert.ok(json(box, box.repo, 'show', String(entries[1].item)).thread.some((entry) => entry.type === 'fact' && entry.text.includes(FILES[2])));
   assert.ok(calls(box).length > beforeCalls, 'the lander ran its gate');
   assert.equal(json(box, box.repo, 'show', String(entries[0].item)).item_merged_commit, result.batch.tip);
   assert.equal(json(box, box.repo, 'show', String(entries[1].item)).item_merged_commit, null);
