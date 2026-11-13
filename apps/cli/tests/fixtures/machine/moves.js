@@ -11,6 +11,7 @@ export const SETUP_REFUSALS = {
   LAND_GATE_OUTPUT: 'a timed gate whose output failed is a machine gate failure, not an item move',
   LAND_TIMEOUT_CUSTODY: 'a timed gate worker must prove cleanup; this is machine gate custody, not an item move',
   NO_SHOUT: 'looking up a shout that does not exist is a read, not an item move',
+  TIMED_SHELL_MISSING: 'a timed gate shell needs its entry from the caller before the gate runs, a machine setup check',
   PIPEFAIL_UNAVAILABLE: 'the gate shell must support pipefail before the gate runs, a machine setup check',
   // SEAL_REVISION and SEAL_STALE stay declared on submit, accept and reject; only the seal store lookup is pre-empted.
   SEAL_STORE: 'selectTestTiers runs snapshotAt first, whose identical common-directory lookup refuses TEST_SELECTION_SOURCE before sealStoreFile',

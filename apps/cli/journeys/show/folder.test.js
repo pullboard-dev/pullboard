@@ -208,6 +208,10 @@ test('a still-held item folder is retained and the claim names its holder [B5,C7
 
 test('board commands run inside a seat\'s item folder act as that seat and next never opens a new seat [B5,C7]', async t => {
   const box = crossLaneFixture(t);
+  // The fixture pins one claim per seat; this journey claims a second item from the first one's folder, so it commits two.
+  const settings = join(box.repo, 'pullboard.json'), config = JSON.parse(readFileSync(settings, 'utf8'));
+  writeFileSync(settings, JSON.stringify({ ...config, claims: { ...config.claims, perSeat: 2 } }, null, 2));
+  box.git(box.repo, 'commit', '-q', '-am', 'chore: two claims per seat for the folder journey');
   const web = box.seat('folder-seat', 'web', box.session);
   const first = box.add('web', 'First item in its own folder');
   const second = box.add('web', 'Second item claimed from the first folder');

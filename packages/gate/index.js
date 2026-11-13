@@ -48,7 +48,6 @@ export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, releaseTiming, RELEASE_BUDGET_SECONDS, RELEASE_RECEIPT_MAX_BYTES } from "./src/io/release/receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/io/release.js";
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
-export { acceptRelease, runAccept } from "./src/io/release/accept.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest } from "./src/io/tap.js";
 export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";
@@ -100,8 +99,6 @@ export {
   installTestChildDrain,
 } from './src/io/test/drain.js';
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
-export { changedStaticFailures, stagedHookFailures } from './src/io/changed/static.js';
-export { STATIC_CHECKS, runStaticRegistry } from './src/io/static/check/registry.js';
 export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";
