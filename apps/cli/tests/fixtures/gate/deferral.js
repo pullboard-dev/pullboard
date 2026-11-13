@@ -82,6 +82,8 @@ export function makeDeferralFixtures(e2e, store) {
       // The board records the submit when the pulled gate's receipt is applied, which can follow the settled command [P7,C7].
       await waitForCondition(() => onLocalBoard(box, board => store.events(board, { itemId: id }).some(row => row.event_kind === 'submit')), `the board records #${id} submitted`, { signal: AbortSignal.timeout(60_000) });
       const proof = onLocalBoard(box, board => JSON.parse(store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit').event_detail));
+      // A submit that merged main moved the item's head: accept at the commit it finally submitted.
+      receipt.commit = box.git(cwd, 'rev-parse', 'HEAD');
       return { id, receipt, proof, ran: ran() };
     };
     /** Accept one submitted item as the coordinator, at its exact commit. */

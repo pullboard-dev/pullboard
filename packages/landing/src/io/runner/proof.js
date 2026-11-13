@@ -160,8 +160,11 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       const waived = projected.length && code === 1 && !refusal ? waivedRed(accountedRed(all, root), waivers, now()) : null;
       if (waived) return finish(true, null, waived);
       cause(pending); cause(errPending);
-      const first = (refusal ?? failure?.join('\n') ?? '').trim().slice(0, CAUSE_CHARS);
       // A red names its failing files first, so the reopen note and the landing log say which file broke [C7].
+      // A launcher's own JSON refusal (no TAP at all) keeps its code and message, never a test-red wrapper.
+      const native = !refusal && !/^(?:TAP version |\s*(?:not )?ok \d+)/mu.test(all) ? /"code":\s*"([A-Z][A-Z0-9_]+)"[\s\S]*?"message":\s*"((?:[^"\\]|\\.)*)"/u.exec(all) : null;
+      if (native) refusal = `run-tests: [${native[1]}] ${native[2]}`;
+      const first = (refusal ?? failure?.join('\n') ?? '').trim().slice(0, CAUSE_CHARS);
       const red = refusal ? { files: [], cases: [] } : redSummary(all, root);
       const named = red.files.length ? `red in ${red.files.slice(0, 5).join(', ')}${red.files.length > 5 ? ` (+${red.files.length - 5} more)` : ''}; ` : '';
       finish(false, `landing proof exited ${code ?? signal}: ${named}${first ? `${first}\n… ` : ''}${tail.slice(-300)}${red.cases.length ? `\nfailing cases:\n${red.cases.join('\n').slice(0, 4000)}` : ''}`);
