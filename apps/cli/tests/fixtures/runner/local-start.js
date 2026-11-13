@@ -13,10 +13,12 @@ import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { addLocalBoard } from '../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../packages/drive/index.js';
-import { stopFixtureLocalRunner } from './local-stop.js';
 
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 /** What a local runner keeps from its starting environment besides non-Pullboard variables (src/io/runner/local.js). */
@@ -63,37 +65,48 @@ export function startFixtureLocalRunner(env, root) {
   throw new Error(`the fixture local runner for ${root} did not start within ${START_MS} ms; see ${join(folder, 'runner.log')}`);
 }
 
+/** The folder a fixture's gate switches are mirrored to, beside its machine home. */
+function switchFolder(env) {
+  return join(dirname(env.PULLBOARD_MACHINE_HOME), 'gate-switches');
+}
+
 /**
- * The fixture environment, where setting or deleting a variable the local runner keeps stops that runner, so the next
- * submit or landing (or startFixtureLocalRunner) starts it again with the new value.
- * Why: the local runner is long-lived and keeps the environment it started with, so a gate switch such as
- * LAND_SUPPRESS_RED set between two commands never reached a pulled gate (#7153).
+ * The fixture environment, where setting or deleting a non-Pullboard variable also writes or removes a file of that name
+ * in the box's switch folder, which a fixture gate reads through fixtureSwitchSource.
+ * Why: a pulled gate runs on the long-lived local runner, whose gate child never sees a variable the test sets between
+ * two commands, so a switch such as LAND_SUPPRESS_RED reached no pulled gate (#7153).
  *
- * @param {Record<string, string | undefined>} env - The fixture environment object.
+ * @param {Record<string, string | undefined>} env - The fixture environment object; it names PULLBOARD_MACHINE_HOME.
  * @returns {Record<string, string | undefined>} A proxy over the same object.
  */
 export function runnerSwitchedEnv(env) {
-  const restart = (target, key) => { if (reachesRunner(key) && target.PULLBOARD_MACHINE_HOME) stopFixtureLocalRunner(target.PULLBOARD_MACHINE_HOME); };
+  const mirror = (target, key) => {
+    if (typeof key !== 'string' || key.startsWith('PULLBOARD_') || !/^[A-Z][A-Z0-9_]*$/u.test(key) || !target.PULLBOARD_MACHINE_HOME) return;
+    const file = join(switchFolder(target), key);
+    if (target[key] === undefined) rmSync(file, { force: true });
+    else { mkdirSync(switchFolder(target), { recursive: true }); writeFileSync(file, String(target[key])); }
+  };
   return new Proxy(env, {
-    set(target, key, value) {
-      const changed = target[key] !== value;
-      target[key] = value;
-      if (changed) restart(target, key);
-      return true;
-    },
-    deleteProperty(target, key) {
-      const had = Object.hasOwn(target, key);
-      delete target[key];
-      if (had) restart(target, key);
-      return true;
-    },
+    set(target, key, value) { target[key] = value; mirror(target, key); return true; },
+    deleteProperty(target, key) { delete target[key]; mirror(target, key); return true; },
   });
 }
 
 /**
+ * CommonJS source for a fixture gate script: `fixtureSwitch(name)` is the switch the test set last through
+ * runnerSwitchedEnv, or the gate's own environment variable when the test never set it.
+ *
+ * @param {Record<string, string | undefined>} env - The fixture environment.
+ * @returns {string}
+ */
+export function fixtureSwitchSource(env) {
+  return `const fixtureSwitch = name => { try { return require('node:fs').readFileSync(require('node:path').join(${JSON.stringify(switchFolder(env))}, name), 'utf8'); } catch { return process.env[name]; } };`;
+}
+
+/**
  * Start the fixture machine's local runner for the board `cwd` belongs to when jobs wait and none is alive, unless the
- * machine turned the local runner off or registered runners of its own. Why: a gate switch (runnerSwitchedEnv) stops the
- * runner, and a command that offers a job without starting one (a verify, a test run) would otherwise leave it queued.
+ * machine turned the local runner off or registered runners of its own. Why: a command that offers a job without
+ * starting a runner (a verify, a test run, a relay-linked submit) would otherwise leave it queued.
  *
  * @param {string} cwd - Where the fixture command ran.
  * @param {Record<string, string | undefined>} env - The fixture environment.

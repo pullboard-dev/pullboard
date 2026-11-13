@@ -42,7 +42,7 @@ function defaultProject() {
 function acceptedRedItem(box) {
   const entry = itemWorktree(box, 1);
   box.env.LAND_SUPPRESS_RED = '1';
-  try { submitItem(box, entry, 'RED\n'); const dbg = box.run(box.repo, 'show', String(entry.item)); process.stderr.write('DEBUG-SHOW ' + dbg.out + dbg.err + '\nRUNNERLOG ' + (() => { try { return readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log'), 'utf8').slice(-4000); } catch (e) { return String(e); } })() + '\n'); acceptItem(box, entry); } finally { delete box.env.LAND_SUPPRESS_RED; }
+  try { submitItem(box, entry, 'RED\n'); acceptItem(box, entry); } finally { delete box.env.LAND_SUPPRESS_RED; }
   return entry;
 }
 
@@ -69,7 +69,7 @@ function strictPrePush(box) {
   mkdirSync(hooks, { recursive: true });
   for (const name of readdirSync(source)) if (!name.endsWith('.sample')) { copyFileSync(join(source, name), join(hooks, name)); chmodSync(join(hooks, name), 0o755); }
   copyFileSync(join(source, 'pre-push'), join(hooks, 'pre-push.real'));
-  writeFileSync(join(hooks, 'pre-push'), '#!/bin/sh\nunset LAND_SUPPRESS_RED\nrm -f "$(git rev-parse --git-path pullboard-gate-green)"\nexec "$(dirname "$0")/pre-push.real" "$@"\n');
+  writeFileSync(join(hooks, 'pre-push'), `#!/bin/sh\nunset LAND_SUPPRESS_RED\nrm -f '${join(box.dir, 'gate-switches', 'LAND_SUPPRESS_RED')}'\nrm -f "$(git rev-parse --git-path pullboard-gate-green)"\nexec "$(dirname "$0")/pre-push.real" "$@"\n`);
   chmodSync(join(hooks, 'pre-push'), 0o755);
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }
