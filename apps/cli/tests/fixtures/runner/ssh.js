@@ -136,9 +136,10 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ho
   process.stdin.resume();
 } else` : ''} {
   const env = { PATH: process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
-    PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
+    PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', PULLBOARD_AGENT_CORES: '4096', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
     ...((registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
+  // PULLBOARD_AGENT_CORES above: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job (#6734).
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
   const child = spawn('/bin/sh', ['-c', skipAgent ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
