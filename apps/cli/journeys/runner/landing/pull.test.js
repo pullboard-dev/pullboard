@@ -8,12 +8,19 @@ import { boardJobQueueCall } from '../../../../../packages/api/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { landingBatches } from '../../../../../packages/store/index.js';
-import { verify } from '../../../../../packages/store/index.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { acceptGated } from '../../../tests/fixtures/pull.js';
 import { pullProject } from '../../../tests/fixtures/pull.js';
 import { pullQueue } from '../../../tests/fixtures/pull.js';
 import { serveOnce } from '../../../tests/fixtures/pull.js';
 import { submitOne } from '../../../tests/fixtures/pull.js';
+
+
+/** The offered items without their landing message, after checking each carries its own item trailer [B3,R3,C7,#7268]. */
+function landedItems(items) {
+  for (const entry of items) assert.match(`${entry.header}\n${entry.trailers}`, new RegExp(`\\S\\nPullboard-Item: #${entry.id}(?:\\n|$)`, 'u'), 'each item carries its landing message');
+  return items.map(({ header, trailers, ...rest }) => rest);
+}
 
 /** Run the automatic lander's own entry, as a landing wake does, in a child process at the main checkout. */
 function landAfterAccept(box) {
@@ -41,7 +48,7 @@ async function acceptedOnPull(t) {
   const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
   assert.equal((await serveOnce(box, queue.url, 'r-gate')).code, 0);
   assert.equal(getItem(queue.board, id).item_status, 'submitted', 'the pulled gate put the item in review');
-  verify(queue.board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: commit, digest: getItem(queue.board, id).item_frozen_digest, policy: 'any' });
+  acceptGated(queue.board, box.repo, id, commit);
   return { box, trunk, id, commit, queue, tip: () => box.git(box.dir, '--git-dir', trunk, 'rev-parse', 'refs/heads/main') };
 }
 
@@ -54,7 +61,7 @@ async t => {
   assert.equal(jobs.length, 1, `one land job; the lander answered ${JSON.stringify(result)}`);
   assert.equal(result.offered, jobs[0].id);
   const { payload } = jobs[0].steps.find(step => step.name === 'offered').payload;
-  assert.deepEqual(payload.items, [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
+  assert.deepEqual(landedItems(payload.items), [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
   assert.deepEqual([payload.remote, payload.trunk, payload.expect], [trunk, 'refs/heads/main', before]);
   assert.equal(box.git(box.dir, '--git-dir', trunk, 'rev-parse', `refs/pullboard/land/${id}`), commit, 'the item is published where the runner fetches');
   assert.deepEqual([box.git(box.repo, 'rev-parse', 'main'), tip()], [main, before], 'neither the board host\'s main nor trunk moved');

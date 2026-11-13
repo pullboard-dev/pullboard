@@ -584,10 +584,6 @@
       "cells": 7,
       "deep": 0
     },
-    "apps/cli/src/io/submit/handoff/worker.js": {
-      "cells": 6,
-      "deep": 0
-    },
     "apps/cli/src/io/submit/receipt.js": {
       "cells": 2,
       "deep": 0
@@ -2438,10 +2434,6 @@
     },
     "packages/landing/src/io/host.js": {
       "cells": 3,
-      "deep": 0
-    },
-    "packages/landing/src/io/in/process.js": {
-      "cells": 1,
       "deep": 0
     },
     "packages/landing/src/io/known/main.js": {
@@ -5169,10 +5161,6 @@
       "deep": 0
     },
     "packages/runners/light.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "packages/store/tests/fixtures/collision.js": {
       "cells": 1,
       "deep": 0
     },

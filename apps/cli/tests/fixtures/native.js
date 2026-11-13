@@ -35,7 +35,7 @@ import { relayOrdering } from '../../../../packages/outbox/index.js';
 
 /** Run the production CLI with the same explicit native capability as its process entry. */
 export function main(argv, streams) {
-  return cliMain(argv, { ...streams, nativeBoardPorts: streams?.nativeBoardPorts ?? nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker: HOOK_WORKER, submitHandoffWorker: fileURLToPath(new URL('../../src/io/submit/handoff/worker.js', import.meta.url)), launchRelaySender, loadNativeBoard: streams?.loadNativeBoard ?? (() => Promise.resolve(nativeBoard)) });
+  return cliMain(argv, { ...streams, nativeBoardPorts: streams?.nativeBoardPorts ?? nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker: HOOK_WORKER, launchRelaySender, loadNativeBoard: streams?.loadNativeBoard ?? (() => Promise.resolve(nativeBoard)) });
 }
 
 /** The board and outbox ports the production process entry composes, as a relay setup flow receives them in its output object [C7]. */

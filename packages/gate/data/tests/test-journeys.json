@@ -3613,6 +3613,40 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
+    "apps/cli/journeys/doctrine/pulled-counts.test.js": {
+      "cells": [
+        "app:lib",
+        "doctrine",
+        "kernel",
+        "outbox",
+        "person",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
+        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
+      ]
+    },
+    "apps/cli/journeys/doctrine/pulled-ratchets.test.js": {
+      "cells": [
+        "app:lib",
+        "doctrine",
+        "kernel",
+        "outbox",
+        "person",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
+        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
+      ]
+    },
     "apps/cli/journeys/doctrine/name.test.js": {
       "cells": [
         "app:cli",
@@ -4405,23 +4439,6 @@
       "reasons": [
         "imports past app:cli front door (apps/cli/src/io/cli-main/recovery.js)",
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
-      ]
-    },
-    "apps/cli/journeys/handoff/orphan.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
     "test/handoff-sweep-replaced-agent.test.js": {

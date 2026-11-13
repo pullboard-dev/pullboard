@@ -27,6 +27,3 @@ test('clause 1: an item whose latest batch ended blocked with no named test goes
   assert.equal(mixed.get(3687), 1);
   assert.ok(mixed.get(3478) > 1);
 });
-
-// The hot retry after a blocked batch is the batch engine's wake schedule; #6807 deletes this case with it.
-test('clause 2: a run that ends blocked while untried verified work waits starts the next run within seconds, not after a back-off [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});
