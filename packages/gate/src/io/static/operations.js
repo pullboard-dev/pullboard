@@ -15,6 +15,8 @@ const BASELINE_URL = new URL('../../../data/baselines/operation-entries.json', i
 /** Shipped source files: each app's and package's src/ and bin/ trees, never tests or fixtures. */
 const SOURCE = /^(?:apps|packages)\/[^/]+\/(?:src|bin)\/(?:.*\/)?[^/]+\.[cm]?js$/u;
 const CHILD = /(?<![\w$.])(?:spawnSync|execFileSync|execFile|execSync|spawn|fork)\s*\(/u;
+/** An update-ref of a trunk ref (a name holding trunk, or refs/heads/main), or a push whose destination is a trunk or ref name. */
+const TRUNK_MOVE = /['"`]update-ref['"`]\s*,\s*(?:['"`]refs\/heads\/main['"`]|(?:[\w$]+\.)*\w*[Tt]runk\w*(?:\.ref)?\s*[,\]])|['"`]push['"`][^\n]*:\$\{\s*(?:[\w$]+\.)*(?:\w*[Tt]runk\w*|ref)\s*\}/u;
 const TEST_RUNNER = /run-tests\.js|['"`]--test['"`]/u;
 
 /**
@@ -42,6 +44,10 @@ export const OPERATIONS = Object.freeze([
     marks: code => code.search(/['"`]worktree['"`]\s*,\s*['"`]add['"`]/u) },
   { name: 'stop-process-tree', entry: 'packages/jobs/src/io/launch.js', why: 'signals a whole process group',
     marks: code => code.search(/\bprocess\s*\.\s*kill\s*\(\s*-/u) },
+  { name: 'sync-sleep', entry: 'packages/kernel/src/logic/sleep.js', why: 'blocks the thread with Atomics.wait',
+    marks: code => code.search(/\bAtomics\s*\.\s*wait\s*\(/u) },
+  { name: 'move-trunk', entry: 'packages/landing/src/io/step/publish.js', why: 'moves the trunk ref or pushes to main',
+    marks: code => code.search(TRUNK_MOVE) },
 ]);
 
 /** A comment inside a template-string script: a line comment that starts its line, or a block comment. */
