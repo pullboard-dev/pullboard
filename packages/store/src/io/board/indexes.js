@@ -107,6 +107,15 @@ export function costKindEvents(board, afterId, limit) {
   return board.db.prepare("SELECT * FROM event WHERE event_kind IN ('usage', 'shared-usage', 'model') AND event_id > ? ORDER BY event_id LIMIT ?").all(afterId, limit);
 }
 
+/**
+ * One page of the events of one landing or review kind after `afterId`, oldest first, straight off the kind index (one
+ * kind keeps the index order, so no sort). Why a scan by kind: looking each item up reads every event the item has to find its few moves, 308 ms against 52 ms for
+ * 4,764 landed items on the live board [#7362].
+ */
+export function costMoveEvents(board, kind, afterId, limit) {
+  return board.db.prepare('SELECT * FROM event WHERE event_kind = ? AND event_id > ? ORDER BY event_id LIMIT ?').all(kind, afterId, limit);
+}
+
 /** The landing and review moves of these items. */
 export function costItemEvents(board, ids) {
   if (!ids.length) return [];

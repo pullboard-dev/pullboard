@@ -12,6 +12,7 @@ import {
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 import { json } from '../../../tests/fixtures/land/board.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
@@ -52,7 +53,8 @@ function refuseEveryCommit(box) {
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }
 
-test('landing.first in accepted trunk policy lands the named item ahead of the accept order, then the order resumes [C7]', { timeout: 300_000 }, // budget: two real submits, accepts and two landings; hang ceiling only.
+// CONTROLLER_ONLY: landing.first is the batch engine's selection policy; the pulled land job takes items in board order and ignores it [C7].
+test('landing.first in accepted trunk policy lands the named item ahead of the accept order, then the order resumes [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6807' }, // budget: two real submits, accepts and two landings; hang ceiling only.
 async () => {
   const box = landProject();
   const first = await item(box, 1), second = await item(box, 2);
@@ -63,12 +65,10 @@ async () => {
   landFirst(box, [first.item, 999999]); // an unknown id is ignored
   refuseEveryCommit(box);
 
-  const one = await box.runLocal(box.repo, 'land', '--max', '1', '--json'); // one item per run, so the order shows across two runs [#5815]
-  assert.equal(one.code, 0, one.out + one.err);
-  assert.deepEqual(JSON.parse(one.out).landed, [first.item], 'the named item lands ahead of the earlier-accepted one');
-  assert.equal(json(box, box.repo, 'show', String(second.item)).item_merged_commit, null);
-
-  const two = await box.runLocal(box.repo, 'land', '--max', '1', '--json');
-  assert.equal(two.code, 0, two.out + two.err);
-  assert.deepEqual(JSON.parse(two.out).landed, [second.item], 'the accept order resumes after the named items');
+  const landed = await box.runLocal(box.repo, 'land', '--json'); // plain pulled land job: one offer lands both, in policy order [#5815]
+  assert.equal(landed.code, 0, landed.out + landed.err);
+  const settled = await settleLand(box, JSON.parse(landed.out));
+  assert.deepEqual(settled.landed, [first.item, second.item], 'the named item lands ahead of the earlier-accepted one, then the accept order resumes');
+  assert.equal(json(box, box.repo, 'show', String(first.item)).item_merged_commit !== null, true);
+  assert.equal(json(box, box.repo, 'show', String(second.item)).item_merged_commit !== null, true);
 });
