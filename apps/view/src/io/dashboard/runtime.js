@@ -9,6 +9,19 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
   const tour = { index: 0, auto: true, timer: null };
   let drawnFloor = null;
   let lastNeeds = { root: null, html: '', header: '' };
+  /** Whether the events hold every id from 1 to the prefix, by the position of the prefix's last event (ids are strictly rising). */
+  function covers(events, prefix) {
+    let low = 0, high = events.length;
+    while (low < high) { const mid = (low + high) >> 1; if (events[mid].event_id <= prefix) low = mid + 1; else high = mid; }
+    return low === prefix && (low === 0 || events[low - 1].event_id === prefix);
+  }
+  /** The held events up to the prefix: the same array while none lies beyond it, which a live update never does. */
+  function upTo(events, prefix) {
+    if (!(events.at(-1)?.event_id > prefix)) return events;
+    let low = 0, high = events.length;
+    while (low < high) { const mid = (low + high) >> 1; if (events[mid].event_id <= prefix) low = mid + 1; else high = mid; }
+    return events.slice(0, low);
+  }
   /** Read missing history once per prefix; never draw one board's history over another board. */
   function read(root, prefix) {
     const key = root + '|' + boardPath(root);
@@ -20,11 +33,17 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const after = held.events.at(-1)?.event_id ?? 0;
     api(boardPath(root) + '/events?after=' + after).then(reply => {
       if (!Array.isArray(reply.events)) throw new Error('The board did not return its event history.');
-      const byId = new Map(held.events.map(event => [event.event_id,event]));
-      for (const event of reply.events) byId.set(event.event_id,event);
-      held.events = [...byId.values()].sort((a,b)=>a.event_id-b.event_id);
-      const selected = held.events.filter(event => event.event_id <= prefix);
-      const covered = prefix === 0 || selected.length === prefix && selected.every((event,index) => event.event_id === index + 1);
+      const last = held.events.at(-1)?.event_id ?? 0;
+      // New events arrive after the held ones in id order, so they are appended; the folded totals stay valid. Anything else rebuilds the history.
+      if (reply.events.every((event, index) => event.event_id > (index ? reply.events[index - 1].event_id : last))) for (const event of reply.events) held.events.push(event);
+      else {
+        const byId = new Map(held.events.map(event => [event.event_id,event]));
+        for (const event of reply.events) byId.set(event.event_id,event);
+        held.events = [...byId.values()].sort((a,b)=>a.event_id-b.event_id);
+        held.fold = null; held.seen = null;
+      }
+      held.version = (held.version ?? 0) + 1;
+      const covered = prefix === 0 || covers(held.events, prefix);
       held.prefix = covered ? prefix : -1; held.error = covered ? null : 'The available history does not cover this board prefix.';
       if (!covered) { held.failedPrefix = prefix; held.failedAt = Date.now(); }
     }).catch(error => { held.error = String(error.message || error); held.failedPrefix = prefix; held.failedAt = Date.now(); }).finally(() => {
@@ -33,6 +52,16 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
       if (current() === root) redraw();
     });
     return held;
+  }
+  /** What the first-run page reads of the history (the kinds that happened and how many merges), counted once per event up to the prefix. */
+  function seen(held, prefix) {
+    const tally = held.seen ??= { index: 0, kinds: new Set(), merged: 0 };
+    for (; tally.index < held.events.length && held.events[tally.index].event_id <= prefix; tally.index++) {
+      const kind = held.events[tally.index].event_kind;
+      tally.kinds.add(kind);
+      if (kind === 'merged') tally.merged++;
+    }
+    return tally;
   }
   /** Draw immediately from live claims, then enrich only with the complete ordered prefix when available. */
   /**
@@ -52,11 +81,11 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const now = Number.isFinite(observedAt) ? observedAt : Date.now();
     // Native snapshots are JSON; include every field so changed live data or an observation clock always invalidates.
     const projectKey = JSON.stringify(project), cached = held.modelCache, atWork = working ? working(project) : null, atWorkKey = atWork ? atWork.join('|') : '';
-    const fresh = cached && cached.projectKey === projectKey && cached.events === held.events
+    const fresh = cached && cached.projectKey === projectKey && cached.events === held.events && cached.version === held.version
       && cached.prefix === prefix && cached.complete === complete && cached.now === now && cached.atWorkKey === atWorkKey;
     const behind = !fresh && quick && Boolean(cached?.state);
-    const state = fresh || behind ? cached.state : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now, working: atWork });
-    if (!behind) held.modelCache = { projectKey, events: held.events, prefix, complete, now, atWorkKey, state };
+    const state = fresh || behind ? cached.state : model(project, upTo(held.events, prefix), { complete, now, working: atWork, fold: held.fold ??= {} });
+    if (!behind) held.modelCache = { projectKey, events: held.events, version: held.version, prefix, complete, now, atWorkKey, state };
     const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const progress = state.milestone ? summary(state.milestone, { now, locale, timeZone })?.header ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
@@ -67,7 +96,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     let quietRows;
     const quietOpen = expanded.includes('quiet');
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
-    const started = firstRun && !onFloor ? firstRun.kit.model(project, held.events.filter(event=>event.event_id<=prefix)) : null;
+    const started = firstRun && !onFloor ? firstRun.kit.model(project, seen(held, prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
     const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })

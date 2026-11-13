@@ -1,3 +1,4 @@
+import { FIXTURE_GATE_DISPATCH } from '../testkit.js';
 import { fixtureMachineSettings } from '../testkit.js';
 import { HOST } from '../runner/ssh.js';
 import { installSshStandIn } from '../runner/ssh.js';
@@ -77,7 +78,7 @@ function withBaselineRunner(box, action) {
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   try { return action(); }
   finally {
@@ -277,7 +278,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     }
   });
   // The stopped holder keeps its gate slot until its own lease runs out, so the adopting landing needs a second slot of its own.
-  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2 });
+  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2, gate: { ...FIXTURE_GATE_DISPATCH } });
   writeFileSync(arm, 'armed');
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
