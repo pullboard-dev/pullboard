@@ -16,6 +16,10 @@ import { poolHandlers } from '../../../../../packages/api/index.js';
 import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
 import { servedModuleMoved } from '../../../../../packages/drive/index.js';
 import { startLoopWatchdog } from '../../../../../packages/drive/index.js';
+import { announceListening } from '../../../../../packages/drive/index.js';
+import { catchListeners } from '../../../../../packages/drive/index.js';
+import { inheritedListener } from '../../../../../packages/drive/index.js';
+import { spawnOnSocket } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { spawnReachable } from '../../../../../packages/jobs/index.js';
@@ -73,6 +77,8 @@ export async function serveHere(io, values) {
   const flagPort = values.port === undefined ? undefined : Number(values.port);
   if (flagPort !== undefined && (!Number.isInteger(flagPort) || flagPort < 0 || flagPort > 65535)) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
   const { address, port } = serveListen({ address: values.address, port: flagPort });
+  // A replacement started by a restart listens on its predecessor's socket, handed to it as a descriptor (#6723).
+  const inherited = inheritedListener();
   // Off loopback the API answers runners on the network: it needs this machine's lasting board key and serves only this repo's board [P7].
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
@@ -81,9 +87,12 @@ export async function serveHere(io, values) {
   provideBaselineRecorder(recordPulledBaseline);
   traceServeStartup('serve-listen-start');
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
+  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
-    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
+    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog }));
+  const api = listening.value;
+  if (inherited) announceListening();
   traceServeStartup('serve-listen-ready');
   // The one board served off loopback, by the address runner serve and install-serve take.
   const boards = networked ? [withBoardRead(ctx, board => store.boardId(board))].map(id => ({ id, runnerUrl: `${new URL(api.url).origin}/api/v1/boards/${id}` })) : [];
@@ -95,10 +104,13 @@ export async function serveHere(io, values) {
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
   // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
+  // Where the socket can be handed on, the new process listens before this one stops accepting, so no request is refused (#6723).
   const log = join(pullboardHome(), 'serve.log');
-  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), close: api.close,
+  const socket = listening.socketFd(api.port);
+  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), handoff: socket !== null,
+    close: socket !== null ? () => listening.drain(api.port).then(api.close) : api.close,
     affects: servedModuleMoved({ root: CODE_ROOT, entries: [join(CODE_ROOT, 'apps/cli/pullboard.js'), fileURLToPath(import.meta.url)] }), log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
-    relaunch: () => spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
+    relaunch: () => socket !== null ? spawnOnSocket(process.execPath, sameServe(api.port), { fd: socket, cwd: process.cwd(), log }) : spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
   const restarted = await new Promise((stop) => {
     const stopped = (moved) => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(moved === true); };
     process.once('SIGINT', stopped);
