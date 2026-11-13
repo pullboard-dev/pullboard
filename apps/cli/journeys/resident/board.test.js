@@ -119,7 +119,7 @@ before(() => {
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
     PATH: `${shims}${delimiter}${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log'),
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log'),
     PULLBOARD_RESIDENT_TRACE: join(dir, 'resident-trace.log') };
   for (const name of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_RELAY_KEY']) delete env[name];
   copyCode(code, env);
