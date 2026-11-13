@@ -34,7 +34,7 @@ test('clause 1: How work moved, Now, Release, the pace strip, Agents, the four l
 
   // The Now line: where every item is, one number per stage.
   const nowLine = [...section(html, 'Now').matchAll(/<b>(\d+)<\/b>([^<]+)<\/button>/gu)].map(([, n, word]) => word + ' ' + n);
-  assert.deepEqual(nowLine, ['ready 3', 'waiting 1', 'building 1', 'in the gate 1', 'in review 1', 'to land 1', 'sent back 1', 'held 1']);
+  assert.deepEqual(nowLine, ['ready 3', 'blocked 1', 'building 1', 'in the gate 1', 'in review 1', 'to land 1', 'sent back 1', 'held 1']);
 
   assert.match(section(html, 'Release'), /<span class="dash-ver">0\.1\.0<\/span>First release/u);
   assert.match(section(html, 'Pace and agent time'), /Landed per hour[\s\S]*Agent time/u);

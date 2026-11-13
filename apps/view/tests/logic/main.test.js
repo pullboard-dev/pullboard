@@ -376,7 +376,7 @@ test('Roadmap item HTML retains blockers, provenance and escaped detail from exp
     states: new Map([[8, 'building'], [9, 'open']]), releases: ['0.9 <release>'], address: '/item/7', board: '/other' };
   const before = structuredClone({ item, context });
   const result = roadmapBlock(item, context);
-  assert.match(result.label, /waits on #8 \(claimed\).*held: Keep <pause>.*lane web held/u);
+  assert.match(result.label, /Blocked by #8 \(claimed\).*held: Keep <pause>.*lane web held/u);
   assert.match(result.dot, /Keep &lt;pause&gt;/u);
   assert.match(result.detail, /Keep &lt;all&gt; words\./u);
   assert.doesNotMatch(result.detail, /A second sentence/u);

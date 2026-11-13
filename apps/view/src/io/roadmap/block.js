@@ -16,7 +16,7 @@ export function roadmapBlock(item, context = {}) {
   // The item's own hold, held apart from its lane's (#1256).
   const own = (Array.isArray(context.itemHolds) ? context.itemHolds : []).find(h => h.item === item.id);
   const blocked = item.status === 'open' && Boolean(waits.length || hold || own);
-  const label = blocked ? 'Blocked: ' + [waits.length ? 'by ' + waits.map(w => '#' + w.id + ' (' + w.status + ')').join(', ') : '',own ? 'held: ' + own.reason : '',hold ? 'lane ' + item.lane + ' held' : ''].filter(Boolean).join('; ') : '';
+  const label = blocked ? (waits.length ? 'Blocked by ' : 'Blocked: ') + [waits.length ? waits.map(w => '#' + w.id + ' (' + w.status + ')').join(', ') : '',own ? 'held: ' + own.reason : '',hold ? 'lane ' + item.lane + ' held' : ''].filter(Boolean).join('; ') : '';
   const dot = blocked ? '<span class="block-dot" role="img" aria-label="'+escape(label)+'" title="'+escape(label)+'"></span>' : '';
   // A collapsed row needs its real blocked state, while full detail is rendered on explicit expansion.
   if (context.summaryOnly === true) return { label, dot, detail: '' };

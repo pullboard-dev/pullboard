@@ -65,7 +65,7 @@ export function agentFloorModel(model, history) {
     landedMarks: landed.filter(entry => entry.at > start).map(entry => entry.at),
     queues: [
       { key: 'review', label: 'In review', rows: inReview, late: hour },
-      { key: 'landing', label: 'Accepted, to land', rows: model.landing.map(item => ({ item, at: model.last(item, 'accept') })), late: hour },
+      { key: 'landing', label: 'Accepted, waiting to land', rows: model.landing.map(item => ({ item, at: model.last(item, 'accept') })), late: hour },
       { key: 'ready', label: 'Ready, nobody building', rows: model.next.map(item => ({ item, at: readySince.get(item.id) ?? (Date.parse(item.updatedAt) || now) })), late: null },
       { key: 'landed', label: 'Landed · 24 h', rows: landed.map(entry => ({ item: entry.item, at: entry.at })), late: null },
     ],
