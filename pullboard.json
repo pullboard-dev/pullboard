@@ -414,6 +414,6 @@
   "claims": {
     "releaseGone": false,
     "releaseCooldownMinutes": 30,
-    "perSeat": 2
+    "perSeat": 4
   }
 }
