@@ -53,8 +53,8 @@ function identity(request = randomUUID()) {
 }
 
 /** Register the real pinned-worker probe cases: one failed probe recovers, endless failures stay unavailable [C7]. */
-export function runnerProbeRecoveryTests() {
-  for (const failures of [1, 99]) {
+export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
+  for (const failures of failureCounts) {
     test(`a real pinned worker ${failures === 1 ? 'recovers after one failed probe' : 'stays unavailable naming its failed step'} [C7]`, t => {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
@@ -107,8 +107,8 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
 }
 
 /** Register the delayed-installer cases and the drained-custody case, each a real worker launch [C7]. */
-export function runnerInstallerRecoveryTests() {
-  test('drained custody requires exact job-directory absence and refuses unknown filesystem states [C7]', t => {
+export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true], custody = true } = {}) {
+  if (custody) test('drained custody requires exact job-directory absence and refuses unknown filesystem states [C7]', t => {
     const e2e = createE2eHelpers(); t.after(e2e.cleanup);
     const box = e2e.project('true'), root = join(box.dir, 'owned-runner');
     const previous = identity(), job = previous.request + '-ABC123';
@@ -131,7 +131,7 @@ export function runnerInstallerRecoveryTests() {
     assert.equal(runnerHealthReply(root, { nonce: randomUUID(), previous: legacy }).cleanup, false);
     assert.equal(existsSync(join(root, 'recovery-launches', legacy.request)), false, 'an old request cannot be guessed never-started');
   });
-  for (const workerFirst of [false, true]) {
+  for (const workerFirst of workerFirstCases) {
     test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, t => {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
