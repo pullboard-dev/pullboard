@@ -18,6 +18,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
@@ -66,7 +67,7 @@ export default async function* report(events) {
  * `gateCases` are the gate file's test lines: a passing case by default. `criterion` and `brief` are the item's bar, and
  * `files(dir)` returns more committed files, keyed by repo path, that the item's change never touches.
  */
-async function submittedItem(gateCases = ["test('the row gate holds', () => {});"], { criterion = '1. The page shows a greeting [test].', brief = null, files = () => ({}) } = {}) {
+async function submittedItem(t, gateCases = ["test('the row gate holds', () => {});"], { criterion = '1. The page shows a greeting [test].', brief = null, files = () => ({}) } = {}) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   box.env.PULLBOARD_MODEL = 'fixture-model';
@@ -109,14 +110,14 @@ async function submittedItem(gateCases = ["test('the row gate holds', () => {});
   commit(box, builder, 'feat(web): greet the visitor [G1]');
   await ok(box, builder, 'fact', String(id), 'note', "clause 1 [test]: web/packet.test.js 'clause 1: the page shows a greeting'");
   rmSync(marker, { force: true });
-  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
+  const submitted = await settleSubmit(t, box, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out));
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
   const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
   return { packet, ranRowGate: existsSync(marker), dir: box.dir, repo: box.repo, head: box.git(builder, 'rev-parse', 'HEAD').trim() };
 }
 
 test('clause 1: a submit for an item citing a spec row runs that row\'s gate test file in its recorded proof [V4,C7]', { timeout: 240_000 }, async (t) => {
-  const { packet, ranRowGate } = await submittedItem();
+  const { packet, ranRowGate } = await submittedItem(t);
   assert.equal(ranRowGate, true, `submit ran ${ROW_GATE}, the gate of cited row G1`);
   const row = packet.clauses.find(clause => clause.id === 'G1');
   assert.ok(row, 'the packet lists the frozen G1 clause');
@@ -131,8 +132,8 @@ test('clause 1: a submit for an item citing a spec row runs that row\'s gate tes
 
 test('clause 2: a row gate run with only skipped cases, or none, leaves the spec-row clause unproved [V4,C7]', { timeout: 300_000 }, async (t) => {
   for (const [kind, cases] of [['all skipped', ["test('the row gate holds', { skip: true }, () => {});"]], ['zero cases', []]]) {
-    await t.test(`clause 2: ${kind}`, async () => {
-      const { packet, ranRowGate } = await submittedItem(cases);
+    await t.test(`clause 2: ${kind}`, async (t) => {
+      const { packet, ranRowGate } = await submittedItem(t, cases);
       assert.equal(ranRowGate, true, `submit still ran ${ROW_GATE}`);
       const row = packet.clauses.find(clause => clause.id === 'G1');
       assert.deepEqual(row.runs, [], `a ${kind} gate run proves nothing: ${JSON.stringify(row)}`);
@@ -156,7 +157,7 @@ function markedTest(dir, name, caseName) {
 const NAMED_FILE = ['clause names the file', 'case in the file the clause names', 'test cites the clause'];
 
 test('clause 1: submit runs the test file the frozen criterion names and the one the brief Test: list names, though the change never imports them [C7,V4]', { timeout: 240_000 }, async (t) => {
-  const { packet, dir } = await submittedItem(undefined, {
+  const { packet, dir } = await submittedItem(t, undefined, {
     criterion: '1. The page shows a greeting, proved by web/named.test.js [test]. 2. The visitor sees a farewell [test].',
     brief: 'Files: web/greet.js\nTest:\n- web/brief.test.js',
     files: dir => ({ 'web/named.test.js': markedTest(dir, 'named', 'the named file holds'), 'web/brief.test.js': markedTest(dir, 'brief', 'the listed file holds') }),
@@ -200,7 +201,7 @@ function submitReceipts(repo, head) {
 }
 
 test('clause 1: the exact-head submit receipt runs a file the frozen criterion names, outside the affected selection, and names its cases though its worker report is lost [C7,V4]', { timeout: 240_000 }, async (t) => {
-  const { packet, dir, repo, head } = await submittedItem(undefined, {
+  const { packet, dir, repo, head } = await submittedItem(t, undefined, {
     criterion: '1. The job folder stays while its job runs, proved by web/folder-live.test.js [test]. 2. The sweep keeps its floor, proved by web/sweep.test.js [test].',
     files: dir => ({ 'web/folder-live.test.js': unreportedTest(dir, 'a long job mid-run keeps its folder'),
       'web/sweep.test.js': markedTest(dir, 'sweep', 'the sweep keeps its floor') }),
