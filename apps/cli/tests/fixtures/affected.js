@@ -27,9 +27,6 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from './child.js';
-import {
-  fixtureMachineSettings,
-} from './testkit.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 const FROZEN = 'node test/runner.js test/frozen.test.js';
@@ -78,9 +75,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, criterion 
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'known-main-affected-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
-  // A child submit must return the gate's verdict, so the fixture pins controller dispatch; pull submits return queued (#6249,#6832).
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
