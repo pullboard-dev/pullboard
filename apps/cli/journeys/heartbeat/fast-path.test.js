@@ -16,6 +16,7 @@ import {
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import {
   fileFixtureItem,
+  fixturePolicy,
   joinFixtureSeat,
 } from '../../tests/fixtures/testkit.js';
 
@@ -31,6 +32,8 @@ function beats(box) {
 /** A project with a seat holding `count` claims. */
 function seatWithClaims(count) {
   const box = helpers.project('true');
+  fixturePolicy(box, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: Math.max(1, count) } });
+  box.git(box.web, 'merge', '-q', 'main');
   const joined = joinFixtureSeat(box, box.web, 'web', { model: FIXTURE_MODEL });
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   const ids = [];
