@@ -83,7 +83,7 @@ export function itemDetailReader({ withReadBoard, projectItemState, isMain, boar
         try { currentBoard.db.exec('ROLLBACK'); } catch { /* Preserve the projection failure. */ }
         throw error;
       }
-    }, codeIsMain, boardOpeners);
+    }, isMain, boardOpeners);
   }
   /** Serve an item's cached detail while its key holds, building and keeping it when the key moved. */
   function itemDetailIn(board, currentBoard, info, id) {
