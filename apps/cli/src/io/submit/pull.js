@@ -11,6 +11,7 @@ import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
+import { ruleLine } from '../../../../../packages/doctrine/index.js';
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
@@ -104,6 +105,7 @@ ${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
 ${specFailureFiles}
 ${fitReceipt}
+${ruleLine}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
 let light = null, gate = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: red phases carry no cases */ }
@@ -170,10 +172,12 @@ const planOf = plan => {
     phasePlan: (Array.isArray(plan.phases) ? plan.phases : []).map(phase => ({ role: String(phase.role), command: String(phase.command ?? '').slice(0, ${PLAN_COMMAND_CHARS}) })) };
 };
 /**
- * What the plan decided about deferral, in the fields the inline gate returned: full, deferred, deferredFiles and the report.
+ * What the plan decided about deferral, in the fields the inline gate returned: full, deferred, deferredFiles and the report;
+ * the cross-lane mechanical edits the authorization found ride on both the report and the durable note.
  * Why: the board records the submission's deferral from the receipt, as the controller records it from its own gate [C7].
  */
-const deferralOf = (plan, config) => {
+const deferralOf = (plan, config, mechanical = []) => {
+  const edits = Array.isArray(mechanical) && mechanical.length ? 'cross-lane mechanical edits: ' + mechanical.join(', ') : '';
   const files = plan.deferSelection && Array.isArray(plan.selection?.files) ? plan.selection.files : null;
   const proof = Array.isArray(plan.proofFiles) ? plan.proofFiles : [];
   const invariants = plan.deferred && Array.isArray(plan.invariants) && plan.invariants.length ? 'submit invariants: ' + plan.invariants.join(', ') + '; ' : '';
@@ -181,8 +185,10 @@ const deferralOf = (plan, config) => {
   const report = files ? invariants + note + ' (over submitDeferAbove ' + config?.submitDeferAbove + '): ' + files.join(', ')
     : plan.deferFullFallback ? invariants + 'full suite deferred to the landing gate'
     : plan.selection?.full ? 'full gate' : 'affected tests: ' + (proof.join(', ') || 'none');
-  return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}), ...(plan.deferred ? { deferNote: note || 'full suite deferred to the landing gate' } : {}),
-    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report };
+  const said = edits ? report + '; ' + edits : report;
+  return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}),
+    ...(plan.deferred ? { deferNote: (note || 'full suite deferred to the landing gate') + (edits ? '; ' + edits : '') } : {}),
+    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report: said };
 };
 /** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
 const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
@@ -310,13 +316,15 @@ else {
   if (analysis.refused) refusals.push({ part: 'analysis', ...analysis.refused });
   // A lane-ownership finding is data, not a refusal: the proof still runs, and the board routes green proof to the owners [B3,L1,P7].
   const ownership = analysis.authorization?.ownership;
-  receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
+  receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null,
+    // Each doctrine rule's count line rides first in the notes, as the controller submit printed it ("doctrine: Q1 · 1, was 2 · holding") [D1,D3,C7].
+    notes: [...(Array.isArray(analysis.doctrine) ? analysis.doctrine.map(rule => 'doctrine: ' + ruleLine(rule)) : []), ...(analysis.notes ?? [])].slice(0, 20),
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
     // The cells and doctrine machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
     machinery: [...(analysis.cells?.machinery ?? []), ...doctrineMachinery].slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
-  if (analysis.plan && typeof analysis.plan === 'object') { receipt.plan = planOf(analysis.plan); Object.assign(receipt, deferralOf(analysis.plan, input.analysis.config)); }
+  if (analysis.plan && typeof analysis.plan === 'object') { receipt.plan = planOf(analysis.plan); Object.assign(receipt, deferralOf(analysis.plan, input.analysis.config, analysis.authorization?.mechanical)); }
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],

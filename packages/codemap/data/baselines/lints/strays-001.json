@@ -20,6 +20,8 @@
     "apps/cli/journeys/digest/main.test.js": 1,
     "apps/cli/journeys/doctor/main.test.js": 1,
     "apps/cli/journeys/doctrine/checks.test.js": 1,
+    "apps/cli/journeys/doctrine/pulled-counts.test.js": 1,
+    "apps/cli/journeys/doctrine/pulled-ratchets.test.js": 1,
     "apps/cli/journeys/doctrine/main.test.js": 1,
     "apps/cli/journeys/doctrine/name.test.js": 1,
     "apps/cli/journeys/doctrine/rulings.test.js": 1,

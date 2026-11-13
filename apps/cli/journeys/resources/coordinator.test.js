@@ -14,7 +14,6 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
-import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import {
   coordinatorTestRefusal,
@@ -36,38 +35,6 @@ function coordinatorEnv(files) {
   for (const name of ['PULLBOARD_RUNNER_JOB', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_TEST_RUNNER_PID', 'NODE_TEST_CONTEXT', 'NODE_OPTIONS']) delete env[name];
   return env;
 }
-
-test('clause 1: when the dispatcher that launched a gate worker exits, the worker and the child it spawned exit within 30 s [C7]', { timeout: 60_000 }, async t => {
-  const files = privateFixtureFiles('pullboard-lifeline-');
-  const resources = join(REPO, 'packages/resources/index.js');
-  const pids = join(files.root, 'pids.json');
-  // The captured tools' driver: it spawns a child that stays up, records both pids, and stops on the real lifeline.
-  files.write('tools/apps/cli/src/io/gate/drive.js', [
-    "import { spawn } from 'node:child_process';",
-    "import { writeFileSync } from 'node:fs';",
-    `import { onDispatcherLifelineEnd } from ${JSON.stringify(resources)};`,
-    "const child = spawn(process.execPath, ['-e', \"require('node:net').createServer().listen(0)\"], { stdio: 'ignore' });",
-    "onDispatcherLifelineEnd(() => { try { process.kill(-process.pid, 'SIGKILL'); } catch { process.exit(143); } });",
-    `writeFileSync(${JSON.stringify(pids)}, JSON.stringify({ worker: process.pid, child: child.pid }));`,
-  ].join('\n'));
-  files.write('job/request.json', '{}\n');
-  // The real dispatcher drain, in its own process with a private machine home, starting that one queued worker.
-  files.write('dispatcher.mjs', [
-    `import { drainHandoffQueue, queueHandoffLaunch, reserveHandoffTicket } from ${JSON.stringify(resources)};`,
-    `queueHandoffLaunch({ directory: ${JSON.stringify(join(files.root, 'job'))}, tools: ${JSON.stringify(join(files.root, 'tools'))}, commonDir: ${JSON.stringify(files.root)}, job: 'job-lifeline' }, await reserveHandoffTicket('job-lifeline'));`,
-    'await drainHandoffQueue({ capacity: 1, pollMs: 20 });',
-  ].join('\n'));
-  const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(files.root, 'machine') };
-  const dispatcher = spawn(process.execPath, [join(files.root, 'dispatcher.mjs')], { env, stdio: 'ignore' });
-  t.after(() => { try { process.kill(dispatcher.pid, 'SIGKILL'); } catch { /* already gone */ } });
-  await waitForCondition(() => existsSync(pids), 'the dispatcher started its worker', { signal: t.signal });
-  const { worker, child } = JSON.parse(readFileSync(pids, 'utf8'));
-  t.after(() => { for (const pid of [worker, child]) try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
-  assert.equal(gone(worker), false, 'the worker runs while its dispatcher lives');
-  dispatcher.kill('SIGKILL');
-  // The clause's own bound: both are gone within 30 s of the dispatcher's exit, or the wait aborts and the test fails.
-  await waitForCondition(() => gone(worker) && gone(child), 'the worker and its child exit within 30 s of the dispatcher', { signal: AbortSignal.any([t.signal, AbortSignal.timeout(30_000)]) });
-});
 
 test('clause 2: run-tests and a bare node --test refuse on the coordinator without a runner job, naming pullboard test [C7]', () => {
   const files = privateFixtureFiles('pullboard-coordinator-tests-');

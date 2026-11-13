@@ -10,7 +10,6 @@ import { join } from 'node:path';
 import { boardJobQueueCall } from '../../../../packages/api/index.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
 import { getItem } from '../../../../packages/store/index.js';
-import { verify } from '../../../../packages/store/index.js';
 import { closeBoard } from '../../../lib/index.js';
 import { captureCommandInProcess } from '../../tests/fixtures/process.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -19,6 +18,7 @@ import { landAfterAcceptance } from '../../index.js';
 import { wakeIo } from '../../src/io/landing/automatic.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { openKitBoard } from '../../tests/fixtures/testkit.js';
+import { acceptGated } from '../../tests/fixtures/pull.js';
 import { pullProject } from '../../tests/fixtures/pull.js';
 import { pullQueue } from '../../tests/fixtures/pull.js';
 import { serveOnce } from '../../tests/fixtures/pull.js';
@@ -147,8 +147,7 @@ async function journey(t, box) {
 
   // Clause 2: an accepted item lands through a local land job, with no runner registered, into the board host's checkout.
   const before = box.git(box.repo, 'rev-parse', 'main');
-  read(box, board => verify(board, first, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: one.commit,
-    digest: getItem(board, first).item_frozen_digest, policy: 'any' }));
+  read(box, board => acceptGated(board, box.repo, first, one.commit));
   const offered = await landAfterAccept(box);
   assert.match(String(offered.offered), /^land:/u, JSON.stringify(offered));
   const merged = await until(box, board => getItem(board, first).item_merged_commit);

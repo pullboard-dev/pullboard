@@ -11,6 +11,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
+import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
 import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
@@ -61,15 +62,6 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
-/**
- * The passkey row-decision proof, loaded only when the board holds a spec row decision for it to check [C7,H5].
- * Why: the proof hashes with node: built-ins, so it cannot sit in person's light door, which the relay browser serves.
- */
-async function rowDecisionProof(board) {
-  if (!store.rowDecisions(board).some((record) => record.kind === 'spec')) return () => false;
-  return (await import('../../../../../packages/person/index.js')).verifiedPasskeyRowDecision;
-}
-
 export const nativeBoardRequired = false;
 
 /**
@@ -103,7 +95,7 @@ export async function run(io, { first, values }) {
     const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
-      approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision: await rowDecisionProof(board) }), cost: itemCost(board, id, prices) };
+      approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names
     // the newest gate job and, once done, its receipt's gate: a pulled gate keeps no hand-off record to read instead [C7].
     const gateJob = newestGateJob(board.db, id, result.proofReceipts);

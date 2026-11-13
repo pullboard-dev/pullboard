@@ -59,8 +59,11 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   assert.match(unauthorized.stderr, /verified item in the landing checkout/u);
   assert.equal(box.git(entry.path, 'rev-parse', 'HEAD').trim(), before, 'the refusal leaves the verified commit intact');
 
+  // The land job offers every verified unheld item, so the sibling is held: verified, unmerged and not offered [C7,#6807].
+  const held = box.run(box.repo, 'hold', String(sibling.item), '--reason', 'not offered to this landing');
+  assert.equal(held.code, 0, `${held.err}\n${held.out}`);
   // Pull dispatch offers the landing as a runner job; the spawned command returns once the loopback runner has settled it.
-  const result = box.run(box.repo, 'land', '--max', '1', '--json');
+  const result = box.run(box.repo, 'land', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
   assert.equal(shown.code, 0, shown.err);

@@ -46,6 +46,3 @@ test('land pushes one exact batch in verdict order and records each first-contai
   const lane = box.run(entries[0].path, 'land', '--json');
   assert.equal(JSON.parse(lane.out).error?.code, 'COORDINATOR_ONLY');
 });
-
-// CONTROLLER_ONLY: the focused diagnosis inherits the controller's gate-slot lease and reads the batch log of an in-process landing (batch.state 'flaky', batch.logPath); the pulled land job holds no controller lease [C7].
-test('land diagnostics inherit their browser gate lease [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});

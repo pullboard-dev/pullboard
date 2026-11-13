@@ -72,7 +72,7 @@ test('a stale lander reason names both code commits and fits the landing_lease e
   assert.equal(staleLanderReason(loaded, null), null);
 });
 
-test('clause 1 and clause 2: a waiting lander started before main changed its code releases its place naming the change and a fresh lander takes over and lands [C7,#3467]', { skip: 'CONTROLLER_ONLY: deleted with #6579', timeout: 300_000 }, async t => { // budget: one real submit, a 30 s code watch, a real replacement lander and its landing; hang ceiling only.
+test('clause 1 and clause 2: a waiting lander started before main changed its code releases its place naming the change and a fresh lander takes over and lands [C7,#3467]', { skip: 'CONTROLLER_ONLY: deleted with #6807', timeout: 300_000 }, async t => { // budget: one real submit, a 30 s code watch, a real replacement lander and its landing; hang ceiling only.
   const box = landProject();
   t.after(() => stopLanders(box));
   const path = join(box.repo, 'pullboard.json');

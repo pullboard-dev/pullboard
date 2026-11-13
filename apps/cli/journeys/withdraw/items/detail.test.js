@@ -137,9 +137,13 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.click(`${decision}.querySelector('.needs-detail p a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
+      // The redesigned Activity page (#7507) has no inline item link in a shout's words: a row about #1 opens #1's journey, as the Activity journeys assert.
       await chrome.click(`document.querySelector('[data-tab="activity"]')`);
-      await chrome.waitFor(`document.querySelector('#activity .activity-quote a.ref[data-go="item:1"]')`);
-      await chrome.click(`document.querySelector('#activity .activity-quote a.ref[data-go="item:1"]')`);
+      await chrome.waitFor(`document.querySelector('#activity .act-row[data-row="1"]')`);
+      await chrome.click(`document.querySelector('#activity .act-row[data-row="1"]')`);
+      await chrome.waitFor(`!!document.querySelector('#activity svg[aria-label="Journey of #1"]')`);
+      await chrome.click(`document.querySelector('[data-tab="items"]')`);
+      await chrome.click(`document.querySelector('#chain .row[data-item="1"]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);

@@ -800,6 +800,12 @@ function render({ tab: switching = false } = {}) {
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) listHtml += specFeedback(feedback);
     store.paint($(kind + '-list'), listHtml);
+    const citedBy = (list, attrs) => {
+      const link = item => '<div class="links-item spec-citing" ' + attrs + 'data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>';
+      if (!list.length) return 'No items yet';
+      const rest = list.slice(5);
+      return list.slice(0, 5).map(link).join('') + (rest.length ? '<details class="spec-more"><summary>' + rest.length + ' more</summary>' + rest.map(link).join('') + '</details>' : '');
+    };
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? renderIndex(p).citations.get(row.id) || [] : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
@@ -823,10 +829,11 @@ function render({ tab: switching = false } = {}) {
       const actions = rowDecisionActions ? pendingQuestion ? rowDecisionActions + change : rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
       const draft = view.specDraft;
       store.paint($('spec-detail'), '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
-        + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
+        + '<div class="spec-detail-actions">' + actions + '</div>' + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
+        + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + citedBy(citing, 'role="button" tabindex="0" ') + '</div></div>'
         + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
-        + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
-        + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>');
+        + (reason ? '<dl class="kv">' + reason + '</dl>' : '')
+        + '<p class="spec-authority">Only you can decide a row.</p></div>');
       const restored = draft && document.getElementById(draft.id);
       if (restored && draft.value && !restored.value) { restored.value = draft.value; if (draft.focus) restored.focus(); }
       continue;
@@ -834,10 +841,11 @@ function render({ tab: switching = false } = {}) {
     if (kind === 'doctrine' && row) {
       const hasFile = (row.gateFiles || []).some(gate => gate.exists === true);
       const facts = '<div class="spec-fact"><span>' + (hasFile ? 'Proved by' : 'Checked by') + '</span><div>' + doctrineCheck(row, true) + '</div></div>'
-        + '<div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>';
+        + '<div class="spec-fact"><span>Cited by</span><div class="links">' + citedBy(citing, '') + '</div></div>';
       store.paint($('doctrine-detail'), '<div class="spec-detail-content doctrine-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + (reviewNeeded ? 'warn' : tone(row.status)) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + source + '</div>'
+        + (rowDecisionActions ? '<div class="spec-detail-actions">' + rowDecisionActions + '</div>' : '') + (home ? '<p class="doctrine-standard-note">' + esc(home) + '</p>' : '')
         + facts + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
-        + (home ? '<p class="doctrine-standard-note">' + esc(home) + '</p>' : '') + (rowDecisionActions ? '<div class="spec-detail-actions">' + rowDecisionActions + '</div>' : '') + '<p class="spec-authority">Only you can decide a row.</p></div>');
+        + '<p class="spec-authority">Only you can decide a row.</p></div>');
       continue;
     }
     store.paint($(kind + '-detail'), row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3 class="hd2">Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>');
