@@ -32,7 +32,7 @@ const SPEC = '# Bar fixture\n\n## G · Goals\n- G1 [approved, must] The feature 
 const HOUR = 3_600_000;
 
 after(() => {
-  for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true });
+  for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); // budget: a detached board child may still be writing the sandbox.
 });
 
 /** Make an isolated real-Git repo with a board, a coordinator, a web builder, a reviewer and three web items. */
