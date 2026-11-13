@@ -5,6 +5,8 @@
  * (#5864). With trunk.remote empty the trunk is the board host's own repository, which only a runner on this host
  * reaches, so the job needs the local runner's board-host capability; that path stays behind pull until L6 [P7].
  */
+import { isAbsolute } from 'node:path';
+import { resolve } from 'node:path';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
@@ -49,6 +51,20 @@ function stackedUnverified(root, trunk, unverified, item, commit) {
   if (!unverified.length) return null;
   const own = new Set(tryGit(root, ['rev-list', commit, `^${trunk}`]).stdout.split('\n'));
   return unverified.find(other => other.item_id !== item.item_id && own.has(other.item_commit)) ?? null;
+}
+
+/**
+ * The remote this checkout publishes its trunk to, as a URL or absolute path: the trunk branch's own remote, else origin.
+ * Null when it has none, or under separate publish, where only pullboard publish pushes it. Why: with no trunk remote of
+ * record a land job lands into this checkout, and origin took the landed tip under the Mac engine too [B3,C7,#7398].
+ */
+export function hostUpstream(root, config) {
+  if (config?.landing?.publish === 'separate') return null;
+  const name = tryGit(root, ['config', '--get', `branch.${TRUNK.slice('refs/heads/'.length)}.remote`]).stdout || 'origin';
+  const url = name === '.' ? '' : tryGit(root, ['remote', 'get-url', '--push', name]).stdout;
+  if (!url || url.startsWith('-') || /[\0\n\r]/u.test(url)) return null;
+  // A scheme URL or scp-like host:path stays as written; a local path resolves from this checkout, as git reads it here.
+  return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//u.test(url) || /^[^/]+:/u.test(url) || isAbsolute(url) ? url : resolve(root, url);
 }
 
 /**
@@ -145,7 +161,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
     const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen[0], items[0].commit, pairPrefix) : null;
     const job = offerLandingJob(board.db, { items, expect, trunk: TRUNK, forced, deferred, flakes, badges: badgeDocuments?.(board) ?? [],
-      ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true } : { config: policy.config }) });
+      ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config }) });
     ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${items.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
     return { offered: job.id, items: items.map(entry => entry.id), waiting: false, ...(forced ? { forced } : {}) };
   });
