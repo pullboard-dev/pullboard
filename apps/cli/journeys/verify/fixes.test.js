@@ -70,7 +70,7 @@ before(async () => {
   box.run(reviewer, 'join', 'tests', '--model', 'Floor reviewer');
   // The reviewer sends #6 back from its submitted commit, so the red mark sits on the reviewer's own line.
   box.git(reviewer, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:6`));
-  box.run(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back');
+  box.run(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back', '--no-next');
   box.git(reviewer, 'switch', '-q', '--detach', 'main');
   earlier(alpha.repo, Date.now(), board => store.reserveReview(board, 4, { agentId: 'tests-1', leaseMs: 3 * 60 * MINUTE, policy: 'any' }));
   // web-1 claims its next ready item, which it is building now.
@@ -136,12 +136,12 @@ test('the floor\'s numbers, Now column and queue cards follow the approved fixes
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.status [data-status=agents]')`);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.notch [data-status=agents]')`);
     // Clause 4: three more ways in, each beside the existing "Open the agent floor" link.
     const ways = [
       ['the Agents card title', '#dashboard [aria-label=Agents] h2 > a:first-child'],
       ['the Agents card working count', '#dashboard [aria-label=Agents] h2 .dash-agents-count'],
-      ['the status bar agents count', '.status [data-status=agents]'],
+      ['the notch agents count', '.notch [data-status=agents]'],
     ];
     assert.match(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-agents-count").textContent'), /^\d+ working$/u);
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-floor-link").textContent'), 'Open the agent floor →', 'the existing link stays');
