@@ -53,6 +53,7 @@ test('[N38] local API and sealed presentation resolve shouts beyond recent state
   assert.equal(open.shout.decision_state, 'open');
   assert.equal(open.shout.decision_answer, null);
 
+  // @pullboard-board-file journey: read the board file the real CLI wrote the shout to.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let history;
   try { history = allShouts(board); } finally { closeBoard(board); }

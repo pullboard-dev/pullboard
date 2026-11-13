@@ -10,6 +10,7 @@ import { project } from '../../../tests/fixtures/api/project.js';
 test('[A2] API projection from a borrowed staged board matches the normal view and leaves it open', () => {
   const box = project();
   json(box, box.repo, 'add', ['app', 'Projection fixture', '--criterion', 'same projector']);
+  // @pullboard-board-file journey: read the board file the real CLI wrote to compare projections.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const ordinary = projectState(box.repo);
