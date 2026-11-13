@@ -80,7 +80,7 @@ test('Dashboard is the landing page, carries the rules, and migrates saved Home 
     savedProgress.setItem('pb.tab', 'progress');
     const retired = await openPage(view, { store: savedProgress });
     assert.equal(retired.run('view.tab'), 'dashboard', 'a saved Progress tab opens on Dashboard');
-    assert.equal(retired.run("location.hash = '#progress'; addressTab()"), 'dashboard', 'the old Progress address goes to Dashboard');
+    assert.equal(retired.run("location.pathname = '/progress'; location.hash = '#progress'; addressTab()"), 'dashboard', 'the old Progress address goes to Dashboard');
     assert.doesNotMatch(html, /data-tab="progress"|data-pane="progress"/u, 'the Progress tab and page are gone');
     await working.click({ tab: 'items' });
     assert.equal((await openPage(view, { store })).run('view.tab'), 'items', 'Items is one click back, and kept too');
