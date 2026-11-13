@@ -869,8 +869,8 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const landing = parseOneDocument(offering.stdout);
   covered.add('land');
   coveredRoots.add('land');
-  assert.equal(landing.offered ?? null, null, 'nothing is verified, so no land job is offered');
-  assert.deepEqual(landing.items, []);
+  assert.ok(!landing.offered, `nothing is verified, so no land job is offered: ${offering.stdout}`);
+  assert.deepEqual(landing.items ?? [], [], offering.stdout);
   const published = join(source.dir, 'published.git');
   await source.git(source.dir, 'init', '-q', '--bare', published);
   await source.git(source.repo, 'remote', 'add', 'origin', published);
