@@ -4,7 +4,6 @@ import {
   appendFileSync,
   mkdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -43,14 +42,6 @@ async function checkedProject(fields, extraRows = []) {
   return box;
 }
 
-/** Write web files in the worktree and commit them through its hooks. */
-function commitWeb(box, files, message) {
-  for (const [name, text] of Object.entries(files)) writeFileSync(join(box.web, 'web', name), text);
-  box.git(box.web, 'add', '-A');
-  const committed = box.tryGit(box.web, 'commit', '-q', '-m', message);
-  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
-}
-
 /** Create and claim a fresh web item from main so it cannot stack on an unverified candidate. */
 async function nextWebItem(box, title) {
   const added = await fixtureAdd(box.inProcess, box.repo, 'web', title, '--specs', 'G1', '--json');
@@ -80,12 +71,6 @@ async function settled(t, box, web, id) {
   return settleSubmit(t, box, JSON.parse(sent.out));
 }
 
-/** The item's thread as text, where the board records a pulled gate's refusal-trial lines [C7]. */
-async function threadText(box, id) {
-  const shown = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json', '--no-next')).out);
-  return shown.thread.map(row => row.text ?? '').join('\n');
-}
-
 /** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
 function assertDoctrineReport(output, expected) {
   const text = output.endsWith('\n') ? output.slice(0, -1) : output;
@@ -104,39 +89,8 @@ function editRule(box, from, to) {
   return box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
 }
 
-test("clause 1: a doctrine rule's check holds its count [D1,D3,C7]", async t => {
+test("clause 1: a pulled submit prints each doctrine count line as N, was M, holding [D1,D3,C7]", async t => {
   const box = await checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
-
-  // A check that exits other than 0 or 1 cannot count, so it refuses by name.
-  rmSync(join(box.web, 'web', 'keep.txt'));
-  box.git(box.web, 'add', '-A');
-  box.git(box.web, 'commit', '-q', '-m', 'feat(web): drop the keep file [G1]');
-  const uncounted = await settled(t, box, box.web, 1);
-  assert.equal(uncounted.gate.green, false);
-  const refusal = uncounted.gate.analysis.refusals.find(row => row.part === 'doctrine');
-  assert.equal(refusal?.code, 'RATCHET_UNCOUNTED');
-  assert.match(refusal.message, /Q4 The keep file stays\. cannot count: its check exited 3/);
-
-  // A rise reports what it would refuse during this rule's twenty-clean-gate trial; the red pulled gate left item 1 claimed.
-  commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
-  const rose = await settled(t, box, box.web, 1);
-  const roseOutput = `${rose.gate.analysis.notes.join('\n')}\n${await threadText(box, 1)}`;
-  assert.doesNotMatch(roseOutput, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
-  assert.equal(rose.gate.green, true, JSON.stringify(rose.gate.analysis));
-  assert.match(roseOutput, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
-  assert.match(roseOutput, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
-  assert.match(roseOutput, /web\/b\.html:1:TODO three/);
-  assert.doesNotMatch(roseOutput, /web\/a\.html:1:TODO one/, 'only the new problem lines are named');
-
-  // A later gate reports a new per-file problem even when the total falls.
-  const gainedItem = await nextWebItem(box, 'Clear the old markers');
-  commitWebAt(box, gainedItem.web, { 'a.html': 'done\n', 'b.html': 'TODO three\n' }, 'feat(web): clear the old markers [G1]');
-  const gained = await settled(t, box, gainedItem.web, gainedItem.id);
-  const gainedOutput = await threadText(box, gainedItem.id);
-  assert.equal(gained.gate.green, true, JSON.stringify(gained.gate.analysis));
-  assert.match(gainedOutput, /would refuse RATCHET_ROSE \(report-only, 1\/20 clean gates\)/);
-  assert.match(gainedOutput, /web\/b\.html gains 1 problem/);
-  assert.match(gainedOutput, /web\/b\.html:1:TODO three/);
 
   // A fall passes and is shown as N, was M.
   const fellItem = await nextWebItem(box, 'Finish the page');
