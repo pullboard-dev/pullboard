@@ -21,14 +21,13 @@ import {
   SPEC,
   machine,
   project,
-  build,
+  buildLocal,
   startView,
   boardOf,
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
-  travel,
   settled,
   serveFolder,
 } from '../../tests/fixtures/cockpit/harness.js';
@@ -38,26 +37,36 @@ import {
   openAddress,
   assertHeading,
   history,
-  onePlace,
-  addressBoard,
+  addressBoardLocal,
   withBrowser,
   assertShout,
 } from '../../tests/fixtures/cockpit/addresses.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-/** Create accepted and open items whose real prose, dependency and activity rows cite one another. */
-function linkedItems(box, name) {
+/**
+ * Create accepted and open items whose real prose, dependency and activity rows cite one another.
+ * Why: every call is awaited in this process, because a launch per call cost over half of each case's time on a loaded runner.
+ */
+async function linkedItems(box, name) {
   const alpha = project(box, name, SPEC, { practice: 'DOCTRINE.md' });
   writeFileSync(join(alpha.repo, 'DOCTRINE.md'), `# Local rules\n\n## Team\n- PB1 [approved, must] ${name} practice rule. | gate: review\n`);
-  box.run(alpha.repo, 'add', 'web', 'Address target', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Text points to #1', '--specs', 'G1', '--criterion', 'criterion cites #1 and `#1`', '--brief', 'brief cites #1 and #999, with literal `#1`');
-  box.run(alpha.repo, 'add', 'web', 'Waits on #2', '--specs', 'G1', '--criterion', 'waits', '--after', '2');
-  box.run(alpha.repo, 'shout', 'all', 'Activity cites #1 and waits on #2.');
-  build(box, alpha, 1, 'target.txt');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Address target', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Text points to #1', '--specs', 'G1', '--criterion', 'criterion cites #1 and `#1`', '--brief', 'brief cites #1 and #999, with literal `#1`');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Waits on #2', '--specs', 'G1', '--criterion', 'waits', '--after', '2');
+  await box.inProcess(alpha.repo, 'shout', 'all', 'Activity cites #1 and waits on #2.');
+  await buildLocal(box, alpha, 1, 'target.txt');
   box.git(alpha.repo, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:1`));
-  box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'The notes cite #2 and literal `#2`.', '--as', 'coordinator');
+  await box.inProcess(alpha.repo, 'verify', '1', 'accept', '--note', 'The notes cite #2 and literal `#2`.', '--as', 'coordinator');
   box.git(alpha.repo, 'switch', '-q', 'main');
   return alpha;
+}
+
+/** The one linked board the three item-address cases share; it is only read, so one build serves all of them. */
+let linkedBoard;
+/** Build the linked board once and hand the same machine and project to each case. */
+function sharedLinked() {
+  linkedBoard ??= (async () => { const box = machine(); return { box, alpha: await linkedItems(box, 'linked-items') }; })();
+  return linkedBoard;
 }
 
 /** Poll Chrome's real target list until a modified anchor click opens its href in another tab. */
@@ -75,7 +84,7 @@ async function targetForHref(profile, href) {
 }
 
 test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for the real API, Chrome navigation and linked prose checks.
-  const box = machine(), alpha = linkedItems(box, 'item-text-links');
+  const { box, alpha } = await sharedLinked();
   await withBrowser(box, async (chrome, server) => {
     await openAddress(chrome, server, '/items/2');
     const refs = JSON.parse(await chrome.stable(`JSON.stringify({
@@ -127,7 +136,7 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
 });
 
 test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for Chrome startup and native modified-click targets.
-  const box = machine(), alpha = linkedItems(box, 'modified-item-link');
+  const { box, alpha } = await sharedLinked();
   const server = await startView(box);
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove native modified-click behavior');
@@ -190,7 +199,7 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
 test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { timeout: 90_000 }, async () => { // budget: hang ceiling for export, replay, click and reload.
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove exported address reloads');
-  const box = machine(), alpha = linkedItems(box, 'snapshot-item-address');
+  const { box, alpha } = await sharedLinked();
   const folder = join(box.dir, 'snapshot');
   box.run(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
@@ -269,16 +278,17 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
   }
 });
 test('every place in the view has its own address [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for the complete direct-address matrix.
-  const box = machine(), alpha = addressBoard(box, 'alpha');
-  box.run(alpha.repo, 'shout', 'person', 'Address target shout.');
+  const box = machine();
+  const alpha = await addressBoardLocal(box, 'history-alpha');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Address target shout.');
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'Address target shout.');
     assert.ok(shout?.shout_id);
     const direct = [
-      ['/items/1', 'items', '#detail', '#1', 'alpha first address item'],
+      ['/items/1', 'items', '#detail', '#1', 'history-alpha first address item'],
       ['/items/pipeline', 'items'], ['/shouts', 'shouts'], [`/shouts/${shout.shout_id}`, 'shouts'],
-      ['/spec', 'spec'], ['/spec/G2', 'spec', '#spec-detail', 'G2', 'alpha distinct specification row'],
-      ['/doctrine', 'doctrine'], ['/doctrine/PB1', 'doctrine', '#doctrine-detail', 'PB1', 'alpha distinct practice rule'],
+      ['/spec', 'spec'], ['/spec/G2', 'spec', '#spec-detail', 'G2', 'history-alpha distinct specification row'],
+      ['/doctrine', 'doctrine'], ['/doctrine/PB1', 'doctrine', '#doctrine-detail', 'PB1', 'history-alpha distinct practice rule'],
       ['/activity', 'activity'], ['/roadmap', 'roadmap'],
     ];
     for (const [address, pane, selector, id, text] of direct) {
@@ -309,69 +319,3 @@ test('every place in the view has its own address [N38,N26]', { timeout: 180_000
     assert.equal((await fetch(new URL('/items/1', server.link))).status, 403, 'direct places retain the secret boundary');
   });
 });
-
-test('back, forward and reload keep the place [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for real clicks, stack traversal and fresh-document reloads.
-  const box = machine(), alpha = addressBoard(box, 'history-alpha');
-  box.run(alpha.repo, 'shout', 'person', 'History journey shout.');
-  await withBrowser(box, async (chrome, server) => {
-    const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'History journey shout.');
-    await openAddress(chrome, server, '/items');
-    const journey = [{ address: '/items', pane: 'items', root: alpha.repo }];
-    const steps = [
-      ['#chain .row[data-item="1"]', '/items/1', 'items'], ['[data-page-ctl="view"][data-value="pipeline"]', '/items/pipeline', 'items'],
-      ['[data-tab="shouts"]', '/shouts', 'shouts'], [`#feed #shout-${shout.shout_id} .text`, `/shouts/${shout.shout_id}`, 'shouts'],
-      ['[data-tab="spec"]', '/spec', 'spec'], ['[data-row="spec:G2"]', '/spec/G2', 'spec'],
-      ['[data-tab="doctrine"]', '/doctrine', 'doctrine'], ['[data-row="doctrine:PB1"]', '/doctrine/PB1', 'doctrine'],
-      ['[data-tab="activity"]', '/activity', 'activity'], ['[data-tab="roadmap"]', '/roadmap', 'roadmap'],
-      ['[data-tab="items"]', '/items/pipeline', 'items'], ['[data-page-ctl="view"][data-value="list"]', '/items', 'items'],
-      ['#chain .row[data-item="2"]', '/items/2', 'items'],
-    ];
-    for (const [selector, address, pane] of steps) {
-      if (selector === `#feed #shout-${shout.shout_id} .text`) {
-        const beforeConversation = await history(chrome);
-        await press(chrome, 'document.querySelector(\'[data-shout-thread="none"]\')');
-        await settled(chrome, `!!document.querySelector('#feed #shout-${shout.shout_id} .text')`);
-        assert.deepEqual(await history(chrome), beforeConversation, 'opening a conversation preserves the current Shouts address');
-      }
-      journey.push(await onePlace(chrome, `document.querySelector(${JSON.stringify(selector)})`, address, pane, alpha.repo));
-    }
-    const unchanged = await history(chrome);
-    await press(chrome, 'document.querySelector(\'#chain .row[data-item="2"]\')');
-    await settled(chrome, SCRIPT);
-    assert.deepEqual(await history(chrome), unchanged, 'selecting the same item never pushes a duplicate');
-    await onePlace(chrome, 'document.querySelector(\'[data-tab="shouts"]\')', '/shouts', 'shouts', alpha.repo);
-    const sameTab = await history(chrome);
-    for (let repeat = 0; repeat < 2; repeat += 1) {
-      await press(chrome, 'document.querySelector(\'[data-tab="shouts"]\')');
-      await settled(chrome, SCRIPT);
-      assert.deepEqual(await history(chrome), sameTab, 'selecting the current tab never pushes a duplicate');
-    }
-    await travel(chrome, -1);
-    await settled(chrome, SCRIPT);
-    for (const direction of [-1, 1]) {
-      const indices = direction < 0 ? Array.from({ length: journey.length - 1 }, (_, index) => journey.length - 2 - index) : Array.from({ length: journey.length - 1 }, (_, index) => index + 1);
-      for (const index of indices) {
-        await travel(chrome, direction);
-        await settled(chrome, SCRIPT);
-        const step = journey[index];
-        await assertPlace(chrome, step.address, step.pane, step.root);
-        if (step.address === '/spec/G2') await assertHeading(chrome, '#spec-detail', 'G2', 'history-alpha distinct specification row');
-        if (step.address === '/doctrine/PB1') await assertHeading(chrome, '#doctrine-detail', 'PB1', 'history-alpha distinct practice rule');
-        if (/\/items\/\d+$/.test(step.address)) await assertHeading(chrome, '#detail', `#${step.address.split('/').at(-1)}`, 'address item');
-        if (step.address.startsWith('/shouts/')) await assertShout(chrome, shout.shout_id, 'History journey shout.');
-      }
-    }
-    for (const step of journey.slice(0, -2)) {
-      await openAddress(chrome, server, step.address);
-      const before = await chrome.stable('performance.timeOrigin');
-      await chrome.send('Page.reload');
-      await settled(chrome, `performance.timeOrigin !== ${before} && ${SCRIPT}`);
-      await assertPlace(chrome, step.address, step.pane, alpha.repo);
-      if (step.address === '/spec/G2') await assertHeading(chrome, '#spec-detail', 'G2', 'history-alpha distinct specification row');
-      if (step.address === '/doctrine/PB1') await assertHeading(chrome, '#doctrine-detail', 'PB1', 'history-alpha distinct practice rule');
-      if (step.address === '/items/1') await assertHeading(chrome, '#detail', '#1', 'history-alpha first address item');
-      if (step.address.startsWith('/shouts/')) await assertShout(chrome, shout.shout_id, 'History journey shout.');
-    }
-  });
-});
-

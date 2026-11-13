@@ -35,7 +35,7 @@ async function landAfterAccept(box) {
   return answer;
 }
 
-test('clause 1: accept offers a land job within 1 s under controller dispatch with no landing on the host, and land --forced offers the same kind with its reason [C7,P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, a submit, a pulled gate, a lander child and a land command.
+test('clause 1: accept offers a land job within 1 s with no landing on the host, and land --forced offers the same kind with its reason [C7,P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, a submit, a pulled gate, a lander child and a land command.
 async t => {
   const box = await pullProject(t, 1);
   const trunk = join(box.dir, 'trunk.git');
@@ -49,8 +49,7 @@ async t => {
   const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
   assert.equal((await serveOnce(box, queue.url, 'r-gate')).code, 0);
   verify(queue.board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: commit, digest: getItem(queue.board, id).item_frozen_digest, policy: 'any' });
-  // Landing pulls whatever gate.runnerDispatch says: the gate ran by pull, the landing offer runs under controller.
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller' } });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   const main = box.git(box.repo, 'rev-parse', 'main'), before = box.git(box.dir, '--git-dir', trunk, 'rev-parse', 'refs/heads/main');
   const { result, ms } = await landAfterAccept(box);
   const jobs = jobsOf(queue.board.db, { kind: 'land' });
@@ -86,7 +85,7 @@ async t => {
   const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
   assert.equal((await serveOnce(box, queue.url, 'r-gate')).code, 0);
   verify(queue.board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: commit, digest: getItem(queue.board, id).item_frozen_digest, policy: 'any' });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller' } });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   holdItem(queue.board, id, { agentId: 'coordinator', reason: 'the person reviews the copy first' });
   const held = await landAfterAccept(box);
   assert.equal(jobsOf(queue.board.db, { kind: 'land' }).length, 0, `a held item is offered no land job; the lander answered ${JSON.stringify(held.result)}`);
