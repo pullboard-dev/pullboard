@@ -38,7 +38,6 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
   'packages/activity/src/io/inbox.js#activityWorkingFiles': 'state read asks git for each claim worktree status',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
-  'packages/api/src/io/detail.js#itemDetailIn': 'item detail request reads the trunk revision with synchronous git',
   'apps/view/src/io/serve.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
   'packages/items/src/io/claim.js#itemFolderIdentity': 'gate-receipt submit finds an item folder with synchronous git',
   'packages/items/src/io/patch/compose.js#git': 'gate-receipt submit composes item patches through a synchronous git helper',
