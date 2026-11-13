@@ -21,6 +21,7 @@ import {
   build,
   accept,
 } from '../../../tests/fixtures/test/selection.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 test('hiding a real broken package from the supplied selection fails the run [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'beta', 'broken');
@@ -71,7 +72,7 @@ test('clause 1: a real T3 batch failure bisects to its item while package units 
 
 test('clause 1 control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
-  const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
+  const submitted = await settleSubmit(t, box, json(box, entry.root, 'submit', String(entry.id), '--no-next'));
   assert.deepEqual(submitted.gate.files, ['test/alpha.test.js'], 'the submit proof predates the contract');
   accept(box, entry);
   mkdirSync(join(box.repo, 'packages/alpha/contract'), { recursive: true });
