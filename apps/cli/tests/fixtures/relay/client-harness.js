@@ -238,15 +238,16 @@ export async function relayServer(t, directory, auth, { legacyRelay = false } = 
  * scripts' own relative imports, so the fixture's Rigor checks count what the repository's do [D1,H3].
  * Reading the gates from the doctrine, not naming files here, keeps the next check that lands from
  * leaving a fixture without its script, which otherwise raises the ratchet and changes the refusal.
- * A apps/cli/pullboard.js row gets the CLI's whole runtime minus the cells plan and every .test.js and journeys folder (a check runs source, never test files): it imports lazily and reads skills from disk [C7].
- * Each app's and package's tests folder stays out too, so a change to tests alone leaves the seeded tree, and its cached cells inventory, the same [C7].
+ * A row that runs the CLI itself (`node apps/cli/pullboard.js rigor quality ...`) runs the host CLI instead, the
+ * `pullboard` on the fixture PATH: copying its whole runtime seeded ~2,700 files that every pulled gate checked out
+ * and censused (46-75 s each), while the CLI a fixture row runs is this checkout's either way [C7].
  */
 export function seedDoctrine(seed) {
   const repo = resolve(import.meta.dirname, '../../../../..');
   const text = readFileSync(join(repo, existsSync(join(repo, 'DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md'), 'utf8');
-  writeFileSync(join(seed, 'PRACTICE.md'), text);
-  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]), copied = new Set();
-  if (pending.includes('apps/cli/pullboard.js')) for (const part of ['apps', 'packages', 'skills', 'docs', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') && !/\.test\.js$|\/journeys(\/|$)|^\/(?:apps|packages)\/[^/]+\/tests(\/|$)/.test(from.slice(repo.length)) });
+  const cli = 'apps/cli/pullboard.js';
+  writeFileSync(join(seed, 'PRACTICE.md'), text.replaceAll(`gate: check node ${cli} `, 'gate: check pullboard '));
+  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]).filter((file) => file !== cli), copied = new Set();
   while (pending.length) {
     const file = pending.pop();
     if (copied.has(file)) continue;
@@ -995,7 +996,7 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   await restoreInventories();
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
   assert.equal(freshRefusal.status, 1);
-  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
+  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED', JSON.stringify(freshRefusal.document.error));
   assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
   assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
   const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
