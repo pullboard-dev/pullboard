@@ -77,6 +77,23 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/verify/src/io/verdict/freshness.js#ancestryStatus': 'verdict ancestry check runs synchronous git',
 });
 
+const REQUEST_FILE = 'packages/gate/src/io/board/request.js';
+const KNOWN_ROW = /^\s*'([\w./-]+\.js#[\w$]+)':\s*(?:'(.*)'|"(.*)"),?\s*$/gmu;
+
+/**
+ * The known request blockers a candidate tree itself declares, read from its copy of this file's list, so a commit that
+ * removes a blocker together with its row gates clean. A tree without the list keeps the running copy [#7340].
+ * @param {{file:string,source:string}[]} sources Runtime source inventory of the candidate tree.
+ * @returns {Record<string,string>} Owner to why.
+ */
+export function candidateKnownBlockers(sources) {
+  const source = sources.find(row => row.file === REQUEST_FILE)?.source ?? '';
+  const start = source.indexOf('KNOWN_REQUEST_BLOCKERS = Object.freeze({');
+  if (start < 0) return KNOWN_REQUEST_BLOCKERS;
+  const body = source.slice(start, source.indexOf('\n});', start));
+  return Object.fromEntries([...body.matchAll(KNOWN_ROW)].map(row => [row[1], row[2] ?? row[3]]));
+}
+
 /**
  * Report blocking child-process calls a board API request can reach, and the known-violation rows that went stale.
  * Reach follows resolved calls between repository functions (named imports, namespaces, re-exports); a callback passed
