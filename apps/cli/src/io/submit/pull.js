@@ -176,7 +176,9 @@ else {
   if (ownership) refusals.push({ part: 'authorization', code: 'OUTSIDE_LANE', message: ownership.message, paths: ownership.paths });
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
-    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+    doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
+    // The cells machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
+    machinery: (analysis.cells?.machinery ?? []).slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],

@@ -85,7 +85,7 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   const third = document(fixtureAdd(box.run, box.repo, 'web', 'Third ordinary build', '--specs', 'G1',
     '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
   const second = document(fixtureAdd(box.run, box.repo, 'web', 'Independent second build', '--specs', 'G1',
-    '--criterion', 'The second build remains separate.', '--check', 'true', '--wait', '--json')).item.item_id;
+    '--criterion', 'The second build remains separate.', '--check', 'true', '--accept-green', 'filler build that only holds a second claim', '--wait', '--json')).item.item_id;
   const claim = document(box.run(box.web, 'claim', String(id), '--json'));
   const source = firstFolder ? claim.itemFolder : box.web;
   // B5: with a second live claim, the commit hook must still stamp the folder's own item.
