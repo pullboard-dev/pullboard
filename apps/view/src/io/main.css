@@ -726,9 +726,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .section-count { margin-left: var(--space-2); color: var(--ink-faint); font: 500 var(--text-2xs) var(--mono); }
 .spec-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-4) 0 var(--space-1); }
 .rows h4 { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
-.spec-section-approve, .approve-row, .decline-row { min-height: var(--tap); padding: 0 var(--space-4); border: 1px solid transparent; border-radius: var(--radius-lg); background: none; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.spec-section-approve { border: 0; color: var(--accent-strong); }
-.spec-section-approve:hover { background: var(--accent-soft); }
+.approve-row, .decline-row { min-height: var(--tap); padding: 0 var(--space-4); border: 1px solid transparent; border-radius: var(--radius-lg); background: none; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .approve-row { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .approve-row:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
 .decline-row { border-color: var(--line-strong); color: var(--ink-muted); }
@@ -1408,7 +1406,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 /* Spec keeps the shared row frame, with its tier and citation count in one right column. */
 #spec-list .spec-section-head { border-top: 1px solid var(--line); padding-top: var(--space-5); margin-top: var(--space-5); }
 #spec-list .spec-section-head:first-child { border-top: 0; margin-top: var(--space-2); padding-top: 0; }
-#spec-list h4 { font-size: var(--text-spec-heading); font-weight: 600; color: var(--ink); }
+.spec-section-head .hd2 { margin: 0; }
 :is(#spec-list, #doctrine-list) .spec-record { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr) auto; grid-template-areas: "dot main side"; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
 :is(#spec-list, #doctrine-list) .spec-record > div:first-of-type { grid-area: main; min-width: 0; display: block; }
 :is(#spec-list, #doctrine-list) .spec-record > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; color: var(--warn); background: var(--warn-soft); font-size: var(--text-xs); }
@@ -1417,6 +1415,15 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 :is(#spec-list, #doctrine-list) .spec-record .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .row-id { font-family: var(--mono); margin-right: var(--space-3); font-weight: 500; }
 :is(#spec-list, #doctrine-list) .spec-record .meta { display: flex; flex-wrap: nowrap; gap: var(--space-3); }
+/* A row fits its card at every width: nothing in it pushes past the card, so refs and test paths end in an ellipsis. */
+:is(#spec-list, #doctrine-list) .spec-record { min-width: 0; overflow: hidden; }
+:is(#spec-list, #doctrine-list) .spec-record .meta { min-width: 0; overflow: hidden; }
+:is(#spec-list, #doctrine-list) .spec-record .meta > * { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(#spec-list, #doctrine-list) .spec-record a.ref { display: inline; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow: hidden; }
+  #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 .spec-gate { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; color: var(--ink-muted); }
 .spec-gate code { font: var(--text-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spec-gate.missing { color: var(--reject); }

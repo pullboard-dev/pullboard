@@ -53,7 +53,7 @@ test('Spec keeps state, tier, gate evidence and person decisions distinct in rea
         tier: approved.querySelector('.spec-row-side .chip').textContent, citations: draft.querySelector('.spec-row-side small').textContent,
         oneLine: getComputedStyle(draft.querySelector('.t')).whiteSpace, gateChip: !!draft.querySelector('.spec-gate.chip'),
         missing: missing.textContent, missingRed: getComputedStyle(missing).color !== getComputedStyle(draft.querySelector('.spec-gate')).color,
-        headingSize: getComputedStyle(list.querySelector('h4')).fontSize, sections: list.querySelectorAll('.spec-section-head').length,
+        headingSize: getComputedStyle(list.querySelector('.spec-section-head .hd2')).fontSize, sections: list.querySelectorAll('.spec-section-head').length,
         choice: choice.textContent, title: choice.title, sideTitle: side.title, sideCount: side.textContent };
     })())`));
     assert.equal(anatomy.draftIcon, '✎');
@@ -64,16 +64,13 @@ test('Spec keeps state, tier, gate evidence and person decisions distinct in rea
     assert.equal(anatomy.gateChip, false);
     assert.match(anatomy.missing, /test\/missing.test.js · missing/u);
     assert.equal(anatomy.missingRed, true);
-    assert.equal(anatomy.headingSize, '13.5px');
+    assert.equal(anatomy.headingSize, '12.5px');
     assert.equal(anatomy.sections, 2);
     assert.match(anatomy.choice, /Needs your decision3/u);
     assert.equal(anatomy.title, '2 drafts · 1 approved in Git');
     assert.equal(anatomy.sideTitle, anatomy.title);
     assert.match(anatomy.sideCount, /3/u);
-    await chrome.click('document.querySelector("[data-section-approve]")');
-    await chrome.waitFor('!document.querySelector("#spec-approve-dialog").hidden');
-    assert.equal(await chrome.stable('document.querySelector("#spec-approve-rows").textContent'), 'Rows: G1, G2');
-    await chrome.click('document.querySelector("#spec-approve-cancel")');
+    assert.equal(await chrome.stable('document.querySelectorAll("[data-section-approve]").length'), 0, 'group headers carry no Approve all');
     await chrome.click(`document.querySelector('[data-row="spec:G1"]')`);
     const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const node = document.querySelector('#spec-detail');
