@@ -1,11 +1,9 @@
 /** Setup refusals the lifecycle audit reaches since the cells moves, each checked before any item move [M1,#2886]. */
 export const SETUP_REFUSALS = {
   BAD_BUILD_ESTIMATE: 'command input parses positive expected minutes before any lifecycle move',
-  BOARD_SCHEMA_BEHIND: 'a physical read refuses an older schema before starting an item move',
   BOARD_UNAVAILABLE: 'registered repository storage is unavailable before an item move can begin',
   GIT_SYNC_FOLDER: 'board transport storage must be a directory before synchronization',
   MILESTONES_CORRUPT: 'shared roadmap metadata is read before queue selection or health reporting',
-  SHIM_IMPORT_PARSER: 'compile-only parser composition is a tooling setup contract, not an item transition',
   BAR_NOT_READY: 'bar readiness is checked by the review packet before a verdict move runs',
   LAND_ENVIRONMENT: 'the landing host and candidate check executor are validated before landing, not by an item move',
   LAND_GATE_OUTPUT: 'a timed gate whose output failed is a machine gate failure, not an item move',

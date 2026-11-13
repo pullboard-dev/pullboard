@@ -1404,10 +1404,11 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 :is(#spec-list, #doctrine-list) .spec-record .meta { min-width: 0; overflow: hidden; }
 :is(#spec-list, #doctrine-list) .spec-record .meta > * { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :is(#spec-list, #doctrine-list) .spec-record a.ref { display: inline; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Each label is one whole word beside its full count, so no tab needs a cut; a tab never ends in an ellipsis (#7400). */
 @media (max-width: 700px) {
-  /* Each label is one whole word beside its full count; if the row still runs out it scrolls, it never cuts a word (#7400). */
-  #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow-x: auto; }
-  #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 0 auto; min-width: 0; padding-inline: var(--space-2); display: flex; align-items: center; justify-content: center; white-space: nowrap; }
+  #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow: hidden; }
+  #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); white-space: nowrap; }
+  #spec-chips .seg button, #doctrine-chips .seg button { display: flex; align-items: center; justify-content: center; }
   #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: visible; }
   #spec-chips .seg-full, #doctrine-chips .seg-full { display: none; }
   #spec-chips .seg-short, #doctrine-chips .seg-short { display: inline; }

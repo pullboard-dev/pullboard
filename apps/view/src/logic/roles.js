@@ -324,10 +324,6 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "scope: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "apps/cli/journeys/shout/search.test.js": {
-    "kind": "journey",
-    "reason": "search: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
-  },
   "apps/cli/journeys/settings/context.test.js": {
     "kind": "journey",
     "reason": "settings-context: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"

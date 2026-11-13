@@ -42,8 +42,8 @@ function interleavedAges(file, when) {
   const future = join(box.dir, 'next-row.txt'), receipt = join(box.dir, 'interleave.json');
   writeFileSync(future, specTarget ? SPEC + g5 + g3 + g4 : r1 + r2);
   const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-  const wrapper = join(box.dir, 'bin', 'git');
-  const program = join(box.dir, 'bin', 'git-wrapper.mjs');
+  const wrapper = join(box.dir, 'bin/git');
+  const program = join(box.dir, 'bin/git-wrapper.mjs');
   writeFileSync(program, `
 import { spawnSync } from 'node:child_process';
 import {
