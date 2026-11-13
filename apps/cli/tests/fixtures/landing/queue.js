@@ -1,6 +1,5 @@
 import { FIXTURE_GATE_DISPATCH } from '../testkit.js';
 import { fixtureMachineSettings } from '../testkit.js';
-import { FIXTURE_GATE_DISPATCH } from '../testkit.js';
 import { HOST } from '../runner/ssh.js';
 import { installSshStandIn } from '../runner/ssh.js';
 /** Public, real-Git landing contention fixture; no private drill data is used [B3,R3,Q1,Q2,E8]. */
