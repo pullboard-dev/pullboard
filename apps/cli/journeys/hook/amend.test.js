@@ -62,9 +62,9 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   const item = JSON.parse(shown.out);
   assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', item.item_merged_commit).split(' ').length, 3,
     'the automatic engine amendment remains inside the landed merge');
-  assert.match(box.git(box.repo, 'show', `main:packages/state/src/logic/engines/alpha-engine.js`), /ALPHA_ENGINE = 81;/u,
+  assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:packages/state/src/logic/engines/alpha-engine.js`), /ALPHA_ENGINE = 81;/u,
     "the installed commit-msg hook allowed the landing's verified item trailer");
-  assert.match(box.git(box.repo, 'show', `main:docs/formats.md`), /`move engine` \| `81`/u);
-  box.git(box.repo, 'merge-base', '--is-ancestor', item.item_merged_commit, 'main'); // the landed merge reaches actual main, with the runner's engine numbers on it.
+  assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:docs/formats.md`), /`move engine` \| `81`/u);
+  assert.equal(box.git(box.repo, 'rev-parse', 'main').trim(), item.item_merged_commit, 'the amended merge reaches actual main');
   assert.ok(readFileSync(join(box.repo, '.githooks/commit-msg'), 'utf8').includes('hook commit-msg'), 'the real hook remains installed');
 });
