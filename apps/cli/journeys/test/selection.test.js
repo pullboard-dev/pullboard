@@ -29,7 +29,7 @@ test('clause 1: submit and review run only the changed package units and frozen 
   assert.deepEqual(calls(box, 'journey'), []);
 });
 
-test('clause 1: review reuses the submit proof of the package unit instead of running it again [C7,CS4,V4]', { skip: 'PULL_GAP: un-skipped by #7277' }, async t => {
+test('clause 1: review reuses the submit proof of the package unit instead of running it again [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   box.env.NODE_TEST_CONTEXT = 'child-v8';
   await settleSubmit(t, box, json(box, entry.root, 'submit', String(entry.id), '--no-next'));
