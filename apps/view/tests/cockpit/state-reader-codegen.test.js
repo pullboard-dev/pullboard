@@ -44,9 +44,9 @@ test('the view expands compact snapshots before rendering and using ordinary del
   assert.equal(changed.sequence, 11);
   assert.equal(Object.hasOwn(changed, 'itemEncoding'), false, 'the retained delta base has no wire dictionary');
   assert.deepEqual(paths, [
-    '/api/v1/boards/board/state?seen=3&items=compact',
+    '/api/v1/boards/board/state?seen=3&items=compact&kept=1',
     '/api/v1/boards/board/state?since=10&seen=4&eventLogVersion=127',
-  ], 'only a local full snapshot opts into compact items');
+  ], 'only a local full snapshot opts into compact items, and a first load into the kept state');
 });
 
 test('the view accepts ordinary snapshots and re-expands a compact reset without changing relay or export requests [N26,C7]', async () => {
@@ -57,7 +57,7 @@ test('the view accepts ordinary snapshots and re-expands a compact reset without
   const next = await local.read(null);
   assert.equal(next.items[0].lane, 'api');
   assert.equal(Object.hasOwn(next, 'itemEncoding'), false, 'a reset is decoded before becoming the next delta base');
-  assert.deepEqual(local.paths, ['/api/v1/boards/board/state?items=compact',
+  assert.deepEqual(local.paths, ['/api/v1/boards/board/state?items=compact&kept=1',
     '/api/v1/boards/board/state?since=1', '/api/v1/boards/board/state?items=compact']);
   for (const options of [{ local: false }, { snapshot: true }]) {
     const plain = compactBoardReader([{ state: legacy }], options);
@@ -104,8 +104,25 @@ test('the generated reader expands V2 columns with fresh rows before ordinary de
   const reset = await read(null);
   assert.equal(reset, ordinary, 'ordinary reset returns to an ordinary retained base');
   assert.equal(Object.hasOwn(reset.items[0], 'optional'), false);
-  assert.deepEqual(paths, ['/api/v1/boards/board/state?items=compact',
+  assert.deepEqual(paths, ['/api/v1/boards/board/state?items=compact&kept=1',
     '/api/v1/boards/board/state?since=20&eventLogVersion=127',
     '/api/v1/boards/board/state?since=21&eventLogVersion=127',
     '/api/v1/boards/board/state?items=compact']);
+});
+
+test('the first read takes the kept state, then the stream catches up through since=N and a read after the page\'s own move never asks kept [A2,C7]', async () => {
+  const first = { sequence: 30, items: [{ id: 1, title: 'Kept', lane: 'web', status: 'open' }] };
+  const { read, paths } = compactBoardReader([
+    { state: first, eventLogVersion: 5 },
+    { sequence: 31, eventLogVersion: 5, delta: { replace: { sequence: 31 }, merge: { items: { key: 'id', set: [], ids: [1] } } } },
+    { sequence: 32, eventLogVersion: 5, delta: { replace: { sequence: 32 }, merge: { items: { key: 'id', set: [], ids: [1] } } } },
+  ]);
+  assert.equal((await read(null)).sequence, 30, 'the first read draws from the kept state at once');
+  assert.equal((await read(null)).sequence, 31, 'the stream brings the page current');
+  assert.equal((await read(9)).sequence, 32, 'a read after the page\'s own move is a delta, which the server answers only once that move is in');
+  assert.deepEqual(paths, [
+    '/api/v1/boards/board/state?items=compact&kept=1',
+    '/api/v1/boards/board/state?since=30&eventLogVersion=5',
+    '/api/v1/boards/board/state?since=31&seen=9&eventLogVersion=5',
+  ]);
 });

@@ -13,6 +13,7 @@ import { openBoard } from '../../../lib/index.js';
 import { addMilestone } from '../../../../packages/store/index.js';
 import { atomic } from '../../../../packages/store/index.js';
 import { serveApi } from '../../../../packages/api/index.js';
+import { applyStateDelta } from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../index.js';
 import { main } from '../../tests/fixtures/native.js';
 import { proofStats } from '../../../../packages/stats/index.js';
@@ -122,7 +123,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0, var
   const listing = await request('/api/v1/boards');
   assert.equal(listing.status, 200);
   const path = '/api/v1/boards/' + encodeURIComponent(listing.document.boards[0].id);
-  return { request, path, agents, fullStats, forgetReport, rebuildReport, builds: () => builds, advance: ms => { now += ms; } };
+  return { request, path, agents, board, ids, tick: ms => { at += ms; }, fullStats, forgetReport, rebuildReport, builds: () => builds, advance: ms => { now += ms; } };
 }
 
 test('[N26,A2] 1600 items, 1150 seats and 40000 shouts yield a sub-600KB authenticated state with complete summaries', async t => {
@@ -292,6 +293,57 @@ test('[N26,A2] compact state preserves ordinary delta bases and rejects incompat
   for (const suffix of ['items=unknown', 'items=compact&detail=full', 'items=compact&since=0']) {
     assert.equal((await box.request(box.path + '/state?' + suffix)).status, 400, suffix);
   }
+});
+
+test('[C7] a later build with no item event resends no item and no milestone, whatever the clock', async t => {
+  const box = await fixture(t, { items: 6, seats: 2 });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First fixture release', note: 'Delta fixture only', items: box.ids.slice(0, 3) });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Second fixture release', note: 'Delta fixture only', items: box.ids.slice(3) });
+  const before = await box.request(box.path + '/state');
+  box.tick(7 * 60_000);
+  store.shout(box.board, { from: box.agents[0], to: 'coordinator', text: 'A later event that touches no item', lanes: ['web'] });
+  const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
+  assert.ok(delta.document.delta, 'a later build answers with a delta');
+  assert.equal(delta.document.delta.merge.items, undefined, 'minutes of idleness are the page\'s to derive, not a reason to resend an item');
+  assert.equal(delta.document.delta.merge.milestones, undefined);
+  assert.equal(JSON.stringify(before.document.state.items).includes('idleMinutes'), false);
+  assert.equal(JSON.stringify(before.document.state.milestones).includes('idleMinutes'), false);
+  assert.ok(before.document.state.items.every(item => typeof item.progress.lastActivity === 'string'), 'the page derives age from lastActivity');
+});
+
+test('[C7] a delta after only the rolling pace moves resends no milestone and sends the pace once', async t => {
+  const box = await fixture(t, { items: 4, seats: 2 });
+  const digest = 'digest:pace-fixture', head = 'a'.repeat(40);
+  store.claim(box.board, box.ids[0], { agentId: box.agents[0], lane: 'web', leaseMs: 3_600_000, freeze: item => ({ text: item.item_criterion, digest }) });
+  submitFixture(box.board, box.ids[0], { agentId: box.agents[0], commit: head, tree: 'tree:pace-fixture' });
+  store.verify(box.board, box.ids[0], { agentId: box.agents[1], decision: 'ACCEPT', head, digest, policy: 'any', note: 'Pace fixture only; no gate execution is claimed.' });
+  store.merged(box.board, box.ids[0], { agentId: 'coordinator', commit: 'b'.repeat(40) });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First fixture release', note: 'Delta fixture only', items: box.ids.slice(0, 2) });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Second fixture release', note: 'Delta fixture only', items: box.ids.slice(2) });
+  const before = await box.request(box.path + '/state');
+  assert.equal(before.document.state.milestones[0].summary.pace.last2h, 1, 'the landing is inside the two-hour window');
+  box.tick(3 * 3_600_000);
+  box.advance(3 * 3_600_000);
+  store.shout(box.board, { from: box.agents[0], to: 'coordinator', text: 'A later event that touches no item', lanes: ['web'] });
+  const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
+  assert.ok(delta.document.delta, 'a later build answers with a delta');
+  assert.equal(delta.document.delta.merge.milestones, undefined, 'a moved pace is no reason to resend a milestone whose entries held');
+  assert.equal(delta.document.delta.milestonePace.last2h, 0);
+  assert.equal(JSON.stringify(delta.document.delta.merge).includes('"pace"'), false, 'the pace is sent once, not inside any milestone');
+  const applied = applyStateDelta(before.document.state, delta.document.delta);
+  assert.ok(applied.milestones.every(milestone => milestone.summary.pace.last2h === 0), 'every milestone the page holds takes the moved pace');
+});
+
+test('[C7] a delta after one event on one item merges that item and the milestone holding it', async t => {
+  const box = await fixture(t, { items: 6, seats: 2 });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First fixture release', note: 'Delta fixture only', items: box.ids.slice(0, 3) });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Second fixture release', note: 'Delta fixture only', items: box.ids.slice(3) });
+  const before = await box.request(box.path + '/state');
+  box.tick(7 * 60_000);
+  store.claim(box.board, box.ids[1], { agentId: box.agents[0], lane: 'web', leaseMs: 3_600_000, freeze: item => ({ text: item.item_criterion, digest: 'digest:delta-fixture' }) });
+  const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
+  assert.deepEqual(delta.document.delta.merge.items.set.map(item => item.id), [box.ids[1]]);
+  assert.deepEqual(delta.document.delta.merge.milestones.set.map(milestone => milestone.name), ['First fixture release']);
 });
 
 /** Retain old wire compatibility while refusing malformed columns and preserving JSON ownership. */
