@@ -49,10 +49,10 @@ import { nameJob } from '../../../../../../packages/jobs/index.js';
 import { finishJob } from '../../../../../../packages/jobs/index.js';
 import { jobView } from '../../../../../../packages/jobs/index.js';
 import { releaseLease } from '../../../../../../packages/jobs/index.js';
-import { borrowGateCheckout } from '../../../../../../packages/gate/index.js';
-import { discardGateCheckout } from '../../../../../../packages/gate/index.js';
-import { returnGateCheckout } from '../../../../../../packages/gate/index.js';
-import { gateCheckoutPool } from '../../../../../../packages/gate/index.js';
+import { borrowGateCheckout } from '../../../../../../packages/gate/heavy.js';
+import { discardGateCheckout } from '../../../../../../packages/gate/heavy.js';
+import { returnGateCheckout } from '../../../../../../packages/gate/heavy.js';
+import { gateCheckoutPool } from '../../../../../../packages/gate/heavy.js';
 
 /** Git for the gate's kept checkouts, without the caller's Git environment; a failure is returned, never thrown. */
 function gateGit(args) {
