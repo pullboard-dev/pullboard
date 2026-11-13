@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli */
 /** @pullboard-world-pin reads submit.js itself to prove it never names the hand-off queue functions [P7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
