@@ -8,7 +8,7 @@ export function pipelineRuntime({ model, html, history, api, current, redraw, wi
   const MACHINE_EVERY_MS = 10_000;
   const machine = { value: null, at: 0, pending: false, root: null };
   const opened = new Set();
-  let drawn = { root: null, markup: '' }, wired = null, cache = null;
+  let touched = false, drawn = { root: null, markup: '' }, wired = null, cache = null;
 
   /** Read this machine's samples when the last read is old; the page draws again when they arrive. */
   function readMachine(root) {
@@ -41,6 +41,8 @@ export function pipelineRuntime({ model, html, history, api, current, redraw, wi
   function toggle(head) {
     const group = head.parentElement, key = group.dataset.pipelineGroup;
     const open = !group.classList.contains('open');
+    // The first press fixes the open groups as the person has them: from then on the page keeps exactly these.
+    if (!touched) { touched = true; for (const entry of group.parentElement.querySelectorAll('.pw-gr.open')) opened.add(entry.dataset.pipelineGroup); }
     group.classList.toggle('open', open);
     head.setAttribute('aria-expanded', String(open));
     if (open) opened.add(key); else opened.delete(key);
@@ -63,7 +65,7 @@ export function pipelineRuntime({ model, html, history, api, current, redraw, wi
     else {
       const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
       const state = model(project, held.events, { now, windowMinutes: minutes, complete: true, machine: machine.value });
-      markup = html(state, { href: itemsHref, itemHref, locale, timeZone, machineHere, open: [...opened] });
+      markup = html(state, { href: itemsHref, itemHref, locale, timeZone, machineHere, open: touched ? [...opened] : null });
       cache = { key, markup };
     }
     if (drawn.root === project.root && drawn.markup === markup) return;

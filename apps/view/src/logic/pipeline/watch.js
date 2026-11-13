@@ -356,10 +356,10 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
  * Draw the Pipeline page from its model.
  *
  * @param {object} model - pipelineWatchModel's result.
- * @param {{ href?: (ids: number[]) => string, itemHref?: (id: number) => string, locale?: string, timeZone?: string, machineHere?: boolean, open?: string[] }} [options]
+ * @param {{ href?: (ids: number[]) => string, itemHref?: (id: number) => string, locale?: string, timeZone?: string, machineHere?: boolean, open?: string[]|null }} [options] - open names the groups the person left open; null until they touch one, when the two biggest open
  * @returns {string}
  */
-export function pipelineWatchHtml(model, { href = () => '#', itemHref = id => '#' + id, locale = 'en-US', timeZone = 'UTC', machineHere = true, open = [] } = {}) {
+export function pipelineWatchHtml(model, { href = () => '#', itemHref = id => '#' + id, locale = 'en-US', timeZone = 'UTC', machineHere = true, open = null } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const num = value => Number.isFinite(value) ? String(value) : '—';
   const fixed = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : '—';
@@ -452,8 +452,8 @@ export function pipelineWatchHtml(model, { href = () => '#', itemHref = id => '#
 
   // ---------- 6. Not moving ----------
   const sg = model.stuck, age = minutes => dur(minutes);
-  const groupsHtml = sg.groups.map(group => {
-    const shownRows = group.rows.slice(0, 5), more = group.count - shownRows.length, openNow = open.includes(group.key);
+  const groupsHtml = sg.groups.map((group, index) => {
+    const shownRows = group.rows.slice(0, 5), more = group.count - shownRows.length, openNow = open ? open.includes(group.key) : index < 2;
     return '<div class="pw-gr' + (openNow ? ' open' : '') + '" data-pipeline-group="' + esc(group.key) + '"><div class="pw-gh" role="button" tabindex="0" aria-expanded="' + openNow + '"><span class="tw">▶</span>' + dot(group.dot) + '<span class="nm">' + esc(group.name) + '</span><span class="ct">' + group.count + '</span><span class="old' + (group.red ? ' back' : '') + '" title="oldest">' + age(group.oldest) + '</span><span class="hint">' + esc(group.hint) + '</span><a class="open" href="' + esc(href(group.ids)) + '" data-pipeline-ids="' + group.ids.join(',') + '">Open in Items ›</a></div>'
       + '<div class="pw-gl">' + shownRows.map(row => '<a class="pw-ir" href="' + esc(itemHref(row.id)) + '"><span class="id">#' + row.id + '</span><span class="tt">' + esc(row.title) + '</span><span class="dt">' + esc(row.detail) + '</span><span class="ag' + (row.age >= group.redAt ? ' back' : '') + '">' + age(row.age) + '</span></a>').join('')
       + (more > 0 ? '<a class="pw-gmore" href="' + esc(href(group.ids)) + '" data-pipeline-ids="' + group.ids.join(',') + '">' + more + ' more in Items ›</a>' : '') + '</div></div>';
@@ -464,7 +464,7 @@ export function pipelineWatchHtml(model, { href = () => '#', itemHref = id => '#
     + '<span class="pw-kv">' + link(mv.building, dot('building') + '<b>' + mv.building.length + '</b> building') + '</span>'
     + '<span class="pw-kv">' + (model.recorded.gate ? link(mv.gate, dot('gate') + '<b>' + mv.gate.length + '</b> in the gate') : dot('gate') + '<b>—</b> in the gate') + '</span>'
     + '<span class="pw-kv">' + link(mv.pending, dot('review') + '<b>' + mv.pending.length + '</b> pending review') + '</span>'
-    + '<span class="pw-kv">' + link(mv.reviewing, dot('review') + '<b>' + mv.reviewing.length + '</b> in review') + '</span></div></div>';
+    + '<span class="pw-kv">' + link(mv.reviewing, dot('review') + '<b>' + mv.reviewing.length + '</b> in review') + '</span><button type="button" class="dash-lk pw-dash" data-tab="dashboard">Dashboard ›</button></div></div>';
 
   // ---------- 7. Bouncing and red tests ----------
   const ST = { claimed: '<span class="pw-chip b">building</span>', open: '<span class="pw-chip p">ready</span>', submitted: '<span class="pw-chip r">in review</span>', verified: '<span class="pw-chip l">accepted</span>', held: '<span class="pw-chip q">held</span>', withdrawn: '<span class="pw-chip q">withdrawn</span>' };

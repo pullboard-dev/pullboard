@@ -329,8 +329,7 @@ i.dash-seg-held { background: none; border: 1px dashed var(--mark-held); }
 .pw-tb th:first-child, .pw-tb td:first-child { padding-left: var(--space-4); } .pw-tb th:last-child, .pw-tb td:last-child { padding-right: var(--space-4); }
 .pw-tb td { height: 25px; font-size: var(--text-xs); border-bottom: 1px solid var(--line-soft); } .pw-tb tbody tr:last-child td { border-bottom: 0; }
 .pw-tb tbody tr:hover td { background: color-mix(in oklab, var(--hover) 60%, var(--surface)); }
-.pw-tb td.m { font-family: var(--code); color: var(--ink-muted); max-width: 0; width: 55%; overflow: hidden; text-overflow: ellipsis; } .pw-tb td.f { font-family: var(--code); color: var(--ink-faint); }
-.pw-tb td.m:first-child { max-width: none; width: auto; } .pw-tb td.m a { color: inherit; }
+.pw-tb td.m { font-family: var(--code); color: var(--ink-muted); } .pw-tb td.f { font-family: var(--code); color: var(--ink-faint); } .pw-tb td.m a { color: inherit; }
 .pw-tb td.w { max-width: 0; width: 40%; overflow: hidden; text-overflow: ellipsis; color: var(--ink-faint); } .pw-tb td.t { max-width: 0; width: 55%; overflow: hidden; text-overflow: ellipsis; }
 .pw-tb td .dash-dot { margin-right: var(--space-2); }
 .pw-page td.dash-num.back { color: var(--mark-back); font-weight: 600; } .pw-page td.dash-num.amb { color: var(--warn); font-weight: 600; } .pw-page td.dash-num .z { color: color-mix(in oklab, var(--ink-faint) 60%, var(--surface)); }
@@ -354,6 +353,7 @@ i.dash-seg-held { background: none; border: 1px dashed var(--mark-held); }
 .pw-moving { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); background: var(--surface-2); font-size: var(--text-xs); color: var(--ink-muted); }
 .pw-moving .pw-kv { display: inline-flex; align-items: center; gap: var(--space-2); } .pw-moving b { color: var(--ink); font-weight: 600; } .pw-moving a { color: inherit; }
 .pw-moving .ct { font-weight: 600; color: var(--ink-muted); }
+.pw-moving .pw-dash { margin-left: auto; }
 
 /* 6. This machine */
 .pw-page .pw-mach { padding: var(--space-3) 0 var(--space-1); overflow: hidden; }

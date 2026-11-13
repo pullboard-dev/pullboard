@@ -151,6 +151,9 @@ test('clause 2: every count and group opens its filtered Items page, and an item
     assert.match(html, new RegExp(`data-pipeline-group="${group.key}".*?<span class="ct">${group.count}</span>`, 'u'), `${group.key}: its count is its item count`);
     assert.ok(html.includes(`<a class="open" href="${href(group.ids).replace(/&/gu, '&amp;')}"`), `${group.key}: Open in Items`);
   }
+  const opens = [...html.matchAll(/class="pw-gr( open)?" data-pipeline-group="([a-z-]+)"/gu)].map(match => [match[2], Boolean(match[1])]);
+  assert.deepEqual(opens.map(([, open]) => open), opens.map((_, index) => index < 2), 'the two biggest groups open at first, so what is stuck shows at a glance');
+  assert.deepEqual([...draw(model, { open: ['blocked'] }).matchAll(/class="pw-gr open" data-pipeline-group="([a-z-]+)"/gu)].map(match => match[1]), ['blocked'], 'once the person opens or closes a group, only the groups they left open are open');
   assert.match(html, /<a class="pw-ir" href="\/items\/2">/u, 'an item row opens the item');
   assert.match(html, /<a class="dash-n pw-code" href="\/items\/12">#12<\/a>/u, 'so does a bouncing item');
   assert.doesNotMatch(html, /href="#"/u, 'no link goes nowhere');
