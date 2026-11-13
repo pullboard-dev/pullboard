@@ -16,7 +16,8 @@ import { success } from '../../tests/fixtures/placement.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 async function mergedPlacement(t) {
@@ -53,8 +54,6 @@ async function mergedPlacement(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(view): accept an independent main placement [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   await publishAcceptedCells(t, box.repo, main.trim(), box.env.PULLBOARD_MACHINE_HOME);
-  // Publishing the cells rewrites the machine settings, so the pin follows it: both cases read the inline gate's marker and receipt, which a pulled gate leaves on the runner [C7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const mainRow = readPlan(box.repo).cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === mainFile);
   const merged = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'],
     { cwd: view, env: box.env, encoding: 'utf8' });
@@ -75,7 +74,7 @@ async function mergedPlacement(t) {
 
 test('a view item merges a main-owned plan change and submits its unchanged main row plus owned creation [L3,C7,V4]', async t => {
   const box = await mergedPlacement(t);
-  const submitted = success(box, box.view, 'submit', String(box.id));
+  const submitted = await settleSubmit(t, box, success(box, box.view, 'submit', String(box.id)));
   assert.ok(submitted.gate, JSON.stringify(submitted).slice(0, 1500));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the real gate ran after ownership admitted the composed source');
@@ -100,11 +99,12 @@ test('a builder editing the accepted main row itself still fails public submit b
   // Ownership routing (814a7def2a): proved foreign paths wait on their owner instead of refusing OUTSIDE_LANE; the builder is freed.
   const submitted = box.run(box.view, 'submit', String(box.id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  const waiting = JSON.parse(submitted.out).waitingOwner;
-  assert.deepEqual(waiting.owners, ['core']);
-  assert.equal(waiting.paths.includes('packages/codemap/data/plan/01-app-view.json'), true, 'the main-row edit is what waits on its owner');
+  // The pulled gate settles on the runner and the owner routing follows it, so wait for the hold, which names owner and path.
+  const item = await whenRunnerSettles(box.env, () => { const row = success(box, box.view, 'show', String(box.id)); return row.item_status === 'open' && row.item_hold_reason ? row : null; },
+    { deadlineMs: 120_000, what: `owner routing of #${box.id}` });
+  assert.equal(item.item_hold_reason.includes('core'), true, item.item_hold_reason);
+  assert.equal(item.item_hold_reason.includes('packages/codemap/data/plan/01-app-view.json'), true, 'the main-row edit is what waits on its owner');
   assert.equal(existsSync(box.marker), true, 'the gate runs green first; only then do foreign paths wait on their owner');
-  const item = success(box, box.view, 'show', String(box.id));
   assert.equal(item.item_status, 'open');
   assert.equal(item.item_commit, null, 'owner waiting is not a submission');
   assert.match(item.item_hold_reason, /^waiting on ownership /u);
