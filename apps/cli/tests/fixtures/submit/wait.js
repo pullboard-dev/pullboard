@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
+import { settledGateJob } from './settle.js';
 
 /** Bind the kit to the caller's store module so this fixture stays free of package imports. */
 export function waitKit(store) {
@@ -32,6 +33,8 @@ export function waitKit(store) {
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
       await child.closed;
     });
+    // A pulled gate runs on the local runner after submit returns queued; its job's receipt is what moves the item to submitted.
+    await settledGateJob(box, 1);
     await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, 1).item_status === 'submitted'), 'a public submission or its actionable refusal', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
     assert.equal(onBoard(box, board => store.getItem(board, 1).item_status), 'submitted', child.stderrText);
     await helpers.waitFor(() => child.exitCode !== null, 'the final gate to end submit before any verdict', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
