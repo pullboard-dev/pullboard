@@ -76,6 +76,8 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, criterion 
     GIT_AUTHOR_NAME: 'Frozen fixture', GIT_AUTHOR_EMAIL: 'frozen@example.invalid',
     GIT_COMMITTER_NAME: 'Frozen fixture', GIT_COMMITTER_EMAIL: 'frozen@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
+    // The nested pullboard test starts at once; the outer gated run owns the load budget (#7257).
+    PULLBOARD_FIXTURE_BOARD: '1',
     CODEX_SESSION_ID: 'known-main-affected-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
   // A child submit must return the gate's verdict, so the fixture pins controller dispatch; pull submits return queued (#6249,#6832).
