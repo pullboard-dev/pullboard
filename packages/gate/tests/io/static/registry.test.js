@@ -9,6 +9,8 @@ import {
   runFixtureGit,
 } from '../../../../../apps/cli/tests/fixtures/child.js';
 
+/** The app paths the CLI static entry hands the registry, as that entry declares them. */
+const STATIC_APPS = { cliCell: 'apps/cli', cliIndex: 'apps/cli/index.js', cliHelp: 'apps/cli/src/logic/help.js' };
 const proseCheck = STATIC_TREE_CHECKS.find(check => check.name === 'prose-commands');
 
 /**
@@ -43,13 +45,13 @@ test('clause 1: a catalog fix red at main and green at the item head passes the 
   writeTree(tree, false);
   git(repo, ['add', '-A']);
   git(repo, ['commit', '-q', '-m', 'main with the catalog missing trace']);
-  assert.equal(proseCheck.run(repo).length, 1, 'main is red');
+  assert.equal(proseCheck.run(repo, [], { apps: STATIC_APPS }).length, 1, 'main is red');
   git(repo, ['checkout', '-q', '-b', 'item']);
   writeTree(tree, true);
   git(repo, ['commit', '-q', '-am', 'list trace in the catalog']);
-  assert.deepEqual(proseCheck.run(repo), [], 'the head that fixes the catalog passes although this tools copy runs from elsewhere');
+  assert.deepEqual(proseCheck.run(repo, [], { apps: STATIC_APPS }), [], 'the head that fixes the catalog passes although this tools copy runs from elsewhere');
   git(repo, ['checkout', '-q', 'main']);
-  assert.match(proseCheck.run(repo)[0], /prose command declaration differs/u, 'main stays red');
+  assert.match(proseCheck.run(repo, [], { apps: STATIC_APPS })[0], /prose command declaration differs/u, 'main stays red');
 });
 
 test('clause 2: the prose-commands check reads HELP and PULLBOARD_COMMANDS from the tree it checks, not from its own import [C7,#3827]', t => {
@@ -60,9 +62,9 @@ test('clause 2: the prose-commands check reads HELP and PULLBOARD_COMMANDS from 
   t.after(() => { rmSync(broken, { recursive: true, force: true }); rmSync(sound, { recursive: true, force: true }); });
   writeTree(brokenTree, false);
   writeTree(soundTree, true);
-  assert.deepEqual(proseCheck.run(sound), [], 'a tree whose own catalog is consistent passes');
-  assert.equal(proseCheck.run(broken).length, 1, 'a tree whose catalog differs from its declarations fails');
-  assert.match(proseCheck.run(broken)[0], /^apps\/cli\/src\/logic\/help\.js:1: /u);
+  assert.deepEqual(proseCheck.run(sound, [], { apps: STATIC_APPS }), [], 'a tree whose own catalog is consistent passes');
+  assert.equal(proseCheck.run(broken, [], { apps: STATIC_APPS }).length, 1, 'a tree whose catalog differs from its declarations fails');
+  assert.match(proseCheck.run(broken, [], { apps: STATIC_APPS })[0], /^apps\/cli\/src\/logic\/help\.js:1: /u);
 });
 
 test('#4140 clause 2: the worker-bundle check fails when the measured raw bundle rises above its record, and passes at or below it [C7]', t => {
