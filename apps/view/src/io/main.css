@@ -552,7 +552,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .detail { position: sticky; top: calc(var(--top) + 16px); max-height: calc(100vh - var(--top) - 32px); overflow-y: auto; padding: var(--space-5); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); align-content: start; }
 /* The side card's one column is the card's width. Left to size itself, it took the widest thing that would not wrap, a lane's
    "held by" chip and its Release button, and every row and the Hold form ran past the card (#456). */
-@media (max-width: 900px) { .detail { position: static; max-height: none; } #detail { scroll-margin-top: 60px; } }
+@media (max-width: 900px) { .detail { position: static; max-height: none; } #detail { scroll-margin-top: 96px; } }
 .detail h2 { margin: 0; font-size: var(--text-xl); line-height: var(--leading-snug); overflow-wrap: anywhere; }
 .detail h2 span { color: var(--ink-faint); font: 600 var(--text-sm) var(--mono); margin-right: var(--space-2); }
 .detail .text { white-space: pre-wrap; overflow-wrap: anywhere; }
