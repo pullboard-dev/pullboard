@@ -1332,9 +1332,8 @@
     "tempdir": 1
   },
   "apps/cli/journeys/shout/search.test.js": {
-    "hand-policy": 4,
-    "tempdir": 4,
-    "raw-cli": 4
+    "hand-policy": 2,
+    "tempdir": 2
   },
   "apps/cli/journeys/shout/toggle.test.js": {
     "raw-cli": 1,
