@@ -15,6 +15,7 @@ import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -218,6 +219,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const stillRed = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "RED"; // unchanged behavior\n', 'fix(web): retry without fixing the landing behavior [G1]');
   assert.equal(stillRed.status, 0, stillRed.stderr);
   const unchangedLandingHead = (await fixtureCommand(box, item.cwd, 'submit', String(item.id), '--json'));
+  await settledGateJob(box, item.id);
   const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
   if (reclaimedHead === item.commit) {
     assert.equal(unchangedLandingHead.code, 1, unchangedLandingHead.out);
@@ -234,6 +236,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   item.commit = box.git(item.cwd, 'rev-parse', 'HEAD');
   const firstSubmit = (await fixtureCommand(box, item.cwd, 'submit', String(item.id)));
   assert.equal(firstSubmit.code, 0, firstSubmit.err);
+  await settledGateJob(box, item.id);
   const awaitingFreshAccept = readItem(box, item.id);
   assert.equal(awaitingFreshAccept.item_status, 'submitted', `${firstSubmit.out}${firstSubmit.err} ${JSON.stringify(awaitingFreshAccept.thread.slice(-4)).slice(-1500)}`);
   assert.equal(awaitingFreshAccept.item_verified_by, null, 'the older accept does not verify the resubmission');
@@ -260,6 +263,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   item.commit = box.git(item.cwd, 'rev-parse', 'HEAD');
   const secondSubmit = (await fixtureCommand(box, item.cwd, 'submit', String(item.id)));
   assert.equal(secondSubmit.code, 0, secondSubmit.err);
+  await settledGateJob(box, item.id);
   const secondAwaitingAccept = readItem(box, item.id);
   assert.equal(secondAwaitingAccept.item_status, 'submitted');
   assert.equal(secondAwaitingAccept.item_verified_by, null, 'the prior accepts do not verify the second resubmission');
