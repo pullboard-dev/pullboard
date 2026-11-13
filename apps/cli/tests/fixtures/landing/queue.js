@@ -456,6 +456,9 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
 
 /** Exercise a real independently closed source-advance gate before the second foreground landing [Q1,B3]. */
 export async function sourceAdvancePolicyCase(t, helpers) {
+  // The case reads the host landing batches and their detached source-advance worker; a pulled landing is a runner job with neither, and #6807 deletes the case with the batch engine.
+  t.skip('CONTROLLER_ONLY: deleted with #6807');
+  return;
   const sandbox = helpers.sandbox({ declareFamilies: true });
   const callsFile = join(sandbox.dir, 'source-policy-calls.jsonl');
   const gate = join(sandbox.dir, 'source-policy-gate.cjs');

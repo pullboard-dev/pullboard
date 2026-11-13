@@ -136,3 +136,20 @@ export function finishJob(db, job, owner, { now = Date.now() } = {}) {
 export function pinQueuedJob(db, job, commit, { now = Date.now() } = {}) {
   return db.prepare("UPDATE job SET job_candidate = ?, job_base = ?, job_updated = ? WHERE job_id = ? AND job_step = 'queued'").run(commit, commit, now, job).changes === 1;
 }
+
+/**
+ * Mark a job's receipt as applied by the board: the runs file's inbox mark. Only the first mark lands, so a repeated
+ * ack changes nothing.
+ *
+ * Why: the board applies a receipt in its own move, then acks it here; the reconciler re-applies any job whose receipt
+ * is still unmarked, so the mark must be written once and only after the board committed (runner-store split, S5).
+ * The job_applied column exists only in the runs file.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The runs file.
+ * @param {string} job
+ * @param {{now?: number}} [options]
+ * @returns {boolean} True when this call set the mark.
+ */
+export function markApplied(db, job, { now = Date.now() } = {}) {
+  return db.prepare('UPDATE job SET job_applied = ?, job_updated = ? WHERE job_id = ? AND job_applied IS NULL').run(now, now, job).changes === 1;
+}
