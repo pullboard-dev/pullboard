@@ -68,6 +68,19 @@ export function addressBoard(box, name, group) {
   box.run(p.repo, 'milestone', 'add', `${name} address milestone`, '--reason', 'Arrange fixture release', '--items', '1,2');
   return p;
 }
+/**
+ * The in-process twin of addressBoard: the same board, with its CLI calls awaited in this process instead of launched.
+ * Why: each launch cost seconds on a loaded runner, and the journeys that use it sit near their file budget.
+ */
+export async function addressBoardLocal(box, name, group) {
+  const spec = SPEC.replace(/^- G2 .*$/m, `- G2 [pending, must] ${name} distinct specification row. | gate: review`);
+  const p = project(box, name, spec, { practice: 'DOCTRINE.md', ...(group ? { project: group } : {}) });
+  writeFileSync(join(p.repo, 'DOCTRINE.md'), `# Local rules\n\n## Team\n- PB1 [approved, must] ${name} distinct practice rule. | gate: review\n`);
+  await box.inProcess(p.repo, 'add', 'web', `${name} first address item`, '--specs', 'G1');
+  await box.inProcess(p.repo, 'add', 'web', `${name} second address item`, '--specs', 'G1');
+  await box.inProcess(p.repo, 'milestone', 'add', `${name} address milestone`, '--reason', 'Arrange fixture release', '--items', '1,2');
+  return p;
+}
 /** Own one browser and server, with cleanup even if an assertion fails. */
 export async function withBrowser(box, run) {
   const executable = chromeExecutable();

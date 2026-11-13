@@ -84,7 +84,7 @@ async function setOneGateSlot(box, root) {
   assert.equal(configured.status, 0, configured.failure ?? configured.stderr);
 }
 
-test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary gate', async () => {
+test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary gate', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = fixture();
   const release = join(box.dir, 'release-holder');
   const checkRelease = join(box.dir, 'release-item-check');
