@@ -10,6 +10,7 @@ import { openLandingJob } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
+import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
@@ -38,6 +39,16 @@ async function landingTrunk(root, remote, main) {
   const held = () => tryGit(root, ['cat-file', '-e', `${tip}^{commit}`]).status === 0;
   if (tip !== main && !held()) await pullGit.fetchTrunk(root, remote, [`+${TRUNK}:refs/pullboard/landing/trunk`]);
   return held() ? tip : main;
+}
+
+/**
+ * The other item whose unverified submission sits among this commit's own commits past trunk, or null. Why: landing the
+ * commit would put that submission on trunk unreviewed, so the item waits, as the engine's selection held it [B3,E8,#7395].
+ */
+function stackedUnverified(root, trunk, unverified, item, commit) {
+  if (!unverified.length) return null;
+  const own = new Set(tryGit(root, ['rev-list', commit, `^${trunk}`]).stdout.split('\n'));
+  return unverified.find(other => other.item_id !== item.item_id && own.has(other.item_commit)) ?? null;
 }
 
 /**
@@ -94,7 +105,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const open = ids ? null : openLandingJob(board.db);
     if (open) return { offered: open, items: [], waiting: false };
     // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
-    const all = await withoutStaleVerdicts(board, root, await landingTrunk(root, remote, policy.commit), listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && (!ids || ids.includes(item.item_id)),
+    const trunkTip = await landingTrunk(root, remote, policy.commit);
+    const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && (!ids || ids.includes(item.item_id)),
       write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line) });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
     const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at);
@@ -104,8 +116,16 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const pinned = new Map((Array.isArray(policy.config?.landing?.first) ? policy.config.landing.first : []).map((id, index) => [id, index]));
     const rank = item => ids ? ids.indexOf(item.item_id) : accepted.get(item.item_id) ?? Number.MAX_SAFE_INTEGER;
     const pin = item => !ids && pinned.has(item.item_id) ? pinned.get(item.item_id) : Number.MAX_SAFE_INTEGER;
-    const chosen = all.filter(wanted).sort((left, right) => pin(left) - pin(right) || rank(left) - rank(right) || left.item_id - right.item_id);
     const commitOf = item => item.item_status === 'verified' ? checkedLandingCommit(board, item) : item.item_commit;
+    // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
+    const candidates = all.filter(wanted);
+    const unverified = forced || !candidates.length ? [] : unverifiedSubmissions(board);
+    const chosen = candidates.filter(item => {
+      const stacked = stackedUnverified(root, trunkTip, unverified, item, commitOf(item));
+      if (stacked && ids) throw new Refused('STACKED_UNVERIFIED', `#${item.item_id} holds #${stacked.item_id}'s unverified submission ${stacked.item_commit.slice(0, 12)}`, `land #${stacked.item_id} after its verify, or rebuild #${item.item_id} without it`);
+      if (stacked) ctx.io.say?.(`#${item.item_id} waits: STACKED_UNVERIFIED on #${stacked.item_id} ${stacked.item_commit.slice(0, 12)}`);
+      return !stacked;
+    }).sort((left, right) => pin(left) - pin(right) || rank(left) - rank(right) || left.item_id - right.item_id);
     // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
     const items = chosen.map(item => {
