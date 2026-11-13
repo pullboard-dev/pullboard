@@ -239,13 +239,14 @@ export async function relayServer(t, directory, auth, { legacyRelay = false } = 
  * Reading the gates from the doctrine, not naming files here, keeps the next check that lands from
  * leaving a fixture without its script, which otherwise raises the ratchet and changes the refusal.
  * A apps/cli/pullboard.js row gets the CLI's whole runtime minus the cells plan and every .test.js and journeys folder (a check runs source, never test files): it imports lazily and reads skills from disk [C7].
+ * Each app's and package's tests folder stays out too, so a change to tests alone leaves the seeded tree, and its cached cells inventory, the same [C7].
  */
 export function seedDoctrine(seed) {
   const repo = resolve(import.meta.dirname, '../../../../..');
   const text = readFileSync(join(repo, existsSync(join(repo, 'DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md'), 'utf8');
   writeFileSync(join(seed, 'PRACTICE.md'), text);
   const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]), copied = new Set();
-  if (pending.includes('apps/cli/pullboard.js')) for (const part of ['apps', 'packages', 'skills', 'docs', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') && !/\.test\.js$|\/journeys(\/|$)/.test(from.slice(repo.length)) });
+  if (pending.includes('apps/cli/pullboard.js')) for (const part of ['apps', 'packages', 'skills', 'docs', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') && !/\.test\.js$|\/journeys(\/|$)|^\/(?:apps|packages)\/[^/]+\/tests(\/|$)/.test(from.slice(repo.length)) });
   while (pending.length) {
     const file = pending.pop();
     if (copied.has(file)) continue;
