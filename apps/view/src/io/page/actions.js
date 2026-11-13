@@ -853,6 +853,18 @@ $('shouts-pane').addEventListener('click', (event) => {
 });
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
+// A Needs-you row stays as the person left it: each open or close is kept per board and screen before the native toggle,
+// so a live redraw neither reopens a closed row nor shuts an open one.
+document.addEventListener('click', (event) => {
+  const summary = event.target.closest?.('details[data-needs-key] > summary');
+  if (!summary) return;
+  const row = summary.parentElement, key = row.dataset.needsKey;
+  const place = JSON.stringify([view.root, row.closest('#dashboard') ? 'dashboard' : 'items']);
+  view.needsOpen ||= new Map();
+  const open = view.needsOpen.get(place) || new Set();
+  if (row.open) open.delete(key); else open.add(key);
+  view.needsOpen.set(place, open);
+}, true);
 document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
@@ -1156,7 +1168,6 @@ $('q').addEventListener('blur', () => {
   if ($('find-results').hidden) return;
   closingFound = setTimeout(() => hideFound('left the field'), 120);
 });
-// "/" goes to the search from anywhere but a field.
 document.addEventListener('keydown', (event) => {
   if (!view.filterOpen) return;
   if (event.key === 'Escape') {
@@ -1176,12 +1187,7 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
-document.addEventListener('keydown', (event) => {
-  if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable]')) return;
-  event.preventDefault();
-  $('q').focus();
-  $('q').select();
-});
+// "/" opens the palette from anywhere but a field (io/palette).
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const root = view.root;
