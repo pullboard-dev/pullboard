@@ -18,6 +18,12 @@ function runnerLog(machineHome) {
   return machineHome && existsSync(log) ? readFileSync(log, 'utf8').slice(-3000) : '(no local runner log)';
 }
 
+/** True when the thread holds the fact applyGateReceipt writes for a gate job's result; the earlier "offered for" note is not one. */
+function resultFact(thread, jobId) {
+  const text = JSON.stringify(thread ?? []);
+  return Boolean(jobId) && (text.includes(`Gate job ${jobId} red at `) || text.includes(`Gate job ${jobId} passed but not submitted`));
+}
+
 /**
  * Wait until `show --json` names the item's newest gate job as done AND the board has applied its receipt, read again on
  * every change to the local runner's folder (a log line per claim and receipt, a heartbeat every 5 s); refuses with the
@@ -49,8 +55,8 @@ export function settledGateJob(box, item, { deadlineMs = 180_000 } = {}) {
         last = shown.out || shown.err || '';
         const doc = shown.code === 0 ? JSON.parse(shown.out) : null;
         job = doc?.gateJob ?? null;
-        // A red gate leaves the item claimed and records a "Gate job <id> ..." fact; a green or stale one moves it on.
-        applied = Boolean(doc) && (doc.item_status !== 'claimed' || JSON.stringify(doc.thread ?? []).includes(`Gate job ${job?.id} `));
+        // A red gate leaves the item claimed and records its "Gate job <id> red|passed but not submitted" fact; a green or stale one moves it on.
+        applied = Boolean(doc) && (doc.item_status !== 'claimed' || resultFact(doc.thread, job?.id));
       } catch { /* a partial read; the next change reads again */ } finally { reading = false; }
       step = job?.step ?? 'none';
       if (step === 'done' && applied && !settled) { stop(); done(job); return; }
