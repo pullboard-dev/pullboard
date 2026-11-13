@@ -15,6 +15,7 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { onBoard } from '../../../tests/fixtures/land/board.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   scheduleAutomaticLanding,
@@ -78,6 +79,9 @@ test('clause 1 and clause 2 (#5770): a wake whose landing loses its lease mid-ba
   writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: false } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: the board lands accepted items');
+  // The landing lease belongs to the board host's own landing, which lands only with the local runner off; under pull with
+  // it on, the wake offers a runner land job instead, whose lease the runner holds (landing journeys under runner/) [C7,P7].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   await scheduleAutomaticLanding(box.repo, new Date().toISOString(), new URL('../../../src/io/landing/automatic.js', import.meta.url), { schedule: async () => {} });
 
   const first = wake(box, 'lose');

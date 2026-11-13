@@ -60,6 +60,6 @@ test('pullboard test names the local runner it ran on, and every installed hook 
   assert.match(readFileSync(join(box.repo, 'AGENTS.md'), 'utf8'), /\*\*Gate:\*\* Pullboard runs it; never run whole suites/u, 'the agent guidance leaves test running to Pullboard');
 });
 
-test('a runner-bound test run passes a local memory hold [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
+test('a runner-bound test run passes a local memory hold [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => {
   await assertRunnerMemoryAdmission();
 });

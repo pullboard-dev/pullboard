@@ -41,7 +41,6 @@ export { freezer as freezer } from "./src/io/entry.js";
 export { cockpitPage as cockpitPage } from "./src/io/cockpit.js";
 export { run as run } from "./src/io/commands/status.js";
 export { NEXT_STEPS as NEXT_STEPS } from "./src/io/next/steps.js";
-export { assertCurrentSubmitHandoff, driveSubmitHandoff, submitHandoffClaimProblem } from "./src/io/submit/handoff/worker.js";
 export { knownMainCheck, knownMainCheckNote } from "./src/io/commands/verify.js";
 
 export { planWorkerScale, workerWindowHours } from './src/io/scale.js';

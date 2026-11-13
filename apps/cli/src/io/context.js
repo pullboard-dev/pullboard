@@ -63,7 +63,7 @@ export function personCommandContext(io, { main, ordered } = {}) {
   /** Preserve this invocation's native capabilities for signed recursive commands. */
   const run = main && ((args, streams) => main(args, { ...streams,
     gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard,
-    hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender,
+    hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender,
     withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord,
     remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure,
     decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher,
