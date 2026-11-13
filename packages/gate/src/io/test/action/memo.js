@@ -20,6 +20,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
 import { gateMachineHome } from '../../../logic/preload.js';
+import { storeName } from '../../store-names.js';
 
 /** Name a selector without making its path part of a cache filesystem path. */
 function name(file) { return createHash('sha256').update(file).digest('hex'); }
@@ -174,7 +175,7 @@ function readKeyMemo(directory, identity, files) {
     if (!Array.isArray(selected) || selected.some(file => typeof file !== 'string')) throw new Error('invalid key catalog');
     const keys = new Map();
     for (const file of selected) {
-      const record = JSON.parse(readFileSync(join(directory, `${name(file)}.json`), 'utf8'));
+      const record = JSON.parse(readFileSync(join(directory, storeName(name(file))), 'utf8'));
       if (record.identity !== identity || record.file !== file
         || record.checksum !== checksum(identity, file, record.value)
         || !(record.value?.key === null || /^[0-9a-f]{64}$/u.test(record.value?.key)) || typeof record.value.reason !== 'string') throw new Error('invalid key record');
@@ -194,7 +195,7 @@ async function buildKeyMemo(directory, identity, files, build) {
   const keys = await build();
   try {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    for (const [file, value] of keys) publish(join(directory, `${name(file)}.json`), { identity, file, value, checksum: checksum(identity, file, value) });
+    for (const [file, value] of keys) publish(join(directory, storeName(name(file))), { identity, file, value, checksum: checksum(identity, file, value) });
     if (!files) publish(join(directory, 'files.json'), [...keys.keys()]);
     publish(join(directory, 'index.json'), { identity });
   } catch { /* Storage is an optimization; the freshly computed keys remain usable. */ }
