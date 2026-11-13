@@ -136,24 +136,14 @@ test('the floor\'s numbers, Now column and queue cards follow the approved fixes
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.notch [data-status=agents]')`);
-    // Clause 4: three more ways in, each beside the existing "Open the agent floor" link.
-    const ways = [
-      ['the Agents card title', '#dashboard [aria-label=Agents] h2 > a:first-child'],
-      ['the Agents card working count', '#dashboard [aria-label=Agents] h2 .dash-agents-count'],
-      ['the notch agents count', '.notch [data-status=agents]'],
-    ];
-    assert.match(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-agents-count").textContent'), /^\d+ working$/u);
-    assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-floor-link").textContent'), 'Open the agent floor →', 'the existing link stays');
-    for (const [name, selector] of ways) {
-      await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
-      await chrome.waitFor('view.tab === "dashboard" && view.addressDetail === "floor" && !!document.querySelector("#dashboard .floor")');
-      assert.equal(await chrome.stable('location.pathname'), '/dashboard/floor', `${name} opens the agent floor`);
-      await press(chrome, 'document.querySelector("#dashboard .floor-crumbs a")');
-      await chrome.waitFor('view.addressDetail === null && !!document.querySelector("#dashboard .dash-floor-link")');
-    }
-    await press(chrome, 'document.querySelector("#dashboard .dash-floor-link")');
-    await chrome.waitFor('view.addressDetail === "floor" && !!document.querySelector("#dashboard .floor .floor-grp")');
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-live') && !!document.querySelector('.notch [data-status=agents]')`);
+    // The approved /live-style Dashboard (#6847): the notch agents count opens the Dashboard's Agents table, and the floor keeps its own address.
+    await press(chrome, 'document.querySelector(".notch [data-status=agents]")');
+    await chrome.waitFor('view.tab === "dashboard" && view.addressDetail === "agents" && !!document.querySelector("#dashboard #dashboard-agents")');
+    assert.equal(await chrome.stable('location.pathname'), '/dashboard/agents', 'the notch opens the Agents table at its own address');
+    await chrome.send('Page.navigate', { url: view.base + '/dashboard/floor' });
+    await chrome.waitFor('typeof view === "object" && view.addressDetail === "floor" && !!document.querySelector("#dashboard .floor .floor-grp")');
+    assert.equal(await chrome.stable('location.pathname'), '/dashboard/floor', 'the floor keeps its own address');
 
     const seen = {};
     for (const width of [1440, 1100, 375]) {
