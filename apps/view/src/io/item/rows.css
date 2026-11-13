@@ -40,3 +40,6 @@
 .needs-fold-questions { list-style: none; min-width: 0; }
 .needs-fold-questions .needs-group-head { display: none; }
 .needs-fold .needs-id { max-width: none; overflow: visible; }
+/* The Dashboard's Rulings show each reference whole and cut a title only where the row ends; on a phone the reference takes its own line. */
+.needs-card .needs-id { max-width: none; overflow: visible; }
+@media (max-width: 640px) { .needs-card .needs-id { display: block; margin: 0; white-space: normal; overflow-wrap: anywhere; } }
