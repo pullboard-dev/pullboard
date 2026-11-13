@@ -38,7 +38,7 @@ function fixture(t, { dropFirst = true } = {}) {
 function child(box, source) {
   // Process-level: a fresh node process proves the module graph loads without the CLI seam.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
-    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000,
+    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 150_000 : 90_000, // pull recovery runs ~80 s on a loaded runner
   });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   return JSON.parse(result.stdout);
