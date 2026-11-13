@@ -35,7 +35,7 @@ test('[A2, N26] GET /boards/:id/summary answers the board\'s version 1 summary u
   assert.equal(read.status, 200, read.text);
   assert.ok(Buffer.byteLength(read.text) < 2048, 'the whole reply is under 2 KB');
   const body = JSON.parse(read.text).summary;
-  assert.equal(JSON.parse(read.text).version, undefined);
+  assert.equal(JSON.parse(read.text).version, 1);
   assert.equal(body.version, 1);
   for (const key of ['sequence', 'building', 'awaiting', 'sentBack', 'open', 'verified', 'decisions', 'pending', 'drafts', 'holds', 'lastChange']) assert.ok(Object.hasOwn(body, key), key);
   assert.equal(body.open, 1);
@@ -45,7 +45,7 @@ test('[A2, N26] GET /boards/:id/summary answers the board\'s version 1 summary u
 });
 
 test('[A2] a POST to the summary path is refused as BAD_REQUEST, and a server without the projection lists no summaryVersion [#6634]', async (t) => {
-  const { call, listed, path } = await served(t, viewApiPorts);
+  const { call, listed, path } = await served(t, { ...viewApiPorts, projectSummary: undefined });
   assert.equal(listed.boards[0].summaryVersion, undefined);
   const post = await call(path + '/summary', {});
   assert.equal(post.status, 400);
