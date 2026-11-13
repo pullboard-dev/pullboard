@@ -229,7 +229,7 @@ assert.equal(isStampedGreen(root),false);
   });
 
   if (group === 'red') test('a red private release collects tiny shard results without a native envelope or green stamp [C7,V4]',
-    { timeout: 180_000, cpuLoad: true, skip: 'the red-shard case hangs on the fixture SSH stand-in; same cause as #6917' }, async t => { // budget: a complete real private eight-shard run, including red collection and cleanup.
+    { timeout: 180_000, cpuLoad: true }, async t => { // budget: a complete real private eight-shard run, including red collection and cleanup.
     const box = fixture(t, { red: true });
     const result = await producer(box, `
 await assert.rejects(()=>runReleaseGate(root, { executionServices }),error=>error.code==='GATE_RUN_EVIDENCE');

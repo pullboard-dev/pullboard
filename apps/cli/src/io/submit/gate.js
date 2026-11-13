@@ -377,7 +377,7 @@ function runningToolingId() {
  * @returns {string}
  */
 export function analysisResultFile(artifactDirectory, { main, source, parts, tooling = runningToolingId() }) {
-  return join(artifactDirectory, 'results', `${parts ? parts.join('+') : 'all'}-${main}-${source}-${tooling}.json`);
+  return join(artifactDirectory, 'results', [parts ? parts.join('+') : 'all', main, source, tooling].join('-') + '.json');
 }
 
 /**

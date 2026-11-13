@@ -1219,6 +1219,21 @@ export function resolveCommit(root, ref) {
 }
 
 /**
+ * HEAD's commit and tree from one git process, kept for the rest of the command until a git write clears it.
+ * Why: headCommit and headTree each spawned `git rev-parse`, so one submit paid two processes for one revision [C7].
+ *
+ * @param {string} root
+ * @returns {{ commit: string | null, tree: string | null }}
+ */
+function headPair(root) {
+  return fact(`headPair:${resolve(root)}`, () => {
+    const result = tryGit(root, ['rev-parse', '--quiet', 'HEAD^{commit}', 'HEAD^{tree}']);
+    const [commit, tree] = result.status === 0 ? result.stdout.split('\n') : [];
+    return commit && tree ? { commit, tree } : { commit: null, tree: null };
+  });
+}
+
+/**
  * The commit HEAD points at, or null in a repo with no commits yet.
  *
  * @param {string} root
@@ -1226,10 +1241,7 @@ export function resolveCommit(root, ref) {
  */
 export function headCommit(root) {
   const key = `headCommit:${resolve(root)}`;
-  const read = () => {
-    const result = tryGit(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}']);
-    return result.status === 0 ? result.stdout : null;
-  };
+  const read = () => headPair(root).commit;
   if (gitReadFacts.getStore() === true) {
     return readFact(key, () => repositorySignature(root, null, true, STABLE_DIRECTORIES), read);
   }
@@ -1244,10 +1256,7 @@ export function headCommit(root) {
  */
 export function headTree(root) {
   const key = `headTree:${resolve(root)}`;
-  const read = () => {
-    const result = tryGit(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{tree}']);
-    return result.status === 0 ? result.stdout : null;
-  };
+  const read = () => headPair(root).tree;
   if (gitReadFacts.getStore() === true) {
     return readFact(key, () => repositorySignature(root, null, true, STABLE_DIRECTORIES), read);
   }
