@@ -12,6 +12,6 @@ test('clause 1: a pulled submit writes the item pin ref while its gate job is qu
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   assert.equal(box.git(folder, 'rev-parse', '--verify', `${pin}^{commit}`), commit);
   assert.equal(box.git(box.repo, 'rev-parse', '--verify', `${pin}^{commit}`), commit, 'the board repository holds the same pin');
-  const doctor = box.run(box.web, 'doctor', '--json');
+  const doctor = await box.runLocal(box.web, 'doctor', '--json');
   assert.doesNotMatch(`${doctor.out}${doctor.err}`, /ITEM_PIN_MISSING/u, 'doctor finds no missing pin');
 });
