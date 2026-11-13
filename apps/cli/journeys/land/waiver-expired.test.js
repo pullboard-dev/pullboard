@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -41,7 +42,7 @@ async () => {
   const main = box.git(box.repo, 'rev-parse', 'main');
   // The expired waiver excuses nothing: the land job runs the gate, the flaky test holds it red and nothing lands.
   const held = await settleLand(box, json(box, box.repo, 'land'));
-  assert.equal(held.batch.state, 'blocked', JSON.stringify(held.landJob));
+  assert.equal(held.batch.state, 'blocked', JSON.stringify({ job: held.landJob, gate: existsSync(box.trace) ? readFileSync(box.trace, 'utf8') : 'no gate run', config: readFileSync(join(box.repo, 'pullboard.json'), 'utf8') }));
   assert.deepEqual(held.landed, []);
   assert.match(String(held.landJob.receipt.detail), /land-1\.test\.js/u, 'the red names the flaky test the expired waiver no longer covers');
   assert.equal(box.tryGit(box.repo, 'ls-remote', 'origin', 'main').stdout.split(/\s+/u)[0], main, 'the trunk keeps its tree');
