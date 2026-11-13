@@ -843,6 +843,15 @@ function runnerCompatible(db, runner, waiter, unavailable) {
   return !unavailable.has(runner.host) && (waiter.browser !== 1 || runner.browser >= 1) && (waiter.gui !== 1 || gui);
 }
 
+/**
+ * Whether this runner has a GUI session, by the observed fact when one is recorded and the registered setting otherwise.
+ * Why: a run that needs a GUI can only ever go to such a runner, whatever its load or health.
+ */
+function runnerHasGui(db, runner) {
+  const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
+  return observed ? observed.gui === 1 : runner.gui === true;
+}
+
 /** List configured runners with active slot usage from the same local admission database. */
 export function runnerResourceStatus(runners) {
   const configured = validatedRunners(runners);
@@ -1164,6 +1173,11 @@ export async function takeResource(options) {
             refused.infrastructureAttempt = { kind: 'runner-wait', code: 'RUNNER_WAIT_DEADLINE', runners: runnerDeadline.runners };
             throw refused;
           }
+        }
+        // A runner-only run that needs a GUI session while no registered runner has one can never be admitted. Refuse it
+        // now instead of holding the gate line to the runner deadline, so the wait audit never sees a held pool [C7,#6875].
+        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) {
+          throw new Refused('NO_GUI_RUNNER', `this run needs a GUI session and none of the registered runners has one (${runners.map(runner => runner.host).join(', ')}); log a GUI session in on a runner or register one, then retry`);
         }
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
