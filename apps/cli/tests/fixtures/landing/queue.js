@@ -34,7 +34,9 @@ import { LANDING_LEASE_MS } from '../../../../../packages/store/index.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {
+  const began = Date.now();
   const result = box.run(root, ...args);
+  process.stderr.write(`# timing ${args[0]} ${Date.now() - began} ms\n`);
   const observation = result.code !== 0 && result.err.includes('[LAND_ITEM_MOVED]')
     ? readBoard(box, board => store.landingBatches(board).map(batch => ({
       id: batch.id, state: batch.state,
