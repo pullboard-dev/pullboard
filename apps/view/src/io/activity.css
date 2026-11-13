@@ -33,9 +33,9 @@
 .act-cap a:hover { color: var(--ink); }
 .act-shd .lk { flex: none; margin-left: auto; font-size: var(--text-xs); color: var(--ink-muted); }
 .act-shd .lk:hover { color: var(--ink); }
-.act-card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: none; }
-.act-pill { display: inline-block; margin-left: var(--space-2); padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font: 600 11px/16px var(--sans); letter-spacing: 0; color: var(--ink); vertical-align: 1px; }
-.act-chip { display: inline-flex; align-items: center; gap: 5px; justify-self: start; padding: 0 7px; border-radius: var(--radius-sm); font-size: var(--text-2xs); line-height: 18px; font-weight: 500; white-space: nowrap; background: light-dark(#eef0ef, #1b2420); color: light-dark(#5f6b64, #9caba3); }
+.act-card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.act-pill { display: inline-block; margin-left: var(--space-2); padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-chip); background: var(--surface); font: 600 11px/16px var(--sans); letter-spacing: 0; color: var(--ink); vertical-align: 1px; }
+.act-chip { display: inline-flex; align-items: center; gap: 5px; justify-self: start; padding: 0 7px; border-radius: var(--radius-chip); font-size: var(--text-2xs); line-height: 18px; font-weight: 500; white-space: nowrap; background: light-dark(#eef0ef, #1b2420); color: light-dark(#5f6b64, #9caba3); }
 .act-chip.b { background: light-dark(#e8eef7, #142231); color: light-dark(#285c99, #8db2e0); }
 .act-chip.r { background: light-dark(#faf2dc, #241d10); color: light-dark(#8a6400, #e4b25a); }
 .act-chip.l { background: light-dark(#e6f4ec, #10231c); color: var(--stage-merged); }
@@ -221,7 +221,7 @@ svg.mini rect { fill: var(--ink-faint); } svg.mini rect.hot { fill: var(--mark-b
 .act-live .resfull { grid-column: 1 / -1; border-top: 1px solid var(--line-soft); } .act-live .resfull .rc { border: 0; padding: 10px 12px; }
 
 /* the hover card for a bar */
-.act-tip { position: fixed; left: 0; top: 0; z-index: 40; width: 320px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 12px 32px rgba(0, 0, 0, .12), 0 1px 3px rgba(0, 0, 0, .05); font-size: var(--text-xs); pointer-events: none; }
+.act-tip { position: fixed; left: 0; top: 0; z-index: 40; width: 320px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-float); font-size: var(--text-xs); pointer-events: none; }
 .act-tip[hidden] { display: none; }
 .act-tip .t1 { display: flex; align-items: center; gap: 8px; } .act-tip .t1 .id { color: var(--accent); font-family: var(--code); } .act-tip .t1 .w { color: var(--ink-faint); } .act-tip .t1 .act-chip { margin-left: auto; }
 .act-tip .t2 { margin: 3px 0 8px; font-size: var(--text-sm); font-weight: 600; line-height: 1.35; }
