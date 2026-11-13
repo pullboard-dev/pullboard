@@ -98,3 +98,15 @@ test('clause 2: every known violation is listed by file and function, and the ch
   for (const owner of Object.keys(KNOWN_REQUEST_BLOCKERS)) assert.match(owner, /^[\w./-]+\.js#[\w$]+$/u, owner);
   assert.deepEqual(apiRequestIoProblems(sources), []);
 });
+
+test('#6755 clause 1: a known-violation row is keyed by the file and function of the call site itself, whatever order the tree is walked in [C7]', () => {
+  const owners = rows => rows.map(row => `${row.owner} ${row.call}`).sort();
+  const shared = { file: 'packages/git/src/io/added-shared.js', source: "import { spawnSync } from 'node:child_process';\nexport function sharedGit() { return spawnSync('git'); }\n" };
+  const callers = ['a', 'b'].map(name => ({ file: `packages/api/src/io/added-${name}.js`, source: `import { sharedGit } from '../../../git/src/io/added-shared.js';\nexport function ${name}Handler() { return sharedGit(); }\n` }));
+  const injected = [...sources, shared, ...callers];
+  const forward = apiRequestIoProblems(injected, { known: {} });
+  assert.deepEqual(owners(apiRequestIoProblems([...injected].reverse(), { known: {} })), owners(forward), 'walk order changes no row');
+  const rows = forward.filter(row => row.file === shared.file);
+  assert.deepEqual(rows.map(row => row.owner), ['packages/git/src/io/added-shared.js#sharedGit'], 'the row names the call site, not the caller that reached it first');
+  for (const row of forward) assert.equal(row.owner, `${row.file}#${row.chain.at(-1).split('#')[1]}`, 'owner is the call site');
+});
