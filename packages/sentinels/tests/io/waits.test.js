@@ -77,10 +77,10 @@ function machine(t) {
 function resourceDatabase(file, holders, waiters) {
   const db = new DatabaseSync(file);
   db.exec(`CREATE TABLE holder (token TEXT PRIMARY KEY, name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT DEFAULT '', kind TEXT DEFAULT '');
-    CREATE TABLE waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT, name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT DEFAULT '', kind TEXT DEFAULT '');
+    CREATE TABLE waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT, name TEXT, pid INTEGER, agent TEXT, since TEXT, item TEXT DEFAULT '', kind TEXT DEFAULT '', runner_wait_reasons TEXT DEFAULT '[]');
     CREATE TABLE runner_unavailable (host TEXT PRIMARY KEY, since TEXT, detail TEXT DEFAULT '')`);
   for (const [index, row] of holders.entries()) db.prepare('INSERT INTO holder (token, name, pid, agent, since) VALUES (?, ?, ?, ?, ?)').run(`h${index}`, row.name, row.pid, row.agent, row.since);
-  for (const [index, row] of waiters.entries()) db.prepare('INSERT INTO waiter (token, name, pid, agent, since) VALUES (?, ?, ?, ?, ?)').run(`w${index}`, row.name, row.pid, row.agent, row.since);
+  for (const [index, row] of waiters.entries()) db.prepare('INSERT INTO waiter (token, name, pid, agent, since, runner_wait_reasons) VALUES (?, ?, ?, ?, ?, ?)').run(`w${index}`, row.name, row.pid, row.agent, row.since, row.reasons ?? '[]');
   db.close();
 }
 
@@ -111,6 +111,21 @@ test('a checkout lease held past budget while commands wait is filed once, then 
   const dead = await recordWaits(await m.snapshot(), m.ports({ prunePools: scope => pruned.push(scope) }));
   assert.deepEqual(pruned, ['repo'], 'a gone holder is reclaimed through the queue\'s own prune');
   assert.ok(dead.reclaimed.some(line => /pruned/u.test(line)));
+});
+
+test('a gate waiter queued behind busy runners is a queue wait, not a pool hold, and an unexplained one still is [C7,#6857]', async t => {
+  const m = machine(t);
+  const waiter = m.sleeper(), stuck = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  const busy = JSON.stringify([{ host: 'a', reason: 'busy' }, { host: 'b', reason: 'busy' }]);
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: waiter.pid, agent: 'view-1', since: ago(5), reasons: busy }]);
+  assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a gate waiter behind busy runners files nothing');
+  rmSync(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'));
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: stuck.pid, agent: 'view-2', since: ago(5), reasons: JSON.stringify([{ host: 'a', reason: 'available' }]) }]);
+  const row = (await m.snapshot()).rows.find(entry => entry.surface === 'pool');
+  assert.equal(row.breach, true, 'a gate waiter with a free runner and no holder is still over budget');
 });
 
 test('a board writer holding past ten seconds is a breach and a dead writer marker is removed [C7]', async t => {
