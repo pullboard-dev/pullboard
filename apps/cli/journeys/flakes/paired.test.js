@@ -129,7 +129,7 @@ test('the actual check command retains its red and records one pair [C7,V2,H16]'
 
 for (const linkedTemp of [false, true]) test(linkedTemp
   ? 'a private verification accepts on one green check run through a symlinked temporary root [C7,V4,H16]'
-  : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', async t => {
+  : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   if (linkedTemp) {
     const alias = join(box.scratch, 'temporary-alias');
@@ -157,7 +157,7 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   assert.equal((await box.call('flakes')).document.flakes.length, 0, 'a verdict records no flake observation');
 });
 
-test('a frozen private check that changes its source records no pair, and verify accepts on one run [C7,V4,H16]', async t => {
+test('a frozen private check that changes its source records no pair, and verify accepts on one run [C7,V4,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   const id = checkedItem(box);
   const builder = privateBuilder(box);
