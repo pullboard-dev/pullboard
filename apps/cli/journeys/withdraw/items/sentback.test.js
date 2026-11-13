@@ -23,8 +23,8 @@ test('a sent-back reason reads once [N26]', { timeout: 90_000 }, async () => {
 
   const box = machine();
   const alpha = project(box, 'sent-back-reason');
-  for (const title of ['Duplicate reason', 'Plain note']) {
-    await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'the sent-back note reads clearly');
+  for (const [index, title] of ['Duplicate reason', 'Plain note'].entries()) {
+    await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'the sent-back note reads clearly', ...(index ? ['--not-duplicate-of', '1 a distinct fixture row'] : []));
   }
   const notes = [
     'BEHAVIOR_MISMATCH a78c361: selected-lane exception is unclear',

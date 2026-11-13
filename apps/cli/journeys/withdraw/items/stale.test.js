@@ -14,7 +14,7 @@ import { itemRow } from '../../../tests/fixtures/cockpit/harness.js';
 
 test('a stale verdict shows a stale chip [N26,V4]', async () => {
   const box = machine(), alpha = project(box, 'alpha');
-  for (const title of ['Stale', 'Fresh', 'Landed', 'Legacy', 'Open']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const [index, title] of ['Stale', 'Fresh', 'Landed', 'Legacy', 'Open'].entries()) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders', ...(index ? ['--not-duplicate-of', '1 a distinct fixture row'] : []));
   for (const id of [1, 2, 3, 4]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); }
   box.git(alpha.repo, 'merge', '-q', '--ff-only', alpha.itemBranches.get(`${alpha.baseBranch}:3`));
   await box.inProcess(alpha.repo, 'merged', '3', box.git(alpha.repo, 'rev-parse', 'HEAD'));

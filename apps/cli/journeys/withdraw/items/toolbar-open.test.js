@@ -29,7 +29,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
   await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   // Beta's first row is #3, while its #1 and #2 share ids with alpha's first row and pick.
   const beta = project(box, 'beta');
-  for (const title of ['Beta one', 'Beta two', 'Beta three']) await box.inProcess(beta.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const [index, title] of ['Beta one', 'Beta two', 'Beta three'].entries()) await box.inProcess(beta.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders', ...(index ? ['--not-duplicate-of', '1 a distinct fixture row'] : []));
   const empty = project(box, 'empty');
   const done = project(box, 'done');
   await box.inProcess(done.repo, 'add', 'web', 'Shipped page', '--specs', 'G1', '--criterion', 'renders');

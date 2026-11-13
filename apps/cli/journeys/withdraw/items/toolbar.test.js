@@ -33,7 +33,7 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   build(box, p, 2, 'farewell.html');
   accept(box, p, 2);
   // Item 39 exists, so an escaped apostrophe (&#39;) read as an id would turn into a link.
-  for (let id = 3; id <= 39; id += 1) await box.inProcess(p.repo, 'add', 'web', `Filler ${id}`, '--specs', 'G1', '--criterion', 'fills');
+  for (let id = 3; id <= 39; id += 1) await box.inProcess(p.repo, 'add', 'web', `Filler ${id}`, '--specs', 'G1', '--criterion', 'fills', '--not-duplicate-of', '1 a distinct fixture row');
   await box.inProcess(p.repo, 'add', 'web', 'Retired widget', '--specs', 'G1', '--criterion', 'retires');
   await box.inProcess(p.repo, 'withdraw', '40', 'nobody needs the widget');
   await box.inProcess(p.web, 'shout', 'all', "#1 is next; #2 shipped (#99 is not an item) and it's done");

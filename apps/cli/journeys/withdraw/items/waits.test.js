@@ -15,7 +15,9 @@ test('each row says what it waits on [N26]', async () => {
   const box = machine();
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
   const alpha = project(box, 'alpha', SPEC, { lanes });
-  const add = async (lane, title, ...more) => box.inProcess(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
+  let filed = 0;
+  // Fixture rows read alike, so every item after the first says why it differs from #1.
+  const add = async (lane, title, ...more) => box.inProcess(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...(filed++ ? ['--not-duplicate-of', '1 a distinct fixture row'] : []), ...more);
   await add('web', 'Free');
   await add('web', 'Base');
   await add('web', 'Depends', '--after', '2');
