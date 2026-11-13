@@ -61,14 +61,14 @@ function landingItems(items) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ items: { id: number, commit: string, ref?: string }[], expect: string, config: { trunk?: { remote?: string }, landing?: { trunkRemote?: string } },
- *   mode?: string, trunk?: string, check?: string[] | null, needs?: string[], checkout?: boolean, forced?: string | null, badges?: { path: string, text: string }[], now?: number }} request - badges: the
+ *   flakes?: { rerun: boolean, prefixes?: { check?: string | null, proof?: string | null } } | null, mode?: string, trunk?: string, check?: string[] | null, needs?: string[], checkout?: boolean, forced?: string | null, badges?: { path: string, text: string }[], now?: number }} request - badges: the
  *   badge documents the board computed, which the runner writes into the landing merge (it has no board) [C7]; checkout: the
  *   remote is the board host's own checkout with trunk checked out, so the push updates its work tree too [P7]; forced: the
  *   reason a forced landing names, carried on the job and its key, and its job runs no check; mode is no longer read, since landing
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, forced = null, badges = [], deferred = null, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, forced = null, badges = [], deferred = null, flakes = null, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -77,6 +77,9 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   if (check !== null && (!Array.isArray(check) || check.length === 0 || check.some(part => typeof part !== 'string'))) throw new Refused('LANDING_CHECK', 'a landing check is a command as a list of strings, like ["npm", "run", "gate"]');
   if (forced !== null && (typeof forced !== 'string' || !forced.trim())) throw new Refused('FORCED_REASON', 'a forced landing names why it went around the gate: --forced "<why>"');
   if (!Array.isArray(badges) || badges.some(entry => typeof entry?.path !== 'string' || typeof entry?.text !== 'string' || /^\/|\.\./u.test(entry.path))) throw new Refused('LANDING_BADGES', 'landing badges are { path, text } documents inside the repo, as the view\'s badgeDocuments returns them');
+  if (flakes !== null && (typeof flakes?.rerun !== 'boolean' || ['check', 'proof'].some(role => flakes.prefixes?.[role] != null && typeof flakes.prefixes[role] !== 'string'))) {
+    throw new Refused('LANDING_FLAKES', 'a landing job\'s flakes are { rerun, prefixes: { check, proof } }: whether a red pairs its failing cases, and the runner prefix of each command');
+  }
   const landed = landingItems(items);
   const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
@@ -90,7 +93,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const separate = config?.landing?.publish === 'separate';
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
     payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(waivers.length ? { waivers } : {}),
-      ...(separate ? { publish: 'separate' } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
+      ...(separate ? { publish: 'separate' } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
 
 /**

@@ -50,7 +50,7 @@
 .milestone-item .item-stage[data-stage="blocked"] .stage-word { background: var(--stage-blocked-soft); color: var(--stage-blocked-ink); }
 .milestone-item .stage-marks { grid-column: 4; grid-row: 1; display: inline-flex; gap: var(--space-1); }
 .milestone-item .stage-mark { display: inline-flex; align-items: center; gap: 3px; font: 600 var(--text-2xs)/18px var(--sans); padding: 0 6px; border-radius: var(--radius-chip); background: var(--mark-back-soft); color: var(--mark-back); white-space: nowrap; }
-.milestone-item .stage-mark.gate { background: none; outline: 0; border: 1px dashed var(--line-strong); line-height: 16px; color: var(--ink-muted); }
+.milestone-item .stage-mark.gate { background: none; outline: 0; border: var(--border-dashed-strong); line-height: 16px; color: var(--ink-muted); }
 .milestone-item .stage-mark.gate::before { content: ''; width: 11px; height: 11px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 4v8M10 4v8'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 4v8M10 4v8'/%3E%3C/svg%3E") center / contain no-repeat; }
 /* Blocked-by #n is plain context text beside the chip, never a boxed pill; a long path in a title stays on the row and ends in an ellipsis. */
 .milestone-item .roadmap-after { gap: var(--space-1); padding: 0; border: 0; background: none; }
@@ -58,9 +58,9 @@
 .milestone-item .roadmap-stage-chip { grid-column: 5; font-family: var(--sans); letter-spacing: normal; }
 @media (max-width: 760px) { .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) 86px; } .milestone-item .stage-marks { display: none; } .milestone-item .stage-word, .milestone-item .roadmap-stage-chip { grid-column: 4; } }
 /* A release's landed items come one page of 50 at a time, with a quiet one-line page control (#6841). */
-.roadmap-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line-soft); color: var(--ink-muted); font: var(--text-xs) var(--mono); white-space: nowrap; }
+.roadmap-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-top: var(--border-row); color: var(--ink-muted); font: var(--text-xs) var(--mono); white-space: nowrap; }
 .roadmap-pager .roadmap-page-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.roadmap-page-step { padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--surface); color: var(--ink); font: 500 var(--text-xs)/22px var(--sans); cursor: pointer; }
+.roadmap-page-step { padding: 0 var(--space-3); border: var(--border); border-radius: var(--radius-xs); background: var(--surface); color: var(--ink); font: 500 var(--text-xs)/22px var(--sans); cursor: pointer; }
 .roadmap-page-step:disabled { color: var(--ink-faint); cursor: default; }
 /* The release header reads title, rate line, full-width bar, one legend line; its note is plain text, never a tinted bar. */
 .roadmap-has-summary .roadmap-forecast { margin-bottom: var(--space-4); font-size: var(--text-sm); }

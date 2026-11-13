@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/view */
 /** @pullboard-world-pin reads serve.js source to prove the address pattern that serves /<board>/pipeline; the page itself needs a browser. */
 /** The Insights Pipeline page: its sections in the approved order, and every number read from the board's items and events [N26,#6869]. */
 import assert from 'node:assert/strict';

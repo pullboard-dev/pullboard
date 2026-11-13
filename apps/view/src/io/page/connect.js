@@ -35,6 +35,24 @@ export function pageScriptPart2(scope) {
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
+/**
+ * The page's one runtime stylesheet: geometry that only the running page can measure (a windowing spacer, a menu's
+ * position, a scroll margin). An element names its rule with data-geo="key" and the rule is written here, so no element
+ * carries an inline style; the sheet is built through the style API, which the page's policy allows. Declarations are
+ * { 'css-property': 'value' }; a key given null or no declarations drops its rule.
+ */
+const geometryRules = new Map();
+let geometrySheet = null;
+function geometry(key, declarations) {
+  if (declarations && Object.keys(declarations).length) {
+    const rule = '[data-geo="' + key + '"]{' + Object.entries(declarations).map(([property, value]) => property + ':' + value).join(';') + '}';
+    if (geometryRules.get(key) === rule) return;
+    geometryRules.set(key, rule);
+  } else if (!geometryRules.delete(key)) return;
+  if (typeof CSSStyleSheet !== 'function' || !('adoptedStyleSheets' in document)) return;
+  if (!geometrySheet) { geometrySheet = new CSSStyleSheet(); document.adoptedStyleSheets = [...document.adoptedStyleSheets, geometrySheet]; }
+  geometrySheet.replaceSync([...geometryRules.values()].join(''));
+}
 const sharedRowHtml = (${sharedRowHtml.toString()});
 const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});

@@ -19,6 +19,7 @@ import { serveLocalRunner } from '../../../../../../packages/drive/index.js';
 import { pullGit } from '../git.js';
 import { Refused } from '../../../../../../packages/kernel/index.js';
 import { runLandingJob } from '../../../../../../packages/landing/index.js';
+import { diagnoseLandingRed } from '../../commands/flakes.js';
 import { loopbackBoardApi } from '../../commands/serve.js';
 import { BOARD_HOST } from '../local.js';
 import { localRunnerFolder } from '../local.js';
@@ -31,7 +32,7 @@ const STOP_WAIT_MS = 30_000;
  * Why a static import: this process outlives the checkout that started it, which may be an item folder removed later.
  */
 function land(claim, { cache, renew, env }) {
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env });
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed });
 }
 
 /** Run the local runner until SIGINT or SIGTERM; exit 0 at once when another already runs on this machine. */
