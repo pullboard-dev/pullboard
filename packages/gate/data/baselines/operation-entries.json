@@ -81,6 +81,26 @@
     "packages/sandbox/src/io/verify.js",
     "packages/sync/src/io/main.js"
   ],
+  "create-worktree": [
+    "apps/cli/src/io/commands/shadow-batch.js",
+    "apps/cli/src/io/commands/submit.js",
+    "apps/cli/src/io/commands/worktree.js",
+    "apps/cli/src/io/gate/pool.js",
+    "apps/cli/src/io/item/folder.js",
+    "apps/cli/src/io/item/folder/scripts/spare.js",
+    "apps/cli/src/io/landing/budget.js",
+    "apps/runner/src/io/worker/handoff.js",
+    "packages/drive/src/io/pull.js",
+    "packages/gate/src/io/main/audit/worker.js",
+    "packages/github/src/io/pr/publish.js",
+    "packages/github/src/io/publish.js",
+    "packages/items/src/io/patch/submit.js",
+    "packages/landing/src/io/smoke.js",
+    "packages/landing/src/io/step/batch.js",
+    "packages/landing/src/io/step/gate.js",
+    "packages/merge/src/io/compose.js",
+    "packages/rigor/src/io/proof.js"
+  ],
   "stop-process-tree": [
     "apps/cli/src/io/scale.js",
     "apps/cli/src/io/submit/handoff/worker.js",
@@ -94,5 +114,11 @@
     "packages/runners/src/io/run.js",
     "packages/sandbox/src/io/captured.js",
     "packages/seats/src/io/agent/hook.js"
-  ]
+  ],
+  "forwards": {
+    "run-tests": [
+      "apps/cli/src/io/run/tests.js",
+      "packages/gate/bin/run-tests.js"
+    ]
+  }
 }
