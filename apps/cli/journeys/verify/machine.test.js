@@ -485,12 +485,9 @@ test('clause 1: every refusal code that submit and release raise is declared on 
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
-  for (const code of Object.keys(NOT_MOVES)) {
-    const moveRaises = ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code)));
-    const setupRaises = [...NON_MOVE_ENTRY_POINTS, ...RUNNER_ENTRY_FILES.flatMap((file) => walk.functions(file).map((name) => `${file}#${name}`))]
-      .some((entry) => walk.refusalsOf(entry).has(code));
-    assert.ok(moveRaises || setupRaises, `${code} is listed as not a move because a move or setup code path raises it`);
-  }
+  const setupEntries = [...NON_MOVE_ENTRY_POINTS, ...RUNNER_ENTRY_FILES.flatMap((file) => walk.functions(file).map((name) => `${file}#${name}`))];
+  const unraised = Object.keys(NOT_MOVES).filter((code) => !ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))) && !setupEntries.some((entry) => walk.refusalsOf(entry).has(code)));
+  assert.deepEqual(unraised, [], 'every code listed as not a move is raised by a move or setup code path');
 });
 
 test('clause 1: submit refusals are declared or classified as setup [M1]', () => {
