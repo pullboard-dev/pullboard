@@ -1,9 +1,9 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/sandbox/index.js */
-import { flakyProject } from '../../tests/fixtures/flakes/project.js';
-import { TITLE } from '../../tests/fixtures/flakes/project.js';
-import { targetRuns } from '../../tests/fixtures/flakes/project.js';
-import { assertReceipts } from '../../tests/fixtures/flakes/project.js';
+import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { TITLE } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
 import * as nativeBoard from '../../../lib/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 import { selectAffectedTests } from '../../../../packages/gate/index.js';

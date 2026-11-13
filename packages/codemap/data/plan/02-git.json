@@ -23,6 +23,7 @@
   ["src/git-child-selectors.js","packages/git/src/logic/selectors.js","imports"],
   ["src/git-landing-batches.js","packages/git/src/logic/batches.js","imports"],
   ["src/git-trunk-ref.js","packages/git/src/io/trunk/ref.js","imports"],
+  ["test/flakes-fixture.js","packages/git/tests/fixtures/flakes.js","rule"],
   ["test/flakes-fixture.test.js","packages/git/tests/flakes.test.js","rule"]
  ],
  "reexports": ["packages/git/index.js","packages/git/index.js"],

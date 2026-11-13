@@ -3,10 +3,10 @@ import { mergeOnlyLandingProblem } from '../../../../merge/light.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
-} from '../../../../git/index.js';
+} from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/light.js';
-import { trunkRevisionReader } from '../../../../git/index.js';
-import { gitSpawnSync } from '../../../../git/index.js';
+import { trunkRevisionReader } from '../../../../git/light.js';
+import { gitSpawnSync } from '../../../../git/light.js';
 
 /** A freshness failure that carries its own reason text, so each cause names the step the person takes [C7]. */
 class FreshnessFailure extends Error {
