@@ -1173,7 +1173,7 @@ async function tabBar(chrome) {
       await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(on)}))`);
       layouts.push(await chrome.stable(`(() => {
         const bar = document.querySelector('#tabs');
-        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].map(tab => {
+        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].filter(tab => tab.getClientRects().length).map(tab => {
           const range = document.createRange(); range.selectNodeContents(tab.firstChild);
           const box = tab.getBoundingClientRect(), label = range.getBoundingClientRect();
           return { tab: tab.dataset.tab, top: box.top, bottom: box.bottom, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
