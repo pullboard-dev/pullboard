@@ -105,7 +105,8 @@ test('pullboard test names why it ran on this machine, and every installed hook 
   for (const hook of ['commit-msg', 'pre-commit', 'pre-merge-commit', 'pre-push']) {
     assert.match(readFileSync(join(box.repo, '.githooks', hook), 'utf8'), /pullboard test <test files>/u, `${hook} names pullboard test`);
   }
-  assert.match(readFileSync(join(box.repo, 'AGENTS.md'), 'utf8'), /pullboard test <test files>/u, 'the agent guidance names it too');
+  // The approved agents block (10 Nov) hands test running to Pullboard rather than naming the command.
+  assert.match(readFileSync(join(box.repo, 'AGENTS.md'), 'utf8'), /\*\*Gate:\*\* Pullboard runs it; never run whole suites/u, 'the agent guidance leaves test running to Pullboard');
 });
 
 test('a runner-bound test run passes a local memory hold [C7]', async () => {
