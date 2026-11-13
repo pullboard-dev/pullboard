@@ -19,9 +19,11 @@ import {
 import { randomUUID } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 // Use the public browser-safe door to keep the thin resident client from loading the full kernel.
-import { Refused } from '../../../../../../packages/kernel/browser.js';
-import { CONFIG_FILE } from '../../../../../../packages/config/browser.js';
-import { isConfigFile } from '../../../../../../packages/config/browser.js';
+import {
+  CONFIG_FILE,
+  isConfigFile,
+  Refused,
+} from '../../../../../../packages/kernel/browser.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
