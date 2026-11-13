@@ -167,7 +167,8 @@ test('claimed companion submits the real core command and records exact composed
     { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit, binding.commit,
     'submit and verifier share the actual deterministic composition');
   assert.deepEqual(binding.phases.map(phase => phase.role), ['criterion', 'proof']);
-  const options = { ...detail, agentId: f.builder.id };
+  // The pulled gate hands the board its plan beside the event; replay it as the board host does [P7].
+  const options = { ...detail, agentId: f.builder.id, pulledPlan: { phases: binding.phases, proofFiles: detail.submissionProof.files } };
   assert.equal(sealItemPatchSubmit(f.board, f.id, options), options);
   for (const index of [0, 1]) {
     const incomplete = { ...binding, receiptIds: [binding.receiptIds[index]], phases: [binding.phases[index]] };
@@ -281,19 +282,14 @@ test('unproved or changed companion binding cannot be sealed as original-head su
 test('coordinator removal during the actual gate prevents sealing its superseded companion proof [C7,V4,H16]', async t => {
   const f = await fixture(t, { hold: true });
   await attach(f);
-  const previous = f.box.env.CODEX_THREAD_ID;
-  f.box.env.CODEX_THREAD_ID = f.builder.session;
-  let child;
-  try { child = f.helpers.launch(f.box, f.builder.root, process.execPath,
-    [fileURLToPath(new URL('../../../pullboard.js', import.meta.url)), 'submit', String(f.id), '--no-next', '--json']); }
-  finally { if (previous === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = previous; }
+  // The pulled gate runs the held frozen check on a runner; the submit returns queued at once.
+  const queued = document(await run(f.box, f.builder, 'submit', String(f.id)));
   try {
-    await f.helpers.waitFor(() => existsSync(f.entered), 'the actual frozen companion check', 60000); // budget: failure hang ceiling for admitted child startup; no elapsed-time assertion.
+    await f.helpers.waitFor(() => existsSync(f.entered), 'the actual frozen companion check', 60000); // budget: failure hang ceiling for runner startup; no elapsed-time assertion.
     document(await run(f.box, f.coordinator, 'patch', 'remove', String(f.id), 'approved-view'));
   } finally { writeFileSync(f.release, 'released'); }
-  const completed = await child.closed;
-  assert.equal(completed.code, 1, child.stdoutText + child.stderrText);
-  assert.match(child.stdoutText + child.stderrText, /ITEM_PATCH_CHANGED/u);
+  const settled = await settleSubmit(t, f.box, queued);
+  assert.match(JSON.stringify(store.itemThread(f.board, f.id)) + JSON.stringify(settled.gate ?? ''), /ITEM_PATCH_CHANGED/u);
   assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
   assert.equal(store.events(f.board).filter(event => event.item_id === f.id && event.event_kind === 'submit').length, 0);
   assert.ok(store.proofReceipts(f.board, f.id).some(receipt => receipt.exitCode === 0),
@@ -308,7 +304,7 @@ test('companion phases preserve zero, criterion-only deferred and blank-check pr
     await settleSubmit(t, f.box, document(await run(f.box, f.builder, 'submit', String(f.id))));
     const detail = JSON.parse(store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1).event_detail);
     assert.deepEqual(detail.companion.phases.map(phase => phase.role), mode.deferred && mode.check === '' ? [] : [mode.deferred ? 'criterion' : 'proof']);
-    const options = { ...detail, agentId: f.builder.id };
+    const options = { ...detail, agentId: f.builder.id, pulledPlan: { phases: detail.companion.phases, proofFiles: detail.submissionProof.files } };
     assert.equal(sealItemPatchSubmit(f.board, f.id, options), options);
   }
 });
