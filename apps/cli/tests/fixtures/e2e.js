@@ -62,6 +62,18 @@ const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'shi
 const SETTLE_MS = 180_000;
 
 /**
+ * Whether the fixture machine pins gate.runnerDispatch to controller; an absent or unreadable settings file is the pull default.
+ * Why: only a pull gate is a job the loopback local runner settles, so only pull has a queue worth waiting for.
+ *
+ * @param {object} env - The fixture environment.
+ * @returns {boolean}
+ */
+function controllerDispatch(env) {
+  try { return JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gate?.runnerDispatch === 'controller'; }
+  catch { return false; /* No settings file: the product default, pull. */ }
+}
+
+/**
  * Wait until the fixture board's runner job queue holds no unfinished job, so a journey reads a settled gate or landing.
  * Why: under pull dispatch a submit offers its gate as a job the loopback local runner takes and returns at once; the
  * journeys assert what the gate decided, so the fixture command returns once the queue is done [P7,#5821].
@@ -72,8 +84,9 @@ const SETTLE_MS = 180_000;
  */
 export function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job and must not hold the command; a journey serving its own runner returns at once (#6660).
-  // Every submit offers its gate as a job whatever gate.runnerDispatch says (#6832), so a controller pin settles here too.
-  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
+  // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
+  // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
+  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || controllerDispatch(env) || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
   if (common.status !== 0) return;
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
@@ -84,30 +97,11 @@ export function settlePulledJobs(cwd, args, env) {
     // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
-      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()) || unapplied(db); } finally { db.close(); }
+      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
     if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
-}
-
-/** Budget: how long after a gate job turns done its receipt may still be applying to the item. */
-const APPLY_GRACE_MS = 5_000;
-
-/**
- * Whether a gate job turned done in the last APPLY_GRACE_MS while its item is still claimed with no event since.
- * Why: the board records the receipt (the job is done) and then applies it to the item in a second write, so a reader
- * between the two saw the job done and the item still claimed (NOT_SUBMITTED on the next verify) [P7,#6832].
- *
- * @param {import('node:sqlite').DatabaseSync} db
- * @returns {boolean}
- */
-function unapplied(db) {
-  const since = Date.now() - APPLY_GRACE_MS;
-  return Boolean(db.prepare(`SELECT 1 FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'receipt'
-    JOIN item ON item.item_id = job.job_item WHERE job.job_kind = 'gate' AND job.job_step = 'done' AND step.job_step_at >= ?
-    AND item.item_status = 'claimed' AND NOT EXISTS (SELECT 1 FROM event WHERE event.item_id = job.job_item
-    AND event.event_at >= strftime('%Y-%m-%dT%H:%M:%fZ', step.job_step_at / 1000.0, 'unixepoch')) LIMIT 1`).get(since));
 }
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
