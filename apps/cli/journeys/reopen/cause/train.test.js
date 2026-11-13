@@ -21,8 +21,10 @@ test('local and inline landing trains record sibling conflict files [C7,B3]', as
     (await accept(box, second));
     // A pull machine's land returns queued; the land job's receipt is the settled landing [P7,C7].
     const landed = await settleLand(box, await json(box, box.repo, 'land'));
-    assert.deepEqual(landed.landed, [first.id], JSON.stringify(landed.landJob));
-    const record = latest(box, second.id);
+    // The pulled lander picks the train order: one sibling lands and the other returns with its conflict files.
+    assert.equal(landed.landed.length, 1, JSON.stringify(landed.landJob));
+    assert.deepEqual(landed.returned.map(row => row.reason), ['conflict'], JSON.stringify(landed.landJob));
+    const record = latest(box, landed.returned[0].id);
     assert.deepEqual([...record.detail.conflict.files].sort(), [FILE, SECOND].sort());
     assertConflict(record, [FILE, SECOND]);
   }
