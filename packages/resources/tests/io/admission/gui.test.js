@@ -31,7 +31,7 @@ test('#6875 clause 2: a GUI run with no GUI runner is refused on its first poll,
   const root = fixture(t);
   await assert.rejects(
     takeResource({ ...pool(root, [{ host: 'mini-a', slots: 2, browser: 1 }, { host: 'mini-b', slots: 2, browser: 1 }]), agent: 'gui-run', onWait: async () => { throw new Error('the waiter queued instead of being refused'); } }),
-    error => error.code === 'NO_GUI_RUNNER' && /mini-a, mini-b/.test(error.message));
+    error => error.code === 'RUNNER_WAIT_DEADLINE' && /mini-a, mini-b/.test(error.message));
 });
 
 test('#6875 clause 1: a GUI run still waits in line when a GUI runner is registered but full [C7]', async t => {

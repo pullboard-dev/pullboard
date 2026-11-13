@@ -1170,7 +1170,7 @@ export async function takeResource(options) {
           }
         }
         if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) {
-          throw new Refused('NO_GUI_RUNNER', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
+          throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
         }
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
