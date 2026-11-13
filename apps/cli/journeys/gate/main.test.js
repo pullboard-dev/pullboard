@@ -270,10 +270,10 @@ async function repoWithGate(gate, check = '') {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
-  // These cases assert submit running the gate in the command; pinned to controller dispatch until #5821 lands [P7].
+  // These cases assert submit running the gate in the command; the gate runs on a pulled runner [P7].
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
   // The fixture also has no local runner: a baseline waits as pending instead of running on whatever host runs this file (#2520).
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   // The fixture's checks and gates are their own test runs, not children of this one.
   delete env.NODE_TEST_CONTEXT;
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });

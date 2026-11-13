@@ -1,6 +1,5 @@
 /** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Real gate, item-check and verifier profiles parse emitted timings [C7,V10]. */
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { copyFixtureRunner } from '../../../../packages/gate/tests/fixtures/copy.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';
@@ -142,8 +141,6 @@ async function project(box = sandbox()) {
   box.git(repo, 'init', '-q', '-b', 'main');
   assert.equal((await box.runLocal(repo, 'init')).status, 0);
   installPrivatePullboardPath(box);
-  // These cases assert the submit's gate running in the command; pinned to controller dispatch until #6249 lands [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   box.git(repo, 'add', '-A');
@@ -585,7 +582,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     const trace = join(box.dir, `${scenario.name.replaceAll(' ', '-')}.trace`);
     box.env.PROFILE_TRACE = trace;
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false, runnersOnly: false, runnerDispatch: 'controller' } }));
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false, runnersOnly: false } }));
     const checkCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js';
     // Select the same three private bodies while the copied runtime remains the unchanged production runner.
     const gateCommand = 'node apps/cli/src/io/run/tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
