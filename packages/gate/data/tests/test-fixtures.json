@@ -1047,7 +1047,10 @@
     "model": 1
   },
   "apps/cli/journeys/withdraw/items/detail.test.js": {
-    "tempdir": 3,
+    "tempdir": 1
+  },
+  "apps/cli/journeys/withdraw/items/detail-phone.test.js": {
+    "tempdir": 2,
     "model": 1
   },
   "apps/cli/journeys/withdraw/items/pipeline.test.js": {
