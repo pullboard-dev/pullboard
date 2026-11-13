@@ -1274,7 +1274,6 @@ function flipTheme() {
   keep('pb.theme', next);
   theme(next);
 }
-$('theme').addEventListener('click', flipTheme);
 $('ob-theme').addEventListener('click', flipTheme);
 // Each search has its own address; typing replaces the entry rather than adding one a keystroke.
 $('q').addEventListener('input', () => { search(); address(false); view.foundAt = 0; showFound(); });
