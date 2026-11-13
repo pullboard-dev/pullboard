@@ -117,6 +117,7 @@ async function cachedHttpStateTest(t) {
   await box.cliLocal(box.root, 'shout', 'app', 'agent inbox cursor');
   const beforeInbox = await box.call(box.path + '/state');
   const agentBeforeInbox = beforeInbox.document.state.agents.find((entry) => entry.agent_id === agent.agent);
+  // @pullboard-board-file journey: read the board file the real served state was built from.
   const boardBeforeInbox = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.inbox(boardBeforeInbox, agent.agent);
@@ -137,6 +138,7 @@ async function cachedHttpStateTest(t) {
   const active = await box.call(box.path + '/state');
   assert.equal(active.document.state.items.find((item) => item.id === itemId).status, 'claimed');
   const lastEvent = active.document.state.events[0].event_id;
+  // @pullboard-board-file journey: move the claim lease on the board file the real served state reads.
   const leaseBoard = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let leaseUntil;
   try {
@@ -181,6 +183,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   await move({ verb: 'claim', item: claimed, agent: builder.agent });
   const open = (await move({ verb: 'add', args: { lane: 'app', title: 'Open summary item', criterion: 'waits for a builder', specs: 'G1', brief: FIXTURE_BRIEF } })).item.item_id;
   await box.cliLocal(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(accepted));
+  // @pullboard-board-file journey: read the board file the real served state was built from.
   const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let leaseUntil;
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }

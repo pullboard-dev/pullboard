@@ -237,7 +237,9 @@ function paintItemsWindow() {
   }
   const above = windowed && at.start ? at.start * itemsPitch : 0, below = windowed && at.end < rows.length ? (rows.length - at.end) * itemsPitch : 0;
   chain.dataset.geo = 'items-chain';
-  geometry('items-chain', above || below ? { 'padding-top': above + 'px', 'padding-bottom': below + 'px' } : null);
+  // Important: '.list-card > .chain { padding: 0 }' is more specific than the geometry rule, and without these paddings the page is only as
+  // tall as the drawn rows, so a scroll to a far row is clamped, moves the window and never settles (#7487).
+  geometry('items-chain', above || below ? { 'padding-top': above + 'px !important', 'padding-bottom': below + 'px !important' } : null);
 }
 
 // The parts that scroll on their own: each keeps its place through any draw (#6613).

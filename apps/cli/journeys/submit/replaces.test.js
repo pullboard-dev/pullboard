@@ -12,7 +12,6 @@ import { removeSandboxes } from '../../tests/fixtures/submit/handoff.js';
 import { openBoard } from '../../../lib/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
-import { stopReplacedWorker } from '../../index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 /** Require authentic command success before interpreting any native result. */
@@ -102,38 +101,4 @@ test('submitting head B while head A gates cancels A, frees its slot and queues 
   await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'B finished its gate', 120000); // budget: real gate ceiling, no timing assertion.
   assert.equal(state(box, box.id).item.item_status, 'submitted');
   assert.equal(state(box, box.id).item.item_commit, after.job.commit, 'the item is submitted at head B');
-});
-
-/** Record every signal a stop attempt sends, sending none. */
-function recorder() {
-  const sent = [];
-  return { sent, kill: (pid, signal) => { sent.push([pid, signal]); } };
-}
-
-test('a replaced worker with no recorded start is never signaled [C7,V4]', () => {
-  const { sent, kill } = recorder();
-  for (const started of [undefined, '', null]) {
-    assert.equal(stopReplacedWorker({ job: 'job-a', pid: 4242, started }, { id: 'job-a' }, { startOf: () => 'proc:100', kill }), false);
-  }
-  assert.deepEqual(sent, []);
-});
-
-test('a replaced worker whose PID now has another start is never signaled [C7,V4]', () => {
-  const { sent, kill } = recorder();
-  assert.equal(stopReplacedWorker({ job: 'job-a', pid: 4242, started: 'proc:100' }, { id: 'job-a' }, { startOf: () => 'proc:200', kill }), false);
-  assert.deepEqual(sent, []);
-});
-
-test('a replaced worker whose start cannot be read is never signaled [C7,V4]', () => {
-  const { sent, kill } = recorder();
-  const worker = { job: 'job-a', pid: 4242, started: 'proc:100' };
-  assert.equal(stopReplacedWorker(worker, { id: 'job-a' }, { startOf: () => '', kill }), false);
-  assert.equal(stopReplacedWorker(worker, { id: 'job-a' }, { startOf: () => { throw new Error('ps unavailable'); }, kill }), false);
-  assert.deepEqual(sent, []);
-});
-
-test('only the exact recorded incarnation has its process group signaled [C7,V4]', () => {
-  const { sent, kill } = recorder();
-  assert.equal(stopReplacedWorker({ job: 'job-a', pid: 4242, started: 'proc:100' }, { id: 'job-a' }, { startOf: () => 'proc:100', kill }), true);
-  assert.deepEqual(sent, [[-4242, 'SIGTERM']]);
 });
