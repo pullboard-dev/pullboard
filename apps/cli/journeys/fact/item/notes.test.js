@@ -79,7 +79,7 @@ test('typed notes on an item reach its agents and stay off the board-wide feed [
   ].join('\n'));
   const ran = await command(box, box.web, 'run', '--agent-strong', `"${process.execPath}" "${script}"`,
     '--attempts', '1', '--items', '1');
-  assert.match(ran.out, new RegExp(`submitted #${id}`));
+  assert.match(ran.out, new RegExp(`#${id} is in the gate`));
   const pack = readFileSync(captured, 'utf8');
   for (const fact of notes) {
     assert.ok(pack.includes(fact.text), `${fact.kind} text reaches the actual run pack`);
