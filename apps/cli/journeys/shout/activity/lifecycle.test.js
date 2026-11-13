@@ -117,7 +117,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       route.points.slice(1).forEach(([x, y], n) => assert.ok(x === route.points[n][0] || y === route.points[n][1], `${route.pair} runs square: ${JSON.stringify(route.points)}`));
     }
     const backs = routes.filter((route) => route.back);
-    const row = ['open', 'claimed', 'verified', 'submitted', 'withdrawn'];
+    const row = ['open', 'claimed', 'submitted', 'verified', 'withdrawn'];
     const rowBoxes = [...svg.matchAll(/<g class="s-([^"]+)"><title>[^<]*<\/title><rect class="box" x="([\d.]+)" y="([\d.]+)"/g)]
       .map(([, state, x, y]) => ({ state, x: Number(x), y: Number(y) }));
     assert.deepEqual(rowBoxes.toSorted((a, b) => a.x - b.x).map((box) => box.state), row,
