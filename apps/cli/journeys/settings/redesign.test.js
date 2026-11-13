@@ -51,7 +51,7 @@ const MEASURE = `(() => {
   };
 })()`;
 
-test('Settings shows the toggle, grouped cards, one-height rows, human units, chips and copy buttons at desktop and phone widths [O5,O6,N26]', { timeout: 180_000 }, async () => {
+test('clause 1: every copy button shows without hover; clause 2: keys and about lines end in an ellipsis and values reach the edge. Settings shows the toggle, grouped cards, one-height rows, human units, chips and copy buttons at desktop and phone widths [O5,O6,N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Settings redesign proof.');
   const box = machine();
