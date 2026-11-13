@@ -12,15 +12,24 @@ import { plainNeedWords } from "../../logic/needs/list.js";
 import { ruleListModel } from "../../logic/rules.js";
 import { selectItemsView } from "../../logic/selection.js";
 import { overlapHtml } from "../../logic/overlap.js";
+import { patchKeyedRows } from "../../logic/page/rows.js";
+import { navPages } from "../../logic/nav.js";
+import { placeQuery } from "../../logic/nav.js";
+import { readPlaceQuery } from "../../logic/nav.js";
+import { withPlaceQuery } from "../../logic/nav.js";
+import { navLayout } from "../../logic/nav.js";
+import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
   return `let drawnRoadmap = null;
+let roadmapNodes = new Map();
 const agentsPanelModel = (${agentsPanelModel.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
 const selectItemsView = (${selectItemsView.toString()});
+const patchKeyedRows = (${patchKeyedRows.toString()});
 const rowWindow = (${rowWindow.toString()});
 const overlapHtml = (${overlapHtml.toString()});
 const PLAIN_FALLBACK = (${JSON.stringify(PLAIN_FALLBACK)});
@@ -30,6 +39,13 @@ const needsPanelModel = (${needsPanelModel.toString()});
 const itemsNeedsModel = (${itemsNeedsModel.toString()});
 const itemsNeedsHtml = (${itemsNeedsHtml.toString()});
 const needsActionsHtml = (${needsActionsHtml.toString()});
+// The navigation's page list and each place's address, as declarations so every part of the page may call them [N26,N38].
+${navPages.toString()}
+${placeQuery.toString()}
+${readPlaceQuery.toString()}
+${withPlaceQuery.toString()}
+${navLayout.toString()}
+${pageControlsHtml.toString()}
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -115,6 +131,28 @@ function itemStageMarks(item, project) {
 }
 
 /**
+ * The navigation's board numbers: the notch's three (agents at work, landed per hour, rulings), the switcher's amber
+ * rulings count, and each menu page's fact. Text only, so the shell never redraws.
+ */
+function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, active = 0 } = {}) {
+  const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
+  const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
+  const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
+  text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
+  text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
+  const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
+  text(ruled, String(rulings));
+  ruled?.classList?.toggle('a', rulings > 0);
+  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the agent floor.' : 'No agent at work. Open the agent floor.');
+  text($('proj-rulings'), rulings ? String(rulings) : '');
+  // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
+  const release = nextMilestone(p);
+  const facts = { items: active || '',
+    roadmap: release && release.total > release.done ? release.total - release.done + ' to go' : '', spec: (p.spec || []).length, doctrine: (p.practice || []).length };
+  for (const [page, value] of Object.entries(facts)) document.querySelectorAll?.('[data-nav-fact="' + page + '"]').forEach((node) => text(node, value ? String(value) : ''));
+}
+
+/**
  * Draw the page's frame while the shown board's state is on its way: the tabs, the current tab marked, and the
  * current screen's cards, empty. The board list has already answered, so a machine with no board never flashes it.
  * Its two-column screens keep their detail column, so the frame does not jump when the board fills it in (#6589).
@@ -123,7 +161,8 @@ function drawFrame() {
   const group = String(view.root || '').startsWith('group:');
   document.body.classList.remove('loading', 'boardless');
   $('tabs').hidden = group;
-  document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
+  if ($('sidenav')) $('sidenav').hidden = group;
+  document.querySelectorAll('.tab, .side-row').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
   const frame = $('board-frame');
   frame.dataset.screen = group ? 'group' : view.tab;
   frame.classList.toggle('two', !group && ['items', 'shouts', 'spec', 'doctrine'].includes(view.tab));
@@ -133,6 +172,19 @@ function drawFrame() {
   $('live').textContent = '';
 }
 
+/**
+ * Draw the Roadmap by row key (#6679): a row whose markup is unchanged keeps its DOM node, and a live update replaces only
+ * the rows that changed.
+ *
+ * @param {string} html - The cards, each row an empty slot.
+ * @param {Map<string, string>} rows - Each row's markup by its slot key.
+ * @param {string|null} board - The board the Roadmap shows.
+ */
+function paintRoadmap(html, rows, board) {
+  const done = patchKeyedRows({ host: $('roadmap'), doc: document, nodes: roadmapNodes, drawn: drawnRoadmap, html, rows, scope: JSON.stringify([view.root, board]) });
+  roadmapNodes = done.nodes;
+  drawnRoadmap = done.drawn;
+}
 
 // The Items rows drawn last, and the slice of them on screen (#6676).
 let itemsList = null;
@@ -185,7 +237,6 @@ function render({ tab: switching = false } = {}) {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
     for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
-    $('status-board').innerHTML = '';
     // The tabs and the screen's empty cards stand while its board state is on its way, never a blank page (#6589).
     if (data.projects.some((entry) => entry.ok)) drawFrame();
     else $('live').textContent = 'Loading project…';
@@ -200,6 +251,7 @@ function render({ tab: switching = false } = {}) {
   document.body.classList.toggle('boardless', !p && !group);
   $('group-view').hidden = !group;
   $('tabs').hidden = Boolean(group);
+  if ($('sidenav')) $('sidenav').hidden = Boolean(group);
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = Boolean(group) || pane.dataset.pane !== view.tab; });
   $('products').hidden = !p || !p.products.length;
   renderReleaseNotes(group ? null : p);
@@ -212,6 +264,10 @@ function render({ tab: switching = false } = {}) {
   if (!p) return;
   // A tab switch to a pane drawn from this same board and view shows it as it is, with nothing drawn again.
   const draw = !(switching && store.paneFresh(view.tab, store.paneKey(view, $('q').value)));
+  // A switch to the Roadmap after an update shows it as it was last drawn at once; the patch for the update follows once
+  // that frame is on screen, so the switch never waits on the rows that changed (#6679).
+  const roadmapBehind = draw && switching && view.tab === 'roadmap' && drawnRoadmap !== null
+    && drawnRoadmap.scope === JSON.stringify([view.root, p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null]);
   $('proof-stats').hidden = view.tab !== 'items';
   if (view.tab === 'items') store.paint($('proof-stats'), proofStatsCard(p.proofStats, view.statsOpen));
   // Polling replaces this card's controls; keep the person's keyboard position through that redraw.
@@ -231,18 +287,17 @@ function render({ tab: switching = false } = {}) {
     const history = readCostHistory(p, switching);
     store.paint($('cost'), costPaneHtml(history, p));
   }
-  if (draw && view.tab === 'roadmap') {
+  if (roadmapBehind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'roadmap') render(); }, 0));
+  if (draw && !roadmapBehind && view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
   roadmapAhead.clear();
   roadmapDetails.clear();
-  const roadmap = roadmapCards(p, titles), roadmapHtml = roadmap.html;
+  const roadmapRows = new Map();
+  const roadmap = roadmapCards(p, titles, roadmapRows), roadmapHtml = roadmap.html;
   const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
-  if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {
-    $('roadmap').innerHTML = roadmapHtml;
-    drawnRoadmap = { root: view.root, board: roadmapBoard, html: roadmapHtml };
-  }
+  paintRoadmap(roadmapHtml, roadmapRows, roadmapBoard);
   restoreRoadmapArrival();
   // The mark sets its chip in bold, which widens it, and the fresh row has no mark yet. Restored first, the scroll
   // would clamp to a row narrower by that bold and leave the chips short of where they were (#452).
@@ -296,7 +351,7 @@ function render({ tab: switching = false } = {}) {
     if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
-    // With nothing for the person, the top of Items holds the one quiet Needs-you line.
+    // With nothing for the person, the top of Items holds the one quiet Rulings line.
     const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
     $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
     $('needs').tabIndex = -1;
@@ -786,10 +841,13 @@ function render({ tab: switching = false } = {}) {
       findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
     };
   });
-  store.paint(activity, activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
+  // The strip's person filter lists whoever appears in the activity, and keeps its pick even before that person shows up.
+  view.activityPeople = [...new Set([...activityRows.map(entry => entry.by).filter(Boolean), ...(view.activityBy ? [view.activityBy] : [])])].sort();
+  store.paint(activity, activityHtml({ ...activityModelData, rows: view.activityBy ? activityRows.filter(entry => entry.by === view.activityBy) : activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
   }
-  if (draw) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
+  if (draw && !roadmapBehind) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
+  drawPageControls();
   revealPlace();
   revealSegmentedChoices(document);
   updateRoadmapPanel();
