@@ -58,7 +58,7 @@ async function parkedBoard(t) {
 }
 
 test('clause 1: a move the relay permanently refuses is parked and later moves are sent and acknowledged [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
-  const { box, other, before, synced } = await parkedBoard(t);
+  const { box, other, before, big, synced } = await parkedBoard(t);
   const outbox = synced.document.relay.outbox;
   assert.equal(outbox.length, 1, 'only the refused move stays in the outbox');
   assert.equal(outbox[0].operation, 'appendFact');
