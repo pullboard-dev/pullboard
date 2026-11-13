@@ -65,7 +65,7 @@ test('coordinator removal during the actual gate prevents sealing its superseded
   try { child = f.helpers.launch(f.box, f.builder.root, process.execPath,
     [fileURLToPath(new URL('../../../../pullboard.js', import.meta.url)), 'submit', String(f.id), '--no-next', '--json']); }
   finally { if (previous === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = previous; }
-  const queued = JSON.parse((await child.closed, child.stdoutText).trim().split('\n').at(-1));
+  const queued = JSON.parse(((await child.closed), child.stdoutText).slice(child.stdoutText.indexOf('{')));
   const pid = queued.localRunner?.pid;
   if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
   reviveFixtureLocalRunner(f.box.repo, f.box.env);
@@ -90,6 +90,7 @@ test('companion phases preserve zero, criterion-only deferred and blank-check pr
     const f = await fixture(t, mode);
     await attach(f);
     await settleSubmit(t, f.box, document(await run(f.box, f.builder, 'submit', String(f.id))));
+    assert.equal(store.getItem(f.board, f.id).item_status, 'submitted', JSON.stringify(mode) + ' ' + JSON.stringify(store.itemThread(f.board, f.id).slice(-3)));
     const detail = JSON.parse(store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1).event_detail);
     assert.deepEqual(detail.companion.phases.map(phase => phase.role), mode.deferred && mode.check === '' ? [] : [mode.deferred ? 'criterion' : 'proof']);
     const options = { ...detail, agentId: f.builder.id, pulledPlan: { phases: detail.companion.phases, proofFiles: detail.submissionProof.files } };
