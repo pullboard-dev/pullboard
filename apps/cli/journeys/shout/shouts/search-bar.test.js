@@ -23,6 +23,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   searchFor,
+  chooseFilter,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
@@ -58,11 +59,11 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     const results = document.querySelector('#find-results');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-      inTop: !!document.querySelector('.top .top-find #q'), toolbar: [...document.querySelector('.toolbar').children].filter((e) => e.offsetParent !== null).map((e) => e.id || e.className),
-      field: box(document.querySelector('#q')), tabs: box(document.querySelector('#tabs')), top: box(document.querySelector('header.top')), theme: box(document.querySelector('#theme')),
-      bar: [...document.querySelectorAll('.toolbar .items-view-switch button, .toolbar #filter-toggle, .toolbar #new-item')].filter((e) => e.getClientRects().length > 0)
-        .map((e) => ({ name: e.dataset.itemsView || e.id, on: e.getAttribute('aria-pressed') === 'true', middle: Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2) })),
-      filterLabel: document.querySelector('#filter-toggle').textContent,
+      inTop: !!document.querySelector('.top .top-find #q'), stripSearch: !!document.querySelector('#page-controls #q, #page-controls input'),
+      field: box(document.querySelector('#q')), tabs: box(document.querySelector('#tabs')), tier: box(document.querySelector('.top-tier')), account: box(document.querySelector('#account')),
+      bar: [...document.querySelectorAll('#page-controls [data-page-ctl]')].filter((e) => e.getClientRects().length > 0)
+        .map((e) => ({ name: e.dataset.pageCtl + (e.dataset.value === undefined ? '' : ':' + e.dataset.value), on: e.getAttribute('aria-pressed') === 'true', middle: Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2) })),
+      state: view.state, lane: view.lane, laneValue: document.querySelector('#page-controls select[data-page-ctl=lane]')?.value ?? null,
       shoutIds: data.project.shouts.map((x) => '#' + x.shout_id), focused: document.activeElement?.id ?? null, value: document.querySelector('#q').value,
       shown: !results.hidden, groups: [...results.querySelectorAll('h4')].map((h) => [h.firstChild.textContent, h.querySelector('span').textContent]),
       hits: [...results.querySelectorAll('.find-hit')].map((hit) => ({ go: hit.dataset.find, id: hit.querySelector('code').textContent, note: hit.querySelector('small').textContent, on: hit.classList.contains('on') })),
@@ -75,11 +76,8 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
   const tap = async (selector) => {
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
   };
-  /** Select a menu choice through the browser's input path. */
-  const chooseFilter = async (kind, value) => {
-    await tap('#filter-toggle');
-    await tap(`[data-filter-choice="${kind}:${value}"]`);
-  };
+  /** The page-controls strip's parts in order: Show, Lane once a second lane exists, View, then New item [N26]. */
+  const stripNames = (lanes) => ['state:active', 'state:building', 'state:verify', 'state:all', ...(lanes ? ['lane'] : []), 'view:list', 'view:pipeline', 'new'];
   const search = (words) => searchFor(chrome, words);
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -91,18 +89,18 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
         await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
         await chrome.click("document.querySelector('[data-tab=items]')");
         const at = `${width}px ${scheme}`;
-        // The Items toolbar is one row: view toggle, Filter and New item.
+        // The Items page controls are one strip: Show, View and New item.
         const bar = (await read()).bar, names = bar.map((part) => part.name);
-        assert.deepEqual(names, ['list', 'pipeline', 'filter-toggle', 'new-item'], `${at}: view toggle, Filter and New item share the toolbar`);
-        assert.ok(bar.every((part) => Math.abs(part.middle - bar[0].middle) <= 2), `${at}: the toolbar is one row: ${JSON.stringify(bar)}`);
+        assert.deepEqual(names, stripNames(false), `${at}: Show, View and New item share the strip`);
+        assert.ok(bar.every((part) => Math.abs(part.middle - bar[0].middle) <= 2), `${at}: the strip controls are one row: ${JSON.stringify(bar)}`);
         await search('greeting');
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll`);
-        // The search is the top bar's; the Items toolbar keeps its view, filter and New item controls.
+        // The search is the top bar's; the Items strip keeps its Show, View and New item controls.
         assert.ok(r.inTop, `${at}: the search sits in the top bar`);
-        assert.deepEqual(r.toolbar, ['items-view-switch', 'filter-control', 'new-item'], `${at}: the Items toolbar has no search field`);
-        if (width === 375) assert.ok(r.field.top >= r.tabs.bottom - 1 && r.field.width >= r.page.width - 40, `${at}: on a phone the search is its own row under the tabs: ${JSON.stringify([r.field, r.tabs])}`);
-        else assert.ok(Math.abs((r.field.top + r.field.height / 2) - (r.top.top + r.top.height / 2)) <= 2 && r.field.left >= r.tabs.right && r.field.right <= r.theme.left, `${at}: the search sits in the top bar between the tabs and the theme button: ${JSON.stringify([r.tabs, r.field, r.theme, r.top])}`);
+        assert.equal(r.stripSearch, false, `${at}: the Items strip has no search field`);
+        // At every width the search sits in the top tier, centred in it, above the tabs strip and left of the account control.
+        assert.ok(Math.abs((r.field.top + r.field.height / 2) - (r.tier.top + r.tier.height / 2)) <= 2 && r.field.bottom <= r.tabs.top + 1 && r.field.right <= r.account.left + 1, `${at}: the search sits in the top tier above the tabs and left of the account control: ${JSON.stringify([r.tabs, r.field, r.account, r.tier])}`);
         // Results group by kind, five a group with how many there are, the first ready for Enter.
         assert.deepEqual(r.groups, [['Items', '5 of 7'], ['Spec', '1'], ['Doctrine', '1'], ['Shouts', '2']], `${at}: grouped, newest first, five a group`);
         assert.deepEqual([r.hits.length, r.hits.findIndex((hit) => hit.on), r.hits.slice(5).map((hit) => hit.id)], [9, 0, ['G3', 'R1', ...r.shoutIds]], `${at}: every group's results, the first highlighted`);
@@ -142,7 +140,7 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     await key('Enter', 'Enter', 13, '\r');
     await chrome.waitFor(`view.tab === 'items' && view.item === ${Number(third.slice(5))} && document.querySelector('#find-results').hidden`);
 
-    // On a phone, a search that opens an item names the selected All filter, which can be changed back to Active.
+    // On a phone, a search that opens an item selects Show All, which can be changed back to Open.
     for (const scheme of ['light', 'dark']) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
@@ -151,11 +149,11 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
       await key('Enter', 'Enter', 13, '\r');
       await chrome.waitFor("view.tab === 'items' && !!view.item && document.querySelector('#find-results').hidden");
       const opened = await read();
-      assert.equal(opened.filterLabel, 'Filter: All', `375px ${scheme}: a search that opens an item names All`);
-      assert.deepEqual(opened.bar.map((part) => part.name), ['list', 'pipeline', 'filter-toggle', 'new-item'], `375px ${scheme}: the toolbar retains its controls: ${JSON.stringify(opened.bar)}`);
+      assert.deepEqual([opened.state, opened.bar.filter((part) => part.on).map((part) => part.name)], ['all', ['state:all', 'view:list']], `375px ${scheme}: a search that opens an item selects All: ${JSON.stringify(opened.bar)}`);
+      assert.deepEqual(opened.bar.map((part) => part.name), stripNames(false), `375px ${scheme}: the strip retains its controls: ${JSON.stringify(opened.bar)}`);
       assert.ok(opened.bar.every((part) => Math.abs(part.middle - opened.bar[0].middle) <= 2), `375px ${scheme}: still one row: ${JSON.stringify(opened)}`);
-      await chooseFilter('state', 'active');
-      assert.equal((await read()).filterLabel, 'Filter', `375px ${scheme}: back on Active, All is cleared`);
+      await chooseFilter(chrome, 'state:active');
+      assert.equal((await read()).state, 'active', `375px ${scheme}: back on Open, All is cleared`);
     }
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
@@ -204,44 +202,40 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     // it; with every lane shown it drops again. A coordinator item makes a second lane to pick between.
     fixtureAdd(box.run, alpha.repo, 'coordinator', 'Plan the greeting release', '--criterion', 'planned');
     await chrome.waitFor('data.project.items.length === 9', 15_000);
-    /** Pick a lane through the visible filter menu. */
-    const lane = async (name) => {
-      await press(chrome, "document.querySelector('#filter-toggle')");
-      await press(chrome, `document.querySelector('[data-filter-choice="lane:${name}"]')`);
-    };
+    /** Pick a lane in the strip's Lane select. */
+    const lane = (name) => chooseFilter(chrome, `lane:${name}`);
     for (const scheme of ['light', 'dark']) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await chrome.waitFor(`innerWidth === 1280 && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
-      await chrome.click("document.querySelector('[data-tab=items]')"); await chooseFilter('state', 'active');
+      await chrome.click("document.querySelector('[data-tab=items]')"); await chooseFilter(chrome, 'state:active');
       await lane('web');
       await chrome.waitFor("view.lane === 'web'");
-      assert.equal((await read()).filterLabel, 'Filter: web', `1280px ${scheme}: the selected lane is named by Filter`);
+      assert.equal((await read()).laneValue, 'web', `1280px ${scheme}: the selected lane shows in the Lane select`);
       await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === 375');
       const narrowed = await read();
-      assert.deepEqual(narrowed.bar.map((part) => part.name), ['list', 'pipeline', 'filter-toggle', 'new-item'], `375px ${scheme}: a picked lane keeps all toolbar controls: ${JSON.stringify(narrowed.bar)}`);
+      assert.deepEqual(narrowed.bar.map((part) => part.name), stripNames(true), `375px ${scheme}: a picked lane keeps all strip controls: ${JSON.stringify(narrowed.bar)}`);
       assert.ok(narrowed.bar.every((part) => Math.abs(part.middle - narrowed.bar[0].middle) <= 2) && narrowed.page.scroll <= narrowed.page.width, `375px ${scheme}: still one row, no sideways scroll: ${JSON.stringify(narrowed)}`);
-      // With the lane still picked, a search that opens an item makes All the selected filter too; the compact action
-      // says New and retains its accessible name.
+      // With the lane still picked, a search that opens an item makes All the selected Show too, and the lane stays.
       await search('greeting');
       await key('Enter', 'Enter', 13, '\r');
       await chrome.waitFor("view.tab === 'items' && !!view.item && view.state === 'all' && view.lane === 'web' && document.querySelector('#find-results').hidden");
       const both = await read();
-      assert.deepEqual([both.filterLabel, both.bar.map((part) => part.name)], ['Filter: All · web', ['list', 'pipeline', 'filter-toggle', 'new-item']], `375px ${scheme}: All and the picked lane both show: ${JSON.stringify([both.filterLabel, both.bar])}`);
+      assert.deepEqual([both.state, both.laneValue, both.bar.map((part) => part.name)], ['all', 'web', stripNames(true)], `375px ${scheme}: All and the picked lane both show: ${JSON.stringify([both.state, both.laneValue, both.bar])}`);
       assert.ok(both.bar.every((part) => Math.abs(part.middle - both.bar[0].middle) <= 2) && both.page.scroll <= both.page.width && both.page.body <= both.page.width, `375px ${scheme}: both filters on one row, no sideways scroll: ${JSON.stringify(both)}`);
-      assert.deepEqual(JSON.parse(await chrome.stable("JSON.stringify((() => { const go = document.querySelector('#new-item'); return [go.innerText, go.getAttribute('aria-label')]; })())")), ['New', 'New item'], `375px ${scheme}: New reads New below 900px and keeps its accessible name (#429)`);
+      assert.equal(await chrome.stable("document.querySelector('[data-page-ctl=new]').innerText"), 'New item', `375px ${scheme}: New item keeps its name below 900px`);
       // A long lane name gives way rather than the row: with the coordinator lane picked, still one row.
       await lane('coordinator');
       await chrome.waitFor("view.lane === 'coordinator'");
       const long = await read();
-      assert.deepEqual(long.bar.map((part) => part.name), ['list', 'pipeline', 'filter-toggle', 'new-item'], `375px ${scheme}: a long lane keeps every control: ${JSON.stringify(long.bar)}`);
+      assert.deepEqual(long.bar.map((part) => part.name), stripNames(true), `375px ${scheme}: a long lane keeps every control: ${JSON.stringify(long.bar)}`);
       assert.ok(long.bar.every((part) => Math.abs(part.middle - long.bar[0].middle) <= 2) && long.page.scroll <= long.page.width && long.page.body <= long.page.width, `375px ${scheme}: a long lane name gives way, not the row: ${JSON.stringify(long)}`);
-      await chooseFilter('state', 'active');
+      await chooseFilter(chrome, 'state:active');
       await lane('');
       await chrome.waitFor('view.lane === null');
-      assert.deepEqual((await read()).bar.map((part) => part.name), ['list', 'pipeline', 'filter-toggle', 'new-item'], `375px ${scheme}: every lane shown, all controls remain`);
-      assert.deepEqual(JSON.parse(await chrome.stable("JSON.stringify([document.querySelector('#new-item').innerText, document.querySelector('#new-item').getAttribute('aria-label')])")), ['New', 'New item'], `375px ${scheme}: New stays compact and named when filters clear`);
+      assert.deepEqual((await read()).bar.map((part) => part.name), stripNames(true), `375px ${scheme}: every lane shown, all controls remain`);
+      assert.equal(await chrome.stable("document.querySelector('[data-page-ctl=new]').innerText"), 'New item', `375px ${scheme}: New item stays named when filters clear`);
     }
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
