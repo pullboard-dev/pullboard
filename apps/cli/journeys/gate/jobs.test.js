@@ -134,7 +134,10 @@ test('#4070 clause 1: a lapsed gate job serving a live pre-submit hand-off, its 
     helpers.cleanup();
   });
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'held\n', 'feat(web): held candidate [G1]').status, 0);
-  assert.equal(JSON.parse((await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json')).out).queued, true);
+  // The held gate stays open until the cleanup releases it, so the fixture must not wait for the queue to settle.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json').finally(() => { delete box.env.PULLBOARD_FIXTURE_UNSETTLED; });
+  assert.equal(JSON.parse(submitted.out).queued, true);
   await helpers.waitFor(() => existsSync(started), 'the gate is running its held check', 120000); // budget: real worker start ceiling, no timing assertion.
   const handoff = handoffState(boardFile, id);
   assert.ok(['queued', 'running'].includes(handoff.state), 'the hand-off is live while its item stays claimed');
