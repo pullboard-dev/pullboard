@@ -236,7 +236,7 @@ export const READ_SCREEN = `(() => {
   return { board: seen(chain) && chain.textContent.includes(${JSON.stringify(BOARD_ITEM)}),
     approval: [...document.querySelectorAll('.phone-approval button')].some(seen),
     screen: document.documentElement.dataset.relayScreen || '', note: document.querySelector('#local-note')?.dataset.state || '',
-    words: parts.join(' | ').slice(0, 1500), dbg: JSON.stringify({ body: document.body.className, rn: document.querySelector('#relay-notice')?.outerHTML.slice(0,600), rs: document.documentElement.dataset.relayScreen, main: (document.querySelector('main')?.innerText||'').slice(0,700) }), commands: [...new Set(commands)], signIn };
+    words: parts.join(' | ').slice(0, 1500), commands: [...new Set(commands)], signIn };
 })()`;
 
 /**
@@ -329,7 +329,15 @@ export async function visit(context, { route, phone, bootstrap, localView = null
         shown = await page.poll(OPEN_BOARD, BOARD_MS + 2_000);
       }
       const seen = await page.evaluate(READ_CAPTURE);
-      return { ...seen, ms: shown ? Date.now() - started : null, exceptions: page.exceptions.length,
+      const ms = shown ? Date.now() - started : null; // the board's own clock stops here, before the notices are read
+      // Items opens on its list alone and hides the relay's notices (#6648, view/io/main.css); they stay on the
+      // Dashboard. The board is witnessed above on Items; the notices are read here, from the tab that shows them.
+      if (seen.board) {
+        await page.evaluate(`document.querySelector('.tab[data-tab="dashboard"]')?.click()`);
+        const notices = await page.poll(`document.querySelector('#relay-notice')?.getClientRects().length ? (${READ_SCREEN}).words : ''`, 1_500);
+        if (notices) seen.words = notices;
+      }
+      return { ...seen, ms, exceptions: page.exceptions.length,
         capture: visitCapture(seen, started, wantsBoard) };
     }
     // A blocker screen settles when it has stopped changing for half a second and is not still checking.
