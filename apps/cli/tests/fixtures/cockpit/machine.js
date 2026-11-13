@@ -103,6 +103,7 @@ function settleOfferedJobs(cwd, args, env) {
         }
       } finally { db.close(); }
     } catch (error) { if (/unable to open|no such table/u.test(String(error?.message))) return; open = true; }
+    if (!open || Date.now() >= deadline) return;
     // A command that offers a job without starting a runner (a verify, a land) still has one to take it.
     reviveFixtureLocalRunner(cwd, env);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
