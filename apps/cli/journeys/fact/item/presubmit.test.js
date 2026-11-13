@@ -26,6 +26,7 @@ import { ITEM_PATCH_ENGINE } from '../../../../../packages/state/light.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../../../../../packages/state/light.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 /** Require the real CLI document, retaining exact diagnostics for every fixture setup refusal. */
 function document(result) {
@@ -152,7 +153,7 @@ test('claimed companion submits the real core command and records exact composed
   assert.equal(claimed.item_owner, f.builder.id);
   const beforeHead = f.box.git(f.builder.root, 'rev-parse', 'HEAD');
   const beforeIndex = f.box.git(f.builder.root, 'write-tree');
-  const submitted = document(await run(f.box, f.builder, 'submit', String(f.id)));
+  const submitted = await settleSubmit(t, f.box, document(await run(f.box, f.builder, 'submit', String(f.id))));
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
   assert.equal(store.getItem(f.board, f.id).item_commit, f.source);
   const event = store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1);
@@ -199,7 +200,7 @@ test('an ordinary builder commit follows its unchanged companion without coordin
   f.box.git(f.builder.root, 'add', 'core/second.cjs');
   actorGit(f.box, f.builder, 'commit', '-m', 'feat(core): advance real builder head [G1]');
   const moved = f.box.git(f.builder.root, 'rev-parse', 'HEAD');
-  document(await run(f.box, f.builder, 'submit', String(f.id)));
+  await settleSubmit(t, f.box, document(await run(f.box, f.builder, 'submit', String(f.id))));
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
   assert.ok(store.proofReceipts(f.board, f.id).length > 0, 'the followed composition actually executes');
   assert.equal(store.itemPatches(f.board, f.id)[0].key, 'approved-view');
@@ -304,7 +305,7 @@ test('companion phases preserve zero, criterion-only deferred and blank-check pr
   for (const mode of [{ deferred: true }, { check: '' }, { deferred: true, check: '' }]) {
     const f = await fixture(t, mode);
     await attach(f);
-    document(await run(f.box, f.builder, 'submit', String(f.id)));
+    await settleSubmit(t, f.box, document(await run(f.box, f.builder, 'submit', String(f.id))));
     const detail = JSON.parse(store.events(f.board).filter(row => row.event_kind === 'submit' && row.item_id === f.id).at(-1).event_detail);
     assert.deepEqual(detail.companion.phases.map(phase => phase.role), mode.deferred && mode.check === '' ? [] : [mode.deferred ? 'criterion' : 'proof']);
     const options = { ...detail, agentId: f.builder.id };
