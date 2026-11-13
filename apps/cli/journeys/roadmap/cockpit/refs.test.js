@@ -74,14 +74,15 @@ async function proseReferencesAt(t, width) {
           const ref = document.querySelector(${JSON.stringify(selector)});
           const row = ref?.closest('.milestone-item');
           const style = ref && getComputedStyle(ref);
-          return { present:!!ref, title:ref?.title, border:style?.borderWidth, height:ref?.getBoundingClientRect().height,
+          return { present:!!ref, title:ref?.title, border:style?.borderWidth, display:style?.display, height:ref?.getBoundingClientRect().height,
             line:style && parseFloat(style.lineHeight), nested:!!ref?.parentElement.closest('button'),
             rowHeight:row?.getBoundingClientRect().height };
         })())`));
         assert.ok(metrics.present, `${width}: ${selector} contains its inline reference`);
         assert.equal(metrics.title, target, `${width}: the reference tooltip names the target on its own board`);
         assert.equal(metrics.border, '0px', `${width}: ${selector} has no box`);
-        assert.ok(Math.abs(metrics.height - metrics.line) < 1, `${width}: ${selector} keeps the text line height: ${JSON.stringify(metrics)}`);
+        // A block-level reference fills the text line; an inline one (a Spec or Doctrine row's span) is only the glyph box, shorter than a 1.5 leading line, and adds nothing to the line.
+        assert.ok(metrics.display === 'inline' ? metrics.height <= metrics.line + 1 : Math.abs(metrics.height - metrics.line) < 1, `${width}: ${selector} keeps the text line height: ${JSON.stringify(metrics)}`);
         assert.equal(metrics.nested, false, `${width}: ${selector} never nests buttons`);
         if (metrics.rowHeight !== undefined) assert.ok(metrics.rowHeight >= tapTarget(width), `${width}: the containing Roadmap control keeps its target`);
         if (expands) {
