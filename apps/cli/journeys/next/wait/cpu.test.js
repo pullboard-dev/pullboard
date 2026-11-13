@@ -42,7 +42,8 @@ for (const kind of ['created WAL', 'atomic replacement', 'new parent']) {
 
 test('a seat and gate event stream idle for 30 seconds below the declared CPU budget and wake on a shout [C7]', async t => {
   const box = await fixture(t);
-  const target = box.add('Work arriving while the seat sleeps', { lane: 'docs' });
+  // The work arrives with the shout: a seat now moves to another lane's open work at once, so it cannot exist while the seat idles.
+  let target;
   const actor = box.seats.actor, id = boardId(box.board);
   let notifications = 0, reads = 0, revision = 0;
   const streamWake = fileChangeWaiter([box.file, box.file + '-wal']);
@@ -70,7 +71,7 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
   try {
     const code = await main(['next', '--wait', '1'], { cwd: actor.path, clock: box.clock,
       stdout: { isTTY: false, write: text => {
-        if (outputAt === undefined && text.includes(`act on #${target}`)) outputAt = performance.now();
+        if (outputAt === undefined && target !== undefined && /(act on|available) #/u.test(text) && text.includes(`#${target}`)) outputAt = performance.now();
         output += text;
       } },
       stderr: { write: text => {
@@ -85,6 +86,7 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
           quietCounts = { reads: reads - firstIdleCounts.reads, notifications: notifications - firstIdleCounts.notifications,
             waitingReports: waitingReports - firstIdleCounts.waitingReports };
           sent = true; askedAt = performance.now();
+          target = box.add('Work arriving while the seat sleeps', { lane: 'docs' });
           shout(box.board, { from: 'coordinator', to: actor.id, text: `please build #${target} now`, lanes: ['web', 'review', 'docs'] });
           shoutFinishedAt = performance.now();
         }, 30_000);
@@ -93,14 +95,15 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
     const totalCpu = process.cpuUsage(cpuStart);
     const postCounts = { reads, notifications, waitingReports };
     assert.equal(code, 0, output);
-    assert.equal(sent, true, 'the seat reached idle and received the actual timed shout');
+    assert.equal(sent, true, 'the seat reached idle and received the actual timed shout: ' + output + stderrText);
     assert.ok(askedAt - quietAt >= 30_000); // budget: declared #2518 requires measurement across 30 seconds.
     assert.ok(quietCpu.user + quietCpu.system < 300_000, JSON.stringify({ quietCpu, totalCpu, quietCounts, postCounts })); // budget: declared #2518 caps CPU at 0.3 seconds across that quiet interval.
     const wakeDetails = JSON.stringify({ output,
       shoutMs: shoutFinishedAt - askedAt, outputMs: outputAt - askedAt,
       completionMs: returnedAt - askedAt });
     assert.ok(returnedAt - askedAt < 1_000, wakeDetails); // budget: declared #2518 requires return within one second of the shout.
-    assert.ok(output.includes(`act on #${target}`), output);
+    // The seat wakes either on the shout naming the item or on the new work itself, whichever the board change reaches first.
+    assert.ok(output.includes(`act on #${target}`) || output.includes(`available #${target}`), output);
     let received = '';
     while (!received.includes('"event_kind":"shout"')) {
       const chunk = await reader.read();

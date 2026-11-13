@@ -25,3 +25,18 @@
 .row.item-row .item-status { font-family: var(--sans); }
 .row.item-row .item-status.verified { background: color-mix(in oklab, var(--stage-merged) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-merged) 60%, var(--ink)); }
 .row.item-row.gated:has(> .row-side > .chip.gate), .row.item-row.gated:has(.meta .gate) { border-color: color-mix(in oklab, var(--stage-gated) 45%, var(--line)); }
+
+/* Items opens on its items: questions and sentinels wait in one collapsed group above them, ids whole [N26]. */
+.needs-fold { list-style: none; min-width: 0; }
+.needs-fold > details > summary { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; list-style: none; border-radius: var(--radius-lg); }
+.needs-fold > details > summary::-webkit-details-marker { display: none; }
+.needs-fold > details > summary:hover { background: var(--surface-2); }
+.needs-fold-caret { color: var(--ink-faint); line-height: 1; transition: transform .12s; }
+.needs-fold > details[open] .needs-fold-caret { transform: rotate(90deg); }
+.needs-fold-label { font: 600 var(--text-2xs) var(--mono); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); }
+.needs-fold-count { font: 600 var(--text-xs) var(--mono); color: var(--ink-muted); }
+.needs-fold-more { margin-left: auto; font-size: var(--text-xs); color: var(--ink-faint); }
+.needs-fold > details > ol, .needs-fold-questions > ol { list-style: none; padding: 0; margin: 0; }
+.needs-fold-questions { list-style: none; min-width: 0; }
+.needs-fold-questions .needs-group-head { display: none; }
+.needs-fold .needs-id { max-width: none; overflow: visible; }

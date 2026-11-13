@@ -31,6 +31,7 @@ export const JOB_SCHEMA_SQL = `
     UNIQUE (job_step_job, job_step_name, job_step_seq)
   );
   CREATE INDEX IF NOT EXISTS job_kind_item ON job (job_kind, job_item);
+  CREATE INDEX IF NOT EXISTS job_step_lease ON job (job_step, job_lease_until);
 `;
 
 /**
@@ -42,7 +43,9 @@ export const JOB_SCHEMA_SQL = `
 export function missingJobTables(db) {
   const have = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('job', 'job_step')").all();
   // The item index serves every per-item hand-off read (claim, next, list), so a board without it upgrades too [C7].
+  // The step index drives every runner claim from job, not a scan of job_step (#6716).
   return have.length < 2 || !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='job_kind_item'").get()
+    || !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='job_step_lease'").get()
     || legacyHandoffsWaiting(db);
 }
 
