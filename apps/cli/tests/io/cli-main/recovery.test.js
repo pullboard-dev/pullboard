@@ -118,10 +118,12 @@ test('clause 2: an error out of the drain loop releases the dispatcher lock and 
   // The next submit: with the broken ticket gone and the lock free, ensureHandoffDispatcher launches a fresh dispatcher on that very call.
   rmSync(join(handoffQueueDirectory(), '0001-broken.json'), { force: true });
   const receipt = join(handoffQueueDirectory(), 'dispatcher.json');
-  assert.ok(!existsSync(receipt), 'no dispatcher has been launched yet');
+  // The failed dispatcher recorded itself in the receipt when it took the lock; its process has exited.
+  const stale = existsSync(receipt) ? JSON.parse(readFileSync(receipt, 'utf8')).pid : null;
+  if (stale !== null) assert.ok(gone(stale), 'the failed dispatcher process has exited');
   await ensureHandoffDispatcher(fileURLToPath(new URL('../../../../../', import.meta.url)), checkout);
   const { pid } = JSON.parse(readFileSync(receipt, 'utf8'));
-  assert.ok(Number.isInteger(pid), 'a fresh dispatcher process was started');
+  assert.ok(Number.isInteger(pid) && pid !== stale, 'a fresh dispatcher process was started');
   // The fresh dispatcher finds an empty queue and exits; the home is removed only after it, so nothing outlives the test.
   await waitForCondition(() => gone(pid), 'the fresh dispatcher exited', { signal: t.signal });
 }));
