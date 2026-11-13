@@ -14,7 +14,7 @@ test('submit overlaps two slow checks within 20% of the slower one and preserves
   assert.equal(result.code, 0, result.err + result.out);
   const runs = readFileSync(observations, 'utf8').trim().split('\n').map(line => JSON.parse(line)).slice(-2);
   assert.deepEqual(new Set(runs.map(run => run.role)), new Set(['criterion', 'proof']));
-  assert.ok(Math.max(...runs.map(run => run.start)) < Math.min(...runs.map(run => run.end)), 'the real child intervals overlap');
+  assert.ok(Math.max(...runs.map(run => run.start)) < Math.min(...runs.map(run => run.end)), `the real child intervals overlap: ${JSON.stringify(runs)}`);
   assert.equal(receipts.length, 2, 'each command retains its own native proof receipt');
   // The bound is 1.2x the inner check interval (the longest child run), not a receipt's durationMs: that includes node --test
   // start, so the bound would loosen as the machine slows. Two serial checks would double it (#5752).
