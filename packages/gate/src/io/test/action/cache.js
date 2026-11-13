@@ -57,6 +57,7 @@ import {
   validTestTap,
   testResultOutcomes,
 } from '../store.js';
+import { storeName } from '../../store-names.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 /** The ledger hit file a pulled proof phase names (apps/cli/src/io/submit/pull.js); read once by planTestActions. */
@@ -340,7 +341,7 @@ export function reusableResult(store, key) {
   if (!key) return null;
   try { statSync(join(store, 'red', key)); return null; } catch { /* No red mark: the key never failed. */ }
   try {
-    const entry = JSON.parse(readFileSync(join(store, 'green', `${key}.json`), 'utf8'));
+    const entry = JSON.parse(readFileSync(join(store, 'green', storeName(key)), 'utf8'));
     return validTestResult(entry) && entry.key === key && entry.status === 'pass' ? entry : null;
   } catch { return null; }
 }
@@ -607,7 +608,7 @@ export function recordTestAction(file) {
   if (!key) return;
   process.once('exit', (code) => {
     try {
-      if (code === 0) writeAtomic(join(runDir, 'green', `${digest(path)}.json`), { key, file: path });
+      if (code === 0) writeAtomic(join(runDir, 'green', storeName(digest(path))), { key, file: path });
       else {
         const at = new Date().toISOString();
         storeTestResult(plan.store, { version: VERSION, key, file: path, ...plan.inputs[path], status: 'fail', code,
