@@ -55,6 +55,23 @@ test('clause 2: Settings draws every other setting beside the one with a problem
   assert.match(rows, /data-setting-key="gateSlots"/u);
 });
 
+test('clause 1: Settings drops the machine\'s internal resource rows and keeps grouped cards with their changed counts [N26,O5,O6,C7]', () => {
+  const row = (key, extra = {}) => ({ scope: 'machine', key, label: key, description: 'd', group: 'Capacity', unit: 'count', value: 3, default: 1, source: '/x/settings.json', ...extra });
+  const rows = [row('gateSlots', { cli: 'gateSlots' }), row('resources.test-file-loan:abc123.capacity'), row('resources.submit-handoff-workers.capacity'), row('resources.runner:mini-4.capacity'), row('resources.custom.capacity'), row('gate.queue.reviewsFirst', { group: 'Order', value: true, default: false })];
+  const html = settingsContentHtml({ rows }, 'machine');
+  assert.doesNotMatch(html, /test-file-loan|submit-handoff|runner:mini/u, 'internal resource rows never appear');
+  assert.match(html, /data-setting-key="resources\.custom\.capacity"/u, 'a resource a person set still shows');
+  assert.match(html, /<h3>Capacity<\/h3>[^]*?2 changed[^]*?<h3>Order<\/h3>[^]*?1 changed/u, 'each group is a card with its changed count');
+});
+
+test('clause 2: every changed row with a command has a copy button, and name, key and description each sit on one line [N26,O5,O6,C7]', () => {
+  const base = { scope: 'machine', label: 'Scratch folder', description: 'A long sentence.', group: 'Capacity', unit: 'text', source: '/x/settings.json' };
+  const html = settingsContentHtml({ rows: [{ ...base, key: 'scratch', cli: 'scratch', value: '/tmp/my scratch', default: '/tmp/scratch' }, { ...base, key: 'gateSlots', cli: 'gateSlots', value: 4, default: 2 }] }, 'machine');
+  assert.match(html, /data-copy-command="pullboard settings scratch &#39;\/tmp\/my scratch&#39;"/u, 'a text value is quoted for the shell');
+  assert.match(html, /data-copy-command="pullboard settings gateSlots 4"/u);
+  assert.equal((html.match(/class="set-title"/gu) || []).length, 2, 'name and key share one title line');
+});
+
 test('the star line renders the supplied repository address without reading a manifest [N26,C7]', () => {
   const html = starHtml('https://example.invalid/repo?x="<&');
   assert.match(html, /id="star-line" hidden/u);

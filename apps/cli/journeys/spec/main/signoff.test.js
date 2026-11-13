@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { readSignoffs } from '../../../../../packages/spec/index.js';
 import { SIGNOFFS_FILE } from '../../../../../packages/spec/index.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { SPEC } from '../../../tests/fixtures/spec/box.js';
 import { specBox } from '../../../tests/fixtures/spec/box.js';
 import { runInProcessAt } from '../../../tests/fixtures/spec/box.js';
@@ -111,8 +112,11 @@ test('signoff refuses missing evidence atomically, and unmet shows every stage t
   // A submit with no change against the claim head is refused (EMPTY_SUBMIT), so the claim gets a commit.
   writeFileSync(join(box.root, 'greeting.txt'), 'hello\n');
   box.git('add', 'greeting.txt'); box.git('commit', '-q', '-m', 'chore: add the greeting [G1]');
-  const submitted = await box.cmd('submit', '1', '--wait', '--no-next');
+  const submitted = await box.cmd('submit', '1', '--no-next', '--json');
   assert.equal(submitted.status, 0, submitted.stderr);
+  // A pulled submit returns queued; wait for the gate job's receipt so the item reads submitted, not building.
+  const settleBox = { repo: box.root, env: box.env, run: async (cwd, ...args) => { const r = await box.cmd(...args); return { code: r.status, out: r.stdout, err: r.stderr }; } };
+  await settleSubmit(t, settleBox, JSON.parse(submitted.stdout));
   assert.match((await box.spec('unmet')).stdout, /G1 \[must\].*— awaiting a verdict/);
   const made = await box.cmd('worktree', 'review');
   assert.equal(made.status, 0, made.stderr);

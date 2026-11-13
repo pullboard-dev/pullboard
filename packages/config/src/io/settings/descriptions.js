@@ -1,5 +1,6 @@
 /** A plain label, one sentence, group and display unit for every setting in the settings inventory [O5,O6,N26]. */
 import { Refused } from '../../../../kernel/light.js';
+import { PERSON_SET } from '../../logic/settings.js';
 
 // [key, label, one sentence on what it does, group, unit, compatibility?]. Wording is checked against each setting's reader in src/.
 // A compatibility toggle keeps an old behaviour and ends `{ compat: true, removeBy: 'YYYY-MM-DD' }`, one row per line [O6,C7].
@@ -31,14 +32,14 @@ const ROWS = [
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
   ['workers.budget', 'Worker budget', 'The spend per day or week that pullboard run --scale may use across every live seat on this computer, priced by each seat\'s model; off launches no workers.', 'Capacity', 'spend'],
-  ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Capacity', 'USD'],
-  ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Capacity', 'USD'],
+  ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Spending', 'USD'],
+  ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Spending', 'USD'],
   // This machine: Runners
   ['runners', 'Registered runners', 'The other computers that run checks for this one, each with its slots.', 'Runners', 'list'],
   ['runnerRates', 'Runner rate cards', 'For each runner host, its purchase price, months to pay off, load watts and power price per kWh; nothing computes with it yet.', 'Runners', 'list'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
   ['serve.address', 'Board API address', 'The interface address pullboard serve listens on; off loopback every request needs this machine\'s board key, so runners on the network can pull jobs.', 'Runners', 'address'],
-  ['scratch', 'Scratch folder root', 'One absolute, existing folder for all throwaway folders (PULLBOARD_SCRATCH names it too); unset keeps the system temp folder.', 'Capacity', 'folder'],
+  ['scratch', 'Scratch folder root', 'One absolute, existing folder for all throwaway folders (PULLBOARD_SCRATCH names it too); unset keeps the system temp folder.', 'Folders', 'folder'],
   ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
@@ -83,7 +84,7 @@ const ROWS = [
   ['worktreeMaintenance.exclude', 'Worktrees kept out of maintenance', 'Explicit absolute directory paths maintenance always leaves alone.', 'Project', 'list'],
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
-  ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Project', 'list'],
+  ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Folders', 'list'],
   ['trunk.remote', 'Trunk remote', 'The git URL runners fetch candidates from and landing pushes the trunk to, with gate.runnerDispatch pull as a runner job that pushes only if trunk has not moved; empty uses the board host\'s own repository.', 'Project', 'text'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
@@ -183,7 +184,7 @@ const ROWS = [
 ];
 
 // The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; apps/cli/journeys/settings/descriptions.test.js holds this equal to help.js SETTING_FORMS.
-const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses', 'runnerRates']);
+const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses', 'runnerRates', ...Object.keys(PERSON_SET)]);
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 
