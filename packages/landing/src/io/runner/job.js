@@ -256,7 +256,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
       if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
       receipt.detail ??= result?.detail ?? 'the landing check failed';
       for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.detail ?? result?.detail}`);
-      if (found.red.length && (!separate || found.kept.length === 0)) return done('red');
+      // Per-item landing, the default, lands the clean rest as separate publish does; perItem false lands nothing red [C7,#2901].
+      if (found.red.length && ((!separate && payload.perItem === false) || found.kept.length === 0)) return done('red');
       pending = pending.filter(entry => found.kept.includes(entry.id));
     }
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });

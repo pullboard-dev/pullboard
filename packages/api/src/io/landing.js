@@ -80,9 +80,11 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   const separate = config?.landing?.publish === 'separate';
+  // landing.perItem is on by default (off under parallel landing); only off rides on the job, so default payloads stay as they were [C7,#2901].
+  const batchOnly = config?.landing?.perItem === false || config?.landing?.parallel === true;
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
     payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ? { check: check ?? own.gate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(waivers.length ? { waivers } : {}),
-      ...(separate ? { publish: 'separate' } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
+      ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
 }
 
 /**
