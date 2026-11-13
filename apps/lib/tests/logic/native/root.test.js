@@ -363,7 +363,8 @@ test('the native operation bag and counted public bridge retain actual authority
   for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource, recordTrainLanding })) {
     assert.equal(board.enginePorts.store[name], operation, name);
     assert.equal(door[name], undefined, 'the store no longer bridges the native operation');
-    assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
+    assert.equal(typeof library[name], 'function', 'the unchanged library namespace retains its public operation');
+    assert.equal(library[name], native[name], 'the library name is the native lazy delegate (#5487)');
   }
   assert.equal(Object.isFrozen(board.enginePorts.store), true);
   assert.equal(Object.isFrozen(board.nativePorts.quarantine), true, 'each connection retains immutable native quarantine authority');
@@ -387,7 +388,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.deepEqual(original.submitHandoffEngines(), { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE });
   assert.deepEqual(original.pipelineCauseEngines(), { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE });
   assert.equal(original.store.recordTrainLanding, recordTrainLanding);
-  assert.equal(native.recordTrainLanding, recordTrainLanding);
+  assert.equal(typeof native.recordTrainLanding, 'function', 'the public name is a lazy delegate to the provider (#5487)');
   assert.equal(library.recordTrainLanding, native.recordTrainLanding, 'the existing board public name retains exact native identity');
   const before = legacy.events(board);
   const refusal = new Error('EXPLICIT_TRAIN_PROVIDER');
@@ -440,7 +441,10 @@ test('native engine composition keeps supplied upper operations and refuses miss
 test('presentation providers retain exact identities and all missing ports refuse before effects [C7,A4]', t => {
   const ports = native.nativeBoardPorts().presentation;
   const expected = { verifiedPasskeyRowDecision: presentation_verifiedPasskeyRowDecision, pendingFit: presentation_pendingFit, projectFit: presentation_projectFit, projectState: presentation_projectState, personRequestStatuses: presentation_personRequestStatuses, personSigningPresentation: presentation_personSigningPresentation, activeViewAgents: presentation_activeViewAgents, viewProofSummary: presentation_viewProofSummary, fitFile: presentation_fitFile };
-  for (const [name, provider] of Object.entries(expected)) assert.equal(ports[name], provider);
+  for (const [name, provider] of Object.entries(expected)) {
+    if (['projectState', 'activeViewAgents', 'viewProofSummary'].includes(name)) assert.equal(typeof ports[name], 'function', 'the view entrypoints lazy-load the view app (#5487)');
+    else assert.equal(ports[name], provider);
+  }
   assert.equal(Object.isFrozen(ports), true);
   let effects = 0;
   const root = { toString() { effects++; throw new Error('repository discovery reached'); } };
