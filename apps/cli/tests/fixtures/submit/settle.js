@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { watch } from 'node:fs';
+import { reviveFixtureLocalRunner } from '../runner/local-start.js';
 
 /** The tail of the machine's local runner log, so a gate that never settles shows what the runner saw. */
 function runnerLog(machineHome) {
@@ -71,6 +72,8 @@ export async function settleSubmit(t, box, submitted, options) {
   if (!submitted?.queued) return submitted;
   const pid = submitted.localRunner?.pid;
   if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
+  // A relay-linked checkout or a stopped runner (a gate switch, runnerSwitchedEnv) starts none of its own [P7,#5821].
+  reviveFixtureLocalRunner(box.repo, box.env);
   const gateJob = await settledGateJob(box, submitted.item ?? submitted.id, options);
   return { ...submitted, gate: gateJob.gate, gateJob };
 }
