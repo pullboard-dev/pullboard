@@ -21,6 +21,7 @@ import {
   ENGINE_FILE,
   discovered,
 } from '../../../../kernel/light.js';
+import { storeName } from '../store-names.js';
 
 /** The folder that holds the engine leaves, one constant per file so two items adding engines never conflict [V4]. */
 export const ENGINE_FOLDER = 'packages/state/src/logic/engines';
@@ -139,7 +140,7 @@ function appendRegistryHistory(root, engine, leaves) {
   const declarations = Object.fromEntries([...sources.keys()].sort().map(file => [file, readFileSync(sources.get(file), 'utf8')]));
   const record = { version: 1, engine: engine.number, name: engine.name,
     engines: leaves.filter(leaf => leaf.number !== null).map(({ file, name, number }) => ({ file, name, number })), declarations };
-  const relative = `${HISTORY_FOLDER}/${engine.number}.json`;
+  const relative = `${HISTORY_FOLDER}/${storeName(engine.number)}`;
   writeFileSync(join(root, relative), `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx' });
   return [relative];
 }

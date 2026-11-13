@@ -39,7 +39,7 @@ function judge(files, { registry = REGISTRY, baseline = {}, accepted = null } = 
   });
 }
 
-test('clause 1: store file names and SQL table writes are sites; templates, tests and bare extensions are not [CD2]', () => {
+test('clause 1: store file names and SQL table writes are sites; a stemless template is the unlisted stem *.json, tests and bare extensions are not [CD2]', () => {
   const source = [
     "const a = join(common, 'pullboard', 'main-red.json');",
     "const b = 'pullboard/relay.json';",
@@ -49,7 +49,7 @@ test('clause 1: store file names and SQL table writes are sites; templates, test
     "const d = 'package.json';",
   ].join('\n');
   assert.deepEqual(storeSites(source, OTHER).map(row => [row.line, row.store]),
-    [[1, 'main-red.json'], [2, 'relay.json'], [3, 'table:item'], [6, 'package.json']]);
+    [[1, 'main-red.json'], [2, 'relay.json'], [3, 'table:item'], [4, 'stem:*.json'], [6, 'package.json']]);
   assert.deepEqual(storeSites(source, 'packages/gate/tests/io/x.test.js'), []);
   assert.deepEqual(storeSites(source, 'packages/gate/data/x.js'), []);
 });
@@ -205,7 +205,7 @@ test('clause 2: the store-homes recount under --ratchet raises no per-file ceili
   assert.equal(recount['packages/api/src/io/main.js']?.['board.sqlite'], undefined, 'the API server asks the store for the path');
 });
 
-test('#6739 clause 1: a ${...} template registers by its literal stem, and a name with no literal word is not a store [CD2]', () => {
+test('#6739 clause 1: a ${...} template registers by its literal stem, and a name with no literal word registers as the unlisted stem *.json [CD2]', () => {
   const source = [
     'const a = join(dir, `exit-anchor-${claim}.json`);',
     'const b = `${id}.json`;',
@@ -213,7 +213,7 @@ test('#6739 clause 1: a ${...} template registers by its literal stem, and a nam
     'const d = `${dir}/${name}.jsonl`;',
     "const e = `${count} items`;",
   ].join('\n');
-  assert.deepEqual(storeSites(source, OTHER).map(row => [row.line, row.store]), [[1, 'stem:exit-anchor-*.json'], [3, 'stem:*-*.profile.json']]);
+  assert.deepEqual(storeSites(source, OTHER).map(row => [row.line, row.store]), [[1, 'stem:exit-anchor-*.json'], [2, 'stem:*.json'], [3, 'stem:*-*.profile.json'], [4, 'stem:*.jsonl']]);
 });
 
 test('#6739 clause 2: the registry lists every current templated stem, and a new unlisted stem fails the check [CD2]', () => {
@@ -267,4 +267,14 @@ test('#7012 clause 1: no store-file site under packages/runners builds its name 
 
 test('#7014 clause 1: no store-file site under packages/landing builds its name from a stemless template [CD2]', () => {
   assert.deepEqual(stemlessIn('packages/landing/'), [], 'name each file from the landing registry const storeName(key)');
+});
+
+test('#7015 clause 1: no store-file site in any package or app builds its name from a stemless template, and a new one is refused as unregistered [CD2]', () => {
+  assert.deepEqual(stemlessIn(''), [], 'name each file from its cell registry const storeName(key)');
+  const failures = judge({ [OTHER]: 'const f = join(dir, `${id}.json`);' }, { registry: REGISTRY });
+  assert.match(failures[0], /CD2_UNREGISTERED_STORE: stem:\*\.json is not in/u);
+});
+
+test('#7013 clause 1: no store-file site under packages/link builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/link/'), [], 'name each file from the link registry const storeName(key)');
 });

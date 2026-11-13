@@ -52,16 +52,15 @@ export function isStoreSource(path) {
   return SOURCE.test(path) && !TEST_FILE.test(path);
 }
 
-/** The stem a `${...}` template registers by, or null when its name keeps no literal word (`*.json` names no store). */
+/** The name a `${...}` template gives a store file once each `${...}` is a `*`: `exit-anchor-*.json`, or `*.json` when it keeps no literal word, which no registry row names. */
 function templateStem(text) {
-  const name = text.includes('${') ? TEMPLATE_FILE.exec(text.replace(/\$\{[^}]*\}/gu, '*')) : null;
-  return name && /[a-z]{3}/u.test(name[1].replace(/\.(?:jsonl|json|sqlite)$/u, '')) ? name : null;
+  return text.includes('${') ? TEMPLATE_FILE.exec(text.replace(/\$\{[^}]*\}/gu, '*')) : null;
 }
 
 /** The sites of a source file that name a store file by a template with no literal word (`${id}.json`): each must come from a registry const, so none may remain. */
 export function stemlessSites(source, path) {
   if (!isStoreSource(path)) return [];
-  return lex(source).strings.filter(string => string.text.includes('${') && TEMPLATE_FILE.test(string.text.replace(/\$\{[^}]*\}/gu, '*')) && !templateStem(string.text))
+  return lex(source).strings.filter(string => { const name = templateStem(string.text); return name && !/[a-z]{3}/u.test(name[1].replace(/\.(?:jsonl|json|sqlite)$/u, '')); })
     .map(string => ({ path, line: lineAt(source, string.start), text: string.text }));
 }
 
