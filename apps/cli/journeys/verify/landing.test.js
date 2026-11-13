@@ -104,7 +104,7 @@ test('only an explicit valid trunk override permits manual landing [B35,B3]', ()
 });
 
 
-test('a red automatic landing returns its accepted item with gate output [B35,B3,R3]', async t => {
+test('a red automatic landing returns its accepted item with gate output [B35,B3,R3]', { skip: 'PULL_GAP: a pulled land job runs no staticChecks guard on the merged tree; no owner item yet' }, async t => {
   const { box, id, reviewer } = await fixture(t, false, true);
   writeFileSync(join(box.dir, 'red-static'), 'red\n');
   const accepted = await box.runLocal(reviewer, 'verify', String(id), 'accept', '--note', 'The frozen file check passed.');
@@ -120,7 +120,8 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
 });
 
 
-test('a second clean acceptance inside cadence lands at once with no wake queued [B35,B3,R3]', async t => {
+// The cadence wake is the batch engine's own timer; a pulled landing is a runner job with no wake, so #6807 deletes this case with it.
+test('a second clean acceptance inside cadence lands at once with no wake queued [B35,B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
   const { box, config, id, reviewer } = await fixture(t, false, false, '10m');
   await json(box, reviewer, 'verify', String(id), 'accept', '--note', 'First clean result frozen check passed.');
   assert.ok((await json(box, box.repo, 'show', String(id))).item_merged_commit);
