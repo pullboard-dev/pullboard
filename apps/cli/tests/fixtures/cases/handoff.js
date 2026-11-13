@@ -34,7 +34,8 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     box.git(seat.path, 'commit', '-q', '-m', 'fix(web): repair the actual fixture value [G1]');
     const result = await cli(box, seat.path, ['submit', String(first)]);
     assert.equal(result.code, 0, result.out + result.err);
-    assert.equal(store.getItem(box.board, first).item_status, 'submitted', 'the original operation is retained');
+    // The pulled gate keeps the claim until a runner posts its receipt, so the submitted item stays claimed here [C7].
+    assert.equal(store.getItem(box.board, first).item_status, 'claimed', 'the original operation is retained');
     assert.equal(store.getItem(box.board, next).item_owner, seat.id, `the same command takes its next build: ${result.out} ${result.err}`);
     assert.equal(store.getItem(box.board, next).item_status, 'claimed');
     assert.equal(result.document.id, first, 'the primary submission document remains authoritative');

@@ -52,7 +52,7 @@ test('the runs port exposes only intend, confirm, cancel, receiptsSince and ack,
   const [receipt] = port.receiptsSince(0);
   assert.deepEqual({ job: receipt.job, attempt: receipt.attempt }, { job: 'gate:1:abc:t', attempt: 1 });
   assert.deepEqual(port.receiptsSince(receipt.cursor), [], 'the cursor moves past a read receipt');
-  assert.equal(port.ack('gate:1:abc:t', 1, { answer: { applied: true }, now: 21 }).written, true);
+  assert.equal(port.ack('gate:1:abc:t', 1, { now: 21 }).written, true);
   assert.equal(port.ack('gate:1:abc:t', 1, { now: 22 }).written, false, 'a repeated ack writes nothing');
   assert.deepEqual(port.receiptsSince(0), [], 'an acknowledged receipt is never handed back');
 

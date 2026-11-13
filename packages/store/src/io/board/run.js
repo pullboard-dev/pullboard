@@ -10,13 +10,14 @@
 import { atomic } from "./event/log.js";
 import { logEvent } from "./event/log.js";
 import { jobView } from "../../../../jobs/index.js";
+import { runSummary } from "../../logic/board/runs.js";
+import { RUN_APPLIED_EVENT } from "../../logic/board/runs.js";
+import { RUN_QUEUED_EVENT } from "../../logic/board/runs.js";
 import { PENDING_STEP } from "./runs.js";
 
 /** How long a pending job with no board run may wait for its move before the reconciler abandons it. */
 export const INTENT_GRACE_MS = 10 * 60 * 1000;
 
-/** The board event a queued run writes; replay rebuilds the run row from it. */
-export const RUN_QUEUED_EVENT = 'run_queued';
 
 /**
  * The board's run row for a job id, or null.
@@ -43,7 +44,7 @@ export function recordQueuedRun(board, { by, id, kind, item = null, candidate = 
     const inserted = board.db.prepare(`INSERT OR IGNORE INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_created, run_updated)
       VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)`).run(id, kind, item, candidate, base, now, now);
     if (inserted.changes === 0) return { written: false };
-    logEvent(board, by, RUN_QUEUED_EVENT, item, { job: id, kind, candidate, base, state: 'queued', attempt: 0 });
+    logEvent(board, by, RUN_QUEUED_EVENT, item, { job: id, kind, candidate, base, state: 'queued', attempt: 0 }, new Date(now));
     return { written: true };
   });
 }
@@ -96,4 +97,47 @@ export function reconcileQueued(board, runs, port, id, { now = board.clock.now()
     return 'confirmed';
   }
   return 'settled';
+}
+
+/**
+ * Apply one receipt to the board in one move keyed by job and attempt: a queued run whose applied attempt is older
+ * takes the outcome, the capped summary and an event; anything else (no run, a run already done or withdrawn, an
+ * attempt not newer than the applied one) changes nothing.
+ *
+ * @param {any} board
+ * @param {{ by: string, job: string, attempt: number, outcome: string, summary?: object }} receipt - Read from the runs file before this write opens.
+ * @returns {{ applied: boolean }}
+ */
+export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {} }) {
+  return atomic(board, () => {
+    const run = boardRun(board.db, job);
+    if (!run || run.run_state !== 'queued' || !(attempt > run.run_attempt)) return { applied: false };
+    const now = board.clock.now().getTime();
+    const kept = runSummary(summary);
+    board.db.prepare("UPDATE run SET run_state = 'done', run_attempt = ?, run_outcome = ?, run_summary = ?, run_updated = ? WHERE run_job = ? AND run_state = 'queued' AND run_attempt < ?")
+      .run(attempt, outcome, JSON.stringify(kept), now, job, attempt);
+    logEvent(board, by, RUN_APPLIED_EVENT, run.run_item, { job, attempt, outcome, summary: kept, state: 'done' }, new Date(now));
+    return { applied: true };
+  });
+}
+
+/**
+ * Drain the receipt inbox: for each unacknowledged receipt, read it from the runs file, apply it to the board in its
+ * own move, then ack it in the runs file. A crash between the move and the ack leaves the receipt in the inbox, and the
+ * next drain's move is a no-op before it acks.
+ *
+ * @param {any} board
+ * @param {{ db: import('node:sqlite').DatabaseSync }} runs - The runs file, read before each board write.
+ * @param {ReturnType<import('./runs.js').runsPort>} port
+ * @param {{ by: string, limit?: number }} options
+ * @returns {{ job: string, attempt: number, applied: boolean }[]}
+ */
+export function applyReceipts(board, runs, port, { by, limit = 100 }) {
+  return port.receiptsSince(0, { limit }).map(({ job, attempt }) => {
+    const step = jobView(runs.db, job)?.steps.find(row => row.name === 'receipt' && row.seq === attempt);
+    const receipt = step?.payload?.receipt ?? {};
+    const { applied } = applyRunReceipt(board, { by, job, attempt, outcome: String(receipt.outcome ?? receipt.status ?? 'unknown'), summary: receipt });
+    port.ack(job, attempt);
+    return { job, attempt, applied };
+  });
 }
