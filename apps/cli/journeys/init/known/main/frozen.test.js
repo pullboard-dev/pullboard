@@ -26,6 +26,7 @@ import { openBoard } from '../../../../../lib/index.js';
 import { closeBoard } from '../../../../../../packages/store/index.js';
 import { submitFixture } from '../../../../tests/fixtures/board/submit.js';
 import { fixtureSettledMachine } from '../../../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../../../tests/fixtures/submit/settle.js';
 
 const BIN = join(import.meta.dirname, '../../../../pullboard.js');
 const FROZEN = 'node test/runner.js test/frozen.test.js';
@@ -123,6 +124,17 @@ function fileMainRed(box) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
+/** Submit the claimed item and wait for its pulled gate job; a pull submit returns queued at once [P7,#6249]. */
+async function settledSubmit(t, box) {
+  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const run = (cwd, ...args) => {
+    const shown = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' });
+    return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
+  };
+  return settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout));
+}
+
 /** Give an independent reviewer the exact submitted tree and reserve its review. */
 function reviewer(box) {
   const review = join(box.directory, 'review');
@@ -135,10 +147,9 @@ function reviewer(box) {
   return { independent, review };
 }
 
-test('verify accepts an identical owned main red and records its exact case [V4,B3]', t => {
+test('verify accepts an identical owned main red and records its exact case [V4,B3]', async t => {
   const box = fixture(t), repair = fileMainRed(box);
-  const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  await settledSubmit(t, box);
   const { independent, review } = reviewer(box);
   const accepted = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'checked the frozen case');
   assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
@@ -164,21 +175,18 @@ test('verify refuses a frozen failure that is green on main [V4,B3]', t => {
   assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
 });
 
-test('verify refuses an identical main failure without an open repair owner [V4,B3]', t => {
+test('verify refuses an identical main failure without an open repair owner [V4,B3]', async t => {
   const box = fixture(t);
-  const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  await settledSubmit(t, box);
   const { independent, review } = reviewer(box);
   const refused = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'no repair owns the case');
   assert.equal(refused.status, 1, refused.stdout + refused.stderr);
   assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
 });
 
-test('a frozen case red identically on main with no owner records a green gate listing it main-owned, shouts, and files nothing [V4,B3,C7]', t => {
+test('a frozen case red identically on main with no owner records a green gate listing it main-owned, shouts, and files nothing [V4,B3,C7]', async t => {
   const box = fixture(t);
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  const report = JSON.parse(result.stdout);
+  const report = await settledSubmit(t, box);
   // Since #3534 the gate records green over main's own reds and names them, instead of a builder fact.
   assert.equal(report.gate.green, true, 'a red only in main\'s own case records green');
   assert.deepEqual(report.gate.mainOwned.map(({ file, name }) => ({ file, name })), [{ file: 'test/frozen.test.js', name: 'frozen case [G1]' }], 'the gate names the main-owned file and case');
@@ -190,43 +198,39 @@ test('a frozen case red identically on main with no owner records a green gate l
   assert.equal(asked.length, 1, 'exactly one decision shout reaches the coordinator: ' + JSON.stringify(shouts));
 });
 
-test('an open Main red repair is linked, not duplicated [V4,B3]', t => {
+test('an open Main red repair is linked, not duplicated [V4,B3]', async t => {
   const box = fixture(t);
   const repair = fileMainRed(box);
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout).gate.knownMainReworks.map(row => row.item), [repair]);
+  const report = await settledSubmit(t, box);
+  assert.deepEqual(report.gate.knownMainReworks.map(row => row.item), [repair]);
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 1);
 });
 
-test('a frozen case green on main but red on the item still refuses [V4,B3]', t => {
+test('a frozen case green on main but red on the item still refuses [V4,B3]', async t => {
   const box = fixture(t, { main: 1, candidate: 2 });
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  const report = await settledSubmit(t, box);
+  assert.equal(report.gate.green, false, 'the pulled gate ends red: ' + JSON.stringify(report.gate));
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0, 'a new failure files no main red');
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
-test('a frozen case that fails differently on the item than on main refuses [V4,B3]', t => {
+test('a frozen case that fails differently on the item than on main refuses [V4,B3]', async t => {
   const box = fixture(t, { main: 2, candidate: 3 });
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  const report = await settledSubmit(t, box);
+  assert.equal(report.gate.green, false, 'the pulled gate ends red: ' + JSON.stringify(report.gate));
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
-test('a frozen check with a failing stage no case explains refuses even when its cases are known [V4,B3]', t => {
+test('a frozen check with a failing stage no case explains refuses even when its cases are known [V4,B3]', async t => {
   const box = fixture(t, { check: FROZEN + '; exit 7' });
   fileMainRed(box);
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  const report = await settledSubmit(t, box);
+  assert.equal(report.gate.green, false, 'the pulled gate ends red: ' + JSON.stringify(report.gate));
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
 
-test('a later main red never excuses a case green at the actual item merge base [V4,B3]', t => {
+test('a later main red never excuses a case green at the actual item merge base [V4,B3]', async t => {
   const box = fixture(t, { main: 1, candidate: 2 });
   const before = runFixtureChild(process.execPath, ['--test', join(box.root, 'test/frozen.test.js')],
     { cwd: box.root, env: box.env, encoding: 'utf8' });
@@ -238,8 +242,7 @@ test('a later main red never excuses a case green at the actual item merge base 
   const current = runFixtureChild(process.execPath, ['--test', join(box.root, 'test/frozen.test.js')],
     { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(current.status, 1, 'the independent current-main failure is real');
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  const report = await settledSubmit(t, box);
+  assert.equal(report.gate.green, false, 'the pulled gate ends red: ' + JSON.stringify(report.gate));
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
