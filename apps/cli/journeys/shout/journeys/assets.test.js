@@ -1,6 +1,7 @@
 /** The view's page and stylesheet arrive compressed and revalidate on a reload [N26]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { test } from 'node:test';
 import { serveView } from '../../../src/io/commands/view.js';
 import { main as nativeTestMain } from '../../../tests/fixtures/native.js';
@@ -26,7 +27,7 @@ test('the view page and stylesheet arrive gzip-encoded and answer a reload with 
     const zipped = await get(path, { 'accept-encoding': 'gzip' });
     assert.equal(zipped.status, 200);
     assert.equal(zipped.headers.get('content-encoding'), 'gzip', path + ' is gzip-encoded when the request accepts gzip');
-    assert.equal(await zipped.text(), text, path + ' decodes to the same bytes');
+    assert.equal(gunzipSync(Buffer.from(await zipped.arrayBuffer())).toString(), text, path + ' decodes to the same bytes');
     const etag = zipped.headers.get('etag');
     assert.match(etag, /^"[\w-]+"$/);
     assert.equal(zipped.headers.get('cache-control'), 'no-cache', path + ' is revalidated, so an upgrade is never stale');
