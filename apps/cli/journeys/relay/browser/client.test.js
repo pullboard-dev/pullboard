@@ -373,7 +373,8 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   assert.doesNotMatch(pendingView.body, /snapshot has not caught up|event prefix is incomplete/iu, 'pending moves are not displayed as a failed board read');
   assert.deepEqual(pendingView.items, checkpointItems, 'the phone keeps checkpoint N authoritative while later events are pending');
   for (const title of pendingTitles) assert.ok(pendingView.activity.includes(title), 'the pending-event notice shows pending event ' + title);
-  assert.match(pendingView.body, /pending event/iu, 'the UI identifies the received events as pending rather than checkpoint-derived state');
+  // Items hides the notice on screen (#6648), so its text, not the page's visible text, carries the pending mark.
+  assert.match(pendingView.activity, /pending event/iu, 'the UI identifies the received events as pending rather than checkpoint-derived state');
   assert.equal(box.calls.filter(call => call.method === 'GET' && call.path === '/').length, loadsBefore,
     'the phone catches up without reloading the page');
 
