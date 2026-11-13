@@ -204,6 +204,8 @@ let itemsPitch = 0;
 // The Items rows on screen by item id: a live update, a click or a scroll replaces only the rows whose markup changed (#6851).
 let itemsNodes = new Map();
 let itemsDrawn = null;
+// What the Items rulings panel was last drawn from (#6851).
+let itemsNeedsDrawn = null;
 /** Draw only the Items rows near the viewport; the list's height stays whole so the scrollbar and every anchor stay right. */
 function paintItemsWindow() {
   const chain = $('chain'), list = itemsList;
@@ -379,9 +381,10 @@ function render({ tab: switching = false } = {}) {
     const hidden = view.state !== 'active' || Boolean(view.lane);
     $('needs').hidden = hidden;
     $('needs').tabIndex = -1;
-    // Hidden under a filter, the panel is not drawn. Shown, it is made again only when what it is made from changes: the
-    // rulings, the holds and spec rows they read, the titles their references show, the address and the person's choices
-    // in it. A filter click, an opened item or a live update that leaves the rulings as they were draws nothing (#6851).
+    // The panel is made again only when what it is made from changes: the rulings, the holds and spec rows they read, the
+    // titles their references show, the address and the person's choices in it. Hidden under a filter, it keeps what it
+    // holds until the rulings change. A filter click, an opened item or a live update that leaves the rulings as they were
+    // draws nothing (#6851).
     // Its links carry the address's query (and, off a routed host, its path), never the opened item.
     const needsChoices = JSON.stringify([routed ? location.search : location.pathname + location.search, open, expandedNeeds, view.root, person, view.specFeedback ?? null, view.declining ?? null,
       view.declineKind ?? null, view.declineRoot ?? null, view.declineFrom ?? null, view.declineAnchor ?? null, view.declineDigest ?? null, readOnly]);
@@ -389,13 +392,14 @@ function render({ tab: switching = false } = {}) {
       const text = JSON.stringify([personalNeeds, p.holds ?? null, p.spec ?? null]);
       return text + JSON.stringify([...new Set(text.match(/#[0-9]+/g) || [])].map(ref => titles.get(ref.slice(1)) ?? null));
     });
-    if (!hidden) store.paint($('needs'), store.select('items-needs', [needsInputs, needsChoices], () => {
+    if (!hidden || itemsNeedsDrawn !== needsInputs) store.paint($('needs'), store.select('items-needs', [needsInputs, needsChoices], () => {
       const itemsNeeds = itemsNeedsModel(needsModel());
       const nothing = !itemsNeeds.questions.length && !itemsNeeds.approvals.length && !itemsNeeds.drafts;
       return nothing ? needsPanel(needsModel(), needsPresentation()) : itemsNeedsHtml(itemsNeeds, { open,
         questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation()),
         restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation()) });
     }));
+    itemsNeedsDrawn = needsInputs;
   }
   }
 
