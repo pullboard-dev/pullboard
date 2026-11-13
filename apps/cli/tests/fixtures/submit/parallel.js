@@ -56,7 +56,7 @@ export function submit(box, marker) {
   put(box.root, 'src/a.js', `export const value = '${marker}';\n`);
   commitAll(box, 'feat(core): exercise the selected phase [G1]');
   const started = Date.now();
-  const result = box.run('submit', '1', '--json', '--infra', 'concurrent fixture checks');
+  const result = box.run('submit', '1', '--wait', '--json', '--infra', 'concurrent fixture checks');
   const wallMs = Date.now() - started;
   const item = JSON.parse(box.run('show', '1', '--json').out);
   return { result, started, wallMs, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
