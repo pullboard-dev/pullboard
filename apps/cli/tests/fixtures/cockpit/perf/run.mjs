@@ -483,6 +483,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       if (!other) throw new Error('the project-switch sample needs another registered board');
       if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
         await press(chrome, "document.querySelector('#proj-switch')");
+        await press(chrome, 'document.querySelector("[data-proj-all]")');
       }
       /** Find the listed project without interpolating fixture paths into a CSS selector. */
       const row = root => `[...document.querySelectorAll('#proj-list .repo[data-root]')].find(node => node.dataset.root === ${JSON.stringify(root)})`;
@@ -492,6 +493,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
         `view.root === ${JSON.stringify(other.root)} && data?.root === ${JSON.stringify(other.root)}`);
       if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
         await press(chrome, "document.querySelector('#proj-switch')");
+        await press(chrome, 'document.querySelector("[data-proj-all]")');
       }
       await beginAction(chrome, 'switchProject', 'mousedown');
       await press(chrome, row(measuredRoot));
