@@ -6148,15 +6148,6 @@
     "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
     ],
-    "packages/landing/tests/fixtures/plan.js": [
-      "apps/cli"
-    ],
-    "packages/landing/tests/fixtures/relay/parity/advance.js": [
-      "apps/cli"
-    ],
-    "packages/landing/tests/fixtures/relay/parity/train.js": [
-      "apps/cli"
-    ],
     "packages/runners/src/io/dispatch.js": [
       "apps/runner"
     ],
