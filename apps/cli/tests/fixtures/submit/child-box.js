@@ -1,13 +1,13 @@
 /** Shared fixture: a claimed submit box whose gate selects a nested child-process test, split out of selection.test.js to keep each journey file inside its time budget [C7,B26]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { privateRepo } from '../../../tests/fixtures/submit/gate.js';
-import { builderRepo } from '../../../tests/fixtures/submit/gate.js';
-import { put } from '../../../tests/fixtures/submit/gate.js';
-import { commitAll } from '../../../tests/fixtures/submit/gate.js';
-import { SPEC } from '../../../tests/fixtures/submit/gate.js';
-import { coordinatorLocal } from './local.js';
-import { runLocal } from './local.js';
+import { privateRepo } from './gate.js';
+import { builderRepo } from './gate.js';
+import { put } from './gate.js';
+import { commitAll } from './gate.js';
+import { SPEC } from './gate.js';
+import { coordinatorLocal } from '../../../journeys/submit/gate/local.js';
+import { runLocal } from '../../../journeys/submit/gate/local.js';
 
 /** Build a claimed submit fixture whose changed source selects a nested child-process test; deniedFile names the path a Python-style denial reports. */
 export async function childFailureSubmitBox(t, testSource, { deniedFile = null } = {}) {
