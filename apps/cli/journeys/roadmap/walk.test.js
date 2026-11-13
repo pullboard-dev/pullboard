@@ -34,10 +34,10 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
   for (const id of itemIds) {
     const lane = id === 1 ? 'web' : 'ops';
     box.run(alpha.repo, 'add', lane, `Dashboard walk item ${id}`, '--specs', 'G1', '--route', 'strong',
-      '--criterion', 'The Dashboard shows the real board state.', '--check', 'true');
+      '--criterion', 'The Dashboard shows the real board state.', '--check', 'true', '--accept-green', 'the walk fixture only needs a runnable check');
   }
   box.run(alpha.repo, 'add', 'web', 'Dashboard walk active build', '--specs', 'G1', '--route', 'strong',
-    '--criterion', 'The active builder remains visible.', '--check', 'true');
+    '--criterion', 'The active builder remains visible.', '--check', 'true', '--accept-green', 'the walk fixture only needs a runnable check');
   build(box, alpha, 1, 'dashboard-walk.txt');
   box.run(alpha.web, 'claim', '12');
   box.run(alpha.repo, 'hold', 'ops', '--reason', 'Waiting for the person');
