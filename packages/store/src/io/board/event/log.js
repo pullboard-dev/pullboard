@@ -35,7 +35,7 @@ const OWN_FILE = fileURLToPath(import.meta.url);
  * @returns {RegExpExecArray|undefined} Match groups: path, line.
  */
 export function writeOrigin(stack) {
-  return stack?.split('\n').slice(1).map(line => /(\/[^\s():]+\.js):(\d+):\d+/u.exec(line)).find(match => match && match[1] !== OWN_FILE);
+  return stack?.split('\n').slice(1).map(line => /(?:file:\/\/)?(\/[^\s():]+\.js):(\d+):\d+/u.exec(line)).find(match => match && match[1] !== OWN_FILE);
 }
 
 const TRANSACTION_DEPTH = new WeakMap();
