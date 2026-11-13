@@ -21,7 +21,7 @@ function fileMainRed(box, criterion) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-test('two repairs naming the same file each own the case their criterion names [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
+test('two repairs naming the same file each own the case their criterion names [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
   const box = fixture(t, { affected: SHARED });
   const alpha = fileMainRed(box, "The case 'alpha case' passes on main.");
   const beta = fileMainRed(box, "The case 'beta case [G1]' passes on main.");
@@ -32,7 +32,7 @@ test('two repairs naming the same file each own the case their criterion names [
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
 
-test('a case no single repair names is ambiguous but red on main, so submit accepts it and names the candidates [V4,B3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
+test('a case no single repair names is ambiguous but red on main, so submit accepts it and names the candidates [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
   const box = fixture(t, { affected: SHARED });
   const alpha = fileMainRed(box, "The case 'alpha case' passes on main.");
   const other = fileMainRed(box, 'The shared file passes on main.');

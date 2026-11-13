@@ -26,7 +26,7 @@ function notice(value, box, { owner, only = false } = {}) {
   assert.equal(value.status, only ? 'candidate-only' : 'also-main');
 }
 
-test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
+test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
   const box = fixture(t, { main: 1, candidate: 2 });
   const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
@@ -45,7 +45,7 @@ test('candidate-only failures stay red, are first in text, and remain structured
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
-test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
+test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
   // Name the affected file in the frozen bar: own cases require an exact main failure signature.
   const box = fixture(t, { main: 2, candidate: 3, criterion: 'test/affected.test.js retains its behavior.' });
   const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
