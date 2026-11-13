@@ -175,16 +175,18 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
         assert.ok(selection.bookkeeping.length > 0 && selection.bookkeeping.every(id => !selection.raw.includes(id) && !selection.plain.includes(id)), 'bookkeeping remains native history without becoming a work row');
         assert.equal(selection.unchanged, true, 'both presentation modes preserve every raw native event field and identity');
         await chrome.stable('document.querySelectorAll("#activity details").forEach(node => { node.open = true; })');
-        const rows = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => node.innerText)');
-        assert.ok(rows.some(text => /Measured|measurement/iu.test(text)), 'the genuine measurement has an Activity sentence');
+        const rows = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => node.innerText)');
+        // The redesigned Activity (#6916) draws lifecycle, shout and Sentinel rows only; a measurement fact has no Activity row, so its sentence is asserted on the item timeline below.
+        assert.ok(rows.length > 0, 'Activity draws native sentence rows: ' + JSON.stringify(rows));
         assert.ok(rows.every(text => text.trim()), 'no native Activity row is empty');
-        const subjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => (node.querySelector(".activity-who") || node.querySelector("summary b"))?.textContent)');
+        const subjects = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => (node.querySelector(".ph") || node.querySelector(".fa"))?.textContent)');
         assert.ok(subjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native Activity sentence has its actual actor or Sentinels subject');
-        const workSubjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].filter(node => !["shout", "sentinels"].includes(node.dataset.activityKind)).map(node => node.querySelector(".activity-item")?.textContent)');
+        const workSubjects = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].filter(node => !["Shout", "Sentinel"].includes(node.querySelector(".act-chip")?.textContent)).map(node => node.dataset.row ?? node.querySelector(".id")?.textContent ?? node.querySelector(".ph")?.textContent)');
         assert.ok(workSubjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native work sentence retains its actual item subject');
       }
       const text = await chrome.stable('document.querySelector("[data-pane=' + name + ']").innerText');
-      assert.doesNotMatch(text, forbidden, name + ': visible scanner finds no raw machine words');
+      // The redesigned Activity page quotes a shout's own words exactly, as the Shouts pane does; the scanner covers everything outside those quotes.
+      assert.doesNotMatch(name === 'activity' ? text.replace(/“[^”]*”/gu, '') : text, forbidden, name + ': visible scanner finds no raw machine words');
       if (name === 'shouts') assert.match(text, /Keep \[MY_CODE\] and these words\./u, 'free user words remain exact');
     }
     await tab(chrome, 'items');
@@ -196,12 +198,13 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
     const detail = await chrome.stable('document.querySelector("#detail").innerText');
     assert.doesNotMatch(detail, forbidden, 'item timeline and verdict contain plain visible labels');
     assert.match(detail, /Keep \[MY_CODE\] in this quoted review note\./u, 'reviewer words remain exact');
+    assert.match(await chrome.stable('document.querySelector("#detail [data-item-panel-panel=history]").textContent'), /Measured the native example|measurement/iu, 'the genuine measurement has a sentence in the item history');
     assert.equal(await chrome.stable('document.querySelector("#detail .verdict.no [title=BEHAVIOR_MISMATCH]")?.title'), 'BEHAVIOR_MISMATCH', 'the exact reason survives as a tooltip');
     await tab(chrome, 'activity');
-    if (!await chrome.stable('document.querySelectorAll("#flow svg title").length > 0')) await press(chrome, 'document.querySelector("#flow-show")');
-    await chrome.waitFor('document.querySelectorAll("#flow svg title").length > 0');
-    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#flow svg text")].map(node => node.textContent).join(" ")'), /rehomeImport|submit-merge|\bintake\b|\bpatch\b/u, 'lifecycle labels use plain action words');
-    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#flow svg title")].map(node => node.textContent).join(" ")'), /\b(?:rehomeImport|submit-merge|intake|patch)\b/u, 'lifecycle hover text uses plain action words as well');
+    // The redesigned Activity page draws its waterfall and journey charts inline (#6916); their labels and hover text carry the same plain-word rule.
+    await chrome.waitFor('document.querySelectorAll("#activity svg text").length > 0');
+    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#activity svg text")].map(node => node.textContent).join(" ")'), /rehomeImport|submit-merge|\bintake\b|\bpatch\b/u, 'lifecycle labels use plain action words');
+    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#activity svg title")].map(node => node.textContent).join(" ")'), /\b(?:rehomeImport|submit-merge|intake|patch)\b/u, 'lifecycle hover text uses plain action words as well');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });

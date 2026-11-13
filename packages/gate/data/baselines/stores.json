@@ -571,6 +571,10 @@
       "kind": "json",
       "owner": "packages/github/src/io/flakes.js"
     },
+    "citations.jsonl": {
+      "kind": "repo-data",
+      "owner": "packages/spec/src/io/boards.js"
+    },
     "cla-signatures.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/check/cla.js"
@@ -888,10 +892,6 @@
       "kind": "json",
       "owner": "packages/flakes/src/io/native.js"
     },
-    "recovery.guard.sqlite": {
-      "kind": "sqlite",
-      "owner": "apps/cli/src/io/submit/handoff.js"
-    },
     "recovery.json": {
       "kind": "json",
       "owner": "packages/config/src/io/git/sync.js"
@@ -902,7 +902,7 @@
     },
     "refusal.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/submit/handoff.js"
+      "owner": "apps/cli/src/io/submit/handoff/worker.js"
     },
     "refusals.json": {
       "kind": "json",
@@ -942,7 +942,7 @@
     },
     "request.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/submit/handoff.js"
+      "owner": "packages/items/src/io/submit/recovery.js"
     },
     "resources.sqlite": {
       "kind": "sqlite",

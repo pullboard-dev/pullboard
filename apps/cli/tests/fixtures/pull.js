@@ -31,7 +31,6 @@ import { resolve } from 'node:path';
 export function record(root, step) { appendFileSync(process.env.PULLBOARD_FIXTURE_STEPS ?? join(root, '.git', 'gate-steps.jsonl'), JSON.stringify({ step, job: process.env.PULLBOARD_FIXTURE_JOB ?? null, pid: process.pid }) + '\\n'); }
 `,
   'packages/items/index.js': `import { record } from '../../bin/record.js';
-export function requirePlannedSource(root) { record(root, 'placement'); }
 export function requireSubmitComposition(root) { record(root, 'composition'); }
 `,
   'packages/gate/index.js': `import { record } from '../../bin/record.js';
@@ -111,11 +110,13 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
 
 /**
  * Claim, commit and submit one item from its own folder; the submit must return green at once.
- * `change` names the one file the item commits; by default a fresh web/<id>.txt.
+ * `change` names the one file the item commits; by default a fresh web/<id>.txt. `compose` turns bar readiness on after the
+ * claim (a bar frozen before activation stays claimable), so the gate composes the change with main on the runner [C7].
  */
-export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }) {
+export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }, { compose = false } = {}) {
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
+  if (compose) assert.equal(box.run(box.repo, 'bar', 'ready', 'on').code, 0);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
   const submitted = box.run(folder, 'submit', String(id), '--json');
@@ -235,4 +236,20 @@ export async function loopbackRunner(t, box) {
     return { job: held.job, folder, status, gate };
   };
   return { board, take, run };
+}
+
+/**
+ * Serve one item's pulled gate on a runner started with PULLBOARD_CHROME=none, the item committing `change`; resolves the
+ * posted receipt's gate. Why: a runner without a browser must never read a browser journey's skip as a green proof [C7,P7].
+ */
+export async function servedWithoutBrowser(t, change, tooling = {}) {
+  const box = await pullProject(t, 1, { tooling });
+  const [id] = box.ids;
+  submitOne(box, id, { ...change, subject: `feat(web): pulled gate ${id} [G1]` });
+  const queue = await pullQueue(t, box);
+  const served = await serveOnce(box, queue.url, 'r-nobrowser', { PULLBOARD_CHROME: 'none' });
+  assert.equal(served.code, 0, served.output);
+  const row = queue.board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job LIKE ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(`gate:${id}:%`);
+  assert.ok(row, served.output);
+  return JSON.parse(row.job_step_payload).receipt.gate;
 }

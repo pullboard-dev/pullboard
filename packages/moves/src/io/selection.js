@@ -39,7 +39,7 @@ import { criterionFreezer } from './freezer.js';
  *
  * @typedef {{ withBoardRead: Function, withBoard: Function, whoAmI: Function, idArg: Function, ordered: Function,
  *   claimOrdered: Function, currentReworkRoutingPolicy: Function, MainSpecMerged: Function, checkMainVerifier: Function,
- *   dirtyFiles: Function, recoverOwnSubmitHandoffs: Function, openItemFolder: Function, liveFolderRefusal: Function,
+ *   dirtyFiles: Function, openItemFolder: Function, liveFolderRefusal: Function,
  *   mainLaneWork: Function, claimWorktreeSnapshot: Function }} NextPorts
  */
 
@@ -80,12 +80,11 @@ function warmFiles(ctx, board, me, { dirtyFiles }) {
  */
 export async function nextOnce(ctx, values, ports) {
   const { withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, MainSpecMerged, checkMainVerifier,
-    recoverOwnSubmitHandoffs, liveFolderRefusal, claimWorktreeSnapshot } = ports;
+    liveFolderRefusal, claimWorktreeSnapshot } = ports;
   if (!(values.verify && values.verifyId !== undefined)) {
     const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
     values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
   }
-  if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   if (!values.verify) {
     const waiting = withBoardRead(ctx, board => {
       const me = whoAmI(ctx, board);

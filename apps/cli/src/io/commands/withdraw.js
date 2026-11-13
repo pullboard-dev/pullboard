@@ -1,6 +1,6 @@
 import { Refused } from '../../../../../packages/kernel/index.js';
 import * as store from '../../../../../packages/store/index.js';
-import { dropWithdrawnHandoffTicket } from '../submit/handoff.js';
+import { dropHandoffTicket } from '../../../../../packages/resources/index.js';
 import { pendingText } from '../item/withdraw-review.js';
 import { pendingWithdrawal } from '../item/withdraw-review.js';
 import { rejectedText } from '../item/withdraw-review.js';
@@ -44,7 +44,7 @@ export function run(io, { first, second, rest, values = {} }) {
     // A queued or running hand-off ends with the withdrawal; its place in line goes too, so the dispatcher never starts it (#3366).
     const handoff = store.submitHandoff(board, item);
     const result = await roadmapView.withdrawWithMilestones(ctx, board, me, item, reason, ordered, { ...store, listApiProjects });
-    dropWithdrawnHandoffTicket(handoff);
+    if (handoff && ['queued', 'running'].includes(handoff.state)) dropHandoffTicket(handoff.id);
     if (owner && ctx.config.worktreeMaintenance?.enabled === true) {
       const { cleanupMaintenanceLifecycle } = await import('../worktree/maintenance/command.js');
       await cleanupMaintenanceLifecycle(ctx, me.id, { path: owner.agent_path, item, agent: owner.agent_id, withdrawn: true, completedWithdrawal: true });

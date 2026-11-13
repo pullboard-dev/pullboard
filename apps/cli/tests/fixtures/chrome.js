@@ -35,8 +35,9 @@ const CLEANUP_TIMEOUT_MS = 5_000;
 const GROUP_POLL_MS = 20;
 const STDERR_LIMIT = 128 * 1024;
 
-/** Find an installed Chrome without making browser availability a product-test failure. */
+/** Find an installed Chrome without making browser availability a product-test failure; PULLBOARD_CHROME=none declares none. */
 export function findChromeExecutable() {
+  if (process.env.PULLBOARD_CHROME === 'none') return undefined;
   return [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
     .find((candidate) => candidate && existsSync(candidate));
