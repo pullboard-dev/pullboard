@@ -58,7 +58,7 @@ export async function runnerFirstPolicyCase(e2e) {
   }
   // With two or more runners the first is kept for timed checks by default; rotation needs every runner open to ordinary runs.
   const keptSettings = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  writeFileSync(settingsFile, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false, runnerDispatch: 'controller' } }));
+  writeFileSync(settingsFile, JSON.stringify({ ...keptSettings, gate: { ...keptSettings.gate, timingRunner: false } }));
   const first = box.run(box.repo, 'settings', 'gate.runnersFirst', 'on');
   assert.equal(first.code, 0, first.err);
   const browserZero = box.run(box.repo, 'settings', 'browserSlots', '0');
@@ -154,10 +154,6 @@ export async function runnerFirstPolicyCase(e2e) {
     const setting = integrated.run(integrated.repo, 'settings', key, value);
     assert.equal(setting.code, 0, `${key} ${value}: ${setting.err}`);
   }
-  // The settings writes above must not leave the submitting process waiting on a pull runner; pin controller dispatch again [P7].
-  const integratedSettings = join(integrated.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const integratedKept = JSON.parse(readFileSync(integratedSettings, 'utf8'));
-  writeFileSync(integratedSettings, JSON.stringify({ ...integratedKept, gate: { ...integratedKept.gate, runnerDispatch: 'controller' } }));
   assert.equal(integrated.run(integrated.web, 'claim', String(id)).code, 0);
   const built = e2e.commitFile(integrated, integrated.web, 'web/runner-first.txt', 'submitted on runner\n', 'feat(web): add runner-first fixture [G1]');
   assert.equal(built.status, 0, built.stderr);

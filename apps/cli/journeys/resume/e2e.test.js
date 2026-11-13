@@ -24,8 +24,8 @@ import { claudeLoopRules } from '../../../../packages/config/index.js';
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
@@ -34,12 +34,7 @@ const {
   BIN, sandbox, CONFIG, SPEC, commitFile, LIGHT_BRIEF,
 } = e2e;
 
-/** A journey project whose submits return their gate's verdict in the command, so the file pins controller dispatch (#6249,#6832). */
-function project(...args) {
-  const box = e2e.project(...args);
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  return box;
-}
+const { project } = e2e;
 
 /** Assert and remove only the outer command's exact final text action; retain every body byte. */
 function withoutAction(text, action = 'pullboard next') {
@@ -102,7 +97,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   const follow = script('follow.sh', ['grep -q "^- #1 Greet: web/page.js$" "$PULLBOARD_PACK" && echo "export const bye = \'Bye\';" >> web/page.js']);
   await addDiagnosedLight(box, 'Greet', '--route', 'mid', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
   const runner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
-  assert.match((await box.runLocal(runner, 'run', '--agent-light', greet, '--attempts', '1')).out, /submitted #1/);
+  assert.match((await box.runLocal(runner, 'run', '--agent-light', greet, '--attempts', '1')).out, /#1 is in the gate as job /);
   const firstCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', firstCommit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'emptied the page; the check failed')).out, /verified #1/);
@@ -112,7 +107,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   assert.equal(landed.code, 0, landed.err);
   await addDiagnosedLight(box, 'Say bye', '--route', 'mid', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
   const ran = (await box.runLocal(runner, 'run', '--agent-light', follow, '--attempts', '1'));
-  assert.match(ran.out, /submitted #2/, ran.out);
+  assert.match(ran.out, /#2 is in the gate as job /, ran.out);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', runner.split('/').at(-1), 'pullboard', 'packs');
   assert.match(readFileSync(join(packs, '2-light-1.md'), 'utf8'), /## Finished items that touched the same files\n- #1 Greet: web\/page.js\nFollow the patterns/);
 });
@@ -139,7 +134,7 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   assert.match(JSON.parse(resume().stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
 
-test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async () => {
+test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
@@ -180,16 +175,16 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.equal(claimed.code, 0, claimed.err);
   const built = commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
   assert.equal(built.status, 0, built.stderr);
-  const refused = await fixtureCommand(box, web, 'submit', '1', '--wait', '--no-next');
+  // Under pull dispatch the submit returns queued; the red verdict arrives on the settled gate job's receipt [P7,C7].
+  const queued = await fixtureCommand(box, web, 'submit', '1', '--no-next', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  const settled = await settleSubmit(t, box, JSON.parse(queued.out));
+  const gate = settled.gate;
+  assert.equal(gate?.green, false, `the pulled gate is red: ${JSON.stringify(gate)}`);
   // #1884 (b24440d3) intentionally replaced submit's raw TAP with a bounded failure summary and full run log.
-  assert.equal(refused.code, 1, refused.err);
-  assert.match(refused.err, /GATE_RED[\s\S]*the page renders a heading/);
-  assert.ok(refused.err.trimEnd().split('\n').length < 40, 'the refusal stays bounded instead of repeating the TAP stream');
-  const retained = /full log: ([^\n]+)/u.exec(refused.err);
-  assert.ok(retained, 'the refusal points to its complete run log');
-  const submissionLog = readFileSync(retained[1], 'utf8');
-  assert.match(submissionLog, /^not ok 401 - the page renders a heading$/mu);
-  assert.match(submissionLog, /^# note 99$/mu, 'the bounded refusal retains the complete noisy output');
+  const report = JSON.stringify(gate);
+  assert.match(report, /the page renders a heading/);
+  assert.ok(report.length < 20_000, 'the receipt stays bounded instead of repeating the TAP stream');
 });
 
 test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
@@ -207,7 +202,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
   assert.match((await box.runLocal(box.repo, 'refreeze', '1')).out, /refrozen/);
   (await box.runLocal(box.web, 'claim', '1'));
-  assert.match((await box.runLocal(box.web, 'submit', '1')).out, /submitted #1/);
+  assert.match((await box.runLocal(box.web, 'submit', '1')).out, /#1 is in the gate as job /);
 });
 
 test('spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', async () => {

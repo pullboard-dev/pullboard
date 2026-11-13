@@ -136,6 +136,15 @@
     "packages/store/src/io/board/write.js",
     "packages/store/src/logic/board/landing/local.js"
   ],
+  "move-trunk": [
+    "apps/cli/src/io/landing/pull.js",
+    "apps/runner/src/io/private/privacy.js",
+    "apps/runner/src/io/worker/checkout.js",
+    "packages/drive/src/io/pull.js",
+    "packages/gate/src/io/test/run.js",
+    "packages/landing/src/io/runner/job.js",
+    "packages/sandbox/src/io/regeneration.js"
+  ],
   "forwards": {
     "run-tests": [
       "apps/cli/src/io/run/tests.js",

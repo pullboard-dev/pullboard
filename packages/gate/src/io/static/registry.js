@@ -1,4 +1,10 @@
-/** The whole-tree static check classes `apps/cli/src/io/static/checks.js` runs, listed once with a runner each [C7]. */
+/**
+ * The whole-tree static check classes the CLI's static entry runs, listed once with a runner each [C7].
+ *
+ * The classes that read an app's files take those paths from the caller as `apps`, so this file names no app path:
+ * `{ cliCell, cliIndex, cliHelp, relayDeploy, specCheck }`, each a repo-relative path except `specCheck`, the node arguments
+ * of the spec check. A class that needs an app path and gets none reports that as its failure rather than passing silently.
+ */
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -50,6 +56,9 @@ export const CLI_LAUNCHES_FILE = 'packages/gate/data/baselines/cli-launches.json
 const SOURCE = path => /\.[cm]?js$/u.test(path);
 const TEST = path => SOURCE(path) && (path.split('/').slice(0, -1).some(part => part === 'tests' || part === 'test') || /[-_.]test\.[cm]?js$/u.test(path));
 
+/** The failure a class reports when its caller passed no app paths. */
+const noApps = name => [`${name}: the caller passed no app paths; hand them in as the apps option of runStaticTreeRegistry`];
+
 /** The context a check gets when called on its own: caches that live and die inside the call. */
 const MEMORY = Object.freeze({ cache: (name, version) => fileCache({ name, version, tooling: '', home: null }) });
 
@@ -88,11 +97,12 @@ function cachedMissingPaths(root, context) {
  * The gate runs this file from a copy of main, so importing the catalog here would judge main's catalog, never the item's:
  * a catalog fix could not pass the check it fixes (#3827).
  *
- * @param {string} root - Checkout root whose apps/cli/index.js is read.
+ * @param {string} root - Checkout root.
+ * @param {string} cliIndex - The CLI's front door, relative to the root.
  * @returns {{declared: string[], actual: string[]}} Both lists, sorted.
  */
-function proseCommandSets(root) {
-  const entry = pathToFileURL(join(root, 'apps/cli/index.js')).href;
+function proseCommandSets(root, cliIndex) {
+  const entry = pathToFileURL(join(root, cliIndex)).href;
   const program = `const { HELP, declaredProseCommands, PULLBOARD_COMMANDS } = await import(${JSON.stringify(entry)});
 process.stdout.write(JSON.stringify({ declared: [...declaredProseCommands(HELP)].sort(), actual: [...PULLBOARD_COMMANDS].sort() }));`;
   const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8' });
@@ -143,8 +153,10 @@ export const STATIC_TREE_CHECKS = Object.freeze([
       .map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   { name: 'relay-boundary', reads: SOURCE, run: (root, sources, context = MEMORY) => {
-    const relay = readdirSync(join(root, 'apps/relay/src/io/deploy'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
-      .map(entry => ({ file: `apps/relay/src/io/deploy/${entry.name}`, source: readFileSync(repoPath(root, `apps/relay/src/io/deploy/${entry.name}`), 'utf8') }));
+    const folder = context.apps?.relayDeploy;
+    if (!folder) return noApps('relay-boundary');
+    const relay = readdirSync(join(root, folder), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
+      .map(entry => ({ file: `${folder}/${entry.name}`, source: readFileSync(repoPath(root, `${folder}/${entry.name}`), 'utf8') }));
     // The check judges each file alone, so its rows are kept by blob [5567].
     const cache = context.cache('relay-boundary', 1);
     return [...treeSources(root, sources), ...relay].filter(row => !context.changed || context.changed.includes(row.file)).flatMap(row => cache.get(row.file, blobOid(row.source), () => relayBoundaryProblems([row]))).map(row => `${row.file}:${row.line}: ${row.text}`);
@@ -154,7 +166,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'cli-reach', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const main = mainCommit(root);
     if (!main) return [];
-    const scope = cellScopedKey(treeSources(root, sources), ['apps/cli'], { edgeCache: edgeCacheOf(context) });
+    if (!context.apps?.cliCell) return cliReachRows(root);
+    const scope = cellScopedKey(treeSources(root, sources), [context.apps.cliCell], { edgeCache: edgeCacheOf(context) });
     return context.cache('cli-reach', 1).get('cli-reach', `${scope}:${main}`, () => cliReachRows(root));
   } },
   // A tracked file that raises a layout rule count above the tree's own baseline (packages/gate/src/io/static/layout.js).
@@ -187,11 +200,13 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });
     return context.cache('worker-bundle', 1).get('worker-bundle', scope, () => workerBundleRows(root));
   } },
-  { name: 'prose-commands', reads: path => path.startsWith('apps/cli/'), run: root => {
-    const { declared, actual } = proseCommandSets(root);
+  { name: 'prose-commands', reads: (path, apps) => Boolean(apps?.cliCell) && path.startsWith(`${apps.cliCell}/`), run: (root, sources, context = MEMORY) => {
+    if (!context.apps?.cliHelp) return noApps('prose-commands');
+    const { declared, actual } = proseCommandSets(root, context.apps.cliIndex);
     if (JSON.stringify(declared) === JSON.stringify(actual)) return [];
-    const line = readFileSync(join(root, 'apps/cli/src/logic/help.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
-    return [`apps/cli/src/logic/help.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
+    const helpFile = context.apps.cliHelp;
+    const line = readFileSync(join(root, helpFile), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
+    return [`${helpFile}:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
   } },
   { name: 'wall-clock-budgets', reads: TEST, run: root => {
     const clock = spawnSync(process.execPath, ['packages/gate/tests/fixtures/budgets.js'], { cwd: root, encoding: 'utf8' });
@@ -207,15 +222,15 @@ export const STATIC_TREE_CHECKS = Object.freeze([
  * against a green main, a class that reads none of them is not run, and the file-local ones read only those paths [5814].
  *
  * @param {string} root - Checkout root.
- * @param {{changed?: string[] | null}} [scope] - The changed paths, when no whole-repo input changed; null runs every class whole.
+ * @param {{changed?: string[] | null, apps?: object}} [scope] - The changed paths, when no whole-repo input changed (null runs every class whole), and the app paths the caller hands in.
  * @returns {string[]} One message per failure; empty when the tree is clean.
  */
-export function runStaticTreeRegistry(root, { changed = null } = {}) {
+export function runStaticTreeRegistry(root, { changed = null, apps = null } = {}) {
   const sources = styleSources(root);
   const tooling = toolingKey(sources);
   const caches = [];
-  const context = { changed, cache: (name, version) => { const made = fileCache({ name, version, tooling }); caches.push(made); return made; } };
-  const rows = STATIC_TREE_CHECKS.filter(check => !changed || changed.some(path => check.reads(path))).flatMap(check => check.run(root, sources, context));
+  const context = { changed, apps, cache: (name, version) => { const made = fileCache({ name, version, tooling }); caches.push(made); return made; } };
+  const rows = STATIC_TREE_CHECKS.filter(check => !changed || changed.some(path => check.reads(path, apps))).flatMap(check => check.run(root, sources, context));
   for (const made of caches) made.save();
   return rows;
 }
@@ -240,7 +255,7 @@ function commandFailures(root, args) {
 export const STATIC_STAGE_CHECKS = Object.freeze([
   { name: 'cells', run: root => commandFailures(root, ['packages/codemap/src/io/cells/scripts/plan.js', '--check']) },
   { name: 'cell-lints', run: root => commandFailures(root, ['packages/codemap/src/io/cell/scripts/lints.js', '--check', root]) },
-  { name: 'spec-ids', run: root => commandFailures(root, ['apps/cli/pullboard.js', 'spec', 'check']) },
+  { name: 'spec-ids', run: (root, apps) => apps?.specCheck ? commandFailures(root, apps.specCheck) : noApps('spec-ids') },
 ]);
 
 /** Every static class name submit runs, whole-tree, changed-file and stage, each once. */

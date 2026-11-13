@@ -110,7 +110,7 @@
     "hand-policy": 3,
     "env-spread": 1
   },
-  "apps/cli/journeys/submit/infra.test.js": {
+  "apps/cli/tests/fixtures/submit/infra.js": {
     "tempdir": 2,
     "env-spread": 1,
     "model": 1
@@ -1975,9 +1975,11 @@
     "model": 2
   },
   "apps/cli/journeys/init/known/main/frozen.test.js": {
-    "tempdir": 2,
-    "model": 3,
     "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/init/known-frozen.js": {
+    "tempdir": 2,
+    "model": 3
   },
   "packages/landing/tests/io/known/main/match.test.js": {
     "tempdir": 2,
@@ -2869,8 +2871,20 @@
     "raw-board": 2
   },
   "apps/cli/journeys/relay/sealed.test.js": {
-    "tempdir": 4,
-    "raw-board": 12
+    "tempdir": 1,
+    "raw-board": 3
+  },
+  "apps/cli/journeys/relay/sealed/newer.test.js": {
+    "tempdir": 1,
+    "raw-board": 2
+  },
+  "apps/cli/journeys/relay/sealed/forged.test.js": {
+    "tempdir": 1,
+    "raw-board": 1
+  },
+  "apps/cli/journeys/relay/sealed/policy.test.js": {
+    "tempdir": 1,
+    "raw-board": 6
   },
   "apps/cli/journeys/relay/sealed/recovery.test.js": {
     "raw-board": 1,
