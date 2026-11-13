@@ -102,6 +102,8 @@ export function fitReceipt(receipt, limit) {
   for (const phase of phases) if (Array.isArray(phase.errors)) phase.errorCount ??= phase.errors.length;
   // Per-case outcomes are all or nothing: a partial list would read as cases the phase never ran, so a receipt over its cap drops them first.
   for (const phase of phases) if (size() > limit && phase.testOutcomes) delete phase.testOutcomes;
+  // The runtime rows are all or nothing for the same reason, and drop with them.
+  for (const phase of phases) if (size() > limit && phase.testRuntimes) delete phase.testRuntimes;
   for (let keep = 2000; size() > limit && keep >= 50; keep = Math.floor(keep / 2)) {
     for (const phase of phases) for (const key of ['tail', 'exit']) if (typeof phase[key] === 'string' && phase[key].length > keep) phase[key] = phase[key].slice(-keep);
   }
