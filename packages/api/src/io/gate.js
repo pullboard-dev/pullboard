@@ -554,7 +554,7 @@ export function gateLedgerHits(db, request, files) {
 export function applyJobReceipt(board, posted, ports = {}) {
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
   if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
-  if (kind === 'gate') { try { const r = applyGateReceipt(board, posted, ports); appendFileSync('/tmp/ownerhold-debug.log', JSON.stringify(r) + '\n'); return r; } catch (error) { appendFileSync('/tmp/ownerhold-debug.log', String(error.code) + ' ' + String(error.stack) + '\n'); throw error; } }
+  if (kind === 'gate') { try { const r = applyGateReceipt(board, posted, ports); appendFileSync(board.db.prepare('PRAGMA database_list').all()[0].file + '.debug', JSON.stringify(r) + '\n'); return r; } catch (error) { appendFileSync(board.db.prepare('PRAGMA database_list').all()[0].file + '.debug', String(error.code) + ' ' + String(error.stack) + '\n'); throw error; } }
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
