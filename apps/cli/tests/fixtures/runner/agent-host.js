@@ -1,6 +1,7 @@
 /** The SSH stand-in's agent host: a child of the test that starts each pulled job's runner agent as its own child [C7]. */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
@@ -43,6 +44,25 @@ take();
 `;
 
 let hosts = 0;
+
+/**
+ * Make the folder of a `nohup` that behaves as on an ssh remote, ignoring HUP and running its command, for the front of
+ * the stand-in's PATH; returns the folder.
+ * Why: macOS nohup detaches from the launchd console first, and in a LaunchDaemon, as a pull runner's serve is, that
+ * fails with "can't detach from console", so every agent start died silently and its job sat queued (#6917). A real ssh
+ * session is not launchd-managed, so the stand-in gives its remote that behaviour.
+ *
+ * @param {string} bin - The box's private bin folder.
+ * @returns {string}
+ */
+export function installRemoteNohup(bin) {
+  const folder = join(bin, '.remote-bin');
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  const nohup = join(folder, 'nohup');
+  writeFileSync(nohup, "#!/bin/sh\ntrap '' HUP\nexec \"$@\"\n", { mode: 0o700 });
+  chmodSync(nohup, 0o700);
+  return folder;
+}
 
 /**
  * Start one agent host for a stand-in box and return the folder its stand-in hands agent starts to.

@@ -4,6 +4,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { installRemoteNohup } from './agent-host.js';
 import { startAgentHost } from './agent-host.js';
 
 export const SECRET = ['fixture', 'runner', 'secret', 'must', 'stay', 'local'].join('-');
@@ -24,7 +25,7 @@ export function shellQuote(value) {
  */
 export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, registrationDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
   const ssh = join(bin, 'ssh');
-  const agentHost = startAgentHost(bin);
+  const agentHost = startAgentHost(bin), remoteBin = installRemoteNohup(bin);
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { handAgentStart } from ${JSON.stringify(new URL('./agent-host.js', import.meta.url).href)};
@@ -143,12 +144,13 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ho
   });
   process.stdin.resume();
 } else` : ''} {
-  const env = { PATH: process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
+  const env = { PATH: ${JSON.stringify(remoteBin)} + ':' + process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
     PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', PULLBOARD_AGENT_CORES: '4096', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
     ...((registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
   // A real ssh -T remote has no controlling terminal; detached gives the shell its own session, or the runner's tty makes BSD nohup refuse to start the agent (#6734).
+  // PATH starts with a remote-style nohup: macOS nohup fails in a LaunchDaemon, as on a pull runner (#6917).
   // PULLBOARD_AGENT_CORES: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job.
   // An enqueue's backgrounded agent would outlive this shell and leave the test's process tree; on pull runners that
   // orphan died at once and its job sat queued (#6917). Enqueue without it, then hand its line to the box's agent host.
