@@ -11,15 +11,18 @@ import { onBoard } from '../../tests/fixtures/land/board.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 /** Exercise an expired landing waiver against real private Git worktrees, split from the adoption journey to keep each file inside its time budget [B3,R3]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-/** Review the commit the board recorded: a submit may compose main into the source first. */
-function submittedAt(entry) {
-  entry.commit = onBoard(entry.box, (board) => store.getItem(board, entry.item).item_commit);
+/** Review the commit the board recorded once the pulled gate submits it: a submit may compose main into the source first. */
+async function submittedAt(entry) {
+  const submitted = () => onBoard(entry.box, (board) => { const item = store.getItem(board, entry.item); return item.item_status === 'submitted' && item.item_commit ? item.item_commit : null; });
+  await waitForCondition(() => submitted() !== null, `#${entry.item} is submitted`);
+  entry.commit = submitted();
 }
 
 test('land stops again with an expired waiver, and a changed test on main releases the item [B3,R3]', { timeout: 300_000 }, // budget: two real pulled landings and one resubmit; hang ceiling only.
@@ -35,7 +38,7 @@ async () => {
   assert.equal(commitFile(box, box.repo, FILES[0], 'FLAKE\n', 'chore: install a flaky fixture test').status, 0);
   const entry = { ...itemWorktree(box, 2), box };
   submitItem(box, entry);
-  submittedAt(entry);
+  await submittedAt(entry);
   acceptItem(box, entry);
   // The submit's green receipt would cover a landing on its own main, so move main past it and let the landing gate run [#3685].
   moveMainPastSubmit(box);
@@ -59,7 +62,7 @@ async () => {
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   assert.equal(box.run(entry.path, 'claim', String(entry.item)).code, 0);
   submitItem(box, entry, 'PASS again\n');
-  submittedAt(entry);
+  await submittedAt(entry);
   acceptItem(box, entry);
   const landed = await settleLand(box, json(box, box.repo, 'land'));
   assert.deepEqual(landed.landed, [entry.item], JSON.stringify(landed.landJob));
