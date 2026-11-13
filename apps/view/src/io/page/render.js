@@ -207,8 +207,9 @@ function paintItemsWindow() {
   const windowed = rows.length > 0 && itemsPitch > 0 && viewport > 0 && typeof chain.getBoundingClientRect === 'function';
   const at = windowed ? rowWindow({ count: rows.length, top: chain.getBoundingClientRect().top, viewport, pitch: itemsPitch }) : { start: 0, end: rows.length };
   store.paint(chain, rows.length ? rows.slice(at.start, at.end).map(list.rowHtml).join('') : list.empty);
-  chain.style.paddingTop = windowed && at.start ? at.start * itemsPitch + 'px' : '';
-  chain.style.paddingBottom = windowed && at.end < rows.length ? (rows.length - at.end) * itemsPitch + 'px' : '';
+  const above = windowed && at.start ? at.start * itemsPitch : 0, below = windowed && at.end < rows.length ? (rows.length - at.end) * itemsPitch : 0;
+  chain.dataset.geo = 'items-chain';
+  geometry('items-chain', above || below ? { 'padding-top': above + 'px', 'padding-bottom': below + 'px' } : null);
 }
 
 // The parts that scroll on their own: each keeps its place through any draw (#6613).

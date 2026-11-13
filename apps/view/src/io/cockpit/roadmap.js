@@ -116,8 +116,10 @@ function jumpToRoadmap(key) {
   const topbar = document.querySelector('.top');
   if (matchMedia('(max-width: 900px)').matches && topbar) {
     // The Roadmap scrolls in the document viewport; use the wrapped sticky bar's actual lower edge, not its minimum height.
-    target.style.scrollMarginTop = Math.ceil(topbar.getBoundingClientRect().bottom + 16) + 'px';
-  } else target.style.removeProperty('scroll-margin-top');
+    for (const earlier of document.querySelectorAll('[data-geo="roadmap-target"]')) earlier.removeAttribute('data-geo');
+    target.dataset.geo = 'roadmap-target';
+    geometry('roadmap-target', { 'scroll-margin-top': Math.ceil(topbar.getBoundingClientRect().bottom + 16) + 'px' });
+  } else target.removeAttribute('data-geo');
   target.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   markRoadmapArrival(key, target);
   updateRoadmapPanel();

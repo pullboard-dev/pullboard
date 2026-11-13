@@ -47,10 +47,10 @@
 .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) auto 86px; }
 .milestone-item .roadmap-status, .milestone-item .item-stage, .milestone-item .stage-line { display: contents; }
 .milestone-item .stage-word { grid-column: 5; grid-row: 1; justify-self: stretch; text-align: center; padding: 1px 9px; border-radius: var(--radius-pill); font: 600 12px var(--sans); white-space: nowrap; color: color-mix(in oklab, var(--c) 72%, var(--ink)); background: color-mix(in oklab, var(--c) 16%, var(--surface)); }
-.milestone-item .item-stage[data-stage="gated"] .stage-word { background: none; border: 1px dashed var(--line); color: var(--ink-muted); }
+.milestone-item .item-stage[data-stage="gated"] .stage-word { background: none; border: var(--border-dashed); color: var(--ink-muted); }
 .milestone-item .stage-marks { grid-column: 4; grid-row: 1; display: inline-flex; gap: var(--space-1); }
 .milestone-item .stage-mark { font: 600 11.5px var(--sans); padding: 0 7px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 72%, var(--ink)); }
-.milestone-item .stage-mark.gate { background: none; border: 1px dashed var(--line); color: var(--ink-muted); }
+.milestone-item .stage-mark.gate { background: none; border: var(--border-dashed); color: var(--ink-muted); }
 .milestone-item .roadmap-stage-chip { grid-column: 5; font-family: var(--sans); letter-spacing: normal; }
 @media (max-width: 760px) { .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) 86px; } .milestone-item .stage-marks { display: none; } .milestone-item .stage-word, .milestone-item .roadmap-stage-chip { grid-column: 4; } }
 /* The release header reads title, rate line, full-width bar, one legend line; its note is plain text, never a tinted bar. */
