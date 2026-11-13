@@ -7,7 +7,9 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { reviveFixtureLocalRunner } from '../runner/local-start.js';
 import { fixtureAdd } from '../testkit.js';
+import { settledGateJob } from './settle.js';
 
 /** Submit a real committed change under the board's configured budget and inspect its public result. */
 export async function submitSized(helpers, lines, budget) {
@@ -35,6 +37,9 @@ process.exit(fs.existsSync('web/big.txt') ? 0 : 1);
   const submitted = await box.runLocal(box.web, 'submit', '1');
   const output = submitted.out + submitted.err;
   assert.equal(submitted.code, 0, output);
+  // The pulled gate settles on the machine's loopback runner; the item moves to submitted once its receipt applies.
+  reviveFixtureLocalRunner(box.repo, box.env);
+  await settledGateJob(box, 1);
   const shown = await box.runLocal(box.repo, 'show', '1', '--json');
   assert.equal(shown.code, 0, shown.out + shown.err);
   assert.equal(JSON.parse(shown.out).item_status, 'submitted', output);
