@@ -11,7 +11,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 
 import {
   SPEC,
@@ -24,17 +23,6 @@ import {
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
-
-/**
- * A machine whose gate settings pin controller dispatch: build() submits here and expects the gate held in the
- * submitting process, but with pull as the default (#6182-#6185) submit only queues a job and the item stays claimed.
- */
-function pinnedMachine() {
-  const box = machine();
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  return box;
-}
 
 /**
  * web-1 builds an item as the shared build() does, claiming and submitting through this process: the Git work and its
@@ -83,7 +71,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
   /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
   const stage = phase => console.log('roadmap-items-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
   const executable = chromeExecutable(); assert.ok(executable, 'Chrome is required for the roadmap header check.');
-  const box=pinnedMachine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
+  const box=machine(), alpha=project(box,'roadmap-truth',SPEC,{lanes:{web:{owns:['web/'],specs:['G']},ops:{owns:['ops/'],specs:['G']}}});
   const names=['Landed A','Accepted A','Waiting A','Shipped B','Landed C','Accepted C','In review C','Building C','Approve the release','Held C','Withdrawn C','Landed D','Withdrawn D'];
   for(const [index,name] of names.entries()) await box.inProcess(alpha.repo,'add',index===9?'ops':'web',name,'--specs','G1','--criterion','The page renders.');
   /** Land through real Git and the ordinary board receipt; acceptance alone stays unlanded. */
@@ -169,8 +157,8 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
       }
     }
     const ordered = JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('State summary')}.querySelectorAll('.milestone-item .id')].map(row => row.textContent))`));
-    // Open work follows the backend's queue positions, whatever the shuffled membership; accepted and landed items have none and follow it (36add4ed61, f8e8ce444a, b83469ff53; milestone/order.test.js reads the same).
-    assert.deepEqual(ordered, ['#7', '#8', '#9', '#10', '#6', '#5'], 'a milestone lists open work by backend queue position, then the unpositioned accepted and landed items, despite shuffled membership');
+    // Since #6841 a release lists building first, then in review and accepted, then ready, then held or blocked, then landed; within a group the backend's queue order stands, whatever the shuffled membership (36add4ed61, f8e8ce444a, b83469ff53).
+    assert.deepEqual(ordered, ['#8', '#7', '#6', '#9', '#10', '#5'], 'a milestone lists building, then in review and accepted, then ready, then held work, then landed items, despite shuffled membership');
     // Equal bounds read as one number, and the legend says waiting.
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.summary={...m.summary,estimate:{low:2.5,high:2.5}};render();return true;})()");
     const single=await chrome.stable(`${milestone('State summary')}.querySelector('.roadmap-completion')?.textContent||''`);
