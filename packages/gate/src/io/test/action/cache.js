@@ -11,6 +11,7 @@
  * results once it exits, and for a landing only when the landing itself was green, since a landing can fail a file
  * whose process exited cleanly.
  */
+import { enforcePartsCap } from './prune.js';
 import { maintainPartsStore } from './prune.js';
 import {
   createHash,
@@ -56,6 +57,7 @@ import {
   validTestTap,
   testResultOutcomes,
 } from '../store.js';
+import { storeName } from '../../store-names.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 /** The ledger hit file a pulled proof phase names (apps/cli/src/io/submit/pull.js); read once by planTestActions. */
@@ -70,6 +72,8 @@ const MODULE = /\.[cm]?js$/u;
 const RUNNER_INPUTS = ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/src/io/test/action/reporter.js', 'package.json'];
 // The environment a test's verdict may depend on; anything else in the environment is per-run noise.
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'PULLBOARD_TEST_REAL', 'PULLBOARD_ADAPTER_AUDIT', 'TZ', 'LANG', 'LC_ALL'];
+// Harness variables the runner sets per run or per machine; every other PULLBOARD_* variable present keys a result [#4380].
+const HARNESS_ENVIRONMENT = /^PULLBOARD_(?:TEST|RUN|RUNNER|AUDIT|LEDGER|MACHINE|RELAY|VIEW|RELEASE|HANDOFF)_/u;
 // Options that choose how a run reports or splits files, never what a file proves.
 const NEUTRAL_OPTION = /^--(?:test[-_]concurrency|test[-_]reporter(?:[-_]destination)?|test[-_]shard)(?:=|$)/u;
 // Release notes are prose: src reads them for headlines that tests prove against their own fixture copies. A test that
@@ -104,7 +108,27 @@ function executionContext(env) {
   return { node: process.version, platform: process.platform, arch: process.arch,
     environment: [...DECLARED_ENVIRONMENT, 'PULLBOARD_TEST_CACHE_TOOLING'].map(name => [name,
       name === 'NODE_OPTIONS' && env.PULLBOARD_RUNNER_PRELOAD && env[name] === env.PULLBOARD_RUNNER_PRELOAD
-        ? null : env[name] ?? null]) };
+        ? null : env[name] ?? null]), ...extraEnvironment(env) };
+}
+
+/** Every PULLBOARD_* variable present outside the harness set and the declared list, so a test reading one cannot reuse another environment's result [#4380]. */
+function extraEnvironment(env) {
+  const extra = Object.keys(env).filter(name => name.startsWith('PULLBOARD_') && !HARNESS_ENVIRONMENT.test(name) && !DECLARED_ENVIRONMENT.includes(name) && name !== 'PULLBOARD_TEST_CACHE_TOOLING').sort().map(name => [name, env[name] ?? null]);
+  return extra.length ? { extra } : {};
+}
+
+/** The variable names a test declares in its header (`/** @pullboard-test-env NAME NAME *\/`) [#4380]. */
+function declaredEnvironmentNames(source) {
+  return [...new Set([...source.matchAll(/^\/\*\* @pullboard-test-env ([A-Za-z_][\w ]*) \*\/$/gmu)].flatMap(row => row[1].split(' ').filter(Boolean)))].sort();
+}
+
+/** The memoized keys with each declaring test's current values joined to its context and key; the memo holds only the names, never values [#4380]. */
+function withDeclaredValues(keys, env) {
+  return new Map([...keys].map(([test, row]) => {
+    if (!row.envNames?.length) return [test, row];
+    const context = { ...row.context, declared: row.envNames.map(name => [name, env[name] ?? null]) };
+    return [test, { ...row, context, key: digest({ inputKey: row.inputKey, context }) }];
+  }));
 }
 
 /** Run git in the checkout with a private environment, returning trimmed stdout or throwing its error. */
@@ -278,9 +302,9 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const store = testResultStore(root, gitEnv);
   // Store upkeep reads every key memo and result record; a runner dispatch never pays it (maintain: false) [C7].
   if (maintain) maintainPartsStore(store, env);
-  return memoizedActionKeys(store, identity, files, async () => {
-  const { testClosures } = await import('../../affected/tests.js');
-  const { closures, modules, blobs, reach } = testClosures(root, commit);
+  return withDeclaredValues(await memoizedActionKeys(store, identity, files, async () => {
+  const { testClosures, codeMapGraph } = await import('../../affected/tests.js');
+  const { closures, modules, blobs, reach } = testClosures(root, commit, priorGraph(root, env, codeMapGraph));
   const index = treeIndex(blobs);
   // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
   // and reporting modules) is an input of every result, as well as the runner files themselves.
@@ -288,8 +312,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const harness = reach(RUNNER_INPUTS, { withoutSelectedRunnerModules: true }).filter(path => !TEST_SIDE_PATH.test(path) && !path.startsWith('docs/'));
   const runner = [...new Set([...RUNNER_INPUTS, ...harness])].sort().map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
-  for (const [test, closure] of closures) {
-    if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
+  // An explicit file list keys only those files: one key never depends on another test's, and a cold tree spent ~20 s keying all 2,000 [C7,#6672].
+  for (const [test, closure] of files ? files.filter(file => closures.has(file)).map(file => [file, closures.get(file)]) : closures) { if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
     const reads = declaredReads(test, closure.files, modules, index, closure.helpers);
     if (reads.history) { keys.set(test, { key: null, reason: 'it reads the git history of its own checkout' }); continue; }
     if (reads.undeclaredListing) { keys.set(test, { key: null, reason: 'it lists the tracked files of its own checkout without declaring them' }); continue; }
@@ -299,10 +323,27 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
       tracked: reads.listing ? digest(index.sorted) : null });
     recordInputParts(store, inputKey, { test, files: closureBlobs(closure.files, blobs), runner, inputs: reads.inputs.map(path => [path, blobs.get(path)]),
       tracked: reads.listing ? digest(index.sorted) : null, options: shared.options });
-    keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '' });
+    const envNames = declaredEnvironmentNames(modules.get(test) ?? '');
+    keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '', ...envNames.length && { envNames } });
   }
+  // Parts and lists were just written: the size cap holds now, not at the next ten-minute upkeep [C7].
+  enforcePartsCap(store, env);
   return keys;
-  }, { prune: maintain });
+  }, { prune: maintain }), env);
+}
+
+/** The variable naming the base commit a run's candidate forked from: a pulled test job sets it to the job's main. */
+const TEST_PRIOR_ENV = 'PULLBOARD_TEST_PRIOR';
+
+/**
+ * The cached graph of the run's base commit, or null when none is named or it cannot be read. Why: the candidate's
+ * graph then parses only the modules that differ from main, ~10 s less on a runner's cold tree; its keys still hash
+ * the candidate's own blobs, so a result stays keyed to the exact tree [C7,#6672].
+ */
+function priorGraph(root, env, codeMapGraph) {
+  const base = env[TEST_PRIOR_ENV];
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(base ?? '')) return null;
+  try { return codeMapGraph(root, base); } catch { return null; }
 }
 
 /** The store folder for this repository, shared by every worktree through the common git dir. */
@@ -323,7 +364,7 @@ export function reusableResult(store, key) {
   if (!key) return null;
   try { statSync(join(store, 'red', key)); return null; } catch { /* No red mark: the key never failed. */ }
   try {
-    const entry = JSON.parse(readFileSync(join(store, 'green', `${key}.json`), 'utf8'));
+    const entry = JSON.parse(readFileSync(join(store, 'green', storeName(key)), 'utf8'));
     return validTestResult(entry) && entry.key === key && entry.status === 'pass' ? entry : null;
   } catch { return null; }
 }
@@ -491,6 +532,7 @@ export async function preQueueReuse(root, commit, files, tooling, { env = proces
       for (const candidate of selectedTestResults(store, [inputKey])) {
         if (candidate.status !== 'pass' || candidate.file !== file || !completedTestResult(candidate)
           || JSON.stringify(candidate.context.environment) !== expected
+          || JSON.stringify([candidate.context.extra, candidate.context.declared]) !== JSON.stringify([keys.get(file).context.extra, keys.get(file).context.declared])
           || runtimes && !runtimes.some(row => row.node === candidate.context.node && row.platform === candidate.context.platform && row.arch === candidate.context.arch)) continue;
         const entry = reusableResult(store, candidate.key);
         if (!entry || entry.inputKey !== inputKey || !testResultOutcomes(entry)) continue;
@@ -590,7 +632,7 @@ export function recordTestAction(file) {
   if (!key) return;
   process.once('exit', (code) => {
     try {
-      if (code === 0) writeAtomic(join(runDir, 'green', `${digest(path)}.json`), { key, file: path });
+      if (code === 0) writeAtomic(join(runDir, 'green', storeName(digest(path))), { key, file: path });
       else {
         const at = new Date().toISOString();
         storeTestResult(plan.store, { version: VERSION, key, file: path, ...plan.inputs[path], status: 'fail', code,

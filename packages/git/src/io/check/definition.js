@@ -19,6 +19,7 @@ import { lex } from '../../../../kernel/light.js';
 import { literalShellWords } from '../../../../kernel/light.js';
 import { blobOid } from './project-files.js';
 import { indexedFiles } from './project-files.js';
+import { storeName } from '../store-names.js';
 
 const binaries = new Map();
 
@@ -42,7 +43,7 @@ function executable(root, word) {
 /** Resolve only literal local module files; directory/package loaders remain uncached rather than guessed. */
 function localModule(file, specifier) {
   const target = resolve(dirname(file), specifier);
-  const found = [target, `${target}.js`, `${target}.json`, `${target}.node`].find(candidate => {
+  const found = [target, `${target}.js`, `${storeName(target)}`, `${target}.node`].find(candidate => {
     try { return statSync(candidate).isFile(); } catch { return false; }
   });
   if (!found) throw new Error('checker module cannot be resolved literally');

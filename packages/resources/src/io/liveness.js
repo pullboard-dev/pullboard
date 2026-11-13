@@ -52,11 +52,8 @@ function freeHolder(db, row, relaunches, why = 'process gone, or its PID now nam
 
 /**
  * Free holders whose process is gone. The OS decides: a holder is alive while its PID answers (EPERM counts as alive)
- * and the OS start time matches the one recorded with the lease, so a reused PID never passes as the holder. A gone
- * PID, a zombie or a different start time frees the slot at once; a live holder is never reclaimed, however stale its
- * heartbeat timestamp. Holder rows always name a process on this machine, so no timestamp decides here.
- * Why: a holder blocked in synchronous child work (a gate execute, runOnRunner, a private check) could not refresh its
- * timestamp, and the 120 s hung window killed live gates and landings mid-run (#3088, #3154).
+ * and its OS start time matches the lease's, so a reused PID never passes. A gone PID, a zombie or a different start
+ * frees the slot at once; a live holder is never reclaimed, however stale its heartbeat (#3088, #3154).
  *
  * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
  * @param {number} now - Epoch milliseconds, kept for the caller's interface.
@@ -82,7 +79,7 @@ export function reclaimHolders(db, now, probes) {
 
 /**
  * Whether a source-cache holder belongs to a runner job whose directory under <runner root>/jobs no longer exists.
- * The worker names its pins pullboard-ssh-(pin|cache|return)-<job id> and creates <job id>-* before taking any of them.
+ * The worker names its pins pullboard-ssh-(pin|cache|return)-<job id>, creating <job id>-* first.
  *
  * @param {{ kind: string, agent: string, repo: string }} row - A holder row.
  * @returns {boolean} True only on definite evidence; any unreadable state keeps the holder.
@@ -171,11 +168,9 @@ export function platformIdentity(pid) {
 export const PINNED_HEARTBEAT = 8_640_000_000_000_000;
 
 /**
- * Blind every older pullboard's time-based reclaimer, from inside the shared slot database. The real heartbeat moves to
- * `beat`; `heartbeat` stays pinned in the future and `terminating` at 0, kept so by triggers that fire for every client,
- * old code included. Why: worktrees running a CLI from before #3154 still SIGTERMed live gate and verify holders whose
- * `heartbeat` was past their 120 s window (33 kills on 4 Nov); old code reads only those two columns before signalling,
- * so it now frees only holders whose process is gone, which is correct [C7,#3164].
+ * Blind every older pullboard's time-based reclaimer. The real heartbeat moves to `beat`; `heartbeat` stays pinned in
+ * the future and `terminating` at 0 by triggers that fire for every client. Why: CLIs from before #3154 still killed
+ * live holders past their 120 s window; they now free only holders whose process is gone [C7,#3164].
  *
  * @param {import('node:sqlite').DatabaseSync} db - The slot database inside the opener's write transaction.
  */

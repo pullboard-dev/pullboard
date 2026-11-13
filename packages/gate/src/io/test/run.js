@@ -26,6 +26,7 @@ import { selectRegistryGuards } from '../../../../kernel/index.js';
 import { mainPolicy } from '../../../../sandbox/index.js';
 import { runnerPolicyRecord } from '../../../../sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/index.js';
+import { affectedCommand } from './affected-command.js';
 import { acceptedBudgetTrunk } from './file/policy.js';
 import {
   cleanGitEnvironment,
@@ -77,11 +78,6 @@ function testRunnerAdmission() {
   const admission = gateRunnerAdmission();
   if (admission.runnerOnly) process.stderr.write('gate.runnersOnly is on; tests wait for a registered runner with no local fallback\n');
   return admission;
-}
-
-/** Quote one argument for the configured focused test command. */
-function shellWord(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
 /** Keep each named file a test file inside this checkout, as the runner's checkout names it. */
@@ -255,7 +251,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
         paths = split.run;
       }
     }
-    const focused = paths.length ? `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}` : '';
+    const focused = paths.length ? affectedCommand(config, paths) : '';
     if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);

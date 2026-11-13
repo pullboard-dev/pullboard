@@ -9,6 +9,7 @@ import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { storeName } from './store-names.js';
 
 /** One core stays free for the runner's worker and the operating system. */
 export const RESERVED_CORES = 1;
@@ -20,9 +21,8 @@ export const PLAIN_SLOT_MB = 512;
 export const BROWSER_SLOT_MB = 2048;
 
 /**
- * Reserve one core and 2 GB. Total slots fit plain tests; the browser cap reserves the extra
- * 1536 MB for each browser replacing a plain test, so every admitted mixture fits the same budget.
- * A runner below either reserve offers zero computed capacity; explicit fixed overrides remain explicit.
+ * Reserve one core and 2 GB. Total slots fit plain tests; each browser replacing a plain test reserves the extra
+ * 1536 MB. A runner below either reserve offers zero computed capacity.
  * @param {{cores:number,memoryMB:number}} measured
  * @returns {{slots:number,browser:number}}
  */
@@ -119,7 +119,7 @@ function claimHeld(lock, now) {
  */
 async function claimProbe(directory, host, now, waitMs) {
   const key = createHash('sha256').update(host).digest('hex').slice(0, 24);
-  const state = join(directory, `${key}.json`), lock = join(directory, `${key}.lock`);
+  const state = join(directory, storeName(key)), lock = join(directory, `${key}.lock`);
   const current = readJson(state);
   if (shareCurrent(current, now)) return { shared: current };
   mkdirSync(directory, { recursive: true, mode: 0o700 });

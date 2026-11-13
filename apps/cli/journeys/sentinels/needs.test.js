@@ -145,33 +145,28 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
       render();
       return true;
     })()`);
-    await chrome.waitFor(`Array.from(document.querySelectorAll('#dashboard .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
+    // The /live-style Dashboard draws no Rulings card (#6847); the Items list carries the row.
     await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor(`Array.from(document.querySelectorAll('#needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const row = [...document.querySelectorAll('#needs .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      const dashboardRow = [...document.querySelectorAll('#dashboard .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      return row && dashboardRow ? {
+      return row ? {
         target: row.querySelector('[data-go]')?.dataset.go ?? null,
         ref: row.querySelector('.needs-id')?.textContent ?? null,
         title: row.querySelector('.needs-copy b').textContent,
         need: row.querySelector('.needs-copy small').textContent,
         action: row.querySelector('.needs-action').textContent,
         hasAge: !!row.querySelector('.needs-age time'),
-        dashboardTarget: dashboardRow.querySelector('[data-go]')?.dataset.go ?? null,
-        dashboardAction: dashboardRow.querySelector('.needs-action').textContent,
       } : null;
     })())`));
     assert.deepEqual(rendered, {
       target: null,
       ref: 'relay',
       title: `relay${text}`,
-      need: nextStep,
+      need: 'Keep working; your moves wait here until the connection to your phone is back.',
       action: 'Inspect',
       hasAge: true,
-      dashboardTarget: null,
-      dashboardAction: 'Inspect',
-    }, 'Dashboard and Items show an age-stamped inspection step and do not turn the health alert into a shouts/hold link');
+    }, 'Items shows an age-stamped inspection step and does not turn the health alert into a shouts/hold link');
     assert.deepEqual(chrome.exceptions, [], 'the actual page renders the new Rulings kind without exceptions');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -283,7 +278,7 @@ test('a person-only block shows in Rulings with its one step [N26]', async () =>
     assert.equal(state.blocks[0].audience, 'person');
     const entries = needEntries(page.show('needs'));
     assert.deepEqual(entries, [[null, 'blocked', 'Pullboard stopped a request that only you can clear: this terminal belongs to an agent',
-      state.blocks[0].step, 'Next step']], 'the view shows the plain reason and the exact API step without a bogus release action');
+      'Ask your coordinator to take the next step.', 'Next step']], 'the view shows the plain reason and the exact API step without a bogus release action');
     assert.doesNotMatch(page.show('needs'), /B26_PERSON_CHANNEL|--as|pullboard answer/u,
       'the view does not expose the rule code or refused command');
 
@@ -412,6 +407,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.click({ root: beta.repo });
     assert.deepEqual(form(), plain, 'leaving the project leaves answer mode at once');
     page.run('globalThis.fetch = plain; resume();');
+    // A first read of a board takes the state the server keeps, from before its latest writes [A2,C7]; the live page's
+    // stream then catches up by a delta. This page has no stream, so let the switch's read land, then catch up as it does.
+    await page.release();
     await page.run('refresh()');
     await page.click({ go: 'decide:2' });
     assert.equal(form().question, 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too');
@@ -494,7 +492,7 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
     const style = await styleOf(view);
     // The shared summary keeps its reference and one-line title, with context below and action at the right.
     assert.match(style, /\.needs-copy b, \.needs-copy small \{[^}]*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'both summary lines truncate within the phone width');
-    assert.deepEqual(needEntries(page.show('needs')), [['spec:G3', 'G3', 'Should a greeting with a title long enough to need the room wrap?', 'pullboard spec answer G3 &quot;&lt;choice&gt;&quot;', 'Review']]);
+    assert.deepEqual(needEntries(page.show('needs')), [['spec:G3', 'G3', 'Should a greeting with a title long enough to need the room wrap?', 'Answer it in the Spec tab.', 'Review']]);
   } finally {
     await view.stop();
   }
@@ -563,7 +561,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         // The full Needs panel keeps every call, oldest first, in its shared two-line summary.
         assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Rulings is the head of the Items list, not a card of its own`);
         assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
-          ['spec', 'G3', 'G3Should the greeting name the visitor?', 'pullboard spec answer G3 "<choice>"', 'Review'],
+          ['spec', 'G3', 'G3Should the greeting name the visitor?', 'Answer it in the Spec tab.', 'Review'],
           ['decide', '#2', 'Which colour…', 'Asked by coordinator', 'Your decision'],
           ['tab', 'web', 'webFreeze for the demo', 'lane held by coordinator', 'Review'],
           ['tab', null, '2 draft spec rows to approve or drop', 'In the Spec tab, one by one or a section at a time', 'Review'],
@@ -588,7 +586,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
         // An agent's row: its name and state in words, then what it holds at the full width.
         const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
-        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage and full holder detail: ${JSON.stringify(holder)}`);
+        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])Building$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage, which does not repeat the agent the row names: ${JSON.stringify(holder)}`);
       }
     }
 
@@ -606,13 +604,13 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     assert.ok(!r.panelShown && r.showAgents && r.showAgents.left >= r.asks.right, `hidden, Show agents sits on the composer's line after the asks: ${JSON.stringify([r.asks, r.showAgents])}`);
     await click('.asks-slot [data-agents-toggle]');
     assert.ok((await read()).panelShown, 'and brings the panel back');
-    // A sent shout shows as its card; no note pushes into the composer's line.
+    // A sent shout shows as a row in the conversation list; no note pushes into the composer's line.
     await chrome.stable("document.querySelector('#shout-text').focus()");
     await chrome.send('Input.insertText', { text: 'Footer after the greeting.' });
     await click('#shout-send');
-    await chrome.waitFor("[...document.querySelectorAll('#feed .shout .text')].some((text) => text.textContent === 'Footer after the greeting.')", 15_000); // budget: hang ceiling for the sent shout to appear in the feed; no throughput claim.
+    await chrome.waitFor("[...document.querySelectorAll('#feed .conversation-row')].some((row) => row.textContent.includes('Footer after the greeting.'))", 15_000); // budget: hang ceiling for the sent shout to appear as a conversation row; no throughput claim.
     r = await read();
-    assert.equal(r.okNote, false, 'a sent shout is its card, with no note beside the composer');
+    assert.equal(r.okNote, false, 'a sent shout is its row, with no note beside the composer');
     // However many calls there are, each is a row: six more decisions make ten rows, none folded into a count.
     for (const n of [1, 2, 3, 4, 5, 6]) await box.inProcess(alpha.repo, 'shout', 'person', `Ship part ${n} today?`, '--decision');
     await click('[data-tab=items]');
@@ -629,10 +627,10 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     assert.match(await chrome.stable("document.querySelector('#feed .feed-bar').textContent"), /^\d+ unread\s*show all$/, 'narrowed to the unread shouts, the feed carries its bar with show all');
     await click('#feed [data-unread]');
     assert.equal((await read()).feedBar, false, 'show all brings back every shout and clears the bar');
-    // Under Verified, or a lane, the list is narrowed and Rulings steps aside.
+    // Under In review, or a lane, the list is narrowed and Rulings steps aside.
     await click('[data-tab=items]');
-    await chooseFilter(chrome, 'state:verified');
-    assert.equal((await read()).needsShown, false, 'under Verified, Rulings steps aside');
+    await chooseFilter(chrome, 'state:verify');
+    assert.equal((await read()).needsShown, false, 'under In review, Rulings steps aside');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:active');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');

@@ -79,7 +79,7 @@ function workingAgents(p) {
 /** The navigation's board numbers from one board: agents at work, the active items, and those building and in review. */
 function navNumbers(p) {
   const busy = workingAgents(p), active = p.items.filter((i) => i.status !== 'withdrawn' && stateOf(i) !== 'verified');
-  return { agents: busy.length, agentNames: busy.map((a) => agentName(a.agent_id)), active: active.length,
+  return { agents: busy.length, agentIds: busy.map((a) => a.agent_id), agentNames: busy.map((a) => agentName(a.agent_id)), active: active.length,
     building: active.filter((i) => stateOf(i) === 'building').length, review: active.filter((i) => stateOf(i) === 'verify').length };
 }
 
@@ -121,7 +121,7 @@ function writeChrome() {
   const shown = p && data.root === view.root ? p : null;
   store.paint($('status-board'), shown ? store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml) : '');
   if (!shown) return;
-  // The navigation's numbers: the notch, the switcher's rulings, each page's one fact, and Progress's words (#6614).
+  // The navigation's numbers: the notch, the switcher's rulings, each page's one fact (#6614).
   drawNav(shown, store.select('nav-numbers', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers));
   const spec = $('tabs').querySelector?.('[data-tab=spec]');
   if (spec) {

@@ -6,6 +6,7 @@ import { runnerIdleReply } from '../../../../../packages/runners/light.js';
 import { runnerJobReply } from '../../../../../packages/runners/light.js';
 import { runnerProcessesIdle } from '../../../../../packages/runners/light.js';
 import { runnerWorkerMatcher } from '../../../../../packages/runners/light.js';
+import { holderProcessAlive } from '../../../../../packages/runners/light.js';
 import { parseProcessCensus } from '../../../../../packages/kernel/light.js';
 import { exactStart } from '../../../../../packages/gate/light.js';
 import { spawnSync } from 'node:child_process';
@@ -33,13 +34,6 @@ function readRequest(encodedRequest) {
   const request = JSON.parse(Buffer.from(encodedRequest ?? '', 'base64').toString('utf8'));
   if (!/^[a-f0-9-]{36}$/u.test(request.nonce ?? '') || request.root !== undefined && !isAbsolute(request.root)) throw new Error('invalid health request');
   return { request, root: request.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner') };
-}
-
-/** A holder's process still exists (or cannot be checked); a pid the kernel no longer knows is a dead holder. */
-function holderProcessAlive(pid) {
-  if (!Number.isSafeInteger(pid) || pid < 1) return true;
-  try { process.kill(pid, 0); return true; }
-  catch (error) { return error.code !== 'ESRCH'; }
 }
 
 /** Preserve the exact failing observation instead of treating unknown custody as an empty runner. */
