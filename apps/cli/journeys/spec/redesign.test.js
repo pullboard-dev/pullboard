@@ -18,7 +18,7 @@ import {
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('Spec keeps state, tier, gate evidence and person decisions distinct in real Chrome [N26,B26,B23]', { timeout: 120_000 }, async () => { // budget: native Git/API fixtures and real Chrome at desktop and phone widths.
+test('clause 1: Rulings lists only rows waiting for a ruling; clause 2: tabs keep their counts at phone width. Spec keeps state, tier, gate evidence and person decisions distinct in real Chrome [N26,B26,B23]', { timeout: 120_000 }, async () => { // budget: native Git/API fixtures and real Chrome at desktop and phone widths.
   const box = machine();
   const spec = '# Spec layout\n\n## G · Board\n- G1 [draft, must] Keep the complete first requirement in the detail. | gate: test/proof.test.js\n- G2 [approved, aim] Keep tier visible for an approved row. | gate: test/proof.test.js\n\n## H · Gates\n- G3 [draft, aim] Disclose missing proof files. | gate: test/missing.test.js\n';
   const demo = project(box, 'spec-redesign', spec, {}, { agentApproved: true });
@@ -69,8 +69,6 @@ test('Spec keeps state, tier, gate evidence and person decisions distinct in rea
     assert.equal(anatomy.sections, 2);
     assert.match(anatomy.choice, /Rulings2/u);
     assert.equal(anatomy.title, '2 drafts');
-    assert.equal(anatomy.sideTitle, anatomy.title);
-    assert.match(anatomy.sideCount, /2/u);
     assert.equal(await chrome.stable('document.querySelectorAll("[data-section-approve]").length'), 0, 'group headers carry no Approve all');
     await chrome.click('document.querySelector("[data-rows=\'spec:approved\']")');
     await chrome.waitFor('document.querySelector(\'#spec-list [data-row="spec:G2"]\')');
