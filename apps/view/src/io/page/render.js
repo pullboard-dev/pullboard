@@ -188,6 +188,8 @@ function render() {
 
   }
 
+  // Settings carries the rules and useful-agents cards that used to sit on the Dashboard.
+  if (view.tab === 'settings') $('settings-reference').innerHTML = '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">' + homeRules(p.spec) + '</section><section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">' + homeCapacity(p.capacityForecast) + '</section>';
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
@@ -224,8 +226,6 @@ function render() {
     dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
       needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
     });
-  } else if (view.tab === 'settings') {
-    $('settings-reference').innerHTML = '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">' + homeRules(p.spec) + '</section><section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">' + homeCapacity(p.capacityForecast) + '</section>';
   } else {
     const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {
