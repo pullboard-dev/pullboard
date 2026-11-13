@@ -112,6 +112,9 @@ try { gate = await import(pathToFileURL(join(tools, 'packages', 'gate', 'index.j
 // Main's flakes door pairs a red's failing cases, as the controller's diagnostics did; an older main has none and pairs nothing [C7].
 let flakes = null;
 try { flakes = await import(pathToFileURL(join(tools, 'packages', 'flakes', 'index.js')).href); } catch { /* an older main: a red stays unpaired */ }
+// Main's sandbox door records each test child's runtime, as the controller gate's capture does; an older main records none [C7].
+let sandbox = null;
+try { sandbox = await import(pathToFileURL(join(tools, 'packages', 'sandbox', 'light.js')).href); } catch { /* an older main: no runtimes */ }
 /** Main's tree, extracted from this checkout's own objects into a throwaway folder for the pair's main run; null when unreadable. */
 const mainTree = main => {
   const archive = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(main)) ? spawnSync('git', ['--no-replace-objects', 'archive', '--format=tar', main], { cwd: root, maxBuffer: 1024 ** 3 }) : null;
@@ -237,9 +240,11 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
   const started = performance.now();
+  // Each test child reports its runtime into a private capture folder, as under the controller gate; the proof phase alone is admitted proof [C7].
+  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) };
+  const capture = role === 'proof' && typeof sandbox?.captureTestRuntimes === 'function' ? sandbox.captureTestRuntimes(phaseEnv) : null;
   const ran = await new Promise(resolve => {
-    const child = spawn('(' + command + '\\n) 2>&1', { shell: true, cwd: root,
-      env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('(' + command + '\\n) 2>&1', { shell: true, cwd: root, env: capture?.env ?? phaseEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     const out = [], err = [];
     let held = 0;
     const keep = into => chunk => { held += chunk.length; if (held > ${PHASE_BUFFER_BYTES}) child.kill('SIGKILL'); else into.push(chunk); };
@@ -248,6 +253,8 @@ const runPhase = async (role, command, PATH, selected = null) => {
     child.on('close', (status, signal) => resolve({ status, signal, stdout: Buffer.concat(out), stderr: Buffer.concat(err) }));
   });
   receipt.steps[role] = Math.round(performance.now() - started);
+  let testRuntimes = null;
+  try { testRuntimes = capture?.finish() ?? null; } catch { testRuntimes = null; }
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
   const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
@@ -271,7 +278,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   const counts = totals(text);
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
 if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
