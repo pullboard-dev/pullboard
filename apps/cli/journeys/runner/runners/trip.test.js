@@ -58,7 +58,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
   const bin = join(dir, 'bin');
   const requests = join(dir, 'ssh-requests.jsonl');
   for (const folder of [repo, worker, bin, home, remoteHome, remoteStateRoot, remoteMachineHome, machineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnerDispatch: 'controller', loadAwareDispatch: false } }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   const env = {
     ...process.env,
     HOME: home,
