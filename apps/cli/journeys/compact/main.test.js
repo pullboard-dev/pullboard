@@ -25,7 +25,6 @@ function oldLanded() {
     db.exec(JOB_SCHEMA_SQL);
     db.prepare("UPDATE event SET event_at = ? WHERE item_id = ?").run(old, item);
     db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(old, 'coordinator', 'merged', item, '{}');
-    db.exec('DROP TRIGGER IF EXISTS item_updated_guard');
     db.prepare('UPDATE item SET item_updated_at = ? WHERE item_id = ?').run(old, item);
     db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_created, job_updated) VALUES (?, ?, ?, ?, ?)').run('gate:old', 'gate', item, Date.now() - 40 * DAY, Date.now() - 40 * DAY);
     const step = db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)');
@@ -65,6 +64,6 @@ test('clause 1: compact moves an old landed item\'s steps to a gzip beside the b
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'job-steps.archive.ndjson.gz')));
   const after = counts(file);
   assert.equal(after.item, before.item);
-  assert.equal(after.event, before.event + 1, 'only the merged event this test added; none archived');
+  assert.equal(after.event, before.event, 'no event is archived');
   assert.equal(after.job_step, 1, 'the job keeps its last step');
 });
