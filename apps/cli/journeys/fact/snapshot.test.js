@@ -88,8 +88,10 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
   };
   assert.deepEqual(Object.keys(actual).sort(), Object.keys(wanted).sort(), `${message}: the same projection fields`);
   // Compare field by field so a red names the one field that moved between the two reads.
-  for (const field of Object.keys(wanted)) assert.deepEqual(actual[field], wanted[field], `${message}: field ${field}`);
-  assert.deepEqual(actual, wanted, message);
+  /** An item with no claim carries claimHealth null live and omits it in the served summary; neither says anything different [#6588]. */
+  const unclaimed = (value) => JSON.parse(JSON.stringify(value, (key, field) => (key === 'claimHealth' && field === null ? undefined : field)));
+  for (const field of Object.keys(wanted)) assert.deepEqual(unclaimed(actual[field]), unclaimed(wanted[field]), `${message}: field ${field}`);
+  assert.deepEqual(unclaimed(actual), unclaimed(wanted), message);
   const { since, until, ...liveCounts } = expected.dashboardRecent;
   const { since: exportSince, until: exportUntil, ...exportCounts } = actual.dashboardRecent;
   assert.deepEqual(exportCounts, liveCounts, 'the hero counts match across the two reads');
