@@ -20,7 +20,6 @@ import { compareVerification } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
-import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
 import { mainRunnerSource } from '../../../../../packages/landing/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
@@ -663,20 +662,6 @@ async function recordComparison(ctx, item, result) {
 
 /** How a comparison gets its tools: a cold shared snapshot is built by the detached worker, so submit returns first (#5752) [C7]. */
 const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../toolsnapshot.js', import.meta.url).href };
-
-/** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
-export async function startAutomaticComparison(ctx, id) {
-  const item = withBoardRead(ctx, board => store.getItem(board, id));
-  const previous = withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, id), item));
-  if (previous && ['pending', 'complete'].includes(previous.status)) return;
-  const pending = { item: id, status: 'pending', source: item.item_commit, digest: item.item_frozen_digest };
-  await recordComparison(ctx, item, pending);
-  try {
-    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
-      toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
-  } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
-}
 
 /** A pending comparison whose worker died starts again from its recorded request, and is recorded unavailable after three restarts [C7]. */
 export async function reviveStalledComparison(ctx, id) {

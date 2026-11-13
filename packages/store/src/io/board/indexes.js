@@ -5,6 +5,8 @@ import { missingGrantActivationIndex } from "../../../../state/light.js";
 import { ensureJobTables } from "./jobs.js";
 import { JOB_INDEX_NAMES } from "./jobs.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
+import { RUN_OBJECT_NAMES } from "./jobs.js";
+import { RUN_SCHEMA_SQL } from "./jobs.js";
 import { missingJobTables } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
 import { missingLedgerTable } from "./ledger.js";
@@ -72,7 +74,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, 'test_result', 'test_result_key'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key'].every(installed);
 }
 
 /** Create the hot and additive indexes and the job tables, each IF NOT EXISTS, moving and deleting no row [A5]. */
@@ -82,6 +84,7 @@ export function ensureAdditiveSchema(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(JOB_SCHEMA_SQL);
+  db.exec(RUN_SCHEMA_SQL);
   db.exec(LEDGER_SCHEMA_SQL);
 }
 
@@ -105,6 +108,15 @@ export function costLandedIds(board, fromAt) {
 /** One page of the usage, shared-usage and model events after `afterId`, oldest first. */
 export function costKindEvents(board, afterId, limit) {
   return board.db.prepare("SELECT * FROM event WHERE event_kind IN ('usage', 'shared-usage', 'model') AND event_id > ? ORDER BY event_id LIMIT ?").all(afterId, limit);
+}
+
+/**
+ * One page of the events of one landing or review kind after `afterId`, oldest first, straight off the kind index (one
+ * kind keeps the index order, so no sort). Why a scan by kind: looking each item up reads every event the item has to find its few moves, 308 ms against 52 ms for
+ * 4,764 landed items on the live board [#7362].
+ */
+export function costMoveEvents(board, kind, afterId, limit) {
+  return board.db.prepare('SELECT * FROM event WHERE event_kind = ? AND event_id > ? ORDER BY event_id LIMIT ?').all(kind, afterId, limit);
 }
 
 /** The landing and review moves of these items. */

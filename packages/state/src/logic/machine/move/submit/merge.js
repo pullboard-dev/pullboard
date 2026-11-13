@@ -12,7 +12,7 @@ export const MOVES = [
   {
     verb: 'submit-merge', from: ['claimed'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
     alsoRefuses: [...BOARD_SHAPE_REFUSALS, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }, ...AGENT_GRANT_REFUSALS],
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'correctionRefrozen', 'checkProvesSomething', 'barReady', 'clausesInspected', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'sourcePlaced', 'trunkInCandidate', 'noUnverifiedStack', 'doctrineHolds', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'submissionProofValid', 'childrenDone', 'headIsNew', 'mergeOnlyRecorded', 'atSubmittedCommit', 'notBuilder', 'proofNoted'],
+    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'correctionRefrozen', 'checkProvesSomething', 'barReady', 'clausesInspected', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'trunkInCandidate', 'noUnverifiedStack', 'doctrineHolds', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'submissionProofValid', 'childrenDone', 'headIsNew', 'mergeOnlyRecorded', 'atSubmittedCommit', 'notBuilder', 'proofNoted'],
     sets: ['item_built_by', 'item_commit', 'item_verified_by'], command: 'pullboard submit <id>',
     when: 'only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created',
   },

@@ -517,9 +517,10 @@ test('clause 2: pullboard test --status is served by the resident process, a thi
 test('clause 1: stats --json answers through the warm resident process with testWallBudgets [C7,#6415]', () => {
   fx.awaitResident();
   // The scaled board's document is over spawnSync's default 1 MB buffer, so this child gets room to answer.
-  const warm = fx.runIn(fx.repo, ['stats', '--json'], { maxBuffer: 256 * 1024 * 1024 });
+  const warm = fx.runIn(fx.repo, ['stats', '--json'], { modules: true, maxBuffer: 256 * 1024 * 1024 });
   assert.equal(warm.status, 0, `${warm.stderr}`);
   const document = JSON.parse(warm.stdout);
   assert.ok(document.testWallBudgets && typeof document.testWallBudgets === 'object', 'the resident answer carries testWallBudgets');
   assert.ok(document.stats, 'the resident answer carries the board stats');
+  assert.ok(warm.loaded.length < 20, `stats --json was served warm (client loaded ${warm.loaded.length} modules)`);
 });
