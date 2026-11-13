@@ -7,6 +7,18 @@ import { FAMILY_DECLARE_ENGINE } from "../../../../state/light.js";
 export const ACTIVE = 'family_declare:active';
 const LAST = Number.MAX_SAFE_INTEGER;
 const RECEIPTS = new WeakMap();
+const STATEMENTS = new WeakMap();
+/**
+ * One prepared statement per connection and SQL text. Why: seatFamily runs on every check, and preparing four or
+ * five statements per call cost more than running them; a statement re-plans itself if the schema changes.
+ */
+export function prepared(db, sql) {
+  let byText = STATEMENTS.get(db);
+  if (!byText) STATEMENTS.set(db, byText = new Map());
+  let statement = byText.get(sql);
+  if (!statement) byText.set(sql, statement = db.prepare(sql));
+  return statement;
+}
 /**
  * Limit a LIKE on board_meta keys to the keys starting with one letter, in either case. LIKE keeps its historical
  * case-insensitive match. Why: the two ranges are index seeks, where a bare LIKE scanned every row, and nearly
@@ -39,7 +51,7 @@ function declaredSession(who, sha256) {
 
 /** A seat's original session: its recorded session identity, or the one this join declares when none is recorded. */
 export function originalSession(board, id, declared = null) {
-  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${id}`)?.meta_value ?? declared ?? null;
+  return prepared(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${id}`)?.meta_value ?? declared ?? null;
 }
 
 /**
@@ -66,9 +78,9 @@ function receiptRegistrations(board) {
 
 /** Every family record of one seat, each with its board order: the join (its own field, else its insert), then family events. */
 export function seatRecords(board, id, { inserting = false } = {}, snapshot = null) {
-  const seat = snapshot ? snapshot.seats.get(id) : board.db.prepare('SELECT agent_path FROM agent WHERE agent_id = ?').get(id);
-  const join = snapshot ? snapshot.joins.get(id) : board.db.prepare("SELECT event_id, event_detail FROM event WHERE +event_kind='join' AND event_by=? ORDER BY event_id LIMIT 1").get(id);
-  const families = snapshot ? snapshot.families.get(id) ?? [] : board.db.prepare("SELECT event_id, event_detail FROM event WHERE +event_kind='family' AND event_by=? ORDER BY event_id").all(id)
+  const seat = snapshot ? snapshot.seats.get(id) : prepared(board.db, 'SELECT agent_path FROM agent WHERE agent_id = ?').get(id);
+  const join = snapshot ? snapshot.joins.get(id) : prepared(board.db, "SELECT event_id, event_detail FROM event WHERE +event_kind='join' AND event_by=? ORDER BY event_id LIMIT 1").get(id);
+  const families = snapshot ? snapshot.families.get(id) ?? [] : prepared(board.db, "SELECT event_id, event_detail FROM event WHERE +event_kind='family' AND event_by=? ORDER BY event_id").all(id)
     .map(row => ({ order: row.event_id, family: parsed(row.event_detail)?.family }));
   const records = [];
   const joined = join ? parsed(join.event_detail) : null;
@@ -78,7 +90,7 @@ export function seatRecords(board, id, { inserting = false } = {}, snapshot = nu
     // value; after a change, the first ordered registration receipt for its path is the first record.
     const receipt = families.length ? (snapshot ? snapshot.receipts() : receiptRegistrations(board)).get(seat.agent_path) : null;
     const insert = families.length ? (receipt && (receipt.seat === null || receipt.seat === id) ? receipt.family : undefined)
-      : snapshot ? seat.agent_family : board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(id)?.family;
+      : snapshot ? seat.agent_family : prepared(board.db, 'SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(id)?.family;
     records.push({ order: join?.event_id ?? LAST, family: insert });
   }
   return [...records, ...families].filter(record => namesFamily(record.family));
@@ -94,7 +106,7 @@ export function derivedFamily(board, id, { session = null, inserting = false } =
   if (scope) return scopedFamily(board, scope, id);
   const original = id ? originalSession(board, id, session) : session;
   const seats = new Set(id ? [id] : []);
-  if (original) for (const row of board.db.prepare(`SELECT meta_key FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`).all(original)) {
+  if (original) for (const row of prepared(board.db, `SELECT meta_key FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`).all(original)) {
     seats.add(row.meta_key.slice('agent_session:'.length));
   }
   let first = null;
@@ -160,15 +172,16 @@ export function familyDeclareFloor(board, who, sha256) {
 }
 
 /**
- * The family inputs of exactly these seats: their rows and their join and family events, by index.
+ * The family inputs of exactly these seats: their rows and their join and family events, by index. The event read
+ * searches by seat (`+` keeps it off the kind index, which lists every join on the board for each call).
  * Why: a seat's family read must not list every seat on the board, which every inbox and claim pays for (#2421).
  */
 export function sessionSnapshot(board, ids) {
   const seats = new Map(), joins = new Map(), families = new Map();
   for (let offset = 0; offset < ids.length; offset += 500) {
     const chunk = ids.slice(offset, offset + 500), marks = chunk.map(() => '?').join(',');
-    for (const row of board.db.prepare(`SELECT agent_id, agent_path, agent_family FROM agent WHERE agent_id IN (${marks})`).all(...chunk)) seats.set(row.agent_id, row);
-    for (const row of board.db.prepare(`SELECT event_id, event_by, event_kind, event_detail FROM event WHERE event_kind IN ('join','family') AND event_by IN (${marks}) ORDER BY event_id`).all(...chunk)) {
+    for (const row of prepared(board.db, `SELECT agent_id, agent_path, agent_family FROM agent WHERE agent_id IN (${marks})`).all(...chunk)) seats.set(row.agent_id, row);
+    for (const row of prepared(board.db, `SELECT event_id, event_by, event_kind, event_detail FROM event WHERE +event_kind IN ('join','family') AND event_by IN (${marks}) ORDER BY event_id`).all(...chunk)) {
       if (row.event_kind === 'join') { if (!joins.has(row.event_by) || joins.get(row.event_by).event_id > row.event_id) joins.set(row.event_by, row); }
       else {
         if (!families.has(row.event_by)) families.set(row.event_by, []);
