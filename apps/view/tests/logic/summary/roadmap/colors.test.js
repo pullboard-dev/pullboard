@@ -82,8 +82,9 @@ test('every stage color in the view resolves to its token, never a literal or a 
     assert.ok(!/var\(--(blue|violet|warn|accent|reject|ink-faint)(-soft|-strong)?\)|#[0-9a-f]{3,6}\b/.test(rule), `${rule.slice(0, 60)} carries no literal or screen-own color`);
   }
   assert.ok(!/\.roadmap-(stage-swatch|summary) ?\.waiting\b[^}]*--stage-ready/.test(all), 'waiting work is Gated grey, never Ready purple');
-  assert.match(all, /\.roadmap-stage-swatch\.held\b[^}]*dashed var\(--mark-held\)/, 'Held is a dashed outline, not a color');
-  assert.match(all, /\.roadmap-summary-swatch\.held\b[^}]*dashed var\(--mark-held\)/, 'the Roadmap legend draws Held as a dashed ring');
+  assert.match(all, /--border-held: [^;]*dashed var\(--mark-held\)/, 'the held border token is a dashed outline in the held mark colour');
+  assert.match(all, /\.roadmap-stage-swatch\.held\b[^}]*var\(--border-held\)/, 'Held is a dashed outline, not a color');
+  assert.match(all, /\.roadmap-summary-swatch\.held\b[^}]*var\(--border-held[a-z-]*\)/, 'the Roadmap legend draws Held as a dashed ring');
   assert.ok(!/\.roadmap-(stage-swatch|summary)[^{]*\.held\b[^}]*var\(--warn\)/.test(all), 'Held is no longer brown');
   assert.match(all, /\.stage-mark\.gate \{[^}]*background: none;[^}]*dashed/, 'the Held mark is dashed, with no fill');
   assert.match(all, /\.roadmap-summary-needs \{[^}]*color: var\(--ink\)/, 'Rulings is ink, not a color');
