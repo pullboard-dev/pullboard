@@ -251,7 +251,7 @@ try {
   }
   const invitation = await call(view,{headers:auth});
   observe(invitation.status,200);
-  observe(invitation.body,{version:1,available:true},'the idle invitation exposes no board paths or credentials');
+  observe(invitation.body,{version:1,available:true,linked:false,login:''},'the idle invitation exposes no board paths or credentials, only whether a board is linked and as whom');
   const hosted = await call(view,{headers:{...auth,origin:HOSTED_ORIGIN}});
   observe(hosted.status,200,'the trusted hosted page can use the same local person channel');
   observe(hosted.headers['access-control-allow-origin'],HOSTED_ORIGIN);
