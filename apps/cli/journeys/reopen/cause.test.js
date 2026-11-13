@@ -27,6 +27,7 @@ import { conflictReport } from '../../../../packages/rigor/index.js';
 import { trunkMerge } from '../../../../packages/merge/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -206,6 +207,8 @@ test('review selection records the actual submitted-head conflict files [C7,B3]'
 test('local and inline landing trains record sibling conflict files [C7,B3]', async () => {
   for (const separate of [true, false]) {
     const box = project(separate);
+    // The landing train is this machine's own in-process batch; a pull machine offers a runner land job instead (#6249).
+    fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
     const first = (await submit(box, 1));
     const second = (await submit(box, 2));
     (await accept(box, first));
