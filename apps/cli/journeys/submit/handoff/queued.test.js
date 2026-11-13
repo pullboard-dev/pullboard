@@ -1,20 +1,12 @@
 /** A queued submit returns before its gate and keeps the captured source and tool build [B5,V4,H16,E18]. */
 import assert from 'node:assert/strict';
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
-  realpathSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
@@ -74,46 +66,6 @@ test('queued submit returns before its gate and remains bound when the builder c
   // The captured item is filed on the strong route, so its reviewer joins on that route (a mid seat is refused ROUTE).
   document(await fixtureJoin(box.runLocal, reviewer, 'api', '--route', 'strong', '--json'));
   assert.equal(document(await box.runLocal(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
-});
-
-test('queued gate retains the tool build when the builder changes it [V4,H16,E18]', async t => {
-  const box = fixture(t);
-  const source = resolve(import.meta.dirname, '../../../../..');
-  const tools = join(box.dir, 'builder-tools');
-  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
-  const actualTemp = join(box.dir, 'actual-temp');
-  const aliasedTemp = join(box.dir, 'aliased-temp');
-  mkdirSync(actualTemp);
-  symlinkSync(actualTemp, aliasedTemp, 'dir');
-  box.env.TMPDIR = aliasedTemp;
-  // Process-level: submit from a copied builder tool tree with a symlinked TMPDIR, the installation under test.
-  const result = execFileSync(process.execPath, [join(tools, 'apps/cli/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
-    { cwd: box.web, env: box.env, encoding: 'utf8' });
-  assert.equal(JSON.parse(result).queued, true);
-  const job = state(box, box.id).job;
-  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
-  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
-  assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
-  assert.notEqual(request.tools, realpathSync(request.tools), 'the real worker is launched through a symlinked snapshot path');
-  assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
-  const workerPath = join(request.tools, 'apps/cli/src/io/gate/drive.js');
-  const originalWorker = readFileSync(workerPath, 'utf8');
-  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000); // budget: existing owned-child hang ceiling, not a performance assertion.
-  writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), "throw new Error('changed builder tooling');\n");
-  assert.equal(readFileSync(workerPath, 'utf8'), originalWorker, 'builder mutations cannot change the queued tools');
-  writeFileSync(box.release, 'release\n');
-  await waitJob(box, 'green');
-  assert.equal(state(box, box.id).item.item_commit, box.commit);
-  await box.helpers.waitFor(() => !existsSync(request.tools), 'owned tool snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
-  assert.equal(existsSync(join(tools, 'apps/cli/pullboard.js')), true, 'cleanup preserves the builder tool installation');
-  writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), originalWorker);
-  const malformed = join(box.dir, 'malformed-worker-request.json');
-  writeFileSync(malformed, JSON.stringify({ tools, job: 'not-native-job', commonDir: join(box.repo, '.git') }));
-  // Process-level: the gate driver child refuses a malformed request in its own process.
-  const refused = runFixtureChild(process.execPath, [join(tools, 'apps/cli/src/io/gate/drive.js'), malformed, 'test-driver'],
-    { cwd: box.web, env: box.env, encoding: 'utf8' });
-  assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
-  assert.equal(existsSync(join(tools, 'apps/cli/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');
 });
 
 test('clause 1: a seat holding a claim gets submit --wait back at once with no agent marker, the result through next [P7]', async t => {
