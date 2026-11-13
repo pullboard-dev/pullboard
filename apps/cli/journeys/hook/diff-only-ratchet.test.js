@@ -7,8 +7,9 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { spawnSync } from 'node:child_process';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
+import { fixThenStagedHookFailures } from '../../../../packages/gate/src/io/changed/scripts/static.js';
+import { captureCommandInProcess } from '../../tests/fixtures/process.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
@@ -16,7 +17,6 @@ after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
 const ROOT = join(import.meta.dirname, '../../../..');
-const CHECKER = join(ROOT, 'packages/gate/src/io/changed/scripts/static.js');
 const BASELINE = join(ROOT, 'packages/gate/data/baselines/test-waits-baseline.json');
 const LARGE = '// accepted line\n'.repeat(1501);
 
@@ -32,23 +32,29 @@ function projectOverRatchet() {
   return box;
 }
 
-/** Stage one file and run the staged-hook checker on the index. */
+/** The staged-hook checker's script body as an in-process command: fix, judge the index, print failures, exit 1 on any. */
+async function stagedHook(_args, { cwd, stderr }) {
+  const failures = await fixThenStagedHookFailures(cwd, note => stderr.write(`${note}\n`));
+  if (failures.length) stderr.write(`${failures.join('\n')}\n`);
+  return failures.length ? 1 : 0;
+}
+
+/** Stage one file and run the staged-hook checker on the index, in process. */
 function stage(box, file, source) {
   writeFileSync(join(box.repo, file), source);
   box.git(box.repo, 'add', file);
-  return spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER, '--staged-hook'],
-    { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  return captureCommandInProcess(stagedHook, ['--staged-hook'], { cwd: box.repo, env: box.env });
 }
 
-test('clause 1: a commit that touches only file B passes while main already exceeds a ratchet in file A [C7]', () => {
+test('clause 1: a commit that touches only file B passes while main already exceeds a ratchet in file A [C7]', async () => {
   const box = projectOverRatchet();
-  const result = stage(box, 'src/b-small.js', 'export const b = 1;\n');
+  const result = await stage(box, 'src/b-small.js', 'export const b = 1;\n');
   assert.equal(result.status, 0, result.stderr + result.stdout);
 });
 
-test('clause 2: a commit that adds a finding in B is still refused, and the file A excess is not named [C7]', () => {
+test('clause 2: a commit that adds a finding in B is still refused, and the file A excess is not named [C7]', async () => {
   const box = projectOverRatchet();
-  const result = stage(box, 'src/b-large.js', LARGE);
+  const result = await stage(box, 'src/b-large.js', LARGE);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr + result.stdout, /b-large\.js.*over the 1500-line cap/u);
   assert.doesNotMatch(result.stderr + result.stdout, /a-large\.js/u);
