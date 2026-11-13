@@ -108,6 +108,25 @@ function itemStageMarks(item, project) {
   return marks;
 }
 
+/**
+ * Draw the page's frame while the shown board's state is on its way: the tabs, the current tab marked, and the
+ * current screen's cards, empty. The board list has already answered, so a machine with no board never flashes it.
+ * Its two-column screens keep their detail column, so the frame does not jump when the board fills it in (#6589).
+ */
+function drawFrame() {
+  const group = String(view.root || '').startsWith('group:');
+  document.body.classList.remove('loading', 'boardless');
+  $('tabs').hidden = group;
+  document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
+  const frame = $('board-frame');
+  frame.dataset.screen = group ? 'group' : view.tab;
+  frame.classList.toggle('two', !group && ['items', 'shouts', 'spec', 'doctrine'].includes(view.tab));
+  frame.classList.toggle('narrow', !group && view.tab === 'shouts');
+  frame.hidden = false;
+  $('project-loading').hidden = false;
+  $('live').textContent = '';
+}
+
 // The parts that scroll on their own: each keeps its place through any draw (#6613).
 const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'cost'];
 /**
@@ -138,9 +157,13 @@ function render({ tab: switching = false } = {}) {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
     for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
-    $('live').textContent = 'Loading project…';
+    $('status-board').innerHTML = '';
+    // The tabs and the screen's empty cards stand while its board state is on its way, never a blank page (#6589).
+    if (data.projects.some((entry) => entry.ok)) drawFrame();
+    else $('live').textContent = 'Loading project…';
     return;
   }
+  $('board-frame').hidden = true;
   $('proof-stats').hidden = true;
   if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
@@ -209,7 +232,9 @@ function render({ tab: switching = false } = {}) {
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
   if (needsTab) {
   const person = !snapshot && (!readOnly || requests);
-  const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].filter(entry => !entry.closest('[hidden]')).map(entry => entry.dataset.needsKey);
+  // The rows the person opened on this board, per screen; every other row stays closed through live redraws.
+  const openNeeds = place => [...(view.needsOpen?.get(JSON.stringify([view.root, place])) ?? [])];
+  const expandedNeeds = openNeeds('items');
   /** Actions retain the existing person/request handlers and advertised row identities. */
   const needsControls = row => needsActionsHtml(row, { person,
     approvalHtml: row.kind === 'agent-approved' ? agentApprovalActions(row) : '',
@@ -220,7 +245,7 @@ function render({ tab: switching = false } = {}) {
     const date = new Date(value), hour = date.getHours();
     return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ' ' + date.getDate() + ', ' + (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
   };
-  const needsModel = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds });
+  const needsModel = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, quiet: true });
   // Browser-dependent presentation is prepared from the same descriptors the pure renderer consumes.
   const needsPresentation = new Map([...needsModel.questions,...needsModel.approvals].map(row => {
     const approvedAt = row.fields.find(([label]) => label === 'Approved in Git')?.[3]?.date;
@@ -232,7 +257,7 @@ function render({ tab: switching = false } = {}) {
   }));
   const needsPanel = ${needsPanelHtml.toString()};
   if (view.tab === 'dashboard') {
-    const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, compact: true });
+    const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: openNeeds('dashboard'), compact: true });
     const behind = dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
       needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
       rules: homeRules(p.spec),
@@ -244,7 +269,8 @@ function render({ tab: switching = false } = {}) {
   } else {
     const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {
-      $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
+      // With nothing for the person, the top of Items holds the one quiet Needs-you line.
+      $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
       $('needs').tabIndex = -1;
       store.paint($('needs'), needsHtml);
     }
