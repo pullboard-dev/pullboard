@@ -75,7 +75,7 @@ import { assertSpecCorrectionRefreezesCitations } from '../../tests/fixtures/ref
 import {
   FIXTURE_MODEL,
   fixtureJoin,
-  fixtureSettledMachine,
+  fixtureMachineSettings,
 } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -186,8 +186,9 @@ function sandbox() {
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     NODE_COMPILE_CACHE: COMPILE_CACHE,
   };
-  // The cases read a submit's or test run's result at once, so it settles whatever the machine's dispatch default is [P7].
-  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
+  // The cases read a submit's result at once and verify it, so the gate runs in the submitting process (#6249).
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.PULLBOARD_STARTUP_TRACE_FILE;
   delete env.PULLBOARD_STARTUP_TRACE_ENTRY;
