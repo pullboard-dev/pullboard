@@ -263,7 +263,9 @@ test('[A2] API projection from a borrowed staged board matches the normal view a
   try {
     const ordinary = projectState(box.repo);
     const staged = projectState(box.repo, { board });
-    assert.deepEqual(staged, ordinary, 'the staged path uses the exact API projectState projection');
+    // The timeline window is read from the wall clock on each call, so two builds differ by milliseconds.
+    const stable = (state) => JSON.parse(JSON.stringify(state, (key, value) => (key === 'since' || key === 'until' ? undefined : value)));
+    assert.deepEqual(stable(staged), stable(ordinary), 'the staged path uses the exact API projectState projection');
     assert.doesNotThrow(() => board.db.prepare('SELECT 1').get(), 'the caller retains ownership of its borrowed board connection');
   } finally { closeBoard(board); }
 });

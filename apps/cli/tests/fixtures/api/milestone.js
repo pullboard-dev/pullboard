@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { main } from '../native.js';
+import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { runCliInProcess } from '../process.js';
 import { createLocalApiHandler } from '../../../../../packages/api/index.js';
 import { refusalDocument } from '../../../index.js';
@@ -93,6 +94,30 @@ export function parseOneDocument(stdout) {
   assert.equal(document.version, 1);
   return document;
 }
+/**
+ * The CLI entry for in-process API moves, run with only this box's environment.
+ * Why: a move must not read the runner seat's own agent variables, which made a decision answer 409 [A2].
+ */
+export function isolatedMain(box) {
+  return async (argv, io) => {
+    const keys = new Set([...Object.keys(box.env), ...AGENT_SHELL_MARKERS, 'PULLBOARD_RELAY_TOKEN', 'npm_config_cache']);
+    const previous = new Map([...keys].map((key) => [key, process.env[key]]));
+    try {
+      for (const key of keys) {
+        if (Object.hasOwn(box.env, key)) process.env[key] = box.env[key];
+        else delete process.env[key];
+      }
+      process.env.npm_config_cache = join(box.dir, 'npm-cache');
+      return await main(argv, io);
+    } finally {
+      for (const [key, value] of previous) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  };
+}
+
 /** Serve the local API adapter directly so tests can exercise its optional origin allowlist. */
 export async function startLocalHandler(t, box, options = {}) {
   const secret = randomUUID();
@@ -100,7 +125,7 @@ export async function startLocalHandler(t, box, options = {}) {
   const handler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument,
     secret,
     getPort: () => port,
-    runCommand: options.runCommand ?? main,
+    runCommand: options.runCommand ?? isolatedMain(box),
     projects: () => [{ root: box.repo, name: 'API fixture', project: '', added: '2026-01-01T00:00:00.000Z' }],
     ...(options.allowedOrigins === undefined ? {} : { allowedOrigins: options.allowedOrigins }),
     ...(options.allowedHosts === undefined ? {} : { allowedHosts: options.allowedHosts }),
