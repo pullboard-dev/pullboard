@@ -97,7 +97,7 @@ export async function runnerOrphanFixture(t, tools) {
   for (const folder of [repo, out, worker, bin, home, machineHome, remoteHome, remoteStateRoot, remoteMachineHome]) mkdirSync(folder, { recursive: true });
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
   const env = {
-    ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+    ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Runner Orphan Fixture', GIT_AUTHOR_EMAIL: 'runner-orphans@example.invalid',
     GIT_COMMITTER_NAME: 'Runner Orphan Fixture', GIT_COMMITTER_EMAIL: 'runner-orphans@example.invalid',

@@ -1,6 +1,7 @@
 /** Relay text output stays separate from CLI dispatch and encrypted transport [H15,H17]. */
 import { formatSnapshotLimit } from '../relay.js';
 import { relayStorageLine } from '../../logic/relay/storage.js';
+import { RECOVER_COMMAND } from '../../logic/relay/fields.js';
 
 /** Preserve status's short relay summary, any pending-size finding and the authenticated account quota. */
 export function briefLines(state, outboxFormat) {
@@ -19,9 +20,14 @@ export function outboxLines(state, outboxFormat) {
   if (typeof outboxFormat?.describeMove !== 'function' || typeof outboxFormat.refusalLine !== 'function') throw new TypeError('relay output requires the caller-supplied describeMove and refusalLine outbox formatters');
   const { describeMove, refusalLine } = outboxFormat;
   const lines = [];
-  if (state.outbox?.length) {
-    lines.push(`relay outbox: ${state.outbox.length} ${state.outbox.length === 1 ? 'move waits' : 'moves wait'} for the relay, sent in this order when it answers:`);
-    for (const move of state.outbox) lines.push(`  ${describeMove({ operation: move.operation, args: [move.item], actor: move.actor })} (made ${move.queuedAt}): pending`);
+  const waiting = (state.outbox ?? []).filter((move) => !move.parked), parked = (state.outbox ?? []).filter((move) => move.parked);
+  if (waiting.length) {
+    lines.push(`relay outbox: ${waiting.length} ${waiting.length === 1 ? 'move waits' : 'moves wait'} for the relay, sent in this order when it answers:`);
+    for (const move of waiting) lines.push(`  ${describeMove({ operation: move.operation, args: [move.item], actor: move.actor })} (made ${move.queuedAt}): pending`);
+  }
+  if (parked.length) {
+    lines.push(`relay outbox: ${parked.length} ${parked.length === 1 ? 'move is' : 'moves are'} parked because the relay refused ${parked.length === 1 ? 'it' : 'them'} for good; later moves keep flowing; run ${RECOVER_COMMAND} to publish a checkpoint of this board under the same board id:`);
+    for (const move of parked) lines.push(`  ${describeMove({ operation: move.operation, args: [move.item], actor: move.actor })} (made ${move.queuedAt}): parked [${move.parked.code}] ${move.parked.message}`);
   }
   for (const refused of state.outboxRefusals ?? []) lines.push(refusalLine(refused));
   for (const { was, is } of state.outboxRenumbered ?? []) lines.push(`relay outbox: the item added here as #${was} while the relay was down is #${is} on the board`);

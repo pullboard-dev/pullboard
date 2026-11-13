@@ -23,8 +23,8 @@ import { SCHEMA_VERSION } from '../../../../../packages/store/index.js';
 import { boardStanding } from '../../../../../packages/store/index.js';
 import { recordSchemaStamp } from '../../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import { importBoard } from '../../../../../packages/store/index.js';
 import { undoQueued } from '../../../../../packages/outbox/index.js';
@@ -136,8 +136,6 @@ function choice(box, cwd, value) {
 
 test('a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
   const box = e2e.project();
-  // Pinned to controller dispatch: the copied candidate main source owns this board's declaration, so the worktree's loopback runner cannot open it to take a pulled job [#6577].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   choice(box, box.repo, 'base');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   const added = await succeeds(box, box.repo, 'add', 'web', 'Carry after declaration upgrade', '--specs', 'G1',
@@ -173,6 +171,8 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   assert.equal(opened.status, 0, opened.stderr + opened.stdout);
   assert.ok(observe(file).schema.find(row => row.name === 'machine_item_move').sql.includes("'claimed>verified'"));
   await succeeds(box, box.web, 'submit', String(id));
+  // The carry completes with the pulled gate job's receipt, which can land just after the settled command returns [P7,C7].
+  await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'verified', `the pulled gate carries #${id}`, { signal: AbortSignal.timeout(150_000) });
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     const item = db.prepare('SELECT * FROM item WHERE item_id=?').get(id);

@@ -68,6 +68,7 @@ export const setupHelp = `Set up
                                         approve on another paired phone, or sign in again with GitHub
   pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
   pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
+  pullboard relay recover  person-only: resolve every move the relay refused for good, in place, under the same board id
   pullboard relay recover --skip <sequence>  person-only recovery of one blocked next relay position
   pullboard handoff [--take <id>]        write or take an agent hand-off; keep questions on its item
                                         agent worktrees only; a coordinator's hand-off is its resume card
