@@ -1,7 +1,7 @@
 import { sharedRowHtml } from "../component.js";
 
 /** Render normalized timeline entries and explicit presentation values as HTML. */
-export function timelineHtml({ entries, steps, flow, open = [], newestFirst = false }) {
+export function timelineHtml({ entries, steps, flow, open = [], newestFirst = false, folded = [] }) {
   /** Escape board text before joining it to trusted renderer markup. */
   const esc = text => String(text ?? '').replace(/[&<>"']/gu, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   /** Describe a lifecycle stay without inventing a time for an inferred lapse. */
@@ -85,6 +85,8 @@ export function timelineHtml({ entries, steps, flow, open = [], newestFirst = fa
       previous.count += 1; previous.lastTime = row.time; previous.eventIds.push(...row.eventIds);
     } else grouped.push({ ...row, eventIds: [...row.eventIds] });
   }
+  // An event the history leaves out of view (a rule's milestone placement) rides on the row of the event before it.
+  for (const { eventId, after } of folded) (grouped.find(row => row.eventIds.includes(after)) ?? grouped[0])?.eventIds.push(eventId);
   const ordered = newestFirst ? grouped.toReversed() : grouped;
   return '<ol class="tl">' + ordered.map(row => {
     const tone = ['health-failure', 'health-resolved'].includes(row.kind) ? 'sentinel' : ['claim', 'renew', 'submit'].includes(row.kind) ? 'build' : row.type === 'fact' ? row.state : row.kind === 'accept' ? 'pass' : row.kind === 'proof-run' ? 'proof'
