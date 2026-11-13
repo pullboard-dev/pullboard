@@ -488,7 +488,7 @@ test('the items toolbar is one row: view, filter and new [N26]', async () => {
         await chrome.waitFor("document.querySelector('#filter-menu').hidden");
       }
     }
-    await press(chrome, "document.querySelector('#new-item')");
+    await press(chrome, "document.querySelector('[data-page-ctl=new]')");
     await chrome.waitFor("!document.querySelector('#add-form').hidden");
     await press(chrome, "document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");

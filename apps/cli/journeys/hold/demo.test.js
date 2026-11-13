@@ -225,7 +225,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       }
       await click('[data-tab="items"]');
 
-      await click('#new-item');
+      await click('[data-page-ctl=new]');
       await checkLayout(width, 'add form');
       await fill('#add-lane', 'web');
       await fill('#add-title', `Phone item ${width}`);

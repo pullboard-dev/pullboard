@@ -217,7 +217,6 @@ function render({ tab: switching = false } = {}) {
   // Anything but a tab switch may change what any pane shows, so a pane drawn before it is drawn again on its switch.
   if (!switching) store.invalidate();
   const scrolled = store.scrollMark([document.scrollingElement, ...SCROLLED_PARTS.map((id) => $(id))]);
-  const statsFocus = document.activeElement?.id === 'proof-stats-summary' ? document.activeElement.id : null;
   const p = privateModelProject(data.project);
   const group = data.group;
   renderSide();
@@ -228,14 +227,13 @@ function render({ tab: switching = false } = {}) {
   if (data.root !== view.root || listing) {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
-    for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
+    for (const id of ['products', 'group-view', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
     // The tabs and the screen's empty cards stand while its board state is on its way, never a blank page (#6589).
     if (data.projects.some((entry) => entry.ok)) drawFrame();
     else $('live').textContent = 'Loading project…';
     return;
   }
   $('board-frame').hidden = true;
-  $('proof-stats').hidden = true;
   if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
   // flashes them; with no board to show, one message says how a board starts, in their place.
@@ -256,10 +254,6 @@ function render({ tab: switching = false } = {}) {
   if (!p) return;
   // A tab switch to a pane drawn from this same board and view shows it as it is, with nothing drawn again.
   const draw = !(switching && store.paneFresh(view.tab, store.paneKey(view, $('q').value)));
-  $('proof-stats').hidden = view.tab !== 'items';
-  if (view.tab === 'items') store.paint($('proof-stats'), proofStatsCard(p.proofStats, view.statsOpen));
-  // Polling replaces this card's controls; keep the person's keyboard position through that redraw.
-  if (statsFocus && view.tab === 'items') $(statsFocus)?.focus({ preventScroll: true });
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
   store.paint($('prod-list'), p.products.map((x) => {
     const states = [['open', '', x.items.open], ['building', 'building', x.items.claimed], ['to verify', 'verify', x.items.submitted], ['verified', 'verified', x.items.verified]].filter(([, , n]) => n);
@@ -362,7 +356,6 @@ function render({ tab: switching = false } = {}) {
   $('add-specs').placeholder = (approved.length ? approved : p.spec).slice(0, 2).map((r) => r.id).join(',') || 'none yet';
   const q = $('q').value.trim().toLowerCase();
   const pipeline = view.itemsView === 'pipeline';
-  store.paint($('items-view-switch'), segmentedToggle({ label: 'Items view', attribute: 'data-items-view', value: view.itemsView, options: [{ value: 'list', label: 'List' }, { value: 'pipeline', label: 'Pipeline' }] }));
   $('item-list').hidden = pipeline;
   $('pipeline').hidden = !pipeline;
   // Each Show choice counts what it would show under the lane and the search. A search looks through every
@@ -378,31 +371,10 @@ function render({ tab: switching = false } = {}) {
     currentBoard: data.root === view.root, adding: view.adding,
     addressDetail: view.tab === 'items' ? view.addressDetail : null, tab: view.tab, snapshot });
   view.lane = itemsSelection.selectedLane;
-  const { matching, stateOptions, laneOptions, inView, shown, finishedUnderAll } = itemsSelection;
-  const stateButtons = stateOptions.map(({ value, label, count }) => '<button class="filter-option" role="menuitemradio" aria-checked="' + (view.state === value) + '" data-filter-choice="state:' + value + '" data-filter-kind="state" data-filter-value="' + value + '" data-state="' + value + '" type="button"><span class="filter-option-label">' + label + '</span><b>' + count + '</b></button>');
-  const laneButtons = laneOptions.map(({ value, label, count }) => '<button class="filter-option" role="menuitemradio" aria-checked="' + ((view.lane || '') === value) + '" data-filter-choice="lane:' + esc(value) + '" data-filter-kind="lane" data-filter-value="' + esc(value) + '" aria-label="' + esc(label) + (count === null ? '' : ' · ' + count) + '" title="' + esc(label) + (count === null ? '' : ' · ' + count) + '" type="button"><span class="filter-option-label">' + esc(label) + '</span>' + (count === null ? '' : '<b>' + count + '</b>') + '</button>');
-  const activeChoice = document.activeElement?.dataset?.filterChoice;
-  const menu = $('filter-menu');
-  store.paint(menu, (pipeline ? '' : '<section class="filter-group" role="group" aria-label="Show"><h3>Show</h3>' + stateButtons.join('') + '</section>')
-    + '<section class="filter-group" role="group" aria-label="Lane"><h3>Lane</h3>' + laneButtons.join('') + '</section>');
-  menu.hidden = !view.filterOpen;
-  menu.style.left = '0px';
-  menu.style.maxWidth = '';
-  if (view.filterOpen) {
-    // The open menu stays inside the toolbar, no wider than it and shifted left as far as it needs. The window's
-    // width is no measure of that room: it counts a classic scrollbar, so on CI's runners a menu kept inside the
-    // window still reached 10px past the toolbar (#442).
-    const bar = $('items-toolbar'), box = bar.getBoundingClientRect(), left = box.left + bar.clientLeft, right = left + bar.clientWidth;
-    menu.style.maxWidth = Math.min(320, bar.clientWidth) + 'px';
-    const at = menu.getBoundingClientRect();
-    menu.style.left = Math.max(left - at.left, Math.min(0, right - at.right)) + 'px';
-  }
-  $('filter-toggle').setAttribute('aria-expanded', String(view.filterOpen));
-  const filterLabel = itemsSelection.filterLabel;
-  $('filter-label').textContent = filterLabel;
-  $('filter-toggle').setAttribute('aria-label', filterLabel);
-  $('filter-toggle').title = filterLabel;
-  if (view.filterOpen && activeChoice) [...menu.querySelectorAll('[data-filter-choice]')].find((option) => option.dataset.filterChoice === activeChoice)?.focus({ preventScroll: true });
+  const { matching, laneOptions, inView, shown, finishedUnderAll } = itemsSelection;
+  // The lanes the strip's Lane control offers, with each one's count under the shown state (Filters live in the strip).
+  const lanesKey = JSON.stringify(laneOptions.map(({ value, count }) => [value, count]));
+  if (view.itemLanesKey !== lanesKey) { view.itemLanesKey = lanesKey; view.itemLanes = laneOptions; drawPageControls(); }
   store.paint($('pipeline'), pipeline ? pipelineCard(shown) : '');
   const { nextSelectedId } = itemsSelection;
   if (nextSelectedId !== view.item) view.item = nextSelectedId;

@@ -10,6 +10,7 @@ import { notchHtml } from '../../src/logic/nav.js';
 import { navLayout } from '../../src/logic/nav.js';
 import { navSideHtml } from '../../src/logic/nav.js';
 import { pageControlsHtml } from '../../src/logic/nav.js';
+import { sharedRowHtml } from '../../src/logic/component.js';
 import { pageRenderScript } from '../../src/io/page/render.js';
 import { pageScriptPart2 } from '../../index.js';
 import { runInNewContext } from 'node:vm';
@@ -222,9 +223,9 @@ test('clause 2: the pin flips the navigation between the top tabs and the sideba
 
 test('clause 1: each page puts its own controls at the right of the strip, and the sidebar layout puts them on the title row [N26]', () => {
   const labels = (html) => [...html.matchAll(/<(?:button|option)[^>]*>([^<]+)<\/(?:button|option)>/gu)].map(match => match[1]);
-  assert.deepEqual(labels(pageControlsHtml({ tab: 'items' })), ['Open', 'Building', 'In review', 'All', 'New item'], 'Items: Open, Building, In review, All and New item');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'items' })), ['Open', 'Building', 'In review', 'All', 'List', 'Pipeline', 'New item'], 'Items: Open, Building, In review, All, List, Pipeline and New item');
   assert.match(pageControlsHtml({ tab: 'items', state: 'verify' }), /<button type="button" data-page-ctl="state" data-value="verify" class="on" aria-pressed="true">In review<\/button>/u, 'the shown state is the pressed one');
-  assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/ class="on"/gu) || []).length, 1, 'one state at a time');
+  assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/data-page-ctl="state"[^>]* class="on"/gu) || []).length, 1, 'one state at a time');
   assert.doesNotMatch(pageControlsHtml({ tab: 'items', writable: false }), /New item/u, 'a read-only view offers no New item');
   assert.deepEqual(labels(pageControlsHtml({ tab: 'progress' })), ['Last 6 hours', 'Last 24 hours'], 'Progress: a time range');
   assert.match(pageControlsHtml({ tab: 'progress', range: '24h' }), /<option value="24h" selected>/u);
@@ -261,4 +262,28 @@ test('clause 2: each control\'s state is in the page address, and the address pu
     assert.deepEqual(placeQuery({ tab: place.tab, ...back(search) }), placeQuery(place), `${place.tab}: refresh, back and forward read it back`);
   }
   assert.equal(withPlaceQuery('', placeQuery({ tab: 'items' })), '', 'Open, the default, leaves the address plain');
+});
+
+test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar above its list; filters and New item live in the strip [N26]', () => {
+  const html = shell(false);
+  const items = html.slice(html.indexOf('<section data-pane="items"'), html.indexOf('<section data-pane="shouts"'));
+  for (const id of ['proof-stats', 'items-toolbar', 'items-view-switch', 'filter-toggle', 'filter-menu', 'new-item']) assert.ok(!items.includes('id="' + id + '"'), `${id} is not on the Items page`);
+  assert.doesNotMatch(items, /class="card-panel toolbar"|local-note|share-note/u, 'nothing but the list card leads the page');
+  assert.ok(items.indexOf('id="chain"') < items.indexOf('id="needs"'), 'questions and sentinels fold below the items');
+  const css = composeViewStyles();
+  assert.match(css, /:root\[data-tab="items"\] #local-note\[data-kind="note"\][^{]*\{ display: none; \}/u, 'the sign-in note is hidden while Items shows');
+  const lanes = [{ value: '', label: 'All lanes', count: null }, { value: 'core', label: 'core', count: 605 }, { value: 'view', label: 'view', count: 52 }];
+  const strip = pageControlsHtml({ tab: 'items', lane: 'core', lanes, itemsView: 'pipeline' });
+  assert.match(strip, /<select class="sel" data-page-ctl="lane" aria-label="Lane">.*<option value="core" selected>core · 605<\/option>/u, 'the lane filter is in the strip, with its counts');
+  assert.match(strip, /data-page-ctl="view" data-value="pipeline" class="on" aria-pressed="true">Pipeline/u, 'List and Pipeline are in the strip');
+  assert.match(strip, /data-page-ctl="new">New item/u, 'New item is in the strip');
+});
+
+test('clause 1: Items rows are one card of mockup-shaped rows at the mockup\'s fixed row height [N26]', () => {
+  const css = composeViewStyles();
+  const rule = (selector) => { const at = css.indexOf(selector + ' {'); assert.ok(at >= 0, `the stylesheet has ${selector}`); return css.slice(at + selector.length + 2, css.indexOf('}', at)); };
+  assert.match(rule('#chain'), /--item-row-h: 55px/u, 'the mockup\'s row: 55 px and a 2 px gap, 57 px a row, kept fixed for the windowing');
+  const row = sharedRowHtml({ className: 'on ', attributes: { 'data-item': 7 }, title: 'A title', state: 'building', primaryHtml: '<span>#7</span>A title', timeHtml: '<time>1h</time>', chipHtml: '<span class="chip">core-7</span>', metaHtml: '<span>core</span>' });
+  const order = ['class="dot', 'class="row-copy"', 'class="t srow-text"><span>#7</span>A title', 'class="meta"><span>core</span>', 'class="row-side"', '<time', 'class="chip">core-7'].map(part => row.indexOf(part));
+  assert.ok(order.every((at, n) => at >= 0 && (!n || at > order[n - 1])), `state circle, #id and title, then lane, then time and the holder chip at the right: ${order}`);
 });
