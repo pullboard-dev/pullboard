@@ -29,8 +29,8 @@ function beats(box) {
   try { return db.prepare('SELECT seat, at FROM heartbeat').all(); } finally { db.close(); }
 }
 
-/** A project with a seat holding `count` claims. */
-function seatWithClaims(count) {
+/** A project with a seat holding `count` claims, claimed in process. */
+async function seatWithClaims(count) {
   const box = helpers.project('true');
   fixturePolicy(box, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: Math.max(1, count) } });
   box.git(box.web, 'merge', '-q', 'main');
@@ -39,15 +39,15 @@ function seatWithClaims(count) {
   const ids = [];
   for (let n = 0; n < count; n++) {
     const id = String(fileFixtureItem(box, box.repo, { lane: 'web', title: `Held ${n}`, check: 'true', args: ['--specs', 'G1'] }).item_id);
-    const claimed = box.run(box.web, 'claim', id, '--no-next');
+    const claimed = await box.runLocal(box.web, 'claim', id, '--no-next');
     assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
     ids.push(id);
   }
   return { box, ids };
 }
 
-test('clause 1: a bare heartbeat on the real CLI path takes under 150 ms best of five and imports no command registry or recovery [C7,#3847]', () => {
-  const { box } = seatWithClaims(1);
+test('clause 1: a bare heartbeat on the real CLI path takes under 150 ms best of five and imports no command registry or recovery [C7,#3847]', async () => {
+  const { box } = await seatWithClaims(1);
   const times = [0, 1, 2, 3, 4].map(() => {
     const start = process.hrtime.bigint();
     const run = box.run(box.web, 'heartbeat');
@@ -67,8 +67,8 @@ test('clause 1: a bare heartbeat on the real CLI path takes under 150 ms best of
   assert.ok(!loaded.some(url => /\/(?:commands|cli-main|recovery)\//u.test(url)), 'no command registry or recovery module loads');
 });
 
-test('clause 2: one call renews a seat with three claims, a seat with no claim still beats, and the claims stay held [C7,#3847]', () => {
-  const { box, ids } = seatWithClaims(3);
+test('clause 2: one call renews a seat with three claims, a seat with no claim still beats, and the claims stay held [C7,#3847]', async () => {
+  const { box, ids } = await seatWithClaims(3);
   const run = box.run(box.web, 'heartbeat');
   assert.equal(run.code, 0, `${run.out}\n${run.err}`);
   const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite.presence.sqlite'));
@@ -81,20 +81,20 @@ test('clause 2: one call renews a seat with three claims, a seat with no claim s
   const after = beats(box);
   const mine = after.find(row => row.seat.endsWith(',"web-1"]'));
   assert.ok(mine && mine.at > '2020', 'the seat observation advanced past the aged value');
-  const whoami = JSON.parse(box.run(box.web, 'heartbeat', '--json').out);
+  const whoami = JSON.parse((await box.runLocal(box.web, 'heartbeat', '--json')).out);
   assert.equal(whoami.presence, 'live', 'the full path reads the thin path write as live presence');
   for (const id of ids) {
-    const shown = box.run(box.web, 'show', id);
+    const shown = await box.runLocal(box.web, 'show', id);
     assert.match(shown.out, /claimed/u, `claim #${id} stays held`);
   }
 });
 
-test('clause 2: a directory with no seat falls through to the full path and a lapsed claim is refused as before [C7,#3847]', () => {
-  const { box, ids } = seatWithClaims(1);
-  const released = box.run(box.web, 'release', ids[0], '--reason', 'BLOCKED', '--note', 'fixture lapse', '--no-next');
+test('clause 2: a directory with no seat falls through to the full path and a lapsed claim is refused as before [C7,#3847]', async () => {
+  const { box, ids } = await seatWithClaims(1);
+  const released = await box.runLocal(box.web, 'release', ids[0], '--reason', 'BLOCKED', '--note', 'fixture lapse', '--no-next');
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
-  const lapsed = box.run(box.web, 'submit', ids[0], '--no-next');
+  const lapsed = await box.runLocal(box.web, 'submit', ids[0], '--no-next');
   assert.notEqual(lapsed.code, 0, 'a released claim is still refused at submit after a heartbeat');
-  const unseated = box.run(box.repo, 'heartbeat', '--json');
+  const unseated = await box.runLocal(box.repo, 'heartbeat', '--json');
   assert.equal(unseated.code, 0, `${unseated.out}\n${unseated.err}`);
 });

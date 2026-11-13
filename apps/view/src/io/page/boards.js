@@ -137,7 +137,7 @@ function renderPersonRequests(project) {
   const panel = $('person-requests');
   // A panel above the viewport (hidden counts: it opens at the page top) is measured before and after, so render can
   // move its page-scroll mark by the growth and a new receipt never shoves what the person reads [H12,H5].
-  const above = window.scrollY > 0 && (panel.hidden || panel.getBoundingClientRect().bottom <= 0);
+  const above = typeof window !== 'undefined' && window.scrollY > 0 && (panel.hidden || panel.getBoundingClientRect().bottom <= 0);
   const heightBefore = above && !panel.hidden ? panel.getBoundingClientRect().height : 0;
   panel.hidden = !entries.length;
   panel.innerHTML = entries.length ? '<h2>Your requests</h2><ul class="request-list">' + [...entries].sort((a, b) => b.sequence - a.sequence).map((request) => {
