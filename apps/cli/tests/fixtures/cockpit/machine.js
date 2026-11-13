@@ -50,6 +50,15 @@ const SPEC = `# Demo spec
 `;
 
 /**
+ * Tell a fixture `add` that its item differs from any open one, in place, and return args.
+ * Why: fixture items share bare titles and criteria, so the duplicate guard refuses most of them; each one is a separate case, never a repeat [C7].
+ */
+function fixtureAddDistinct(args) {
+  if (args[0] === 'add' && !args.some(arg => arg === '--not-duplicate-of' || arg.startsWith('--not-duplicate-of='))) args.push('--not-duplicate-of', '1 each fixture item is a separate case');
+  return args;
+}
+
+/**
  * A scratch machine: its own project registry, a `pullboard` shim on the PATH so the hooks find the
  * CLI, and git kept apart from this machine's config. run() fails the test on any refusal.
  */
@@ -82,6 +91,7 @@ function machine() {
   const runWithEnv = (cwd, commandEnv, ...args) => {
     fixtureJoinRoute(args, commandEnv.PULLBOARD_MODEL);
     fixtureAddRoute(args);
+    fixtureAddDistinct(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
     const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: commandEnv, encoding: 'utf8' });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
@@ -91,6 +101,7 @@ function machine() {
   const inProcessWithEnv = async (cwd, commandEnv, ...args) => {
     fixtureJoinRoute(args, commandEnv.PULLBOARD_MODEL);
     fixtureAddRoute(args);
+    fixtureAddDistinct(args);
     invocations.push({ args, hasModel: Object.hasOwn(commandEnv, 'PULLBOARD_MODEL'), model: commandEnv.PULLBOARD_MODEL });
     const result = await runCliInProcess(args, { cwd, env: commandEnv });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);

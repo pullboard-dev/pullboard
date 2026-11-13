@@ -78,7 +78,7 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
   const json = async (root, ...args) => JSON.parse(await box.inProcess(root, ...args, '--json'));
   /** Add a real native fixture item with an executable frozen check. */
   const add = async (root, title, check = 'node --check web/lifecycle-fixture.js') => (await json(root, 'add', 'web', title, '--specs', 'G1',
-    '--criterion', 'The fixture module parses.', '--check', check)).item.item_id;
+    '--criterion', 'The fixture module parses.', '--check', check, '--accept-green', 'the fixture module already parses on main')).item.item_id;
   /** Commit actual private source bytes through the existing fixture hooks. */
   const commit = (root, file, content, message) => {
     mkdirSync(dirname(join(root, file)), { recursive: true });
