@@ -1218,13 +1218,7 @@ export function resolveCommit(root, ref) {
   });
 }
 
-/**
- * HEAD's commit and tree from one git process, kept for the rest of the command until a git write clears it.
- * Why: headCommit and headTree each spawned `git rev-parse`, so one submit paid two processes for one revision [C7].
- *
- * @param {string} root
- * @returns {{ commit: string | null, tree: string | null }}
- */
+/** HEAD's commit and tree from one git process, kept until a git write clears it, so a submit spawns one rev-parse, not two [C7]. */
 function headPair(root) {
   return fact(`headPair:${resolve(root)}`, () => {
     const result = tryGit(root, ['rev-parse', '--quiet', 'HEAD^{commit}', 'HEAD^{tree}']);
