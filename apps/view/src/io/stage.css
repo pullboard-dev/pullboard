@@ -73,6 +73,8 @@
 #activity a.activity-about.ref[data-go] { font: 500 var(--text-xs) var(--sans); }
 /* After chips share one group that ends in an ellipsis inside the row; Rulings are one line each, never a stray comma (#7303, #7311). */
 .milestone-item .roadmap-afters { display: block; flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.milestone-item .roadmap-afters .roadmap-after { display: inline-flex; vertical-align: middle; margin-right: var(--space-2); }
+.milestone-item .roadmap-afters .roadmap-after { display: inline; margin-right: var(--space-2); }
+/* Inline, not inline-flex: only inline text can end in the ellipsis, so a chip cut at the row edge never shows a bare "aft" (#7400). */
+.milestone-item .roadmap-afters .roadmap-after svg { display: inline-block; vertical-align: -2px; margin-right: var(--space-1); }
 .roadmap-summary-needs { display: grid; gap: var(--space-1); }
 .roadmap-summary-needs .roadmap-need { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

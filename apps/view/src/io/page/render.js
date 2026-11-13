@@ -761,10 +761,10 @@ function render({ tab: switching = false } = {}) {
     const feedback = view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
     const selectedRows = ruleListModel(rows, { kind, filter, selectedId: view.row[kind],
       addressed: view.tab === kind && view.addressDetail !== null, approvalIds: agentApprovals.map(row => row.id), feedback });
-    const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts, sectionReviewCounts, sectionKey } = selectedRows;
+    const { labels, shorts, counts: n, shown: shownRows, feedbackId, sectionCounts, sectionReviewCounts, sectionKey } = selectedRows;
     const undecidedIds = new Set(selectedRows.undecidedIds);
     const undecided = row => undecidedIds.has(row.id);
-    store.paint($(kind + '-chips'), segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], count: n[key], title: kind === 'spec' && key === 'decide' ? selectedRows.decisionTitle : undefined })) }));
+    store.paint($(kind + '-chips'), segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], short: shorts[key], count: n[key], title: kind === 'spec' && key === 'decide' ? selectedRows.decisionTitle : undefined })) }));
     // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
     view.row[kind] = selectedRows.nextSelectedId;
     let section = null;
