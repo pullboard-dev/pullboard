@@ -24,6 +24,7 @@ import { registerProject } from '../../../../seats/index.js';
 import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { fixtureJoinRoute } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { settledGateJob } from '../../../../../apps/cli/tests/fixtures/submit/settle.js';
 
 export { resourceWorkerSources, resourceNames, oldSchema, staleIdentity, expireHeartbeat } from '../../../../../apps/cli/tests/fixtures/resources/lease.js';
 
@@ -65,6 +66,14 @@ function clockedCli(box, cwd, ...args) {
   return args.includes('--json') ? JSON.parse(result.stdout) : result.stdout;
 }
 
+/** The fixture as settledGateJob reads it: show runs through the clocked CLI and returns { code, out, err }. */
+function runBox(box) {
+  return { repo: box.repo, env: box.env, run: (cwd, ...args) => {
+    const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args], { cwd, env: box.env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout, err: result.stderr };
+  } };
+}
+
 /** Track a waiting real CLI process in the same cleanup registry as the resource workers. */
 function leaseCommand({ helpers, children }, box, cwd, ...args) {
   const child = helpers.launch(box, cwd, process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args]);
@@ -84,8 +93,7 @@ function itemLeaseFixture(t, helpers) {
   const box = helpers.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  // This scenario observes the synchronous submit's live queue lease; asynchronous handoffs return before that wait.
-  writeFileSync(configFile, JSON.stringify({ ...config, lease: '1m', reviewLease: '1m', submit: { ...config.submit, handoff: false } }));
+  writeFileSync(configFile, JSON.stringify({ ...config, lease: '1m', reviewLease: '1m' }));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queue lease fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -275,15 +283,13 @@ export async function queuedLeaseProof(t, deps) {
       assert.equal(review.exitResult, null, `verify exited before queueing: ${review.stdoutText}\n${review.stderrText}`);
       return waiting(reviewId)?.leaseUntil;
     }, 'the real verify waiter and its item lease end');
-    const build = leaseCommand(deps, box, box.web, 'submit', String(buildId), '--json');
-    commands.push(build);
+    // A pulled submit returns "queued" at once; its gate job is the waiter, so the test settles it through the job's step [P7,C7,#6249].
+    const build = clockedCli(box, box.web, 'submit', String(buildId), '--json');
+    assert.equal(build.queued, true, 'submit queues its gate job and returns');
     try {
-      await waitUntil(() => {
-        assert.equal(build.exitResult, null, `submit exited before queueing: ${build.stdoutText}\n${build.stderrText}`);
-        return waiting(buildId)?.leaseUntil;
-      }, 'the real submit waiter and its item lease end', 30_000); // budget: the real CLI completes source and static preflight before entering the held pool.
+      await waitUntil(() => waiting(buildId)?.leaseUntil, 'the pulled submit job waits in the pool with its item lease end', 30_000); // budget: the runner claims the job and completes source and static preflight before entering the held pool.
     } catch (error) {
-      throw new Error(`${error.message}\nsubmit stdout: ${build.stdoutText}\nsubmit stderr: ${build.stderrText}\nresource queue: ${JSON.stringify(privateList(box))}`, { cause: error });
+      throw new Error(`${error.message}\nsubmit: ${JSON.stringify(build)}\nresource queue: ${JSON.stringify(privateList(box))}`, { cause: error });
     }
     const check = leaseCommand(deps, box, box.checker, 'check', String(checkId), '--yes', '--json');
     commands.push(check);
@@ -339,7 +345,7 @@ export async function queuedLeaseProof(t, deps) {
     refuseFreshExpiredSubmit(box, buildId);
     const admittedBuild = exportBoard(box.board);
     writeFileSync(buildGate.release, 'release');
-    assert.equal((await build.finished).code, 0, `${build.stdoutText}\n${build.stderrText}`);
+    await settledGateJob(runBox(box), buildId, { deadlineMs: 120_000 });
     assert.equal(item(buildId).item_status, 'submitted', 'the actual queued submit completes its ordinary board move');
     admittedCompletionReplicas(box, buildId, admittedBuild);
     await waitUntil(() => existsSync(checkGate.events), 'the independent owned check starts');
