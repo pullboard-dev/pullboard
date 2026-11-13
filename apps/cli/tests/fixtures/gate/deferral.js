@@ -43,13 +43,15 @@ export function makeDeferralFixtures(e2e, store) {
     mkdirSync(join(box.repo, 'web'), { recursive: true });
     writeFileSync(join(box.repo, 'web/core.js'), 'export const value = 1;\n');
     writeFileSync(join(box.repo, 'web/fix.js'), 'export const fixed = false;\n');
+    // The pulled gate runs without this test's env: bake the marker path into the sources [P7,C7].
+    const marker = JSON.stringify(join(box.dir, 'ran.log'));
     const record = () => `import { appendFileSync } from 'node:fs';\nimport { test } from 'node:test';\nimport assert from 'node:assert/strict';\n`;
     writeFileSync(join(box.repo, 'web/gate-check.test.js'), `${record()}import { existsSync } from 'node:fs';\n`
       + `test('no red marker [G1]', () => assert.equal(existsSync(new URL('./RED', import.meta.url)), false));\n`);
-    writeFileSync(join(box.repo, 'web/guard.test.js'), `${record()}test('guard [G1]', () => { appendFileSync(process.env.DEFER_MARKER, 'guard\\n'); });\n`);
+    writeFileSync(join(box.repo, 'web/guard.test.js'), `${record()}test('guard [G1]', () => { appendFileSync(${marker}, 'guard\\n'); });\n`);
     for (let index = 0; index < 30; index += 1) {
       writeFileSync(join(box.repo, `web/selected-${String(index).padStart(2, '0')}.test.js`), `${record()}import { value } from './core.js';\nimport { fixed } from './fix.js';\n`
-        + `test('selected ${index} [G1]', () => { appendFileSync(process.env.DEFER_MARKER, '${index}\\n'); assert.notEqual(value, 'red'); assert.ok(value !== 'needs-fix' || fixed); });\n`);
+        + `test('selected ${index} [G1]', () => { appendFileSync(${marker}, '${index}\\n'); assert.notEqual(value, 'red'); assert.ok(value !== 'needs-fix' || fixed); });\n`);
     }
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: thirty tests import one source');
