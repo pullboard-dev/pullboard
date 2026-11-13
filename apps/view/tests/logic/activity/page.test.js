@@ -78,3 +78,24 @@ test('clause 2: one slot per page holds an Events tab, then after a bar click an
   ui = activityStep(activityStep(ui, { type: 'item', item: 900, hour: newest.h0 }, flow), { type: 'item', item: 900, hour: newest.h0 }, flow);
   assert.equal(ui.item, null, 'a second click on the open bar closes it');
 });
+
+test('clause 1 [#7308]: at 390 the Runners cell holds its jobs text inside its own value, draws a load bar not a dash chart, and the legend ends in an ellipsis [N26]', () => {
+  const { html } = draw(4);
+  const cell = html.slice(html.indexOf('data-act-res="1"'), html.indexOf('data-act-res="2"'));
+  assert.match(cell, /<span class="rv"><svg class="load"[^]*<span>2 jobs<\/span><\/span><\/button>/u, 'the jobs text sits inside the cell value, next to the load bar');
+  assert.doesNotMatch(cell, /class="mini"/u, 'no dash chart');
+  assert.match(cell, /class="lo" x="0" width="50"/u, 'the bar is the mean load: 50 percent');
+});
+
+test('clause 2 [#7308]: the you-left marker is drawn only with the Since you left line, and the now label never shares a row with a tick [N26]', () => {
+  const { flow } = draw(4);
+  const withLeft = activityPageHtml(flow, activityStart(flow), { width: 740, leftKnown: true });
+  const without = activityPageHtml(flow, activityStart(flow), { width: 740, leftKnown: false });
+  assert.match(withLeft, /Since you left/u); assert.match(withLeft, /act-lleft/u); assert.match(withLeft, />you left</u);
+  assert.doesNotMatch(without, /Since you left/u); assert.doesNotMatch(without, /act-lleft|>you left<|since you left/u, 'no marker without the line');
+  const near = activityFlow(board(4).project, board(4).events, { now: top.getTime() + 17 * MIN, left: top.getTime() + 2 * MIN, working: ['core-9'] });
+  const svg = activityPageHtml(near, activityStart(near), { width: 740 }).match(/<svg class="act-wfsvg"[^]*?<\/svg>/u)[0];
+  const ys = [...svg.matchAll(/<text class="act-tick(?: now)?" x="\d+" y="([\d.]+)"/gu)].map(match => Number(match[1]));
+  assert.ok(svg.includes('act-tick now'), 'the now label is drawn');
+  assert.ok(ys.filter(y => Math.abs(y - 13) < 12).length === 1, 'only the now label sits at the top: ' + ys);
+});
