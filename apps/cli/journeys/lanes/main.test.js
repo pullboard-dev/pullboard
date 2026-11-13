@@ -27,6 +27,7 @@ import { ownsNewFile } from '../../../../packages/sandbox/src/io/trusted/policy.
 import { planRowChange } from '../../../../packages/commits/light.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 const CONFIG = {
   ...defaults(),
@@ -131,6 +132,8 @@ async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') 
 async function reassignedPathFixture() {
   const box = policyFixtures.project('true');
   mkdirSync(join(box.repo, 'api'));
+  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   writeFileSync(join(box.repo, 'api/shared.js'), 'original\n');
   box.git(box.repo, 'add', 'api/shared.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create coordinator fixture path');
