@@ -16,7 +16,6 @@ import { success } from '../../tests/fixtures/placement.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 async function mergedPlacement(t) {
@@ -42,7 +41,8 @@ async function mergedPlacement(t) {
   box.git(view, 'add', ownFile);
   placePath(view, ownFile, { cell: 'app:view' });
   box.git(view, 'add', 'packages/codemap/data/plan');
-  box.git(view, 'commit', '-q', '-m', 'feat(view): add an owned placement [G1]');
+  // A seat's commit names its item in the Pullboard-Item trailer, the history the plan-row authority reads [L3].
+  box.git(view, 'commit', '-q', '-m', 'feat(view): add an owned placement [G1]', '-m', `Pullboard-Item: #${id}`);
   const builderPlan = readPlan(view);
   const mainFile = 'src/view/dashboard.css';
   writeFileSync(join(box.repo, mainFile), '.main { color: green; }\n');
@@ -52,8 +52,6 @@ async function mergedPlacement(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(view): accept an independent main placement [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   await publishAcceptedCells(t, box.repo, main.trim(), box.env.PULLBOARD_MACHINE_HOME);
-  // Publishing the cells rewrites the machine settings, so the pin follows it: the submit's gate receipt is read inline, which a pull submit does not return [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const mainRow = readPlan(box.repo).cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === mainFile);
   const merged = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'],
     { cwd: view, env: box.env, encoding: 'utf8' });
@@ -62,7 +60,7 @@ async function mergedPlacement(t) {
   builderPlan.cells.find(cell => cell.name === 'app:view').paths.push(mainRow);
   writePlan(view, builderPlan);
   box.git(view, 'add', 'packages/codemap/data/plan');
-  box.git(view, 'commit', '-q', '-m', 'chore: compose independent placement rows [G1]');
+  box.git(view, 'commit', '-q', '-m', 'chore: compose independent placement rows [G1]', '-m', `Pullboard-Item: #${id}`);
   assert.notEqual(claimed.item_claim_head, main, 'the claim really predates the accepted main placement');
   assert.equal(box.git(view, 'show', `HEAD:${mainFile}`), box.git(box.repo, 'show', `HEAD:${mainFile}`),
     'the merged main source is unchanged');
