@@ -28,6 +28,7 @@ import {
   selectNetworkTarget,
   withPerfSlot,
 } from '../../tests/fixtures/cockpit/perf/run.mjs';
+import { assertBudgets } from '../../tests/fixtures/cockpit/perf/budget-check.mjs';
 
 after(cleanupFixtureChildren);
 
@@ -189,4 +190,23 @@ test('the perf harness measures every action on a stress board [N26]', async (t)
     assert.equal(report.actions.at(-1).samples[0].liveWrites, 6, 'the idle sample includes six five-second live writes');
     assert.equal(report.actions.at(-1).samples[0].renderedWrites, 6, 'all six live writes appeared in the open feed during the idle sample');
   });
+});
+
+// The view's instant-feel budgets (U94): a click shows feedback within 50 ms, a tab switch draws within 100 ms,
+// first item rows paint within 1.5 s on a warm server, and the open board's first load stays under 500 KB.
+
+test('the speed check fails naming each missed budget and its measured value [N26]', () => {
+  const report = {
+    population: { items: 6663 },
+    clickFeedback: { worst: 212.6, sample: 'item:4210' },
+    tabSwitch: { worst: null, sample: 'tab:dashboard' },
+    firstRows: { value: 1_500 },
+    firstLoadBytes: { value: 1_220_186 },
+  };
+  assert.throws(() => assertBudgets(report), { message: [
+    'View speed budgets missed on a board of 6663 items:',
+    '- a click shows feedback within 50 ms: measured 213 ms (item:4210), 163 ms over',
+    '- a tab switch draws within 100 ms: measured never (no paint within the hang ceiling) (tab:dashboard)',
+    "- the open board's first load within 500 KB: measured 1192 KB (1220186 bytes), 692 KB (708186 bytes) over",
+  ].join('\n') });
 });
