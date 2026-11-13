@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
+import { settlePulledJobs } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 
 const helpers = createE2eHelpers();
@@ -28,6 +29,8 @@ function command(box, cwd, ...args) {
 function success(box, cwd, ...args) {
   const result = command(box, cwd, ...args);
   assert.equal(result.status, 0, result.text);
+  // A pulled gate is a job the loopback runner finishes after the command returns; wait for it like every fixture command [P7,C7].
+  settlePulledJobs(cwd, args, box.env);
   return JSON.parse(result.stdout);
 }
 

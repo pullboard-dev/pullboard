@@ -109,7 +109,7 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
   const pending = state(box, id);
   succeeds(box, box.web, 'submit', String(id));
   const carried = state(box, id);
-  assert.equal(carried.item.item_status, 'verified', 'a gated merge-only resubmission keeps its original acceptance');
+  assert.equal(carried.item.item_status, 'verified', `a gated merge-only resubmission keeps its original acceptance ${box.run(box.repo, 'show', String(id), '--json').out.slice(0, 2500)}`);
   assert.equal(carried.item.item_commit, head);
   assert.equal(carried.item.item_verified_by, original.item.item_verified_by);
   assert.deepEqual(carried.verdicts, original.verdicts, 'carry-over must not manufacture a second reviewer verdict');

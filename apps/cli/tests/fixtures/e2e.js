@@ -80,7 +80,7 @@ function controllerDispatch(env) {
  * @param {string[]} args - The command's arguments.
  * @param {object} env - The fixture environment.
  */
-function settlePulledJobs(cwd, args, env) {
+export function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
   // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
   // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its

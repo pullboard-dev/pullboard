@@ -224,6 +224,8 @@ function landingPolicyCalls(box, batches, records) {
 
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
+  // The suspended parent holds the controller's landing lease, which a pulled landing has none of; #6579 deletes the case with it.
+  if (suspendParent) { t.skip('CONTROLLER_ONLY: deleted with #6579'); return; }
   const sandbox = helpers.sandbox({ declareFamilies: policyAfterFirst });
   const arm = join(sandbox.dir, 'landing-armed');
   const entered = join(sandbox.dir, 'landing-entered');
