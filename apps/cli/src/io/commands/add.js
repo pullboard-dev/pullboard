@@ -3,6 +3,7 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
@@ -62,6 +63,7 @@ import {
   CHECKOUT_LEASES,
 } from '../entry.js';
 import { isConfigFile } from '../../../../../packages/config/browser.js';
+import { anyRunnerLive } from '../runner/local.js';
 
 /**
  * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
@@ -156,7 +158,9 @@ export async function run(io, args) {
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
+  const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
   const id = await ordered(ctx, board, 'addItem', [item]);
+  if (differs) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Not a duplicate of #${differs.id}: ${differs.reason}` }]);
   const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
@@ -176,7 +180,7 @@ export async function run(io, args) {
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
-  sayCheckBaseline(io, store.getItem(board, id));
+  sayCheckBaseline(io, store.getItem(board, id), { runnerLive: anyRunnerLive() });
   sayRelated(io, ctx, board, id, item);
   return 0;
 });
