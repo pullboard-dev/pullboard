@@ -1427,8 +1427,8 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .chip.tier-pill.warn { background: var(--stage-review-soft, var(--warn-soft)); color: var(--warn); }
 .spec-detail-content { display: grid; gap: var(--space-5); }
 .spec-detail-section { color: var(--ink-faint); font: var(--text-2xs) var(--mono); text-transform: uppercase; letter-spacing: var(--tracking-label); }
-#spec-detail h2 { font-size: var(--text-spec-title); line-height: 1.5; margin: 0; }
-.spec-fact { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-5); border-top: var(--border); padding-top: var(--space-4); font-size: var(--text-xs); }
+#spec-detail h2, #doctrine-detail h2 { font: 400 12.5px/1.5 var(--sans); margin: 0; }
+.spec-fact { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: var(--space-5); border-top: var(--border); padding-top: var(--space-4); font-size: var(--text-xs); }
 .spec-fact > span { color: var(--ink-faint); }
 .spec-fact > div { display: grid; gap: var(--space-2); min-width: 0; }
 .spec-fact .spec-gate { flex-wrap: wrap; }
@@ -1448,6 +1448,8 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .needs-quiet p { margin: 0; font-size: var(--text-sm); }
 .needs-quiet-note { color: var(--ink-muted); }
 .spec-fact .spec-citing { border: 0; background: none; padding: 0; }
+.spec-more { display: grid; gap: var(--space-2); }
+.spec-more > summary { cursor: pointer; color: var(--accent-strong); min-height: var(--tap); display: flex; align-items: center; }
 
 /* Settings: a header card, then one card per group of one-height rows (N26). */
 #settings-pane { padding: 0; }
