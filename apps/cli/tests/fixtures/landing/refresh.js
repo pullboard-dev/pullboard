@@ -14,6 +14,8 @@ import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
 import { settlePulledJobs } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
+import { landJobs } from '../land/board.js';
+import { waitForCondition } from '../runner/holders.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -138,7 +140,7 @@ function evidence(report) {
 }
 
 /** Exercise one real landing outcome without changing its assertions. */
-export function runLandingDocsRefresh(disabled) {
+export async function runLandingDocsRefresh(disabled) {
     const box = project(disabled);
     const entry = verifiedDeclaration(box);
     const before = box.git(box.repo, 'rev-parse', 'main');
@@ -150,8 +152,12 @@ export function runLandingDocsRefresh(disabled) {
     const output = outcome.text + '\n' + evidence(report);
     assert.deepEqual(report.conflicts ?? [], [], 'the declaration merges without any textual conflict');
     if (disabled) {
-      assert.deepEqual(report.landed ?? [], [], output);
-      assert.match(output, /apps\/cli\/src\/logic\/help\/additions\.js/u, 'the actual failed landing names the stale shared file');
+      // Under pull the landing is a runner land job; its receipt names what it returned and why [P7,C7].
+      await waitForCondition(() => landJobs(box).some(job => job.receipt), 'the runner land job settles', {
+        signal: AbortSignal.timeout(150_000), state: () => landJobs(box) });
+      const receipt = landJobs(box).find(job => job.receipt).receipt;
+      assert.deepEqual(receipt.landed ?? [], [], JSON.stringify(receipt));
+      assert.match(JSON.stringify(receipt), /apps\/cli\/src\/logic\/help\/additions\.js/u, 'the actual failed landing names the stale shared file');
       assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'stale documentation never advances trunk');
       assert.equal(success(box, box.repo, 'show', String(entry.item)).item_merged_commit, null);
     } else {
