@@ -173,7 +173,7 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const submitted = box.run(box.web, ['submit', id, '--json']);
   assert.equal(submitted.status, 0, `a red new baseline lifts the hold: ${submitted.stdout}${submitted.stderr}`);
 
-  const second = addChecked(box, 'Second held green check', fileCheck('green', 'second-check-marker.txt')).item;
+  const second = addChecked(box, 'Render the quarterly ledger export', fileCheck('green', 'second-check-marker.txt')).item;
   const nextHeld = box.run(box.web, ['next', '--json']);
   assert.equal(nextHeld.status, 0, `plain next ends the turn on the second held item: ${nextHeld.stdout}${nextHeld.stderr}`);
   assert.equal(JSON.parse(nextHeld.stdout).item, null, 'next hands out nothing for the second held item');
