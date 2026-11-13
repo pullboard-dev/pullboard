@@ -1,0 +1,170 @@
+/** @pullboard-test-input apps/cli/pullboard.js packages/gate/src/io/run/tests.js packages/kernel/index.js packages/kernel/src/logic/census.js packages/resources/index.js */
+import { executionServicesSource } from '../../../tests/fixtures/gate/execution.js';
+import { repoPath } from '../../../../../packages/kernel/light.js';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import {
+  existsSync,
+  readFileSync,
+  rmSync,
+  watch,
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+  resolve,
+} from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { test } from 'node:test';
+import { stopGroup } from '../../../tests/fixtures/runner/group.js';
+import { fixtureProjectPolicy } from '../../../tests/fixtures/testkit.js';
+import {
+  NAMES,
+  fixtureGate,
+  git,
+  fixture,
+  scenario,
+  landingGate,
+  alive,
+} from '../../../tests/fixtures/init/shards.js';
+
+test('a stopped landing shard drains its detached descendant [C7,V4]', { timeout: 120_000 }, async (t) => { // budget: one stopped two-shard landing plus its owned-process sweep.
+  const box = fixture({ runner: false });
+  t.after(() => rmSync(box.dir, { recursive: true, force: true }));
+  scenario(box, 'green');
+  const ready = join(box.dir, 'detached-child-ready.json');
+  const survived = join(box.dir, 'detached-child-survived');
+  // The grandchild leaves the shard's process group and session, then writes its marker later.
+  const childCode = [
+    "import { writeFileSync } from 'node:fs';",
+    'const writeAt = Date.now() + 3000;',
+    `writeFileSync(${JSON.stringify(ready)}, JSON.stringify({ pid: process.pid, writeAt }));`,
+    `setTimeout(() => writeFileSync(${JSON.stringify(survived)}, 'survived'), writeAt - Date.now());`,
+    'setInterval(() => {}, 1000);',
+  ].join('\n');
+  const failing = `import { test } from 'node:test';
+import { existsSync } from 'node:fs';
+test('fail once the other shard owns its detached child', async () => {
+  while (!existsSync(${JSON.stringify(ready)})) await new Promise(resolve => setTimeout(resolve, 25));
+  throw new Error('deliberate first shard failure');
+});
+`;
+  const owner = `import { test } from 'node:test';
+import { spawn } from 'node:child_process';
+test('own a detached child', async () => {
+  const child = spawn(process.execPath, ['--input-type=module', '-e', ${JSON.stringify(childCode)}], { detached: true, stdio: 'ignore' });
+  child.unref();
+  await new Promise(resolve => setTimeout(resolve, 60_000));
+});
+`;
+  // Two shards: a.test.js alone fails, b.test.js owns the detached grandchild.
+  for (const name of NAMES.slice(2)) rmSync(join(box.repo, `test/${name}.test.js`));
+  writeFileSync(join(box.repo, 'test/a.test.js'), failing);
+  writeFileSync(join(box.repo, 'test/b.test.js'), owner);
+  fixtureProjectPolicy(box.repo, { config: { gate: fixtureGate(NAMES.slice(0, 2)), landingShards: 2 } });
+  git(box.repo, box.env, 'add', '-A');
+  git(box.repo, box.env, 'commit', '-q', '-m', 'test: a shard owns a detached descendant');
+  let pid = null;
+  try {
+    const result = await landingGate(box, 'stopped shard with a detached descendant', 90_000);
+    assert.equal(result.isGreen, false, result.output);
+    assert.ok(existsSync(ready), 'the detached grandchild started before the stop');
+    ({ pid } = JSON.parse(readFileSync(ready, 'utf8')));
+    assert.equal(alive(pid), false, `no process from the stopped shard survives the landing\n${result.output}`);
+    assert.doesNotMatch(result.output, /LANDING_SHARD_CLEANUP_UNVERIFIED/u, 'its cleanup was verified');
+    assert.equal(existsSync(survived), false, 'the stopped grandchild never wrote its marker');
+  } finally {
+    // Only the fixture's own recorded grandchild is ever signalled here.
+    if (pid) await stopGroup({ pid }, Promise.resolve());
+  }
+});
+
+
+/** The fixture's env without the outer run's node:test context, which would make the nested tests.js emit v8 events and never start the body. */
+function nestedEnv(env){const clean={...env};delete clean.NODE_TEST_CONTEXT;return clean;}
+
+test('a collect-all shard cancelled by its owner reports drained but incomplete [C7,V4]', {timeout:90_000}, async t => {
+  const box=fixture({runner:false});
+  t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
+  const ready=join(box.dir,'collect-cancel-ready');
+  const source=`import {test} from 'node:test';import {writeFileSync} from 'node:fs';test('cancelled collection body',async()=>{writeFileSync(${JSON.stringify(ready)},'ready');await new Promise(r=>setTimeout(r,60000));});\n`;
+  writeFileSync(join(box.repo,'test/a.test.js'),source);
+  for(const name of NAMES.slice(1))rmSync(repoPath(box.repo, `test/${name}.test.js`));
+  git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
+  const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
+  const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
+  const reportUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
+  const id='11111111-1111-4111-8111-111111111111';
+  const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
+import {withGateSlot} from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
+import {parseCollectionReports} from ${JSON.stringify(reportUrl)};
+await withGateSlot(process.cwd(),async lease=>{
+ const child=spawn(process.execPath,['apps/cli/src/io/run/tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/1',PULLBOARD_LANDING_COLLECT_ALL:'1',PULLBOARD_LANDING_COLLECTION_ID:${JSON.stringify(id)}},stdio:['ignore','pipe','pipe']});
+ let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
+ const closed=once(child,'close');
+ process.once('message',()=>child.kill('SIGTERM'));
+ process.send({runner:child.pid});
+ const[code,signal]=await closed;
+ const report=parseCollectionReports(output,{id:${JSON.stringify(id)},scope:'shard',shard:'1/1',plannedFiles:['test/a.test.js'],requireComplete:false});
+ process.send({terminal:true,code,signal,report,output});
+},{ executionServices,remote:false,browser:true,agent:'collect-cancel-fixture'});process.disconnect();`;
+  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:nestedEnv(box.env),detached:true,stdio:['ignore','pipe','pipe','ipc']});
+  const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
+  try {
+    const deadline=Date.now()+70_000; // the nested runner spends about 30 s selecting files on a loaded runner before its body starts
+    while(!existsSync(ready)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,20));
+    assert.equal(existsSync(ready),true,'actual test body started before owner cancellation');
+    assert.ok(messages.some(m=>Number.isSafeInteger(m.runner)),'owned exact runner identified');
+    child.send('stop-owned-runner');
+    const ended=await closed;assert.equal(ended.code,0,stderr);assert.equal(ended.signal,null,stderr);
+    const terminal=messages.find(m=>m.terminal);assert.ok(terminal,stderr);
+    assert.equal(terminal.code,1,terminal.output);assert.equal(terminal.signal,null,terminal.output);
+    assert.ok(terminal.report,'native false report survives actual cancellation');
+    assert.equal(terminal.report.complete,false,terminal.output);
+    assert.equal(terminal.report.cleanupVerified,true,'cleanup and completed coverage are separate facts');
+    // A file may publish a terminal cancelled summary; that does not make collection complete.
+  } finally {
+    await stopGroup(child, closed);
+  }
+});
+
+test('a shard the landing stops blames none of its aborted in-flight files [C7,V4]', {timeout:90_000}, async t => {
+  const box=fixture({runner:false});
+  t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
+  const ready=join(box.dir,'stop-ready');
+  const source=`import {test} from 'node:test';import {writeFileSync} from 'node:fs';test('in-flight body [C7]',async()=>{writeFileSync(${JSON.stringify(ready)},'ready');setInterval(()=>{},1000);await new Promise(()=>{});});\n`;
+  writeFileSync(join(box.repo,'test/a.test.js'),source);
+  for(const name of NAMES.slice(1))rmSync(repoPath(box.repo, `test/${name}.test.js`));
+  git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: a shard stopped mid-file');
+  const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
+  const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
+  const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
+import {withGateSlot} from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
+await withGateSlot(process.cwd(),async lease=>{
+ const child=spawn(process.execPath,['apps/cli/src/io/run/tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/2'},stdio:['ignore','pipe','pipe']});
+ let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
+ const closed=once(child,'close');
+ process.once('message',()=>child.kill('SIGTERM'));
+ process.send({runner:child.pid});
+ const[code,signal]=await closed;
+ process.send({terminal:true,code,signal,output});
+},{ executionServices,remote:false,browser:true,agent:'shard-stop-fixture'});process.disconnect();`;
+  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:nestedEnv(box.env),detached:true,stdio:['ignore','pipe','pipe','ipc']});
+  const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
+  try {
+    // The body writes its marker once it runs; wait on the directory's change events, not on a timer.
+    await new Promise(resolve=>{const stop=setTimeout(()=>{watcher.close();resolve();},70_000);const watcher=watch(box.dir,()=>{if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});if(existsSync(ready)){clearTimeout(stop);watcher.close();resolve();}});
+    assert.equal(existsSync(ready),true,'the file was running when the landing stopped the shard');
+    child.send('stop-shard');
+    const ended=await closed;assert.equal(ended.code,0,stderr);
+    const terminal=messages.find(m=>m.terminal);assert.ok(terminal,stderr);
+    assert.equal(terminal.code,1,terminal.output);
+    assert.match(terminal.output,/stopped by the landing after another shard failed/u,terminal.output);
+    assert.doesNotMatch(terminal.output,/Landing gate stopped early after/u,'the aborted in-flight file is never named as the shard\'s failure');
+  } finally {
+    await stopGroup(child, closed);
+  }
+});
+

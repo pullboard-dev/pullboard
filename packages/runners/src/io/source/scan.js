@@ -10,13 +10,11 @@ import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -27,6 +25,7 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { scratchFolder } from '../../../../config/index.js';
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -36,7 +35,7 @@ export function sourceGit(root, args, options = {}) {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: MAX_BLOB_BYTES, ...options,
   });
   if (result.error?.code === 'ENOBUFS') {
-    const directory = mkdtempSync(join(tmpdir(), 'pullboard-source-count-'));
+    const directory = scratchFolder('pullboard-source-count-');
     const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
     try {
       const counted = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
@@ -153,7 +152,7 @@ function scanSourceObjects(root, source) {
       }
       return size;
     });
-    const scratch = mkdtempSync(join(tmpdir(), 'pullboard-runner-source-'));
+    const scratch = scratchFolder('pullboard-runner-source-');
     try {
       const scan = join(scratch, 'current.scan');
       for (let start = 0; start < blobs.length;) {

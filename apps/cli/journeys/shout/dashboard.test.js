@@ -25,15 +25,13 @@ import { press } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
 
-test('Dashboard is the first board tab and Home is removed [N26]', () => {
+test('Dashboard is a board page under Insights and Home is removed [N26]', () => {
   const page = cockpitPage();
-  const tabs = [...page.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>([^<]+)<\/button>/gu)]
-    .filter(([, tab]) => tab !== 'settings');
-  assert.equal(tabs[0]?.[1], 'dashboard');
-  assert.equal(tabs[0]?.[2], 'Dashboard');
-  assert.ok(!tabs.some(([, tab]) => tab === 'home'), 'Home is not a board tab');
+  const tabs = [...page.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"/gu)].map(([, tab]) => tab).filter(tab => tab !== 'settings');
+  assert.ok(tabs.includes('dashboard'), 'Dashboard is a board page');
+  assert.ok(!tabs.includes('home'), 'Home is not a board tab');
   for (const tab of ['items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
-    assert.ok(tabs.some(([, id]) => id === tab), `${tab} remains available`);
+    assert.ok(tabs.includes(tab), `${tab} remains available`);
   }
 });
 
@@ -111,9 +109,9 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
         return { tag: element.tagName, id: element.id, class: element.getAttribute('class'), left: rect.left, right: rect.right, width: rect.width, display: style.display };
       }).filter(rect => rect.width > 0 && (rect.right > document.documentElement.clientWidth + 1 || rect.left < -1)).slice(0, 16))`);
       assert.equal(fits, true, `${scheme} at ${width}px has no sideways page scroll; overflow: ${overflow}`);
-      assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs [data-tab]')).every(button => {
-        const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
-      })`), true, 'every retained tab is accessible inside the viewport');
+      assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs > [data-tab], #tabs .tab-group-btn')).every(button => {
+        const rect = button.getBoundingClientRect(), strip = button.closest('.strip'); return rect.width > 0 && (strip && getComputedStyle(strip).overflowX === 'auto' ? rect.left >= 0 : rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1);
+      })`), true, 'every retained tab is on screen, or reachable by sideways scroll');
       const title = await chrome.stable(`(() => {
         const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-flight-row b');
         const rect = element.getBoundingClientRect(); return { text: element.textContent.trim(), width: rect.width };
