@@ -34,8 +34,8 @@ const REQUEST_BYTES = 60 * 1024;
 const PART_BYTES = 1024;
 // Budget: a whole request kept in its job's own request step, read only by the runner holding the job (#6150).
 const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
-// Budget: a land job a runner cannot finish is handed back this many times (about 17 minutes of backoff), then ends released and its items wait in their lane (#7386).
-const LAND_RELEASE_LIMIT = 6;
+// Budget: a job is claimed at most this many times (gate.jobMaxAttempts); at the cap it ends as a runaway and the coordinator hears once (#7386).
+export const JOB_MAX_ATTEMPTS = 12;
 /** The step a request too large for its offered row is kept in; its parts in the offer name it. */
 const REQUEST_STEP = 'request';
 // Budget: a progress step names each file once with a state word; it stays inline, under the 64 KiB blob threshold, so the live reader parses the row itself.
@@ -225,7 +225,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
@@ -236,6 +236,8 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
+      // A job claimed this many times is a runaway: it ends here and no runner takes it again.
+      if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, onRunaway }); continue; }
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
         .run(runner, now + leaseMs, now, row.job_id, now);
       if (taken.changes !== 1) continue;
@@ -246,6 +248,14 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
     }
     return null;
   });
+}
+
+/** End a job claimed past its cap: a `runaway` step, then done, and one call to `onRunaway` so the coordinator hears once. */
+function endRunaway(db, row, { now, onRunaway }) {
+  const detail = `claimed ${row.job_attempt} times without finishing; ended as a runaway`;
+  if (!writeStep(db, row.job_id, 'runaway', { attempts: row.job_attempt, detail }, { seq: row.job_attempt, now }).written) return;
+  finishJob(db, row.job_id, '', { now });
+  try { onRunaway?.({ job: row.job_id, kind: row.job_kind, attempts: row.job_attempt, detail }); } catch { /* a shout that cannot send leaves the job ended */ }
 }
 
 /**
@@ -303,29 +313,11 @@ export function jobRequest(db, { job, runner, token }) {
  * @param {{ job: string, runner: string, token: string, reason?: string, backoff?: boolean, now?: number }} request
  * @returns {{ released: boolean, until?: number }}
  */
-export function releaseJob(db, { job, runner, token, reason, backoff = true, now = Date.now() }) {
+export function releaseJob(db, { job, runner, token, reason, backoff = true, draining = false, now = Date.now() }) {
   const { attempt } = heldBy(db, job, runner, token);
-  if (backoff === false) return { released: releaseLease(db, job, runner, { now }) };
-  const settled = giveUpLanding(db, { job, runner, token, attempt, reason, now });
-  return settled ?? backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
-}
-
-/**
- * End a land job a runner has handed back LAND_RELEASE_LIMIT times: record a `released` receipt and mark it done, so the
- * job writes no more claims and its items stay accepted in their lane for the next landing. Other kinds keep backing off,
- * since a gate job's builder waits on its receipt. Null while the job is under the limit.
- * Why: a land job whose runner could not finish it was claimed 122,801 times in 3.5 hours; backoff slows that, and this
- * bounds it, so a job nothing can land stops costing board rows (#7386).
- *
- * @returns {{ released: true, gaveUp: true, posted: ReturnType<typeof postReceipt> } | null}
- */
-function giveUpLanding(db, { job, runner, token, attempt, reason, now }) {
-  if (db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(job)?.job_kind !== 'land') return null;
-  const handed = db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_step_job = ? AND job_step_name = 'released'").get(job).n + 1;
-  if (handed < LAND_RELEASE_LIMIT) return null;
-  const detail = `a runner handed this job back ${handed} times and it was released to the lane; last reason: ${String(reason ?? 'unspecified').slice(0, 300)}`;
-  const receipt = { kind: 'land', outcome: 'released', landed: [], already: [], returned: [], attempts: attempt, detail };
-  return { released: true, gaveUp: true, posted: postReceipt(db, { job, runner, token, receipt, now }) };
+  // A free release leaves no step and no backoff, so only a runner the board lists as draining may ask for one (#7386).
+  if (backoff === false && draining) return { released: releaseLease(db, job, runner, { now }) };
+  return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
 }
 
 /**
@@ -391,24 +383,16 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve() });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
-  if (action === 'release') {
-    const released = releaseJob(db, { job, runner, token, reason, backoff, now });
-    if (!released.gaveUp) return released;
-    // A land job given up is a recorded receipt, so the board notes each item as it does any other land receipt.
-    const { posted, ...rest } = released;
-    if (!onReceipt) return rest;
-    try { return { ...rest, applied: onReceipt(posted) }; }
-    catch (error) { if (!error?.code) throw error; return { ...rest, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
-  }
+  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'receipt') {
     const posted = postReceipt(db, { job, runner, token, receipt, now });

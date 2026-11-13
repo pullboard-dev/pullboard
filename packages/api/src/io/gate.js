@@ -681,7 +681,7 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -811,13 +811,17 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
 }
 
 /**
- * Tell each unmerged item of a land job a runner gave up on why it still waits, and shout the coordinator once. The
- * items stay accepted: the next landing offers them again, so nothing is withdrawn for a runner's trouble (#7386).
+ * End-of-line for a job claimed past its cap: shout the coordinator once, and for a land job note each unmerged item
+ * with why it still waits. The items stay accepted: the next landing offers them again, so nothing is withdrawn for a
+ * runner's trouble (#7386).
  */
-function noteReleasedLanding(board, job, named, receipt) {
-  const waiting = [...named].filter(id => { const item = store.getItem(board, id); return item && !item.item_merged_commit; });
-  for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} was released to the lane: ${receipt.detail}`.slice(0, 900) });
-  if (waiting.length) store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `land job ${job} released after repeated runner hand-backs; ${waiting.map(id => `#${id}`).join(' ')} stay accepted. ${String(receipt.detail).slice(0, 300)}`.slice(0, 600) });
+export function reportRunaway(board, { job, kind, attempts, detail }) {
+  const named = kind === LANDING_JOB_KIND
+    ? JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}').payload?.items?.map(entry => entry.id) ?? []
+    : [];
+  const waiting = named.filter(id => { const item = store.getItem(board, id); return item && !item.item_merged_commit; });
+  for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} was released to the lane: ${detail}`.slice(0, 900) });
+  store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `runaway ${kind} job ${job}: ${detail} (${attempts} claims)${waiting.length ? `; ${waiting.map(id => `#${id}`).join(' ')} stay accepted` : ''}`.slice(0, 600) });
 }
 
 /**
@@ -834,7 +838,6 @@ export function applyLandingReceipt(board, { job, receipt }) {
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
-  if (receipt?.outcome === 'released') noteReleasedLanding(board, job, named, receipt);
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
   if (receipt?.red) { try { recordLandedRed(board, { job, receipt, item: returned[0] ?? null }); } catch { /* a diagnostic that cannot record leaves the red as it was */ } }
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
