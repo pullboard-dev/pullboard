@@ -90,12 +90,12 @@ export function needsPanelHtml(model, presentation = new Map()) {
     ? '<button type="button" data-go="tab:spec">' + draftCopy + '</button>'
     : '<span>' + draftCopy + '</span>') + '</li>' : '';
   if (model.quiet && !model.sortedCount && !model.drafts) return '<li class="needs-quiet"><span class="needs-quiet-badge" aria-hidden="true"><svg class="dash-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span>'
-    + '<p><b>Nothing needs you.</b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone.</span></p></li>';
+    + '<p><b>Nothing to rule on.</b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone.</span></p></li>';
   if (model.compact) {
     const shown = [...model.questions, ...model.approvals].slice(0, 3), more = model.sortedCount - shown.length;
     const text = more + ' more' + (model.drafts ? ' and ' + model.drafts + ' draft rows' : '');
     if (model.headerOnly) return more || model.drafts ? '<button class="needs-more" type="button" data-needs-list>' + text + ' →</button>' : '';
-    return shown.map(rowHtml).join('') + (model.headerSeparately ? '' : more || model.drafts ? '<li class="needs-more"><button type="button" data-needs-list>' + text + ' in Needs you</button></li>' : '');
+    return shown.map(rowHtml).join('') + (model.headerSeparately ? '' : more || model.drafts ? '<li class="needs-more"><button type="button" data-needs-list>' + text + ' in Rulings</button></li>' : '');
   }
   const confirmable = model.approvals.filter(row => row.confirmable);
   const group = (label, rows, extra = '') => rows.length ? '<li class="needs-group"><div class="needs-group-head"><h3>' + label + ' · ' + rows.length + '</h3>' + extra + '</div><ol>' + rows.map(rowHtml).join('') + '</ol></li>' : '';
