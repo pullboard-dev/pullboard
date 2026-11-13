@@ -137,7 +137,10 @@ function countPairs() {
     add('Dashboard/agents at work', number(document.querySelector('#dashboard [aria-label="Agents"] h2 .dash-pill')), shown + between);
     const since = Date.now() - 24 * 3_600_000;
     const landedInDay = new Set(p.events.filter(event => event.event_kind === 'merged' && Date.parse(event.event_at) > since && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
-    add('Dashboard/landed 24h', number(document.querySelector('#dashboard [title="Landed in the last 24 hours"] b')), p.dashboardPace?.last24h ?? landedInDay.size);
+    // While the history prefix is behind, the strip says "Loading…" in place of its numbers (278325174b); it never shows a wrong one.
+    const dayTile = document.querySelector('#dashboard [title="Landed in the last 24 hours"] b');
+    if (dayTile) add('Dashboard/landed 24h', number(dayTile), p.dashboardPace?.last24h ?? landedInDay.size);
+    else add('Dashboard/landed 24h is loading, not wrong', /Loading…/.test(document.querySelector('#dashboard .dash-strip')?.textContent ?? ''), true);
     const bins = all('#dashboard .dash-spark rect title').map(node => Number(/(\d+) landed$/.exec(node.textContent)?.[1] || 0));
     if (bins.length) {
       add('Dashboard/landing spark total', bins.reduce((sum, count) => sum + count, 0), landedInDay.size);
@@ -237,7 +240,6 @@ function countPairs() {
 
 /** Assert every observed pair with its own label so a new count mismatch names its surface. */
 async function checkCounts(chrome, phase) {
-  console.error('[T]', Math.round(performance.now()/1000), phase);
   const pairs = await chrome.stable('window.countSweepPairs()');
   assert.ok(pairs.length >= 4, phase + ': shared and pane counts are actually checked');
   for (const pair of pairs) assert.equal(pair.actual, pair.expected, phase + ': ' + pair.label);
