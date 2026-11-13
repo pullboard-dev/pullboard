@@ -2,6 +2,7 @@
 /** @pullboard-test-loads packages/codemap/src/io/cells/scripts/plan.js */
 /** The bounded plan writer places source safely; submit no longer refuses unplaced source (#6365) [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
