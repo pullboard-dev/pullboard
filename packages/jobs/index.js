@@ -3,6 +3,8 @@ export { atomically, createJob, nameJob, writeStep, upsertProgressStep, jobView,
 export { takeJob, renewLease, reclaimLapsed, releaseLease, backOffLease, releaseBackoffMs, finishJob, pinQueuedJob } from "./src/io/lease.js";
 export { reserveReview, renewReview, reclaimLapsedReviews, releaseReview, reviewOffer, reviewJobId } from "./src/io/review.js";
 export { LEASE_MS, leaseLapsed } from "./src/logic/rules.js";
+export { JOB_CLASSES, DEFAULT_JOB_CLASS, reservedSlots, claimOrder } from "./src/logic/priority.js";
+export { claimableJobs } from "./src/io/priority.js";
 export { shadowSubmitHandoff, recordSubmitHandoff } from "./src/io/shadow.js";
 export { gatePanel, stalledGates } from "./src/io/gate/panel.js";
 export { gatePanelState } from "./src/logic/panel.js";
