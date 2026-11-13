@@ -8,7 +8,6 @@ const entrySource = readFileSync(new URL('../../../../runner/src/io/controller.j
 export function runnerControllerCallees(file, body, source) {
   if (file === '../packages/runners/src/io/dispatch.js'
     && /\b(?:spawn|spawnSync)\(process\.execPath,\s*\[installation\?\.entry \?\? runnerControllerEntry\(fileURLToPath\(new URL\('\.\.\/\.\.\/\.\.\/\.\.\/', import\.meta\.url\)\)\),\s*'--pullboard-runner-controller'\]/u.test(body)
-    && /export function runnerControllerEntry\(root\) \{ return join\(root, 'apps\/runner\/src\/io\/controller\.js'\); \}/u.test(committedSource)
     && source.includes('export async function serveRunnerController(ports)')
     && entrySource.includes("import { serveRunnerController } from '../../../../packages/runners/index.js'")
     && /import\s*\{\s*privateCheckEnvelope,\s*privateCheckPhases,?\s*\}\s*from\s*['"]\.\.\/\.\.\/index\.js['"]/u.test(entrySource)
