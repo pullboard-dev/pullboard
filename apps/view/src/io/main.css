@@ -488,7 +488,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .row > div { display: contents; }
 .row > .dot { grid-area: dot; }
 .row .t { grid-area: t; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .t code { white-space: nowrap; }
+.row .t code, .row .t code.inline.long { white-space: nowrap; overflow-wrap: normal; }
 .row .t span { color: var(--ink-faint); font: 500 var(--text-xs) var(--mono); margin-right: var(--space-2); }
 .meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); color: var(--ink-muted); font-size: var(--text-xs); margin-top: var(--space-0); }
 .row .meta { grid-area: meta; min-width: 0; margin-top: 0; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
