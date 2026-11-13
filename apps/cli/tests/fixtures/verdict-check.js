@@ -17,6 +17,7 @@ import { fixtureJoin } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { FIXTURE_MODEL } from './testkit.js';
 import { fixtureSettledMachine } from './testkit.js';
+import { settledGateJob } from './submit/settle.js';
 import { runCliInProcess } from './process.js';
 
 const BIN = resolve(import.meta.dirname, "../../pullboard.js");
@@ -48,7 +49,7 @@ export function sandbox() {
   // The fixture acts as the person's own terminal: an inherited agent or SSH session would make its verdicts self-verification.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   mkdirSync(env.HOME);
-  // The submit's gate is a pulled job the loopback local runner settles; `submit --wait` returns once it has [P7].
+  // The submit's gate is a pulled job the loopback local runner settles; `submitSettled` waits for it [P7].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run isolated Git commands for this fixture. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
@@ -93,6 +94,24 @@ export async function succeeds(box, cwd, ...args) {
   return result.out;
 }
 
+/**
+ * Submit one claimed item and wait for its pulled gate job: a pull submit returns queued, and the loopback local runner's
+ * receipt settles it before a verdict reads the item [P7,#6249].
+ *
+ * @param {object} box - The sandbox.
+ * @param {string} repo - The fixture repository.
+ * @param {string} web - The builder's worktree.
+ * @param {number} id - The claimed item.
+ * @returns {Promise<object>} The submit's parsed document with the settled `gate` under it.
+ */
+export async function submitSettled(box, repo, web, id) {
+  const submitted = JSON.parse(await succeeds(box, web, 'submit', String(id), '--no-next', '--json'));
+  if (!submitted.queued) return submitted;
+  if (submitted.localRunner?.pid) (box.runnerPids ??= []).push(submitted.localRunner.pid);
+  const gateJob = await settledGateJob({ repo, env: box.env, run: box.run }, id);
+  return { ...submitted, gate: gateJob.gate, gateJob };
+}
+
 /** Add, claim, commit and submit one real worktree item with its optional frozen check. */
 export async function submitted(box, repo, web, title, check) {
   const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.', '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check'];
@@ -105,12 +124,13 @@ export async function submitted(box, repo, web, title, check) {
   writeFileSync(join(web, 'web', `item-${id}.js`), 'export const complete = true;\n');
   box.git(web, 'add', '-A');
   box.git(web, 'commit', '-q', '-m', `feat(web): complete fixture ${id} [G1]`);
-  await succeeds(box, web, 'submit', String(id), '--wait');
+  await submitSettled(box, repo, web, id);
   box.git(repo, 'switch', '--detach', 'web/one');
   return { id, commit: box.git(web, 'rev-parse', 'HEAD') };
 }
 
 /** Remove all files created by a test's private repository and SQLite board. */
 export function clean(box) {
+  for (const pid of box.runnerPids ?? []) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
   rmSync(box.dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }); // a just-finished in-process submit or a detached board writer may still be writing its last files; retry ENOTEMPTY rather than fail the case [C7]
 }

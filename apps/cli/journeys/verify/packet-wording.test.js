@@ -7,6 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixturePolicy } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
@@ -42,7 +43,7 @@ async function ok(box, cwd, ...args) {
   return result;
 }
 
-test('clauses 1-3: the packet names what covers a clause, what does not, and accept says what was read [F6]', { timeout: 240_000 }, async () => {
+test('clauses 1-3: the packet names what covers a clause, what does not, and accept says what was read [F6]', { timeout: 240_000 }, async t => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   fixturePolicy(box, { submitGate: 'landing', affectedTests: RUN });
@@ -74,7 +75,7 @@ test('clauses 1-3: the packet names what covers a clause, what does not, and acc
   box.git(builder, 'commit', '-q', '-m', 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   for (const n of [1, 2, 3]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
-  assert.equal(JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out).gate.green, true, 'the fixture gate is green');
+  assert.equal((await settleSubmit(t, box, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out))).gate.green, true, 'the fixture gate is green');
 
   const review = (await ok(box, box.repo, 'show', String(id), '--review')).out;
   assert.match(review, /^ {5}covered by the gate's item check \(receipt [0-9a-f]{8}\)/mu, 'clause 1: a clause the item check ran green reads covered');
