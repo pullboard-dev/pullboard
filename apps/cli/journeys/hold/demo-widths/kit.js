@@ -44,6 +44,7 @@ export function demoWidthTest(only) {
   box.run(demo.repo, 'add', 'web', wrapTitle, '--specs', 'G1', '--criterion', 'the activity title wraps without splitting words');
   box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
   box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision', '--kind', 'question');
+  if (only === 1280) box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision'); // filed before the view opens, so the feed already holds it
   const view = await startView(box);
   const profile = join(box.dir, 'chrome-profile'); // under the scratch machine, which the fixtures remove at exit
   mkdirSync(profile);
@@ -92,12 +93,13 @@ export function demoWidthTest(only) {
       await waitRendered(['[data-pane]:not([hidden])']);
       return JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
+      // The page root carries data-tab for the current page; it is not a control.
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const b=e.getBoundingClientRect(),edges=e.matches('.seg button')?[...e.querySelectorAll('.seg-hit')].map(x=>x.getBoundingClientRect()):[],r={x:b.x,y:Math.min(b.top,...edges.map(x=>x.top)),right:b.right,bottom:Math.max(b.bottom,...edges.map(x=>x.bottom)),width:b.width};r.height=r.bottom-r.y;return {tag:e.tagName,cls:e.className,attrs:[...e.attributes].map(a=>a.name).join(','),id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(e=>e!==document.documentElement).filter(visible).map(e=>{const b=e.getBoundingClientRect(),edges=e.matches('.seg button')?[...e.querySelectorAll('.seg-hit')].map(x=>x.getBoundingClientRect()):[],r={x:b.x,y:Math.min(b.top,...edges.map(x=>x.top)),right:b.right,bottom:Math.max(b.bottom,...edges.map(x=>x.bottom)),width:b.width};r.height=r.bottom-r.y;return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
-        overlaps:controls.filter(c=>c.x<noticeBox.right&&c.right>noticeBox.x&&c.y<noticeBox.bottom&&c.bottom>noticeBox.y).map(c=>c.tag+'.'+c.cls+'['+c.attrs+']'+(c.id||c.text.slice(0,20)))}:null;
+        overlaps:controls.filter(c=>c.x<noticeBox.right&&c.right>noticeBox.x&&c.y<noticeBox.bottom&&c.bottom>noticeBox.y).map(c=>c.id||c.text)}:null;
       return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
         pointer:{fine:matchMedia('(pointer: fine)').matches,coarse:matchMedia('(pointer: coarse)').matches,none:matchMedia('(pointer: none)').matches},
         touch:matchMedia('(pointer: coarse)').matches||innerWidth<900,
@@ -137,10 +139,6 @@ export function demoWidthTest(only) {
     assert.equal(sampledFrames, 40, 'the shared real-Chrome wait does not measure a moving target before its box stops changing');
     await chrome.stable("document.querySelector('[data-frame-probe]').remove()");
     for (const width of [only]) {
-      if (width === 1280) {
-        box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision');
-        await chrome.waitFor("document.querySelector('#feed').textContent.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in the shout feed; no throughput claim.
-      }
       await setViewport(width);
       await click('.tab[data-tab="items"]');
       if (width <= 900) {
