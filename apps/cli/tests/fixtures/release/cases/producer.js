@@ -231,9 +231,10 @@ assert.equal(isStampedGreen(root),false);
     assert.deepEqual([...new Set(calls.map(call => call.host))].sort(), Object.keys(box.workers).sort());
   });
 
+  // The red run binds this machine's one executor, as a pulled release does, so it needs no SSH capsule placement [C7].
   if (group === 'red') test('a red private release collects tiny shard results without a native envelope or green stamp [C7,V4]',
-    { timeout: 180_000, cpuLoad: true, skip: SSH_CAPSULES }, async t => { // budget: a complete real private eight-shard run, including red collection and cleanup.
-    const box = fixture(t, { red: true });
+    { timeout: 180_000, cpuLoad: true }, async t => { // budget: a complete real private eight-file run, including red collection and cleanup.
+    const box = fixture(t, { red: true, hosts: 0 });
     const result = await producer(box, `
 await assert.rejects(()=>runReleaseGate(root, { executionServices }),error=>error.code==='GATE_RUN_EVIDENCE');
 assert.equal(isStampedGreen(root),false);

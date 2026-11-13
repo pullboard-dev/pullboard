@@ -236,3 +236,19 @@ export async function loopbackRunner(t, box) {
   };
   return { board, take, run };
 }
+
+/**
+ * Serve one item's pulled gate on a runner started with PULLBOARD_CHROME=none, the item committing `change`; resolves the
+ * posted receipt's gate. Why: a runner without a browser must never read a browser journey's skip as a green proof [C7,P7].
+ */
+export async function servedWithoutBrowser(t, change, tooling = {}) {
+  const box = await pullProject(t, 1, { tooling });
+  const [id] = box.ids;
+  submitOne(box, id, { ...change, subject: `feat(web): pulled gate ${id} [G1]` });
+  const queue = await pullQueue(t, box);
+  const served = await serveOnce(box, queue.url, 'r-nobrowser', { PULLBOARD_CHROME: 'none' });
+  assert.equal(served.code, 0, served.output);
+  const row = queue.board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job LIKE ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(`gate:${id}:%`);
+  assert.ok(row, served.output);
+  return JSON.parse(row.job_step_payload).receipt.gate;
+}
