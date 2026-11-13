@@ -142,7 +142,7 @@ function countPairs() {
       recentEvents.filter(event => ['reject', 'reopen'].includes(event.event_kind)).length,
       recentEvents.filter(event => event.event_kind === 'shout' && JSON.parse(event.event_detail).to === 'person').length].entries()) {
       const value = chips[index]?.textContent.trim().split(/\s+/)[0];
-      if (value === '—') add('Dashboard/explicitly unknown historical count/' + index, historyLoading, true);
+      if (chips[index]?.classList.contains('dash-unread')) add('Dashboard/unread count says why on hover/' + index, Boolean(historyLoading && chips[index].title.includes('not read yet')), true);
       else add('Dashboard/4h chip/' + index, Number.parseInt(value?.replaceAll(',', ''), 10), expected);
     }
     const rate = document.querySelector('.dash-rate');
