@@ -38,7 +38,8 @@ test('multiple approved rows never produce a guessed row or item [V1,C7]', async
   assert.match(accepted, /^also fails on main: proof test\/inherited\.test\.js /mu);
   assert.doesNotMatch(accepted, /inherited main red|approved row|open rework #/u, 'no row or owner is guessed');
   assert.doesNotMatch(accepted, new RegExp(`#${first}\\b|#${second}\\b`, 'u'));
-  const next = builder(box).run('next', '--json');
+  // The accepted submission is now a review any fresh seat is offered first; the build order is what is under test.
+  const next = builder(box).run('next', '--build', '--json');
   assert.equal(next.code, 0, next.err);
   assert.equal(JSON.parse(next.out).item.item_id, earlier, 'ambiguous owners leave next in its original milestone order');
 });

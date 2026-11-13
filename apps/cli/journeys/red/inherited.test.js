@@ -60,14 +60,15 @@ test('one inherited row names its open owner, records main once, and leads only 
   assert.equal(statSync(cachePath).mode & 0o077, 0, 'the result cache is private to this machine account');
   assert.equal(runCount(box), before + 2, 'one selected candidate run and one exact-main run occurred');
 
+  // The accepted submission is now a review a fresh seat is offered first; the build order is what is under test.
   const afterEvidence = builder(box);
-  const offered = afterEvidence.run('next', '--json');
+  const offered = afterEvidence.run('next', '--build', '--json');
   assert.equal(offered.code, 0, offered.err);
   assert.equal(JSON.parse(offered.out).item.item_id, rework, 'the unique main-red rework leads an earlier-milestone item within the same tier');
   const middleHolder = builder(box);
   assert.equal(middleHolder.run('claim', String(middle)).code, 0, 'a different builder can claim the non-priority same-tier item');
   assert.equal(afterEvidence.run('release', String(rework), '--reason', 'OTHER', '--note', 'fixture frees the claim', '--no-next').code, 0, 'release the selected rework before asking for another claim');
-  const sole = afterEvidence.run('next', '--json');
+  const sole = afterEvidence.run('next', '--build', '--json');
   assert.equal(sole.code, 0, sole.err);
   assert.equal(JSON.parse(sole.out).item.item_id, rework, 'the only eligible same-tier item is never removed by prioritization');
   assert.equal(afterEvidence.run('release', String(rework), '--reason', 'OTHER', '--note', 'fixture frees the claim', '--no-next').code, 0);
@@ -75,7 +76,7 @@ test('one inherited row names its open owner, records main once, and leads only 
   put(box.root, 'README.md', 'A new main commit has no cached comparison yet.\n');
   const newMain = commit(box.root, box.env, 'chore: advance main fixture');
   assert.notEqual(newMain, main);
-  const afterMainChange = builder(box).run('next', '--json');
+  const afterMainChange = builder(box).run('next', '--build', '--json');
   assert.equal(afterMainChange.code, 0, afterMainChange.err);
   assert.equal(JSON.parse(afterMainChange.out).item.item_id, middle, 'a cache for the former main cannot reorder the current main');
 });
