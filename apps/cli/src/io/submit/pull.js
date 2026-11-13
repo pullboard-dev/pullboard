@@ -206,14 +206,17 @@ const unaccounted = (files, outcomes, text) => {
   try { gate.requireTestTierAccount({ green: true, testOutcomes: outcomes, profile: { tests: typeof gate.tapTests === 'function' ? gate.tapTests(text, root) : [] } }, files); return null; }
   catch (error) { return String(error?.message ?? error).replace(/^\\[\\w+\\] /u, ''); }
 };
+// The proof runs the repo gate with pipefail, as the controller's gate does, so a red early stage of a pipe stays red [V16,C7].
+const pipefailShell = [true, 'bash'].find(shell => spawnSync('set -o pipefail', { shell, stdio: 'ignore' }).status === 0) ?? null;
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
+  if (role === 'proof' && !pipefailShell && /(?:^|[^|])\\|(?:[^|]|$)/u.test(command)) return { role, status: 1, signal: null, tail: 'PIPEFAIL_UNAVAILABLE: the runner shell cannot enable pipefail; rewrite the gate without a pipe', exit: ['PIPEFAIL_UNAVAILABLE'] };
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
   // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
   const started = performance.now();
   const ran = await new Promise(resolve => {
-    const child = spawn('(' + command + '\\n) 2>&1', { shell: true, cwd: root,
+    const child = spawn('(' + (role === 'proof' && pipefailShell ? 'set -o pipefail\\n' : '') + command + '\\n) 2>&1', { shell: role === 'proof' && pipefailShell ? pipefailShell : true, cwd: root,
       env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
     const out = [], err = [];
     let held = 0;
