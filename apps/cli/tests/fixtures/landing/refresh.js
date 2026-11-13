@@ -13,6 +13,7 @@ import {
 import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
+import { fixtureMachineSettings } from '../testkit.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -61,6 +62,8 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
+  // This landing settles its submit and gate in the commands' own processes, so the fixture pins controller dispatch (#6249).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   // The archive goes to a file, not a captured buffer: the committed tree outgrew any fixed in-memory limit.
   const tarball = join(box.dir, 'candidate-archive.tar');
   const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'packages', 'apps', 'docs', 'skills', 'package.json',
