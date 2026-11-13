@@ -14,7 +14,7 @@ export function dashboardModel(project, history, { now, complete = true, working
     reviewer: item.status === 'submitted' ? item.reviewer || item.claim?.by : null,
     reviewUntil: item.status === 'submitted' ? item.reviewUntil || item.claim?.until : null }));
   const byId = new Map(items.map(item => [item.id, item]));
-  const stageCounts = Object.fromEntries(['gated','ready','building','in-review','verified','landing','merged'].map(key => [key, 0]));
+  const stageCounts = Object.fromEntries(['blocked','ready','building','in-review','verified','landing','merged'].map(key => [key, 0]));
   // The same stage words and keys the Items Pipeline groups by, so the strip and the pipeline agree.
   for (const item of items) {
     if (item.status === 'withdrawn') continue;

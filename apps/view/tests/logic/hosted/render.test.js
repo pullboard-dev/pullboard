@@ -43,7 +43,7 @@ test('clause 1: Settings shows a refused inventory as a plain-words problem that
   const html = settingsContentHtml({ error: raw });
   assert.match(html, /role="alert">gate\.timingRunner holds the wrong kind of value\. Set it back to its documented value, then choose Refresh\.<\/p>/u);
   assert.doesNotMatch(html, /BAD_SETTINGS|unsupported type/u);
-  assert.match(html, /<h2>Settings<\/h2>/u);
+  assert.match(html, /class="settings-head"/u);
   assert.match(html, /data-settings-scope="board"/u);
 });
 
@@ -61,7 +61,7 @@ test('clause 1: Settings drops the machine\'s internal resource rows and keeps g
   const html = settingsContentHtml({ rows }, 'machine');
   assert.doesNotMatch(html, /test-file-loan|submit-handoff|runner:mini/u, 'internal resource rows never appear');
   assert.match(html, /data-setting-key="resources\.custom\.capacity"/u, 'a resource a person set still shows');
-  assert.match(html, /<h3>Capacity<\/h3>[^]*?2 changed[^]*?<h3>Order<\/h3>[^]*?1 changed/u, 'each group is a card with its changed count');
+  assert.match(html, /<h2 class="hd1">Capacity<\/h2>[^]*?2 changed[^]*?<h2 class="hd1">Order<\/h2>[^]*?1 changed/u, 'each group is a card with its changed count');
 });
 
 test('clause 2: every changed row with a command has a copy button, and name, key and description each sit on one line [N26,O5,O6,C7]', () => {
