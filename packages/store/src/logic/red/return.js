@@ -4,6 +4,7 @@ import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../state/light.js";
 import { PINNED_CLAIM_RELEASE_MS } from "../pinned.js";
 import { itemPinned } from "../pinned.js";
 import { handoffRecord } from "../../io/submit/handoff/records.js";
+import { pulledGateRecords } from "../../io/submit/handoff/records.js";
 
 /** The idle limit for an unpinned claim, counted from the red return (#2640); kept beside the health reader's copy. */
 const RED_RETURN_IDLE_MS = 40 * 60_000;
@@ -51,17 +52,9 @@ export function submitGateInFlight(board, item) {
   return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner || pulledGateInFlight(board, item);
 }
 
-/**
- * Whether the claim's pulled gate job is still offered or held by a runner: the item's newest gate job is not done and
- * was offered after the holder's latest claim. A runner that dies loses its lease and the job is offered again, so the
- * row stays open until a receipt ends it, as the queued hand-off record did [P7,#2561].
- */
+/** Whether the claim's pulled gate job is still offered or held by a runner, as the queued hand-off record was [P7,#2561]. */
 function pulledGateInFlight(board, item) {
-  const claimAt = Date.parse(board.db.prepare("SELECT event_at FROM event WHERE item_id=? AND event_kind='claim' AND event_by=? ORDER BY event_id DESC LIMIT 1").get(item.item_id, item.item_owner)?.event_at ?? '');
-  let job;
-  try { job = board.db.prepare("SELECT job_step AS step, job_created AS created FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, job_id DESC LIMIT 1").get(item.item_id); }
-  catch { return false; } // an older board has no job tables, so it holds no pulled gate
-  return Boolean(job) && job.step !== 'done' && Number.isFinite(claimAt) && job.created >= claimAt;
+  return pulledGateRecords(board.db, item.item_id).has(item.item_id);
 }
 
 /** How long a proof run may sit queued before a worker takes it; matches the drive queue's start bound. */
