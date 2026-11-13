@@ -29,7 +29,6 @@ export function assertRunnerControllerReachability({ codeProblems, codeWalk, edi
     "$&\n  if (command === 'probe') throw new Refused('RUNNER_CHILD_PROBE', 'new child-only item refusal');");
   assert.deepEqual(codeProblems(machine, childGuard).sort(), [
     'RUNNER_CHILD_PROBE is raised by accept and reject but not declared there',
-    'RUNNER_CHILD_PROBE is raised by submit but not declared there',
   ]);
   const walk = codeWalk(childGuard);
   for (const entry of ['runOnRunner', 'runOnRunnerAsync']) {

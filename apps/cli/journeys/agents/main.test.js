@@ -430,12 +430,9 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         assert.equal(await chrome.stable('view.agent'), 'web-1', `${at}: filtering retains the raw API id`);
         await press(chrome, 'document.querySelector("[data-agent=\\"\\"]")');
         await tab('activity');
-        const activityNames = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#activity .activity-who')].map(node => ({ text: node.textContent, title: node.title })))"));
-        for (const identity of [
-          { text: 'web-1', title: displayModel },
-          { text: 'web-2', title: '' },
-          { text: 'The coordinator', title: 'Claude' }
-        ]) assert.ok(activityNames.some(actual => actual.text === identity.text && actual.title === identity.title), `${at}: Activity retains seat identity and the known model hover: ${JSON.stringify(identity)}`);
+        // The redesigned Activity page (#6916) draws sentence rows with no seat label and no model hover.
+        const activityFacts = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#activity .act-row .fa')].map(node => node.textContent))"));
+        assert.ok(activityFacts.some(text => text.includes('claimed by web-1')), `${at}: Activity names the claiming seat in its sentence row: ${JSON.stringify(activityFacts)}`);
         await tab('roadmap');
         // Disclosure choices survive tab visits: explicitly fold rows before testing the collapsed view.
         const opened = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#roadmap .milestone-item[aria-expanded=true]')].map(row => row.dataset.roadmapKey))"));
