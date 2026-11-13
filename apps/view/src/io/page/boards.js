@@ -390,7 +390,7 @@ async function boardRead(board, seen) {
 // U94's sidebar summary, embedded as its own source so the page and a server that serves it count alike.
 const projectSummary = (${projectSummary.toString()});
 /**
- * Read a listed board that is not opened as its summary: counts, needs-you and last change, under 2 KB (U94). A local
+ * Read a listed board that is not opened as its summary: counts, rulings and last change, under 2 KB (U94). A local
  * board whose listing row offers summaryVersion 1 serves it at /summary; a relay board, a snapshot, or an API that
  * offers none gives its state, which the page reduces to the same summary. Asking only when offered keeps an older
  * API from answering a 404 the browser would log.
