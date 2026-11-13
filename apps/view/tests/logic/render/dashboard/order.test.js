@@ -13,7 +13,7 @@ function section(html, name) {
   return html.slice(start, html.indexOf('</section>', start));
 }
 
-test('clause 1: How work moved, Now, Release, the pace strip, Agents, the four lists, Your lanes and Runners, in order [N26]', () => {
+test('clause 3: How work moved, Now, Release, the pace strip, Agents, the four lists, Your lanes and Runners, in order [N26]', () => {
   const { project, events } = board();
   const html = dashboardHtml(dashboardModel(project, events, { now, complete: true }));
   const order = [...html.matchAll(/<section class="[^"]*" (?:id="[^"]*" )?aria-label="([^"]+)"/gu)].map(([, name]) => name);
@@ -27,7 +27,7 @@ test('clause 1: How work moved, Now, Release, the pace strip, Agents, the four l
   assert.deepEqual(cards, [
     ['build', 'Build', '1/h', '3 claimed → 2 submitted'],
     ['gate', 'Gate', '1/h', '1 green · 1 red'],
-    ['review', 'Review', '0/h', '0 accepted · 1 sent back'],
+    ['review', 'Review', '1/h', '1 accepted · 1 sent back'],
     ['land', 'Land', '0/h', '1 landed · 1 to land'],
   ]);
   assert.match(flow, /1 sent back<\/button> to their builders in the last 4 hours/u, 'the reject five hours ago is outside the window');

@@ -138,7 +138,7 @@ async function landingGuards({ root, base }) {
 
 /**
  * The land job's check of the items merged so far: the landing guards, each merged item's own check, the job's command,
- * then the ledger proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a
+ * the ledger proof over the proved files the merged tree holds, then the contracts, stopping at the first red. Why the file filter: a
  * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
 async function landingCheck(payload, env) {
@@ -156,14 +156,18 @@ async function landingCheck(payload, env) {
       const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
       if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]);
     }
-    let proof = null, waived = null;
+    // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
+    const contractPart = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
+    if (contractPart) parts.push(['proof', contractPart]);
+    let proof = null, waived = null, contracts = null;
     for (const [role, part] of parts) {
       const result = await part(context);
       if (result?.proof) proof = result.proof;
+      if (result?.contracts) contracts = result.contracts;
       if (result?.waived?.length) waived = result.waived;
-      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}) };
+      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
     }
-    return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}) };
+    return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
   };
 }
 
@@ -270,6 +274,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     admitTrunk(root, { trunk, base });
     const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
+    if (result?.contracts) receipt.contracts = result.contracts;
     // A proof red only in tests the person waived lands waived, not green; the receipt names each waiver [#655].
     if (result?.ok && result.waived?.length) receipt.waived = result.waived;
     if (!result?.ok) {
@@ -284,7 +289,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
       if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
       receipt.detail ??= result?.detail ?? 'the landing check failed';
       for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.detail ?? result?.detail}`);
-      if (found.red.length && (!separate || found.kept.length === 0)) return done('red');
+      // Per-item landing, the default, lands the clean rest as separate publish does; perItem false lands nothing red [C7,#2901].
+      if (found.red.length && ((!separate && payload.perItem === false) || found.kept.length === 0)) return done('red');
       pending = pending.filter(entry => found.kept.includes(entry.id));
     }
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });

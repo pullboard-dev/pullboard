@@ -18,6 +18,8 @@ import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
+import { changedLines } from '../../../../../packages/items/index.js';
+import { oversizeNote } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
 import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -456,5 +458,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   else await deliverSubmitActivity(ctx, id);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
+  // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).
+  const sizeNote = oversizeNote(changedLines(root, main.commit, commit), main.config.itemSizeBudget);
+  if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);
   return 0;
 }

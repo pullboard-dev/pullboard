@@ -59,10 +59,10 @@ export function settingsContentHtml(entry, scope = 'machine') {
     const mark = changed(row);
     const what = row.error ? '<p class="setting-error" role="alert" title="' + esc(row.error.message + ' ' + row.error.fix) + '">' + esc(row.error.message) + ' ' + esc(row.error.fix) + '</p>'
       : '<p class="setting-description" title="' + esc(row.description) + '">' + esc(row.description) + '</p>';
-    return '<div class="set' + (row.error ? ' setting-invalid' : '') + '" data-setting-key="' + esc(row.key) + '"><div class="name"><div class="set-title"><b>' + esc(label) + '</b><code class="k">' + esc(row.key) + '</code>'
+    return '<div class="set' + (copyable ? ' has-copy' : '') + (row.error ? ' setting-invalid' : '') + '" data-setting-key="' + esc(row.key) + '"><div class="name"><div class="set-title"><b>' + esc(label) + '</b><code class="k">' + esc(row.key) + '</code>'
       + (entry.all && row.root ? '<span class="setting-root">' + esc(String(row.root).replaceAll('\\', '/').split('/').at(-1)) + '</span>' : '') + '</div>' + what + '</div>'
       + '<div class="val"><span class="val-line">' + (mark ? '<span class="changed">changed</span>' : '') + '<b title="' + esc(row.secret ? value : exact(row.value)) + '">' + esc(row.error ? '' : value) + '</b></span><small>' + (mark ? 'default ' + esc(was) : 'default') + '</small></div>'
-      + (copyable ? '<button type="button" class="copy" data-copy-command="' + esc(command) + '" aria-label="Copy command to change ' + esc(label) + '" title="Copy: ' + esc(command) + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/></svg></button>' : '<span class="copy none"></span>') + '</div>';
+      + (copyable ? '<button type="button" class="copy" data-copy-command="' + esc(command) + '" aria-label="Copy command to change ' + esc(label) + '" title="Copy: ' + esc(command) + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/></svg></button>' : '') + '</div>';
   };
   const groups = new Map();
   for (const row of rows) {

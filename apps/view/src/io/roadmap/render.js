@@ -99,7 +99,8 @@ export function roadmapCardsHtml(read, presentation = {}) {
     : '<dl class="roadmap-stage-counts">' + stages.map(([stage, label]) => '<div data-shipping-stage="' + stage + '"><dt><i class="roadmap-stage-swatch ' + stage + '" aria-hidden="true"></i>' + label + '</dt><dd>' + counts[stage] + '</dd></div>').join('') + '</dl>';
   const lastShipped = '<p class="roadmap-last-shipped"><span>Last shipped</span><b>' + esc(shipped[0]?.milestone.name || 'None yet') + '</b>'
     + (shipped[0] ? '<small>' + esc(shippedDate(shipped[0].milestone)) + '</small>' : '') + '</p>';
-  const mobileShipping = '<section class="roadmap-shipping roadmap-mobile-shipping" aria-label="Release counts">' + shippingCounts + lastShipped + '</section>';
+  // With a release header its legend already shows the counts, so a phone repeats only the last shipped line.
+  const mobileShipping = '<section class="roadmap-shipping roadmap-mobile-shipping" aria-label="Release counts">' + (headerFor(next) ? '' : shippingCounts) + lastShipped + '</section>';
   /** Keep supplied landed progress beside an upcoming release without a modern summary. */
   const count = (m) => m.total ? '<span class="milestone-count" aria-label="' + m.done + '/' + m.total + ' landed">' + m.done + '/' + m.total + ' landed</span>' : '';
   /** Show the item count plainly, and name the limit only near capacity [N26]. */
@@ -130,6 +131,8 @@ export function roadmapCardsHtml(read, presentation = {}) {
   /** Keep folding consistent while the roadmap disclosure reuses the shared release-header presentation. */
   const wrap = (tag, classes, key, first, heading, contents, afterHead = '', sharedHeader = false) => {
     const open = isOpen(key, first);
+    // A closed release is its one line only: its items are not drawn until it is opened (#7303).
+    if (typeof contents === 'function') contents = open ? contents() : '';
     const head = '<div class="milestone-head' + (sharedHeader ? ' release-header-toggle' : '') + '" data-roadmap-key="' + esc(key) + '" role="button" tabindex="0" aria-expanded="' + open + '">'
       + (sharedHeader ? caret + heading : heading.replace('<h2>', '<h2>' + caret)) + '</div>';
     const summary = sharedHeader ? '<div class="release-header">' + head + afterHead + '</div>' : head + afterHead;
@@ -141,11 +144,11 @@ export function roadmapCardsHtml(read, presentation = {}) {
     const legacyTarget = m.milestone.target ? '<div class="milestone-targetline">Target <time datetime="' + esc(m.milestone.target) + '">' + esc(targets.get(m) ?? m.milestone.target) + '</time>' + (m.milestone.pastTarget ? ' <span class="chip warn">past target</span>' : '') + '</div>' : '';
     const heading = header ? header.top : '<h2>' + (headings.get(m) ?? esc(m.milestone.name)) + '</h2>' + count(m) + capacity(m);
     const detail = header ? header.detail : legacyTarget;
-    return wrap('section', 'card-panel milestone' + (header ? ' roadmap-has-summary' : ''), 'm:' + m.milestone.name, true,
-      heading, body(m), detail + (m === next ? mobileShipping : ''), Boolean(header));
+    return wrap('section', 'card-panel milestone' + (header ? ' roadmap-has-summary' : ''), 'm:' + m.milestone.name, only !== null || m === next,
+      heading, () => body(m), detail + (m === next ? mobileShipping : ''), Boolean(header));
   };
   /** Summarize one shipped milestone with its first note line and total count. */
-  const line = (m) => wrap('div', 'milestone shipped-one', 'm:' + m.milestone.name, false, '<h2>' + esc(m.milestone.name) + '</h2><small>' + esc(firstLine(m.milestone.note)) + '</small>' + '<span class="milestone-count">' + m.total + (m.total === 1 ? ' item' : ' items') + '</span>' + capacity(m), body(m), (m.milestone.shipped?.commit ? '<button class="hash-copy" type="button" title="' + esc(m.milestone.shipped.commit) + '" aria-label="Copy full hash ' + esc(m.milestone.shipped.commit) + '" data-copy="' + esc(m.milestone.shipped.commit) + '"><code class="roadmap-shipped-commit" title="' + esc(m.milestone.shipped.commit) + '">' + esc(m.milestone.shipped.commit.slice(0, 12)) + '</code></button>' : ''));
+  const line = (m) => wrap('div', 'milestone shipped-one', 'm:' + m.milestone.name, false, '<h2>' + esc(m.milestone.name) + '</h2><small>' + esc(firstLine(m.milestone.note)) + '</small>' + '<span class="milestone-count">' + m.total + (m.total === 1 ? ' item' : ' items') + '</span>' + capacity(m), () => body(m), (m.milestone.shipped?.commit ? '<button class="hash-copy" type="button" title="' + esc(m.milestone.shipped.commit) + '" aria-label="Copy full hash ' + esc(m.milestone.shipped.commit) + '" data-copy="' + esc(m.milestone.shipped.commit) + '"><code class="roadmap-shipped-commit" title="' + esc(m.milestone.shipped.commit) + '">' + esc(m.milestone.shipped.commit.slice(0, 12)) + '</code></button>' : ''));
   /** One compact row per release: its full version, its name cut only at the row's width, landed/total and a thin stage-coloured bar [#6842]. */
   const releaseButtons = coming.map((m) => {
     const key = 'm:' + m.milestone.name, name = String(m.milestone.name);
@@ -165,7 +168,7 @@ export function roadmapCardsHtml(read, presentation = {}) {
     + '<section class="roadmap-shipping roadmap-desktop-shipping" aria-label="Release counts"><h2>Release</h2><h3 class="roadmap-next-release">' + esc(next?.milestone.name || 'No upcoming release') + '</h3>'
     + shippingCounts + lastShipped + '</section></aside>';
   const roadmapList = '<div class="roadmap-list" id="roadmap-list">' + lead + (milestones.length ? coming.map(card).join('') : '<div class="card-panel empty">No milestones yet. The coordinator adds one with <code class="inline">pullboard milestone add</code>.</div>')
-    + (shipped.length ? wrap('section', 'card-panel shipped', 'shipped', false, '<h2>Shipped</h2><span class="milestone-count">' + shipped.length + (shipped.length === 1 ? ' release' : ' releases') + '</span>', shipped.map(line).join('')) : '') + '</div>';
+    + (shipped.length ? wrap('section', 'card-panel shipped', 'shipped', false, '<h2>Shipped</h2><span class="milestone-count">' + shipped.length + (shipped.length === 1 ? ' release' : ' releases') + '</span>', () => shipped.map(line).join('')) : '') + '</div>';
   // With no releases there is nothing to jump to, so the Roadmap is its list alone, as before the panel.
   return (milestones.length ? releasePanel : '') + roadmapList;
 }

@@ -32,7 +32,7 @@ const SPEC = '# Bar fixture\n\n## G · Goals\n- G1 [approved, must] The feature 
 const HOUR = 3_600_000;
 
 after(() => {
-  for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true });
+  for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); // budget: a detached board child may still be writing the sandbox.
 });
 
 /** Make an isolated real-Git repo with a board, a coordinator, a web builder, a reviewer and three web items. */
@@ -85,7 +85,7 @@ async function fixture() {
   const web = (await json(repo, 'worktree', 'web', '--route', 'strong')).path;
   const review = (await json(repo, 'worktree', 'web', '--route', 'strong')).path;
   await json(repo, 'add', 'web', 'Widened item', '--specs', 'G1', '--criterion', 'Widened item works', '--check', 'node packages/gate/src/io/run/tests.js test/a.test.js && node packages/codemap/src/io/cells/scripts/plan.js --cuts x && node packages/gate/src/io/run/tests.js --test-force-exit test/b.test.js');
-  await json(repo, 'add', 'web', 'Unclaimed item', '--specs', 'G1', '--criterion', 'Unclaimed works', '--check', 'node packages/gate/src/io/run/tests.js test/a.test.js');
+  await json(repo, 'add', 'web', 'Unclaimed item', '--specs', 'G1', '--criterion', 'Unclaimed works', '--check', 'node packages/gate/src/io/run/tests.js test/a.test.js', '--not-duplicate-of', '1 a separate item without a claim');
   return { repo, web, review, run, json, git };
 }
 
