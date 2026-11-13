@@ -385,7 +385,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     if (sharded) return sharded;
   }
   // Quarantines filed before this receipt excuse its reds; its own paired reruns are recorded after that judgement [C7,H16].
-  const excused = quarantinedReds(board, receipt);
+  const excused = quarantinedReds(board, receipt, main);
   recordPulledPairs(board, { job, receipt, item: id, candidate, main, submit });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].

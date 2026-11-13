@@ -10,6 +10,8 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
+import { tryGit } from '../../../git/index.js';
+import { CONFIG_FILE } from '../../../kernel/browser.js';
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
@@ -20,9 +22,16 @@ function boardPorts(board) {
   return typeof moves?.recordFlakeObservation === 'function' && typeof receipts?.boardReceiptStore === 'function' ? { moves, receipts } : null;
 }
 
-/** Whether this board quarantines tests (flakes.quarantine); a board that cannot say quarantines nothing. */
-function quarantining(board) {
-  try { return board.quarantineEnabled?.() === true; } catch { return false; }
+/**
+ * Whether this board quarantines tests: flakes.quarantine in the policy the gate judged, accepted main's committed
+ * config. Why main's file: a board API host opens the board without the CLI's write policy, so quarantineEnabled may
+ * be absent there; a board or main that cannot say quarantines nothing.
+ */
+function quarantining(board, main) {
+  try { if (board.quarantineEnabled?.() === true) return true; } catch { /* read main's own policy below */ }
+  if (!board.gitRoot || !SHA.test(String(main))) return false;
+  const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]);
+  try { return shown.status === 0 && JSON.parse(shown.stdout).flakes?.quarantine === true; } catch { return false; }
 }
 
 /**
@@ -32,12 +41,13 @@ function quarantining(board) {
  *
  * @param {any} board
  * @param {Record<string, any>} receipt
+ * @param {string} main - The accepted main the gate job was offered against, whose policy says whether quarantine is on.
  * @returns {{ file: string, name: string, item: number }[] | null}
  */
-export function quarantinedReds(board, receipt) {
+export function quarantinedReds(board, receipt, main) {
   const gate = receipt?.gate ?? {};
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
-  if (!quarantining(board) || gate.green === true || gate.error || gate.proofPlan || gate.analysis?.infra || gate.analysis?.refusals?.length || !red.length
+  if (!quarantining(board, main) || gate.green === true || gate.error || gate.proofPlan || gate.analysis?.infra || gate.analysis?.refusals?.length || !red.length
     || red.some(phase => !Array.isArray(phase.failures) || !phase.failures.length)) return null;
   let active;
   try { active = board.enginePorts.store.flakeQuarantines(board).filter(row => row.status === 'quarantined'); } catch { return null; }
