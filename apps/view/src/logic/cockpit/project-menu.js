@@ -47,9 +47,9 @@ export function cockpitProjectMenu() {
   return `const projectMenuRows = ${projectMenuRows.toString()};
 const projectMenuHtml = ${projectMenuHtml.toString()};
 const projectMenu = { adding: false, node: null };
-/** Whether the switcher shows this menu: the docked sidebar of a wide page, where its list is already in view. Narrow and collapsed pages keep their folding list. */
+/** Whether the switcher shows this menu: every wide page, in either navigation layout, since no project list is docked now. A phone keeps its folding list. */
 function projectMenuHere() {
-  return !matchMedia('(max-width: 900px)').matches && document.documentElement.dataset.side !== 'collapsed';
+  return !matchMedia('(max-width: 900px)').matches;
 }
 /** Take the menu away. */
 function projectMenuClose() {

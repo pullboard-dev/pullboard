@@ -114,3 +114,4 @@
 :root[data-nav="side"] .side-row.on .f { color: var(--accent); }
 :root[data-nav="side"] .side-row .f.a { color: var(--warn); font-weight: 600; }
 :root[data-nav="side"] .side-row .f:empty { display: none; }
+:root[data-nav="side"] .sidenav[hidden] { display: none; }
