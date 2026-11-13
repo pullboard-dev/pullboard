@@ -24,10 +24,10 @@ test('the expanded row keeps send-backs short and names agents plainly [N26]', {
   assert.ok(executable, 'Chrome is required for the roadmap send-back check.');
   const box = machine(), alpha = project(box, 'short-roadmap');
   const long = 'Evidence '.repeat(25).trim();
-  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Several sentences', criterion: 'Ready.', check: null, args: ['--specs', 'G1'] });
+  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Several sentences', criterion: 'Ready.', check: null, args: ['--specs', 'G1'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
   build(box, alpha, 1, 'several.html');
   sendBack(box, alpha, 1, 'The heading is missing. The footer link is also broken.\nMore evidence stays in Items.');
-  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'One long sentence', criterion: 'Ready.', check: null, args: ['--specs', 'G1'] });
+  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'One long sentence', criterion: 'Ready.', check: null, args: ['--specs', 'G1'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
   build(box, alpha, 2, 'long.html'); sendBack(box, alpha, 2, long);
   box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2');
   const view = await startView(box), profile = privateFixtureFiles('pullboard-short-roadmap-chrome-').root;
