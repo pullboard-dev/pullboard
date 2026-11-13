@@ -72,6 +72,8 @@ const MODULE = /\.[cm]?js$/u;
 const RUNNER_INPUTS = ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/src/io/test/action/reporter.js', 'package.json'];
 // The environment a test's verdict may depend on; anything else in the environment is per-run noise.
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'PULLBOARD_TEST_REAL', 'PULLBOARD_ADAPTER_AUDIT', 'TZ', 'LANG', 'LC_ALL'];
+// Harness variables the runner sets per run or per machine; every other PULLBOARD_* variable present keys a result [#4380].
+const HARNESS_ENVIRONMENT = /^PULLBOARD_(?:TEST|RUN|RUNNER|AUDIT|LEDGER|MACHINE|RELAY|VIEW|RELEASE|HANDOFF)_/u;
 // Options that choose how a run reports or splits files, never what a file proves.
 const NEUTRAL_OPTION = /^--(?:test[-_]concurrency|test[-_]reporter(?:[-_]destination)?|test[-_]shard)(?:=|$)/u;
 // Release notes are prose: src reads them for headlines that tests prove against their own fixture copies. A test that
@@ -106,7 +108,19 @@ function executionContext(env) {
   return { node: process.version, platform: process.platform, arch: process.arch,
     environment: [...DECLARED_ENVIRONMENT, 'PULLBOARD_TEST_CACHE_TOOLING'].map(name => [name,
       name === 'NODE_OPTIONS' && env.PULLBOARD_RUNNER_PRELOAD && env[name] === env.PULLBOARD_RUNNER_PRELOAD
-        ? null : env[name] ?? null]) };
+        ? null : env[name] ?? null]), ...extraEnvironment(env) };
+}
+
+/** Every PULLBOARD_* variable present outside the harness set and the declared list, so a test reading one cannot reuse another environment's result [#4380]. */
+function extraEnvironment(env) {
+  const extra = Object.keys(env).filter(name => name.startsWith('PULLBOARD_') && !HARNESS_ENVIRONMENT.test(name) && !DECLARED_ENVIRONMENT.includes(name) && name !== 'PULLBOARD_TEST_CACHE_TOOLING').sort().map(name => [name, env[name] ?? null]);
+  return extra.length ? { extra } : {};
+}
+
+/** The variables a test names in its header (`/** @pullboard-test-env NAME NAME *\/`) with their values; none when it names none [#4380]. */
+function declaredEnvironment(source, env) {
+  const names = [...new Set([...source.matchAll(/^\/\*\* @pullboard-test-env ([A-Za-z_][\w ]*) \*\/$/gmu)].flatMap(row => row[1].split(' ').filter(Boolean)))].sort();
+  return names.length ? { declared: names.map(name => [name, env[name] ?? null]) } : {};
 }
 
 /** Run git in the checkout with a private environment, returning trimmed stdout or throwing its error. */
@@ -301,7 +315,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
       tracked: reads.listing ? digest(index.sorted) : null });
     recordInputParts(store, inputKey, { test, files: closureBlobs(closure.files, blobs), runner, inputs: reads.inputs.map(path => [path, blobs.get(path)]),
       tracked: reads.listing ? digest(index.sorted) : null, options: shared.options });
-    keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '' });
+    const own = { ...context, ...declaredEnvironment(modules.get(test) ?? '', env) };
+    keys.set(test, { inputKey, context: own, key: digest({ inputKey, context: own }), reason: '' });
   }
   // Parts and lists were just written: the size cap holds now, not at the next ten-minute upkeep [C7].
   enforcePartsCap(store, env);
@@ -509,6 +524,7 @@ export async function preQueueReuse(root, commit, files, tooling, { env = proces
       for (const candidate of selectedTestResults(store, [inputKey])) {
         if (candidate.status !== 'pass' || candidate.file !== file || !completedTestResult(candidate)
           || JSON.stringify(candidate.context.environment) !== expected
+          || JSON.stringify([candidate.context.extra, candidate.context.declared]) !== JSON.stringify([keys.get(file).context.extra, keys.get(file).context.declared])
           || runtimes && !runtimes.some(row => row.node === candidate.context.node && row.platform === candidate.context.platform && row.arch === candidate.context.arch)) continue;
         const entry = reusableResult(store, candidate.key);
         if (!entry || entry.inputKey !== inputKey || !testResultOutcomes(entry)) continue;
