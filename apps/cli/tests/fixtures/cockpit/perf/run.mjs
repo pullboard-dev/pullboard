@@ -163,7 +163,7 @@ export function assertRequiredNetworkEvidence(name, requests, requestBytes) {
 }
 
 /** Attach a private CDP observer that retains local request paths and actual encoded response byte counts. */
-async function openNetworkCapture(profile, localOrigin, targetId) {
+export async function openNetworkCapture(profile, localOrigin, targetId) {
   const port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]);
   if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) throw new Error('isolated Chrome did not publish a valid local DevTools port');
   const targetsResponse = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(5_000) });
