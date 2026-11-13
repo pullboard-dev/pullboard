@@ -107,3 +107,27 @@ test('clause 2: a process inside a test run never sweeps the machine, and a runn
   const job = { pid: 20, ppid: 1, ageMs: 1000, command: 'node /Users/x/.pullboard-runner/jobs/abc/checkout/bin/run-tests.js a.test.js' };
   assert.deepEqual(sweepStaleTests({ processes: [job], own: 99, stop: () => assert.fail('a runner job is not stopped') }), []);
 });
+
+test('#7137 clause 1: a detached pullboard test --test-run driver with parent launchd/init is never stopped [C7]', () => {
+  const driver = { pid: 30, ppid: 1, ageMs: 120_000,
+    command: '/Users/x/.nvm/versions/node/v22.22.2/bin/node /Users/x/repo/apps/cli/pullboard.js test --test-run 5aa66d18-0f5e-47ae-8361-f7385076e222 a.test.js' };
+  const signalled = [];
+  assert.deepEqual(sweepStaleTests({ processes: [driver], own: 99, stop: pid => signalled.push(pid) }), []);
+  assert.deepEqual(signalled, [], 'a test-run driver is not signalled');
+  // A plain orphaned pullboard test (no --test-run) is still stopped, so the exemption is only for the driver.
+  const plain = { ...driver, pid: 31, command: 'node bin/pullboard.js test a.test.js' };
+  assert.deepEqual(sweepStaleTests({ processes: [plain], own: 99, stop: () => {} }).map(row => row.pid), [31]);
+});
+
+test('#7137 clause 2: a shell whose command line only mentions a test command is never stopped; only node processes are [C7]', () => {
+  const shells = [
+    { pid: 40, ppid: 1, ageMs: 9e9, command: '/bin/zsh -c source snapshot.sh && cd repo && node --test test/a.test.js' },
+    { pid: 41, ppid: 1, ageMs: 9e9, command: 'zsh -c pkill -f "node --test test/relay-sealed.test.js"' },
+    { pid: 42, ppid: 1, ageMs: 9e9, command: '/bin/sh -c node bin/run-tests.js a.test.js' },
+  ];
+  const signalled = [];
+  assert.deepEqual(sweepStaleTests({ processes: shells, own: 99, stop: pid => signalled.push(pid) }), []);
+  assert.deepEqual(signalled, [], 'a shell is not signalled');
+  const child = { pid: 43, ppid: 1, ageMs: 9e9, command: '/usr/local/bin/node --test test/a.test.js' };
+  assert.deepEqual(sweepStaleTests({ processes: [child], own: 99, stop: () => {} }).map(row => row.pid), [43]);
+});
