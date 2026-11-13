@@ -20,6 +20,7 @@ import { operationEntryProblems } from './operations.js';
 import { layoutProblems } from './layout.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
+import { apiRequestIoProblems } from '../board/request.js';
 import { relayBoundaryProblems } from '../relay.js';
 import { fixtureProblems } from '../test/fixtures.js';
 import { fixtureSites } from '../test/fixtures.js';
@@ -178,6 +179,9 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     .sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line).map(row => `${row.file}:${row.line}: ${row.text}`) },
   { name: 'board-write-io', reads: SOURCE, run: (root, sources, context = MEMORY) => cellRows({ sources: treeSources(root, sources), edgeCache: edgeCacheOf(context), cache: context.cache('board-write-io', 1), compute: reach => boardWriteIoProblems(reach) })
     .map(row => `${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`) },
+  // Reach from the API's request handlers; the known-violation set in request.js may only shrink [#6718].
+  { name: 'api-request-io', reads: SOURCE, run: (root, sources) => apiRequestIoProblems(treeSources(root, sources))
+    .map(row => `${row.file}:${row.line}: ${row.stale ? 'known request blocker no longer fires; delete its row' : 'synchronous child process reachable from a board API request'}: ${row.call} (${row.chain.join(' -> ')})`) },
   { name: 'worker-bundle', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     // Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564].
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });

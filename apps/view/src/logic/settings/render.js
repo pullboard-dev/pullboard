@@ -1,6 +1,6 @@
 /** Render the Settings pane; its only controls navigate scopes or refresh a GET, or copy a command. */
 export function settingsMarkup() {
-  return '<section data-pane="settings" class="settings-pane" id="settings-pane" aria-label="Settings" hidden><div id="settings-content" aria-live="polite"></div></section>';
+  return '<section data-pane="settings" class="settings-pane" id="settings-pane" aria-label="Settings" hidden><div id="settings-content" aria-live="polite"></div><div class="dash-two dash-reference" id="settings-reference"></div></section>';
 }
 
 /**
@@ -29,6 +29,13 @@ export function settingsContentHtml(entry, scope = 'machine') {
     Relay: 'Sharing boards with your phone and other devices.', Project: 'Where the project keeps its files and how it names things.',
     Review: 'Who may review work and how reviews are scheduled.', Claims: 'How long work stays claimed.', Commits: 'What a commit message must look like.',
     Protection: 'Files and secrets no change may touch.', Line: 'How the board offers work to builders and reviewers.' };
+  /** A refusal's bracketed code is for logs; a person reads which setting is wrong and what to do. */
+  const plain = text => {
+    const message = String(text ?? '');
+    const bad = /^\[BAD_SETTINGS\]\s*setting (\S+) has an unsupported type; restore its documented value/.exec(message);
+    if (bad) return bad[1] + ' holds the wrong kind of value. Set it back to its documented value, then choose Refresh.';
+    return message.replace(/^\[[A-Z_]+\]\s*/, '');
+  };
   const order = ['Capacity', 'Order', 'Runners', 'Background'];
   const labels = { machine: 'This machine', repo: 'This repo', board: 'This board' };
   const scopes = Object.entries(labels).map(([key, label]) => '<button type="button" role="tab" class="' + (key === scope ? 'on' : '') + '" data-settings-scope="' + key + '" aria-selected="' + (key === scope) + '">' + label + '</button>').join('');
@@ -64,6 +71,6 @@ export function settingsContentHtml(entry, scope = 'machine') {
   return '<section class="settings-head"><h2>Settings</h2><p>How Pullboard runs on this computer. Change a setting with the copy button beside it; this page shows what is in effect.</p>'
     + '<div class="settings-bar"><div class="seg settings-scopes" role="tablist" aria-label="Settings scope">' + scopes + '</div>' + boards + '<button class="ghost settings-refresh" type="button" data-settings-refresh>Refresh</button></div>'
     + (source && !entry.loading && !entry.error ? '<p class="settings-where">From <code>' + esc(home(source)) + '</code> · ' + rows.filter(changed).length + ' changed from the default</p>' : '') + '</section>'
-    + (entry.error ? '<p class="setting-error" role="alert">' + esc(entry.error) + '</p>' : '')
+    + (entry.error ? '<p class="setting-error" role="alert">' + esc(plain(entry.error)) + '</p>' : '')
     + (entry.loading ? '<p role="status">Loading settings…</p>' : '<div class="set-groups">' + cards + '</div>' + (!rows.length && !entry.error ? '<p>No settings in this scope.</p>' : ''));
 }

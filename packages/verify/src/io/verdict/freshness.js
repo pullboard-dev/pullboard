@@ -1,10 +1,10 @@
 /** Acceptance stays append-only; freshness is derived from the known Git trunk [E8,V8]. */
-import { mergeOnlyLandingProblem } from '../../../../merge/index.js';
+import { mergeOnlyLandingProblem } from '../../../../merge/light.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
 } from '../../../../git/index.js';
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 import { trunkRevisionReader } from '../../../../git/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 

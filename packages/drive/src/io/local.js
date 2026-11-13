@@ -108,7 +108,7 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
     try {
       say(`serving ${root} as board ${id}`);
       // One job at a time on the board host: concurrent jobs belong on runners, never on the coordinator Mac (#5805).
-      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, admit, jobs: 1, signal, say: line => say(`${basename(root)}: ${line}`) });
+      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, admit, git, jobs: 1, signal, say: line => say(`${basename(root)}: ${line}`) });
       wait = RETRY.firstMs;
     } catch (error) {
       if (signal.aborted) break;
@@ -130,12 +130,13 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
  * @param {string[]} options.capabilities - What this runner offers, BOARD_HOST among them.
  * @param {Parameters<typeof serveRunner>[0]['handlers']} [options.handlers]
  * @param {() => boolean} [options.admit] - Asked before each claim; the local runner takes a job only while it says yes.
+ * @param {Parameters<typeof serveRunner>[0]['git']} [options.git] - The Git launches the app hands every serve.
  * @param {AbortSignal} options.signal
  * @param {(line: string) => void} [options.say]
  * @param {{ heartbeatMs?: number }} [options.timing]
  * @returns {Promise<{ served: boolean, pid: number }>} served false when another local runner (pid) already runs.
  */
-export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, signal, say = () => {}, timing = {} }) {
+export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, git, signal, say = () => {}, timing = {} }) {
   const { heartbeatMs = HEARTBEAT_MS } = timing;
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   if (!takeLock(folder)) return { served: false, pid: localRunnerState(folder)?.pid ?? null };

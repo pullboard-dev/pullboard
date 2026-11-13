@@ -32,6 +32,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { listResources } from "../../../../packages/resources/index.js";
 import { SSH_SHELL_MARKERS } from "../../../../packages/kernel/index.js";
 import { runCliInProcess } from "../../tests/fixtures/process.js";
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { requireSessionIndependence } from "../../tests/fixtures/testkit.js";
 import { waitForCondition } from "../../tests/fixtures/runner/holders.js";
 
@@ -60,6 +61,7 @@ function sandbox() {
     GIT_AUTHOR_NAME: 'Session fixture', GIT_AUTHOR_EMAIL: 'session@example.invalid',
     GIT_COMMITTER_NAME: 'Session fixture', GIT_COMMITTER_EMAIL: 'session@example.invalid',
   });
+  fixtureSettledMachine(base.PULLBOARD_MACHINE_HOME);
   /** Run real Git with the private environment. */
   function git(cwd, ...args) {
     return runFixtureGit(args, { cwd, env: base });
@@ -263,7 +265,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   assert.deepEqual(readFileSync(file), before, 'the authenticated view does not alter the local agent-session binding');
 });
 
-test('takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 45_000 }, async () => {
+test('takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 90_000 }, async () => {
   const box = await project();
   const started = join(box.dir, 'gate-started');
   const release = join(box.dir, 'gate-release');
@@ -305,7 +307,7 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
   }
   /** Wait on an actual private fixture observation, with an assertion if it never becomes true. */
   async function observed(predicate, label) {
-    const deadline = Date.now() + 10_000;
+    const deadline = Date.now() + 40_000; // a loaded runner takes 18 s just to authorize a submit
     while (!predicate() && Date.now() < deadline) await new Promise((done) => setTimeout(done, 10));
     assert.ok(predicate(), label);
   }

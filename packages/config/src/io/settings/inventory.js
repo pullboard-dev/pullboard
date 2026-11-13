@@ -13,7 +13,7 @@ import {
 } from '../main.js';
 import { repoInfo } from '../../../../git/index.js';
 import {
-  machineHome,
+  databaseFile,
   machineSettingsFile,
 } from '../../../../resources/index.js';
 import {
@@ -86,6 +86,8 @@ function leaves(value, prefix = '') {
 
 /** Refuse malformed supported scalar settings without echoing credential-bearing input. */
 function checkedValue(key, value, fallback) {
+  // gate.timingRunner is "auto", a runner host, or false (off), as the machine settings loader accepts.
+  if (key === 'gate.timingRunner' && value === false) return value;
   const expected = key === 'landing.environment' ? 'object' : fallback === null
     ? (key === 'gate.memoryFloorMB' || key === 'submitDeferAbove' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
   if (value !== null && (expected === 'array' ? !Array.isArray(value) : expected !== 'object' && typeof value !== expected)) {
@@ -102,11 +104,26 @@ function checkedValue(key, value, fallback) {
   return safeValue(key, value);
 }
 
+/** Say in plain words which setting holds the wrong kind of value, where it lives and how to restore it. */
+function badValue(key, fallback, file) {
+  const label = describeSetting(key).label || key;
+  const documented = fallback === null || fallback === undefined ? 'its documented value' : JSON.stringify(fallback);
+  return { message: `${label} (${key}) holds the wrong kind of value.`,
+    fix: `Set ${key} back to ${documented} or remove it from ${file}.` };
+}
+
 /** Append one setting with both its effective value and explicit provenance. */
 function add(rows, { scope, board, root, file, raw, effective = raw }, key, fallback, { secret = false, value = at(effective, key), source, origin, error } = {}) {
-  rows.push({ key, scope, ...(board ? { board, root } : {}), value: error ? null : secret ? (value ? 'set' : 'not set') : checkedValue(key, value ?? fallback, fallback),
+  // One wrong-typed value becomes that row's plain-words problem; every other setting is still listed.
+  let problem = error;
+  let shown = null;
+  if (!error && !secret) {
+    try { shown = checkedValue(key, value ?? fallback, fallback); }
+    catch (refusal) { if (!(refusal instanceof Refused) || refusal.code !== 'BAD_SETTINGS') throw refusal; problem = badValue(key, fallback, file); }
+  }
+  rows.push({ key, scope, ...(board ? { board, root } : {}), value: problem ? null : secret ? (value ? 'set' : 'not set') : shown,
     default: secret ? 'not set' : fallback, source: source ?? file,
-    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...describeSetting(key), ...(secret ? { secret: true } : {}), ...(error ? { error } : {}) });
+    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...describeSetting(key), ...(secret ? { secret: true } : {}), ...(problem ? { error: problem } : {}) });
 }
 
 /** Remove one configured leaf in memory so the ordinary parser can isolate one bad setting. */
@@ -189,7 +206,7 @@ function machineSettings(rows, { defaultViewPort, DEFAULT_VIEW_PORT }) {
   add(rows, relayContext, 'relay.owner.account', null, { value: relay.owner?.account ?? relay.session?.account, origin: relay.owner?.account !== undefined || relay.session?.account !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.owner.url', null, { value: relay.owner?.url ?? relay.session?.url, origin: relay.owner?.url !== undefined || relay.session?.url !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.session.token', 'not set', { secret: true });
-  resourceSettings(rows, { scope: 'machine' }, join(machineHome(), 'resources.sqlite'));
+  resourceSettings(rows, { scope: 'machine' }, databaseFile('machine'));
 }
 
 /** Project every supported repository setting plus its board's relay connection configuration. */
@@ -207,7 +224,7 @@ function repositorySettings(rows, board, { performanceCores }) {
     add(rows, context, key, fallback, { value, origin: key === invalidKey ? 'configured' : origin,
       ...(key === invalidKey ? { error: settingError(key) } : {}) });
   }
-  resourceSettings(rows, context, join(info.commonDir, 'pullboard', 'resources.sqlite'));
+  resourceSettings(rows, context, databaseFile('repo', info.root));
   const relayFile = join(info.commonDir, 'pullboard', 'relay.json');
   const relay = readObject(relayFile);
   const deletedFile = join(info.commonDir, 'pullboard', 'relay-deleted.json');

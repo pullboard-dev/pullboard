@@ -91,7 +91,7 @@ export function notchHtml({ agents = null, perHour = null, rulings = null } = {}
   const shoulder = (path) => '<svg class="sh" viewBox="0 0 50 26" preserveAspectRatio="none" aria-hidden="true"><path d="' + path + '"/></svg>';
   return shoulder('M0 0 C20 0 27 26 50 26 L50 0 Z')
     + '<span class="notch-body">'
-    + '<button class="notch-it" type="button" data-peek="agents" data-status="agents" title="Agents at work: open the agent floor"><b data-notch="agents">' + number(agents) + '</b> agents</button>'
+    + '<button class="notch-it" type="button" data-peek="agents" data-status="agents" title="Agents at work: open the Agents table"><b data-notch="agents">' + number(agents) + '</b> agents</button>'
     + '<span class="notch-sp" aria-hidden="true"></span>'
     + '<button class="notch-it" type="button" data-peek="perHour" data-status="dashboard" title="Items landed per hour, the last 6 hours: open the Dashboard"><b class="g" data-notch="perHour">' + pace + '</b></button>'
     + '<span class="notch-sp" aria-hidden="true"></span>'
@@ -153,20 +153,54 @@ export function withPlaceQuery(search, pairs) {
 
 /**
  * The controls a page puts at the right of the navigation strip (the sidebar layout puts them on the title row):
- * Items shows Open, Building, In review, All and New item; Shouts For you and All; Roadmap Show
+ * Items shows Open, Building, In review, All, a lane, List or Pipeline and New item; Shouts For you and All; Roadmap Show
  * shipped; Activity a person filter. A page with nothing to control gets nothing. Each control carries data-page-ctl,
  * the hook the page's one handler reads, and the state each one shows is the state the address holds.
  *
  * @param {{ tab?: string|null, state?: string, shouts?: string, shipped?: boolean, by?: string|null, people?: string[], writable?: boolean }} [place]
  * @returns {string}
  */
-export function pageControlsHtml({ tab = null, state = 'active', shouts = 'all', shipped = false, by = null, people = [], writable = true } = {}) {
+export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', shipped = false, by = null, people = [], writable = true } = {}) {
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' + (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + name + '</button>').join('') + '</span>';
   const select = (label, kind, current, options) => '<select class="sel" data-page-ctl="' + kind + '" aria-label="' + label + '">' + options.map(([value, name]) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select>';
-  if (tab === 'items') return seg('Show', 'state', state, [['active', 'Open'], ['building', 'Building'], ['verify', 'In review'], ['all', 'All']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
+  if (tab === 'items') return seg('Show', 'state', state, [['active', 'Open'], ['building', 'Building'], ['verify', 'In review'], ['all', 'All']])
+    + (lanes.length > 1 ? select('Lane', 'lane', lane || '', lanes.map(({ value, label, count }) => [value, (value ? label : 'All lanes') + (count === null || count === undefined || !value ? '' : ' · ' + count)])) : '')
+    + seg('View', 'view', itemsView === 'pipeline' ? 'pipeline' : 'list', [['list', 'List'], ['pipeline', 'Pipeline']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
   if (tab === 'shouts') return seg('Shouts', 'shouts', shouts === 'you' ? 'you' : shouts === 'all' ? 'all' : '', [['you', 'For you'], ['all', 'All']]);
   if (tab === 'roadmap') return '<button class="sel" type="button" data-page-ctl="shipped" aria-pressed="' + Boolean(shipped) + '">' + (shipped ? 'Hide shipped' : 'Show shipped') + '</button>';
   if (tab === 'activity') return select('Person', 'by', by || '', [['', 'Everyone'], ...people.map((name) => [name, name === 'person' ? 'You' : name === 'coordinator' ? 'The coordinator' : name])]);
   return '';
+}
+
+/**
+ * The account control at the top right (Corey, 12 Nov: "good call"): the person's initial when signed in, "Sign in" when not.
+ * One control, no banner in the page. The page embeds this function's source, so it uses only its argument.
+ *
+ * @param {{ signedIn?: boolean, login?: string }} [account]
+ * @returns {string}
+ */
+export function accountHtml({ signedIn = false, login = '' } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const initial = (String(login).match(/[A-Za-z0-9]/u) || ['·'])[0].toUpperCase();
+  return signedIn
+    ? '<button class="acct" id="account" type="button" data-account aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu" title="Account">' + esc(initial) + '</button>'
+    : '<button class="signin" id="account" type="button" data-account aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu">Sign in</button>';
+}
+
+/**
+ * The account menu: who you are, Settings, Theme and Pair a phone; signed out it offers Sign in with GitHub in
+ * place of a name. There is no Sign out row yet: the view has no real sign-out, and relay off is destructive (Studio, 12 Nov). The page embeds this function's source, so it uses only its argument.
+ *
+ * @param {{ signedIn?: boolean, login?: string, theme?: string }} [account] - theme is what the person kept: light, dark or system.
+ * @returns {string}
+ */
+export function accountMenuHtml({ signedIn = false, login = '', theme = 'system' } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const row = (attribute, label, hint = '') => '<button type="button" role="menuitem" ' + attribute + '>' + label + (hint ? '<span>' + hint + '</span>' : '') + '</button>';
+  const who = signedIn
+    ? '<div class="who"><b>' + (login ? '@' + esc(login) : 'Signed in') + '</b><small>GitHub</small></div>'
+    : '<div class="who"><b>Not signed in</b><small>Sign in to open your boards on any device</small></div>' + row('data-account-signin', 'Sign in with GitHub');
+  return who + row('data-tab="settings"', 'Settings', ',') + row('data-theme-flip', 'Theme', '<i data-theme-label>' + (theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System') + '</i>')
+    + row('data-account-pair', 'Pair a phone');
 }

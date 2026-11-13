@@ -6,6 +6,7 @@ import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../git/index.js';
+import { releaseReceiptFile } from '../release.js';
 import { openBoardForRead } from '../../../../store/index.js';
 import { closeBoard } from '../../../../store/index.js';
 import { Refused } from '../../../../kernel/index.js';
@@ -29,7 +30,7 @@ function releaseAudits(root) {
   if (!existsSync(folder)) return [];
   return readdirSync(folder).filter(file => /^[a-f0-9-]{36}\.json$/u.test(file))
     .map(file => JSON.parse(readFileSync(join(folder, file), 'utf8')))
-    .filter(row => existsSync(join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${row.id}.json`)));
+    .filter(row => existsSync(releaseReceiptFile(root, row.id)));
 }
 
 /** Keep release order independent of clock ties or rollback; unmeasured releases retain the measured ratchet. */

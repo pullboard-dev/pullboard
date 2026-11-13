@@ -3,7 +3,11 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { VERIFIER_STANDING_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
-import { familyDeclareFloor } from "../../../../items/light.js";
+import { createHash } from 'node:crypto';
+import { familyDeclareFloor } from "../../../../items/browser.js";
+
+/** Hex SHA-256 of UTF-8 text: the port the pure family floor hashes a raw session with. */
+function sha256(text) { return createHash('sha256').update(text).digest('hex'); }
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function historicalMinimum(args) {
@@ -18,7 +22,7 @@ function historicalMinimum(args) {
  * older-engine rejoin of a declared seat would skip the declared-family rule whatever cause or fence it carries.
  */
 function minimumEngine(args, board, at) {
-  return Math.max(historicalMinimum(args), familyDeclareFloor(board, args[0]));
+  return Math.max(historicalMinimum(args), familyDeclareFloor(board, args[0], sha256));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
