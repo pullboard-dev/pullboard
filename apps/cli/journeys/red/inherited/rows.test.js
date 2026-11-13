@@ -22,7 +22,7 @@ test('multiple approved rows never produce a guessed row or item [V1,C7]', async
   const box = fixture(t, { spec, source: FAILING_TEST });
   const [first, second, earlier, submitItem] = addItems(box, [
     { title: 'First possible repair', specId: 'G1' },
-    { title: 'Second possible repair', specId: 'G2' },
+    { title: 'Alternate owner mending a shared gate', specId: 'G2' },
     { title: 'Earlier milestone work', specId: 'G4' },
     { title: 'Unrelated submit', specId: 'G3' },
   ]);

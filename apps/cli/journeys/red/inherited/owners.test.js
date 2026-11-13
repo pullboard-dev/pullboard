@@ -21,7 +21,7 @@ test('a row with several open owners does not prioritize either owner [V1,C7]', 
   const box = fixture(t, { spec, source: FAILING_TEST });
   const [first, second, earlier, submitItem] = addItems(box, [
     { title: 'First possible repair', specId: 'G1' },
-    { title: 'Second possible repair', specId: 'G1' },
+    { title: 'Alternate owner mending a shared gate', specId: 'G1' },
     { title: 'Earlier milestone work', specId: 'G3' },
     { title: 'Unrelated submit', specId: 'G2' },
   ]);
