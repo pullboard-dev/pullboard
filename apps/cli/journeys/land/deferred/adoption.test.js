@@ -1,4 +1,4 @@
-/** An uncertain affected batch passes its full gate before local adoption, apart from deferred.test.js so each fits its file limit under pull [B3,R3,C7,V4]. */
+/** An uncertain affected batch adopts locally from its items' proofs, apart from deferred.test.js so each fits its file limit under pull [B3,R3,C7,V4]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -15,7 +15,7 @@ after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { landProject, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-test('an uncertain affected batch passes its full gate before local adoption [B3,R3,C7,V4]', async () => {
+test('an uncertain affected batch adopts locally from its items\' proofs and publish proves the head [B3,R3,C7,V4]', async () => {
   const box = landProject();
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -31,12 +31,12 @@ test('an uncertain affected batch passes its full gate before local adoption [B3
   assert.equal(result.batch.state, 'landed');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip, 'the local trunk holds the landed batch');
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), remoteBefore, 'tier 1 pushes nothing');
-  const landCalls = calls(box).length - start;
+  assert.equal(calls(box).length - start, 0, 'the pulled lander adopts the batch from its items\' submit proofs and runs no host gate');
   const merges = box.git(box.repo, 'rev-list', '--first-parent', `${base}..${result.batch.tip}`).split('\n');
   for (const entry of entries) assert.ok(merges.includes(json(box, box.repo, 'show', String(entry.item)).item_merged_commit), `#${entry.item} has its merged receipt on the local trunk`);
   // Tier 2 then runs the whole suite once on that exact head and pushes it.
   const published = json(box, box.repo, 'publish');
   assert.equal(published.published, true);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
-  assert.fail(JSON.stringify({ landCalls, total: calls(box).length - start, receipt: result.landJob.receipt }));
+  assert.equal(calls(box).length - start, 1, 'publish proves its exact trunk head before pushing');
 });

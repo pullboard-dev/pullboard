@@ -28,7 +28,8 @@ test('land returns an accept whose reviewed file changed on main and lands the f
   assert.deepEqual(result.landed, [entries[0].item]);
   // The pulled land returns the stale accept to its lane before it offers the job.
   assert.equal(json(box, box.repo, 'show', String(entries[1].item)).item_status, 'open', 'the stale accept is withdrawn and the item reopens');
-  assert.ok(json(box, box.repo, 'show', String(entries[1].item)).thread.some(entry => /verdict stale: web\/land-2\.test\.js changed on main/u.test(entry.text ?? '')), 'the builder is told why');
+  const told = JSON.stringify(json(box, box.repo, 'show', String(entries[1].item)).thread);
+  assert.match(told, /verdict stale: web\/land-2\.test\.js changed on main/u, 'the builder is told why');
   assert.equal(json(box, box.repo, 'show', String(entries[1].item)).item_merged_commit, null);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
   await drainOwnedProcesses(box.dir);

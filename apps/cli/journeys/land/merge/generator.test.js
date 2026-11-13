@@ -31,7 +31,7 @@ test('a failing doc generator blocks landing without reopening accepted work [B3
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure failing private generator');
   const left = accepted(box, 1, { 'docs/api.md': generatedApi('left') });
-  const right = accepted(box, 2, { 'docs/api.md': generatedApi('right') });
+  const right = accepted(box, 2, { 'test/snapshot.json': '{"base":true,"right":true}\n' }); // a different file, so the merge is clean and only the generator step fails
   const before = box.git(box.repo, 'rev-parse', 'main');
   const result = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(result.code, 0, `${result.out}\n${result.err}`);

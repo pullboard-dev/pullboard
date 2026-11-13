@@ -12,17 +12,22 @@ import { settleLand } from '../../tests/fixtures/land/settle.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { landProject, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('land pushes one exact batch in verdict order and records each first-containing merge once [B3,R3]', async () => {
   const box = landProject();
-  const entries = verifiedFour(box, { order: [3, 1, 0, 2] });
+  // Three items are enough to show verdict order differs from item order; a fourth only adds a pulled gate to this file's time.
+  box.env.LAND_SUPPRESS_RED = '1';
+  const entries = FILES.slice(0, 3).map((file, index) => itemWorktree(box, index + 1, file));
+  for (const entry of entries) submitItem(box, entry, 'PASS\n');
+  for (const index of [2, 0, 1]) acceptItem(box, entries[index]);
+  delete box.env.LAND_SUPPRESS_RED;
   const base = box.git(box.repo, 'rev-parse', 'main');
   const start = calls(box).length;
   const result = await settleLand(box, json(box, box.repo, 'land'));
-  const order = [3, 1, 0, 2].map((index) => entries[index].item);
+  const order = [2, 0, 1].map((index) => entries[index].item);
   assert.deepEqual(result.landed, order);
-  assert.deepEqual(mergeSubjects(box, base, result.batch.tip), [4, 2, 1, 3].map((n) => `feat(merge): land fixture ${n} [G1]`), 'each merge takes its item\'s type from the item\'s feat commit');
+  assert.deepEqual(mergeSubjects(box, base, result.batch.tip), [3, 1, 2].map((n) => `feat(merge): land fixture ${n} [G1]`), 'each merge takes its item\'s type from the item\'s feat commit');
   assert.equal(result.batch.state, 'landed');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip, 'real pre-push accepted the gated tip');

@@ -1,4 +1,4 @@
-/** An accept names the exact landing step for its repo, and land refuses a push it cannot make [I1,B3]. */
+/** An accept names the exact landing step for its repo [I1,B3]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
@@ -51,14 +51,10 @@ async function withReviewer(box) {
   return { ...box, review };
 }
 
-/** Run one CLI command for its JSON refusal. */
-async function refusal(box, ...args) {
-  const result = await box.runLocal(box.repo, ...args, '--json');
-  assert.notEqual(result.code, 0, `${args.join(' ')} should refuse: ${result.out}`);
-  return JSON.parse(result.out).error;
-}
+// CONTROLLER_ONLY: the up-front LAND_PUSH refusal for a repo with no origin came from the in-process landing; a pulled land job offers and its runner reports the push in its receipt [C7].
+test('land refuses a push the repo cannot make, before it gates anything [I1,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});
 
-test('an accept says how to land, and land catches a missing origin [I1,B3]', async t => {
+test('an accept says how to land, and the land it names lands the item [I1,B3]', async t => {
   const box = await withReviewer(project());
 
   // Clause 1, repo without a remote: the accept prints the exact git merge command for this repo.
@@ -66,11 +62,6 @@ test('an accept says how to land, and land catches a missing origin [I1,B3]', as
   const merge = new RegExp(`^next: this repo has no remote for pullboard land to push to, so the coordinator merges it on main: (cd ${literal(box.repo)} && git merge --no-ff ${first.commit} -m 'feat\\(merge\\): write web/first\\.txt \\[G1\\]' ${literal(trailerArg(first.id))} && pullboard merged ${first.id} HEAD)$`, 'mu');
   const printed = merge.exec(first.out);
   assert.ok(printed, `the accept names the hand merge for a repo without origin:\n${first.out}`);
-
-  // Clause 2: land refuses a push this repo cannot make, before it gates anything.
-  const real = await refusal(box, 'land');
-  assert.equal(real.code, 'LAND_PUSH', JSON.stringify(real));
-  assert.match(real.message, /the landing push failed: this repo has no origin remote to push main to; add one with git remote add origin <url>/u);
 
   // The printed command is exact: running it lands the item and records the merge.
   const ran = spawnSync('/bin/sh', ['-c', printed[1]], { cwd: box.dir, env: box.env, encoding: 'utf8' });
