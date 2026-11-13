@@ -4,7 +4,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { IMPLIES_ENGINE } from "../../../../state/light.js";
 import { DECISION_ORIGIN_ENGINE } from "../../../../state/light.js";
-import { carriesOrigin } from "../../../../items/light.js";
+import { carriesOrigin } from "../../../../items/browser.js";
 import { carriesImplies } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 
