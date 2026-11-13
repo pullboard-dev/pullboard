@@ -10,6 +10,7 @@ import { OPERATIONS } from '../../../src/io/static/operations.js';
 import { operationSites } from '../../../src/io/static/operations.js';
 import { operationReport } from '../../../src/io/static/operations.js';
 import { operationEntryGrowth } from '../../../src/io/static/operations.js';
+import { operationEntryFiles } from '../../../src/io/static/operations.js';
 import { operationEntryCounts } from '../../../src/io/static/operations.js';
 import { operationRatchetGrowth } from '../../../src/io/static/operations.js';
 import { tightenOperationBaseline } from '../../../src/io/static/operations.js';
@@ -26,8 +27,8 @@ function git(cwd, args) {
   runFixtureGit(['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd });
 }
 
-test('#5846 clause 1: the registry names one entry point for each of the six operations [C7]', () => {
-  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code']);
+test('#5846 clause 1: the registry names one entry point for each operation [C7]', () => {
+  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'stop-process-tree']);
   for (const { entry } of OPERATIONS) assert.ok(readFileSync(new URL(entry, ROOT), 'utf8').length > 0, `${entry} exists`);
 });
 
@@ -93,4 +94,25 @@ test('#5846 clause 2: the entry-point count may only fall; a baseline row main d
   tree.write(BASELINE, JSON.stringify({ 'run-tests': ['packages/demo/src/io/old.js', 'packages/demo/src/io/runner.js'] }) + '\n');
   assert.match(check.run(tree.root).join('\n'), /operation-entries\.json:1: run-tests gains a second entry point packages\/demo\/src\/io\/runner\.js/u,
     'recording the new spawn in the baseline is refused against main');
+});
+
+const KILL_GROUP = "export const stop = pid => process.kill(-pid, 'SIGTERM');\n";
+
+test('#6751 clause 1: stop-process-tree is entered in packages/jobs, and a new process.kill(-pid) outside it fails the registry test [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'stop-process-tree');
+  assert.equal(entry?.entry, 'packages/jobs/src/io/launch.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function stopProcessTree/u);
+  const sites = operationSites(KILL_GROUP, 'packages/demo/src/io/stop.js');
+  assert.deepEqual(sites.map(row => [row.operation, row.line]), [['stop-process-tree', 1]]);
+  assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new file is refused');
+  assert.deepEqual(operationSites(KILL_GROUP, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites("export const stop = pid => process.kill(pid, 'SIGTERM');\n", 'packages/demo/src/io/stop.js'), [], 'a single-process kill is not a tree stop');
+});
+
+test('#6751 clause 2: the baseline lists the current process-group kill files as known violations, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline['stop-process-tree'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['stop-process-tree']);
+  assert.ok(baseline['stop-process-tree'].length > 0);
+  const grown = { ...baseline, 'stop-process-tree': [...baseline['stop-process-tree'], 'packages/demo/src/io/stop.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /stop-process-tree gains a second entry point/u);
 });
