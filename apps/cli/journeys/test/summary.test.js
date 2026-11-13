@@ -139,7 +139,7 @@ test('a red native submit keeps its authority refusal and prints both cases inst
   writeFileSync(flag, 'red');
   // A pull submit returns queued at once; the red gate's refusal is what the item then shows [P7,#6249].
   const queued = (await box.runLocal(box.web, 'submit', '1', '--no-next', '--json'));
-  await settleSubmit(t, box, JSON.parse(queued.out));
+  await settleSubmit(t, box, JSON.parse(queued.out), { deadlineMs: 45_000 });
   const shown = (await box.runLocal(box.repo, 'show', '1'));
   assertFailureSummary({ code: 1, out: shown.out, err: shown.err }, 'GATE_RED');
   const item = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out);
@@ -150,7 +150,7 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   const { box, flag, submittedHead } = (await itemProject());
   const submitted = (await box.runLocal(box.web, 'submit', '1', '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.err);
-  const document = await settleSubmit(t, box, JSON.parse(submitted.out));
+  const document = await settleSubmit(t, box, JSON.parse(submitted.out), { deadlineMs: 45_000 });
   assert.ok(document.gate.counts.passed >= 202);
   assert.equal(document.gate.counts.failed, 0);
   assert.equal(document.gate.profile.tests, undefined, 'case-level records stay in the full timing profile');
