@@ -9,6 +9,7 @@ import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { storeName } from './store-names.js';
 
 /** One core stays free for the runner's worker and the operating system. */
 export const RESERVED_CORES = 1;
@@ -119,7 +120,7 @@ function claimHeld(lock, now) {
  */
 async function claimProbe(directory, host, now, waitMs) {
   const key = createHash('sha256').update(host).digest('hex').slice(0, 24);
-  const state = join(directory, `${key}.json`), lock = join(directory, `${key}.lock`);
+  const state = join(directory, storeName(key)), lock = join(directory, `${key}.lock`);
   const current = readJson(state);
   if (shareCurrent(current, now)) return { shared: current };
   mkdirSync(directory, { recursive: true, mode: 0o700 });
