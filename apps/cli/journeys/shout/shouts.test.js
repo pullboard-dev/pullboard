@@ -59,6 +59,9 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     // A shout lands while the page is closed: the reload counts it, and only it.
     box.run(alpha.web, 'shout', 'all', 'while you were away');
     const reloaded = await openPage(view, { store });
+    // The first read of a page takes the state the server keeps, from before this shout [A2,C7]; the live page's stream
+    // then catches up by a delta. This page has no stream, so catch up as it does.
+    await reloaded.run('refresh()');
     assert.equal(count(reloaded), '1', 'what was seen is remembered across a reload');
     await reloaded.click({ tab: 'shouts' });
     assert.equal(count(reloaded), '');
@@ -71,6 +74,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     await reloaded.run('refresh()');
     assert.equal(count(reloaded), '41', 'every arrival counts, not just the forty loaded');
     const again = await openPage(view, { store });
+    await again.run('refresh()'); // the stream's opening catch-up, as above
     assert.equal(count(again), '41');
 
     // Each project keeps its own mark: a first look at beta sees its shouts, and alpha still counts.

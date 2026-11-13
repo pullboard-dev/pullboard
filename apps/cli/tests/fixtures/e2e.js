@@ -53,7 +53,7 @@ export function withoutPullboardEnv(source) {
 }
 
 /** The commands that may offer a runner job (a gate, test or land job) a journey then reads the outcome of. */
-const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit']);
+const JOB_OFFERING = new Set(['submit', 'verify', 'land', 'accept', 'test', 'ship', 'resubmit', 'run']);
 /** Budget: how long a fixture command waits for the loopback local runner to finish the jobs it offered. */
 const SETTLE_MS = 180_000;
 

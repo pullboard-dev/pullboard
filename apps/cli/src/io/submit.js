@@ -175,6 +175,19 @@ export function refuseUnsubmittableStack(root, board, item, commit, trunk) {
   refuseUnverifiedStack(root, board, item, commit, trunk);
 }
 
+/** Deliver the activity digest after a submit and say it; a failed delivery is named, never fatal. submission: gets the delivery recorded when given. */
+export async function deliverSubmitActivity(ctx, id, submission = null) {
+  try {
+    const { deliverActivity, activityDeliveryLines } = await import('../../../../packages/activity/index.js');
+    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false }, { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard });
+    if (submission) submission.activity = { ...delivery.activity, budget: delivery.budget };
+    for (const line of activityDeliveryLines(delivery, ctx.config, { agentDisplayName, evidenceLine })) ctx.io.say(line);
+  } catch (error) {
+    if (submission) submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };
+    ctx.io.err(`submitted #${id}, but its activity delivery failed: ${error.message}; read pullboard inbox to retry delivery`);
+  }
+}
+
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
 export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   const { root } = ctx.info;
@@ -182,15 +195,7 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   git(root, ['update-ref', pin, commit]);
   const submission = { id, commit, pin, gate, ...(doctrine.length ? { doctrine } : {}) };
   if (ctx.submissionResult) ctx.submissionResult.value = submission;
-  if (!isSubmitHandoffWorker(ctx)) try {
-    const { deliverActivity, activityDeliveryLines } = await import('../../../../packages/activity/index.js');
-    const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false }, { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard });
-    submission.activity = { ...delivery.activity, budget: delivery.budget };
-    for (const line of activityDeliveryLines(delivery, ctx.config, { agentDisplayName, evidenceLine })) ctx.io.say(line);
-  } catch (error) {
-    submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };
-    ctx.io.err(`submitted #${id}, but its activity delivery failed: ${error.message}; read pullboard inbox to retry delivery`);
-  }
+  if (!isSubmitHandoffWorker(ctx)) await deliverSubmitActivity(ctx, id, submission);
   // A green gate, or one red only in main's named cases, stores the review packet for this head now (#2451, #3449).
   if (gate.green || gate.knownMainFailures) await recordReviewPacket(ctx, id, (work) => withBoard(ctx, (board) => work(board, store)), { errors: gate.failures ?? [], mainReceiptIds: gate.mainReceiptIds ?? [] });
   ctx.io.result?.(submission);
