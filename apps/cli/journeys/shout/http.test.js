@@ -735,7 +735,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.equal(acceptedDetail.checkBaseline.result, 'green');
   assert.match(acceptedDetail.verdict.note, /^ran the check and read the summary\n(?:reused submit proof [0-9a-f-]+(?:, [0-9a-f-]+)*\n)?verified against agent-approved G1$/u,
     'the post-init approved fixture row qualifies the receipt without losing the reviewer note');
-  assert.deepEqual(acceptedDetail.thread.filter((entry) => entry.type === 'fact').map((entry) => entry.text).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)), ['a fact only the thread carries']);
+  assert.deepEqual(acceptedDetail.thread.filter((entry) => entry.type === 'fact').map((entry) => entry.text).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:)/u.test(text)), ['a fact only the thread carries']);
 
   /** Search through HTTP and return the matching ids in board order. */
   const search = async (text) => {
@@ -816,9 +816,9 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   }
   const note = 'The page shows no greeting.\nThe second line stays in the detail.';
   const rejected = await submitted('Rejected item');
-  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note, clause: 'shows a greeting' } });
+  await move({ verb: 'verify', item: rejected, agent: verifier.agent, args: { decision: 'reject', reason: 'BEHAVIOR_MISMATCH', note, clause: 'shows a greeting', 'no-next': true } });
   const accepted = await submitted('Accepted item');
-  await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'The page greets by name.\nChecked twice.' } });
+  await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'The page greets by name.\nChecked twice.', 'no-next': true } });
 
   const summaries = new Map((await box.call(box.path + '/state')).document.state.items.map((item) => [item.id, item]));
   assert.deepEqual(summaries.get(rejected).verdict, { decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', note: 'The page shows no greeting.' },
