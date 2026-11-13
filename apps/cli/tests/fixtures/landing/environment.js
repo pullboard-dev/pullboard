@@ -236,7 +236,10 @@ export function assertNoCulpritTrunkHold(helpers) {
   assert.deepEqual(waived.landed, entries.map(entry => entry.id));
   assert.equal(waived.batch.proof.tree, box.git(waived.batch.root, 'rev-parse', 'HEAD^{tree}'));
   assert.ok(waived.batch.proof.failures.every(failure => failure.waiver), 'the red tree stays explicitly waived');
+}
 
+/** S7e: a committed correction to the held test releases the trunk without a waiver; an uncommitted edit does not [C7,#5862]. */
+export function assertTrunkHoldCorrection(helpers) {
   const fixed = fixture(helpers);
   const fixedEntries = [verified(fixed, 'a'), verified(fixed, 'b')];
   assert.deepEqual(success(fixed, fixed.repo, 'land').landed, []);
