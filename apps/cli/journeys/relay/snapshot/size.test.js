@@ -264,8 +264,8 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
     + ' && data.project.root === ' + JSON.stringify(sourceState.board)
     + ' && data.root === view.root && view.root === ' + JSON.stringify(sourceState.board)
     + ' && !document.body.classList.contains("loading")');
-  await chrome.click("document.querySelector('[data-tab=shouts]')");
-  assert.equal(await chrome.stable("document.querySelector('[data-tab=shouts]').classList.contains('on') && !document.querySelector('[data-pane=shouts]').hidden"),
+  await chrome.click("document.querySelector('.tab[data-tab=shouts]')");
+  assert.equal(await chrome.stable("document.querySelector('.tab[data-tab=shouts]').classList.contains('on') && !document.querySelector('[data-pane=shouts]').hidden"),
     true, 'the native Shouts selection is active on the newly loaded board');
   try {
     await chrome.waitFor("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ") || document.querySelector('#relay-notice')?.textContent.includes('Could not open this board with its saved key')");
