@@ -213,7 +213,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const outcome = withBoard(peer, board => {
     const move = prepareEngineMove(board, 'verify', [1, {
       agentId: verdict.verdict_by, decision: 'ACCEPT', note: verdict.verdict_note,
-      head: verdict.verdict_head, digest: verdict.verdict_digest, policy: 'any',
+      head: verdict.verdict_head, digest: verdict.verdict_digest, policy: 'any', familyPolicy: 'off',
       check: verdict.check, review: verdict.review, environment: verdict.environment,
     }]);
     return applyEngineMove(board, move, { sequence: 1, at: verdict.verdict_at });
@@ -279,7 +279,9 @@ test('many verified items at one commit cost one ancestry check per state build,
     const counted = currentGitAdapter() === counting;
     const out = Array.from({ length: 40 }, (_, index) => projector.state({
       item_id: index + 1, item_status: 'verified', item_commit: checked, item_claim_head: trunk }));
-    if (counted) assert.deepEqual(ancestryChecks, [`${checked} ${tip}`], 'one ancestry check serves all 40 items at one commit');
+    // The projector answers tip ancestry from one rev-list, so at most one merge-base process serves all 40 items [C7].
+    if (counted) assert.ok(ancestryChecks.length <= 1 && ancestryChecks.every(check => check === `${checked} ${tip}`),
+      'at most one ancestry check serves all 40 items at one commit: ' + JSON.stringify(ancestryChecks));
     return out;
   });
   assert.ok(states.every(state => state === null), 'every item reads fresh, as it did with a check per item');

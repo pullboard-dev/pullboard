@@ -12,29 +12,16 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import {
-  HOST,
-  installSshStandIn,
-} from '../../../tests/fixtures/runner/ssh.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-/** A project whose one test file is red on a stand-in runner, committed so main has the same red file. */
+/**
+ * A project whose one test file is red on the fixture's pulled local runner, committed so main has the same red file.
+ * Why no registered runner: a registered SSH stand-in never pulls a job, so the run waited on it until the file hung (#7495).
+ */
 async function redProject() {
   const box = e2e.project('true');
-  const bin = join(box.dir, 'runner-bin');
-  const worker = join(box.dir, 'runner-worker');
-  const home = join(box.dir, 'runner-home');
-  const requests = join(box.dir, 'runner-requests.jsonl');
-  for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
-  box.env.PATH = `${bin}:${box.env.PATH}`;
-  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
-  for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
-    const set = await box.runLocal(box.repo, 'settings', key, value);
-    assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
-  }
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
@@ -47,7 +34,7 @@ async function redProject() {
   return box;
 }
 
-test('clause 1: pullboard test <one file> reports its red cases without re-running the file on main [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+test('clause 1: pullboard test <one file> reports its red cases without re-running the file on main [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one pulled runner run.
   const box = await redProject();
   const json = await box.runLocal(box.web, 'test', 'test/red.test.js', '--json');
   assert.equal(json.code, 1);

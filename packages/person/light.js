@@ -5,3 +5,4 @@ export { devicePublicKey, personEnrollmentBody, createPersonRoot, signPersonEnro
 export { PERSON_REQUEST_VERSION, PERSON_REQUESTS_INDEX, personRequestRecords, moveArgs, personRequestMove, preparePersonRequest, validatePersonRequest } from './src/logic/request.js';
 export { signingLine } from './src/logic/signing/words.js';
 export { qrModules, terminalQr } from './src/logic/qr.js';
+export { verifiedPasskeyRowDecision } from './src/io/proof.js';

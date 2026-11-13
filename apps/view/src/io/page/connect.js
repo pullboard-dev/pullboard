@@ -76,7 +76,7 @@ const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html:
   current: () => view.root, view: () => view, project: () => data?.project, active: () => view.tab === 'activity',
   working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds,
   controls: () => pageControlsHtml({ tab: 'activity', by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24 }),
-  onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(),
+  onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(), drawn: () => drawHistoryNotes(),
   remember: (root, value) => value === undefined ? (Number(keep('pb.activity.left.' + root)) || null) : keep('pb.activity.left.' + root, String(value)) });
 // The Insights Pipeline page (#6869): the held event history the Dashboard reads, this machine's CPU samples, and the pure model and markup.
 const pipelineView = (${pipelineRuntime.toString()})({ model: (${pipelineWatchModel.toString()}), html: (${pipelineWatchHtml.toString()}), history: project => dashboardView.history(project), api, current: () => view.root,
