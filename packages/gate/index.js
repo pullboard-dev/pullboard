@@ -22,6 +22,7 @@ export { detectGate, settingCommand, missingGate, setHere } from "./src/io/confi
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
 export { digestOf, writeTimingProfile } from "./src/io/output.js";
+export { gateCheckoutPool, exactGateCheckout, discardGateCheckout, borrowGateCheckout, returnGateCheckout, trimGateCheckouts, GATE_CHECKOUT_IDLE_MS } from "./src/io/gate-checkout-pool.js";
 export { failureSignature } from "./src/logic/failure/signature.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/logic/policy.js";
 export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/io/receipt.js";
