@@ -1327,7 +1327,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
-    boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)),
+    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
