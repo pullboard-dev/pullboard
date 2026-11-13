@@ -4,6 +4,7 @@ import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { REJECT_CLAUSE_ENGINE } from '../../../../packages/state/light.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -473,6 +474,8 @@ test('rigor reads old events by their structured fields only, never by their not
 
 test('a cause key is checked, recorded on reject and reopen, and the person alone marks never-again [D1,V1,H16]', async () => {
   const box = await freshBoard();
+  // The submit below must settle in its own process: no runner serves this fixture's pulled gate (#6249).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const board = history(box.file);
   const id = board.add('Checked');
   board.submit(id);

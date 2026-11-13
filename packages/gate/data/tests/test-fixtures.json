@@ -1701,9 +1701,12 @@
     "hand-policy": 1
   },
   "packages/gate/tests/io/main/admission.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
-    "env-spread": 1
+    "tempdir": 1,
+    "hand-policy": 1
+  },
+  "packages/gate/tests/fixtures/file-pool.js": {
+    "tempdir": 1,
+    "hand-policy": 1
   },
   "packages/gate/tests/io/main/async.test.js": {
     "tempdir": 2
@@ -2967,7 +2970,10 @@
     "tempdir": 2
   },
   "apps/cli/journeys/reopen/cause.test.js": {
-    "raw-board": 7
+    "raw-board": 6
+  },
+  "apps/cli/tests/fixtures/reopen/cause.js": {
+    "raw-board": 1
   },
   "apps/cli/journeys/reopen/conflict.test.js": {
     "model": 1,
