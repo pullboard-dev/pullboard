@@ -15,11 +15,6 @@ import { toolingFor } from '../../../pin/index.js';
 import { treeOf } from '../../../pin/index.js';
 import { receiptKey } from '../../../receipt/index.js';
 import { settle } from '../../../receipt/index.js';
-import { ensureSource } from '../../../transport/index.js';
-import { ensureTooling } from '../../../transport/index.js';
-import { fetchResult } from '../../../transport/index.js';
-import { sharedTransport } from '../../../transport/index.js';
-import { startShard } from '../../../transport/index.js';
 import { doneShards } from '../logic/phase.js';
 import { gateSections } from '../logic/phase.js';
 import { owedShards } from '../logic/phase.js';
@@ -27,6 +22,9 @@ import { phaseOf } from '../logic/phase.js';
 import { shardSections } from '../logic/phase.js';
 import { stepPayload } from '../logic/phase.js';
 import { queueFlakeDiagnoses } from './diagnose.js';
+
+/** The transport cell, loaded at a drive's first step: show and test --status never drive, so its modules stay unloaded for them [C7]. */
+const transportCell = () => import('../../../transport/index.js');
 
 /** Where tooling tar bundles are written before they are sent; keyed by tree id, so every gate reuses one. */
 const BUNDLE_FOLDER = join(tmpdir(), 'pullboard-tooling-bundles');
@@ -227,7 +225,7 @@ function capture(rows, view, repo, now, ran = null) {
 async function startOwed(rows, view, channel, owner, now) {
   const { runner } = stepPayload(view, 'running');
   for (const shard of owedShards(view)) {
-    await startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner });
+    await (await transportCell()).startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner });
     rows.step(view.id, 'shard.started', { shard: shard.shard, runner: runner.host }, { seq: shard.seq, now });
   }
 }
@@ -257,10 +255,10 @@ async function send(rows, view, { runner, plan, transport, owner, now, gate, rep
   const captured = stepPayload(view, 'captured');
   let pinned;
   if (repo && tooling !== false && captured.tooling) {
-    pinned = await ensureTooling(transport.connect(where), { tree: captured.tooling, bundle: bundleFor(repo, captured.tooling, bundles).path });
+    pinned = await (await transportCell()).ensureTooling(transport.connect(where), { tree: captured.tooling, bundle: bundleFor(repo, captured.tooling, bundles).path });
   }
   let sourced;
-  if (repo && source !== false && captured.tree) sourced = await ensureSource(transport.connect(where), { tree: captured.tree, objects: () => listTreeObjects(repo, captured.tree), pack: ids => packObjects(repo, ids) });
+  if (repo && source !== false && captured.tree) sourced = await (await transportCell()).ensureSource(transport.connect(where), { tree: captured.tree, objects: () => listTreeObjects(repo, captured.tree), pack: ids => packObjects(repo, ids) });
   const planned = { ...captured, ...(pinned ? { toolingPath: pinned.path } : {}), ...(sourced ? { sourcePath: sourced.path } : {}) };
   const shards = typeof plan === 'function' ? plan(planned) : plan;
   if (!Array.isArray(shards) || !shards.length || shards.some(s => typeof s?.shard !== 'string' || typeof s?.command !== 'string')) {
@@ -286,7 +284,7 @@ async function collect(rows, view, { transport, owner, now }) {
   const channel = transport.connect(stepPayload(view, 'running').runner);
   let invalid = view.steps.filter(step => step.name === 'shard.invalid').length;
   for (const shard of owedShards(view)) {
-    const result = await fetchResult(channel, { job: view.id, shard: shard.shard });
+    const result = await (await transportCell()).fetchResult(channel, { job: view.id, shard: shard.shard });
     if (result.state === 'done') {
       rows.step(view.id, 'shard.done', { shard: shard.shard, status: result.status, digest: result.digest }, { seq: shard.seq, now });
     } else if (result.state === 'import.invalid') {
@@ -544,7 +542,7 @@ export async function driveOnce(db, job, { owner, repo, runner, plan, gate, tran
     endStale(rows, view, owner, at, view.steps.at(-1)?.name ?? null);
     return { transition: null, phase: before, job: rows.view(job), code: 'GATE_STALE' };
   }
-  const channels = transport ?? sharedTransport();
+  const channels = transport ?? (await transportCell()).sharedTransport();
   let owed;
   if (before === 'queued') capture(rows, view, repo, at, ran);
   else if (before === 'captured') await send(rows, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, source, bundles });
