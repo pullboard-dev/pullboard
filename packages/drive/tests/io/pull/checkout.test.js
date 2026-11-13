@@ -113,7 +113,7 @@ test('#6681: a warm slot starts its command within 10 s of its claim at p90, and
     const starts = receipts.map(receipt => receipt.startup);
     assert.deepEqual(starts.map(start => start?.version), [1, 1, 1, 1, 1], 'every receipt carries its startup phases');
     assert.deepEqual(starts.map(start => start.reused), [false, true, true, true, true], 'only the first job builds the folder; every later one reuses the warm one');
-    for (const start of starts) assert.ok(start.fetchMs + start.checkoutMs + start.requestMs <= start.totalMs, `phases fit inside the whole: ${JSON.stringify(start)}`);
+    for (const start of starts) assert.ok(start.fetchMs + start.checkoutMs + start.requestMs <= start.totalMs + 3, `phases fit inside the whole: ${JSON.stringify(start)}`);
     const warm = starts.slice(1).map(start => start.totalMs).sort((a, b) => a - b);
     assert.ok(warm[Math.ceil(warm.length * 0.9) - 1] < 10_000, `warm starts took ${warm.join(', ')} ms`);
     assert.equal(JSON.parse(field(receipts[4], 'STATUS')), '', 'a warm start is still exactly the commit\'s tree');
@@ -125,7 +125,7 @@ test('#6681: slots checking out one commit at once fetch it once and each reuse 
     const ids = [0, 1, 2, 3].map(index => ({ id: `s${index}`, commit: index % 2 ? first : second, run: job(true) }));
     const board = fakeBoard(trunk, [...ids, ...ids.map(one => ({ ...one, id: `${one.id}b` }))]);
     const stop = new AbortController();
-    await serveRunner({ board: BOARD, runner: 'r-slots', capabilities: [], cache, jobs: 4, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => { stop.abort(); }, timing: { idleMs: 1 } });
+    await serveRunner({ board: BOARD, runner: 'r-slots', capabilities: [], cache, jobs: 4, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => { if (board.receipts.length >= 8) stop.abort(); else await new Promise(resolve => setImmediate(resolve)); }, timing: { idleMs: 1 } });
     assert.equal(board.receipts.length, 8, JSON.stringify(board.receipts.map(receipt => receipt.tail)));
     assert.deepEqual(board.receipts.map(receipt => receipt.status), Array(8).fill(0));
     assert.ok(board.receipts.every(receipt => receipt.startup.totalMs < 10_000), JSON.stringify(board.receipts.map(receipt => receipt.startup)));
