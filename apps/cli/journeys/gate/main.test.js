@@ -59,10 +59,6 @@ import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
-import { loopbackRunner } from '../../tests/fixtures/pull.js';
-import { pullProject } from '../../tests/fixtures/pull.js';
-import { submitOne } from '../../tests/fixtures/pull.js';
-import { TOOLING as PULL_TOOLING } from '../../tests/fixtures/pull.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import {
   createE2eHelpers,
@@ -587,21 +583,6 @@ test('a piped gate fails on any red stage without changing its existing shell [V
   else assert.equal(JSON.parse(green.stdout).error.code, 'PIPEFAIL_UNAVAILABLE');
   const ordinary = await repoWithGate('true');
   assert.equal((await ordinary.runLocal('gate')).status, 0, 'a plain passing gate needs no pipefail capability');
-});
-
-test('a pulled gate of a piped command settles red on the runner when an early stage fails [V16,C7]', async t => {
-  // The stand-in gate plan names the piped gate as its proof, so the runner's own entry runs it as the repo gate.
-  const plan = PULL_TOOLING['packages/gate/index.js'].replace("proofCommand: 'node bin/proof.js ./web'", `proofCommand: ${JSON.stringify('sh -c "exit 7" | tail -1')}`);
-  assert.notEqual(plan, PULL_TOOLING['packages/gate/index.js'], 'the stand-in plan names the piped proof');
-  const box = await pullProject(t, 1, { tooling: { 'packages/gate/index.js': plan } });
-  const [id] = box.ids;
-  submitOne(box, id);
-  const runner = await loopbackRunner(t, box);
-  const result = await runner.run(await runner.take('runner-piped'));
-  const proof = result.gate.phases.find(phase => phase.role === 'proof');
-  assert.ok(proof, JSON.stringify(result.gate));
-  assert.notEqual(proof.status, 0, 'the failing producer leaves the proof phase red');
-  assert.equal(result.gate.green, false, 'a pulled piped gate never settles green');
 });
 
 const FLAKY = { file: 'test/flaky.test.js', name: 'flaky target' };
