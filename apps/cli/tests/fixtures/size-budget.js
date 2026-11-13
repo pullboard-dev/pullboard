@@ -54,34 +54,35 @@ function seatOnRealSizeBoard(box) {
   return dir;
 }
 
-/** File one diagnosed web item, so next offers it ahead of the seeded rows. */
-function file(box, title) { return fileFixtureItem(box, box.repo, { lane: 'web', title }).item_id; }
+/** File one diagnosed web item in this process (no node start-up), so next offers it ahead of the seeded rows [#6998]. */
+async function file(box, title) { return (await fileFixtureItem(box, box.repo, { lane: 'web', title, run: box.runLocal })).item_id; }
 
 /** Measure next, next --take and next --verify; the claimed item is released, untimed, before the next round. */
-export function measureNext(box) {
+export async function measureNext(box) {
   const dir = seatOnRealSizeBoard(box);
   const samples = { next: [], 'next --take': [], 'next --verify': [] };
   for (let round = 0; round < ROUNDS; round++) {
-    const ids = [0, 1].map(n => file(box, `Budget work ${round}.${n}`));
+    await file(box, `Budget work ${round}.0`);
+    await file(box, `Budget work ${round}.1`);
     samples.next.push(timed(box, dir, 'next').ms);
     const taken = timed(box, dir, 'next', '--take');
     samples['next --take'].push(taken.ms);
     assert.equal(taken.code, 0, `next --take: ${taken.err}${taken.out}`);
-    console.error('IDS', JSON.stringify(ids), JSON.stringify(taken.out.slice(0,80)));
-    const held = ids.find(id => new RegExp(`#${id}\\b`).test(taken.out));
-    assert.ok(held, `next --take names one of the filed items ${ids.join(', ')}: ${taken.out}`);
+    // The queue hands out the lowest open item, which may be one an earlier round left open.
+    const held = /#(\d+)\b/.exec(taken.out)?.[1];
+    assert.ok(held, `next --take names the item it claimed: ${taken.out}`);
     samples['next --verify'].push(timed(box, dir, 'next', '--verify').ms);
-    assert.equal(box.run(dir, 'release', String(held), '--reason', 'OTHER', '--note', 'round done', '--no-next').code, 0);
+    assert.equal((await box.runLocal(dir, 'release', held, '--reason', 'OTHER', '--note', 'round done', '--no-next')).code, 0);
   }
   return samples;
 }
 
 /** Measure claim and release of one filed item per round. */
-export function measureClaimRelease(box) {
+export async function measureClaimRelease(box) {
   const dir = seatOnRealSizeBoard(box);
   const samples = { claim: [], release: [] };
   for (let round = 0; round < ROUNDS; round++) {
-    const id = String(file(box, `Budget work ${round}`));
+    const id = String(await file(box, `Budget work ${round}`));
     const claim = timed(box, dir, 'claim', id);
     samples.claim.push(claim.ms);
     assert.equal(claim.code, 0, `claim: ${claim.err}${claim.out}`);

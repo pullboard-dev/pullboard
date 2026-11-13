@@ -14,8 +14,8 @@ import {
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-test('clause 1: next, next --take and next --verify each have p50 under 1 s on the real-size board, printed against a 200 ms goal [C7,#3019]', t => {
-  assert.deepEqual(slowCommands(t, measureNext(helpers.project('true'))), [], 'every command has a p50 under 1 s');
+test('clause 1: next, next --take and next --verify each have p50 under 1 s on the real-size board, printed against a 200 ms goal [C7,#3019]', async t => {
+  assert.deepEqual(slowCommands(t, await measureNext(helpers.project('true'))), [], 'every command has a p50 under 1 s');
 });
 
 test('clause 2: the budget fails when any command has a p50 of 1 s or more [C7,#3019]', () => {

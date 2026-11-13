@@ -13,6 +13,6 @@ import {
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 1: claim and release each have p50 under 1 s on the real-size board, printed against a 200 ms goal [C7,#3019]', t => {
-  assert.deepEqual(slowCommands(t, measureClaimRelease(helpers.project('true'))), [], 'every command has a p50 under 1 s');
+test('clause 1: claim and release each have p50 under 1 s on the real-size board, printed against a 200 ms goal [C7,#3019]', async t => {
+  assert.deepEqual(slowCommands(t, await measureClaimRelease(helpers.project('true'))), [], 'every command has a p50 under 1 s');
 });
