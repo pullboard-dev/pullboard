@@ -162,6 +162,7 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
         assert.ok(scopes.every(box => box.left >= 0 && box.right <= width && box.height >= 44), 'all three scopes remain reachable by touch at 320px');
 
         await press(chrome, 'document.querySelector("#proj-switch")');
+        await press(chrome, 'document.querySelector("[data-proj-all]")');
         const target = await chrome.stable(`(() => { const node = document.querySelector('#side [data-tab="settings"]'), box = node.getBoundingClientRect(); return { visible: getComputedStyle(node.parentElement).display !== 'none', left: box.left, right: box.right, height: box.height, bottom: box.bottom }; })()`);
         assert.ok(target.visible && target.left >= 0 && target.right <= width && target.height >= 44 && target.bottom <= 900, 'the bottom Settings entry is reachable by touch at 320px');
         await press(chrome, 'document.querySelector("#proj-switch")');
