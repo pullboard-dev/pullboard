@@ -1,5 +1,6 @@
 /** Keep each view-served board's health observer running without overlapping scans [A6]. */
 import { spawn } from 'node:child_process';
+import { Refused } from "../../../kernel/index.js";
 import { listProjects } from "../../../seats/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
@@ -20,6 +21,7 @@ function sentinelRunsFor(root) {
 
 /** Run only the ordered health scan in one owned child and drain it on view shutdown. */
 function refreshBoard(cli, root, signal, words = ['sentinel', 'run', '--health-only', '--json'], degradedIsExpected = false) {
+  if (typeof cli !== 'string' || !cli) throw new Refused('NO_CLI_ENTRY', 'name the CLI entry the scan child runs: startServeSentinel({ cli: <path to the pullboard entry> })');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...words], {
       cwd: root, env: process.env, stdio: 'ignore', signal,
@@ -46,7 +48,7 @@ function refreshCanary(cli, root, signal) {
 }
 
 /** Start after the view listens; `cli` is the CLI entry each scan child runs, named by the caller so this package reaches no app; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */
-export function startServeSentinel({ projectRoot, cli = process.argv[1], run = (root, signal, words, degradedIsExpected) => refreshBoard(cli, root, signal, words, degradedIsExpected), projects = listProjects,
+export function startServeSentinel({ projectRoot, cli, run = (root, signal, words, degradedIsExpected) => refreshBoard(cli, root, signal, words, degradedIsExpected), projects = listProjects,
   every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = (root, signal) => refreshCanary(cli, root, signal), canary = startRelayCanaryWatch, recover = async () => false, liveEvery = setInterval, liveCancel = clearInterval,
   audit = (root, signal) => run(root, signal, ['waits', 'record', '--json'], true) } = {}) {
   const canaryWatch = canary({ run: (config, { io }) => runCanary(config.root, io.relaySignal), onError });
