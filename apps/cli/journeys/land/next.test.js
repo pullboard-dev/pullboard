@@ -1,4 +1,4 @@
-/** An accept names the exact landing step for its repo, and a dry run refuses a push the real land would refuse [I1,B3]. */
+/** An accept names the exact landing step for its repo [I1,B3]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
@@ -8,6 +8,8 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
@@ -22,7 +24,7 @@ const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 const trailerArg = (id) => `-m "$(printf '%s\\n' 'Pullboard-Item: #${id}' 'Pullboard-Rows: G1')"`;
 
 /** File, build, submit and accept one web item through the real CLI and hooks, returning the accept output. */
-async function acceptedItem(box, file, { beforeVerify = () => {} } = {}) {
+async function acceptedItem(t, box, file, { beforeVerify = () => {} } = {}) {
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', `Write ${file}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`, '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -31,8 +33,9 @@ async function acceptedItem(box, file, { beforeVerify = () => {} } = {}) {
   const committed = commitFile(box, box.web, file, 'built\n', `feat(web): write ${file.split('/').pop()} [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  const submitted = await box.runLocal(box.web, 'submit', String(id));
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.err);
+  await settleSubmit(t, box, JSON.parse(submitted.out)); // the pulled gate must finish before a reviewer can verify
   box.git(box.review, 'switch', '-q', '--detach', commit);
   beforeVerify();
   const verdict = await box.runLocal(box.review, 'verify', String(id), 'accept', '--note', 'the file exists at the submitted commit');
@@ -48,28 +51,17 @@ async function withReviewer(box) {
   return { ...box, review };
 }
 
-/** Run one CLI command for its JSON refusal. */
-async function refusal(box, ...args) {
-  const result = await box.runLocal(box.repo, ...args, '--json');
-  assert.notEqual(result.code, 0, `${args.join(' ')} should refuse: ${result.out}`);
-  return JSON.parse(result.out).error;
-}
+// CONTROLLER_ONLY: the up-front LAND_PUSH refusal for a repo with no origin came from the in-process landing; a pulled land job offers and its runner reports the push in its receipt [C7].
+test('land refuses a push the repo cannot make, before it gates anything [I1,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});
 
-test('an accept says how to land, and a dry run catches a missing origin [I1,B3]', async () => {
+test('an accept says how to land, and the land it names lands the item [I1,B3]', async t => {
   const box = await withReviewer(project());
 
   // Clause 1, repo without a remote: the accept prints the exact git merge command for this repo.
-  const first = await acceptedItem(box, 'web/first.txt');
+  const first = await acceptedItem(t, box, 'web/first.txt');
   const merge = new RegExp(`^next: this repo has no remote for pullboard land to push to, so the coordinator merges it on main: (cd ${literal(box.repo)} && git merge --no-ff ${first.commit} -m 'feat\\(merge\\): write web/first\\.txt \\[G1\\]' ${literal(trailerArg(first.id))} && pullboard merged ${first.id} HEAD)$`, 'mu');
   const printed = merge.exec(first.out);
   assert.ok(printed, `the accept names the hand merge for a repo without origin:\n${first.out}`);
-
-  // Clause 2: the dry run refuses LAND_PUSH, with exactly the refusal the real land gives.
-  const dry = await refusal(box, 'land', '--dry-run');
-  assert.equal(dry.code, 'LAND_PUSH', JSON.stringify(dry));
-  assert.match(dry.message, /the landing push failed: this repo has no origin remote to push main to; add one with git remote add origin <url>/u);
-  const real = await refusal(box, 'land');
-  assert.deepEqual(real, dry, 'the real land refuses the same way, before it gates anything');
 
   // The printed command is exact: running it lands the item and records the merge.
   const ran = spawnSync('/bin/sh', ['-c', printed[1]], { cwd: box.dir, env: box.env, encoding: 'utf8' });
@@ -85,16 +77,16 @@ test('an accept says how to land, and a dry run catches a missing origin [I1,B3]
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
-  const second = await acceptedItem(box, 'web/second.txt');
+  const second = await acceptedItem(t, box, 'web/second.txt');
   assert.match(second.out, new RegExp(`^next: the coordinator lands it: cd ${literal(box.repo)} && pullboard land$`, 'mu'));
-  const preview = await box.runLocal(box.repo, 'land', '--dry-run', '--json');
-  assert.equal(preview.code, 0, preview.out);
-  assert.deepEqual(JSON.parse(preview.out).items, [second.id]);
+  const landed = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(landed.code, 0, landed.out + landed.err);
+  assert.deepEqual((await settleLand(box, JSON.parse(landed.out))).landed, [second.id]);
 });
 
-test('an accept names the primary checkout when Git metadata is stored separately [I1,B3]', async () => {
+test('an accept names the primary checkout when Git metadata is stored separately [I1,B3]', async t => {
   const box = await withReviewer(project(undefined, undefined, { separateGitDir: true }));
-  const accepted = await acceptedItem(box, 'web/separate.txt');
+  const accepted = await acceptedItem(t, box, 'web/separate.txt');
   const merge = new RegExp(`^next: this repo has no remote for pullboard land to push to, so the coordinator merges it on main: (cd ${literal(box.repo)} && git merge --no-ff ${accepted.commit} -m 'feat\\(merge\\): write web/separate\\.txt \\[G1\\]' ${literal(trailerArg(accepted.id))} && pullboard merged ${accepted.id} HEAD)$`, 'mu');
   const printed = merge.exec(accepted.out);
   assert.ok(printed, `the accept names the actual primary checkout for separate Git metadata:\n${accepted.out}`);
@@ -104,7 +96,7 @@ test('an accept names the primary checkout when Git metadata is stored separatel
   assert.equal(box.tryGit(box.repo, 'merge-base', '--is-ancestor', accepted.commit, 'main').status, 0, 'the exact printed command lands the accepted commit');
 
   const unregistered = await withReviewer(project(undefined, undefined, { separateGitDir: true }));
-  const fallback = await acceptedItem(unregistered, 'web/fallback.txt', {
+  const fallback = await acceptedItem(t, unregistered, 'web/fallback.txt', {
     beforeVerify: () => rmSync(join(unregistered.env.PULLBOARD_HOME, 'projects.json'), { force: true }),
   });
   const mergeCommand = `git merge --no-ff ${fallback.commit} -m 'feat(merge): write web/fallback.txt [G1]' ${trailerArg(fallback.id)} && pullboard merged ${fallback.id} HEAD`;
