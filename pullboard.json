@@ -410,5 +410,10 @@
   },
   "trunk": {
     "remote": "coreyolson@100.109.124.33:pb-trunk"
+  },
+  "claims": {
+    "releaseGone": false,
+    "releaseCooldownMinutes": 30,
+    "perSeat": 2
   }
 }
