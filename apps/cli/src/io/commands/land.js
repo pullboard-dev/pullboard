@@ -362,12 +362,13 @@ export function landingRetryAt(result, now) {
  * Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. A notice never
  * blocks or repeats a landing: a HEALTH_SCAN_STALE refusal (the board moved between the read and the move) reads
  * the observation again once, and any other failure is logged and dropped, as on 9 Nov [C7].
+ * `write` is the ordered-move port, so a test drives the notice against a real board without the CLI's transport.
  */
-async function recordLandingNotices(ctx, board, io) {
+export async function recordLandingNotices(ctx, board, io, write = (operation, args) => ordered(ctx, board, operation, args)) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const observation = landingFailureObservation(board);
-      if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
+      if (observation) await write('recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
       return;
     } catch (error) {
       if (error?.code === 'HEALTH_SCAN_STALE' && attempt === 0) continue;
