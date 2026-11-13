@@ -54,9 +54,10 @@ export function pipelineRuntime({ model, html, history, api, current, redraw, wi
     const held = history(project), minutes = windowMinutes();
     readMachine(project.root);
     const observed = Date.parse(project.observedAt), now = Number.isFinite(observed) ? observed : Date.now();
-    const key = [project.root, project.sequence, now, held.version, held.events.length, held.complete, minutes, machine.at].join('|');
+    const ready = held.complete || held.usable === true;
+    const key = [project.root, project.sequence, now, held.version, held.events.length, ready, minutes, machine.at].join('|');
     let markup;
-    if (!held.complete) {
+    if (!ready) {
       markup = '<div class="dash-live pw-page"><p class="dash-empty pw-none" role="status">' + (held.error ? 'The board’s event history is unavailable, so this page has nothing to count.' : 'Reading the board’s event history…') + '</p></div>';
     } else if (cache?.key === key) markup = cache.markup;
     else {

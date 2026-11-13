@@ -13,13 +13,13 @@ test('clause 2: it draws "reading" until the history is complete, then draws the
   const region = pane(), previous = globalThis.document;
   globalThis.document = { getElementById: id => id === 'insights-pipeline' ? region : null };
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
-  let complete = false, redraws = 0, now = 1_000_000;
+  let complete = false, usable = false, redraws = 0, now = 1_000_000;
   const reads = [], models = [], opened = [];
   const real = Date.now; Date.now = () => now; t.after(() => { Date.now = real; });
   const runtime = pipelineRuntime({
     model: (project, events, options) => { models.push({ events, options }); return { windowMinutes: options.windowMinutes, machine: options.machine }; },
     html: (state, options) => '<b>' + state.windowMinutes + '|' + (state.machine?.cores ?? 'none') + '|' + options.open.join(',') + '</b>',
-    history: () => ({ events: [{ event_id: 1 }], complete, version: 1, error: null }),
+    history: () => ({ events: [{ event_id: 1 }], complete, usable, version: 1, error: null }),
     api: async path => { reads.push(path); return { machine: { cores: 12 } }; }, current: () => '/board', redraw: () => { redraws++; },
     windowMinutes: () => 180, itemsHref: () => '#', itemHref: () => '#', openItems: ids => opened.push(ids), machineHere: true,
   });
@@ -53,4 +53,10 @@ test('clause 2: it draws "reading" until the history is complete, then draws the
   click({ target: { closest: selector => selector === 'a[data-pipeline-ids]' ? { dataset: { pipelineIds: '6579,6580' } } : null }, metaKey: false, button: 0, preventDefault() { prevented = true; } });
   assert.deepEqual(opened, [[6579, 6580]], 'a count opens Items on its ids');
   assert.equal(prevented, true);
+  complete = false; usable = true;
+  runtime.draw({ ...project, sequence: 9, observedAt: '2026-11-13T12:05:00Z' });
+  assert.equal(region.innerHTML, '<b>180|12|blocked</b>', 'a history that was complete and is a few events behind still draws, so a busy board never flickers back to Reading');
+  usable = false;
+  runtime.draw({ ...project, sequence: 10, observedAt: '2026-11-13T12:06:00Z' });
+  assert.match(region.innerHTML, /Reading the board.s event history/u, 'a history never completed still says so');
 });
