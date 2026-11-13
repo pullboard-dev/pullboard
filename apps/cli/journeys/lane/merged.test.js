@@ -75,6 +75,7 @@ async function mergedPlacement(t) {
 test('a view item merges a main-owned plan change and submits its unchanged main row plus owned creation [L3,C7,V4]', async t => {
   const box = await mergedPlacement(t);
   const submitted = success(box, box.view, 'submit', String(box.id));
+  assert.ok(submitted.gate, JSON.stringify(submitted).slice(0, 1500));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the real gate ran after ownership admitted the composed source');
   assert.equal(success(box, box.view, 'show', String(box.id)).item_status, 'submitted');
