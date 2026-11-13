@@ -487,10 +487,12 @@ function returnLandedReds(board, job, named, receipt, separate) {
   const back = [];
   for (const row of rows) {
     const item = named.has(row?.id) ? store.getItem(board, row.id) : null;
-    if (!item || item.item_merged_commit || item.item_status !== 'verified' || item.item_hold_at) continue;
+    if (!item || item.item_merged_commit) continue;
     const first = String(row.detail ?? receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
     // The note keeps the failing case's lines too, so the builder reads the assertion, not only the case name.
     store.appendFact(board, row.id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${row.reason === 'conflict' ? 'conflict' : 'red'}: ${String(row.detail ?? receipt.detail ?? first).trim() || first}`.slice(0, 900) });
+    // Only an accepted item moves; any other unmerged item (a forced landing's, say) keeps the note alone.
+    if (item.item_status !== 'verified' || item.item_hold_at) continue;
     const why = `land job ${job} ${row.reason === 'conflict' ? 'could not merge it' : 'checked the merged tree red'}: ${first}`.slice(0, 400);
     try {
       if (separate) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });

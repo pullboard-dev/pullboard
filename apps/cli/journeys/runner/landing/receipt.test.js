@@ -155,6 +155,8 @@ function plainProject(t) {
   put('test/greet.test.js', GREET_TEST('hi'));
   const main = commit('feat(core): say hi [P7]');
   git(dev, ['push', '-q', 'origin', `${main}:refs/heads/main`]);
+  // The board's checkout sits on its main branch, as a coordinator's does, so claims read its policy.
+  git(dev, ['checkout', '-q', '-B', 'main', main]);
   const board = cellBoard(t, ':memory:', undefined, { gitRoot: dev });
   register(board, { lane: 'coordinator', path: root, route: 'strong', model: FIXTURE_MODEL });
   return { root, dev, remote, seed, main, items, board };

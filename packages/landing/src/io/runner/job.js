@@ -223,6 +223,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
       const found = pending.length > 1 ? await isolateReds(root, { base, trunk, pending, check, renew })
         : { kept: [], red: [pending[0].id], detail: `#${pending[0].id}: ${result?.detail ?? 'the landing check failed'}` };
       if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
+      receipt.detail ??= result?.detail ?? 'the landing check failed';
       for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.detail ?? result?.detail}`);
       if (found.red.length && (!separate || found.kept.length === 0)) return done('red');
       pending = pending.filter(entry => found.kept.includes(entry.id));
