@@ -45,7 +45,7 @@ export function requireRuntimePorts(ports) {
   for (const name of ['boardNotWritable', 'boardBusyError']) {
     if (typeof ports.auth[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply auth.${name}.`);
   }
-  for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters']) {
+  for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters', 'withLocalSeatPresence']) {
     if (typeof ports.verification[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply verification.${name}.`);
   }
   for (const name of ['agentModel', 'proofReceipts', 'itemById', 'laneHold', 'laneHolds', 'getItem', 'listAgents', 'reviewHolder', 'listItems', 'seatFamily', 'canonicalFamily',
