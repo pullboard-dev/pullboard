@@ -17,6 +17,7 @@ import {
   FIXTURE_MODEL,
   fixtureProjectPolicy,
 } from '../testkit.js';
+import { stopFixtureLocalRunner } from '../runner/local-start.js';
 import { settleSubmit } from './settle.js';
 import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
 
@@ -70,6 +71,7 @@ export async function submittedItem(t, gateCases = ["test('the row gate holds', 
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   box.env.PULLBOARD_MODEL = FIXTURE_MODEL;
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.submitGate = 'landing';
   config.affectedTests = RUN;
