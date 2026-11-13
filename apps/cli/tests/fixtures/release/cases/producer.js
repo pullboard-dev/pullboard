@@ -136,7 +136,7 @@ import {runnerExecutionServices} from './.tooling/packages/runners/index.js';
 import {landingExecutionServices} from './.tooling/packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {isStampedGreen} from './.tooling/packages/gate/index.js';
-import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/packages/gate/index.js';
+import {releaseReceiptBody,releaseParticipationDigest,releaseTiming} from './.tooling/packages/gate/index.js';
 import {closeBoard} from './.tooling/packages/store/index.js';
 import {openBoard} from './.tooling/apps/lib/index.js';
 const root=process.cwd();
@@ -192,7 +192,7 @@ const substitutions=[
  p=>{p.finishedAt=new Date(Date.parse(p.finishedAt)+1).toISOString();}
 ];
 for(const substitute of substitutions){
- const substituted=structuredClone(receipt);substitute(substituted.participation);
+ const substituted=structuredClone(receipt);substitute(substituted.participation);substituted.timing=releaseTiming(substituted.participation);
  assert.equal(releaseReceiptBody(substituted,expected),null,'changed participation loses the observed gate binding');
  writeFileSync(run.file,JSON.stringify(substituted)+'\\n');
  try { assert.equal(verifyNativeReleaseReceipt(root,id, executionServices)===null,true,'valid participation substitutions cannot inherit native custody'); }

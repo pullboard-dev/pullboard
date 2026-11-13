@@ -5231,10 +5231,6 @@
     "apps/runner/src/io/register.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/store/tests/fixtures/submit.js": {
-      "cells": 1,
-      "deep": 0
     }
   },
   "cells": {
@@ -6075,22 +6071,13 @@
     }
   },
   "packageApps": {
-    "packages/gate/src/io/main/audit/worker.js": [
-      "apps/cli"
-    ],
     "packages/gate/src/io/matrix.js": [
       "apps/cli"
     ],
     "packages/gate/src/io/run-tests.js": [
       "apps/cli"
     ],
-    "packages/gate/src/io/run/shell.js": [
-      "apps/runner"
-    ],
     "packages/gate/src/io/run/tests.js": [
-      "apps/cli"
-    ],
-    "packages/gate/src/io/static/registry.js": [
       "apps/cli"
     ],
     "packages/gate/tests/fixtures/clone.js": [

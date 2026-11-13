@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input docs-tree */
 /** @pullboard-world-pin reads docs/formats.md to prove it names the rate card form. */
 /** A runner's rate card is stored in settings and validated, and the CLI sets it [C7]. */
 import assert from 'node:assert/strict';
@@ -17,7 +17,7 @@ import {
   runnerRate,
   validateRunnerRates,
 } from '../../../../packages/config/src/logic/runner-rates.js';
-import { runnerMinutes } from '../../../../packages/stats/index.js';
+import { runnerMinutes } from '../../../../packages/stats/src/logic/runners/minutes.js';
 
 const CARD = { price: 1200, months: 36, watts: 85, kwhPrice: 0.14 };
 

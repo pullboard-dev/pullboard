@@ -61,11 +61,11 @@ test('clause 1: a new package spawn, read or import of apps/* is refused while t
   }
 });
 
-test('clause 1: the committed ceiling holds each package file app row, including the gate shell spawn of apps/runner [C7]', () => {
+test('clause 1: the gate run shell names no apps/ path and carries no package app row [C7]', () => {
   const ceiling = JSON.parse(readFileSync(join(REPO, 'packages/gate/data/ceilings/cells-edges.json'), 'utf8')).packageApps;
-  assert.ok(ceiling['packages/gate/src/io/run/shell.js'].includes('apps/runner'));
-  assert.ok(Object.keys(ceiling).every(file => file.startsWith('packages/')));
   const file = 'packages/gate/src/io/run/shell.js';
-  const current = cellsEdgeReport(REPO, { files: [file] }).packageApps[file].map(edge => edge.to);
-  assert.ok(current.every(app => ceiling[file].includes(app)));
+  assert.equal(ceiling[file], undefined);
+  assert.ok(Object.keys(ceiling).every(row => row.startsWith('packages/')));
+  assert.doesNotMatch(readFileSync(join(REPO, file), 'utf8'), /apps\//u);
+  assert.deepEqual(cellsEdgeReport(REPO, { files: [file] }).packageApps[file] ?? [], []);
 });
