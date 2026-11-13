@@ -117,7 +117,7 @@ async function landedReceipt(box, ids) {
   return done().receipt;
 }
 
-test('a landing batch writes ids that fit then +N, and every frozen row in spec order as the last paragraph [C7,B3,R3]', async () => {
+test('a landing batch writes ids that fit then +N, and every frozen row in spec order as the last paragraph [C7,B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
   const box = await localProject({ batch: true });
   // 36 rows cited in scattered order: landing never refuses, and the trailer lists them in spec order.
   const many = await claimedItem(box, 'Land every cited row', [...ROWS].reverse(), 'web/many.txt');
@@ -152,7 +152,7 @@ test('a landing batch writes ids that fit then +N, and every frozen row in spec 
   assert.equal(box.git(box.repo, 'log', '-1', '--format=%(trailers:key=Pullboard-Rows,valueonly)', merges.find((commit) => box.git(box.repo, 'log', '-1', '--format=%B', commit) === messages.get(many.id))), ROWS.join(','));
 });
 
-test('a rowless feat item lands under feat(merge) through the real hooks, and a seat cannot borrow that exemption [C7,B3,R3]', async () => {
+test('a rowless feat item lands under feat(merge) through the real hooks, and a seat cannot borrow that exemption [C7,B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
   const box = await localProject();
   const rowless = await claimedItem(box, 'Rowless feature', [], 'web/rowless.txt');
   await buildAndAccept(box, rowless, 'feat(web): build the rowless feature [G1]');
