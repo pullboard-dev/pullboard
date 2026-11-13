@@ -126,6 +126,8 @@ export function openRunsStore(file, { boardId }) {
     if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
     db.exec('CREATE TABLE IF NOT EXISTS runs_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)');
     db.exec(JOB_SCHEMA_SQL);
+    // The inbox mark lives only in the runs file: set once the board has applied the job's receipt (S5).
+    if (!db.prepare('PRAGMA table_info(job)').all().some(column => column.name === 'job_applied')) db.exec('ALTER TABLE job ADD COLUMN job_applied INTEGER');
     db.exec('BEGIN IMMEDIATE');
     try {
       const owner = db.prepare("SELECT meta_value FROM runs_meta WHERE meta_key = 'board_id'").get()?.meta_value;

@@ -1,0 +1,56 @@
+/**
+ * A pulled gate red that names failed files but no cases, compared with main by file. Why apart from the case
+ * comparison: Node's native spec reporter prints no TAP account, so its cases cannot be named, yet its failure footer
+ * still says which files failed, and the inline gate compared those files with main (compareMainFailures) [V1,C7].
+ */
+
+const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
+const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
+
+/**
+ * Compare the failed files of a red gate receipt with main's receipts, when its red phases name files (failedFiles,
+ * read on the runner from the spec reporter's failure footer) and no cases. Each file comes back red or green on
+ * main, or missing (result null) with the main-test job the lookup queued to measure it. Nothing runs here.
+ *
+ * @param {any} board - The open board, gitRoot set to the board host's repository.
+ * @param {Record<string, any>} receipt
+ * @param {string} main - The accepted main the gate job was offered against.
+ * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: object[], files: string[] }) =>
+ *   { files?: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[] } | null) | null} lookup
+ * @returns {{ main: string, files: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[], jobs: string[], unavailable?: string } | null}
+ *   unavailable says why main was not checked, with no files, when no red phase names a failed file; null when the red
+ *   is not only test phases without cases, no lookup is given (gate.mainComparison off), or main's receipts cannot be keyed.
+ */
+export function compareFilesWithMain(board, receipt, main, lookup) {
+  const gate = receipt?.gate ?? {};
+  if (typeof lookup !== 'function' || !board.gitRoot || !SHA.test(String(main)) || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || gate.analysis?.ownership || gate.proofPlan) return null;
+  const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
+  if (!red.length || red.some(phase => Array.isArray(phase.failures) && phase.failures.length)) return null;
+  const files = [...new Set(red.flatMap(phase => Array.isArray(phase.failedFiles) ? phase.failedFiles : []))].filter(file => typeof file === 'string' && PROJECT_FILE.test(file));
+  // A red that names neither cases nor files is never guessed to be main's: it says why main was not checked.
+  if (!files.length) return { main, files: [], jobs: [], unavailable: 'could not read which tests failed' };
+  let found = null;
+  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: [], files }); } catch (error) { if (!error?.code) throw error; }
+  const rows = new Map((Array.isArray(found?.files) ? found.files : []).map(row => [row.file, row]));
+  if (files.some(file => !rows.has(file))) return null;
+  const compared = files.map(file => {
+    const row = rows.get(file);
+    return { file, result: ['red', 'green'].includes(row.result) ? row.result : null, receipt: row.receipt ?? null, job: row.job ?? null };
+  });
+  return { main, files: compared, jobs: [...new Set(compared.map(row => row.job).filter(Boolean))] };
+}
+
+/**
+ * The gate fact's lines for a file comparison, worded as the inline gate's refusal words them: why main was not
+ * checked, or the files main also fails and each file main's receipt is still missing for. A file green on main is the change's own red and adds no
+ * line, as before.
+ *
+ * @param {NonNullable<ReturnType<typeof compareFilesWithMain>>} compared
+ * @returns {string[]}
+ */
+export function fileMainLines(compared) {
+  if (compared.unavailable) return [`main not checked: ${compared.unavailable}`];
+  const red = compared.files.filter(row => row.result === 'red').map(row => row.file);
+  return [...(red.length ? [`also red on main: ${red.join(', ')}`] : []),
+    ...compared.files.filter(row => row.result === null).map(row => `main receipt missing: ${row.file}`)];
+}
