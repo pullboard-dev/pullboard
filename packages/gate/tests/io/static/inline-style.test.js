@@ -1,7 +1,7 @@
 /** The static checks refuse a new inline style in the view, naming file and line, and let existing sites stay [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { STATIC_CHECKS } from '../../../index.js';
+import { STATIC_CHECKS } from '../../../heavy.js';
 import { inlineStyleProblems } from '../../../src/io/static/inline-style.js';
 
 const check = STATIC_CHECKS.find(row => row.name === 'inline-style');
