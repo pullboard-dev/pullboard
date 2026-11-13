@@ -355,7 +355,7 @@ test('doctrine rows use the Spec state circle and the plain tier pill, the same 
     const specPill = /<span class="chip (tier-pill tier-(?:must|aim))">/.exec(specRow)?.[1]?.replace(/aim/, 'must');
     assert.equal(specPill, 'tier-pill tier-must', 'Spec rows carry the same tier pill class as Doctrine');
     const style = await styleOf(view);
-    assert.match(style, /\.chip\.tier-pill \{[^}]*border-radius: var\(--radius-pill\)[^}]*font: 600 var\(--text-xs\)\/var\(--leading-body\) var\(--sans\)/, 'the shared pill is rounded sans text, not boxed mono');
+    assert.match(style, /\.chip\.tier-pill \{[^}]*border-radius: var\(--radius-chip\)[^}]*font: 600 var\(--text-xs\)\/var\(--leading-body\) var\(--sans\)/, 'the shared pill is a 4 px chip in sans text, not boxed mono');
     assert.match(style, /:is\(#spec-list, #doctrine-list\) \.spec-record > \.dot \{[^}]*width: var\(--space-6\)/, 'Doctrine rows take the Spec state circle');
   } finally {
     await view.stop();

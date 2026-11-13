@@ -23,7 +23,7 @@ test('clause 1: the opened item draws one header of chips, the same while it loa
   assert.ok(script.includes("'<div class=\"item-panel\" aria-busy=\"true\">' + panelHead(selected) + '</div>'"), 'loading draws the panel header');
   assert.ok(script.includes("'<div class=\"item-panel\">' + panelHead(item, statusChips)"), 'the arrived panel draws the same header');
   assert.ok(!script.includes('<span class="chip">\' + esc(item.lane) + \'</span><span class="chip">\' + esc(item.route)'), 'no loose lane and size boxes beside the pill');
-  assert.match(rules('.item-panel-where .chip, .item-panel-status > .chip'), /border-radius: var\(--radius-pill\)/u, 'the chips are one family of pills');
+  assert.match(rules('.item-panel-where .chip, .item-panel-status > .chip'), /border-radius: var\(--radius-chip\)/u, 'the chips are one family of 4 px chips');
   assert.match(rules('.item-panel-status'), /min-height/u);
 });
 
