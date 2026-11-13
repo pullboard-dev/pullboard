@@ -20,6 +20,9 @@ import { refuseTestsOnCoordinator } from '../../index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { tmpdir } from 'node:os';
 
+export { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
+export { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
+
 // A bare node --test of a suite on the coordinator refuses here, before any fixture starts (#3899).
 refuseTestsOnCoordinator({ read: loadMachineSettings });
 
