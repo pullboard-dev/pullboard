@@ -11,7 +11,7 @@ export function project(t, delay) {
   const main = privateRepo(t);
   const observations = join(main.dir, 'observations.jsonl');
   const command = role => `PARALLEL_ROLE=${role} PARALLEL_DELAY=${delay} PARALLEL_OBSERVATIONS='${observations}' node --test --test-reporter=./test/reporter.mjs test/check.test.mjs`;
-  put(main.root, 'pullboard.json', JSON.stringify({ gate: command('proof'), shared: ['pullboard.json'] }));
+  put(main.root, 'pullboard.json', JSON.stringify({ gate: command('proof'), shared: ['pullboard.json'], submit: { handoff: false } }));
   put(main.root, 'src/a.js', 'export const value = 1;\n');
   put(main.root, 'test/check.test.mjs', `import { appendFileSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -56,7 +56,7 @@ export function submit(box, marker) {
   put(box.root, 'src/a.js', `export const value = '${marker}';\n`);
   commitAll(box, 'feat(core): exercise the selected phase [G1]');
   const started = Date.now();
-  const result = box.run('submit', '1', '--wait', '--json', '--infra', 'concurrent fixture checks');
+  const result = box.run('submit', '1', '--json', '--infra', 'concurrent fixture checks');
   const wallMs = Date.now() - started;
   const item = JSON.parse(box.run('show', '1', '--json').out);
   return { result, started, wallMs, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
