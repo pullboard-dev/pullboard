@@ -90,6 +90,8 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: stand-in trusted tooling [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  // Bar readiness makes the gate compose the change with main, so the runner job runs the composition step [C7].
+  assert.equal(box.run(box.repo, 'bar', 'ready', 'on').code, 0);
   /** Add item n; every item after the first names the first as no duplicate. */
   const add = (n, first) => fixtureAdd(box.runAsync, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
   const ids = [];
