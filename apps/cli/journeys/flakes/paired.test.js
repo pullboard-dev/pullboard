@@ -1,5 +1,4 @@
 /** @pullboard-test-input source-tree */
-import { settledCommit } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { writeTarget } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
