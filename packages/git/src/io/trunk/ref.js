@@ -9,7 +9,7 @@ import {
 } from '../main.js';
 import { Refused } from '../../../../kernel/browser.js';
 
-/** The retained trunk read without Git; undefined when only Git can parse the local config [B34]. */
+/** Retained trunk without Git; undefined when Git must parse the config [B34]. */
 export const plainTrunkRef = root => plainLocalConfigValue(root, 'pullboard', 'trunk');
 
 /** Retain the local primary branch outside replicated board data and read-only diagnostics [B34,V6]. */
