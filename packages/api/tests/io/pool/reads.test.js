@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { BroadcastChannel } from 'node:worker_threads';
 import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { closeCellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { boardId } from '../../../../store/index.js';
@@ -100,6 +101,37 @@ test('clause 3 [A2,C7]: the board lookup for a /api/v1/boards/:id route runs in 
   const health = await timedHealth(api);
   assert.equal(health.status, 200);
   assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with the board lookup blocked`);
+});
+
+test('clause 1 [A2,C7]: the item detail read runs in a pool worker, so a detail handler blocked 30 s leaves health answering within 200 ms', { timeout: 60_000 }, async (t) => {
+  const channel = `reads-item-${process.pid}`;
+  const listener = new BroadcastChannel(channel);
+  t.after(() => listener.close());
+  const blocked = new Promise((resolve) => { listener.onmessage = () => resolve(); });
+  const { api, id } = await served(t, ports(['item'], channel));
+  await timedHealth(api);
+  const abort = new AbortController();
+  t.after(() => abort.abort());
+  call(api, `/api/v1/boards/${id}/items/1`, { signal: abort.signal }).catch(() => {});
+  await blocked;
+  const health = await timedHealth(api);
+  assert.equal(health.status, 200);
+  assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with the item detail handler blocked`);
+});
+
+test('clause 1 [A2,C7]: an item detail read answers from the pool worker with the item the board holds', { timeout: 60_000 }, async (t) => {
+  const project = cellProject(t);
+  const board = openCellBoard(project.boardFile);
+  let id, filed;
+  try { id = boardId(board); filed = cellItem(board, { lane: 'core', title: 'Pooled detail', criterion: '1. It reads [test]' }); } finally { closeCellBoard(board); }
+  const entry = { root: project.repo, name: 'fixture', project: 'fixture', added: '2026-11-12' };
+  const api = await serveApi({ projects: () => [entry], secret: SECRET, runCommand: async () => 0, isMain: false, refusalDocument,
+    boardOpeners: { openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] }, viewPorts: VIEW_PORTS, handlerPorts: ports() });
+  t.after(() => api.close());
+  const response = await call(api, `/api/v1/boards/${id}/items/${filed.item_id}`);
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.equal(body.item.id, filed.item_id);
 });
 
 test('clause 1 [A2,C7]: with the state worker stopped, a state read is refused STATE_WORKER_STOPPED, never built on the request thread', { timeout: 60_000 }, async (t) => {

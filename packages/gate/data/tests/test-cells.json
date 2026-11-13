@@ -92,6 +92,7 @@
     "apps/cli/journeys/red/content-cache.test.js": "drives the real CLI main-red content cache and checks reuse and invalidation end to end"
   },
   "pureHelpers": {
+    "apps/cli/src/io/runner/git.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/badge.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/blueprint/coverage.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/blueprint/question.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",

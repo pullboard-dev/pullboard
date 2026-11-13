@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../index.js';
-import { pullGit } from '../../../../apps/cli/src/io/runner/git.js';
+import { testGit as pullGit } from '../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
