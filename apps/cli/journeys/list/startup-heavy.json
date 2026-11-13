@@ -2,6 +2,8 @@
   "version": 1,
   "show": [
     "packages/commits/src/io/hooks.js",
+    "packages/gate/src/io/check/baseline.js",
+    "packages/gate/src/io/run/shell.js",
     "packages/resources/index.js",
     "packages/sandbox/src/io/trusted/policy.js",
     "packages/state/src/io/machine.js",
