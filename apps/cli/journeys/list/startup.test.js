@@ -146,7 +146,7 @@ console.log(JSON.stringify({scoped,uncached,count}));`;
   run('init');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore(repo): set up the startup fixture');
-  run('add', 'core', 'Show me', '--specs', 'C7', '--criterion', 'it shows', '--brief', 'Files: src/a.js\nTest: it shows.');
+  run('add', 'core', 'Show me', '--specs', 'C7', '--criterion', 'it shows', '--brief', 'Files: src/a.js\nTest: it shows.', '--route', 'mid');
   const worktree = join(dir, 'core-1');
   git('worktree', 'add', '-q', '-b', 'core/one', worktree);
   fixtureJoin(runIn, worktree, 'core', '--model', 'test-model');
