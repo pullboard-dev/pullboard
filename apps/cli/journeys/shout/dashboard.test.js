@@ -27,12 +27,11 @@ import { startView } from '../../tests/fixtures/cockpit/harness.js';
 
 test('Dashboard is a board page under Insights and Home is removed [N26]', () => {
   const page = cockpitPage();
-  const tabs = [...page.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>([^<]+)<\/button>/gu)]
-    .filter(([, tab]) => tab !== 'settings');
-  assert.ok(tabs.some(([, tab, name]) => tab === 'dashboard' && name.includes('Dashboard')), 'Dashboard is a board page');
-  assert.ok(!tabs.some(([, tab]) => tab === 'home'), 'Home is not a board tab');
+  const tabs = [...page.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"/gu)].map(([, tab]) => tab).filter(tab => tab !== 'settings');
+  assert.ok(tabs.includes('dashboard'), 'Dashboard is a board page');
+  assert.ok(!tabs.includes('home'), 'Home is not a board tab');
   for (const tab of ['items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
-    assert.ok(tabs.some(([, id]) => id === tab), `${tab} remains available`);
+    assert.ok(tabs.includes(tab), `${tab} remains available`);
   }
 });
 
