@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/runner/src/io/shell.js */
 /** The gate's throwaway folders are created under the scratch root [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -9,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { checkBaseline } from '../../../../packages/gate/src/io/check/baseline.js';
 import { runShell } from '../../../../packages/gate/src/io/run/shell.js';
 import {
@@ -37,7 +39,7 @@ function fixture(t) {
 test('with scratch set, check-baseline, timed-shell and shell pipe folders are created under it [C7]', t => {
   const { scratch, repo, head } = fixture(t);
   const listing = `ls "${scratch}" | cat`;
-  const shell = withScratch(scratch, () => runShell(repo, listing, { stages: true, timeoutMs: 60_000 }));
+  const shell = withScratch(scratch, () => runShell(repo, listing, { stages: true, timeoutMs: 60_000, timedShell: fileURLToPath(new URL('../../../runner/src/io/shell.js', import.meta.url)) }));
   assert.match(shell.output, /pullboard-pipes-/u);
   assert.match(shell.output, /pullboard-timed-output-/u);
   assert.match(shell.output, /pullboard-timed-shell-/u);
