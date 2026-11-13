@@ -116,6 +116,7 @@ test('entry ownership never hides a lower caller importing the higher process ro
   const { root, path, put } = box(t, { bin: true });
   placePath(root, path, { cell: 'app:lib', entry: true });
   put('src/caller.js', "import '../bin/entry.js';\n");
+  git(root, 'add', 'src/caller.js'); // The cell inventory reads tracked files only (6193b1e81b).
   const plan = readPlan(root);
   plan.cells[0].paths.push(['src/caller.js', 'packages/low/src/shell/caller.js', 'rule']);
   writePlan(root, plan);

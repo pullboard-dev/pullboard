@@ -12,10 +12,10 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { temporaryDirectory } from '../../fixtures/board.js';
 import { temporaryRepository } from '../../fixtures/board/submit.js';
-import { copyTools } from '../../../src/io/submit/handoff.js';
-import { toolsSnapshot } from '../../../src/io/submit/handoff.js';
+import { copyTools } from '../../../src/io/toolsnapshot.js';
+import { toolsSnapshot } from '../../../src/io/toolsnapshot.js';
 import { existsSync } from 'node:fs';
-import { sharedToolsTarget } from '../../../src/io/submit/handoff.js';
+import { sharedToolsTarget } from '../../../src/io/toolsnapshot.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { prepareComparison } from '../../../../../packages/verify/index.js';
 
@@ -97,7 +97,7 @@ test('clause 1: a cold comparison snapshot is built by the detached worker from 
   const snapshot = (root, job, dir) => toolsSnapshot(root, job, dir, { copy: (from, to) => { copies += 1; copyTools(from, to); } });
   const launched = [];
   const request = { origin: repo, commonDir: common, toolRoot: repo, entry: 'apps/cli/pullboard.js', item: 1, source: 'abc', digest: 'def' };
-  const snapshotModule = new URL('../../../src/io/submit/handoff.js', import.meta.url).href;
+  const snapshotModule = new URL('../../../src/io/toolsnapshot.js', import.meta.url).href;
   const { job } = await launchComparisonWorker(request, { snapshot, plan: sharedToolsTarget, snapshotModule, spawnWorker: fakeSpawn(launched) });
   assert.equal(copies, 0, 'launch returns before any copy');
   const target = sharedToolsTarget(repo);
