@@ -51,7 +51,7 @@
   .cost-row { padding-inline: var(--space-3); }
 }
 /* Approved Cost overview (cost.html): quiet cards, vendor-coloured models, hours in plain words. */
-.cost-page { --openai: light-dark(#3f6f9e, #6ba7d6); --anthropic: light-dark(#b2643a, #e39a6d); display: grid; gap: 14px; max-width: 1180px; }
+.cost-page { --openai: light-dark(#3f6f9e, #6ba7d6); --anthropic: light-dark(#b2643a, #e39a6d); display: grid; gap: 14px; }
 .cost-page > * { min-width: 0; }
 .cost-card { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 1px 2px light-dark(rgba(18,26,23,.05), rgba(0,0,0,.4)); }
 .cost-kicker { margin: 0; color: var(--ink-faint); font: 600 var(--text-2xs)/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; }
@@ -71,7 +71,9 @@
 .cost-model-table-wrap { min-width: 0; max-width: 100%; }
 .cost-copy button { padding: 3px 10px; border: 0; border-radius: 5px; background: var(--accent); color: var(--on-accent); font: 600 12px var(--sans); cursor: pointer; }
 .cost-overview { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; }
-.cost-summary { display: grid; gap: 16px; align-content: start; padding: 16px 18px; }
+.cost-summary { display: grid; gap: 16px; align-content: start; align-self: start; padding: 16px 18px; }
+.cost-waiting { padding: 16px 18px; color: var(--ink-muted); }
+.cost-updating { color: var(--ink-faint); font-size: 12px; }
 .cost-summary > div + div { padding-top: 14px; border-top: 1px solid var(--line-soft); }
 .cost-big { margin: 6px 0 0; font-size: 30px; line-height: 1.1; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .cost-big small { margin-left: 4px; color: var(--ink-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; }

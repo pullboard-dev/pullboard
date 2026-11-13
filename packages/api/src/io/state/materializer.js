@@ -208,14 +208,18 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
     /** Whether the worker still runs; a server whose worker failed reads on the request thread instead. */
     get alive() { return failure === null; },
     /** A state read's JSON, validator and report validator, from the latest materialized record, or the kept one for a kept read. */
-    async stateJson(board, seen, { detail = null, items = null, stateDetail = 'summary', kept = false } = {}) {
+    async stateJson(board, seen, { detail = null, items = null, finished = null, stateDetail = 'summary', kept = false } = {}) {
       const compact = items === 'compact';
       const full = !compact && (detail ?? stateDetail) === 'full';
       const record = await latest(board, { full, kept });
       const unseen = seen === null ? null : { since: seen, count: shoutsAfter(record.shouts, seen) };
-      const variant = full ? record.full : compact ? record.compact : record.summary;
+      const variant = full ? record.full : compact ? (finished === 'omit' ? record.open : record.compact) : record.summary;
       if (!full) hold(board, record.sequence);
       return { json: joined(variant.json, unseen), validator: joined(variant.validator, unseen), reportValidator: record.reportValidator };
+    },
+    /** The finished items of the latest build, as the JSON text GET /boards/:id/finished serves; a read of an unchanged board starts no build. */
+    async finishedJson(board) {
+      return (await latest(board)).finished;
     },
     /** A delta read: the change since a held sequence, or a reset naming why there is none. */
     async delta(board, seen, { since, eventLogVersion = null }, refusalDocument) {
