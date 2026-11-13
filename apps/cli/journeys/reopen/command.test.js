@@ -235,7 +235,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const firstSubmit = (await fixtureCommand(box, item.cwd, 'submit', String(item.id)));
   assert.equal(firstSubmit.code, 0, firstSubmit.err);
   const awaitingFreshAccept = readItem(box, item.id);
-  assert.equal(awaitingFreshAccept.item_status, 'submitted');
+  assert.equal(awaitingFreshAccept.item_status, 'submitted', `${firstSubmit.out}${firstSubmit.err} ${JSON.stringify(awaitingFreshAccept.thread.slice(-4)).slice(-1500)}`);
   assert.equal(awaitingFreshAccept.item_verified_by, null, 'the older accept does not verify the resubmission');
   const firstOffer = (await fixtureCommand(box, box.repo, 'land', '--json'));
   assert.equal(firstOffer.code, 0, firstOffer.err);
