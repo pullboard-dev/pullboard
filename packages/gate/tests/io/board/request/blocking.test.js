@@ -20,10 +20,12 @@ test('clause 1: every known violation names why, and the seeded set includes mai
   assert.ok('packages/landing/src/io/main/red/receipt.js#unchangedDescendants' in KNOWN_REQUEST_BLOCKERS);
 });
 
-test('clause 1: a new spawnSync, execSync or gitSpawnSync call reached from a handler outside the list fails [C7]', () => {
+test('clause 1: a new spawnSync, execSync, gitSpawnSync, readdirSync or Atomics.wait call reached from a handler outside the list fails [C7]', () => {
   const calls = { spawn: "import { spawnSync } from 'node:child_process';\nexport function helper() { return spawnSync('ls'); }",
     exec: "import { execSync } from 'node:child_process';\nexport function helper() { return execSync('ls'); }",
-    git: "import { gitSpawnSync } from '../../../git/index.js';\nexport function helper() { return gitSpawnSync(['status']); }" };
+    git: "import { gitSpawnSync } from '../../../git/index.js';\nexport function helper() { return gitSpawnSync(['status']); }",
+    readdir: "import { readdirSync } from 'node:fs';\nexport function helper() { return readdirSync('.'); }",
+    atomics: "export function helper() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5); }" };
   for (const [kind, text] of Object.entries(calls)) {
     const injected = [...sources.filter(row => row.file !== 'packages/api/src/io/main.js'), ...[sources.find(row => row.file === 'packages/api/src/io/main.js')]
       .map(row => ({ ...row, source: row.source + "\nimport { helper } from './added.js';\nexport function addedHandler() { return helper(); }\n" })),
@@ -109,4 +111,13 @@ test('#6755 clause 1: a known-violation row is keyed by the file and function of
   const rows = forward.filter(row => row.file === shared.file);
   assert.deepEqual(rows.map(row => row.owner), ['packages/git/src/io/added-shared.js#sharedGit'], 'the row names the call site, not the caller that reached it first');
   for (const row of forward) assert.equal(row.owner, `${row.file}#${row.chain.at(-1).split('#')[1]}`, 'owner is the call site');
+});
+
+test('clause 2: the known set holds the current Atomics.wait and readdirSync sites by file and function [C7]', () => {
+  assert.ok('packages/store/src/io/board/busy.js#beginImmediateQueued' in KNOWN_REQUEST_BLOCKERS);
+  for (const owner of ['apps/relay/src/io/retention.js#backupFiles', 'packages/keys/src/io/relay.js#scrubLegacyPersonSessions', 'packages/link/src/io/relay/lock.js#locked', 'packages/link/src/io/relay/machine.js#readRelayMachine', 'packages/store/src/io/board/write/lock.js#boardWriteHolderText']) {
+    assert.ok(owner in KNOWN_REQUEST_BLOCKERS, owner);
+  }
+  const rows = apiRequestIoProblems(sources, { known: {} }).map(row => row.call);
+  assert.ok(rows.includes('global:Atomics#wait') && rows.includes('node:fs#readdirSync'));
 });
