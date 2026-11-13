@@ -1,11 +1,11 @@
 /** @pullboard-test-input source-tree */
-import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { writeTarget } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { privateBuilder } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { commitCandidate } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { flakyProject } from '../../tests/fixtures/flakes/project.js';
+import { writeTarget } from '../../tests/fixtures/flakes/project.js';
+import { targetRuns } from '../../tests/fixtures/flakes/project.js';
+import { assertReceipts } from '../../tests/fixtures/flakes/project.js';
+import { privateBuilder } from '../../tests/fixtures/flakes/project.js';
+import { commitCandidate } from '../../tests/fixtures/flakes/project.js';
+import { checkedItem } from '../../tests/fixtures/flakes/project.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { commitFixtureFiles } from '../../tests/fixtures/copy.js';
 import assert from 'node:assert/strict';

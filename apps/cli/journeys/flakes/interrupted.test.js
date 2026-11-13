@@ -2,7 +2,7 @@
 import {
   targetRuns,
   assertReceipts,
-} from '../../../../packages/git/tests/fixtures/flakes.js';
+} from '../../tests/fixtures/flakes/project.js';
 import { cliLocal } from '../../tests/fixtures/flakes/landing.js';
 import { readyLanding } from '../../tests/fixtures/flakes/landing.js';
 import assert from 'node:assert/strict';

@@ -3,12 +3,12 @@
 /** @pullboard-test-loads packages/sandbox/index.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { privateBuilder } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { commitCandidate } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { flakyProject } from '../../tests/fixtures/flakes/project.js';
+import { targetRuns } from '../../tests/fixtures/flakes/project.js';
+import { assertReceipts } from '../../tests/fixtures/flakes/project.js';
+import { privateBuilder } from '../../tests/fixtures/flakes/project.js';
+import { commitCandidate } from '../../tests/fixtures/flakes/project.js';
+import { checkedItem } from '../../tests/fixtures/flakes/project.js';
 
 test('a red submit records diagnostics without submitting the item [C7,V4,H16]', async t => {
   const box = flakyProject(t);

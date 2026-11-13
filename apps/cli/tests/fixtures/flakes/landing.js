@@ -4,7 +4,7 @@ import {
   privateBuilder,
   commitCandidate,
   checkedItem,
-} from '../../../../../packages/git/tests/fixtures/flakes.js';
+} from './project.js';
 import { runCliInProcess } from '../process.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
