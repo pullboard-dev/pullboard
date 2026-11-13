@@ -58,6 +58,13 @@ function templateStem(text) {
   return name && /[a-z]{3}/u.test(name[1].replace(/\.(?:jsonl|json|sqlite)$/u, '')) ? name : null;
 }
 
+/** The sites of a source file that name a store file by a template with no literal word (`${id}.json`): each must come from a registry const, so none may remain. */
+export function stemlessSites(source, path) {
+  if (!isStoreSource(path)) return [];
+  return lex(source).strings.filter(string => string.text.includes('${') && TEMPLATE_FILE.test(string.text.replace(/\$\{[^}]*\}/gu, '*')) && !templateStem(string.text))
+    .map(string => ({ path, line: lineAt(source, string.start), text: string.text }));
+}
+
 /**
  * Every store a source file names: each string that is a store file name (`board.sqlite`, `pullboard/relay.json`),
  * as `{ store: 'board.sqlite' }`, and each table its SQL writes, as `{ store: 'table:item' }`. A template with a
