@@ -99,6 +99,8 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
     const href = new URL(view.link.href); href.pathname = '/settings';
     chrome = await openSnapshotChrome(executable, href.href, profile);
     await chrome.waitFor('view.tab === "settings" && !document.querySelector("#settings-pane").hidden');
+    // Settings now lives in the account menu, which draws its rows when it opens.
+    await press(chrome, 'document.querySelector("#account")');
     const footer = await chrome.stable(`(() => {
       const button = document.querySelector('#side [data-tab="settings"]');
       return { menu: Boolean(document.querySelector('#account-menu [data-tab="settings"]')),
