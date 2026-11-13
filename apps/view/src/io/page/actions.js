@@ -6,14 +6,7 @@
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart4(scope) {
-return `function showFlow(shown) {
-  keep('pb.flow', shown ? 'shown' : 'hidden');
-  $('flow-panel').hidden = !shown;
-  $('flow-show').setAttribute('aria-expanded', String(shown));
-  if (shown && data && data.project) $('flow').innerHTML = lifecycleChart(data.project, data.project.moveCounts ? new Map(Object.entries(data.project.moveCounts)) : moveCounts(data.project.items), data.project.items.filter(item => stateOf(item) === 'back').length);
-}
-
-function showTab() {
+return `function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
   document.documentElement.dataset.tab = view.tab;
@@ -52,7 +45,7 @@ function placePairs(tab = view.tab) {
   return placeQuery({ tab, state: view.state, stateDefault: snapshot ? 'all' : 'active', lane: view.lane, q: $('q')?.value ?? '',
     rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
     shouts: view.shoutFilter, activity: view.activityFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, win: view.activityWin || 24 });
 }
 
 /** Name each repo even beneath a group; one repo needs no prefix. */
@@ -108,7 +101,7 @@ function applyPlace(place, kept = null) {
   if (view.tab === 'items' || query.state || query.lane) { view.state = query.state || (query.q ? 'all' : snapshot ? 'all' : 'active'); view.lane = query.lane; view.before = query.q && !query.state ? (snapshot ? 'all' : 'active') : null; }
   if (view.tab === 'spec' || view.tab === 'doctrine') view.rows[view.tab] = query.rows || (place.detail !== null ? 'all' : view.tab === 'spec' ? 'decide' : 'all');
   if (view.tab === 'shouts') view.shoutFilter = query.shouts || 'all';
-  if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; }
+  if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; view.activityWin = Number(query.win) || 24; }
   if (view.tab === 'roadmap') view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
   if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
   keep('pb.project', view.root);
@@ -149,7 +142,7 @@ function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
   const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && !readOnly });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24, writable: !snapshot && !readOnly });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
   if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
@@ -174,6 +167,8 @@ function pageControl(target) {
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
   else if (kind === 'by') view.activityBy = value || null;
+  else if (kind === 'activity') view.activityFilter = value || 'all';
+  else if (kind === 'win') view.activityWin = Number(value) || 24;
   else if (kind === 'shouts') { view.shoutFilter = value; view.shoutThread = null; view.shout = null; view.addressDetail = null; }
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
   drawPageControls();
@@ -985,8 +980,6 @@ document.addEventListener('click', (event) => {
 document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
-  const activityFilter = event.target.closest('[data-activity-filter]');
-  if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; address(); render(); return; }
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
     // Every Dashboard count opens Items narrowed to what it counts (#6847): its stage, and its lane when it names one.
@@ -1248,9 +1241,6 @@ $('spec-approve-form').addEventListener('submit', (event) => {
   if (asked && asked.root === view.root) decideRow('spec', 'spec-approve', { ids: asked.ids.join(' ') });
 });
 $('answer-cancel').addEventListener('click', () => answer(null));
-$('flow-show').addEventListener('click', () => showFlow($('flow-panel').hidden));
-$('flow-panel').hidden = keep('pb.flow') !== 'shown';
-$('flow-show').setAttribute('aria-expanded', String(!$('flow-panel').hidden));
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
 /** Pick the scheme the page does not show now, and keep it. */
 function flipTheme() {

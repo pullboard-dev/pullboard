@@ -792,42 +792,7 @@ function render({ tab: switching = false } = {}) {
     store.paint($(kind + '-detail'), row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>');
   }
 
-  if (draw && view.tab === 'activity') {
-  if (keep('pb.flow') === 'shown') store.paint($('flow'), lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length));
-  store.paint($('activity-filters'), activityFilters(activityModel(p, { words: activityWords }), view.activityFilter || 'all'));
-  const activity = $('activity');
-  { const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions(); $('activity-compare').innerHTML = comparisonHtml(p.statsComparison ?? null, { locale, timeZone }); }
-  const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
-  activity.dataset.boardRoot = p.root;
-  const activityTime = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const activityLabels = new Map();
-  const collectActivityTimes = text => {
-    for (const match of String(text ?? '').matchAll(/\\b\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d+)?(?:Z|[+-]\\d\\d:\\d\\d)\\b/gu))
-      if (!activityLabels.has(match[0])) activityLabels.set(match[0], Number.isFinite(Date.parse(match[0])) ? activityTime(match[0]) : match[0]);
-  };
-  const localActivityTimes = text => String(text ?? '').replace(/\\b\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(?:\\.\\d+)?(?:Z|[+-]\\d\\d:\\d\\d)\\b/gu,
-    value => Number.isFinite(Date.parse(value)) ? activityLabels.get(value) ?? value : value);
-  const activityModelData = activityModel(p, { words: activityWords });
-  const activityRows = activityModelData.rows.map(entry => {
-    collectActivityTimes(entry.words);
-    for (const finding of [...(entry.findings || []), ...(entry.stillStuck || [])]) {
-      for (const value of Object.values(finding)) if (typeof value === 'string') collectActivityTimes(value);
-      if (Number.isFinite(Date.parse(finding.since))) activityLabels.set(finding.since, activityTime(finding.since));
-    }
-    return entry;
-  }).map(entry => {
-    const prepareFinding = finding => ({ ...finding, words: activityWords(finding, { now: Date.parse(entry.at), timestampLabels: activityLabels }) });
-    return { ...entry, timeLabel: activityTime(entry.at), dayKey: new Date(entry.at).toDateString(), dayLabel: dayName(entry.at),
-      itemHref: entry.item ? itemAddress(entry.item.id) : null,
-      landed: entry.kind === 'main-moved' && Array.isArray(entry.detail?.items) ? entry.detail.items.filter(Number.isSafeInteger).map(id => ({ id, href: itemAddress(id) })) : [],
-      quoteHtml: entry.kind === 'shout' && entry.words ? inline(localActivityTimes(entry.words), titles) : '',
-      findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
-    };
-  });
-  // The strip's person filter lists whoever appears in the activity, and keeps its pick even before that person shows up.
-  view.activityPeople = [...new Set([...activityRows.map(entry => entry.by).filter(Boolean), ...(view.activityBy ? [view.activityBy] : [])])].sort();
-  store.paint(activity, activityHtml({ ...activityModelData, rows: view.activityBy ? activityRows.filter(entry => entry.by === view.activityBy) : activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
-  }
+  if (draw && view.tab === 'activity') activityView.draw(p);
   if (draw && !roadmapBehind) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
   drawPageControls();
