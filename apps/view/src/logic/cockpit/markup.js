@@ -67,7 +67,6 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
   </section>
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
-  <section data-pane="progress" id="progress" class="progress-pane" aria-label="Progress"></section>
   <section data-pane="dashboard" id="dashboard" class="dashboard" aria-label="Dashboard"></section>
   <section data-pane="items" class="two">
     <div class="primary">
