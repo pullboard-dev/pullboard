@@ -41,6 +41,8 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.lanes.web.specs = Array.from({ length: 9 }, (_, index) => `G${index + 1}`);
+  // The seat holds the old item while its peer claim runs during apply, so it may hold two claims.
+  config.claims = { ...config.claims, perSeat: 2 };
   writeFileSync(configPath, JSON.stringify(config, null, 2));
   const sourceRows = Array.from({ length: 7 }, (_, index) => {
     const id = `G${index + 3}`;
