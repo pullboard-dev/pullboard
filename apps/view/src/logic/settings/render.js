@@ -24,7 +24,7 @@ export function settingsContentHtml(entry, scope = 'machine') {
   };
   /** Show the exact value on hover when the human form shortens it. */
   const exact = value => value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
-  const about = { Capacity: 'How much this computer runs at once.', Order: 'What runs first when work is waiting.', Runners: 'Other machines that run checks for this one.',
+  const about = { Capacity: 'How much this computer runs at once.', Spending: 'What agents may spend per day and in total.', Folders: 'Where scratch work and shared files live.', Order: 'What runs first when work is waiting.', Runners: 'Other machines that run checks for this one.',
     Background: 'What keeps running on this computer.', Landing: 'How finished work reaches main.', Checks: 'How work is tested and held to its criterion.',
     Relay: 'Sharing boards with your phone and other devices.', Project: 'Where the project keeps its files and how it names things.',
     Review: 'Who may review work and how reviews are scheduled.', Claims: 'How long work stays claimed.', Commits: 'What a commit message must look like.',
@@ -39,23 +39,28 @@ export function settingsContentHtml(entry, scope = 'machine') {
   const order = ['Capacity', 'Order', 'Runners', 'Background'];
   const labels = { machine: 'This machine', repo: 'This repo', board: 'This board' };
   const scopes = Object.entries(labels).map(([key, label]) => '<button type="button" role="tab" class="' + (key === scope ? 'on' : '') + '" data-settings-scope="' + key + '" aria-selected="' + (key === scope) + '">' + label + '</button>').join('');
-  const rows = entry.error || entry.loading ? [] : (entry.rows || []).filter(row => row.scope === scope);
+  /** The machine's own bookkeeping (per-loan test-file-loan:<id>, submit-handoff-*, runner:<host>) is not something a person sets. */
+  const internal = row => /^resources\.(?:test-file-loan:|submit-handoff-|runner:)/.test(String(row.key));
+  const rows = entry.error || entry.loading ? [] : (entry.rows || []).filter(row => row.scope === scope && !internal(row));
   const changed = row => !row.error && JSON.stringify(row.value) !== JSON.stringify(row.default);
   const home = path => String(path).replace(/^\/(?:Users|home)\/[^/]+/, '~').replace(/^[A-Za-z]:[\\/]+Users[\\/]+[^\\/]+/, '~').replaceAll('\\', '/');
   const sources = new Map();
   for (const row of rows) sources.set(row.source, (sources.get(row.source) || 0) + 1);
   const source = [...sources].sort((a, b) => b[1] - a[1])[0]?.[0];
   const rowHtml = row => {
-    const copyable = typeof row.cli === 'string' && row.cli && (typeof row.value === 'boolean' || typeof row.value === 'number');
-    const command = copyable ? 'pullboard settings ' + row.cli + ' ' + (typeof row.value === 'boolean' ? (row.value ? 'on' : 'off') : row.value) : '';
+    const unset = row.value === null || row.value === undefined;
+    const copyable = typeof row.cli === 'string' && row.cli && (unset || ['boolean', 'number', 'string'].includes(typeof row.value));
+    const word = typeof row.value === 'boolean' ? (row.value ? 'on' : 'off') : typeof row.value === 'string' && !/^[\w./:@~-]+$/.test(row.value) ? "'" + row.value.replaceAll("'", "'\\''") + "'" : row.value;
+    const blank = { USD: '<dollars>', folder: '<folder>' }[row.unit] || '<value>';
+    const command = copyable ? 'pullboard settings ' + row.cli + ' ' + (unset ? blank : word) : '';
     const label = row.label || row.key;
     const value = row.secret ? (row.value === 'set' ? 'set' : 'not set') : human(row.value, row.unit);
     const was = row.secret ? 'not set' : human(row.default, row.unit);
     const mark = changed(row);
     const what = row.error ? '<p class="setting-error" role="alert" title="' + esc(row.error.message + ' ' + row.error.fix) + '">' + esc(row.error.message) + ' ' + esc(row.error.fix) + '</p>'
       : '<p class="setting-description" title="' + esc(row.description) + '">' + esc(row.description) + '</p>';
-    return '<div class="set' + (row.error ? ' setting-invalid' : '') + '" data-setting-key="' + esc(row.key) + '"><div class="name"><b>' + esc(label) + '</b><code class="k">' + esc(row.key) + '</code>'
-      + (entry.all && row.root ? '<span class="setting-root">' + esc(String(row.root).replaceAll('\\', '/').split('/').at(-1)) + '</span>' : '') + what + '</div>'
+    return '<div class="set' + (row.error ? ' setting-invalid' : '') + '" data-setting-key="' + esc(row.key) + '"><div class="name"><div class="set-title"><b>' + esc(label) + '</b><code class="k">' + esc(row.key) + '</code>'
+      + (entry.all && row.root ? '<span class="setting-root">' + esc(String(row.root).replaceAll('\\', '/').split('/').at(-1)) + '</span>' : '') + '</div>' + what + '</div>'
       + '<div class="val"><span class="val-line">' + (mark ? '<span class="changed">changed</span>' : '') + '<b title="' + esc(row.secret ? value : exact(row.value)) + '">' + esc(row.error ? '' : value) + '</b></span><small>' + (mark ? 'default ' + esc(was) : 'default') + '</small></div>'
       + (copyable ? '<button type="button" class="copy" data-copy-command="' + esc(command) + '" aria-label="Copy command to change ' + esc(label) + '" title="Copy: ' + esc(command) + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/></svg></button>' : '<span class="copy none"></span>') + '</div>';
   };
