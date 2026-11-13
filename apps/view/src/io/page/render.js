@@ -204,6 +204,7 @@ function render() {
   document.body.classList.toggle('boardless', !p && !group);
   $('group-view').hidden = !group;
   $('tabs').hidden = Boolean(group);
+  if ($('sidenav')) $('sidenav').hidden = Boolean(group);
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = Boolean(group) || pane.dataset.pane !== view.tab; });
   $('products').hidden = !p || !p.products.length;
   renderReleaseNotes(group ? null : p);
