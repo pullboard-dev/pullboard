@@ -59,7 +59,7 @@ import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
-import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import {
   createE2eHelpers,
 } from '../../tests/fixtures/e2e.js';
@@ -270,8 +270,9 @@ async function repoWithGate(gate, check = '') {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
-  // Submit settles in the command, so it never waits on a pull runner this fixture does not start [P7].
-  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
+  // These cases assert submit running the gate in the command; pinned to controller dispatch until #5821 lands [P7].
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   // The fixture's checks and gates are their own test runs, not children of this one.
   delete env.NODE_TEST_CONTEXT;
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
