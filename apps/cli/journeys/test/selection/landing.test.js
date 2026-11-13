@@ -34,7 +34,9 @@ test('clause 1: a real T3 batch failure bisects to its item while package units 
   assert.match(landed.returned[0].detail ?? '', /test\/journey\.test\.js/u, 'the red names the journey the batch gate ran');
   assert.ok(calls(box, 'journey').length > 0, 'the independent journey runner executed at landing');
   assert.ok(json(box, box.repo, 'show', String(good.id)).item_merged_commit);
-  assert.equal(json(box, box.repo, 'show', String(bad.id)).item_status, 'open');
+  // Under separate publish the culprit parks on a hold, unmerged, while the clean item lands [C7].
+  const culprit = json(box, box.repo, 'show', String(bad.id));
+  assert.ok(!culprit.item_merged_commit && culprit.item_hold_at, JSON.stringify(culprit));
 });
 
 
