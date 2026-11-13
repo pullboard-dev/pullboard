@@ -291,11 +291,15 @@ export function pathTokens(text) {
  *
  * @param {object} config - The frozen policy with its lanes.
  * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
+ * @param {{ prose?: boolean, present?: (paths: string[]) => Set<string> }} [options] - `present` names which paths exist on main;
+ *   with it, a path missing from main and owned by no lane is a planned file of the item's own lane, not a coordinator path (#6713).
  * @returns {string[]}
  */
 export function coordinatorPaths(config, item, options) {
-  return barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
+  const unowned = barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
+  if (!options?.present || !unowned.length) return unowned;
+  const found = options.present(unowned);
+  return unowned.filter(path => found.has(path.replace(/\/$/u, '')));
 }
 
 /**
