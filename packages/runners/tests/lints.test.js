@@ -32,12 +32,15 @@ import { cellLintReport } from '../../codemap/index.js';
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const git = (...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  /** The cell inventory reads tracked files only, so each fixture change is staged; a git-ignored path stays untracked on purpose. */
+  const stage = file => runFixtureChild('git', ['add', '-A', '--', file], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   /** Write one private source or asset beneath this fixture. */
-  function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
+  function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); stage(file); }
   /** Remove only the named private fixture entity. */
-  function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); }
+  function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); stage(file); }
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');
