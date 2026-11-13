@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/doctrine/index.js packages/codemap/index.js packages/sentinels/index.js packages/rigor/src/io/proof.js */
 /**
  * Rigor's second step: a repeated cause becomes a draft row with its proof [D1,D3,S1]. A work cause
  * becomes a Doctrine row whose check holds a count of 0; a product cause becomes a spec row gated
