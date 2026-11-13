@@ -80,6 +80,8 @@ async function project(t, { predates = false } = {}) {
   }
   // The hook launcher runs the staged static checks before the entry, so their folder is linked too.
   function linkRemaining(relative) {
+    // The fixture keeps no layout baseline, so the layout ratchet leaves its own root entries alone [C7,#6544].
+    if (relative === 'packages/codemap/data/baselines/layout.json') return;
     const destination = join(root, relative);
     if (!existsSync(destination)) return symlinkSync(join(SOURCE, relative), destination);
     if (!statSync(destination).isDirectory()) return;
