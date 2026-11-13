@@ -82,7 +82,7 @@ test('apiBoardListing is exported and matches the board list [A2]', async (t) =>
   const response = await apiFetch({ origin: address.origin, secret: address.searchParams.get('k') }, '/api/v1/boards');
   assert.equal(response.status, 200);
   const listed = await response.json();
-  assert.deepEqual({ version: 1, ...apiBoardListing(projects, undefined, refusalDocument, apiBoardOpeners) }, listed);
+  assert.deepEqual({ version: 1, ...apiBoardListing(projects, undefined, refusalDocument, apiBoardOpeners, typeof viewApiPorts.projectSummary === 'function') }, listed);
   assert.deepEqual(listed.boards.map(({ root }) => root), [box.repo]);
   assert.deepEqual(listed.warnings.map(({ root, error }) => [root, error.error.code]), [[unreadableRoot, 'BOARD_UNAVAILABLE']]);
 });
