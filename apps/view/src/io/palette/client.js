@@ -21,14 +21,14 @@ function pbPalette(env) {
   overlay.id = 'pal-overlay';
   doc.body.appendChild(overlay);
 
-  /** The pages the navigation holds now, each with its letter and what it is. */
+  /** The pages the navigation holds now, each with its letter, what it is and its count (the page's own fact). */
   const pages = () => env.pages().map((p) => ({ ...p, key: KEYS[p.id] || null, what: WHAT[p.id] || '' }));
 
   /** What a query finds: pages, then items by id or title, then actions; an empty query lists the pages and the actions. */
   function results(query) {
     const q = String(query || '').trim().toLowerCase();
     const out = [];
-    for (const p of pages()) if (!q || p.name.toLowerCase().includes(q)) out.push({ kind: 'Go to', label: p.name, sub: p.what, key: p.key ? 'g ' + p.key : '', run: () => env.go('tab:' + p.id) });
+    for (const p of pages()) if (!q || p.name.toLowerCase().includes(q)) out.push({ kind: 'Go to', label: p.name, sub: p.what, count: p.count || '', key: p.key ? 'g ' + p.key : '', run: () => env.go('tab:' + p.id) });
     if (q) {
       const bare = q.replace(/^#/, '');
       const hits = env.items().filter((i) => String(i.title || '').toLowerCase().includes(q) || (bare && String(i.id).includes(bare)))
@@ -51,7 +51,7 @@ function pbPalette(env) {
       const head = r.kind !== last ? '<div class="pal-sec">' + esc(r.kind) + '</div>' : '';
       last = r.kind;
       return head + '<button class="pal-r' + (i === sel ? ' on' : '') + '" type="button" role="option" aria-selected="' + (i === sel) + '" data-res="' + i + '"><span>' + esc(r.label) + '</span><small>' + esc(r.sub) + '</small>'
-        + (r.key ? '<kbd>' + esc(r.key) + '</kbd>' : '') + '</button>';
+        + (r.count || r.key ? '<span class="pal-end">' + (r.count ? '<em>' + esc(r.count) + '</em>' : '') + (r.key ? '<kbd>' + esc(r.key) + '</kbd>' : '') + '</span>' : '') + '</button>';
     }).join('') || '<div class="pal-sec">No matches</div>';
   };
 
