@@ -58,6 +58,11 @@
 .milestone-title code.inline.long, .milestone-title code { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; word-break: normal; vertical-align: bottom; }
 .milestone-item .roadmap-stage-chip { grid-column: 5; font-family: var(--sans); letter-spacing: normal; }
 @media (max-width: 760px) { .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) 86px; } .milestone-item .stage-marks { display: none; } .milestone-item .stage-word, .milestone-item .roadmap-stage-chip { grid-column: 4; } }
+/* A release's landed items come one page of 50 at a time, with a quiet one-line page control (#6841). */
+.roadmap-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line-soft); color: var(--ink-muted); font: var(--text-xs) var(--mono); white-space: nowrap; }
+.roadmap-pager .roadmap-page-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.roadmap-page-step { padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--surface); color: var(--ink); font: 500 var(--text-xs)/22px var(--sans); cursor: pointer; }
+.roadmap-page-step:disabled { color: var(--ink-faint); cursor: default; }
 /* The release header reads title, rate line, full-width bar, one legend line; its note is plain text, never a tinted bar. */
 .roadmap-has-summary .roadmap-forecast { margin-bottom: var(--space-4); font-size: var(--text-sm); }
 .roadmap-has-summary .roadmap-summary-legend { gap: var(--space-2) var(--space-6); }
