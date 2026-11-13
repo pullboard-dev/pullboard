@@ -62,6 +62,15 @@ async function linkedItems(box, name) {
   box.git(alpha.repo, 'switch', '-q', 'main');
   return alpha;
 }
+
+/** The one linked board the three item-address cases share; it is only read, so one build serves all of them. */
+let linkedBoard;
+/** Build the linked board once and hand the same machine and project to each case. */
+function sharedLinked() {
+  linkedBoard ??= (async () => { const box = machine(); return { box, alpha: await linkedItems(box, 'linked-items') }; })();
+  return linkedBoard;
+}
+
 /** Poll Chrome's real target list until a modified anchor click opens its href in another tab. */
 async function targetForHref(profile, href) {
   const port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0].trim();
