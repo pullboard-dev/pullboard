@@ -1,6 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** The Dashboard's Shipping now card and the Roadmap's release header, each as approved, in real Chrome [N26]. */
+/** The Dashboard's Release card and the Roadmap's release header, each as approved, in real Chrome [N26]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -19,7 +19,7 @@ import { pickProject } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
 
 /** Seed one release and read it on both view surfaces in real Chrome. */
-test('Dashboard Shipping now and the Roadmap release header read the same release at desktop and phone widths [N26]', { timeout: 180_000 }, async () => {
+test('Dashboard Release and the Roadmap release header read the same release at desktop and phone widths [N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the release header journey.');
   const box = machine(), alpha = project(box, 'release-header');
@@ -43,7 +43,7 @@ test('Dashboard Shipping now and the Roadmap release header read the same releas
       await press(chrome, "document.querySelector('[data-tab=dashboard]')");
       await chrome.waitFor("document.querySelector('#dashboard .dash-ship .dash-ship-name')");
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      // The Dashboard draws the approved Shipping now card (#6646, #6847); the Roadmap keeps its own release header.
+      // The Dashboard draws the approved Release card (#6646, #6847); the Roadmap keeps its own release header.
       const dashboard = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),name=c.querySelector('.dash-ship-name'),bar=c.querySelector('.dash-sbar'),keys=c.querySelector('.dash-keys'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}};return {eyebrow:c.closest('section').querySelector('.dash-shd h2').textContent,eyebrowShown:getComputedStyle(c.closest('section').querySelector('.dash-shd h2')).textTransform,name:name.textContent,nameFont:getComputedStyle(name).fontFamily,nameSize:getComputedStyle(name).fontSize,nameCase:getComputedStyle(name).textTransform,left:c.querySelector('.dash-togo').textContent,bars:c.querySelectorAll('.dash-sbar').length,bar:box(bar),keys:box(keys),keysBelow:keys.getBoundingClientRect().top>=bar.getBoundingClientRect().bottom,tiles:[...c.querySelectorAll('[data-dashboard-tile] .dash-stat-k')].map(n=>n.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})())"));
       assert.equal(dashboard.eyebrow, 'Release');
       assert.equal(dashboard.eyebrowShown, 'uppercase', 'the header above the card reads RELEASE (sheet v1.1)');
@@ -54,7 +54,7 @@ test('Dashboard Shipping now and the Roadmap release header read the same releas
       assert.equal(dashboard.left, '2 to go3 of 5 landed');
       assert.equal(dashboard.bars, 1, 'one stage bar');
       assert.ok(dashboard.bar.width > 0 && dashboard.keys.width > 0 && dashboard.keysBelow, `${width}px the legend sits under the bar`);
-      assert.deepEqual(dashboard.tiles, ['Today’s pace', 'Right now', 'Done at this pace']);
+      assert.deepEqual(dashboard.tiles, ['Today’s pace', 'Right now', 'ETA']);
       assert.equal(dashboard.overflow, false, `${width}px Dashboard has no horizontal overflow`);
       // The bar and its legend paint in the formal stage colours (Waiting is the sheet's grey): each segment and its swatch resolve to the same token.
       const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','waiting']]){out[key]={token:token(name),fill:getComputedStyle(c.querySelector('rect.dash-seg-'+key)).fill,swatch:getComputedStyle(c.querySelector('i.dash-seg-'+key)).backgroundColor};}probe.remove();return out;})())"));

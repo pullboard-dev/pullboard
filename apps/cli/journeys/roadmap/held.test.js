@@ -60,9 +60,9 @@ test('a held item shows held with its reason in the roadmap list, matching the h
       await chrome.waitFor(`innerWidth === ${width}`);
       const seen = await read();
       const byId = Object.fromEntries(seen.rows.map((row) => [row.id, row]));
-      assert.deepEqual([byId['#1'].chip, byId['#1'].tone], ['Gated', 'gated'], `${width}: an item held on its own keeps its lifecycle stage`);
+      assert.deepEqual([byId['#1'].chip, byId['#1'].tone], ['Blocked', 'blocked'], `${width}: an item held on its own keeps its lifecycle stage`);
       assert.match(byId['#1'].why, /Held: waits on the vendor reply/u, `${width}: the hold mark names the item's reason on hover`);
-      assert.deepEqual([byId['#3'].chip, byId['#3'].tone], ['Gated', 'gated'], `${width}: an item in a held lane keeps its lifecycle stage`);
+      assert.deepEqual([byId['#3'].chip, byId['#3'].tone], ['Blocked', 'blocked'], `${width}: an item in a held lane keeps its lifecycle stage`);
       assert.match(byId['#3'].why, /Lane held: docs frozen for the release/u, `${width}: the lane mark names its reason on hover`);
       assert.deepEqual([byId['#2'].chip, byId['#2'].tone], ['Ready', 'ready'], `${width}: an item nobody held stays unclaimed`);
       assert.equal(seen.rows.filter((row) => row.why.startsWith('Held:') || row.why.startsWith('Lane held:')).length, seen.held, `${width}: the list's held rows match the header's held count`);
@@ -91,7 +91,7 @@ test('a held item shows held with its reason in the roadmap list, matching the h
       const mark = stage.querySelector('.stage-mark');
       return { chip: stage.querySelector('.stage-word').textContent.trim(), why: mark?.getAttribute('title') || '' };
     }))`));
-    assert.equal(items[0].chip, 'Gated', 'the Items row preserves the held item lifecycle stage');
+    assert.equal(items[0].chip, 'Blocked', 'the Items row preserves the held item lifecycle stage');
     assert.match(items[0].why, /Held: waits on the vendor reply/u, 'the Items row names the hold reason on hover');
     assert.equal(items[1].chip, 'Ready', 'the Items row of a free item stays unclaimed');
     assert.deepEqual(chrome.exceptions, [], 'the held rows raise no uncaught page exception');

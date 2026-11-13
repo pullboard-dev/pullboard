@@ -90,7 +90,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     assert.deepEqual(list['1'].stage, 'Ready');
     for (const entry of Object.values(list)) { assert.ok(entry.accessible.includes(entry.stage) && entry.accessible.includes(entry.detail)); assert.equal(entry.hover, entry.detail, 'compact rows keep the full native detail available on hover'); }
     assert.match(list['1'].detail, /strong route/u);
-    assert.deepEqual(list['2'].stage, 'Gated');
+    assert.deepEqual(list['2'].stage, 'Blocked');
     assert.match(list['2'].detail, /#1/u);
     assert.deepEqual(list['3'].stage, 'Building');
     assert.equal(list['3'].seat, 'web-1', 'the held row keeps the approved visible seat name');
@@ -111,10 +111,10 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     assert.equal(list['7'].detail, 'queued for the train');
     assert.ok(list['7'].marks.includes('stale'));
     assert.ok(list['7'].reasons.some(reason => /main changed/u.test(reason)), 'the Stale mark explains the changed main on hover');
-    assert.deepEqual(list['8'].stage, 'Gated');
+    assert.deepEqual(list['8'].stage, 'Blocked');
     assert.ok(list['8'].marks.includes('Held'));
     assert.ok(list['8'].reasons.some(reason => /supplier answer/u.test(reason)), 'the Held mark explains its reason on hover');
-    assert.deepEqual(list['9'].stage, 'Gated');
+    assert.deepEqual(list['9'].stage, 'Blocked');
     assert.ok(list['9'].marks.includes('Lane held'));
     assert.ok(list['9'].reasons.some(reason => /waits for copy/u.test(reason)), 'the Lane held mark explains its reason on hover');
     assert.deepEqual(list['10'].stage, 'Ready');
@@ -136,7 +136,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     await press(chrome, "document.querySelector('[data-items-view=pipeline]')");
     await chrome.waitFor("!document.querySelector('#pipeline').hidden && document.querySelector('#pipeline [data-stage=landing]')");
     const pipelineOrder = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#pipeline [data-pipeline-stage]')].map(stage => stage.querySelector('h2').textContent))"));
-    assert.deepEqual(pipelineOrder, ['Gated', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
+    assert.deepEqual(pipelineOrder, ['Blocked', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
     const pipelineStage = await chrome.stable("document.querySelector('#pipeline [data-item=\\\"5\\\"] .stage-word')?.textContent");
     assert.equal(pipelineStage, 'Landing');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");

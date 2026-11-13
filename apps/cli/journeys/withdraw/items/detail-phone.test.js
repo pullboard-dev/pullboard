@@ -201,7 +201,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
       assert.equal(new Set(rows.map((row) => row.height)).size, 1, `${width}: every row is as tall as the next: ${JSON.stringify(rows.map((row) => [row.id, row.height]))}`);
       assert.equal(new Set(rows.map((row) => row.chipHeight)).size, 1, `${width}: every chip is the same size`);
       const chips = Object.fromEntries(rows.map((row) => [row.id, `${row.stage}: ${row.detail}`]));
-      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['Ready: strong route', 'Ready: strong route', 'Gated: by #1', 'Ready: strong route'], `${width}: each item's stage and short detail`);
+      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['Ready: strong route', 'Ready: strong route', 'Blocked: by #1', 'Ready: strong route'], `${width}: each item's stage and short detail`);
       assert.match(chips[5], /^Building: by web-\d+ \(Test Model\)$/, `${width}: a claimed item names who builds it below the stage`);
       // The same state wears the same chip in the item's detail as in its row.
       for (const row of rows) {

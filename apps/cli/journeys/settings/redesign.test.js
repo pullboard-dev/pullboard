@@ -33,7 +33,7 @@ const MEASURE = `(() => {
     scopes: [...pane.querySelectorAll('.settings-scopes [data-settings-scope]')].map(node => node.textContent.trim()),
     refresh: (() => { const node = pane.querySelector('[data-settings-refresh]'); return node && { text: node.textContent.trim(), ghost: node.classList.contains('ghost'), border: getComputedStyle(node).borderTopStyle }; })(),
     where: pane.querySelector('.settings-where')?.textContent.trim() ?? '',
-    groups: [...pane.querySelectorAll('.set-group')].map(card => ({ name: card.querySelector('.ghead h3')?.textContent, about: card.querySelector('.ghead p')?.textContent, changed: card.querySelector('.ghead span')?.textContent,
+    groups: [...pane.querySelectorAll('.set-sect')].map(card => ({ name: card.querySelector('.ghead h2')?.textContent, about: card.querySelector('.ghead .cap2')?.textContent, changed: card.querySelector('.ghead .cnt')?.textContent,
       rows: card.querySelectorAll('.set').length, changedChips: card.querySelectorAll('.set .changed').length })),
     heights: [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))],
     count: rows.length,
@@ -142,6 +142,6 @@ test('the renderer shows what the API row says: changing an inventory descriptio
   assert.match(second, /Second wording\./u);
   assert.doesNotMatch(second, /First wording|Checks at once|Capacity/u, 'no description, label or group is held inside the view');
   assert.match(second, /Parallel runs/u);
-  assert.match(second, /<h3>Order/u);
+  assert.match(second, /<h2 class="hd1">Order/u);
   assert.doesNotMatch(settingsContentHtml({ rows: [{ ...base, cli: null }] }, 'machine'), /data-copy-command/u, 'the copy button follows the row\'s own cli flag');
 });

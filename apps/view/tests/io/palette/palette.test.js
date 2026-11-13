@@ -48,13 +48,13 @@ function page(options = {}) {
 }
 const field = { closest: (selector) => (/input/.test(selector) ? {} : null) };
 
-test('clause 1: the search box reads "Search or jump to…" and a press on it opens the palette [U94,#6616]', () => {
+test('clause 1: the search box reads "Search" and a press on it opens the palette [U94,#6616]', () => {
   const { palette, box, overlay } = page();
-  assert.equal(box.placeholder, 'Search or jump to…');
+  assert.equal(box.placeholder, 'Search');
   let prevented = false;
   box.mousedown({ button: 0, preventDefault() { prevented = true; } });
   assert.ok(prevented && palette.isOpen(), 'pressing the box opens the palette instead of focusing the field');
-  assert.match(overlay.innerHTML, /placeholder="Search items, or jump to a page…"/);
+  assert.match(overlay.innerHTML, /placeholder="Search"/);
 });
 
 test('clause 1: Cmd+K or Ctrl+K and / open the palette, and Cmd+K again closes it [U94,#6616]', () => {
@@ -148,7 +148,7 @@ test('clause 2: ? lists the shortcuts, \\ moves the navigation, Esc closes [U94,
   const { palette, press, calls, overlay } = page();
   press('?');
   assert.ok(palette.isHelp());
-  for (const text of ['Keyboard shortcuts', 'g i', 'g s', 'g r', 'g e', 'g o', 'g d', 'g a', 'g c', 'Search or jump anywhere', '⌘K', 'Move the navigation', 'Esc']) assert.ok(overlay.innerHTML.includes(text), `the list has ${text}`);
+  for (const text of ['Keyboard shortcuts', 'g i', 'g s', 'g r', 'g e', 'g o', 'g d', 'g a', 'g c', 'Search anywhere', '⌘K', 'Move the navigation', 'Esc']) assert.ok(overlay.innerHTML.includes(text), `the list has ${text}`);
   press('Escape');
   assert.ok(!palette.isHelp() && overlay.innerHTML === '', 'Esc closes the list');
   press('?');

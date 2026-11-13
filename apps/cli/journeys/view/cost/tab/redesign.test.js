@@ -44,8 +44,6 @@ test('the private Cost overview renders prepared analytics and each confidence [
     assert.equal(await chrome.stable("document.querySelectorAll('.cost-model-table').length"), 1, 'building and verifying share the model table');
     assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted, came back later/u);
 
-    await chrome.click("document.querySelector('[data-cost-window=\"30d\"]')");
-    await chrome.waitFor("document.querySelector('[data-cost-window=\"30d\"]').getAttribute('aria-pressed') === 'true'");
     await chrome.click("document.querySelector('[data-go]')");
     await chrome.click("document.querySelector('[data-cost-copy]')");
     await chrome.click("document.querySelector('[data-cost-all]')");
@@ -83,8 +81,9 @@ test('the private Cost tab consumes the server projection and routes controls [N
     await chrome.waitFor('document.querySelector("#cost .cost-detail")');
     text = await chrome.stable('document.querySelector("#cost .cost-detail").innerText');
     assert.ok(text.includes('No token count')); assert.ok(!text.includes('0 sessions'));
-    await chrome.click('document.querySelector("#cost [data-cost-window=\\"30d\\"]")');
-    await chrome.waitFor('document.querySelector("#cost [data-cost-window=\\"30d\\"]")?.getAttribute("aria-pressed") === "true"');
+    await chrome.click('document.querySelector("#page-controls [data-page-ctl=costwindow][data-value=\\"30d\\"]")');
+    await chrome.waitFor('document.querySelector("#page-controls [data-page-ctl=costwindow][data-value=\\"30d\\"]")?.getAttribute("aria-pressed") === "true"');
+    assert.equal(await chrome.stable('document.querySelectorAll("#cost [data-cost-window], #cost h1").length'), 0, 'the window lives in the strip and Cost has no page heading of its own');
     assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.costRequests)')), ['7d','30d']);
     await chrome.click('document.querySelector("#cost [data-cost-all]")');
     await chrome.waitFor('view.tab === "items"');
