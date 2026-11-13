@@ -20,7 +20,6 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
-import { landJobs } from '../../../tests/fixtures/land/board.js';
 
 const e2e = createE2eHelpers();
 const projects = [];
@@ -102,21 +101,6 @@ function advanceMain(box) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main before landing');
 }
 
-/**
- * The receipt of the runner land job that landed these items: a pulled landing answers through its job, not an inline batch [P7,C7].
- *
- * @param {object} box - The fixture project.
- * @param {number[]} ids - The items the job must have landed.
- * @returns {Promise<object>} The land job's receipt.
- */
-async function landedReceipt(box, ids) {
-  const done = () => landJobs(box).find(job => ids.every(id => job.receipt?.landed?.includes(id)));
-  await waitForCondition(() => Boolean(done()), `the runner land job lands ${ids.map(id => `#${id}`).join(' ')}`, {
-    signal: AbortSignal.timeout(150_000), state: () => landJobs(box),
-  });
-  return done().receipt;
-}
-
 test('a landing batch writes ids that fit then +N, and every frozen row in spec order as the last paragraph [C7,B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
   const box = await localProject({ batch: true });
   // 36 rows cited in scattered order: landing never refuses, and the trailer lists them in spec order.
@@ -136,9 +120,9 @@ test('a landing batch writes ids that fit then +N, and every frozen row in spec 
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err || landed.out);
-  const receipt = await landedReceipt(box, [many.id, refrozen.id]);
+  const receipt = JSON.parse(landed.out);
   assert.deepEqual([...receipt.landed].sort(), [many.id, refrozen.id].sort(), JSON.stringify(receipt));
-  const merges = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..main`).split('\n').filter(Boolean);
+  const merges = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..${receipt.batch.tip}`).split('\n').filter(Boolean);
   const messages = new Map(merges.map((commit) => {
     const message = box.git(box.repo, 'log', '-1', '--format=%B', commit);
     return [parseCommitMessage(message).item, message];
@@ -166,7 +150,7 @@ test('a rowless feat item lands under feat(merge) through the real hooks, and a 
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err || landed.out);
-  assert.deepEqual((await landedReceipt(box, [rowless.id])).landed, [rowless.id]);
+  assert.deepEqual(JSON.parse(landed.out).landed, [rowless.id]);
   const merge = box.git(box.repo, 'rev-list', '--first-parent', '-n', '1', 'main');
   assert.notEqual(merge, base);
   assert.equal(box.git(box.repo, 'log', '-1', '--format=%B', merge), `feat(merge): rowless feature\n\nPullboard-Item: #${rowless.id}`,
