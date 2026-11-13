@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
-import { fixtureCommittedGraph } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { openKitBoard } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -20,6 +19,25 @@ import { criterionFreezer } from '../../../moves/index.js';
 import { loadConfig } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
+
+/**
+ * A private Git repository for tests of how committed files are read: write files, commit them, repeat.
+ *
+ * Why: a selection or graph test needs real Git objects and nothing else, so the one raw `git init` lives here with the
+ * rest of the fixture seam instead of being copied into each test.
+ *
+ * @param {string} [prefix] - Lowercase name prefix of the private folder.
+ * @returns {{ root: string, put: (path: string, body: string) => void, commit: () => string }} The repo root, a writer, and a committer that returns the new commit id.
+ */
+export function fixtureCommittedGraph(prefix = 'pullboard-graph-') {
+  const files = privateFixtureFiles(prefix), root = files.root;
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  git('init', '-q', '-b', 'main');
+  return { root, put: (path, body) => files.write(path, body), commit: () => { git('add', '-A'); git('commit', '-qm', 'chore: fixture graph'); return git('rev-parse', 'HEAD').trim(); } };
+}
 
 /** The two-lane policy the e2e project uses, so a converted test keeps the project it asserted against. */
 export const CELL_CONFIG = Object.freeze({

@@ -97,7 +97,7 @@ export async function assertStartupBudgets(t) {
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
       thread:store.itemThread(board,4),progress:itemProgress(board,4),machineVerification:null,checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
     const samples={version:[],show:[],status:[],list:[]};
-    const childEnvironment={...process.env,PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
+    const childEnvironment={...process.env,PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];
     for(let round=0;round<5;round++) for(const name of Object.keys(samples)) {
       const args=name==='version'?['--version','--json']:name==='show'?['show','4','--json']:[name,'--json'];

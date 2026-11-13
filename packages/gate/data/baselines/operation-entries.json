@@ -85,7 +85,6 @@
     "apps/cli/src/io/commands/shadow-batch.js",
     "apps/cli/src/io/commands/submit.js",
     "apps/cli/src/io/commands/worktree.js",
-    "apps/cli/src/io/gate/pool.js",
     "apps/cli/src/io/item/folder.js",
     "apps/cli/src/io/item/folder/scripts/spare.js",
     "apps/cli/src/io/landing/budget.js",
@@ -135,6 +134,15 @@
     "packages/store/src/io/board/read/light.js",
     "packages/store/src/io/board/write.js",
     "packages/store/src/logic/board/landing/local.js"
+  ],
+  "move-trunk": [
+    "apps/cli/src/io/landing/pull.js",
+    "apps/runner/src/io/private/privacy.js",
+    "apps/runner/src/io/worker/checkout.js",
+    "packages/drive/src/io/pull.js",
+    "packages/gate/src/io/test/run.js",
+    "packages/landing/src/io/runner/job.js",
+    "packages/sandbox/src/io/regeneration.js"
   ],
   "forwards": {
     "run-tests": [

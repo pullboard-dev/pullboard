@@ -8,7 +8,6 @@ import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
 import { writeTestTiers } from '../../../../../packages/gate/index.js';
 import { joinFixtureSeat } from '../testkit.js';
-import { fixtureMachineSettings } from '../testkit.js';
 
 /** Demand a real successful private CLI document. */
 export function json(box, root, ...args) {
@@ -35,7 +34,6 @@ export function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node --test --test-reporter=tap');
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } }); // This journey reads a gate settled in the submit's own process (#6249).
   delete box.env.NODE_TEST_CONTEXT; // Each private Node test runner is independent of this parent test.
   const config = { ...helpers.CONFIG, gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap',
     submitGate: 'landing', submitInvariants: [], registryGuards: [], landing: { perItem: false, manualOverride: true, publish: 'separate', parallel: false },
@@ -61,6 +59,7 @@ import { n as beta } from '../packages/beta/index.js';
 test('both packages preserve the positive journey [G1]', () => { appendFileSync(${JSON.stringify(join(box.dir, 'journey.log'))}, 'journey\\n'); console.log('T3_JOURNEY'); assert.ok(alpha > 0 && beta > 0); });
 `);
   writeFileSync(join(box.repo, 'check.cjs'), `const fs = require('node:fs'); const assert = require('node:assert/strict'); assert.ok(fs.existsSync('packages/' + process.argv[2] + '/index.js')); console.log('FROZEN_' + process.argv[2]);\n`);
+  box.git(box.repo, 'add', '-A'); // The tier manifest reads tracked files only.
   const manifest = writeTestTiers(box.repo).manifest;
   assert.deepEqual(manifest.files.map(row => [row.file, row.tier]), [['test/alpha.test.js', 'T1'], ['test/beta.test.js', 'T1'], ['test/journey.test.js', 'T3']]);
   const base = commit(box, box.repo, 'test: configure immutable testing tiers [G1]');

@@ -101,7 +101,7 @@ export { apiFetch, apiError, assertRequiredShape, hasType, nextSseEvent, timedMs
 /** Build the actual HTTP fixture child's private terminal and Git identity. */
 export function apiFixtureEnvironment(directory, bin) {
   const env = {
-    ...process.env, HOME: join(directory, 'home'), PULLBOARD_HOME: join(directory, 'home'),
+    ...process.env, HOME: join(directory, 'home'), PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
     // Fixture items carry near-identical titles; the duplicate check at add would refuse them.
     PULLBOARD_FIXTURE_ADD_DISTINCT: '1',

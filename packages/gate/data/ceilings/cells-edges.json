@@ -1080,10 +1080,6 @@
       "cells": 5,
       "deep": 1
     },
-    "apps/lib/src/io/seal.js": {
-      "cells": 5,
-      "deep": 0
-    },
     "apps/lib/src/io/submit/handoff.js": {
       "cells": 1,
       "deep": 0
@@ -1106,10 +1102,6 @@
     },
     "apps/lib/src/logic/native.js": {
       "cells": 1,
-      "deep": 0
-    },
-    "apps/lib/src/logic/native/ports.js": {
-      "cells": 17,
       "deep": 0
     },
     "apps/lib/tests/fixtures/generated/doc/default.js": {
@@ -6071,21 +6063,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/src/io/matrix.js": [
-      "apps/cli"
-    ],
-    "packages/gate/src/io/run-tests.js": [
-      "apps/cli"
-    ],
-    "packages/gate/src/io/run/shell.js": [
-      "apps/runner"
-    ],
-    "packages/gate/src/io/run/tests.js": [
-      "apps/cli"
-    ],
-    "packages/gate/src/io/static/registry.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/clone.js": [
       "apps/cli"
     ],

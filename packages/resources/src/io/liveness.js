@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/resources/src/io/stale-test-sweep.js */
 /** A gate holder whose process is gone or replaced is freed and its captured request re-run once; the OS decides [C7]. */
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';

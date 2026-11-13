@@ -323,9 +323,6 @@
   "apps/cli/journeys/companion/companions/review.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/runner/lost.recovery.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/spec/e2e/next.test.js": {
     "launch": 1
   },
@@ -438,6 +435,9 @@
     "launch": 2
   },
   "apps/cli/journeys/submit/move.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/init/perf/projects.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/init/perf.test.js": {
@@ -981,7 +981,13 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/infra.test.js": {
-    "launch": 3
+    "launch": 1
+  },
+  "apps/cli/journeys/submit/infra-gate.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/submit/infra-gate-paths.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/fact/bound.test.js": {
     "launch": 1
@@ -1139,8 +1145,8 @@
   "apps/cli/journeys/milestone/api.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/init/known/main/frozen.test.js": {
-    "launch": 3
+  "apps/cli/journeys/init/known/main/frozen-stage.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/milestone/dashboard/journey.test.js": {
     "launch": 7
@@ -1668,6 +1674,9 @@
     "launch": 2
   },
   "apps/cli/journeys/sentinel/scratch-cli.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/app-edges-run.test.js": {
     "launch": 1
   }
 }

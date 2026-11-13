@@ -73,6 +73,9 @@ import {
 } from '../../../../../packages/commits/index.js';
 import * as infraNotes from '../../../../../packages/commits/index.js';
 import {
+  pairPrefix,
+} from '../../../../../packages/flakes/index.js';
+import {
   Refused,
 } from '../../../../../packages/kernel/index.js';
 import {
@@ -466,7 +469,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   if (ownershipRefusal) throw ownershipRefusal;
   // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
   if (!companion) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
-  return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems });
+  return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
 }
 
 /** `submit --preflight`: run every registered static check in parallel on this branch's changed files and submit nothing [C7]. */

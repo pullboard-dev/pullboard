@@ -41,6 +41,7 @@ import {
 } from 'node:test';
 import { main } from '../../tests/fixtures/native.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 import { resultCommands } from '../../index.js';
 import { createLocalApiHandler } from '../../../../packages/api/index.js';
 import {
@@ -75,7 +76,6 @@ import { assertSpecCorrectionRefreezesCitations } from '../../tests/fixtures/ref
 import {
   FIXTURE_MODEL,
   fixtureJoin,
-  fixtureMachineSettings,
 } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -84,6 +84,8 @@ import {
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const TEMP_DIRS = [];
+// Local runners that pull submits started on a case's machine; killed when the file ends.
+const LOCAL_RUNNERS = [];
 const COMPILE_CACHE = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-api-compile-cache-')));
 TEMP_DIRS.push(COMPILE_CACHE);
 const covered = new Set();
@@ -150,6 +152,7 @@ after(async () => {
   for (const child of serverChildren.keys()) child.kill('SIGKILL');
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
+  for (const pid of LOCAL_RUNNERS) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
   for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -186,9 +189,7 @@ function sandbox() {
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     NODE_COMPILE_CACHE: COMPILE_CACHE,
   };
-  // The cases read a submit's result at once and verify it, so the gate runs in the submitting process (#6249).
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.PULLBOARD_STARTUP_TRACE_FILE;
   delete env.PULLBOARD_STARTUP_TRACE_ENTRY;
@@ -300,6 +301,19 @@ async function json(box, cwd, command, args = [], subcommand) {
     assert.match(result.stderr, /^(?:pullboard test: load \d+(?:\.\d+)? on \d+ cores; waiting for it to drop under \d+ before a local start\n)*$/, 'test --json permits only the load wait notice on stderr');
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
+  // A pull submit returns queued at once (item, commit, gateJob); the machine's local runner posts the gate receipt, so wait
+  // for the item to leave claimed and read the gate from the settled receipt instead of the inline result.
+  if ((command === 'submit' || command === 'done') && document.queued) {
+    shapeFor(command, subcommand); // marks the command as exercised; its inline-result fields (id, pin, gate) come from the settled receipt below
+    assertRequiredShape(document, { item: 'number', commit: 'string', gateJob: 'string', queued: 'boolean' }, `queued ${command}`);
+    if (document.localRunner?.pid) LOCAL_RUNNERS.push(document.localRunner.pid);
+    const settled = await whenRunnerSettles(box.env, async () => {
+      const shown = await box.runLocal(cwd, 'show', String(document.item), '--json', '--no-next');
+      const read = shown.status === 0 ? JSON.parse(shown.stdout) : null;
+      return read && read.item_status !== 'claimed' ? read : null;
+    }, { deadlineMs: 120_000, what: `the pulled gate of #${document.item}` });
+    return { ...document, id: document.item, gate: settled.gateJob?.gate ?? null };
+  }
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
   return document;
 }
@@ -1033,7 +1047,7 @@ catalogCase('[A1] intake records a real outside pull request through the CLI', a
   assert.equal(document.item.item_commit, box.commit);
 });
 
-catalogCase('[A1,C7] test runs named test files and reports where they ran', async () => {
+catalogCase('[A1,C7] test runs named test files as a pulled job and reports the runner', async () => {
   const box = await project();
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }, null, 2)); // this file's own runner must not nest it
@@ -1044,7 +1058,7 @@ catalogCase('[A1,C7] test runs named test files and reports where they ran', asy
   const result = await json(box, box.repo, 'test', ['test/catalog.test.js']);
   assert.equal(result.green, true);
   assert.deepEqual(result.files, ['test/catalog.test.js']);
-  assert.equal(result.runner, 'this machine', 'with no runner registered the files run here');
+  assert.match(result.runner, /^local-/u, 'the pulled job runs on the machine\'s loopback runner, which the settled receipt names');
   assert.deepEqual(result.counts, { passed: 1, failed: 0, skipped: 0 });
   assert.match(readFileSync(result.logPath, 'utf8'), /^ok 1 - catalog passes/mu,
     'the actual TAP is retained in the complete log instead of the public summary');
@@ -1086,6 +1100,15 @@ catalogCase('[A1,C7] compact reports a dry run through the catalog', async () =>
   const report = await json(box, box.repo, 'compact', ['--dry-run']);
   assert.equal(report.dryRun, true);
   assert.equal(report.rows, 0, 'a new board has no old finished steps to archive');
+});
+
+catalogCase('[A1,C7] contribute check reports an accepted record through the catalog', async () => {
+  const box = await project();
+  const file = join(box.dir, 'record.yml');
+  writeFileSync(file, 'rows:\n  - G1.2\nversion: "0.9.5"\nran: pullboard next\nblocks: nothing\nbar:\n  - 1: the command prints a line [test]\ncheck:\n  - 1: apps/cli/tests/x.test.js > prints a line\nrefusal: |\n  NO_LINE: nothing printed\n');
+  const report = await json(box, box.repo, 'contribute', ['check', file, 'Bug'], 'check');
+  assert.equal(report.ok, true, JSON.stringify(report.failures));
+  assert.deepEqual([report.shape, report.failures], ['Bug', []]);
 });
 
 test('[A1] every catalog command and subcommand has a real CLI exercise', { concurrency: true }, async (t) => {

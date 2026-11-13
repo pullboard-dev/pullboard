@@ -30,6 +30,8 @@ import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
+import { reviveFixtureLocalRunner } from './runner/local-start.js';
+import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
 import { runCliSync } from './sync/cli.js';
 import { fetchPrintedViewLink } from './view/link.js';
@@ -69,9 +71,8 @@ const SETTLE_MS = 180_000;
  * @param {string[]} args - The command's arguments.
  * @param {object} env - The fixture environment.
  */
-function settlePulledJobs(cwd, args, env) {
-  // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
-  // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
+export function settlePulledJobs(cwd, args, env) {
+  // A status or cancel read offers no job and must not hold the command; a journey serving its own runner returns at once (#6660).
   // Every submit offers its gate as a job whatever gate.runnerDispatch says (#6832), so a controller pin settles here too.
   if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
@@ -86,7 +87,7 @@ function settlePulledJobs(cwd, args, env) {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return;
+    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
 }
@@ -155,7 +156,7 @@ function sandbox({ declareFamilies = false } = {}) {
   mkdirSync(shims);
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(shims, 'pullboard'), 0o755);
-  const env = {
+  const env = runnerSwitchedEnv({
     ...withoutPullboardEnv(process.env),
     PATH: `${shims}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -164,6 +165,8 @@ function sandbox({ declareFamilies = false } = {}) {
     GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
+    // A fixture board's nested pullboard test starts at once; the outer gated run owns the load budget (#7257).
+    PULLBOARD_FIXTURE_BOARD: '1',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
@@ -176,7 +179,7 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_MODEL: FIXTURE_MODEL,
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
     ...(process.env.PULLBOARD_TEST_RUNNER_PID ? { PULLBOARD_TEST_RUNNER_PID: process.env.PULLBOARD_TEST_RUNNER_PID } : {}),
-  };
+  });
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
