@@ -57,21 +57,21 @@ function seatOnRealSizeBoard(box) {
 /** File one diagnosed web item in this process (no node start-up), so next offers it ahead of the seeded rows [#6998]. */
 async function file(box, title) { return (await fileFixtureItem(box, box.repo, { lane: 'web', title, run: box.runLocal })).item_id; }
 
-/** Measure next, next --take and next --verify; the claimed item is released, untimed, before the next round. */
-export async function measureNext(box) {
+/** Measure one of next, next --take and next --verify, one file each so a loaded runner never nears the file budget; a claimed item is released, untimed, before the next round [#6998]. */
+export async function measureNext(box, command) {
   const dir = seatOnRealSizeBoard(box);
-  const samples = { next: [], 'next --take': [], 'next --verify': [] };
+  const samples = { [command]: [] };
+  const args = command.split(' ');
   for (let round = 0; round < ROUNDS; round++) {
     await file(box, `Budget work ${round}.0`);
     await file(box, `Budget work ${round}.1`);
-    samples.next.push(timed(box, dir, 'next').ms);
-    const taken = timed(box, dir, 'next', '--take');
-    samples['next --take'].push(taken.ms);
-    assert.equal(taken.code, 0, `next --take: ${taken.err}${taken.out}`);
+    const run = timed(box, dir, ...args);
+    samples[command].push(run.ms);
+    if (command !== 'next --take') continue;
+    assert.equal(run.code, 0, `next --take: ${run.err}${run.out}`);
     // The queue hands out the lowest open item, which may be one an earlier round left open.
-    const held = /#(\d+)\b/.exec(taken.out)?.[1];
-    assert.ok(held, `next --take names the item it claimed: ${taken.out}`);
-    samples['next --verify'].push(timed(box, dir, 'next', '--verify').ms);
+    const held = /#(\d+)\b/.exec(run.out)?.[1];
+    assert.ok(held, `next --take names the item it claimed: ${run.out}`);
     assert.equal((await box.runLocal(dir, 'release', held, '--reason', 'OTHER', '--note', 'round done', '--no-next')).code, 0);
   }
   return samples;

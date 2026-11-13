@@ -1,4 +1,4 @@
-/** next, next --take and next --verify each have p50 under one second at real board size [C7,#3019]. */
+/** next has a p50 under one second at real board size [C7,#3019]. */
 import assert from 'node:assert/strict';
 import {
   after,
@@ -14,8 +14,8 @@ import {
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-test('clause 1: next, next --take and next --verify each have p50 under 1 s on the real-size board, printed against a 200 ms goal [C7,#3019]', async t => {
-  assert.deepEqual(slowCommands(t, await measureNext(helpers.project('true'))), [], 'every command has a p50 under 1 s');
+test('clause 1: next has a p50 under 1 s on the real-size board, printed against a 200 ms goal [C7,#3019]', async t => {
+  assert.deepEqual(slowCommands(t, await measureNext(helpers.project('true'), 'next')), [], 'next has a p50 under 1 s');
 });
 
 test('clause 2: the budget fails when any command has a p50 of 1 s or more [C7,#3019]', () => {
