@@ -14,6 +14,7 @@ import { main } from '../native.js';
 import { FIXTURE_MODEL } from '../testkit.js';
 import { joinFixtureSeat } from '../testkit.js';
 import { onBoard } from './board.js';
+import { whenRunnerSettles } from '../runner/local-start.js';
 import { settleSubmit } from '../submit/settle.js';
 import { settleLand } from './settle.js';
 
@@ -55,7 +56,10 @@ export async function fixture(t, { duplicate = false, unrelated = false } = {}) 
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const settled = await settleSubmit(t, box, JSON.parse(submitted.out));
   const reviewer = join(box.dir, reviewerName);
-  const pending = itemOf(item);
+  // The gate job reads done a moment before its receipt moves the item off claimed; wait for that move, never past a red.
+  // budget: hang ceiling for one receipt write after the gate job is done, never a speed assertion.
+  const pending = await whenRunnerSettles(box.env, () => { const row = itemOf(item); return row.item_status === 'claimed' ? null : row; },
+    { deadlineMs: 60_000, what: `#${item} leaving claimed after its gate` });
   assert.equal(pending.item_status, 'submitted', `#${item} settled its gate but is ${pending.item_status}: ${JSON.stringify(settled.gate ?? settled).slice(0, 600)}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, pending.item_commit);
   const joinedReviewer = await cli(reviewer, 'join', 'api', '--family', 'Fixture Review Vendor', '--model', FIXTURE_MODEL, '--json');
