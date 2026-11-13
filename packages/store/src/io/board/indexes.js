@@ -113,10 +113,10 @@ export function costItemEvents(board, ids) {
   return board.db.prepare(`SELECT * FROM event WHERE item_id IN (${ids.map(() => '?').join(', ')}) AND event_kind IN ('merged', 'submit', 'accept', 'reject', 'reopen')`).all(...ids);
 }
 
-/** The id and title of these items. */
+/** The id, title and lane of these items. */
 export function costItems(board, ids) {
   if (!ids.length) return [];
-  return board.db.prepare(`SELECT item_id, item_title FROM item WHERE item_id IN (${ids.map(() => '?').join(', ')})`).all(...ids);
+  return board.db.prepare(`SELECT item_id, item_title, item_lane FROM item WHERE item_id IN (${ids.map(() => '?').join(', ')})`).all(...ids);
 }
 
 /** The newest event id, so an unchanged board can reuse an answer. */

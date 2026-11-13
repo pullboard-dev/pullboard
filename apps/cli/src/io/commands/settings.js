@@ -27,6 +27,8 @@ import {
   setGateRunnerWaitMs,
   setBoardRemote,
   setRunnerRate,
+  setPersonSetting,
+  PERSON_SET,
   setLandingPool,
   parseWorkerBudget,
   setWorkerBudget,
@@ -115,6 +117,12 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const settings = setRunnerRate(second, card);
     io.result?.({ settings, runnerRate: { runner: second, ...settings.runnerRates[second] } });
     io.say(`runnerRates for ${second} set to price ${card.price}, ${card.months} months, ${card.watts} W, ${card.kwhPrice} per kWh`);
+    return 0;
+  }
+  if (PERSON_SET[first] && second && !rest.length) {
+    const settings = setPersonSetting(first, second);
+    io.result?.({ settings });
+    io.say(`${first} set to ${second}`);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
