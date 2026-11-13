@@ -46,6 +46,9 @@ export const RUNNER_OUTPUT_ENV = 'PULLBOARD_RUNNER_OUTPUT';
 const KEPT_PHASE_BYTES = 8 * 1024 ** 2;
 /** Budget: the receipt line stays under runner serve's 60 KiB receipt-line cap and the board's 64 KiB receipt cap. */
 const RECEIPT_FIT_BYTES = 56 * 1024;
+/** Budget: a receipt's test plan names at most 200 files per list, and each phase command up to 2000 characters. */
+const PLAN_ROWS = 200;
+const PLAN_COMMAND_CHARS = 2000;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 
 /**
@@ -130,6 +133,20 @@ const receipt = shard ? { version: 1, kind: 'shard', main: input.main, source: i
   : { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
+/** The run's own TAP or Node reporter totals, the last ones printed; null when it printed none, so a count is never guessed. */
+const totals = text => {
+  const found = {};
+  for (const line of text.split(/\\r?\\n/u)) { const match = /^(?:#|\\u2139)\\s+(pass|fail|skipped)\\s+(\\d+)$/u.exec(line.trim()); if (match) found[match[1]] = Number(match[2]); }
+  return 'pass' in found || 'fail' in found ? { passed: found.pass ?? null, failed: found.fail ?? null, skipped: found.skipped ?? null } : null;
+};
+/** The selected test plan as the inline gate returned it, each list bounded to ${PLAN_ROWS} rows so the receipt keeps its cap. */
+const planOf = plan => {
+  const rows = list => Array.isArray(list) ? list.slice(0, ${PLAN_ROWS}) : list;
+  const tiers = plan.testTiers && typeof plan.testTiers === 'object' ? Object.fromEntries(Object.entries(plan.testTiers).map(([key, value]) => [key, rows(value)])) : null;
+  const files = Array.isArray(plan.proofFiles) ? plan.proofFiles : [];
+  return { files: rows(files), ...(files.length > ${PLAN_ROWS} ? { filesOmitted: files.length - ${PLAN_ROWS} } : {}), testTiers: tiers,
+    phasePlan: (Array.isArray(plan.phases) ? plan.phases : []).map(phase => ({ role: String(phase.role), command: String(phase.command ?? '').slice(0, ${PLAN_COMMAND_CHARS}) })) };
+};
 /** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
 const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
 /** The modules a script imports by name, sorted: its static and dynamic import specifiers; null when the file is missing. */
@@ -151,7 +168,18 @@ const changedRunner = command => {
 const ledger = (shard ? shard.ledger : input.ledger) ?? null;
 let hitsFile = null;
 if (ledger && Array.isArray(ledger.files)) { hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify(ledger), { mode: 0o600 }); }
-const runPhase = async (role, command, PATH) => {
+/**
+ * The reason a green proof does not prove its selected files: main's own account check, as the controller gate applies it
+ * (TEST_SELECTION_UNVERIFIED), read from the phase's outcome frames or its TAP cases; null when every file reported.
+ * Why: a runner that ran none of the selected units exits 0 with an empty account, which is no proof [C7].
+ */
+const unaccounted = (files, outcomes, text) => {
+  if (typeof gate?.requireTestTierAccount !== 'function') return null;
+  try { gate.requireTestTierAccount({ green: true, testOutcomes: outcomes, profile: { tests: typeof gate.tapTests === 'function' ? gate.tapTests(text, root) : [] } }, files); return null; }
+  catch (error) { return String(error?.message ?? error).replace(/^\\[\\w+\\] /u, ''); }
+};
+/** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
+const runPhase = async (role, command, PATH, selected = null) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
   // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
@@ -178,13 +206,15 @@ const runPhase = async (role, command, PATH) => {
   try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; } catch { outcomes = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
+  const unreported = ran.status === 0 && selected?.length ? unaccounted(selected, outcomes, text) : null;
   const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
-  return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}) };
+  const counts = totals(text);
+  return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
-if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath()));
+if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
 else {
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
 writeFileSync(entry, input.analysisEntry, { flag: 'wx', mode: 0o600 });
@@ -208,6 +238,7 @@ else {
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
     // The cells machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
     machinery: (analysis.cells?.machinery ?? []).slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
+  if (analysis.plan && typeof analysis.plan === 'object') receipt.plan = planOf(analysis.plan);
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
@@ -216,19 +247,24 @@ else {
     const PATH = cliPath();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
     const plan = analysis.plan ?? {}, cores = availableParallelism();
+    // Test tiers make the controller demand an account for every selected file; the pulled proof demands the same [C7].
+    const selected = plan.testTiers && Array.isArray(plan.proofFiles) ? plan.proofFiles : null;
     const shardable = input.shards === true && !receipt.analysis.ownership && !plan.selection?.full && typeof plan.testRunner === 'string' && plan.testRunner.trim() && Array.isArray(plan.proofFiles) && plan.proofFiles.length > cores;
     // The check and the proof are independent commands: they start together and their phases keep the check-then-proof order [C7].
     // A shardable proof waits for the check, since the board takes it as shard jobs only when the check passed.
     if (shardable) {
       if (input.check) receipt.phases.push(await runPhase('check', input.check, PATH));
-      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores };
-      else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH));
-    } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH))));
+      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores, ...(selected ? { account: true } : {}) };
+      else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH, selected));
+    } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
+    // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
+    for (const phase of receipt.phases) if (phase.unreported) refusals.push({ part: phase.role, code: 'TEST_SELECTION_UNVERIFIED', message: phase.unreported });
   }
 }
 }
 // A gate whose proof waits on its shards is not green yet: a board that cannot shard reads it as red, never as a passed proof.
-receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0
+if (shard && receipt.phases[0]?.unreported) receipt.error = 'TEST_SELECTION_UNVERIFIED: ' + receipt.phases[0].unreported;
+receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0 && !receipt.phases[0].unreported
   : Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.ownership && !receipt.analysis.infra && !receipt.proofPlan && receipt.phases.every(phase => phase.status === 0);
 // A red's named cases get one paired rerun at the candidate and one run at main when the board's flakes.rerun is on; the red stands [C7,H16].
 if (!shard && !receipt.green && !receipt.proofPlan && input.flakes?.rerun === true && typeof flakes?.pairReds === 'function') {
@@ -245,6 +281,13 @@ for (let phase; Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES
   phase.ledger.omitted += drop;
 }
 fitReceipt(receipt, ${RECEIPT_FIT_BYTES});
+// A plan that still overflows gives up its tiers, then its file rows, which it counts; the run itself is never cut for it.
+if (receipt.plan && Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES}) receipt.plan.testTiers = null;
+while (receipt.plan?.files.length && Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES}) {
+  const drop = Math.ceil(receipt.plan.files.length / 4);
+  receipt.plan.files.splice(-drop);
+  receipt.plan.filesOmitted = (receipt.plan.filesOmitted ?? 0) + drop;
+}
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
 `;
