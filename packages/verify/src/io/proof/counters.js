@@ -46,7 +46,12 @@ const STATEMENTS = new WeakMap();
 /** The connection's prepared statement for this SQL, prepared once. */
 function statement(db, sql) {
   let known = STATEMENTS.get(db);
-  if (!known) { known = new Map(); STATEMENTS.set(db, known); }
+  if (!known) {
+    known = new Map(); STATEMENTS.set(db, known);
+    // A prepared statement holds its connection natively, so a cached one kept every closed connection, and everything cached on it, in memory: drop them as the connection closes.
+    const close = db.close;
+    db.close = function closeAndForget(...args) { STATEMENTS.delete(db); return close.apply(this, args); };
+  }
   let prepared = known.get(sql);
   if (!prepared) { prepared = db.prepare(sql); known.set(sql, prepared); }
   return prepared;

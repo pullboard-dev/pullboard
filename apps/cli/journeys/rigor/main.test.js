@@ -3,6 +3,7 @@
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
 import { REJECT_CLAUSE_ENGINE } from '../../../../packages/state/light.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -93,6 +94,7 @@ async function freshBoard() {
     GIT_AUTHOR_NAME: 'Rigor fixture', GIT_AUTHOR_EMAIL: 'rigor@example.invalid',
     GIT_COMMITTER_NAME: 'Rigor fixture', GIT_COMMITTER_EMAIL: 'rigor@example.invalid',
   });
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   const git = (...args) => runFixtureGit(args, { cwd: repo, env, encoding: 'utf8' });
