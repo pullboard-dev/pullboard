@@ -1,4 +1,5 @@
 /** Shared sandbox for the doctrine naming journeys: private Git and pullboard homes, one real CLI shim [D1,D2,A5]. */
+import assert from 'node:assert/strict';
 import { runFixtureGit } from './child.js';
 import {
   chmodSync,
