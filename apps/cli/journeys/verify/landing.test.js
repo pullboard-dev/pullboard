@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import * as store from '../../../../packages/store/index.js';
 import { landAcceptedItems } from '../../../../packages/merge/index.js';
 import { automaticLandingEnabled } from '../../../../packages/merge/index.js';
@@ -50,6 +52,7 @@ async function fixture(t, manualOverride = false, redStatic = false, cadence) {
   writeFileSync(join(box.web, 'web/result.txt'), 'built\n');
   const head = commit(box, box.web, 'feat(web): build the result [G1]');
   await json(box, box.web, 'submit', String(id), '--wait', '--no-next');
+  await settledGateJob(box, id);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   // An unrouted item is strong, so its reviewer joins strong.
@@ -106,6 +109,8 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
   writeFileSync(join(box.dir, 'red-static'), 'red\n');
   const accepted = await box.runLocal(reviewer, 'verify', String(id), 'accept', '--note', 'The frozen file check passed.');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
+  // The accept offers the pulled land job; its receipt returns the red item.
+  await settleLand(box, { messages: accepted.out.split('\n') });
   const item = await json(box, box.repo, 'show', String(id));
   assert.equal(item.item_status, 'open', accepted.out + accepted.err);
   assert.equal(item.item_merged_commit, null);
@@ -128,6 +133,7 @@ test('a second clean acceptance inside cadence lands at once with no wake queued
   writeFileSync(join(box.web, 'web/second.txt'), 'second\n');
   const head = commit(box, box.web, 'feat(web): second clean result [G1]');
   await json(box, box.web, 'submit', String(second), '--wait', '--no-next');
+  await settledGateJob(box, second);
   box.git(reviewer, 'checkout', '-q', '--detach', head);
   await json(box, reviewer, 'verify', String(second), 'accept', '--note', 'Second clean result frozen check passed.');
   config.landing.manualOverride = false;
