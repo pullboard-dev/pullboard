@@ -13,7 +13,7 @@ test('clause 1: every tab count describes its real list or named native set acro
     await pane(chrome, 'roadmap', 'before landing');
     await liveMove(chrome, async () => {
       box.git(demo.repo, 'merge', '--no-ff', '--no-edit', demo.itemBranches.get(`${demo.baseBranch}:1`));
-      await box.runLocal(demo.repo, 'merged', '1', box.git(demo.repo, 'rev-parse', 'HEAD'));
+      await box.inProcess(demo.repo, 'merged', '1', box.git(demo.repo, 'rev-parse', 'HEAD'));
     }, 'document.querySelectorAll("#roadmap [data-stage=merged]").length === 1', 'landed');
   });
 });
