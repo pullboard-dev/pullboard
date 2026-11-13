@@ -336,7 +336,16 @@ async function waitPaintedAndStable(chrome, network, name, selector, condition, 
     return !!node && !!rect && !node.closest('[hidden]') && !document.body.classList.contains('switching')
       && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 && (${condition});
   })()`;
-  await chrome.waitFor(ready, ACTION_TIMEOUT_MS); // budget: 60-second hang ceiling for an unreachable UI condition, not a speed bar.
+  try {
+    await chrome.waitFor(ready, ACTION_TIMEOUT_MS); // budget: 60-second hang ceiling for an unreachable UI condition, not a speed bar.
+  } catch (error) {
+    // Name what the page held when the hang ceiling hit, so a never-ready target is read from the run's own log.
+    const held = await chrome.send('Runtime.evaluate', { returnByValue: true, expression: `(() => ({ tab: view.tab, root: view.root, dataRoot: data?.root, on: [...document.querySelectorAll('.tab.on')].map(node => node.dataset.tab),
+      paneHidden: document.querySelector('[data-pane="' + view.tab + '"]')?.hidden, target: document.querySelector(${JSON.stringify(selector)}) ? 1 : 0,
+      body: document.body.className, address: location.pathname + location.hash }))()` }, 'read the page state at the hang ceiling', 5_000)
+      .then((reply) => reply?.result?.value ?? reply, (reason) => ({ unread: String(reason) }));
+    throw new Error(`${error.message}; the page held ${JSON.stringify(held)}`, { cause: error });
+  }
   const startAt = firstLoad ? '0' : `window.__pb606?.marks[${JSON.stringify(name)}]`;
   const expression = `(() => {
     const node = ${target}, style = node && getComputedStyle(node), rect = node?.getBoundingClientRect();
