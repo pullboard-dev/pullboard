@@ -3,14 +3,12 @@ import { gitSpawnSync } from '../../../../git/index.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -21,6 +19,8 @@ import { dropStagingFolder } from '../keyed.js';
 import { placeKeyedFolder } from '../keyed.js';
 import { touchKeyedFolder } from '../keyed.js';
 import { writeKeyedLease } from '../keyed.js';
+import { scratchFolder } from '../../../../config/index.js';
+import { scratchRoot } from '../../../../config/index.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MANIFEST = '.pullboard-runner-source.json';
@@ -129,7 +129,7 @@ function sharedExport(directory, root, commit, tree) {
 }
 
 /** Remove all but the newest SHARED_KEEP_COUNT shared controller folders, never one in use here or elsewhere, or `keep`. */
-export function pruneSharedExports(keep, parent = tmpdir()) {
+export function pruneSharedExports(keep, parent = scratchRoot()) {
   const shared = new RegExp(`^${PREFIX}[a-f0-9]{32}$`, 'u');
   let names = [];
   try { names = readdirSync(parent); } catch { return []; }
@@ -163,7 +163,7 @@ export function committedRunnerController(root, { shared = false } = {}) {
   if (!OID.test(commit) || !OID.test(tree) || toolingGit(root, ['rev-parse', '--show-toplevel']) !== resolve(root)) {
     throw new Refused('RUNNER_TOOLING_FILES', 'runner tooling must name its exact committed repository');
   }
-  const target = shared ? join(tmpdir(), PREFIX + createHash('sha256').update(`${resolve(root)}\0${commit}`).digest('hex').slice(0, 32)) : null;
+  const target = shared ? join(scratchRoot(), PREFIX + createHash('sha256').update(`${resolve(root)}\0${commit}`).digest('hex').slice(0, 32)) : null;
   // Leased before it is checked, so a process releasing it concurrently sees this one and leaves it.
   if (target) acquire(target);
   const reused = target && sharedExport(target, root, commit, tree);
@@ -172,7 +172,7 @@ export function committedRunnerController(root, { shared = false } = {}) {
     const cleanup = handle(reused);
     return { root: reused, entry: join(reused, 'apps/runner/src/io/controller.js'), commit, tree, cleanup };
   }
-  const directory = mkdtempSync(join(tmpdir(), PREFIX));
+  const directory = scratchFolder(PREFIX);
   try {
     // A repository's local attributes and CRLF filters can alter git-archive bytes too. An
     // isolated object view overrides every conversion without touching the user's Git settings.

@@ -5,10 +5,9 @@ import { createHash } from 'node:crypto';
 import { gitExecFileSync } from "../../../../git/index.js";
 import { gitSpawnSync } from "../../../../git/index.js";
 import { writeFileSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { scratchFolder } from '../../../../config/index.js';
 import { Refused } from "../../../../kernel/index.js";
 
 /** Hash exact bytes, without newline or text normalization. */
@@ -147,7 +146,7 @@ export function composeItemPatches(root, item, patches, { trunk, baseCommit = it
   });
   const digest = itemPatchSetDigest(base, records);
   if (!patches.length) return Object.freeze({ commit: baseCommit, paths: Object.freeze([]), applied: Object.freeze([]), digest });
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-item-patch-'));
+  const directory = scratchFolder('pullboard-item-patch-');
   const isolated = { ...env, GIT_INDEX_FILE: join(directory, 'index') };
   try {
     git(root, isolated, ['read-tree', baseCommit]);
