@@ -351,11 +351,12 @@ function render({ tab: switching = false } = {}) {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
     const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
+    const nothing = !itemsNeeds.questions.length && !itemsNeeds.approvals.length && !itemsNeeds.drafts;
     $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
     $('needs').tabIndex = -1;
-    store.paint($('needs'), itemsNeedsHtml(itemsNeeds, { open,
+    store.paint($('needs'), nothing ? needsPanel(needsModel, needsPresentation) : itemsNeedsHtml(itemsNeeds, { open,
       questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation),
-      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }) || needsPanel(needsModel, needsPresentation));
+      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }));
   }
   }
 
