@@ -1,5 +1,6 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
+import { moveArgs } from '../../../../../packages/person/index.js';
 import { withBoardRead } from '../context.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
@@ -178,7 +179,12 @@ export function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
-  return { handlers: poolHandlers({ boardOpeners: { openBoard, openBoardForRead } }, { isMain }) };
+  // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
+  const runCommand = async (args, streams) => {
+    const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');
+    return main(args, { ...streams, loadNativeBoard, loadProcessPorts, gateWaitReporter });
+  };
+  return { handlers: poolHandlers({ boardOpeners: { moveArgs, openBoard, openBoardForRead } }, { isMain, runCommand, refusalDocument }) };
 }
 
 /** Run `pullboard serve` and return its exit code. */
