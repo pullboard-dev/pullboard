@@ -22,7 +22,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 
-/** Create actual files and an explicit root import map; no source modules execute during reports. */
+/** Create actual files and an explicit root import map; no source modules execute during reports. Reports stage first because the lint reads tracked files. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -35,7 +35,7 @@ function fixture(t) {
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, remove, git, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
+  return { root, put, remove, git, report: () => { git('add', '-A'); return cellLintReport(root, { importsIn, commonJsIn }); } };
 }
 
 test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {

@@ -30,6 +30,7 @@ import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { runCliInProcess } from './process.js';
+import { runCliSync } from './sync/cli.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
@@ -206,7 +207,14 @@ function sandbox({ declareFamilies = false } = {}) {
     if (result.status === 0) settlePulledJobs(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: inProcess, runIn: inProcess, declareFamilies, declareFamily };
+  /** The same call as inProcess, answered synchronously by a warm worker thread, for synchronous setup such as project() [C7]. */
+  const runSync = (cwd, ...args) => {
+    prepare(cwd, args);
+    const result = runCliSync(args, { cwd, env });
+    return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
+  };
+  runSync.of = run;
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: inProcess, runIn: inProcess, runSync, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -239,7 +247,11 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   box.git(repo, 'init', '-q', '-b', 'main', ...(separateGitDir ? ['--separate-git-dir', join(box.dir, 'separate-git')] : []));
   const inheritedModel = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
-  assert.equal(box.run(repo, 'init').code, 0);
+  // Setup init and join run in the warm worker: a project is what a journey starts from, not what it tests [C7].
+  // A box whose run a test replaced keeps that run, so the test still observes its own setup calls.
+  const setupRun = box.runSync?.of === box.run ? box.runSync : box.run;
+  const initialized = setupRun(repo, 'init');
+  assert.equal(initialized.code, 0, initialized.err);
   if (box.declareFamilies) withFixtureBoard({ ...box, repo }, board => {
     store.register(board, { lane: 'coordinator', path: repo, family: box.declareFamily(repo, 'Fixture Coordinator Vendor') });
   });
@@ -254,7 +266,7 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const joined = joinFixtureSeat(box, web, 'web', { model: 'fixture-model' });
+  const joined = joinFixtureSeat(box, web, 'web', { model: 'fixture-model', run: setupRun });
   assert.equal(joined.code, 0, `fixture join failed (code ${joined.code}): ${joined.err}\n${joined.out}`);
   const seat = JSON.parse(joined.out);
   assert.equal(seat.agent, 'web-1');
