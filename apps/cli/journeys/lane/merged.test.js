@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/codemap/data/plan/45-app-view.json packages/codemap/data/plan/cells.json */
+/** @pullboard-test-input packages/codemap/data/plan/46-app-view.json packages/codemap/data/plan/cells.json */
 /** Real public submits distinguish merged main rows from a builder's own foreign edits [L3,C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -16,6 +16,7 @@ import { success } from '../../tests/fixtures/placement.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 async function mergedPlacement(t) {
@@ -41,7 +42,8 @@ async function mergedPlacement(t) {
   box.git(view, 'add', ownFile);
   placePath(view, ownFile, { cell: 'app:view' });
   box.git(view, 'add', 'packages/codemap/data/plan');
-  box.git(view, 'commit', '-q', '-m', 'feat(view): add an owned placement [G1]');
+  // A seat's commit names its item in the Pullboard-Item trailer, the history the plan-row authority reads [L3].
+  box.git(view, 'commit', '-q', '-m', 'feat(view): add an owned placement [G1]', '-m', `Pullboard-Item: #${id}`);
   const builderPlan = readPlan(view);
   const mainFile = 'src/view/dashboard.css';
   writeFileSync(join(box.repo, mainFile), '.main { color: green; }\n');
@@ -51,6 +53,8 @@ async function mergedPlacement(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(view): accept an independent main placement [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   await publishAcceptedCells(t, box.repo, main.trim(), box.env.PULLBOARD_MACHINE_HOME);
+  // Publishing the cells rewrites the machine settings, so the pin follows it: both cases read the inline gate's marker and receipt, which a pulled gate leaves on the runner [C7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const mainRow = readPlan(box.repo).cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === mainFile);
   const merged = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'],
     { cwd: view, env: box.env, encoding: 'utf8' });
@@ -59,7 +63,7 @@ async function mergedPlacement(t) {
   builderPlan.cells.find(cell => cell.name === 'app:view').paths.push(mainRow);
   writePlan(view, builderPlan);
   box.git(view, 'add', 'packages/codemap/data/plan');
-  box.git(view, 'commit', '-q', '-m', 'chore: compose independent placement rows [G1]');
+  box.git(view, 'commit', '-q', '-m', 'chore: compose independent placement rows [G1]', '-m', `Pullboard-Item: #${id}`);
   assert.notEqual(claimed.item_claim_head, main, 'the claim really predates the accepted main placement');
   assert.equal(box.git(view, 'show', `HEAD:${mainFile}`), box.git(box.repo, 'show', `HEAD:${mainFile}`),
     'the merged main source is unchanged');
@@ -72,6 +76,7 @@ async function mergedPlacement(t) {
 test('a view item merges a main-owned plan change and submits its unchanged main row plus owned creation [L3,C7,V4]', async t => {
   const box = await mergedPlacement(t);
   const submitted = success(box, box.view, 'submit', String(box.id));
+  assert.ok(submitted.gate, JSON.stringify(submitted).slice(0, 1500));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the real gate ran after ownership admitted the composed source');
   assert.equal(success(box, box.view, 'show', String(box.id)).item_status, 'submitted');
@@ -107,7 +112,7 @@ test('a builder editing the accepted main row itself still fails public submit b
 
 /** Probe row authority only; these synthetic blobs are not native claim or execution evidence. */
 function insertedRows(change = () => {}) {
-  const path = 'packages/codemap/data/plan/45-app-view.json';
+  const path = 'packages/codemap/data/plan/46-app-view.json';
   const rows = ['first', 'last'].map(name => [`src/view/${name}.css`, `apps/view/src/io/view/${name}.css`, 'seed']);
   const before = { 'packages/codemap/data/plan/cells.json': { cells: [{ name: 'app:view', order: 39, file: path }], stays: [] },
     [path]: { name: 'app:view', order: 39, root: 'apps/view', paths: rows } };

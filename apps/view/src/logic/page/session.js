@@ -77,13 +77,13 @@ const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
 /** Resolve a routed tab, legacy Home address, or embedded/export fragment before remembered state. */
 function addressTab() {
   if (typeof location === 'undefined') return null;
-  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
+  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const read = value => {
     let parts;
-    try { parts = value.split('/').filter(Boolean).map(decodeURIComponent); }
+    try { parts = value.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent); }
     catch { return null; }
     const tab = tabs.includes(parts[0]) ? parts[0] : null;
-    return tab === 'home' ? 'dashboard' : tab;
+    return tab === 'home' || tab === 'progress' ? 'dashboard' : tab;
   };
   if (snapshot) {
     return read((location.hash || '').slice(1));
@@ -109,6 +109,7 @@ let startupTabMigration = null;
 /** Use Dashboard for a fresh page and migrate saved Home selections; preserve other remembered destinations. */
 function landingTab() {
   const kept = keep('pb.tab');
+  if (kept === 'progress') { keep('pb.tab', 'dashboard'); return 'dashboard'; }
   if (kept === 'home') { startupTabMigration = 'dashboard'; keep('pb.tab', 'dashboard'); return 'dashboard'; }
   if (kept === 'cost' && !privateCost) { keep('pb.tab', 'dashboard'); return 'dashboard'; }
   return kept || 'dashboard';

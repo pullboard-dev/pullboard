@@ -18,6 +18,7 @@ import { formatJson } from '../logic/format-json.js';
 import { entryPlacementProblems } from './cells-plan-placement.js';
 import { ownedStayProblems } from './cells-plan-placement.js';
 import { retiredProblems } from './cells-plan-placement.js';
+import { storeName } from './store-names.js';
 
 export { formatJson };
 export const PLAN_FILE = 'packages/codemap/data/plan/cells.json';
@@ -34,7 +35,7 @@ export function readSeed(root) {
 
 /** Name one cell's shard file, ordered so a directory listing reads leaf-first. */
 export function shardFile(cell) {
-  return `${PLAN_DIR}/${String(cell.order).padStart(2, '0')}-${cell.name.replace(':', '-')}.json`;
+  return `${PLAN_DIR}/${String(cell.order).padStart(2, '0')}-${storeName(cell.name.replace(':', '-'))}`;
 }
 
 /** Every placed path belongs to exactly one recognized source bucket. */

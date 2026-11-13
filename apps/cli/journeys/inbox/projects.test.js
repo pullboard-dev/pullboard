@@ -64,11 +64,11 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
-      if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) await chrome.click('document.querySelector("#proj-switch")');
-      if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.click('document.querySelector(".unreadable-projects summary")');
+      if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) { await chrome.click('document.querySelector("#proj-switch")'); await chrome.click('document.querySelector("[data-proj-all]")'); }
+      if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.stable('document.querySelector(".unreadable-projects").open = true'); // pressing the summary closes the collapsed-nav project list (#7067 finding), so disclose the rows directly.
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const section = document.querySelector('.unreadable-projects');
-        return { pageFits: document.documentElement.scrollWidth <= innerWidth,
+        return { shown: { nav: document.documentElement.dataset.nav, side: document.documentElement.dataset.side, sideClass: document.querySelector('#side').className, body: getComputedStyle(document.querySelector('#side .side-body')).display, open: section.open }, pageFits: document.documentElement.scrollWidth <= innerWidth,
           rows: [...section.querySelectorAll('li')].map(row => {
             const copy = row.querySelector('.unreadable-copy'), name = copy.querySelector('b'), path = copy.querySelector('code');
             /** Ellipsis may add a second rectangle on the same line; count distinct actual line bands. */
@@ -90,7 +90,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
         const index = missing.findIndex(project => project.repo === row.full);
         assert.equal(row.name, 'Missing ' + ['Alpha', 'Beta', 'Gamma', 'Delta'][index]);
         assert.ok(row.path.length < row.full.length && row.path.includes('…'), 'long middles are elided');
-        assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line');
+        assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line ' + JSON.stringify({ row, shown: seen.shown }));
         assert.equal(row.nowrap, 'nowrap');
         assert.ok(row.fits && row.width > 0 && row.pathWidth > 0 && row.weight <= 400, width + ': compact muted names and paths fit their row');
         assert.equal(row.forget, 'Forget');
@@ -162,7 +162,7 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
       gate.release = () => { gate.all = false; gate.board = null; gate.blocked.splice(0).forEach((entry) => entry.resolve()); };
       window.fetch = async (input, init) => {
         const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
-        if (/^\\/api\\/v1\\/boards\\/[^/]+\\/state$/.test(path) && (gate.all || path === '/api/v1/boards/' + gate.board + '/state')) {
+        if (/^\\/api\\/v1\\/boards\\/[^/]+\\/(?:state|summary)$/.test(path) && (gate.all || path === '/api/v1/boards/' + gate.board + '/state')) {
           await new Promise((resolve) => gate.blocked.push({ path, resolve }));
         }
         return nativeFetch(input, init);
@@ -184,6 +184,7 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
     await chrome.stable(`window.__projectStateGate.board = ${JSON.stringify(betaId)}`);
     if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
       await chrome.click("document.querySelector('#proj-switch')");
+      await chrome.click('document.querySelector("[data-proj-all]")');
     }
     await chrome.click(`document.querySelector('#proj-list [data-root="${beta.repo}"]')`);
     await chrome.waitFor('window.__projectStateGate.blocked.length > 0');
@@ -248,7 +249,7 @@ test('a page load draws its frame at once and fills each part in as its board ar
       gate.release = (id) => { gate.open.add(id); gate.blocked.filter((entry) => entry.id === id).forEach((entry) => entry.resolve()); };
       window.fetch = async (input, init) => {
         const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
-        const id = /^\\/api\\/v1\\/boards\\/([^/]+)\\/state$/.exec(path)?.[1];
+        const id = /^\\/api\\/v1\\/boards\\/([^/]+)\\/(?:state|summary)$/.exec(path)?.[1];
         if (id && !gate.open.has(decodeURIComponent(id))) await new Promise((resolve) => gate.blocked.push({ id: decodeURIComponent(id), resolve }));
         return nativeFetch(input, init);
       };
@@ -284,6 +285,52 @@ test('a page load draws its frame at once and fills each part in as its board ar
     try {
       if (chrome) {
         await chrome.stable('window.__frameGate && [...new Set(window.__frameGate.blocked.map((entry) => entry.id))].forEach((id) => window.__frameGate.release(id))').catch(() => {});
+        await closeSnapshotChrome(chrome);
+      }
+    } finally {
+      if (view) await view.stop();
+    }
+  }
+});
+
+test('a page with no listed remembered board picks the first listed board before any state arrives, and the switcher names it (clauses 1 and 2) [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the project selection check.');
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const beta = project(box, 'beta');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Alpha picked item', '--specs', 'G1', '--criterion', 'shown');
+  await box.inProcess(beta.repo, 'add', 'web', 'Beta picked item', '--specs', 'G1', '--criterion', 'shown');
+  let view, chrome;
+  /** The project the page has chosen and the name its switcher shows. */
+  const read = async () => JSON.parse(await chrome.stable(`JSON.stringify({ root: view.root, name: document.querySelector('#proj-name').textContent, kept: localStorage.getItem('pb.project'), blocked: window.__pickGate.blocked.length })`));
+  try {
+    view = await startView(box);
+    chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'project-pick-chrome'));
+    // Every board's state is held before real HTTP, so only the board list has answered; the remembered board is gone.
+    await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+      try { localStorage.setItem('pb.project', '/no/such/board'); } catch {}
+      const nativeFetch = window.fetch.bind(window);
+      const gate = window.__pickGate = { blocked: [] };
+      window.fetch = async (input, init) => {
+        const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
+        if (/^\\/api\\/v1\\/boards\\/[^/]+\\/state$/.test(path)) await new Promise((resolve) => gate.blocked.push(resolve));
+        return nativeFetch(input, init);
+      };
+    })()` });
+    await chrome.send('Page.navigate', { url: view.link.href });
+    await chrome.waitFor(`view.root === ${JSON.stringify(alpha.repo)} && window.__pickGate.blocked.length >= 1`);
+    const picked = await read();
+    assert.equal(picked.root, alpha.repo, 'the first listed board is the shown project while no state has answered');
+    assert.equal(picked.name, 'alpha', 'the switcher names it, never No project');
+    assert.equal(picked.kept, alpha.repo, 'the page remembers it');
+    await chrome.stable('window.__pickGate.blocked.splice(0).forEach((resolve) => resolve()), true');
+    await chrome.waitFor(`data?.root === ${JSON.stringify(alpha.repo)} && data?.project`);
+    assert.deepEqual(chrome.exceptions, [], 'choosing a project raises no uncaught exception');
+  } finally {
+    try {
+      if (chrome) {
+        await chrome.stable('window.__pickGate && window.__pickGate.blocked.splice(0).forEach((resolve) => resolve())').catch(() => {});
         await closeSnapshotChrome(chrome);
       }
     } finally {
@@ -396,13 +443,7 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     assert.equal(page.element('proj-name').textContent, 'gam<i>ma');
     assert.ok(!page.html.includes('proj-elsewhere'), 'the folded button carries no count: what needs the person in each project is in the list it opens');
 
-    // Where the sidebar is docked the project button opens the project menu; on a phone it still folds the list open.
-    const phone = await openPage(view, { width: 800 });
-    await phone.click({ id: 'proj-switch', classes: 'switch-btn side' });
-    assert.ok(phone.element('side').classList.contains('open'), 'the project button opens the list');
-    assert.equal(phone.element('proj-switch').getAttribute('aria-expanded'), 'true');
-    await phone.click({ classes: 'row' });
-    assert.ok(!phone.element('side').classList.contains('open'), 'a click outside the sidebar folds it again');
+    // The project button opens the project menu in both layouts; the real-browser journeys (project-menu.test.js, sidebar.test.js) draw it.
   } finally {
     await view.stop();
   }

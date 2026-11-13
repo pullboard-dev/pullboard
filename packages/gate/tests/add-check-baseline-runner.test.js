@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
-import { policyRepository } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { policyRepository } from '../../store/tests/fixtures/submit.js';
 import { fixtureMachineSettings } from '../../../apps/cli/tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../../apps/cli/tests/fixtures/testkit.js';
 import { executionServices } from '../../../apps/cli/tests/fixtures/gate/execution.js';

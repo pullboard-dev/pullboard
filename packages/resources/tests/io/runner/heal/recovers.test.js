@@ -116,7 +116,7 @@ test('restarting the submit-handoff dispatcher leaves a running runner controlle
     const before = readController();
     assert.equal(before?.controllerPid, process.pid, 'the active runner lease has controller custody');
 
-    await ensureHandoffDispatcher(join(import.meta.dirname, '../../../../../..'), directory);
+    await ensureHandoffDispatcher(join(import.meta.dirname, '../../../../../..'), directory, { entry: 'apps/lib/src/io/handoff/dispatcher.js' });
     await waitForCondition(() => !listResources().find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders.length,
       'the one-shot dispatcher finished its empty queue', { signal: t.signal });
     assert.deepEqual(readController(), before, 'starting and finishing the dispatcher does not prune a live controller');

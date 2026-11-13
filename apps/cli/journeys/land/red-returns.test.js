@@ -17,6 +17,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 
 const e2e = createE2eHelpers();
@@ -26,6 +27,8 @@ const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } 
 /** A plain landing project in the default shape: no affectedTests, per-item landing, no landing.publish, pushed to its origin. */
 function defaultProject() {
   const box = landProject();
+  // These cases assert the submit's gate running in the command; pinned to controller dispatch until #5821 lands [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   delete config.affectedTests;

@@ -30,10 +30,10 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
     assert.deepEqual(approvals.map(row => row.id), ['G1', 'G2', 'G3', 'G4']);
     assert.ok(chromeExecutable(), 'Chrome is required for the two real presentation surfaces');
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(box.dir, 'needs-panel-chrome'));
-    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the usual Needs-you card is measured.
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the usual Dashboard is measured.
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo));
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await chrome.waitFor('document.querySelectorAll("#dashboard .needs-call").length === 3');
+    await chrome.waitFor('!!document.querySelector("#dashboard .dash-live")');
     /** Preserve actual seeded browser views in bounded native-log chunks for visual review. */
     const capture = async (surface, width) => {
       await chrome.stable('window.scrollTo(0, 0); true');
@@ -46,12 +46,11 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
       await chrome.waitFor('view.tab === "dashboard"');
-      assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-call").length'), 3, 'Dashboard caps the same typed rows at three');
-      assert.match(await chrome.stable('document.querySelector("#dashboard .needs-more").textContent'), /3 more and 1 draft rows/u);
-      assert.equal(await chrome.stable('document.querySelectorAll("#dashboard details[open]").length'), 0, 'the initial summary rows are collapsed');
+      // The /live-style Dashboard (#6847) holds no Rulings rows; Items is where the person rules.
+      assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-call").length'), 0, 'the Dashboard draws no Rulings rows');
       await capture('dashboard', width);
-      await press(chrome, 'document.querySelector("#dashboard [data-needs-list]")');
-      await chrome.waitFor('view.tab === "items" && view.state === "active"');
+      await press(chrome, 'document.querySelector("[data-tab=items]")');
+      await chrome.waitFor('view.tab === "items"');
       await openItemsNeeds(chrome);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Questions and sentinels · 2/u);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Rows approved in Git, waiting for you · 4/u);
