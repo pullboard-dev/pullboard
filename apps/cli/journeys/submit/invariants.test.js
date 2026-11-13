@@ -32,6 +32,7 @@ import { landingFailures } from '../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { repositoryBoardFile } from '../../tests/fixtures/board/submit.js';
 import { replayHistoricalSeatMove } from '../../tests/fixtures/seats.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -121,6 +122,7 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
   assert.equal(e2e.commitFile(box, box.web, 'web/page.js', 'export const page = 2;\n',
     'feat(web): update page [G1]').status, 0);
   json(box, box.web, 'submit', String(id), '--wait', '--no-next');
+  await settledGateJob(box, id); // the job row turns done before its receipt writes the submit event [C7,#7283]
   const event = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
   const submit = { id, ...JSON.parse(event.event_detail) };
   assert.ok(submit.submissionProof, 'the actual submit event retains the selected files instead of relying on its human note');
