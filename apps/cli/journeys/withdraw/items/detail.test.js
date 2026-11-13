@@ -69,8 +69,8 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project?.items?.find((item) => item.id === 1)');
-    // Consecutive moves by one seat fold into a single row, so count the events the rows carry, not the rows.
-    await chrome.waitFor('[...document.querySelectorAll("#detail .tl [data-event-ids]")].reduce((sum, row) => sum + row.dataset.eventIds.split(" ").length, 0) === ' + expected.length);
+    // The fact rows render with the thread; the exact event identities are asserted below, where a miss names the ids.
+    await chrome.waitFor('document.querySelectorAll("#detail .tl .tl-fact").length === ' + expected.filter((entry) => entry.type === 'fact').length);
     await chrome.click("document.querySelector('#detail [data-item-panel-tab=history]')");
     await chrome.waitFor("!document.querySelector('#detail [data-item-panel-panel=history]').hidden");
     const expectedIds = expected.map((entry) => entry.eventId);
@@ -265,12 +265,12 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
-      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1') && document.querySelector('#detail .text a.ref[data-go]') && document.querySelector('#detail .text.muted a.ref[data-go]')");
-      await chrome.click(`document.querySelector('#detail .text a.ref[data-go]')`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1') && document.querySelector('#detail .item-panel-expand-text a.ref[data-go]') && document.querySelector('#detail .item-panel-brief a.ref[data-go]')");
+      await chrome.click(`document.querySelector('#detail .item-panel-expand-text a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
       await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
-      await chrome.waitFor("document.querySelector('#detail .text.muted a.ref[data-go]')");
-      await chrome.click(`document.querySelector('#detail .text.muted a.ref[data-go]')`);
+      await chrome.waitFor("document.querySelector('#detail .item-panel-brief a.ref[data-go]')");
+      await chrome.click(`document.querySelector('#detail .item-panel-brief a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
     }
   } finally {
@@ -290,9 +290,9 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
   const titles = { 1: 'Short title', 2: long, 3: 'Waits on the short one', 4: 'Built, then sent back with a long reason', 5: 'Being built right now' };
   await box.inProcess(demo.repo, 'add', 'web', titles[1], '--specs', 'G1', '--criterion', 'short');
   await box.inProcess(demo.repo, 'add', 'web', titles[2], '--specs', 'G1', '--criterion', 'long');
-  await box.inProcess(demo.repo, 'add', 'web', titles[3], '--specs', 'G1', '--criterion', 'gated', '--after', '1');
-  await box.inProcess(demo.repo, 'add', 'web', titles[4], '--specs', 'G1', '--criterion', 'back');
-  await box.inProcess(demo.repo, 'add', 'web', titles[5], '--specs', 'G1', '--criterion', 'busy');
+  await box.inProcess(demo.repo, 'add', 'web', titles[3], '--specs', 'G1', '--criterion', 'gated', '--after', '1', '--not-duplicate-of', '1 a different row');
+  await box.inProcess(demo.repo, 'add', 'web', titles[4], '--specs', 'G1', '--criterion', 'back', '--not-duplicate-of', '1 a different row');
+  await box.inProcess(demo.repo, 'add', 'web', titles[5], '--specs', 'G1', '--criterion', 'busy', '--not-duplicate-of', '1 a different row');
   build(box, demo, 4, 'four.txt');
   sendBack(box, demo, 4, `It misses the edge: ${'the criterion names a blank name and the page still greets it, '.repeat(4)}`);
   await box.inProcess(demo.web, 'claim', '5');
