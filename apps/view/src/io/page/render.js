@@ -201,6 +201,10 @@ function render({ tab: switching = false } = {}) {
   if (!p) return;
   // A tab switch to a pane drawn from this same board and view shows it as it is, with nothing drawn again.
   const draw = !(switching && store.paneFresh(view.tab, store.paneKey(view, $('q').value)));
+  // A switch to the Roadmap after an update shows it as it was last drawn at once; the patch for the update follows once
+  // that frame is on screen, so the switch never waits on the rows that changed (#6679).
+  const roadmapBehind = draw && switching && view.tab === 'roadmap' && drawnRoadmap !== null
+    && drawnRoadmap.scope === JSON.stringify([view.root, p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null]);
   $('proof-stats').hidden = view.tab !== 'items';
   if (view.tab === 'items') store.paint($('proof-stats'), proofStatsCard(p.proofStats, view.statsOpen));
   // Polling replaces this card's controls; keep the person's keyboard position through that redraw.
@@ -220,7 +224,8 @@ function render({ tab: switching = false } = {}) {
     const history = readCostHistory(p, switching);
     store.paint($('cost'), costPaneHtml(history, p));
   }
-  if (draw && view.tab === 'roadmap') {
+  if (roadmapBehind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'roadmap') render(); }, 0));
+  if (draw && !roadmapBehind && view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
@@ -771,7 +776,7 @@ function render({ tab: switching = false } = {}) {
   });
   store.paint(activity, activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
   }
-  if (draw) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
+  if (draw && !roadmapBehind) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
   revealPlace();
   revealSegmentedChoices(document);
