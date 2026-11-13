@@ -184,7 +184,7 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
   }
   child.once('error', error => { record({ spawnError: error.code ?? error.name, stdinBytes }); process.exitCode = 255; });
   child.once('close', (code, signal) => {
-${invalidSpec ? '    process.stdin.destroy(); child.stdin.destroy();' : ''}
+    process.stdin.destroy(); child.stdin.destroy(); // a real ssh ends when its remote command does, even if the controller's pipe stays open
     appendFileSync(phases, 'returned\\n');
     if (hold === 'return') setInterval(() => {}, 60_000);
     cancelDropWait();

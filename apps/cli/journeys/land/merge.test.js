@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/generated/docs.js apps/cli/tests/fixtures/move/registry/baseline.json docs/api.md docs/lifecycle.md docs/tools/update-docs.js */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/generated/docs.js apps/cli/tests/fixtures/move/registry/baseline.json docs/api.md docs/tools/update-docs.js */
 /** Real Git conflict inspection and landing share conservative mechanical resolutions [B3,R3,C7]. */
 import { execPath as nodeExecutable } from 'node:process';
 import assert from 'node:assert/strict';

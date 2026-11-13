@@ -252,7 +252,7 @@ export function gateJobRequest(pinned) {
  */
 export function offerGateJob(db, { item, main, source, request, now = Date.now() }) {
   return openJob(db, { kind: 'gate', item, candidate: source })
-    ?? offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
+    ?? offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
 }
 
 /**
