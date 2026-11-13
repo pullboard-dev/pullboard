@@ -1457,7 +1457,8 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .set-groups { display: grid; gap: var(--space-5); margin-top: var(--space-5); }
 .set-sect { min-width: 0; }
 .set-group { background: var(--surface); border: var(--border); border-radius: var(--radius-card); overflow: hidden; }
-.set { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
+.set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
+.set.has-copy { grid-template-columns: minmax(0, 1fr) auto 28px; }
 .set + .set { border-top: var(--border); }
 .set .name { min-width: 0; }
 .set .name .set-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1471,12 +1472,10 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .val b { font: 600 var(--text-md) var(--mono); overflow: hidden; text-overflow: ellipsis; }
 .val small { display: block; font-size: var(--text-2xs); color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; }
 .val .changed { flex: none; font: 600 var(--text-2xs) var(--sans); padding: 0 var(--space-2); border-radius: var(--radius-chip); background: var(--blue-soft); color: var(--blue); }
-.copy { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: var(--radius-sm); border: var(--border); background: var(--surface); color: var(--ink-muted); cursor: pointer; opacity: 0; }
+.copy { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: var(--radius-sm); border: var(--border); background: var(--surface); color: var(--ink-muted); cursor: pointer; }
 .copy svg { width: 14px; height: 14px; }
-.copy.none { visibility: hidden; }
-.set:hover .copy, .set:focus-within .copy, .copy:focus-visible { opacity: 1; }
-.copy[data-copied] { color: var(--accent-strong); border-color: var(--accent); opacity: 1; }
-@media (hover: none) { .copy { opacity: 1; } }
+.copy:hover, .copy:focus-visible { color: var(--ink); }
+.copy[data-copied] { color: var(--accent-strong); border-color: var(--accent); }
 @media (width < 600px) {
   #settings-pane { padding: 0; }
   .set { gap: 0 var(--space-3); padding: 0 var(--space-4); }

@@ -42,6 +42,9 @@ const MEASURE = `(() => {
     wrapped: values.filter(node => !one(node)).map(node => node.textContent).concat([...pane.querySelectorAll('.changed')].filter(node => !one(node)).map(node => node.textContent)),
     clipped: values.filter(node => /^[0-9]/u.test(node.textContent) && node.scrollWidth > node.clientWidth).map(node => node.textContent),
     open: Boolean(pane.querySelector('[data-settings-open]')),
+    shown: rows.filter(row => row.querySelector('[data-copy-command]')).map(row => { const b = row.querySelector('[data-copy-command]'), box = b.getBoundingClientRect(), group = row.parentElement.getBoundingClientRect(); return { key: row.dataset.settingKey, opacity: getComputedStyle(b).opacity, inside: box.width > 0 && box.right <= group.right && box.left >= group.left }; }),
+    lines: rows.flatMap(row => [row.querySelector('.name .set-title'), row.querySelector('.name p')]).map(node => { const style = getComputedStyle(node); return { one: node.getBoundingClientRect().height < 24, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden' }; }),
+    edge: rows.filter(row => !row.querySelector('[data-copy-command]')).map(row => { const group = row.parentElement.getBoundingClientRect(); return group.right - row.querySelector('.val').getBoundingClientRect().right; }),
     sourceCells: pane.querySelectorAll('.setting-source, table, td').length,
     overflow: document.documentElement.scrollWidth > innerWidth,
     scopeBoxes: [...pane.querySelectorAll('[data-settings-scope]')].map(node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, height: box.height }; }),
@@ -81,6 +84,9 @@ test('Settings shows the toggle, grouped cards, one-height rows, human units, ch
       assert.equal(shown.overflow, false, at + ': the page fits its width');
       assert.deepEqual(shown.wrapped, [], at + ': no value or chip wraps');
       assert.deepEqual(shown.clipped, [], at + ': no number is cut off');
+      assert.ok(shown.shown.length > 0 && shown.shown.every(button => button.opacity === '1' && button.inside), at + ': every copy button is visible without hovering and inside its group');
+      assert.ok(shown.lines.every(line => line.one && line.ellipsis), at + ': setting keys and about lines stay on one line and end in an ellipsis');
+      assert.ok(shown.edge.every(gap => gap <= 24), at + ': the value column reaches the group right edge (within its padding) on rows with no copy button');
       const { rows } = shown;
       assert.equal(rows.gateSlots.name, 'Checks at once');
       assert.equal(rows.gateSlots.mono, 'gateSlots');
