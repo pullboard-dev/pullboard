@@ -122,11 +122,11 @@
       ]
     },
     "strays": {
-      "count": 907,
+      "count": 906,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/strays-001.json",
-          "sha256": "66b8868801dff72c54131642b6baa7754dad5008f302ec8067c317fa4d0c8dbc"
+          "sha256": "f1fee1190988b34297aee517ca46afb0028e4387f601f832eb70692def13e233"
         },
         {
           "file": "packages/codemap/data/baselines/lints/strays-002.json",
@@ -143,11 +143,11 @@
       "shards": []
     },
     "unreachable": {
-      "count": 383,
+      "count": 382,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/unreachable-001.json",
-          "sha256": "2b9f186dec4ca878062f1da6c4af438212172937dedd31498de96665bd80d177"
+          "sha256": "994f0d7213e5ca504ff92f39a578a666756197f9d500d8bb0cdc41b2494c8e47"
         }
       ]
     },
