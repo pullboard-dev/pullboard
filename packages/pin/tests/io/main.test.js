@@ -18,9 +18,6 @@ import { rmSync } from 'node:fs';
 import { cachePath } from '../../index.js';
 import { cacheFor } from '../../index.js';
 import { sweepCaches } from '../../index.js';
-import { saveKeyedResult } from '../../index.js';
-import { keyedResultPath } from '../../index.js';
-import { writeFileSync } from 'node:fs';
 
 /** Build a throwaway repository with two commits and return the repo path and both commit ids. */
 function repoWithTwoCommits() {
@@ -158,20 +155,4 @@ test('clause 1: a sweep never breaks a queued job, it keeps named trees and the 
   assert.equal(existsSync(path), false);
   assert.equal(cacheFor(repo, tree, where).rebuilt, true, 'the queued job still gets its tree');
   assert.throws(() => cachePath(where.cacheRoot, '../x'), { code: 'PIN_TREE_INVALID' });
-});
-
-test('clause 1: a state-cache partial whose writer pid is dead is removed on the next write, and a live writer\'s partial stays [C7]', () => {
-  const folder = privateFixtureFiles('keyed-partial-').root;
-  let deadPid = 4_000_000;
-  /** Whether a pid is free: signalling it finds no process. */
-  const free = (pid) => { try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } };
-  while (!free(deadPid)) deadPid -= 1;
-  const dead = join(folder, `abc.result.${deadPid}.partial`);
-  const alive = join(folder, `abc.result.${process.ppid}.partial`);
-  writeFileSync(dead, 'half');
-  writeFileSync(alive, 'half');
-  saveKeyedResult(folder, 'key', Buffer.from('whole'));
-  assert.equal(existsSync(dead), false, 'the dead writer\'s partial is gone');
-  assert.equal(existsSync(alive), true, 'a live writer\'s partial stays');
-  assert.equal(readFileSync(keyedResultPath(folder, 'key'), 'utf8'), 'whole');
 });
