@@ -16,29 +16,13 @@ import { knownRedCheck } from '../../src/io/test/known.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
-import {
-  HOST,
-  installSshStandIn,
-} from '../../tests/fixtures/runner/ssh.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-/** A project whose one test file is red on a stand-in runner, committed so main has the same red file. */
+/** A project whose one test file is red on the pulled local runner, committed so main has the same red file. */
 async function redProject() {
   const box = e2e.project('true');
-  const bin = join(box.dir, 'runner-bin');
-  const worker = join(box.dir, 'runner-worker');
-  const home = join(box.dir, 'runner-home');
-  const requests = join(box.dir, 'runner-requests.jsonl');
-  for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
-  box.env.PATH = `${bin}:${box.env.PATH}`;
-  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
-  for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
-    const set = await box.runLocal(box.repo, 'settings', key, value);
-    assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
-  }
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
@@ -64,7 +48,7 @@ async function compare(box) {
   return JSON.parse(json.out);
 }
 
-test('clause 1: a file that is the subject of an open Main red item starts no main run [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+test('clause 1: a file that is the subject of an open Main red item starts no main run [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one pulled runner run.
   const box = await redProject();
   await fileMainRed(box, 'test/red.test.js');
   const result = await compare(box);
@@ -78,7 +62,7 @@ test('clause 1: a file that is the subject of an open Main red item starts no ma
   assert.doesNotMatch(text.out, /also fails on main/u);
 });
 
-test('clause 1: an open Main red item under the file\'s pre-move name counts too [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+test('clause 1: an open Main red item under the file\'s pre-move name counts too [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one pulled runner run.
   const box = await redProject();
   mkdirSync(join(box.repo, 'packages/codemap/data/plan/path-map'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/codemap/data/plan/path-map/old.json'), JSON.stringify({ 'test/old-red.test.js': 'test/red.test.js' }));
@@ -102,7 +86,7 @@ test('a candidate cannot invent a main-red alias with its own path map [C7]', as
   assert.equal(known('test/red.test.js'), null, 'only the accepted main map can establish a moved identity');
 });
 
-test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000 }, async () => { // budget: candidate and main runner runs.
+test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000 }, async () => { // budget: candidate and main runner runs on the pulled runner.
   const box = await redProject();
   const main = String(box.git(box.repo, 'rev-parse', 'HEAD')).trim();
   const folder = join(box.repo, '.git/pullboard');
@@ -114,7 +98,7 @@ test('an unsigned generic red cache cannot suppress an executor-bound comparison
   assert.equal(result.known[0].result, 'red');
 });
 
-test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000 }, async () => { // budget: one real stand-in runner dispatch.
+test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000 }, async () => { // budget: one real child process driver.
   const box = await redProject();
   const gate = new URL('../../../../packages/gate/index.js', import.meta.url).href;
   const landing = new URL('../../../../packages/landing/index.js', import.meta.url).href;
