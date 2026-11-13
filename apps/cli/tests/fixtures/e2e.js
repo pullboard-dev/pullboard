@@ -82,7 +82,7 @@ function controllerDispatch(env) {
  * @param {string[]} args - The command's arguments.
  * @param {object} env - The fixture environment.
  */
-function settlePulledJobs(cwd, args, env) {
+export function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job and must not hold the command; a journey serving its own runner returns at once (#6660).
   // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
   // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
@@ -149,6 +149,8 @@ function sandbox({ declareFamilies = false } = {}) {
     GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
+    // A fixture board's nested pullboard test starts at once; the outer gated run owns the load budget (#7257).
+    PULLBOARD_FIXTURE_BOARD: '1',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
