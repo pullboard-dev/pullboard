@@ -1,13 +1,6 @@
-// pullboard: browser
-/** @pullboard-test-gui */
-/** Cockpit demo board checks at phone and desktop widths, moved from the hold journey so each file runs under its budget [H5,N26,N27,C7]. */
+/** Shared body of the cockpit demo board width checks, one test file per width so each fits its budget [H5,N26,N27,C7]. */
 import assert from 'node:assert/strict';
-import {
-  mkdtempSync,
-  rmSync,
-} from 'node:fs';
-import { request } from 'node:http';
-import { tmpdir } from 'node:os';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
@@ -20,24 +13,26 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
-} from '../../tests/fixtures/cockpit/harness.js';
+} from '../../../tests/fixtures/cockpit/harness.js';
 import {
   armDecisionPressCapture,
   finishDecisionPressCapture,
   armPhoneAnswerLifecycleCapture,
   finishPhoneAnswerLifecycleCapture,
-} from '../../tests/fixtures/cockpit/demo-capture.js';
+} from '../../../tests/fixtures/cockpit/demo-capture.js';
 import {
   armLaneReleaseCapture,
   finishLaneReleaseCapture,
   includeLaneReleaseCapture,
-} from '../../tests/fixtures/cockpit/lane.js';
+} from '../../../tests/fixtures/cockpit/lane.js';
 import {
   assertFirstStateDelay,
   measureNaturalSpecChips,
-} from '../../tests/fixtures/cockpit/stable.js';
+} from '../../../tests/fixtures/cockpit/stable.js';
 
-for (const only of [375, 1280]) test(`real Chrome keeps the demo board usable at ${only === 375 ? 'phone' : 'desktop'} width [H5,N26,N27]`, { timeout: 120_000 }, async (t) => {
+/** Register the real-Chrome demo board test for one viewport width; each width's file calls this once [H5,N26,N27]. */
+export function demoWidthTest(only) {
+  test(`real Chrome keeps the demo board usable at ${only === 375 ? 'phone' : 'desktop'} width [H5,N26,N27]`, { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for viewport checks.');
 
@@ -50,7 +45,8 @@ for (const only of [375, 1280]) test(`real Chrome keeps the demo board usable at
   box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
   box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision', '--kind', 'question');
   const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-phone-'));
+  const profile = join(box.dir, 'chrome-profile'); // under the scratch machine, which the fixtures remove at exit
+  mkdirSync(profile);
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -502,6 +498,6 @@ for (const only of [375, 1280]) test(`real Chrome keeps the demo board usable at
       await closeSnapshotChrome(chrome);
     }
     await view.stop();
-    rmSync(profile, { recursive: true, force: true });
   }
-});
+  });
+}
