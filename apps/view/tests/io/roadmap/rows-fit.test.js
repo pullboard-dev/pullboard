@@ -1,7 +1,5 @@
-/**
- * #7303: Roadmap rows fit: after chips end in an ellipsis, only the chosen release lists items, a phone repeats no counts [N26].
- * @pullboard-test-input source-cell apps/view
- */
+/** @pullboard-test-input source-cell apps/view */
+/** #7303: Roadmap rows fit: after chips end in an ellipsis, only the chosen release lists items, a phone repeats no counts [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readMilestoneModel } from '../../../src/io/roadmap/render.js';
