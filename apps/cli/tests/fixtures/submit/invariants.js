@@ -36,7 +36,8 @@ export async function project(t, invariants, failing = false) {
   put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 1;\n');
   commitAll(box);
   box = builderRepo(box, ['apps/cli/src/io/run/tests.js']);
-  assert.equal((await coordinatorLocal(box, 'add', 'build', 'Invariant fixture', '--check', 'node -e "process.exit(0)"')).code, 0);
+  // --wait: the check's baseline job is done before submitWithEnv stops the local runner, so no job is cut off mid-run [#7530].
+  assert.equal((await coordinatorLocal(box, 'add', 'build', 'Invariant fixture', '--check', 'node -e "process.exit(0)"', '--wait')).code, 0);
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   return { box, marker };
 }

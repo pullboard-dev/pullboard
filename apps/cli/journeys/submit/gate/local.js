@@ -79,6 +79,7 @@ export async function submitSettled(t, box, run, extra = []) {
 /**
  * submitSettled for a journey that sets environment variables its gate reads after the fixture was built.
  * Why: a local runner keeps the environment it started with, so the submit's runner is stopped first and starts again with this one [C7,V10,#7530].
+ * A runner stopped mid-job hands it back and the next runner runs it again, so a journey settles its jobs first (add --check --wait).
  */
 export function submitWithEnv(t, box, run, extra = []) {
   stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);

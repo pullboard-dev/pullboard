@@ -73,7 +73,7 @@ test('a jest project submits with its own gate [V4,C7]', async (t) => {
     ].join('\n') + '\n');
     commitAll(box);
     box = builderRepo(box);
-    const added = await coordinatorLocal(box, 'add', 'build', 'Jest-style project', '--check', 'true');
+    const added = await coordinatorLocal(box, 'add', 'build', 'Jest-style project', '--check', 'true', '--wait');
     assert.equal(added.code, 0, added.err);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/a.js', 'export const value = 2;\n');
