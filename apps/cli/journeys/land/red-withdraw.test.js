@@ -49,6 +49,6 @@ async () => {
   const withdrawn = await box.runLocal(box.repo, 'withdraw', String(entry.item), 'cannot land; the coordinator moves it');
   assert.equal(withdrawn.code, 0, withdrawn.out + withdrawn.err);
   assert.doesNotMatch(withdrawn.out + withdrawn.err, /CLOSED|NOT_SUBMITTED/u);
-  const after = await itemRow(box, entry.item);
-  assert.equal(after.item_status ?? after.status, 'withdrawn');
+  const moved = await itemRow(box, entry.item);
+  assert.equal(moved.item_status ?? moved.status, 'withdrawn');
 });
