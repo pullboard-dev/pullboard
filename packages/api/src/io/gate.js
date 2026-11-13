@@ -565,7 +565,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         ...(deferred && typeof receipt.gate.deferNote === 'string' ? { note: receipt.gate.deferNote.replace(/[\r\n\u2028\u2029]/gu, ' ') } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
         submissionProof: { version: 1, files, full: false, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
-          ...(owners?.known ? { knownMainFailures: owners.known } : {}) } });
+          ...(owners?.known ? { knownMainFailures: owners.known } : {}), ...(owners?.ambiguous.length ? { knownMainAmbiguous: owners.ambiguous } : {}) } });
       if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
       if (mainOnly) {
         const owner = row => owners.known?.failures.find(one => one.file === row.file && one.name === row.name)?.item;
