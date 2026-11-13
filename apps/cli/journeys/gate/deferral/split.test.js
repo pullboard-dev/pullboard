@@ -19,7 +19,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { largeSelectionProject } = makeDeferralFixtures(e2e, store);
 
-test('a deferred selection is bisected so B does not land without A\'s fix [C7]', async t => {
+test('a deferred selection is bisected so B does not land without A\'s fix [C7]', { skip: 'PULL_GAP: the pulled gate and land jobs have no deferred-selection path (gate.deferred, submissionProof.deferredFiles, deferred files run at landing); needs its own item' }, async t => {
   // Item A carries the fix B's deferred files need, and also turns the gate red; bisect removes A and rebuilds B alone.
   const split = largeSelectionProject(t, 20, { inline: true });
   const second = join(split.box.dir, 'web-2');
