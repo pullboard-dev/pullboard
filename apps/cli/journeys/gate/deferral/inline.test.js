@@ -30,7 +30,7 @@ test('an inline landing whose gate passes anything still runs the deferred files
 
 test('a red deferred landing keeps its real failing file and durable log [C7]', async t => {
 const project = largeSelectionProject(t, 20, { inline: true });
-const red = project.submitChange('red');
+const red = await project.submitChange('red');
 project.accept(red.id, red.receipt.commit);
 const result = project.box.run(project.box.repo, 'land', '--json');
 assert.equal(result.code, 0, `a pulled landing offers its job and returns: ${result.err}${result.out}`);

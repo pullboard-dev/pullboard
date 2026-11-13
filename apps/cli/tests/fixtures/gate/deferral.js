@@ -12,6 +12,7 @@ import {
 import { join } from 'node:path';
 import { fixtureAdd } from '../testkit.js';
 import { settleSubmit } from '../submit/settle.js';
+import { waitForCondition } from '../runner/holders.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -76,6 +77,8 @@ export function makeDeferralFixtures(e2e, store) {
       assert.equal(submitted.code, 0, submitted.err + submitted.out);
       // The pulled gate is a runner job; wait for its receipt and read the gate the way an inline submit printed it [P7,C7].
       const receipt = { ...(await settleSubmit(t, box, JSON.parse(submitted.out))), commit };
+      // The board records the submit when the pulled gate's receipt is applied, which can follow the settled command [P7,C7].
+      await waitForCondition(() => onLocalBoard(box, board => store.events(board, { itemId: id }).some(row => row.event_kind === 'submit')), `the board records #${id} submitted`, { signal: AbortSignal.timeout(60_000) });
       const proof = onLocalBoard(box, board => JSON.parse(store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit').event_detail));
       return { id, receipt, proof, ran: ran() };
     };
