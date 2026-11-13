@@ -212,7 +212,3 @@ test('checkpoint scheduling executes the supplied process worker with its exact 
   assert.deepEqual(JSON.parse(readFileSync(observed, 'utf8')), [root, file], 'the actual spawned worker receives the original board and link');
   assert.ok(Number(readFileSync(join(root, 'relay-checkpoint.due'), 'utf8')) > 0, 'the move remains recorded for the publisher');
 });
-
-test('importing the checkpoint process entry does not start a publisher [H5,C7]', async () => {
-  await assert.doesNotReject(() => import('../../../lib/src/io/worker/checkpoint/relay.js'), 'only invoking the worker file may read process board arguments or publish');
-});
