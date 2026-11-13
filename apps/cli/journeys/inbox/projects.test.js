@@ -292,6 +292,52 @@ test('a page load draws its frame at once and fills each part in as its board ar
   }
 });
 
+test('a page with no listed remembered board picks the first listed board before any state arrives, and the switcher names it (clauses 1 and 2) [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the project selection check.');
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const beta = project(box, 'beta');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Alpha picked item', '--specs', 'G1', '--criterion', 'shown');
+  await box.inProcess(beta.repo, 'add', 'web', 'Beta picked item', '--specs', 'G1', '--criterion', 'shown');
+  let view, chrome;
+  /** The project the page has chosen and the name its switcher shows. */
+  const read = async () => JSON.parse(await chrome.stable(`JSON.stringify({ root: view.root, name: document.querySelector('#proj-name').textContent, kept: localStorage.getItem('pb.project'), blocked: window.__pickGate.blocked.length })`));
+  try {
+    view = await startView(box);
+    chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'project-pick-chrome'));
+    // Every board's state is held before real HTTP, so only the board list has answered; the remembered board is gone.
+    await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+      try { localStorage.setItem('pb.project', '/no/such/board'); } catch {}
+      const nativeFetch = window.fetch.bind(window);
+      const gate = window.__pickGate = { blocked: [] };
+      window.fetch = async (input, init) => {
+        const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
+        if (/^\\/api\\/v1\\/boards\\/[^/]+\\/state$/.test(path)) await new Promise((resolve) => gate.blocked.push(resolve));
+        return nativeFetch(input, init);
+      };
+    })()` });
+    await chrome.send('Page.navigate', { url: view.link.href });
+    await chrome.waitFor(`view.root === ${JSON.stringify(alpha.repo)} && window.__pickGate.blocked.length >= 1`);
+    const picked = await read();
+    assert.equal(picked.root, alpha.repo, 'the first listed board is the shown project while no state has answered');
+    assert.equal(picked.name, 'alpha', 'the switcher names it, never No project');
+    assert.equal(picked.kept, alpha.repo, 'the page remembers it');
+    await chrome.stable('window.__pickGate.blocked.splice(0).forEach((resolve) => resolve()), true');
+    await chrome.waitFor(`data?.root === ${JSON.stringify(alpha.repo)} && data?.project`);
+    assert.deepEqual(chrome.exceptions, [], 'choosing a project raises no uncaught exception');
+  } finally {
+    try {
+      if (chrome) {
+        await chrome.stable('window.__pickGate && window.__pickGate.blocked.splice(0).forEach((resolve) => resolve())').catch(() => {});
+        await closeSnapshotChrome(chrome);
+      }
+    } finally {
+      if (view) await view.stop();
+    }
+  }
+});
+
 test('the page never tells a person with boards to run init while the list loads [N26,H5]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for loading-state checks.');
