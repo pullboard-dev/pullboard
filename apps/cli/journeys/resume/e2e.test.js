@@ -31,8 +31,15 @@ import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  BIN, sandbox, CONFIG, SPEC, project, commitFile, LIGHT_BRIEF,
+  BIN, sandbox, CONFIG, SPEC, commitFile, LIGHT_BRIEF,
 } = e2e;
+
+/** A journey project whose submits return their gate's verdict in the command, so the file pins controller dispatch (#6249,#6832). */
+function project(...args) {
+  const box = e2e.project(...args);
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  return box;
+}
 
 /** Assert and remove only the outer command's exact final text action; retain every body byte. */
 function withoutAction(text, action = 'pullboard next') {
@@ -87,8 +94,6 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
 
 test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', async () => {
   const box = project();
-  // The runner's own submit must finish its gate before the verify below, so this case pins controller dispatch (#6249,#6832).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const script = (name, lines) => {
     writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web', ...lines, ''].join('\n'));
     return `sh ${join(box.dir, name)}`;
