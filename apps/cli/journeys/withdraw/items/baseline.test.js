@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { addItem } from '../../../../../packages/store/index.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { completeCheckBaseline } from '../../../../../packages/store/index.js';
-import { openBoard } from '../../../lib/index.js';
+import { openBoard } from '../../../../lib/index.js';
 import { machine } from '../../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../../tests/fixtures/cockpit/harness.js';
 import { build } from '../../../tests/fixtures/cockpit/harness.js';
