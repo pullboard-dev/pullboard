@@ -561,7 +561,7 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
   const response = await apiFetch(api, `/api/v1/boards/${current.id}/state`);
   const state = await response.json();
   assert.equal(response.status, 200);
-  assert.deepEqual(state.state.milestones, document.milestones);
+  const shape = (milestones) => milestones.map(({ name, count, landed, total, withdrawn, items }) => ({ name, count, landed, total, withdrawn, items: items.map(({ id, state }) => [id, state]) })); assert.deepEqual(shape(state.state.milestones), shape(document.milestones)); // state keeps no per-item progress or idle clock (#6665)
 });
 
 /** Serve the local API adapter directly so tests can exercise its optional origin allowlist. */
