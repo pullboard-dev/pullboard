@@ -154,7 +154,7 @@ test('clause 1: real Chrome styles shout code and item text without growing link
     })())`));
     assert.equal(desktopBrief.display, 'inline', `1280px brief code computes inline: ${JSON.stringify(desktopBrief)}`);
     assert.ok(desktopBrief.width > 0 && desktopBrief.width < desktopBrief.lineWidth / 2, `1280px brief code is a compact chip: ${JSON.stringify(desktopBrief)}`);
-    await chrome.click("document.querySelector('#new-item')");
+    await chrome.click("document.querySelector('[data-page-ctl=new]')");
     await chrome.waitFor("!document.querySelector('#add-form').hidden && getComputedStyle(document.querySelector('#add-form')).display === 'grid'");
     const desktopForm = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const form=document.querySelector('#add-form'), box=form.getBoundingClientRect();
@@ -259,7 +259,7 @@ test('clause 1: real Chrome styles shout code and item text without growing link
     })())`));
     assert.equal(phoneBrief.display, 'inline', `375px brief code computes inline: ${JSON.stringify(phoneBrief)}`);
     assert.ok(phoneBrief.width > 0 && phoneBrief.width < phoneBrief.lineWidth / 2, `375px brief code is a compact chip: ${JSON.stringify(phoneBrief)}`);
-    await chrome.click("document.querySelector('#new-item')");
+    await chrome.click("document.querySelector('[data-page-ctl=new]')");
     await chrome.waitFor("!document.querySelector('#add-form').hidden && getComputedStyle(document.querySelector('#add-form')).display === 'grid'");
     const phoneForm = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const form=document.querySelector('#add-form'), box=form.getBoundingClientRect();
