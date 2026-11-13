@@ -28,7 +28,7 @@ test('a handoff dispatcher is re-parented and survives its launcher process tree
   writeFileSync(join(entryDir, 'dispatcher.js'),
     `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, session: process.env.AGENT_SESSION_TOKEN ?? null, home: process.env.PULLBOARD_MACHINE_HOME }));\nsetInterval(() => {}, 60_000);\n`);
   const module = pathToFileURL(join(import.meta.dirname, '../../../../../src/io/handoff/worker/cap.js')).href;
-  const launch = `process.env.PULLBOARD_MACHINE_HOME=${JSON.stringify(machine)}; process.env.AGENT_SESSION_TOKEN='private-session'; const { ensureHandoffDispatcher }=await import(${JSON.stringify(module)}); await ensureHandoffDispatcher(${JSON.stringify(tools)}, ${JSON.stringify(root)});`;
+  const launch = `process.env.PULLBOARD_MACHINE_HOME=${JSON.stringify(machine)}; process.env.AGENT_SESSION_TOKEN='private-session'; const { ensureHandoffDispatcher }=await import(${JSON.stringify(module)}); await ensureHandoffDispatcher(${JSON.stringify(tools)}, ${JSON.stringify(root)}, { entry: ${JSON.stringify(E.strip(chr(39)))} });`;
   const launcher = spawn(process.execPath, ['--input-type=module', '-e', launch], { cwd: root, detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, PULLBOARD_MACHINE_HOME: machine, AGENT_SESSION_TOKEN: 'private-session' } });
   const stderr = [];
   launcher.stderr.on('data', chunk => stderr.push(chunk));
