@@ -10,6 +10,22 @@ function completeMean(rows, key) {
     ? rows.reduce((sum, row) => sum + row[key], 0) / rows.length : null;
 }
 
+/** The cell a changed file belongs to, or null for files outside apps/ and packages/. */
+function cellOf(file) { const match = /^(apps|packages)\/([^/]+)\//u.exec(file); return match ? `${match[1]}/${match[2]}` : null; }
+
+/** Kernel churn per week, the share of changes spanning several cells, and the cell most changes touch [R1,R2]. */
+function cellPressure(landed, hours) {
+  const complete = landed.length > 0 && landed.every(row => Array.isArray(row.files));
+  if (!complete) return { kernelChurnPerWeek: null, wideItemShare: null, busiestCell: null };
+  const perLanding = landed.map(row => new Set(row.files.map(cellOf).filter(Boolean)));
+  const counts = new Map();
+  for (const cells of perLanding) for (const cell of cells) counts.set(cell, (counts.get(cell) ?? 0) + 1);
+  const [cell, changes] = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] ?? [null, 0];
+  return { kernelChurnPerWeek: (counts.get('packages/kernel') ?? 0) / (hours / 168),
+    wideItemShare: perLanding.filter(cells => cells.size > 1).length / landed.length,
+    busiestCell: cell === null ? null : { cell, changes, share: changes / landed.length } };
+}
+
 /** Measure one half-open interval without dropping large changes or unclassified conflict files. */
 function period(landings, conflicts, from, to) {
   const landed = landings.filter(row => row.at >= from && row.at < to);
@@ -37,7 +53,7 @@ function period(landings, conflicts, from, to) {
     lifetimeHours, buildHours, waitingHours, inFlight,
     buildingInFlight: buildHours === null ? null : landingRate * buildHours,
     waitingInFlight: waitingHours === null ? null : landingRate * waitingHours,
-    cellsPerItem, files, completeFiles,
+    cellsPerItem, ...cellPressure(landed, hours), files, completeFiles,
     missing: { landingFiles: landed.filter(row => !Array.isArray(row.files)).length,
       conflictFiles: collided.filter(row => !Array.isArray(row.files)).length,
       lifetimes: landed.filter(row => !Number.isFinite(row.lifetimeHours)).length } };
