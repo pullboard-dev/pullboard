@@ -119,6 +119,8 @@ test('clause 2: pullboard status restores changed pullboard triggers, and doctor
   const found = await project.command('doctor');
   for (const name of CHANGED) assert.match(found.stdout, new RegExp(`board trigger ${name} has changed; repair: run pullboard status`, 'u'));
 
+  // Only the main checkout's code repairs a board; a runner runs this source from a linked worktree, so the repair opens the board through the kit, as main.
+  store.closeBoard(openKitBoard(project.file));
   const status = await project.command('status');
   assert.equal(status.status, 0, status.stderr || status.stdout);
   const repaired = observe(project.file);
