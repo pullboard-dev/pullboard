@@ -1,4 +1,7 @@
 import { viewApiPorts } from '../../../view/index.js';
+
+/** The view's API ports, handed on so the settings fixture reaches the view through this file, not directly. */
+export { viewApiPorts };
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
