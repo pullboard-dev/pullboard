@@ -294,9 +294,10 @@ function placeNav() {
 function flipNav() {
   keep('pb.nav', document.documentElement.dataset.nav === 'side' ? 'top' : 'side');
   placeNav();
+  placeControls();
 }
 placeNav();
-widePage.addEventListener?.('change', placeNav);
+widePage.addEventListener?.('change', () => { placeNav(); placeControls(); });
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.

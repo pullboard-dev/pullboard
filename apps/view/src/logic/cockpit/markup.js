@@ -47,6 +47,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </div>
 </header>
 <main>
+  <div class="page-title" id="page-title"><h2 id="page-title-text"></h2></div>
   <section class="card-panel first">
     <h2>No boards yet</h2>
     <p>Run <code>pullboard init</code> in a git repo, or ask an agent to. Its board shows up here by itself.</p>
