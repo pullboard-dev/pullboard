@@ -83,7 +83,7 @@ export async function seedNativeOrdinary(box, demo, { includeForward = false, ke
 }
 
 /**
- * Draw the lifecycle figure from the page's own renderer and the board's real move counts into a detached host.
+ * Draw the lifecycle figure from the page's own renderer and the board's real move counts into a host at the top of the Activity page.
  * Why: the redesigned Activity (#6916) dropped the figure's toggle and panel, but the renderer and its counts remain, so
  * the journeys still read the words and numbers a person would see there.
  *
@@ -97,7 +97,7 @@ export async function drawLifecycleFigure(chrome) {
     const host = document.createElement('div');
     host.id = 'lifecycle-figure';
     host.innerHTML = lifecycleChart(data.project, new Map(Object.entries(data.project.moveCounts)), data.project.items.filter(item => stateOf(item) === 'back').length);
-    document.body.append(host);
+    document.querySelector('[data-pane=activity]').prepend(host); // in the page's flow: after the fixed status bar it is covered at the end of the body.
     return true;
   })()`);
 }
