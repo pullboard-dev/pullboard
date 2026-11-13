@@ -35,7 +35,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     return held;
   }
   /** Draw immediately from live claims, then enrich only with the complete ordered prefix when available. */
-  function draw(project, needs, { rules = '', capacity = '', needsHeader = '' } = {}) {
+  function draw(project, needs, { needsHeader = '' } = {}) {
     if (needs !== undefined) lastNeeds = { root: project.root, html: needs, header: needsHeader };
     else { needs = lastNeeds.root === project.root ? lastNeeds.html : ''; needsHeader = lastNeeds.root === project.root ? lastNeeds.header : ''; }
     const region = document.getElementById('dashboard');
@@ -64,7 +64,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, held.events.filter(event=>event.event_id<=prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
-    const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
+    const usual = () => html(state, { needs, needsHeader, progress, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
       : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
     if (showFirstRun) startTour();

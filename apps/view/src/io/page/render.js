@@ -223,9 +223,9 @@ function render() {
     const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, compact: true });
     dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
       needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
-      rules: homeRules(p.spec),
-      capacity: homeCapacity(p.capacityForecast),
     });
+  } else if (view.tab === 'settings') {
+    $('settings-reference').innerHTML = '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">' + homeRules(p.spec) + '</section><section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">' + homeCapacity(p.capacityForecast) + '</section>';
   } else {
     const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {
@@ -712,6 +712,7 @@ function render() {
   if (keep('pb.flow') === 'shown') $('flow').innerHTML = lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length);
   $('activity-filters').innerHTML = activityFilters(activityModel(p, { words: activityWords }), view.activityFilter || 'all');
   const activity = $('activity');
+  { const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions(); $('activity-compare').innerHTML = comparisonHtml(p.statsComparison ?? null, { locale, timeZone }); }
   const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
   activity.dataset.boardRoot = p.root;
   const activityTime = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });

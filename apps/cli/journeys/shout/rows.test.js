@@ -54,7 +54,7 @@ test('Needs you summarizes item809, keeps raw questions in details and places na
           actions:rows.map(row=>row.querySelector('.needs-detail .actions [data-go]')?.dataset.go),
           overflow:document.documentElement.scrollWidth>innerWidth};
       })())`));
-      assert.equal(result.heading,'Needs you');
+      assert.equal(result.heading,'Rulings');
       assert.equal(result.more,'1 more and 2 draft rows →');
       assert.equal(result.footerRows,0);
       assert.equal(result.lastBorder,'0px');
