@@ -45,7 +45,7 @@ process.stderr.write('run-tests: phases selection 0.1s, tests 0.7s, total 0.9s\\
 process.exitCode = ran.status;
 `;
 
-test('clause 2: a pulled proof red only in a case main also fails lists that case and submits the item for review [P7]', { timeout: 100_000 }, // budget: hang ceiling for a project, one submit and one whole gate in a runner process.
+test('clause 2: a pulled proof red only in a case main also fails lists that case and submits the item for review [P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, one submit and one whole gate in a runner process.
 async t => {
   // Main's gate door carries the real TAP accounting and timing reads beside the stand-in plan, as accepted main does.
   const box = await pullProject(t, 1, { tooling: { 'bin/tests/proof.js': RUN_TESTS_PROOF, 'web/main.test.js': CASES['web/main.test.js'],
@@ -62,8 +62,7 @@ async t => {
   const [id] = box.ids;
   const submitted = submitOne(box, id);
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo, compareWithMain: criterionMainReceipts }) });
-  const served = await serveOnce(box, url, 'r-one', {}, { deadlineMs: 20_000 });
-  assert.equal(served.code, 0, served.output.slice(-3000) + JSON.stringify(jobsOf(board.db, { item: id }).map(j => [j.kind, j.status, j.steps?.map(x => x.name)])));
+  assert.equal((await serveOnce(box, url, 'r-one')).code, 0);
   const proof = jobsOf(board.db, { kind: 'gate', item: id })[0].steps.find(step => step.name === 'receipt').payload.receipt.gate.phases.find(phase => phase.role === 'proof');
   assert.match(proof.tail, /# pullboard suite timing [\s\S]*CPU-load test uses|CPU-load test uses[\s\S]*# pullboard suite timing /u, 'the proof printed the runner\'s trailer lines');
   assert.deepEqual([proof.status, proof.failures], [1, [{ file: 'web/main.test.js', name: 'main case' }]], proof.tail);

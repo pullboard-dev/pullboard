@@ -77,6 +77,8 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
+  // No local runner takes the offered jobs: the journey serves its own, so commands must not wait for the queue to empty.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, ...gate } });
   for (const [path, text] of Object.entries({ ...TOOLING, ...tooling })) { mkdirSync(dirname(join(box.repo, path)), { recursive: true }); writeFileSync(join(box.repo, path), text); }
