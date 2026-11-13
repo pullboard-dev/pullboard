@@ -56,6 +56,13 @@ test('the project menu lists each board with kind and fact, and choosing one cha
     await chrome.waitFor('!!document.querySelector("#proj-menu")');
     await chrome.click('document.querySelector("main")');
     await chrome.waitFor('!document.querySelector("#proj-menu")');
+    // The sidebar layout opens the same menu, and the old dropdown stays shut until All projects is pressed.
+    await chrome.click('document.querySelector("#nav-pin")');
+    await chrome.waitFor('document.documentElement.dataset.nav === "side"');
+    await chrome.click('document.querySelector("#proj-switch")');
+    await chrome.waitFor('document.querySelectorAll("#proj-menu .row").length === 2 && !document.querySelector("#side").classList.contains("open")');
+    await chrome.click('document.querySelector("#proj-menu [data-proj-all]")');
+    await chrome.waitFor('!document.querySelector("#proj-menu") && document.querySelector("#side").classList.contains("open")');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();

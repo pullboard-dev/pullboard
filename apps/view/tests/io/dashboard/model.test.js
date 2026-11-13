@@ -83,3 +83,15 @@ test('Dashboard counts matching merged records regardless of status [N26]', () =
   assert.equal(model.totals.recent, 3);
   assert.equal(model.bins.reduce((sum, bin) => sum + bin.count, 0), 3);
 });
+
+test('Dashboard counts every landed item from its own row and matches commits only for the last day\'s landings [N26]', () => {
+  const input = dashboardData();
+  const { now } = input;
+  const items = input.project.items.map(item => item.id === 2 ? { ...item, stage: 'merged' } : item);
+  const old = { id: 99, title: 'Landed long ago', status: 'verified', stage: 'merged', lane: 'web', specs: [], blockedBy: [] };
+  const project = { ...input.project, items: [...items, old], dashboardLanded: input.project.dashboardLanded.filter(entry => entry.id === 2) };
+  const model = dashboardModel(project, input.events, { now, complete: true });
+  assert.equal(model.totals.allTime, 2, 'the landed count includes the old landing that dashboardLanded no longer lists');
+  assert.ok(!model.landing.some(item => item.id === 99), 'the old landing is not waiting to land');
+  assert.equal(model.landed.filter(entry => entry.item.id === 2).length, 1, 'the recent landing still matches its merge event');
+});

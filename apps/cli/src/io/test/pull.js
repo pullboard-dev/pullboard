@@ -46,7 +46,8 @@ const input = JSON.parse(readFileSync(0, 'utf8'));
 const started = performance.now();
 // A runner job is nobody's subtest: a node:test context inherited from the runner's own host would skip every file.
 // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
-const env = { ...process.env, ${JSON.stringify(PULLED_JOB_ENV)}: '1' };
+// The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
+const env = { ...process.env, ${JSON.stringify(PULLED_JOB_ENV)}: '1', PULLBOARD_TEST_PRIOR: input.main };
 delete env.NODE_TEST_CONTEXT;
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
