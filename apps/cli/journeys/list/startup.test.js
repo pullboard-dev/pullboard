@@ -153,7 +153,7 @@ console.log(JSON.stringify({scoped,uncached,count}));`;
   return { run, runIn, worktree, repo, gitAt, facts };
 }
 
-test('a read command loads only its own modules [C7]', async (t) => {
+test('a read command loads only its own modules; offline status loads its measured module set and starts no Git beyond the board read [C7]', async (t) => {
   const box = fixture(t);
   const version = box.run('--version');
   assert.match(version.stdout, /^\d+\.\d+\.\d+/u);
@@ -165,6 +165,9 @@ test('a read command loads only its own modules [C7]', async (t) => {
   assert.ok(show.gitCalls.length <= 2, `show started ${show.gitCalls.length} Git processes: ${show.gitCalls.join(' | ')}`);
   const status = box.run('status', '--json');
   assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
+  assert.deepEqual(status.gitCalls, [], `status started Git: ${status.gitCalls.join(' | ')}`);
+  // Measured 13 Nov at 1615 modules; the eleven heavy modules in its startup-heavy.json row stay until the status de-barrel lands.
+  assert.ok(status.modules.length <= 1615, `status loaded ${status.modules.length} repository modules; heavy: ${heavyBeyondRow('status', status.modules).join(', ')}`);
   assert.deepEqual(heavyBeyondRow('status', status.modules), [], 'offline status loads no gate, relay or land module beyond its row in startup-heavy.json');
   // Status prints its review-queue line without the move registry, which loads every move and the engines behind them.
   assert.deepEqual(status.modules.filter((path) => path.startsWith('src/moves/') || path.startsWith('packages/moves/src/')), [],
@@ -200,13 +203,4 @@ test('a read command loads only its own modules [C7]', async (t) => {
 
 test('startup budget keeps fresh read medians under 100 ms [C7]', async (t) => {
   await assertStartupBudgets(t);
-});
-
-test('offline status loads its measured module set and starts no Git beyond the board read [C7]', async (t) => {
-  const box = fixture(t);
-  const status = box.run('status', '--json');
-  assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
-  assert.deepEqual(status.gitCalls, [], `status started Git: ${status.gitCalls.join(' | ')}`);
-  // Measured 13 Nov at 1615 modules; the eleven heavy modules in its startup-heavy.json row stay until the status de-barrel lands.
-  assert.ok(status.modules.length <= 1615, `status loaded ${status.modules.length} repository modules; heavy: ${heavyBeyondRow('status', status.modules).join(', ')}`);
 });
