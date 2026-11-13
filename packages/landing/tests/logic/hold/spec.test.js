@@ -94,20 +94,19 @@ async function controllerCase(t, { invalidSpec, browser }) {
   writeFileSync(join(f.repo, 'tracked.txt'), 'private source\n');
   runFixtureGit(['add', '-A'], { cwd: f.repo, env: f.env });
   runFixtureGit(['commit', '-qm', 'test: private runner source'], { cwd: f.repo, env: f.env });
-  fixtureSettledMachine(f.machine, { gateSlots: 1, browserSlots: 1 }); // a pulled dispatch would wait for an agent this fixture never starts
+  fixtureSettledMachine(f.machine, { gateSlots: 1, browserSlots: 1 }); // the runner call below uses the controller dispatch entry directly, as a pulled dispatch frames no spec here
   const requests = join(f.directory, 'requests.jsonl');
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine,
-    requests, invalidSpec, stderrLog: join(f.directory, 'worker.err') });
+    requests, invalidSpec });
   const FRONT_DOORS = { 'gate.js': 'packages/gate/index.js', 'runners.js': 'packages/runners/index.js', 'resources.js': 'packages/resources/index.js' };
   const moduleURL = name => pathToFileURL(resolve(import.meta.dirname, '../../../../..', FRONT_DOORS[name])).href;
   const script = `
     import assert from 'node:assert/strict';
     import { withGateSlot } from ${JSON.stringify(moduleURL('gate.js'))};
 ${executionServicesSource(moduleURL('gate.js'))}
-    import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
+    import { dispatchRunOnRunnerAsync as runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))}; // The controller path itself: the default pull dispatch never frames a work spec over this stand-in.
     import { listResources, takeResource } from ${JSON.stringify(moduleURL('resources.js'))};
     const root = ${JSON.stringify(f.repo)};
-    setTimeout(async () => { const fs = await import('node:fs'); const { execFileSync } = await import('node:child_process'); const rd = p => { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return 'none'; } }; process.stderr.write('DEBUG requests=' + rd(${JSON.stringify(requests)}) + '\\nWORKERERR=' + rd(${JSON.stringify(join(f.directory, 'worker.err'))}) + '\\n' + execFileSync('ps', ['-axo', 'pid,ppid,stat,command']).toString().split('\\n').filter(l => l.includes(${JSON.stringify(f.directory)})).join('\\n') + '\\n'); }, 8000).unref();
     let refusal;
     try {
       await withGateSlot(root, async () => {
@@ -132,14 +131,13 @@ ${executionServicesSource(moduleURL('gate.js'))}
   });
   assert.equal(result.status, 0, result.stderr || result.failure);
   assert.deepEqual(JSON.parse(result.stdout), { failed: true, reason: 'RUNNER_WORK_SPEC', slotFree: true });
-  console.error('DEBUGCALLS', readFileSync(requests, 'utf8'), 'WERR', (()=>{try{return readFileSync(join(f.directory,'worker.err'),'utf8')}catch{return 'none'}})());
   const calls = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(calls.length, 1, 'a named refusal is not automatically requeued');
   assert.equal(calls[0].code, 1, 'the actual worker exited nonzero before the SSH stand-in returned');
   // The identical production transport still accepts a valid spec and returns its ordinary receipt.
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine, requests });
   const valid = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
-    import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
+    import { dispatchRunOnRunnerAsync as runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))}; // The controller path itself: the default pull dispatch never frames a work spec over this stand-in.
     const result = await runOnRunnerAsync(${JSON.stringify(f.repo)}, 'printf valid-work', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
     process.stdout.write(JSON.stringify({ code: result.exitCode, output: result.output }));
   `], { cwd: f.repo, env: f.env, encoding: 'utf8', timeout: 20000 }); // budget: unchanged small real source setup and one trivial valid command.
