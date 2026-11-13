@@ -35,6 +35,65 @@ function write(root, files) {
   }
 }
 
+const SHIM_IMPORT = "import { value } from '../web/shim.js';\nexport default value;\n";
+const REPOINT = 'diff --git a/api/serve.js b/api/serve.js\n--- a/api/serve.js\n+++ b/api/serve.js\n@@ -1,2 +1,2 @@\n'
+  + "-import { value } from '../web/shim.js';\n+import { value } from '../web/real.js';\n export default value;\n";
+
+/**
+ * A project that hosts its own CLI the way pullboard does: its pre-commit runs apps/cli/pullboard.js from the checkout,
+ * and that entry loads api/serve.js, which imports web/shim.js. A web item deletes the shim; its api companion
+ * repoints the importer.
+ */
+function fixture({ fixer = false, companion = true } = {}) {
+  const box = helpers.project('true');
+  if (fixer) {
+    // A fixer rewrites staged .txt files; the composed check hands the real hook to this checkout's CLI.
+    const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+    write(box.repo, { 'pullboard.json': JSON.stringify({ ...config, fix: [{ run: 'sh bin/fix.sh' }] }, null, 2),
+      'bin/fix.sh': 'for f; do case "$f" in *.txt) printf \'fixed\\n\' >> "$f";; esac; done\n', 'web/value.txt': 'raw\n' });
+  }
+  write(box.repo, {
+    'web/real.js': 'export const value = 1;\n',
+    'web/shim.js': "export * from './real.js';\n",
+    'web/tests/real.test.js': 'export const unread = 1;\n',
+    'web/data/tests/guard.json': '{}\n',
+    'api/journeys/unread.test.js': 'export const unread = 1;\n',
+    'api/serve.js': SHIM_IMPORT,
+    'apps/cli/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
+      + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
+      + 'if (composed !== null) process.exit(composed);\n'
+      + "if (process.env.PB_PROBE) (await import('node:fs')).writeFileSync(process.env.PB_PROBE, JSON.stringify({ dir: import.meta.dirname,"
+        + " real: (await import('node:fs')).existsSync(new URL('../../web/real.js', import.meta.url)),"
+        + " unread: (await import('node:fs')).existsSync(new URL('../../web/tests/real.test.js', import.meta.url))"
+        + " || (await import('node:fs')).existsSync(new URL('../../api/journeys/unread.test.js', import.meta.url)),"
+        + " data: (await import('node:fs')).existsSync(new URL('../../web/data/tests/guard.json', import.meta.url)) }));\n"
+      + "await import('../../api/serve.js');\n"
+      + (fixer ? "if (process.env.PULLBOARD_HOOK_COMPOSED === '1') (await import('node:fs')).writeFileSync(process.env.PB_CHECKED_OUT, "
+        + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
+        + `await import(${JSON.stringify(REAL_CLI)});\n` : ''),
+    '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/apps/cli/pullboard.js" hook pre-commit\n`,
+    '.selfhooks/pre-merge-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/apps/cli/pullboard.js" hook pre-merge-commit\n`,
+  });
+  chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
+  chmodSync(join(box.repo, '.selfhooks/pre-merge-commit'), 0o755);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a self-hosted entry and a shim');
+  const api = join(box.dir, 'api-1');
+  box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
+  assert.match(fixtureJoin(box.run, api, 'api').out, /joined as api-/u);
+  const author = run(box, api, 'whoami').id;
+  const item = run(box, box.repo, 'add', 'web', 'Delete the web shim', '--specs', 'G1').item.item_id;
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const claimed = run(box, box.web, 'claim', String(item));
+  const builder = claimed.itemFolder ?? box.web;
+  const source = box.git(builder, 'rev-parse', 'HEAD').trim();
+  const patch = join(box.dir, 'repoint.patch');
+  writeFileSync(patch, REPOINT);
+  if (companion) run(box, box.repo, 'patch', 'attach', String(item), patch, '--key', 'repoint', '--author', author, '--source', source);
+  box.git(box.repo, 'config', 'core.hooksPath', '.selfhooks');
+  return { box, builder };
+}
+
 /**
  * A core builder whose item has an attached companion touching the coordinator-owned .githooks directory: the real
  * CLI behind the composed entry runs the lane rule, which must see only the builder's staged paths.
