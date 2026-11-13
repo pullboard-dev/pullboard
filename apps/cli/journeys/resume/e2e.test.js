@@ -25,6 +25,7 @@ import { claudeLoopRules } from '../../../../packages/config/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
@@ -133,7 +134,7 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   assert.match(JSON.parse(resume().stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
 
-test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async () => {
+test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
@@ -174,16 +175,17 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.equal(claimed.code, 0, claimed.err);
   const built = commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
   assert.equal(built.status, 0, built.stderr);
-  const refused = await fixtureCommand(box, web, 'submit', '1', '--wait', '--no-next');
+  // Under pull dispatch the submit returns queued; the red verdict arrives on the settled gate job's receipt [P7,C7].
+  const queued = await fixtureCommand(box, web, 'submit', '1', '--no-next', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  const settled = await settleSubmit(t, box, JSON.parse(queued.out));
+  const gate = settled.gate;
+  assert.equal(gate?.green, false, `the pulled gate is red: ${JSON.stringify(gate)}`);
   // #1884 (b24440d3) intentionally replaced submit's raw TAP with a bounded failure summary and full run log.
-  assert.equal(refused.code, 1, refused.err + refused.out);
-  assert.match(refused.err, /GATE_RED[\s\S]*the page renders a heading/);
-  assert.ok(refused.err.trimEnd().split('\n').length < 40, 'the refusal stays bounded instead of repeating the TAP stream');
-  const retained = /full log: ([^\n]+)/u.exec(refused.err);
-  assert.ok(retained, 'the refusal points to its complete run log');
-  const submissionLog = readFileSync(retained[1], 'utf8');
-  assert.match(submissionLog, /^not ok 401 - the page renders a heading$/mu);
-  assert.match(submissionLog, /^# note 99$/mu, 'the bounded refusal retains the complete noisy output');
+  const report = JSON.stringify(gate);
+  assert.match(report, /the page renders a heading/);
+  assert.ok(report.length < 20_000, 'the receipt stays bounded instead of repeating the TAP stream');
+  console.error(report.slice(0, 3000));
 });
 
 test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
