@@ -66,8 +66,9 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const submitted = await settleSubmit(t, box, await json(box, box.web, 'submit', String(id), '--no-next'));
   assert.equal(submitted.gate.green, true);
   assert.deepEqual(submitted.gate.files, files);
-  const account = JSON.parse(readFileSync(submitted.gate.profilePath, 'utf8'));
-  assert.deepEqual([...new Set(account.testOutcomes.map(row => row.file))].sort(), files);
+  // The runner keeps the profile file on its own disk; the pulled receipt carries each phase's per-file outcomes.
+  const outcomes = submitted.gate.phases.flatMap(phase => phase.testOutcomes ?? []);
+  assert.deepEqual([...new Set(outcomes.map(row => row.file))].sort(), files);
 
   // Finish the detached diagnostic while this case still owns its active-test budget.
   // An after hook otherwise waits after Node announces test completion, hitting the file-exit guard.
