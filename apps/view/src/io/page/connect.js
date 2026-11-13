@@ -285,18 +285,19 @@ function placeNav() {
   const pin = document.getElementById('nav-pin');
   if (!pin) return;
   const words = layout === 'side' ? 'Move the navigation to the top' : 'Move the navigation to the sidebar';
-  pin.setAttribute('aria-pressed', String(layout === 'side'));
-  pin.setAttribute('aria-label', words);
+  pin.setAttribute?.('aria-pressed', String(layout === 'side'));
+  pin.setAttribute?.('aria-label', words);
   pin.title = words + ' (\\\\)';
-  pin.querySelector('.pg')?.classList.toggle('up', layout === 'side');
+  pin.querySelector?.('.pg')?.classList?.toggle('up', layout === 'side');
 }
 /** The pin flips the layout and this device remembers it. */
 function flipNav() {
   keep('pb.nav', document.documentElement.dataset.nav === 'side' ? 'top' : 'side');
   placeNav();
+  placeControls();
 }
 placeNav();
-widePage.addEventListener?.('change', placeNav);
+widePage.addEventListener?.('change', () => { placeNav(); placeControls(); });
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.

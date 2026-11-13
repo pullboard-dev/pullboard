@@ -66,8 +66,24 @@
 :root[data-nav="top"] .tab-name b { display: block; font-weight: 600; }
 :root[data-nav="top"] .tab-name small { color: var(--ink-faint); font-size: var(--text-xs); }
 :root[data-nav="top"] .tab-menu .f { color: var(--ink-faint); font: var(--text-2xs) var(--mono); white-space: nowrap; }
-:root[data-nav="top"] .pagectl { display: flex; align-items: center; gap: var(--space-4); margin-left: auto; color: var(--ink-faint); font-size: var(--text-xs); white-space: nowrap; }
-:root[data-nav="top"] .pagectl:empty { display: none; }
+/* The page's own controls: the right of the strip, or the right of the title row in the sidebar layout. */
+:root[data-nav] .pagectl { display: flex; align-items: center; gap: var(--space-4); margin-left: auto; color: var(--ink-faint); font-size: var(--text-xs); white-space: nowrap; }
+:root[data-nav] .pagectl:empty { display: none; }
+:root[data-nav] .pagectl .ctl-seg { display: flex; gap: var(--space-4); }
+:root[data-nav] .pagectl button, :root[data-nav] .pagectl select { padding: 0; border: 0; border-radius: 0; background: none; color: var(--ink-faint); font: inherit; cursor: pointer; }
+:root[data-nav] .pagectl button:hover, :root[data-nav] .pagectl select:hover { background: none; color: var(--ink); }
+:root[data-nav] .pagectl .ctl-seg button.on { color: var(--ink); font-weight: 600; }
+:root[data-nav] .pagectl .sel { color: var(--ink-muted); }
+:root[data-nav] .pagectl .new { color: var(--accent); font-weight: 600; }
+:root[data-nav] .pagectl .new:hover { color: var(--accent); }
+:root[data-nav] .pagectl select { appearance: none; padding-right: var(--space-4); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%238a8a8a' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right center / 10px; }
+:root[data-nav] .pagectl select:hover { background-color: transparent; }
+:root[data-nav] .pagectl select::-ms-expand { display: none; }
+:root[data-nav] .pagectl select option { color: var(--ink); background: var(--surface); }
+/* The page's title row: only in the sidebar layout, where the strip is gone. */
+:root[data-nav="top"] .page-title { display: none; }
+:root[data-nav="side"] .page-title { display: flex; align-items: center; gap: var(--space-5); min-height: 34px; margin: calc(var(--space-5) * -1) calc(var(--space-6) * -1) var(--space-5); padding: 0 var(--space-6); border-bottom: 1px solid var(--line); background: var(--surface); }
+:root[data-nav="side"] .page-title h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
 /* The project switcher's list drops from it, the project tools above the boards. */
 :root[data-nav][data-side="collapsed"] .side { position: fixed; top: 44px; left: 12px; z-index: 30; width: 0; height: 0; padding: 0; border: 0; background: none; overflow: visible; }
 :root[data-nav][data-side="collapsed"] .side .side-body, :root[data-nav][data-side="collapsed"] .side .side-footer { display: none; }
@@ -105,12 +121,12 @@
 :root[data-nav="side"] .strip { display: none; }
 :root[data-nav="side"] .sidenav { grid-column: 1; grid-row: 2; position: sticky; top: 40px; align-self: start; display: flex; flex-direction: column; height: calc(100vh - 66px); padding: var(--space-1) var(--space-3) var(--space-4); overflow-y: auto; background: var(--surface); border-right: 1px solid var(--line); }
 :root[data-nav="side"] main { grid-column: 2; grid-row: 2; min-width: 0; }
-:root[data-nav="side"] .side-h { margin: 14px var(--space-3) var(--space-1); color: light-dark(#a9b3ad, #5d6b63); font: 500 var(--text-2xs)/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+:root[data-nav="side"] .side-h { margin: 14px var(--space-3) var(--space-1); color: light-dark(#a9b3ad, #5d6b63); font: 500 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
 :root[data-nav="side"] .side-row { display: flex; flex: none; align-items: center; gap: var(--space-3); width: 100%; height: 28px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink-muted); font: inherit; font-size: var(--text-sm); text-align: left; white-space: nowrap; cursor: pointer; }
 :root[data-nav="side"] .side-row:hover { background: none; color: var(--ink); }
 :root[data-nav="side"] .side-row.on { padding-left: 2px; background: none; color: var(--ink); font-weight: 600; }
 :root[data-nav="side"] .side-row.on::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
-:root[data-nav="side"] .side-row .f { margin-left: auto; color: var(--ink-faint); font: var(--text-2xs) var(--mono); font-weight: 400; }
+:root[data-nav="side"] .side-row .f { margin-left: auto; color: var(--ink-faint); font: 11.5px var(--mono); font-weight: 400; }
 :root[data-nav="side"] .side-row.on .f { color: var(--accent); }
 :root[data-nav="side"] .side-row .f.a { color: var(--warn); font-weight: 600; }
 :root[data-nav="side"] .side-row .f:empty { display: none; }

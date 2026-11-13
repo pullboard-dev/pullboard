@@ -102,12 +102,13 @@ export function notchHtml({ agents = null, perHour = null, rulings = null } = {}
 
 /**
  * A place's filters and search as query pairs, leaving out each default so a plain tab keeps a plain address.
- * Items' Show and Lane, the search words, Spec and Doctrine's row filter, Shouts' filter and Activity's filter.
+ * Items' Show and Lane, the search words, Spec and Doctrine's row filter, Shouts' filter, Activity's filter and person,
+ * Progress's time range and whether the Roadmap shows what shipped: each control in a page's strip has its key here [N38].
  *
- * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string }} place
+ * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string, range?: string, shipped?: boolean, by?: string|null }} place
  * @returns {[string, string][]}
  */
-export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all' }) {
+export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', range = '6h', shipped = false, by = null }) {
   const pairs = [];
   const words = String(q ?? '').trim();
   if (tab === 'items' && state && state !== stateDefault && !(words && state === 'all')) pairs.push(['state', state]);
@@ -116,6 +117,9 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
   if ((tab === 'spec' || tab === 'doctrine') && rows && rows !== rowsDefault) pairs.push(['rows', rows]);
   if (tab === 'shouts' && shouts && shouts !== 'all') pairs.push(['shouts', shouts]);
   if (tab === 'activity' && activity && activity !== 'all') pairs.push(['activity', activity]);
+  if (tab === 'activity' && by) pairs.push(['by', by]);
+  if (tab === 'progress' && range && range !== '6h') pairs.push(['range', range]);
+  if (tab === 'roadmap' && shipped) pairs.push(['shipped', '1']);
   return pairs;
 }
 
@@ -123,24 +127,24 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
  * Read a place's filters and search back from a query string; a key the address leaves out reads as null.
  *
  * @param {string} search - "?a=b" or "a=b".
- * @returns {{ state: string|null, lane: string|null, q: string|null, rows: string|null, shouts: string|null, activity: string|null }}
+ * @returns {{ state: string|null, lane: string|null, q: string|null, rows: string|null, shouts: string|null, activity: string|null, range: string|null, shipped: string|null, by: string|null }}
  */
 export function readPlaceQuery(search) {
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   const value = (key) => { const read = params.get(key); return read === null || read === '' ? null : read; };
-  return { state: value('state'), lane: value('lane'), q: value('q'), rows: value('rows'), shouts: value('shouts'), activity: value('activity') };
+  return { state: value('state'), lane: value('lane'), q: value('q'), rows: value('rows'), shouts: value('shouts'), activity: value('activity'), range: value('range'), shipped: value('shipped'), by: value('by') };
 }
 
 /**
  * Join a query string's other keys (the session's, say) with a place's pairs, in that order; the place keys are
- * state, lane, q, rows, shouts and activity.
+ * state, lane, q, rows, shouts, activity, range, shipped and by.
  *
  * @param {string} search - The current "?…" whose place keys are replaced.
  * @param {[string, string][]} pairs
  * @returns {string} "" or "?…".
  */
 export function withPlaceQuery(search, pairs) {
-  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity'];
+  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'range', 'shipped', 'by'];
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   for (const key of keys) params.delete(key);
   for (const [key, value] of pairs) params.append(key, value);
@@ -149,18 +153,41 @@ export function withPlaceQuery(search, pairs) {
 }
 
 /**
- * Progress in plain words until its own page lands: who is at work, the pace, and what waits for the person.
+ * Progress in plain words until its own page lands: who is at work, the pace, and what waits for the person. The time
+ * range (the strip's control) says which window the pace and the landed count are over.
  *
- * @param {{ agents?: number|null, perHour?: number|null, landedDay?: number|null, rulings?: number, building?: number, review?: number }} numbers
+ * @param {{ agents?: number|null, perHour?: number|null, landed?: number|null, range?: string, rulings?: number, building?: number, review?: number }} numbers
  * @returns {string}
  */
-export function progressHtml({ agents = null, perHour = null, landedDay = null, rulings = 0, building = 0, review = 0 } = {}) {
+export function progressHtml({ agents = null, perHour = null, landed = null, range = '6h', rulings = 0, building = 0, review = 0 } = {}) {
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  const window = range === '24h' ? 'the last 24 hours' : 'the last 6 hours';
   const lines = [
     Number.isFinite(agents) ? '<b>' + plural(agents, 'agent is', 'agents are') + '</b> at work.' : '',
     building || review ? '<b>' + building + '</b> building and <b>' + review + '</b> in review.' : 'Nothing is building or in review.',
-    Number.isFinite(perHour) ? 'Work lands at about <b class="g">' + Math.round(perHour) + ' an hour</b>' + (Number.isFinite(landedDay) ? ', <b>' + landedDay + '</b> in the last 24 hours.' : '.') : '',
+    Number.isFinite(perHour) ? 'Work lands at about <b class="g">' + Math.round(perHour) + ' an hour</b>' + (Number.isFinite(landed) ? ', <b>' + landed + '</b> in ' + window + '.' : '.') : '',
     rulings ? '<b class="a">' + plural(rulings, 'ruling waits', 'rulings wait') + '</b> for you.' : 'Nothing waits for you.',
   ].filter(Boolean);
   return '<section class="card-panel progress-words"><h1>Progress</h1>' + lines.map(line => '<p>' + line + '</p>').join('') + '</section>';
+}
+
+/**
+ * The controls a page puts at the right of the navigation strip (the sidebar layout puts them on the title row):
+ * Items shows Open, Building, In review, All and New item; Progress a time range; Shouts For you and All; Roadmap Show
+ * shipped; Activity a person filter. A page with nothing to control gets nothing. Each control carries data-page-ctl,
+ * the hook the page's one handler reads, and the state each one shows is the state the address holds.
+ *
+ * @param {{ tab?: string|null, state?: string, range?: string, shouts?: string, shipped?: boolean, by?: string|null, people?: string[], writable?: boolean }} [place]
+ * @returns {string}
+ */
+export function pageControlsHtml({ tab = null, state = 'active', range = '6h', shouts = 'all', shipped = false, by = null, people = [], writable = true } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' + (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + name + '</button>').join('') + '</span>';
+  const select = (label, kind, current, options) => '<select class="sel" data-page-ctl="' + kind + '" aria-label="' + label + '">' + options.map(([value, name]) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select>';
+  if (tab === 'items') return seg('Show', 'state', state, [['active', 'Open'], ['building', 'Building'], ['verify', 'In review'], ['all', 'All']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
+  if (tab === 'progress') return select('Time range', 'range', range === '24h' ? '24h' : '6h', [['6h', 'Last 6 hours'], ['24h', 'Last 24 hours']]);
+  if (tab === 'shouts') return seg('Shouts', 'shouts', shouts === 'you' ? 'you' : shouts === 'all' ? 'all' : '', [['you', 'For you'], ['all', 'All']]);
+  if (tab === 'roadmap') return '<button class="sel" type="button" data-page-ctl="shipped" aria-pressed="' + Boolean(shipped) + '">' + (shipped ? 'Hide shipped' : 'Show shipped') + '</button>';
+  if (tab === 'activity') return select('Person', 'by', by || '', [['', 'Everyone'], ...people.map((name) => [name, name === 'person' ? 'You' : name === 'coordinator' ? 'The coordinator' : name])]);
+  return '';
 }
