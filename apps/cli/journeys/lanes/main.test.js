@@ -244,6 +244,8 @@ test('submit and patch attach share frozen ownership and move together on refree
 /** A web item that merged main, after which main changed the same foreign file again. */
 async function mergedMainFixture(title) {
   const box = policyFixtures.project('true');
+  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong')).code, 0);
   assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   assert.equal(policyFixtures.commitFile(box, box.web, 'web/index.html', 'own work\n', 'feat(web): own change [G1]').status, 0);
@@ -377,6 +379,8 @@ test('a plan row for a file the item created before a reclaim is accepted while 
 /** Set up a real board and cells plan so submission exercises the frozen lane policy. */
 async function nativePlanRowFixture(t, { mainFile } = {}) {
   const box = policyFixtures.project('true');
+  // Its submit's own gate receipt is read inline, which a pull submit does not return; pinned to controller until #6832 [P7].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('src/');
