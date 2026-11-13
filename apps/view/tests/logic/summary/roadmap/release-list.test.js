@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/main.css */
 /** #6842: the Roadmap's Releases list is one compact row per release, marked like the navigation marks its page [N26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
