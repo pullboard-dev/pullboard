@@ -341,6 +341,30 @@ function keyedMainFailing(db, id) {
   return keyed?.verdict === 'red' && Array.isArray(keyed.failing) && keyed.failing.length ? keyed.failing : null;
 }
 
+/**
+ * Who owns a red that main owns, as the controller's submit judges it: each case's single open Main red repair, the
+ * files no open repair names, and whether only the frozen check was red. Why: a pulled gate must judge a frozen red
+ * against main's receipts the way the controller gate's main-owned verdict does, linking repairs and asking for the rest [V4,B3,C7].
+ */
+function mainOwnership(board, id, compared, main) {
+  const failures = [...new Map(compared.cases.map(({ file, name }) => [`${file}\0${name}`, { file, name }])).values()];
+  const items = store.listItems(board, { all: true });
+  const { clear } = store.splitAmbiguousMainReds({ main, failures }, items, id);
+  const unowned = store.unownedMainReds(clear, items, id) ?? [];
+  const owned = clear.failures.filter(row => !unowned.some(red => red.file === row.file));
+  return { checkOnly: compared.cases.every(row => row.phase === 'check'), failures, unowned,
+    known: owned.length ? store.linkKnownMainReworks({ main, failures: owned }, items, id) : null };
+}
+
+/** The decision shout asking the coordinator to own main reds no open repair names, bounded like the controller's. */
+function unownedShout(id, unowned, main) {
+  const prefix = `#${id}: known main red with no open Main red item: `;
+  const suffix = ` fails identically on main at ${String(main).slice(0, 12)}; file or assign its repair. See pullboard show ${id}.`;
+  const detail = Array.from(unowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; '));
+  const room = Math.max(0, 400 - Array.from(prefix + suffix).length);
+  return prefix + (detail.length > room ? detail.slice(0, Math.max(0, room - 1)).join('') + '…' : detail.join('')) + suffix;
+}
+
 /** One line per compared case, saying whether main fails it too. */
 function caseLines(compared) {
   return compared.cases.map(row => `${row.onMain === true ? 'also fails on main' : row.onMain === false ? 'new' : 'main receipt missing'}: ${row.phase} ${row.file} (${row.name})`);
@@ -401,19 +425,31 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
   if (green || mainOnly) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
+    // A red only in main's own frozen-check cases is a green gate that names them main-owned, as the controller's verdict records [C7,#3534].
+    const owners = mainOnly ? mainOwnership(board, id, compared, main) : null;
+    const gateGreen = green || Boolean(owners?.checkOnly);
     try {
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
       const companion = submit.companion ? { ...submit.companion, receiptIds: phaseReceipts.map(row => row.id),
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
-      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green, ...(submit.infra ? { infra: submit.infra } : {}),
+      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.infra ? { infra: submit.infra } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
-        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : ''}` } });
-      if (mainOnly) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
-      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : ''}`,
+          ...(owners?.known ? { knownMainFailures: owners.known } : {}) } });
+      if (mainOnly) {
+        const owner = row => owners.known?.failures.find(one => one.file === row.file && one.name === row.name)?.item;
+        const lines = owners.failures.map(row => `${owners.checkOnly ? 'main-owned' : 'main red'} ${row.file} (${row.name}): ${owner(row) ? `open repair #${owner(row)}` : owners.unowned.some(red => red.file === row.file) ? 'no open Main red item; the coordinator is asked to own it' : 'several candidate repairs'}`);
+        store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\n${lines.join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
+      }
+      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : gateGreen ? 'green over main-owned frozen check cases' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
+      if (owners?.unowned.length) try {
+        store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], item: id, decision: true, text: unownedShout(id, owners.unowned, main) });
+      } catch (error) { if (error?.code === undefined) throw error; }
       // A green gate is one real gate for every refusal on trial, counted once per receipt set, as the controller's own submit counts it [C7].
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
-      return { applied: true, outcome: 'review', ...recorded };
+      return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.checkOnly ? owners.failures : [], knownMainReworks: owners.known?.failures ?? [] } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
       if (!error?.code) throw error;

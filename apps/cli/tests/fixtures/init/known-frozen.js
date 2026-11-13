@@ -125,7 +125,11 @@ export function fileMainRed(box, extra = []) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-/** Submit the claimed item and wait for its pulled gate job; a pull submit returns queued at once [P7,#6249]. */
+/**
+ * Submit the claimed item and wait until the board has judged its pulled gate; a pull submit returns queued at once
+ * [P7,#6249]. A red in main's own cases settles once main's receipts record, so the wait is for the item to leave its
+ * builder, and `submission` is the recorded submit's detail.
+ */
 export async function settledSubmit(t, box) {
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -133,7 +137,9 @@ export async function settledSubmit(t, box) {
     const shown = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' });
     return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
   };
-  return settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout));
+  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), { until: shown => shown?.item_status !== 'claimed' });
+  const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1", box.item)[0];
+  return { ...settled, submission: event ? JSON.parse(event.event_detail) : null };
 }
 
 /** Give an independent reviewer the exact submitted tree and reserve its review. */

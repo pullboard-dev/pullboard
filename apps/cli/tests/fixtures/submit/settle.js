@@ -25,10 +25,11 @@ function runnerLog(machineHome) {
  * @param {{ repo: string, env: object, run: Function }} box - The fixture project; run(cwd, ...args) returns, or resolves to,
  *   { code, out, err }.
  * @param {number} item - The submitted item.
- * @param {{ deadlineMs?: number }} [options]
+ * @param {{ deadlineMs?: number, until?: (shown: object) => boolean }} [options] - until: a further condition on the
+ *   shown item once the job is done, such as a red that settles only after main's receipts record.
  * @returns {Promise<{ id: string, step: string, gate: object | null }>} The done gate job as show prints it.
  */
-export function settledGateJob(box, item, { deadlineMs = 180_000 } = {}) {
+export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => true } = {}) {
   const machineHome = box.env.PULLBOARD_MACHINE_HOME;
   return new Promise((done, fail) => {
     let watcher = null, last = '', step = 'none', settled = false, reading = false, again = false;
@@ -38,14 +39,15 @@ export function settledGateJob(box, item, { deadlineMs = 180_000 } = {}) {
       if (settled) return;
       if (reading) { again = true; return; }
       reading = true;
-      let job = null;
+      let job = null, document = null;
       try {
         const shown = await box.run(box.repo, 'show', String(item), '--json', '--no-next');
         last = shown.out || shown.err || '';
-        job = shown.code === 0 ? JSON.parse(shown.out).gateJob ?? null : null;
+        document = shown.code === 0 ? JSON.parse(shown.out) : null;
+        job = document?.gateJob ?? null;
       } catch { /* a partial read; the next change reads again */ } finally { reading = false; }
       step = job?.step ?? 'none';
-      if (step === 'done' && !settled) { stop(); done(job); return; }
+      if (step === 'done' && until(document) && !settled) { stop(); done(job); return; }
       if (again) { again = false; await probe(); }
     };
     const timer = setTimeout(() => { stop(); fail(new Error(`gate for #${item} did not settle in ${deadlineMs} ms (last step ${step})\nlast show: ${last.slice(0, 600)}\nlocal runner log:\n${runnerLog(machineHome)}`)); }, deadlineMs);
