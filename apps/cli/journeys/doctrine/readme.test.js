@@ -106,7 +106,7 @@ test("Pullboard's doctrine carries its four checks [D1,D3]", () => {
   // --json carries every finding; default text withholds lines past its byte budget, which hid the errors behind the warnings.
   const spec = box.run(checkout, 'spec', 'check', '--json');
   let findings = spec.out;
-  try { findings = (JSON.parse(spec.out).messages ?? []).filter((line) => !/ warning: /u.test(line)).join('\n'); } catch { /* the raw output is the message */ }
+  try { const document = JSON.parse(spec.out); findings = (document.error?.message ?? (document.messages ?? []).join('\n')).split('\n').filter((line) => !/ warning: /u.test(line)).join('\n'); } catch { /* the raw output is the message */ }
   assert.equal(spec.code, 0, `${findings}\n${spec.err}`);
   const report = box.run(checkout, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
