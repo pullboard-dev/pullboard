@@ -66,7 +66,8 @@ const SETTLE_MS = 180_000;
  */
 function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job, and a queued run it reads about must not hold the command for the settle budget.
-  if (!JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
+  // A journey that serves its own runner has no local runner to settle the queue, so its commands return at once (#6660).
+  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
   if (common.status !== 0) return;
   const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
