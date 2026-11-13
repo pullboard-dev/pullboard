@@ -111,3 +111,16 @@ function detached(command, args, { cwd, env, log }) {
   } catch { return { pid: null, launchd: false }; }
   finally { if (typeof out === 'number') closeSync(out); }
 }
+
+/**
+ * Start `command args` as a detached child with the given stdio and return the child, for a caller that must hold its
+ * handle (a descriptor handed over, an IPC channel). Why: every detached start lives in this file, the one entry point [C7].
+ *
+ * @param {string} command - The executable.
+ * @param {string[]} args - Its arguments.
+ * @param {{ cwd: string, env: NodeJS.ProcessEnv, stdio: import('node:child_process').StdioOptions }} options
+ * @returns {import('node:child_process').ChildProcess}
+ */
+export function spawnDetachedChild(command, args, { cwd, env, stdio }) {
+  return spawn(command, args, { cwd, env, detached: true, stdio });
+}
