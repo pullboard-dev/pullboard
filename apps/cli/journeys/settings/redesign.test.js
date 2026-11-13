@@ -33,7 +33,7 @@ const MEASURE = `(() => {
     scopes: [...pane.querySelectorAll('.settings-scopes [data-settings-scope]')].map(node => node.textContent.trim()),
     refresh: (() => { const node = pane.querySelector('[data-settings-refresh]'); return node && { text: node.textContent.trim(), ghost: node.classList.contains('ghost'), border: getComputedStyle(node).borderTopStyle }; })(),
     where: pane.querySelector('.settings-where')?.textContent.trim() ?? '',
-    groups: [...pane.querySelectorAll('.set-group')].map(card => ({ name: card.querySelector('.ghead h3')?.textContent, about: card.querySelector('.ghead p')?.textContent, changed: card.querySelector('.ghead span')?.textContent,
+    groups: [...pane.querySelectorAll('.set-sect')].map(card => ({ name: card.querySelector('.ghead h2')?.textContent, about: card.querySelector('.ghead .cap2')?.textContent, changed: card.querySelector('.ghead .cnt')?.textContent,
       rows: card.querySelectorAll('.set').length, changedChips: card.querySelectorAll('.set .changed').length })),
     heights: [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))],
     count: rows.length,
@@ -99,8 +99,8 @@ test('Settings shows the toggle, grouped cards, one-height rows, human units, ch
       assert.equal(rows.gateSlots.copy, 'pullboard settings gateSlots 8');
       assert.equal(rows['gate.runnerWaitMs'].copy, 'pullboard settings gate.runnerWaitMs 900000');
       assert.equal(rows['gate.runnersFirst'].copy, 'pullboard settings gate.runnersFirst on');
-      assert.deepEqual(Object.entries(rows).filter(([, row]) => row.copy).map(([key]) => key).sort(), Object.keys(rows).filter(key => SETTING_FORMS.includes(key)).sort(), at + ': copy buttons only for settings the CLI can set');
-      assert.equal(rows['view.background'].copy, null);
+      assert.deepEqual(Object.entries(rows).filter(([, row]) => row.copy).map(([key]) => key).sort(), Object.keys(rows).filter(key => SETTING_FORMS.includes(key) && key !== 'runnerRates').sort(), at + ': copy buttons only for settings one CLI command sets (runnerRates takes a runner and four numbers, so it has none)');
+      assert.equal(rows['view.background'].copy, 'pullboard settings view.background on');
       for (const [key, row] of Object.entries(rows)) {
         assert.doesNotMatch(row.value, /^(?:true|false)$/u, key + ' shows on/off, not a boolean');
         assert.doesNotMatch(row.text, /(?:\/[\w.~-]+){2,}/u, key + ' carries no path');
@@ -142,6 +142,6 @@ test('the renderer shows what the API row says: changing an inventory descriptio
   assert.match(second, /Second wording\./u);
   assert.doesNotMatch(second, /First wording|Checks at once|Capacity/u, 'no description, label or group is held inside the view');
   assert.match(second, /Parallel runs/u);
-  assert.match(second, /<h3>Order/u);
+  assert.match(second, /<h2 class="hd1">Order/u);
   assert.doesNotMatch(settingsContentHtml({ rows: [{ ...base, cli: null }] }, 'machine'), /data-copy-command/u, 'the copy button follows the row\'s own cli flag');
 });

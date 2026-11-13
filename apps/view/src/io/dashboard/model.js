@@ -14,7 +14,7 @@ export function dashboardModel(project, history, { now, complete = true, working
     reviewer: item.status === 'submitted' ? item.reviewer || item.claim?.by : null,
     reviewUntil: item.status === 'submitted' ? item.reviewUntil || item.claim?.until : null }));
   const byId = new Map(items.map(item => [item.id, item]));
-  const stageCounts = Object.fromEntries(['gated','ready','building','in-review','verified','landing','merged'].map(key => [key, 0]));
+  const stageCounts = Object.fromEntries(['blocked','ready','building','in-review','verified','landing','merged'].map(key => [key, 0]));
   // The same stage words and keys the Items Pipeline groups by, so the strip and the pipeline agree.
   for (const item of items) {
     if (item.status === 'withdrawn') continue;
@@ -129,10 +129,11 @@ export function dashboardModel(project, history, { now, complete = true, working
   // Seats appear in the order their first event came, after those the API lists.
   for (const [by, at] of state.lastBy) { const entry = row(by); if (entry) entry.last = Math.max(entry.last, at); }
   state.tail = state.tail.filter(entry => entry.at > start);
-  let passed = 0, sentBack = 0, personShouts = 0;
+  const acceptedItems = new Set();
+  let sentBack = 0, personShouts = 0;
   for (const entry of state.tail) {
     const actor = row(entry.by);
-    if (entry.kind === 'accept') passed++;
+    if (entry.kind === 'accept') acceptedItems.add(entry.item);
     if (['reject', 'reopen'].includes(entry.kind)) { sentBack++; actor?.sentBack.push({ at: entry.at, item: entry.item }); }
     if (entry.kind === 'shout') { if (entry.person) personShouts++; if (actor) { actor.shouts++; actor.shoutAt.push(entry.at); } }
   }
@@ -238,6 +239,9 @@ export function dashboardModel(project, history, { now, complete = true, working
   const median = took.length ? took[Math.floor((took.length - 1) / 2)] : null;
   const landedRecent = [...landed].filter(([, at]) => at > start);
   const lastLanded = Math.max(0, ...landed.values());
+  // Passed review counts each item once: one the reviewer accepted in the window, or one that landed in it (a landing
+  // is a pass even when the board recorded no accept, as for a hand landing), so it never reads 0 beside its landings.
+  const passed = new Set([...acceptedItems, ...landedRecent.map(([id]) => id)]).size;
   const waitingReview = checked.filter(item => !reserved(item));
   const flow = complete ? {
     claimed: moved('claimed').length, submitted: moved('submitted').length, handedBack: moved('handed back').length, buildMedian: median,

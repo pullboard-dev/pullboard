@@ -123,3 +123,34 @@ test('Dashboard counts every landed item from its own row and matches commits on
   assert.ok(!model.landing.some(item => item.id === 99), 'the old landing is not waiting to land');
   assert.equal(model.landed.filter(entry => entry.item.id === 2).length, 1, 'the recent landing still matches its merge event');
 });
+
+test('Dashboard counts passed review and reviewing time from the review events the board records, beside hand landings [N26]', () => {
+  const now = Date.parse('2026-11-13T16:00:00Z'), minute = 60_000;
+  let id = 0;
+  const event = (ago, by, kind, item, detail = {}) => ({ event_id: ++id, event_at: new Date(now - ago * minute).toISOString(), event_by: by, event_kind: kind, item_id: item, event_detail: JSON.stringify(detail) });
+  const commit = item => String(item).repeat(40).slice(0, 40);
+  const landed = [11, 12, 13];
+  const history = [
+    event(200, 'rev-1', 'join', null, { lane: 'review' }),
+    // Three hand landings: forced merges with no accept on the board, and one of them also has a reviewer's accept.
+    ...landed.map(item => event(100 - item, 'coordinator', 'merged', item, { commit: commit(item), forced: true })),
+    event(110, 'rev-1', 'accept', 11, { commit: commit(11) }),
+    // A review that ends without a verdict still took the reviewer's time: 30 minutes.
+    event(150, 'rev-1', 'reserve', 14, { until: new Date(now - 100 * minute).toISOString() }),
+    event(120, 'rev-1', 'release', 14, { review: true }),
+    // Both submitted items passed the gate and no reviewer holds either.
+    ...[14, 15].flatMap(item => [event(170, 'view-1', 'submit', item, { commit: commit(item) }), event(165, 'board', 'gate-run', item, { run: { green: true } })]),
+  ];
+  const items = [...landed.map(item => ({ id: item, lane: 'view', status: 'verified', merged: true })),
+    { id: 14, lane: 'view', status: 'submitted' }, { id: 15, lane: 'view', status: 'submitted' }];
+  const project = { items, agents: [{ agent_id: 'rev-1' }], dashboardLanded: landed.map(item => ({ id: item, commit: commit(item) })) };
+  const model = dashboardModel(project, history, { now, complete: true });
+  assert.equal(model.totals.recent, 3, 'the three hand landings are counted');
+  assert.equal(model.totals.passed, 3, 'an accepted-and-landed item counts once and the unreviewed landings count as passed, never 0 beside 3 landed');
+  assert.equal(model.flow.accepted, 3, 'the flow strip reads the same passed count');
+  const reviewer = model.agents.find(agent => agent.id === 'rev-1');
+  assert.equal(reviewer.review, 30 * minute, 'the recorded reserve and its release count as reviewing time');
+  assert.equal(model.flow.waitingReview, 2, 'submitted items nobody reserved wait for a reviewer');
+  const partial = dashboardModel({ ...project, dashboardRecent: { landed: 3, passed: 3, sentBack: 0, shouts: 0 } }, [], { now, complete: false });
+  assert.equal(partial.totals.passed, 3, 'the server-read count is passed through unchanged');
+});

@@ -22,11 +22,12 @@ function costPage(stored = {}) {
   return { ...page, kept, calls };
 }
 
-test('clause 1: Cost with nothing read yet draws its heading and period buttons at once, not a blank Loading page [N26]', () => {
+test('clause 1: Cost with nothing read yet draws its frame at once, with no heading and no period buttons of its own, not a blank Loading page [N26]', () => {
   const { readCostHistory, costPaneHtml, calls } = costPage();
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
   assert.equal(calls.api, 1, 'the read starts');
-  assert.match(html, /<h1>Cost<\/h1>[^]*data-cost-window="today"[^]*data-cost-window="7d" aria-pressed="true"[^]*data-cost-window="30d"/u, 'the frame is there');
+  assert.match(html, /class="cost-page"[^]*Only you see this/u, 'the frame is there');
+  assert.doesNotMatch(html, /<h1|data-cost-window/u, 'Cost has no page heading and no in-page window control; the window lives in the strip');
   assert.match(html, /class="cost-card cost-waiting" role="status">Reading cost history…/u, 'the numbers say they are on their way, in place');
   assert.doesNotMatch(html, /Loading cost history/u, 'no blank loading page');
 });
@@ -37,7 +38,7 @@ test('clause 1: Cost draws the last numbers this browser read while the fresh re
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
   assert.equal(calls.api, 1, 'a fresh read still starts');
   assert.match(html, /<p class="cost-big">2<small>hours<\/small>/u, 'the remembered agent time is drawn at once');
-  assert.match(html, /class="cost-updating" role="status">Updating…/u, 'and says it is updating');
+  assert.match(html, /class="cap2 cost-updating" role="status">Updating…/u, 'and says it is updating');
   assert.doesNotMatch(html, /cost-waiting|Loading cost history/u);
   assert.doesNotMatch(costOverviewHtml(last, null, { updating: false }), /cost-updating/u, 'a settled page says nothing');
 });
