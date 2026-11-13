@@ -45,7 +45,8 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
   writeFileSync(join(alpha.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Every greeting is read by a person. | gate: review\n');
   fixtureAdd(box.run, alpha.repo, 'web', 'Farewell page', '--specs', 'G1', '--criterion', 'renders');
   // Seven items match, so the Items group shows five of them and says how many there are.
-  for (let n = 1; n <= 7; n += 1) fixtureAdd(box.run, alpha.repo, 'web', `Greeting variant ${n}`, '--specs', 'G1', '--criterion', 'renders');
+  // Each title differs in its own words so the add guard does not read them as duplicates [C7].
+  for (const kind of ['banner', 'footer', 'wave', 'email', 'sound', 'badge', 'card']) fixtureAdd(box.run, alpha.repo, 'web', `Greeting ${kind} for the ${kind}-only landing`, '--specs', 'G1', '--criterion', `the ${kind} renders`);
   await box.inProcess(alpha.web, 'shout', 'all', 'The greeting is ready for review.');
   await box.inProcess(alpha.web, 'shout', 'coordinator', 'Should the greeting wave?', '--decision', '--kind', 'question');
   const view = await startView(box);
