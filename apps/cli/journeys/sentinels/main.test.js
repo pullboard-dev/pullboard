@@ -18,6 +18,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
@@ -560,7 +561,7 @@ test('the background observer leaves approved board watches for explicit runs [A
   let cancelled = false;
   const errors = [];
   const timer = { unref() {} };
-  const observer = startServeSentinel({ projectRoot: box.root,
+  const observer = startServeSentinel({ projectRoot: box.root, cli: fileURLToPath(new URL('../../pullboard.js', import.meta.url)),
     every: (callback, interval) => { assert.equal(interval, 600_000, 'the production cadence is unchanged'); tick = callback; return timer; },
     cancel: actual => { assert.equal(actual, timer); cancelled = true; },
     onError: error => errors.push(error),
