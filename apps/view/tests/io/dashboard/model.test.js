@@ -84,6 +84,34 @@ test('Dashboard counts matching merged records regardless of status [N26]', () =
   assert.equal(model.bins.reduce((sum, bin) => sum + bin.count, 0), 3);
 });
 
+test('Dashboard after a run of live updates matches a full recompute over the same events [N26]', () => {
+  const input = dashboardData();
+  const events = input.events.filter(event => Date.parse(event.event_at) <= input.now).sort((a, b) => a.event_id - b.event_id);
+  assert.ok(events.length > 80, 'the run folds many events');
+  const shown = model => ({ ...model, last: undefined });
+  const fold = {};
+  let held = 0;
+  // Each update adds a few events and moves the clock on; the totals kept from the last update must give what a fresh read of every event gives.
+  for (let step = 1, now = input.now; held < events.length; step++, now += 90_000) {
+    held = Math.min(events.length, held + 1 + (step * 7) % 23);
+    const history = events.slice(0, held);
+    const project = { ...input.project, sequence: history.at(-1).event_id };
+    const live = dashboardModel(project, history, { now, complete: true, fold });
+    assert.deepEqual(shown(live), shown(dashboardModel(project, history, { now, complete: true })), 'update ' + step + ' at ' + held + ' events matches a full recompute');
+    assert.equal(fold.state.upto, history.at(-1).event_id, 'only the events up to the prefix were folded');
+  }
+  // A later clock with the same events, a board that is rewound, and an event dated after the clock all still match a full recompute.
+  const project = { ...input.project, sequence: events.at(-1).event_id };
+  const later = dashboardModel(project, events, { now: input.now + 600_000, complete: true, fold });
+  assert.deepEqual(shown(later), shown(dashboardModel(project, events, { now: input.now + 600_000, complete: true })));
+  const rewound = dashboardModel(project, events, { now: input.now, complete: true, fold });
+  assert.deepEqual(shown(rewound), shown(dashboardModel(project, events, { now: input.now, complete: true })), 'a clock that moves back refolds from the start');
+  const future = [...events, { ...events.at(-1), event_id: events.at(-1).event_id + 1, event_at: new Date(input.now + 3_600_000).toISOString() }];
+  const ahead = { ...project, sequence: future.at(-1).event_id };
+  assert.deepEqual(shown(dashboardModel(ahead, future, { now: input.now, complete: true, fold })), shown(dashboardModel(ahead, future, { now: input.now, complete: true })), 'an event dated after the clock is left out, as a full recompute leaves it out');
+  assert.equal(fold.state, null, 'nothing is kept past an event the clock has not reached');
+});
+
 test('Dashboard counts every landed item from its own row and matches commits only for the last day\'s landings [N26]', () => {
   const input = dashboardData();
   const { now } = input;
