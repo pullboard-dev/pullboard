@@ -22,4 +22,5 @@ export { localLoadAdmits, boardEndpoint, boardTrunkPack, checkoutCandidate, host
 export { pruneRunnerStores } from "./src/io/prune.js";
 export { pruneStaleSlots } from "./src/io/prune.js";
 export { restartOnCodeMove, servedClosure, servedModuleMoved } from "./src/io/fresh.js";
+export { SERVE_FD_ENV, announceListening, catchListeners, inheritedListener, spawnOnSocket } from "./src/io/handoff.js";
 export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';
