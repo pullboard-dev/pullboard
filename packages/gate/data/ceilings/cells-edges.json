@@ -6142,15 +6142,6 @@
     "packages/gate/tests/fixtures/watchdog/legacy.js": [
       "apps/cli"
     ],
-    "packages/landing/tests/fixtures/plan.js": [
-      "apps/cli"
-    ],
-    "packages/landing/tests/fixtures/relay/parity/advance.js": [
-      "apps/cli"
-    ],
-    "packages/landing/tests/fixtures/relay/parity/train.js": [
-      "apps/cli"
-    ],
     "packages/resources/src/io/handoff/worker/cap.js": [
       "apps/lib"
     ],
