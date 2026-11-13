@@ -6090,9 +6090,6 @@
     "packages/drive/src/io/queue.js": [
       "apps/cli"
     ],
-    "packages/flakes/src/io/native.js": [
-      "apps/cli"
-    ],
     "packages/gate/src/io/check/baseline/worker.js": [
       "apps/lib"
     ],
