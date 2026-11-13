@@ -17,7 +17,7 @@ import {
   FIXTURE_MODEL,
   fixtureProjectPolicy,
 } from '../testkit.js';
-import { stopFixtureLocalRunner } from '../runner/local-start.js';
+import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import { settleSubmit } from './settle.js';
 import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
 
