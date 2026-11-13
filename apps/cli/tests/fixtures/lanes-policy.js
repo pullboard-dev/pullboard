@@ -19,7 +19,7 @@ export const policyFixtures = createE2eHelpers();
 export async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
   const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
-  console.error('DEBUG', JSON.stringify(item).slice(0, 6000));
+  console.error('DEBUG', JSON.stringify((item.thread ?? []).filter(row => row.type === 'fact').map(row => row.text)).slice(-4000));
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
