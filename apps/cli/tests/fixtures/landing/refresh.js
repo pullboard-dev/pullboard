@@ -15,6 +15,7 @@ import { createE2eHelpers } from '../e2e.js';
 import { settlePulledJobs } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { landJobs } from '../land/board.js';
+import { settleLand } from '../land/settle.js';
 import { waitForCondition } from '../runner/holders.js';
 
 const helpers = createE2eHelpers();
@@ -162,8 +163,9 @@ export async function runLandingDocsRefresh(disabled) {
       assert.equal(success(box, box.repo, 'show', String(entry.item)).item_merged_commit, null);
     } else {
       assert.equal(outcome.status, 0, output);
-      assert.deepEqual(report.landed, [entry.item], output);
-      assert.equal(report.batch.state, 'landed');
+      const settled = await settleLand(box, report);
+      assert.deepEqual(settled.landed, [entry.item], output + JSON.stringify(settled.landJob ?? {}));
+      assert.equal(settled.batch.state, 'landed');
       const tip = box.git(box.repo, 'rev-parse', 'main');
       assert.notEqual(tip, before);
       const regenerated = box.git(box.repo, 'show', `${tip}:apps/cli/src/logic/help/additions.js`);
@@ -172,7 +174,7 @@ export async function runLandingDocsRefresh(disabled) {
       assert.equal(success(box, box.repo, 'show', String(entry.item)).item_merged_commit, tip);
       const checked = runFixtureChild(process.execPath, ['docs/tools/update-docs.js', '--check'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
       assert.equal(checked.status, 0, checked.context);
-      assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', report.batch.items[0].merge).split(' ').length, 3,
+      assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', tip).split(' ').length, 3,
         'the refreshed item remains an actual two-parent merge');
     }
 }
