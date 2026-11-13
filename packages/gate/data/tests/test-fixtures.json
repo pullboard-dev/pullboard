@@ -2014,9 +2014,6 @@
   "apps/cli/journeys/land/accept.test.js": {
     "hand-policy": 1
   },
-  "apps/cli/tests/fixtures/land/parallel.js": {
-    "hand-policy": 2
-  },
   "packages/landing/tests/logic/land/why.test.js": {
     "raw-board": 4
   },
@@ -3382,6 +3379,9 @@
   "apps/cli/journeys/runner/lost.test.js": {
     "hand-policy": 1
   },
+  "apps/cli/journeys/runner/lost.transient.test.js": {
+    "hand-policy": 1
+  },
   "apps/cli/tests/fixtures/runner/redispatch.js": {
     "model": 1
   },
@@ -3426,9 +3426,14 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/runner/runners/trip.test.js": {
-    "tempdir": 2,
-    "hand-policy": 4,
-    "env-spread": 2
+    "tempdir": 1,
+    "hand-policy": 2,
+    "env-spread": 1
+  },
+  "apps/cli/journeys/runner/runners/trip.deadline.test.js": {
+    "tempdir": 1,
+    "hand-policy": 2,
+    "env-spread": 1
   },
   "apps/cli/journeys/runner/runners/refusals.test.js": {
     "tempdir": 2,
