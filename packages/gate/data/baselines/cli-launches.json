@@ -752,7 +752,7 @@
   "apps/cli/journeys/init/compare.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/shout/search.test.js": {
+  "apps/cli/journeys/shout/journeys/search-ages.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/roadmap/card.test.js": {
