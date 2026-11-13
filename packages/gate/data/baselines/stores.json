@@ -228,8 +228,7 @@
       "kind": "dir",
       "owner": "apps/cli/src/io/worktree/maintenance/observation.js",
       "homes": {
-        "apps/cli/src/io/worktree/maintenance/diagnostics.js": 1,
-        "apps/cli/src/io/worktree/maintenance/scheduler.js": 1
+        "apps/cli/src/io/worktree/maintenance/diagnostics.js": 1
       }
     },
     "worktree-prune": {
