@@ -315,7 +315,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|finished|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|finished|summary|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
@@ -380,6 +380,13 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
         const item = await adapter.item(board, Number(rawId), who);
         if (!item) return json(res, 404, refusal(new Refused('NO_ITEM', `no item #${rawId} on this board; use an id from the board state`)));
         return json(res, 200, { item });
+      }
+      if (route?.[2] === 'summary') {
+        if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read a board summary with GET');
+        if (typeof adapter.summary !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', "this API adapter does not serve board summaries; read its board state");
+        const text = await adapter.summary(board, who);
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' });
+        return res.end(text);
       }
       if (route?.[2] === 'finished') {
         if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read the finished items with GET');

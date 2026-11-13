@@ -469,10 +469,7 @@
     "raw-board": 2
   },
   "apps/cli/journeys/verify/check.test.js": {
-    "tempdir": 1,
-    "model": 2,
-    "hand-policy": 6,
-    "raw-board": 2
+    "raw-board": 1
   },
   "apps/cli/journeys/verify/store-bodies.test.js": {
     "hex64": 135
@@ -1279,7 +1276,7 @@
   },
   "apps/cli/journeys/roadmap/cockpit/items.test.js": {
     "raw-cli": 9,
-    "tempdir": 2
+    "tempdir": 1
   },
   "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
     "raw-cli": 1,
@@ -1302,7 +1299,6 @@
     "tempdir": 4
   },
   "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
-    "raw-cli": 1,
     "tempdir": 1
   },
   "apps/cli/journeys/milestone/component.test.js": {
@@ -2141,9 +2137,6 @@
     "env-spread": 1
   },
   "apps/cli/journeys/fact/landing/red.test.js": {
-    "model": 1
-  },
-  "apps/cli/journeys/reopen/landing/stale.test.js": {
     "model": 1
   },
   "apps/cli/journeys/gate/landing/stop.test.js": {
@@ -4171,5 +4164,23 @@
     "model": 3,
     "raw-board": 3,
     "hand-policy": 1
+  },
+  "apps/cli/journeys/verify/check-landing.test.js": {
+    "hand-policy": 3,
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/verdict-check.js": {
+    "tempdir": 1,
+    "model": 2,
+    "hand-policy": 3
+  },
+  "apps/cli/journeys/roadmap/cockpit/items-blocked.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/roadmap-stages.js": {
+    "raw-cli": 1
   }
 }
