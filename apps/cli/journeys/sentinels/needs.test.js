@@ -145,21 +145,18 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
       render();
       return true;
     })()`);
-    await chrome.waitFor(`Array.from(document.querySelectorAll('#dashboard .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
+    // The /live-style Dashboard draws no Rulings card (#6847); the Items list carries the row.
     await chrome.click('document.querySelector("[data-tab=items]")');
     await chrome.waitFor(`Array.from(document.querySelectorAll('#needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const row = [...document.querySelectorAll('#needs .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      const dashboardRow = [...document.querySelectorAll('#dashboard .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      return row && dashboardRow ? {
+      return row ? {
         target: row.querySelector('[data-go]')?.dataset.go ?? null,
         ref: row.querySelector('.needs-id')?.textContent ?? null,
         title: row.querySelector('.needs-copy b').textContent,
         need: row.querySelector('.needs-copy small').textContent,
         action: row.querySelector('.needs-action').textContent,
         hasAge: !!row.querySelector('.needs-age time'),
-        dashboardTarget: dashboardRow.querySelector('[data-go]')?.dataset.go ?? null,
-        dashboardAction: dashboardRow.querySelector('.needs-action').textContent,
       } : null;
     })())`));
     assert.deepEqual(rendered, {
@@ -169,9 +166,7 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
       need: nextStep,
       action: 'Inspect',
       hasAge: true,
-      dashboardTarget: null,
-      dashboardAction: 'Inspect',
-    }, 'Dashboard and Items show an age-stamped inspection step and do not turn the health alert into a shouts/hold link');
+    }, 'Items shows an age-stamped inspection step and does not turn the health alert into a shouts/hold link');
     assert.deepEqual(chrome.exceptions, [], 'the actual page renders the new Rulings kind without exceptions');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

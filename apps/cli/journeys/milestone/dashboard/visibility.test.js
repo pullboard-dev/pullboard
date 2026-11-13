@@ -21,7 +21,7 @@ import {
   startView,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('Dashboard retains offscreen agents and paints their real rows when scrolled into view [N26]', { timeout: 90000 }, async () => {
+test('Dashboard keeps between-items agents behind one line and paints their real rows when opened and scrolled into view [N26]', { timeout: 90000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the native row visibility contract.');
   const box = machine(), alpha = project(box, 'dashboard-offscreen');
@@ -42,36 +42,37 @@ test('Dashboard retains offscreen agents and paints their real rows when scrolle
     // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
     await chrome.waitFor('!!data?.project');
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await chrome.waitFor(`view.tab === 'dashboard' && document.querySelectorAll('#dashboard [data-dashboard-agent]').length >= ${agents.length}`);
+    // The table lists the agents the notch counts (#6773). These seats only shouted, so the journey hands the notch's list
+    // all of them, as the sentinel journeys hand the page its calls; at work and holding nothing, they are between items,
+    // which the /live-style table keeps behind one line until it is opened (#6847).
+    await chrome.stable(`(() => { globalThis.ownNavNumbers = navNumbers; navNumbers = p => ({ ...ownNavNumbers(p), agentIds: p.agents.filter(agent => agent.agent_id !== 'coordinator').map(agent => agent.agent_id) }); view.allAgents = !view.allAgents; render(); return true; })()`);
+    await chrome.waitFor(`view.tab === 'dashboard' && !!document.querySelector('#dashboard [data-dashboard-quiet]')`);
+    assert.equal(await chrome.stable(`document.querySelectorAll('#dashboard [data-dashboard-quiet-rows] [data-dashboard-agent]').length`), 0,
+      'the closed between-items rows are not built offscreen');
+    await press(chrome, `document.querySelector('#dashboard [data-dashboard-quiet]')`);
+    await chrome.waitFor(`document.querySelectorAll('#dashboard [data-dashboard-quiet-rows]:not([hidden]) [data-dashboard-agent]').length >= ${agents.length}`);
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false });
       for (const id of [agents.at(-1), agents[0]]) {
         const row = `document.querySelector('#dashboard [data-dashboard-agent="${id}"]')`;
         await chrome.stable(`${row}.scrollIntoView({block:'center',behavior:'instant'}); true`);
-        await chrome.waitFor(`(() => { const row=${row}, box=row.getBoundingClientRect(), name=row.querySelector('b').getBoundingClientRect();
+        await chrome.waitFor(`(() => { const row=${row}, box=row.getBoundingClientRect(), name=row.querySelector('td.who').getBoundingClientRect();
           return box.bottom>0 && box.top<innerHeight && name.width>0 && name.height>0; })()`);
-        const actual = await chrome.stable(`(() => { const row=${row}; return {id:row.dataset.dashboardAgent,name:row.querySelector('b').textContent,
-          svg:!!row.querySelector('svg[aria-label]'),numbers:row.querySelectorAll('.dash-agent-number').length}; })()`);
+        const actual = await chrome.stable(`(() => { const row=${row}; return {id:row.dataset.dashboardAgent,name:row.querySelector('td.who').textContent,
+          svg:!!row.querySelector('svg[aria-label]'),numbers:row.querySelectorAll('.dash-num').length}; })()`);
         assert.equal(actual.id, id); assert.ok(actual.name.includes(id));
-        assert.equal(actual.svg, true); assert.equal(actual.numbers, 3);
+        assert.equal(actual.svg, true); assert.equal(actual.numbers, 4);
       }
       for (const id of agents) assert.equal(await chrome.stable(`!!document.querySelector('#dashboard [data-dashboard-agent="${id}"]')`), true);
     }
-    // Advance only the displayed observation clock: the same real shouts become quiet after twenty minutes.
-    await chrome.stable(`data.project.observedAt = new Date(Date.now()+30*60_000).toISOString(); render(); true`);
-    await chrome.waitFor(`!!document.querySelector('#dashboard [data-dashboard-disclosure="quiet"]')`);
-    assert.equal(await chrome.stable(`document.querySelectorAll('#dashboard [data-dashboard-disclosure="quiet"] [data-dashboard-agent]').length`), 0,
-      'closed quiet disclosure does not build offscreen rows');
-    await press(chrome, `document.querySelector('#dashboard [data-dashboard-disclosure="quiet"] summary')`);
-    await chrome.waitFor(`document.querySelectorAll('#dashboard [data-dashboard-disclosure="quiet"] [data-dashboard-agent]').length >= ${agents.length}`);
-    for (const id of agents) {
-      const row = `document.querySelector('#dashboard [data-dashboard-agent="${id}"]')`;
-      assert.deepEqual(await chrome.stable(`({svg:!!${row}.querySelector('svg[aria-label]'),numbers:${row}.querySelectorAll('.dash-agent-number').length})`), {svg:true,numbers:3});
-    }
-    await chrome.stable(`data.project.agents.find(agent=>agent.agent_id===${JSON.stringify(agents[0])}).model='fresh quiet model'; render(); true`);
-    assert.equal(await chrome.stable(`document.querySelector('#dashboard [data-dashboard-disclosure="quiet"]').open`), true);
-    assert.ok((await chrome.stable(`document.querySelector('#dashboard [data-dashboard-agent="${agents[0]}"] b').title`)).includes('fresh quiet model'),
-      'an open disclosure redraws from the current model');
+    // The opened rows stay open across a live redraw and draw from the current model.
+    await chrome.stable(`data.project.agents.find(agent=>agent.agent_id===${JSON.stringify(agents[0])}).model='fresh model'; render(); true`);
+    assert.equal(await chrome.stable(`document.querySelector('#dashboard [data-dashboard-quiet-rows]').hidden`), false);
+    assert.ok((await chrome.stable(`document.querySelector('#dashboard [data-dashboard-agent="${agents[0]}"] td.who').title`)).includes('fresh model'),
+      'an open table redraws from the current model');
+    // Back on the notch's own list, which counts no seat that holds nothing, the seats leave the table.
+    await chrome.stable(`(() => { navNumbers = ownNavNumbers; view.allAgents = !view.allAgents; render(); return true; })()`);
+    await chrome.waitFor(`!document.querySelector('#dashboard [data-dashboard-agent]')`);
   } finally {
     try { if (chrome) await closeSnapshotChrome(chrome); }
     finally { await view.stop(); rmSync(profile, { recursive: true, force: true }); }
