@@ -4044,9 +4044,8 @@
     "model": 8
   },
   "apps/cli/journeys/inbox/events.test.js": {
-    "model": 5,
-    "raw-board": 6,
-    "hand-policy": 1
+    "model": 2,
+    "raw-board": 3
   },
   "packages/store/tests/fixtures/stats/time.js": {
     "tempdir": 2,
@@ -4159,5 +4158,10 @@
   },
   "apps/cli/journeys/resume/e2e-more.test.js": {
     "hand-policy": 3
+  },
+  "apps/cli/journeys/inbox/events-stream.test.js": {
+    "model": 3,
+    "raw-board": 3,
+    "hand-policy": 1
   }
 }
