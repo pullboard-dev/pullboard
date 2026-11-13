@@ -46,7 +46,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   const env = {
     ...process.env,
     HOME: join(directory, 'home'),
-    PULLBOARD_HOME: join(directory, 'pullboard-home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',

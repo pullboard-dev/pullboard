@@ -343,7 +343,7 @@ export function rigorFixtureBoard(store) {
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Rigor fixture', GIT_AUTHOR_EMAIL: 'rigor@example.invalid',
     GIT_COMMITTER_NAME: 'Rigor fixture', GIT_COMMITTER_EMAIL: 'rigor@example.invalid',
-    PULLBOARD_HOME: join(root, 'private-home'), PULLBOARD_MACHINE_HOME: join(root, 'private-machine') };
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(root, 'private-home'), PULLBOARD_MACHINE_HOME: join(root, 'private-machine') };
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ name: 'Rigor fixture', gate: 'true', spec: 'SPEC.md',

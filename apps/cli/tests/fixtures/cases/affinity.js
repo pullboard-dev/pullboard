@@ -32,7 +32,7 @@ async function privateAdmission(t, body) {
     const held = [];
     const take = async options => {const lease=await takeResource({...base,...options});held.push(lease);return lease;};
     try { ${body} } finally {for(const lease of held) lease.release();}
-  `], { env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home } });
+  `], { env: { ...process.env, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home } });
   let finished = false;
   run.then(() => { finished = true; });
   t.after(async () => {
