@@ -117,6 +117,9 @@ import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
 import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
 
+/** Native file events arrive in real time, so their coalescing timer keeps the real clock captured at load even when a caller mocks the global one [A2,N26]. */
+const FILE_CLOCK = { schedule: setTimeout, cancel: clearTimeout, now: Date.now };
+
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
   'identity', 'head', 'trunk', 'files', 'event', 'agents', 'leases', 'requestReceipts', 'milestones', 'externalRoadmap', 'eventLogVersion', 'ruleProofWindow', 'localRelayMarker',
@@ -353,7 +356,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   try {
-    notifications = fileChangeWaiter([dbPath, dbPath + '-wal'], { weight: () => revisionMs });
+    notifications = fileChangeWaiter([dbPath, dbPath + '-wal'], { weight: () => revisionMs, ...FILE_CLOCK });
     dbMarker = fileMarkerForPath(dbPath);
     fileMarkers = files.map(fileMarker);
     fileContent = files.map(fileRevision);
