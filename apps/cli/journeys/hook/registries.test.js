@@ -48,7 +48,7 @@ test('clause 1: a pulled landing lands the refreshed test registry and badge doc
   await submitItemLocal(box, entry);
   await acceptItemLocal(box, entry);
 
-  const result = box.run(box.repo, 'land', '--json');
+  const result = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
   const item = JSON.parse(shown.out);
