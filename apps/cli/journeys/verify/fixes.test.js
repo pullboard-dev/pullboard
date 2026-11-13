@@ -58,7 +58,7 @@ async function seed() {
     'Sent back once', 'Ready one', 'Ready two', 'Ready three'];
   for (const title of titles) {
     await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture row shows on the agent floor.',
-      '--check', 'test -d web/', '--wait');
+      '--check', 'test -d web/');
   }
   for (const id of [1, 2]) {
     await buildLocal(box, alpha, id, `landed-${id}.txt`);
