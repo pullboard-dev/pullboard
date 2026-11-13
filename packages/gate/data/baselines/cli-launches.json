@@ -1669,5 +1669,11 @@
   },
   "apps/cli/journeys/speed/spawns-submit-status.test.js": {
     "launch": 1
+  },
+  "packages/resources/tests/io/stale-test-sweep.test.js": {
+    "launch": 2
+  },
+  "apps/cli/journeys/sentinel/scratch-cli.test.js": {
+    "launch": 1
   }
 }
