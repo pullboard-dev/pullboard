@@ -209,7 +209,9 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   // agentApproved writes it after init instead, so its approved rows read as an agent's.
   if (!agentApproved) writeFileSync(join(repo, 'SPEC.md'), spec);
   box.runWithEnv(repo, initEnv, 'init');
-  const config = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] } }, shared: [], ...extra };
+  // Accepted items stay verified until the journey lands them: the loopback local runner would otherwise take the board's
+  // automatic land job and land them into this checkout, as no controller-held fixture ever did [P7,#5821].
+  const config = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] } }, shared: [], landing: { manualOverride: true }, ...extra };
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), spec);
   box.git(repo, 'add', '-A');
