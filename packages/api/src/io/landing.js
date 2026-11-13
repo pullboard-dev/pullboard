@@ -10,6 +10,9 @@ import { offerJob } from './jobs.js';
 export const LANDING_JOB_KIND = 'land';
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const REF = /^refs\/[A-Za-z0-9._/-]{1,200}$/u;
+// A landing merge's header is one line; its trailers are the builder's Pullboard- lines and nothing else.
+const MESSAGE_HEADER = /^[^\n\r]{1,200}$/u;
+const MESSAGE_TRAILERS = /^Pullboard-[A-Za-z]+: [^\n\r]{1,2000}(?:\nPullboard-[A-Za-z]+: [^\n\r]{1,2000})*$/u;
 
 /** Refuse an accepted-items list a runner could not land as written; return it in landing order. */
 function landingItems(items) {
@@ -18,7 +21,10 @@ function landingItems(items) {
     if (!Number.isSafeInteger(entry?.id) || entry.id < 1 || !SHA.test(entry.commit ?? '') || (entry.ref !== undefined && !REF.test(entry.ref))) {
       throw new Refused('LANDING_ITEMS', 'each landed item is { id, commit, ref? }: a positive item id, its full accepted commit sha, and the refs/ name the trunk remote holds it under');
     }
-    return { id: entry.id, commit: entry.commit, ...(entry.ref ? { ref: entry.ref } : {}) };
+    if (entry.header !== undefined && (typeof entry.header !== 'string' || !MESSAGE_HEADER.test(entry.header) || typeof entry.trailers !== 'string' || !MESSAGE_TRAILERS.test(entry.trailers))) {
+      throw new Refused('LANDING_ITEMS', 'a landed item\'s message is { header, trailers }: one header line and its Pullboard- trailer lines, as the landing message builder writes them');
+    }
+    return { id: entry.id, commit: entry.commit, ...(entry.ref ? { ref: entry.ref } : {}), ...(entry.header !== undefined ? { header: entry.header, trailers: entry.trailers } : {}) };
   });
 }
 
