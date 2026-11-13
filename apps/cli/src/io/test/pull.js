@@ -14,6 +14,7 @@ import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
@@ -211,10 +212,14 @@ async function compareWithMain(ctx, run, { main, config, paths, agent, say }) {
   const command = `${config.affectedTests.trimEnd()} ${files.map(file => shellWord('./' + file)).join(' ')}`;
   say?.('pullboard test: waiting on the main comparison (--compare-main)');
   const onMain = await runJobFor(ctx, { item: undefined, commit: main, main, command, files }, { agent, say });
-  if (!onMain.green && !onMain.failures) return { notices: [], unavailable: `main's run of ${files.join(', ')} names no failing cases` };
+  // Each compared file's result on main, as the existing path reports it: absent when main has no such file, red when
+  // main's run names a failing case in it, else green; the main run's job id rides along so the result cites it [C7].
+  const known = files.map(file => ({ file, job: onMain.job, result: tryGit(ctx.info.root, ['cat-file', '-e', `${main}:${file}`]).status !== 0 ? 'absent'
+    : !onMain.green && (onMain.failures ?? []).some(row => row.file === file) ? 'red' : onMain.green ? 'green' : null })).filter(row => row.result);
+  if (!onMain.green && !onMain.failures) return { notices: [], known, unavailable: `main's run of ${files.join(', ')} names no failing cases` };
   // Main's failing cases with each one's diagnostic signature, so one case red on both sides in different ways is not main's [V4,B3].
   const mainCases = new Map((onMain.failures ?? []).map((row, index) => [`${row.file}\0${row.name}`, onMain.signatures?.[index] ?? null]));
-  return { notices: run.failures.map((row, index) => {
+  return { known, notices: run.failures.map((row, index) => {
     const key = `${row.file}\0${row.name}`, mine = run.signatures?.[index] ?? null, theirs = mainCases.get(key) ?? null;
     // An unsigned case on either side is never matched by its name alone [V4,B3].
     const status = !mainCases.has(key) ? 'candidate-only' : mine && theirs && mine === theirs ? 'also-main' : 'different-on-main';
@@ -265,6 +270,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const compared = await compareWithMain(ctx, ran, { main, config, paths, agent, say });
   result.main = main;
   result.pulledNotices = compared.notices;
+  result.known = compared.known ?? [];
   if (compared.unavailable) result.mainUnavailable = compared.unavailable;
   return result;
 }

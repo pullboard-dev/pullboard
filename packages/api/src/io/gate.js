@@ -20,6 +20,7 @@ import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
 import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
+import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
@@ -375,9 +376,11 @@ export function compareGateWithMain(board, receipt, main, lookup) {
       const named = one.owner === 'unknown' ? null : keyedMainFailing(board.db, receiptId(one.receipt));
       // Main fails the same case only when it fails it the same way: the name and the diagnostic signature both match, and an
       // unsigned case on either side differs, so a changed assertion is never excused by main's red of that name [V4,B3].
-      const same = named ? named.some(main => main.name === row.name && main.signature !== null && main.signature === row.signature)
+      // A main-test receipt keeps each name clipped, so a longer case is matched by that clip; the signature still has to agree (#7495).
+      const clipped = row.name.slice(0, MAIN_CASE_NAME_UNITS);
+      const same = named ? named.some(main => main.name === clipped && main.signature !== null && main.signature === row.signature)
         : row.signature !== null && !one.own.includes(row.name);
-      const byName = named ? named.some(main => main.name === row.name) : !one.own.includes(row.name);
+      const byName = named ? named.some(main => main.name === clipped) : !one.own.includes(row.name);
       return { ...row, onMain: one.owner === 'unknown' ? null : same, ...(one.owner !== 'unknown' && byName && !same ? { differs: true } : {}), receipt: receiptId(one.receipt) };
     }),
     jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
@@ -407,8 +410,11 @@ function keyedMainFailing(db, id) {
  * against main's receipts the way the controller gate's main-owned verdict does, linking repairs and asking for the rest [V4,B3,C7].
  */
 function mainOwnership(board, id, compared, main) {
-  // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure.
-  const failures = [...new Map(compared.cases.map(({ file, name, signature }) => [`${file}\0${name}`, { file, name, signature }])).values()];
+  // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure, and the main
+  // receipt that recorded it failing, so review cites it; a board on an older engine records no receipt id (#7495).
+  const cites = (board.executionEngineVersion ?? store.ENGINE_VERSION) >= store.KNOWN_MAIN_RECEIPT_ENGINE;
+  const failures = [...new Map(compared.cases.map(({ file, name, signature, receipt }) => [`${file}\0${name}`,
+    { file, name, signature, ...(cites && typeof receipt === 'string' && receipt ? { receipt } : {}) }])).values()];
   const items = store.listItems(board, { all: true });
   const { clear, ambiguous } = store.splitAmbiguousMainReds({ main, failures }, items, id);
   const unowned = store.unownedMainReds(clear, items, id) ?? [];

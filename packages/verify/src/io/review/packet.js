@@ -390,8 +390,10 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
   const failures = excused ? [] : atHead;
   const mainIds = [...mainReceiptIds, ...mainRuns];
   const excusedMain = (excused ? (submit.gateGreen === true ? excused.failures.map(({ file, name }) => ({ file, name })) : atHead) : []).map(failure => {
-    const repair = excused.failures.find(row => row.file === failure.file && row.name === failure.name)?.item;
-    return { ...failure, alsoRedOnMain: true, main: excused.main, mainReceipt: mainReceiptFor(commonDir, mainIds, excused.main, failure),
+    const known = excused.failures.find(row => row.file === failure.file && row.name === failure.name);
+    const repair = known?.item;
+    // A pulled settle records the main receipt that named the case beside it; an older proof is matched by the receipt files (#7495).
+    return { ...failure, alsoRedOnMain: true, main: excused.main, mainReceipt: typeof known?.receipt === 'string' ? known.receipt : mainReceiptFor(commonDir, mainIds, excused.main, failure),
       ...(repair ? { repair } : {}) };
   });
   const cellsBefore = cellsAt(root, base);

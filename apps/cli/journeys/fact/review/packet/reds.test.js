@@ -1,8 +1,6 @@
 /** A pulled gate red only in cases main fails by name stores its review packet, with those main-owned cases kept apart [V4,C7]. */
 import '../../../../index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { cli } from '../../../../tests/fixtures/init/known-frozen.js';
 import { fileMainRed } from '../../../../tests/fixtures/init/known-frozen.js';
@@ -26,10 +24,15 @@ test("clause 1: a settled pulled red only on main's named reds gets a review pac
   const [red] = packet.excusedMainReds;
   assert.deepEqual({ file: red.file, name: red.name, main: red.main, repair: red.repair },
     { file: 'test/frozen.test.js', name: 'frozen case [G1]', main: box.main, repair });
-  assert.match(red.mainReceipt ?? '', /^[a-f0-9-]{36}$/u, `the excused red names its main receipt: ${JSON.stringify(red)}`);
-  const receipt = JSON.parse(readFileSync(join(box.root, '.git', 'pullboard', 'gate-receipts', `${red.mainReceipt}.json`), 'utf8'));
-  assert.equal(receipt.kind, 'main-red');
-  assert.equal(receipt.head, box.main, 'the main receipt ran the known main commit');
-  assert.ok(receipt.failures.some(row => row.file === red.file && row.name === red.name), 'the main receipt records that exact case failing');
+  // On pull the main receipt is the main-test job's keyed receipt on the board, recorded beside the known failure.
+  assert.equal(typeof red.mainReceipt, 'string', `the excused red names its main receipt: ${JSON.stringify(red)}`);
+  assert.equal(red.mainReceipt, known.failures[0].receipt, 'the packet cites the receipt the settle recorded');
+  const [keyed] = rows(box, "SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0", red.mainReceipt);
+  assert.ok(keyed, `the cited main receipt is recorded on the board: ${red.mainReceipt}`);
+  const receipt = JSON.parse(keyed.job_step_payload);
+  assert.equal(receipt.verdict, 'red');
+  assert.equal(receipt.main, box.main, 'the main receipt ran the known main commit');
+  assert.equal(receipt.file, red.file);
+  assert.ok(receipt.failing.includes(red.name), 'the main receipt records that exact case failing');
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 1, 'the packet files no repair of its own');
 });
