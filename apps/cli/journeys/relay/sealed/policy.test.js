@@ -16,7 +16,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import {
   after,
   test,
@@ -25,6 +24,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { SPEC_REFREEZE } from '../../../../../packages/spec/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { main } from '../../../tests/fixtures/native.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import {
   checkpointSequence,
@@ -58,16 +58,15 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
   const builder = join(box.directory, 'builder');
   execFileSync('git', ['worktree', 'add', '-q', '-b', 'builder-policy', builder, 'HEAD'], { cwd: box.root, env: box.env });
   /** Run native setup commands from the real linked builder worktree. */
-  const runBuilder = (...args) => {
-    const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: builder, env: box.env, encoding: 'utf8' });
-    assert.equal(result.error, undefined);
+  const runBuilder = async (...args) => {
+    const result = await runCliInProcess([...args, '--json'], { cwd: builder, env: box.env });
     assert.equal(result.status, 0, result.stderr || result.stdout || 'the real native CLI prepares a fresh claim under the pinned main policy');
     return JSON.parse(result.stdout);
   };
-  const joined = runBuilder('join', lane, '--route', 'strong', '--family', 'Builder Family');
+  const joined = await runBuilder('join', lane, '--route', 'strong', '--family', 'Builder Family');
   const builderId = joined.agent;
   assert.equal(typeof builderId, 'string');
-  runBuilder('claim', '1');
+  await runBuilder('claim', '1');
 
   const source = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: box.root, env: box.env, encoding: 'utf8' }).trim();
@@ -87,7 +86,7 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     store.refreeze(source, 1, { agentId: 'coordinator', [SPEC_REFREEZE]: true, freeze: () => ({ text: legacyText, digest: legacyDigest }) });
   } finally { store.closeBoard(source); }
 
-  runBuilder('claim', '1');
+  await runBuilder('claim', '1');
   const afterRefreeze = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   let document;
   let moves;
