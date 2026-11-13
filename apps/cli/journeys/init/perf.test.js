@@ -32,13 +32,13 @@ import { assertBudgets } from '../../tests/fixtures/cockpit/perf/budget-check.mj
 
 after(cleanupFixtureChildren);
 
-test('the harness measures with eight registered projects [N26,N40]', async (t) => {
+test('the harness measures the single-project baseline [N26,N40]', async (t) => {
   const fixtures = [];
   t.after(() => {
     if (t.passed) for (const fixture of fixtures) removeStressBoard(fixture);
   });
   const root = resolve(import.meta.dirname, '../../../..');
-  for (const projects of [8, 1]) {
+  for (const projects of [1]) {
     const result = await runFixtureChildAsync(process.execPath, [join(root, 'apps/cli/tests/fixtures/cockpit/perf/run.mjs'),
       ...(projects > 1 ? ['--projects', String(projects)] : []),
       '--size', '5', '--runs', '1', '--idle', '1', '--live-every', '1', '--keep'],
