@@ -96,7 +96,7 @@ async () => {
   await fixAndResubmit(box, entry);
 });
 
-test('clause 2: a pre-push hook red returns the item the same way instead of parking LAND_PUSH [C7,#6270]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, // budget: one real submit, accept, landing push and resubmit; hang ceiling only.
+test('clause 2: a pre-push hook red returns the item the same way instead of parking LAND_PUSH [C7,#6270]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6807' }, // budget: one real submit, accept, landing push and resubmit; hang ceiling only.
 async () => {
   const box = defaultProject();
   const entry = acceptedRedItem(box);
