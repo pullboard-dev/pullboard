@@ -75,7 +75,7 @@ test('clause 2: plain next reserves an eligible review before a build, even with
   box.claim(build, seat);
   const again = await cli(box, seat.path, ['next']);
   assert.equal(again.code, 0, again.out + again.err);
-  assert.equal(again.document.review, true);
+  assert.equal(again.document.review, true, again.out);
   assert.equal(again.document.item.item_id, review);
   assert.equal(store.getItem(box.board, build).item_owner, seat.id);
 });
@@ -94,7 +94,7 @@ test('plain next skips the builders own submitted source and claims other work [
   assert.equal(taken.document.item.item_id, build);
   assert.equal(taken.document.review, false);
   assert.equal(store.getItem(box.board, build).item_owner, box.seats.builder.id);
-  assert.equal(store.getItem(box.board, overlapping).item_status, 'open', 'the submitted file still blocks overlapping work');
+  assert.equal(store.getItem(box.board, overlapping).item_status, 'open', 'the submitted file still blocks overlapping work ' + taken.out);
   assert.equal(store.getItem(box.board, submitted).item_status, 'submitted');
   assert.equal(store.getItem(box.board, submitted).item_review_by, null);
   assert.ok(Buffer.byteLength(taken.out + taken.err) <= 2048);

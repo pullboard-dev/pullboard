@@ -81,6 +81,8 @@ async function project() {
     const document = JSON.parse(result.stdout);
     // A pull submit returns queued at once; the journey reads the settled gate, so it waits for the local runner's receipt [P7].
     if (args[0] === 'submit' && document.queued) {
+      // The wait watches the local runner's folder, which the runner creates when it starts; make sure it exists first.
+      mkdirSync(join(home, 'local-runner'), { recursive: true });
       const run = async (here, ...rest) => { const out = await runLocal(here, ...rest); return { code: out.status, out: out.stdout, err: out.stderr }; };
       await settledGateJob({ repo: root, env, run }, document.item ?? Number(args[1]));
     }
