@@ -913,6 +913,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
  * verdict is, set off from the items under it by a rule. */
 .list-card { display: grid; gap: var(--space-0); padding: var(--space-2); }
 .list-card > .chain { padding: 0; }
+/* Items draws only the rows near the screen (#6676), so every row is one fixed height and the list's whole height is known. */
+#chain { --item-row-h: 74px; overflow-anchor: none; } #chain > li.row { height: var(--item-row-h); box-sizing: border-box; overflow: hidden; content-visibility: visible; }
 .needs { display: grid; gap: var(--space-0); margin: 0 0 var(--space-1); padding: 0 0 var(--space-1); list-style: none; border-bottom: 1px solid var(--line); }
 .needs[hidden] { display: none; }
 .dot.ask { background: var(--warn); }
@@ -1592,4 +1594,7 @@ body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }
 .focus-batch { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-4); }
 .focus-batch p { margin: var(--space-1) 0; overflow-wrap: anywhere; }
 .focus-batch small { color: var(--muted, inherit); }
+/* Long lists lay out only the rows on screen, so showing their tab costs the same however long the list is (#6613). */
+#chain > li, #spec-list > .spec-record, #doctrine-list > .spec-record, #roadmap .milestone-item { content-visibility: auto; contain-intrinsic-block-size: auto 56px; }
+/* @pullboard-project-menu-styles */
 /* @pullboard-palette-styles */
