@@ -996,14 +996,24 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   await restoreInventories();
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
   assert.equal(freshRefusal.status, 1);
-  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED', JSON.stringify(freshRefusal.document.error));
-  assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
-  assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
-  const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
-  assert.equal(afterFreshRefusal, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+  // One handle on replica C names what its board held when the stack refusal did not come, then checks the claim stays.
   const freshAfter = store.openBoard(replicaFiles[2]);
-  try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
-  finally { store.closeBoard(freshAfter); }
+  try {
+    if (freshRefusal.document.error?.code !== 'STACKED_ON_UNVERIFIED') {
+      const base = store.getItem(freshAfter, stackedA);
+      const seen = { status: base.item_status, commit: base.item_commit, applied: appliedSequence(freshAfter),
+        events: store.events(freshAfter, { itemId: stackedA }).map(event => event.event_kind),
+        unverified: store.unverifiedSubmissions(freshAfter).map(row => `${row.item_id}:${row.item_commit.slice(0, 12)}`),
+        inMain: gitAt(worktrees[2], envs[2], 'merge-base', firstRecoveryCommit, 'main') === firstRecoveryCommit,
+        link: JSON.parse(readFileSync(freshLinkFile, 'utf8')).sequence, uploads: relay.uploads.length };
+      assert.fail(`expected STACKED_ON_UNVERIFIED, got ${JSON.stringify(freshRefusal.document.error)}; replica C held ${JSON.stringify(seen)}`);
+    }
+    assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
+    assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
+    const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
+    assert.equal(afterFreshRefusal, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+    assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed');
+  } finally { store.closeBoard(freshAfter); }
   await restoreOutboxDefault();
 }
 
