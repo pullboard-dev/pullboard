@@ -9,6 +9,7 @@ import { sandbox } from '../../tests/fixtures/verdict-check.js';
 import { project } from '../../tests/fixtures/verdict-check.js';
 import { succeeds } from '../../tests/fixtures/verdict-check.js';
 import { submitted } from '../../tests/fixtures/verdict-check.js';
+import { submitSettled } from '../../tests/fixtures/verdict-check.js';
 import { clean } from '../../tests/fixtures/verdict-check.js';
 
 test('accept says when no frozen check ran and records none in its event and JSON [V19,V8]', async () => {
@@ -42,7 +43,7 @@ test('rework keeps historical rejection unknown and shows the latest accept chec
     writeFileSync(join(web, 'web', `item-${item.id}.js`), 'export const complete = true; // revised\n');
     box.git(web, 'add', '-A');
     box.git(web, 'commit', '-q', '-m', `fix(web): correct fixture ${item.id} [G1]`);
-    await succeeds(box, web, 'submit', String(item.id), '--wait');
+    await submitSettled(box, repo, web, item.id);
     box.git(repo, 'switch', '--detach', 'web/one');
     const accepted = await succeeds(box, repo, 'verify', String(item.id), 'accept', '--as', 'coordinator', '--note', 'the rework fixed the missed edge');
     assert.match(accepted, /no frozen check ran/);
