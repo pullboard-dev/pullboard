@@ -40,8 +40,6 @@
     "packages/landing/src/io/automatic/scheduler.js": 1,
     "packages/landing/src/io/smoke.js": 2,
     "packages/landing/src/io/docs.js": 1,
-    "packages/landing/src/io/history.js": 1,
-    "packages/landing/src/io/plan/check.js": 1,
     "packages/landing/src/io/shards.js": 2,
     "packages/landing/src/io/worker.js": 1,
     "packages/landing/src/io/prune.js": 2,

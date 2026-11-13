@@ -61,8 +61,9 @@ test('a real pre-commit hook waiting on file I/O leaves the board writer availab
     syncBuiltinESMExports();
   `);
   // Process-level: a real pre-commit hook child blocked mid-read by a preload while a peer takes the board lock.
+  // The hook runs without the timing shim (PULLBOARD_HOOK_SHIM), so the preload reaches the process that reads the config.
   const child = startFixtureChild(process.execPath, ['--import', preload, helpers.BIN, 'hook', 'pre-commit'], {
-    cwd: box.web, env: { ...box.env, HOOK_IO_SIGNAL: signal, HOOK_IO_RELEASE: release }, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: box.web, env: { ...box.env, PULLBOARD_HOOK_SHIM: '1', HOOK_IO_SIGNAL: signal, HOOK_IO_RELEASE: release }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout.resume();
   const closed = once(child, 'close');

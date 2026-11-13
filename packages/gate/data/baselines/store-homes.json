@@ -206,9 +206,6 @@
   "packages/config/src/io/git/sync.js": {
     "git-sync.json": 1
   },
-  "packages/config/src/io/main.js": {
-    "pullboard.json": 1
-  },
   "packages/config/src/io/settings/inventory.js": {
     "state.json": 1,
     "pullboard.json": 1,
@@ -407,20 +404,11 @@
   "packages/landing/src/io/computed/conflict/return.js": {
     "board.sqlite": 1
   },
-  "packages/landing/src/io/history.js": {
-    "cells.json": 1
-  },
   "packages/landing/src/io/host.js": {
     "board.sqlite": 1
   },
   "packages/landing/src/io/main/red.js": {
     "pullboard.json": 1
-  },
-  "packages/landing/src/io/plan/check.js": {
-    "cells.json": 2
-  },
-  "packages/landing/src/io/scan.js": {
-    "cells.json": 1
   },
   "packages/landing/src/io/smoke.js": {
     "settings.json": 1,

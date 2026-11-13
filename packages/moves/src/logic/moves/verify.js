@@ -13,6 +13,7 @@ import { ITEM_PATCH_ENGINE } from "../../../../state/light.js";
 import { requiredReviewFamilyEngine } from "../../../../verify/browser.js";
 import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
+import { LANDED_VERDICT_ENGINE } from "../../../../state/index.js";
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */
 import {
   CAUSE_ENGINE,
@@ -51,7 +52,7 @@ function minimumEngine(args, board, at) {
   const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(checkClause ? REVIEW_REQUEST_ENGINE : 1, relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? Math.max(ITEM_PATCH_ENGINE, REVIEW_HEAD_BUILDER_FAMILY_ENGINE) : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+  return Math.max(args[1]?.landed === true ? LANDED_VERDICT_ENGINE : 1, checkClause ? REVIEW_REQUEST_ENGINE : 1, relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? Math.max(ITEM_PATCH_ENGINE, REVIEW_HEAD_BUILDER_FAMILY_ENGINE) : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
     args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 
@@ -102,6 +103,7 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "NOTE_REQUIRED": "add --note \"<what happened>\"",
   "NOT_AT_COMMIT": "check out the submitted commit shown by pullboard show <id>: git switch --detach <commit>",
   "NOT_A_REPO": "cd into a git repo, or make one: git init",
+  "NOT_LANDED": "see its state with pullboard show <id>; only an item a forced merge landed with no verdict takes this accept",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
   "NOT_SUBMITTED": "see its state with pullboard show <id>; verify only submitted items: pullboard next --verify",
   "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",

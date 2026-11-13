@@ -20,6 +20,8 @@ import { randomUUID } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 // Use the public browser-safe door to keep the thin resident client from loading the full kernel.
 import { Refused } from '../../../../../../packages/kernel/browser.js';
+import { CONFIG_FILE } from '../../../../../../packages/config/browser.js';
+import { isConfigFile } from '../../../../../../packages/config/browser.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -110,7 +112,7 @@ function committedConfigFromObjects(commonDir) {
     const name = bytes.subarray(space + 1, nul).toString();
     const oid = bytes.subarray(nul + 1, nul + 21).toString('hex');
     at = nul + 21;
-    if (name !== 'pullboard.json') continue;
+    if (!isConfigFile(name)) continue;
     const blob = looseObject(commonDir, oid);
     return blob?.type === 'blob' ? blob.body.toString('utf8') : undefined;
   }
@@ -145,7 +147,7 @@ export function toolBuildPolicy(location) {
   let raw;
   const committed = committedConfigFromObjects(location.commonDir);
   if (committed === null) return { enabled: false, refreshMs: 3_600_000 };
-  try { raw = JSON.parse(committed ?? git(location.root, ['show', 'main-worktree/HEAD:pullboard.json'])); }
+  try { raw = JSON.parse(committed ?? git(location.root, ['show', `main-worktree/HEAD:${CONFIG_FILE}`])); }
   catch { return { enabled: false, refreshMs: 3_600_000 }; }
   const value = raw.toolBuild;
   if (value === undefined) return { enabled: false, refreshMs: 3_600_000 };

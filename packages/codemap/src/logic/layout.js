@@ -24,7 +24,8 @@ export const LAYOUT_RULES = Object.freeze({
   'name-group': 'three or more files sharing a first word become a subfolder named for that word, without the word in each file',
 });
 
-const ROOT_DIRS = new Set(['apps', 'packages', 'docs', 'skills', ...ROOT_FOLDERS.filter(folder => folder.startsWith('.'))]);
+/** .pullboard is the board's own config folder (test-file budgets and the like), so it may sit at the root [#6544]. */
+const ROOT_DIRS = new Set(['apps', 'packages', 'docs', 'skills', '.pullboard', ...ROOT_FOLDERS.filter(folder => folder.startsWith('.'))]);
 const ROOT_DOCS = new Set([...ROOT_FILES, 'COORDINATOR.md']);
 const ALIAS_ROOTS = new Set(['bin', 'src', 'relay', 'test']);
 const DOORS = new Set(['index.js', 'light.js', 'browser.js']);

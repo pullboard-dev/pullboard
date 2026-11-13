@@ -54,6 +54,9 @@ export function cellOf(path) {
   return { cell: match[1].replace(/^packages\//u, ''), deep: match[2].startsWith('src/') };
 }
 
+/** The one next step a refused cross-cell import names; the plan's allowedEdges is never offered as a way round [C7]. */
+const NEXT_STEP = ': import through a lower cell front door, or ask the coordinator';
+
 /** A light door (a cell's core.js that may re-export shell modules) must cold-load within this many milliseconds [C7]. */
 export const LIGHT_DOOR_BUDGET_MS = 100;
 
@@ -287,6 +290,13 @@ export function forwardedEdges(file, source, readSource) {
   return edges;
 }
 
+/** The cells plan, or an empty one when the tree has none. */
+function planOf(root) {
+  try { return JSON.parse(readFileSync(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8')); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  return {};
+}
+
 /**
  * The edges the plan declares: `from->to` allows a cross-cell import, `from->to/src` allows a deep one.
  *
@@ -294,9 +304,7 @@ export function forwardedEdges(file, source, readSource) {
  * @returns {Set<string>}
  */
 export function declaredEdges(root) {
-  let plan = {};
-  try { plan = JSON.parse(readFileSync(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8')); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const plan = planOf(root);
   return new Set(plan.allowedEdges ?? []);
 }
 
@@ -359,26 +367,25 @@ export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.
   const add = (path, line, text) => problems.push({ path, line, text });
   for (const [file, row] of Object.entries(current.files)) {
     const allowed = ceilings.files[file] ?? { cells: 0, deep: 0 };
-    const from = cellOf(file).cell;
     for (const edge of row.edges) {
       const fresh = edge.deep ? row.deep > allowed.deep : row.cells > allowed.cells;
       if (!fresh) continue;
-      const declaration = `${from}->${edge.to}${edge.deep ? '/src' : ''}`;
       add(file, edge.line, edge.deep
-        ? `deep import into ${edge.to}'s src exceeds the ratchet (${row.deep} > ${allowed.deep}); import ${edge.to}'s index, or add "${declaration}" to allowedEdges in packages/codemap/data/plan/cells.json`
-        : `new cross-cell import of ${edge.to} exceeds the ratchet (${row.cells} cells > ${allowed.cells}); cut it, or add "${declaration}" to allowedEdges in packages/codemap/data/plan/cells.json`);
+        ? `deep import into ${edge.to}'s src exceeds the ratchet (${row.deep} > ${allowed.deep}); import ${edge.to}'s index${NEXT_STEP}`
+        : `new cross-cell import of ${edge.to} exceeds the ratchet (${row.cells} cells > ${allowed.cells}); cut it${NEXT_STEP}`);
     }
   }
   if (!files) {
     for (const [name, row] of Object.entries(current.cells)) {
       const allowed = ceilings.cells[name] ?? { imports: [], deepImporters: 0 };
       if (name.startsWith('<-')) {
-        if (row.deepImporters > allowed.deepImporters) add(`packages/${name.slice(2)}`, 1, `${row.deepImporters} files import ${name.slice(2)}'s src past its index (ceiling ${allowed.deepImporters}); import its index, or add "<from>->${name.slice(2)}/src" to allowedEdges in packages/codemap/data/plan/cells.json`);
+        if (row.deepImporters > allowed.deepImporters) add(`packages/${name.slice(2)}`, 1, `${row.deepImporters} files import ${name.slice(2)}'s src past its index (ceiling ${allowed.deepImporters}); import its index${NEXT_STEP}`);
         continue;
       }
-      for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it, or add "${name}->${target}" to allowedEdges in packages/codemap/data/plan/cells.json`);
+      for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it${NEXT_STEP}`);
     }
   }
+  if (!files) for (const entry of upwardAllowedEdges(root)) add('packages/codemap', 1, `allowedEdges entry "${entry.edge}" points up the cell order: ${entry.from} is order ${entry.fromOrder}, ${entry.to} is order ${entry.toOrder}; a cell may declare an edge only to a lower order${NEXT_STEP}`);
   if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) add('packages/codemap', 1, `allowedEdges entry "${entry}" is used by no import; remove it from allowedEdges in the cells plan`);
   problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) }));
   return problems;
@@ -443,6 +450,30 @@ export function unusedAllowedEdges(root, { files, read = file => readFileSync(re
     for (const edge of edgesOf(file, read(file))) used.add(`${from}->${edge.to}${edge.deep ? '/src' : ''}`);
   }
   return [...declaredEdges(root)].filter(entry => !used.has(entry));
+}
+
+/**
+ * The allowedEdges entries whose target cell has an order not lower than the source cell's, minus the plan's `upwardEdgesGrandfathered` list.
+ * Why: a cell that may import a higher cell tangles the order the plan promises, and a builder could declare such an edge to pass the check [C7].
+ * A deep entry (`from->to/src`) is judged by its cell like any other; an entry naming a cell the plan does not order is left to the unused-entry check.
+ *
+ * @param {string} root
+ * @returns {{ edge: string, from: string, to: string, fromOrder: number, toOrder: number }[]}
+ */
+export function upwardAllowedEdges(root) {
+  const plan = planOf(root);
+  const orders = new Map((plan.cells ?? []).map(cell => [cell.name, cell.order]));
+  const orderOf = name => orders.get(name.startsWith('apps/') ? `app:${name.slice(5)}` : name);
+  const grandfathered = new Set(plan.upwardEdgesGrandfathered ?? []);
+  const rows = [];
+  for (const edge of plan.allowedEdges ?? []) {
+    if (grandfathered.has(edge)) continue;
+    const [from, rest] = edge.split('->');
+    const to = (rest ?? '').replace(/\/src$/u, '');
+    const fromOrder = orderOf(from), toOrder = orderOf(to);
+    if (fromOrder !== undefined && toOrder !== undefined && toOrder >= fromOrder) rows.push({ edge, from, to, fromOrder, toOrder });
+  }
+  return rows;
 }
 
 /** Record the ceilings at today's undeclared counts, and each light door's measured cold load in ms. */
