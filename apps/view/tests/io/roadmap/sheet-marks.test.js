@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css */
 /** #6927: the Gate stage is charcoal everywhere, and Roadmap marks are the design sheet's marks [N26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
