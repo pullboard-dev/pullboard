@@ -63,6 +63,8 @@ function shimmed(t) {
   box.put('src/reader.js', "import { readFileSync } from 'node:fs';\nexport const text = readFileSync(new URL('./stats.js', import.meta.url), 'utf8');\nimport { resolve } from 'node:path';\nexport const here = resolve(import.meta.dirname, './stats.js');\n");
   box.put('test/pure.test.js', "import { pure } from '../src/stats.js';\nconsole.log(pure);\n");
   box.put('test/declared.test.js', '/** @pullboard-test-input src/stats.js package.json */\nexport const declared = 1;\n');
+  // The plan reads the seed and the cell inventory from the index, so stage every put before planning.
+  git(box.root, 'add', '-A');
   const plan = computePlan(box.root);
   const order = ['kernel', 'stats', 'mid', 'late', 'app:cli', 'store', 'items'];
   for (const cell of plan.cells) cell.order = order.indexOf(cell.name) + 1;
