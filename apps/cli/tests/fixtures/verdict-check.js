@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 import { fixtureJoin } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { FIXTURE_MODEL } from './testkit.js';
-import { fixtureMachineSettings } from './testkit.js';
+import { fixtureSettledMachine } from './testkit.js';
 import { runCliInProcess } from './process.js';
 
 const BIN = resolve(import.meta.dirname, "../../pullboard.js");
@@ -48,9 +48,8 @@ export function sandbox() {
   // The fixture acts as the person's own terminal: an inherited agent or SSH session would make its verdicts self-verification.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   mkdirSync(env.HOME);
-  // This journey holds its gate in the submitting process, so it pins controller dispatch and the default may move to pull [P7].
-  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  // The submit's gate is a pulled job the loopback local runner settles; `submit --wait` returns once it has [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run isolated Git commands for this fixture. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   /** Run the checked-out CLI without invoking any shared board. */

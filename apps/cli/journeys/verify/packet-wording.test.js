@@ -9,7 +9,6 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixturePolicy } from '../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/index.js';
 
@@ -47,10 +46,6 @@ test('clauses 1-3: the packet names what covers a clause, what does not, and acc
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   fixturePolicy(box, { submitGate: 'landing', affectedTests: RUN });
-  // The fixture gate runs inline so the journey finishes under the file budget; pull settling needs a live loopback runner [#6249].
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(box.repo, 'web'));
   writeFileSync(join(box.repo, 'web/greet.js'), "export const greet = () => '';\n");
