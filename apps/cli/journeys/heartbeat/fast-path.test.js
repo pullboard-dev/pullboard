@@ -79,7 +79,8 @@ test('clause 2: one call renews a seat with three claims, a seat with no claim s
   const second = box.run(box.web, 'heartbeat');
   assert.equal(second.code, 0, `${second.out}\n${second.err}`);
   const after = beats(box);
-  assert.ok(after.length >= 1 && after.every(row => row.at > '2020'), 'the seat observation advanced past the aged value');
+  const mine = after.find(row => row.seat.endsWith(',"web-1"]'));
+  assert.ok(mine && mine.at > '2020', 'the seat observation advanced past the aged value');
   const whoami = JSON.parse(box.run(box.web, 'heartbeat', '--json').out);
   assert.equal(whoami.presence, 'live', 'the full path reads the thin path write as live presence');
   for (const id of ids) {
