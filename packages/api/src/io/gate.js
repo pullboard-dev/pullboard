@@ -118,7 +118,7 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   const environment = gate.environment && ['node', 'platform', 'arch'].every(key => typeof gate.environment[key] === 'string' && gate.environment[key])
     ? { node: gate.environment.node, platform: gate.environment.platform, arch: gate.environment.arch } : null;
   // A plain submit's receipts are reusable by review: they name the admission witness and the plan they ran [C7,H16].
-  const reuse = admission ? { submitAdmission: admission.id, submitReuse: true, submitReusePlan: reusePlanDigest({ check: check ?? '', files: pulledProofFiles(receipt), deferred: gate.deferred === true,
+  const reuse = admission ? { submitAdmission: admission.id, submitReuse: true, submitReusePlan: reusePlanDigest({ check: check ?? '', files: pulledProofFiles(receipt), full: gate.full === true, deferred: gate.deferred === true,
     proofCommand: gate.analysis?.proofCommand ?? '' }) } : {};
   const ids = [];
   for (const phase of gate.phases ?? []) {
@@ -148,8 +148,8 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
  * (packages/verify/src/logic/plan.js), restated here because this cell may not import verify; the review-reuse journey
  * fails when they drift [C7,H16].
  */
-function reusePlanDigest({ check, files, deferred = false, proofCommand }) {
-  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full: false, deferred, proofCommand: proofCommand || '' })).digest('hex');
+function reusePlanDigest({ check, files, full = false, deferred = false, proofCommand }) {
+  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full, deferred, proofCommand: proofCommand || '' })).digest('hex');
 }
 
 /** The files a pulled gate's proof ran, as its analysis named them. */
@@ -564,7 +564,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
         ...(deferred && typeof receipt.gate.deferNote === 'string' ? { note: receipt.gate.deferNote.replace(/[\r\n\u2028\u2029]/gu, ' ') } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
-        submissionProof: { version: 1, files, full: false, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
+        submissionProof: { version: 1, files, full: receipt.gate?.full === true, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
           ...(owners?.known ? { knownMainFailures: owners.known } : {}), ...(owners?.ambiguous.length ? { knownMainAmbiguous: owners.ambiguous } : {}) } });
       if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
       if (mainOnly) {
