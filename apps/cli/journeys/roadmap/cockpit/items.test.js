@@ -102,6 +102,12 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
   stage('setup-end');
   const view=await startView(box),profile=mkdtempSync(join(tmpdir(),'pullboard-roadmap-truth-'));let chrome;
   const milestone=name=>`document.querySelector('[data-key="m:${name}"]')`;
+  // Since #7303 a release other than the chosen one draws its head only; open it before reading its rows or header.
+  const openMilestone=async name=>{
+    const head=`document.querySelector('[data-key="m:${name}"] .milestone-head')`;
+    if(await chrome.stable(head+'.getAttribute("aria-expanded")')!=='true') await press(chrome,head);
+    await chrome.waitFor(`${milestone(name)}.querySelector('.milestone-body:not([hidden])') !== null`);
+  };
   try {
     chrome=await openRoadmapChrome(executable,view.link.href,profile);await chrome.waitFor('data?.project?.milestones?.length===6');
     const apiSummary=JSON.parse(await chrome.stable("JSON.stringify(data.project.milestones.find(m=>m.name==='State summary').summary)"));
@@ -128,6 +134,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
     assert.equal(finished.releases[0],'Past target','the Releases list starts with the first release with work left');
     assert.ok(!finished.releases.includes('Finished unshipped'),'a finished release is not listed as coming');
     assert.match(finished.status,/^Past target/u,'the page opens on the first release with work left');
+    await openMilestone('Empty plan');await openMilestone('State summary');
     // An empty plan has nothing left either: no header, its No items yet reading as before the header (tests-28, 18 Oct).
     const empty=JSON.parse(await chrome.stable(`JSON.stringify({summary:Boolean(${milestone('Empty plan')}?.querySelector('.roadmap-summary,.roadmap-left')),zero:/0 (left|remaining)|0 of 0|About 0/u.test(${milestone('Empty plan')}?.textContent||''),empty:${milestone('Empty plan')}?.querySelector('.milestone-empty')?.textContent||''})`));
     assert.deepEqual(empty,{summary:false,zero:false,empty:'No items yet.'},`an empty plan shows no header: ${JSON.stringify(empty)}`);
