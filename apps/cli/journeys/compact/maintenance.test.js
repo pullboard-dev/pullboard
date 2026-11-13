@@ -48,25 +48,25 @@ function enable(box) {
   box.git(box.repo, 'commit', '-qm', 'chore: enable private fixture maintenance');
 }
 
-test('clause 1: routine maintenance compacts the board and reports bytes before and after, then waits a day [C7]', () => {
+test('clause 1: routine maintenance compacts the board and reports bytes before and after, then waits a day [C7]', async () => {
   const { box } = oldLanded();
   enable(box);
-  const first = box.run(box.repo, 'maintenance', '--json');
+  const first = await box.inProcess(box.repo, 'maintenance', '--json');
   assert.equal(first.code, 0, first.err);
   const compaction = JSON.parse(first.out).compaction;
   assert.equal(compaction.ran, true, 'the first run compacts');
   assert.ok(compaction.rows >= 11, `the old job's steps were archived: ${JSON.stringify(compaction)}`);
   assert.ok(compaction.before > compaction.after, `the board file shrank: ${compaction.before} B to ${compaction.after} B`);
-  const text = box.run(box.repo, 'maintenance');
+  const text = await box.inProcess(box.repo, 'maintenance');
   assert.match(text.out, /^board compaction: next at \d{4}-\d\d-\d\dT/mu, 'a second run inside the day does not compact again');
-  const again = JSON.parse(box.run(box.repo, 'maintenance', '--json').out).compaction;
+  const again = JSON.parse((await box.inProcess(box.repo, 'maintenance', '--json')).out).compaction;
   assert.equal(again.ran, false);
   assert.equal(again.before, compaction.before, 'the day\'s report still names the bytes of the run that compacted');
 });
 
-test('clause 1: maintenance left off compacts nothing and says nothing about it [C7]', () => {
+test('clause 1: maintenance left off compacts nothing and says nothing about it [C7]', async () => {
   const { box } = oldLanded();
-  const run = box.run(box.repo, 'maintenance');
+  const run = await box.inProcess(box.repo, 'maintenance');
   assert.equal(run.code, 0, run.err);
   assert.doesNotMatch(run.out, /compaction/u);
 });
