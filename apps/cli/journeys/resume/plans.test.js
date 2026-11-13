@@ -636,7 +636,7 @@ function jobStatements(root) {
   return found;
 }
 
-test('clause 3: board API queries on job, job_step and event never scan their table [C7]', () => {
+test('clause 1: board API queries on job, job_step and event never scan their table [C7]', () => {
   const box = fixture();
   const statements = jobStatements(resolve(import.meta.dirname, '../../../..'));
   assert.ok(statements.size > 25, `only ${statements.size} job statements were found`);
