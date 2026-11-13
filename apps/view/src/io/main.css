@@ -396,7 +396,7 @@ a.ghost { color: var(--ink); }
   .top { container-type: inline-size; }
   .tabs { flex: 1 1 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: row; gap: 0; min-width: 0; }
   /* Dashboard and the retained destinations use two rows, so every full label fits a phone without scrolling the page. */
-  .tab { display: grid; justify-items: center; align-content: center; padding: var(--space-3) var(--space-0); font-size: clamp(var(--text-2xs), 3.3cqi, var(--text-sm)); }
+  .tab { display: grid; justify-items: center; align-content: center; padding: var(--space-3) 3px; font-size: clamp(var(--text-2xs), 3.3cqi, var(--text-sm)); }
 }
 .primary { display: grid; gap: var(--space-4); min-width: 0; }
 .items-view-switch { flex: none; flex-wrap: nowrap; max-width: none; }
