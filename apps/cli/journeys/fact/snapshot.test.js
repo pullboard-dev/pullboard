@@ -83,6 +83,8 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
     proofStats: actualStatistics,
     statsComparison: actualComparison,
     dashboardRecent: actual.dashboardRecent,
+    // The export is a served summary, which counts its finished items; the live read lists them whole, so the counts follow its items [#6588].
+    ...(actual.finished ? { finished: { verified: expected.items.filter(item => item.status === 'verified').length, withdrawn: expected.items.filter(item => item.status === 'withdrawn').length } } : {}),
   };
   assert.deepEqual(Object.keys(actual).sort(), Object.keys(wanted).sort(), `${message}: the same projection fields`);
   // Compare field by field so a red names the one field that moved between the two reads.
