@@ -186,12 +186,22 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
       activeTab: typeof view !== 'undefined' ? view.tab : null,
       itemTitles: typeof data !== 'undefined' && Array.isArray(data?.project?.items) ? data.project.items.slice(0, 5).map(item => item.title) : [],
       notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800),
-    }))()`)));
+    }))()`)) + ' probe ' + JSON.stringify(await chrome.stable(`(async () => { const out = {}; try { const mod = await import('/relay/client.js'); out.client = 'loads ' + Object.keys(mod).join(','); } catch (e) { out.client = String(e?.stack ?? e).slice(0, 500); } out.scripts = [...document.scripts].map(s => s.src || 'inline:' + s.textContent.length); out.slow = performance.getEntriesByType('resource').filter(r => r.responseStatus !== 200).map(r => r.name + ':' + r.responseStatus).slice(0, 10); out.transport = typeof transport !== 'undefined' ? typeof transport : null; out.dataNull = typeof data !== 'undefined' ? String(data === null) : 'undefined'; return out; })()`).catch(String)));
     throw error;
   }
-  await chrome.click(`document.querySelector('[data-tab="items"]')`);
-  assert.equal(await chrome.stable(`document.querySelector('[data-tab="items"]')?.classList.contains('on')`), true,
-  'the browser shows the Items tab before checking its chain');
+  try {
+    await chrome.click(`document.querySelector('.tab[data-tab="items"]')`);
+    await chrome.waitFor( // budget: the same bounded 15 s page-state ceiling as the board read above.
+      `document.querySelector('.tab[data-tab="items"]')?.classList.contains('on')`, SIGNED_IN_BOARD_RENDER_WAIT_MS,
+      'the browser shows the Items tab before checking its chain');
+  } catch (error) {
+    t.diagnostic('items tab click: ' + JSON.stringify(await chrome.stable(`(() => ({
+      tab: typeof view !== 'undefined' ? view.tab : null,
+      buttons: [...document.querySelectorAll('[data-tab="items"]')].map(node => ({ cls: node.className, hidden: node.hidden, box: node.getBoundingClientRect().toJSON(), parent: node.parentElement?.className })),
+      screen: { ...document.documentElement.dataset },
+    }))()`).catch(String)));
+    throw error;
+  }
   try {
     await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('legacy snapshot cursor')");
   } catch (error) {
@@ -254,8 +264,8 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
     + ' && data.project.root === ' + JSON.stringify(sourceState.board)
     + ' && data.root === view.root && view.root === ' + JSON.stringify(sourceState.board)
     + ' && !document.body.classList.contains("loading")');
-  await chrome.click("document.querySelector('[data-tab=shouts]')");
-  assert.equal(await chrome.stable("document.querySelector('[data-tab=shouts]').classList.contains('on') && !document.querySelector('[data-pane=shouts]').hidden"),
+  await chrome.click("document.querySelector('.tab[data-tab=shouts]')");
+  assert.equal(await chrome.stable("document.querySelector('.tab[data-tab=shouts]').classList.contains('on') && !document.querySelector('[data-pane=shouts]').hidden"),
     true, 'the native Shouts selection is active on the newly loaded board');
   try {
     await chrome.waitFor("document.querySelector('#feed')?.textContent.includes(" + JSON.stringify(marker) + ") || document.querySelector('#relay-notice')?.textContent.includes('Could not open this board with its saved key')");
