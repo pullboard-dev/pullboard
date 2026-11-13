@@ -48,11 +48,15 @@ function readCostHistory(project, switching = false) {
       return kept;
     }
   }
-  const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model), error: null, model: kept?.model ?? null };
+  // The last numbers this browser read draw at once while the fresh read is on its way.
+  let remembered = null;
+  if (!kept?.model) { try { remembered = JSON.parse(keep('pb.cost.' + key) || 'null'); } catch { remembered = null; } }
+  const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model || remembered), error: null, model: kept?.model ?? remembered };
   costHistory.set(key, entry);
   api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
     if (costHistory.get(key) !== entry || !reply.costAnalytics) return;
     entry.model = reply.costAnalytics;
+    try { keep('pb.cost.' + key, JSON.stringify(reply.costAnalytics)); } catch { /* storage full or unavailable: the numbers are simply not kept for next time */ }
     entry.loading = false;
     entry.refreshing = false;
     if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d')) render();
@@ -80,9 +84,11 @@ const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
 ${readCostHistory.toString()}
 function costPaneHtml(history, project) {
-  if (history.loading && !history.model) return '<p class="empty" role="status">Loading cost history…</p>';
-  if (history.error && !history.model) return '<p class="empty" role="status">Cost history is unavailable.</p>';
-  return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses });
+  const shown = { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses };
+  // The frame (heading and period buttons) draws at once; the numbers fill in place, or the last read ones stay up.
+  if (history.loading && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Reading cost history…' });
+  if (history.error && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Cost history is unavailable.' });
+  return costOverviewHtml(history.model, view.costOpen, { ...shown, updating: Boolean(history.loading) });
 }` : '';
 return `${privateCostSource}
 const modelLabelRules = ${JSON.stringify(modelLabelRules())};
