@@ -1088,6 +1088,15 @@ catalogCase('[A1,C7] compact reports a dry run through the catalog', async () =>
   assert.equal(report.rows, 0, 'a new board has no old finished steps to archive');
 });
 
+catalogCase('[A1,C7] contribute check reports an accepted record through the catalog', async () => {
+  const box = await project();
+  const file = join(box.dir, 'record.yml');
+  writeFileSync(file, 'rows:\n  - G1.2\nversion: "0.9.5"\nran: pullboard next\nblocks: nothing\nbar:\n  - 1: the command prints a line [test]\ncheck:\n  - 1: apps/cli/tests/x.test.js > prints a line\nrefusal: |\n  NO_LINE: nothing printed\n');
+  const report = await json(box, box.repo, 'contribute', ['check', file, 'Bug'], 'check');
+  assert.equal(report.ok, true, JSON.stringify(report.failures));
+  assert.deepEqual([report.shape, report.failures], ['Bug', []]);
+});
+
 test('[A1] every catalog command and subcommand has a real CLI exercise', { concurrency: true }, async (t) => {
   // Every private scenario finishes before the final catalog and root coverage assertions.
   const completed = await Promise.allSettled(catalogCases.map(({ name, run }) => t.test(name, run)));

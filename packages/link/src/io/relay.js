@@ -84,6 +84,8 @@ import { nudgeRelaySender } from './relay/local.js';
 import { localFirstLink } from './relay/local.js';
 import { baselineNotAccepted } from '../logic/relay/fallback.js';
 import { transientRelayFailure } from '../logic/relay/fallback.js';
+import { RECOVER_COMMAND } from '../logic/relay/fields.js';
+import { parkedHealth } from '../logic/relay/fields.js';
 import { transportFailure } from '../logic/relay/fallback.js';
 import { outboxFile } from './relay/summary.js';
 import { stampCoordinatorHolder } from '../../../seats/index.js';
@@ -406,7 +408,7 @@ function summary(root, state, { pairing = false, outboxFields, openBoard } = {})
     sequence: state.sequence, behind: (state.baselinePause ? behind(root, state, openBoard) : state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, openBoard)) + Number(Boolean(state.snapshot || state.checkpoint))
       + (state.outbox?.moves?.length ?? 0),
     recovery: recoverySummary(state),
-    health: readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }),
+    health: parkedHealth(readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }), state),
     ...outboxFields(state),
     ...(relayStorage(state.storage) ? { storage: relayStorage(state.storage) } : {}),
     ...(oversizedSnapshot ? { oversizedSnapshot } : {}),
@@ -803,7 +805,9 @@ function recoveredMove(root, state, operation, args, command, io) {
 function outboxLink(root, file, state, io, senderPolicy) {
   return { root, file, state, io, senderPolicy, request, sealedRecord, localRecords: (root, work) => localRecords(io.openBoard, root, work), saveLink, safePauseCode, safePauseMessage,
     applyRecords: (root, key, state, records) => applyRecords(root, key, state, records, io), fetchCheckpoint: (key) => fetchCheckpoint(state, io, key, senderPolicy),
-    postPending: (checkout, link, current, pending, output) => postPending(checkout, link, current, pending, output, senderPolicy) };
+    postPending: (checkout, link, current, pending, output) => postPending(checkout, link, current, pending, output, senderPolicy),
+    // The board's own checkpoint document and page digest, for the outbox to publish over parked moves (#6693).
+    snapshotDocument: () => relaySnapshot(root, {}, io.nativeBoardPorts().presentation), presentationDigest };
 }
 
 /**
@@ -1025,7 +1029,7 @@ export async function syncRelay(root, io) {
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, io.openBoard)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
         recovery: recoverySummary(state), ...io.outboxFields(state),
-        health: readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }) };
+        health: parkedHealth(readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }), state) };
     }
   }, io);
 }
@@ -1243,6 +1247,26 @@ export async function relayRecover(root, skip, io) {
       return { ...summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard }), skipped: skip };
     } finally { store.closeBoard(staged); store.closeBoard(source); }
   });
+}
+
+/**
+ * Resolve every parked move in place (#6693): send what still waits, then publish a sealed checkpoint of this local
+ * board under the SAME board id, so the relay and every computer hold the parked moves' effects with no new board id,
+ * no rejoin and no lost history, and clear the outbox. The outbox owns the queue, so it does the publishing.
+ */
+export async function relayRecoverParked(root, io) {
+  const senderPolicy = io.nativeBoardPorts().enginePorts;
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking || state.mode !== 'ordered' || state.baselineAccepted !== true) throw new Refused('RELAY_LINKED', `link this board to an accepted ordered relay board before ${RECOVER_COMMAND}`);
+    if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} first: pullboard relay recover --skip ${state.recovery.skip}`);
+    if (!await ensureOrdered(root, file, state, io)) throw new Refused('RELAY_UNAVAILABLE', 'the relay has not accepted this board\u2019s baseline yet; run pullboard relay and retry');
+    const startedAt = Date.now();
+    const recovered = await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy), { recover: true });
+    if (!io.relayCanary) recordClientHealth(root, true, null, Date.now() - startedAt);
+    return { ...summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard }), ...recovered };
+  }, io);
 }
 
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
