@@ -547,6 +547,7 @@ const pipelineStage = (${pipelineStage.toString()});
 const itemStagePresentation = (${itemStagePresentation.toString()});
 const withdrawnFromStatus = (${withdrawnFromStatus.toString()});
 const itemStageKey = (${itemStageKey.toString()});
+const stageSentence = (${stageSentence.toString()});
 const pipelineSince = (${pipelineSince.toString()});
 const itemListFields = (${itemListFields.toString()});
 /** Bind the current lifecycle declaration at the page adapter boundary. */
