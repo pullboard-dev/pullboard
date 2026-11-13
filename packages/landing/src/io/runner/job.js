@@ -133,14 +133,15 @@ async function landingCheck(payload, env) {
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     const parts = [...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
       ...(payload.check ? [['proof', commandCheck(payload.check)]] : []),
-      ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env })]] : [])];
-    let proof = null;
+      ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]] : [])];
+    let proof = null, waived = null;
     for (const [role, part] of parts) {
       const result = await part(context);
       if (result?.proof) proof = result.proof;
+      if (result?.waived?.length) waived = result.waived;
       if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}) };
     }
-    return { ok: true, detail: null, ...(proof ? { proof } : {}) };
+    return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}) };
   };
 }
 
@@ -197,8 +198,8 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
  *
- * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string, header?: string, trailers?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, publish?: string, proof?: object }} payload - checks: each item's own check by id; checkout:
- *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
+ * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string, header?: string, trailers?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, publish?: string, proof?: object, waivers?: object[] }} payload - checks: each item's own check by id; checkout:
+ *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7]; waivers: the person's live waivers the proof may honour [#655].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, diagnose?: Function | null, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * `diagnose` (from the runner's handler setup, since packages never import apps) reads a red's failing cases and pairs them: ({ root, base, output, role, flakes, head, tree }) => the receipt's `red` record, or null.
@@ -247,6 +248,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     admitTrunk(root, { trunk, base });
     const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
+    // A proof red only in tests the person waived lands waived, not green; the receipt names each waiver [#655].
+    if (result?.ok && result.waived?.length) receipt.waived = result.waived;
     if (!result?.ok) {
       // The red's failing cases, and their paired reruns when the offer turned reruns on, are read while the merged tree is still checked out [C7,H16].
       if (!receipt.red && typeof diagnose === 'function' && payload.flakes && typeof result?.output === 'string') {
