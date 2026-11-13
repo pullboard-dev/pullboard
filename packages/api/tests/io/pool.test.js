@@ -13,6 +13,7 @@ import { startLoopWatchdog } from '../../../drive/index.js';
 const SECRET = 'fixture-secret';
 const CELL = new URL('../../../store/tests/fixtures/cell.js', import.meta.url).href;
 const STORE = new URL('../../../store/index.js', import.meta.url).href;
+const API = new URL('../../index.js', import.meta.url).href;
 
 /** The renderer the API takes as a port: a refusal becomes its public error body. */
 function refusalDocument(error) {
@@ -24,22 +25,25 @@ const VIEW_PORTS = Object.freeze(Object.fromEntries(['projectState', 'activeView
   .map((name) => [name, () => { throw new Error(`these tests do not project ${name}`); }])));
 
 /**
- * A handler ports module, as a data: URL, over the fixture board's openers. With `channel`, its jobs handler is the
- * test hook: it tells the channel it is blocked and then busy-waits `blockMs` inside the handler.
+ * A handler ports module, as a data: URL, giving the API's pool handlers over the fixture board's openers. With
+ * `channel`, its jobs handler is the test hook: it tells the channel it is blocked and then busy-waits `blockMs` inside the handler.
  */
 function handlerPorts({ channel = null, blockMs = 30_000 } = {}) {
-  const hook = channel === null ? '' : `handlers: { jobs() {
+  const hook = channel === null ? '' : `jobs() {
     const channel = new BroadcastChannel(${JSON.stringify(channel)});
     channel.postMessage('blocked');
     channel.close();
     const until = Date.now() + ${blockMs};
     while (Date.now() < until) { /* The test hook busy-waits inside the handler. */ }
     return { ok: true };
-  } },`;
+  },`;
   const source = `import { BroadcastChannel } from 'node:worker_threads';
 import { openCellBoard } from ${JSON.stringify(CELL)};
 import { openBoardForRead } from ${JSON.stringify(STORE)};
-export function boardHandlerPorts() { return { ${hook} boardOpeners: { openBoard: openCellBoard, openBoardForRead } }; }
+import { poolHandlers } from ${JSON.stringify(API)};
+export function boardHandlerPorts({ isMain }) {
+  return { handlers: { ...poolHandlers({ boardOpeners: { openBoard: openCellBoard, openBoardForRead } }, { isMain }), ${hook} } };
+}
 `;
   return 'data:text/javascript,' + encodeURIComponent(source);
 }

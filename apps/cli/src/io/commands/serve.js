@@ -12,6 +12,7 @@ import {
   serveApi,
 } from '../../../../../packages/api/index.js';
 import { apiBoards } from '../../../../../packages/api/index.js';
+import { poolHandlers } from '../../../../../packages/api/index.js';
 import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
 import { servedModuleMoved } from '../../../../../packages/drive/index.js';
 import { startLoopWatchdog } from '../../../../../packages/drive/index.js';
@@ -161,11 +162,11 @@ export function boardStatePorts() {
  * main-test and baseline recorders a posted receipt reaches; provided inside each worker thread, which cannot be
  * handed functions from the request thread [A2,C7].
  */
-export function boardHandlerPorts() {
+export function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
   provideBaselineRecorder(recordPulledBaseline);
-  return { boardOpeners: { openBoard, openBoardForRead } };
+  return { handlers: poolHandlers({ boardOpeners: { openBoard, openBoardForRead } }, { isMain }) };
 }
 
 /** Run `pullboard serve` and return its exit code. */

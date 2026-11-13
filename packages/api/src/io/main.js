@@ -1385,8 +1385,29 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 }
 
 /** One runner job queue call on a board, as POST /api/v1/boards/:id/jobs answers it, in a pool worker or in-thread [P7]. */
-export function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
+function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   return withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now, drained: drainedRunnerHosts, reserve: jobReserve, trunk: () => trunkRemote(board.root) ?? board.root }), isMain, boardOpeners);
+}
+
+/**
+ * The handlers a pool worker runs, composed by the ports module inside the worker [A2,C7]: the runner job queue, and
+ * the stall record, an api_stall event on the served board the route names (every served board when it names none).
+ */
+export function poolHandlers({ boardOpeners }, { isMain } = {}) {
+  const { openBoard } = requireBoardOpeners(boardOpeners);
+  return { jobs: (call) => boardJobsCall(call, isMain, boardOpeners), stall({ projects, by, board = null, route, lagMs }) {
+    const failed = [];
+    let recorded = 0;
+    for (const { root } of projects) {
+      try {
+        withProjectGitTimeout(root, () => { // A write open: the record is a write, which a read-only connection cannot carry.
+          const current = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: isMain !== false && codeIsFromMain() });
+          try { if (board === null || store.boardId(current) === board) { store.logEvent(current, by, 'api_stall', null, { route: String(route).slice(0, 200), lagMs: Math.round(lagMs) }); recorded++; } } finally { store.closeBoard(current); }
+        });
+      } catch (error) { failed.push(`${root}: ${error?.message ?? error}`); } // An unreadable board misses this record; the others still get it.
+    }
+    return { recorded, failed };
+  } };
 }
 
 /**
