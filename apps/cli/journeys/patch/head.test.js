@@ -120,10 +120,11 @@ test('a companion follows a clean main merge and real Submit without any coordin
   assert.equal(follows(f).length, 1);
   assert.deepEqual(JSON.parse(follows(f)[0].event_detail).patches,
     [{ key: before.key, oldHead: f.source, newHead: moved, hash: before.digest }]);
-  assert.notEqual(result.gate.companion.commit, moved);
+  // The pulled gate judges the companions composed onto the builder head: its receipt's source is that composed commit [P7].
+  assert.notEqual(result.gate.source, moved);
   const receipts = store.proofReceipts(f.board, f.id);
   assert.ok(receipts.length > 0);
-  assert.ok(receipts.every(receipt => receipt.commit === result.gate.companion.commit && receipt.exitCode === 0));
+  assert.ok(receipts.every(receipt => receipt.commit === result.gate.source && receipt.exitCode === 0));
   assert.equal(f.box.git(f.builder.root, 'rev-parse', 'HEAD'), moved);
   assert.equal(f.box.git(f.builder.root, 'write-tree'), index);
   assert.equal(existsSync(join(f.builder.root, 'view/header.cjs')), false);
