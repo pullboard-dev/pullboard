@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fixtureAdd } from '../testkit.js';
+import { settleSubmit } from '../submit/settle.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -27,7 +28,7 @@ import { fixtureOpenBoard } from '../testkit.js';
  */
 export function makeDeferralFixtures(e2e, store) {
   /** A web project whose one source file is imported by thirty test files, each recording its own run. */
-  function largeSelectionProject(deferAbove, { inline = false } = {}) {
+  function largeSelectionProject(t, deferAbove, { inline = false } = {}) {
     const box = e2e.project('true');
     // Landing diagnostics require TAP completion evidence on both Node 22 and Node 24.
     box.boardFile = fixtureCommittedPolicy(box, { submitGate: 'landing', affectedTests: 'node --test --test-reporter=tap',
@@ -61,7 +62,7 @@ export function makeDeferralFixtures(e2e, store) {
     delete box.env.NODE_TEST_CONTEXT;
     const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
     /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
-    const submitChange = (value, { cwd = box.web, files = [] } = {}) => {
+    const submitChange = async (value, { cwd = box.web, files = [] } = {}) => {
       const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
       assert.equal(added.code, 0, added.err);
       const id = JSON.parse(added.out).item.item_id;
@@ -70,9 +71,11 @@ export function makeDeferralFixtures(e2e, store) {
       for (const [path, text] of files) writeFileSync(join(cwd, path), text);
       assert.equal(e2e.commitFile(box, cwd, files.length ? files[0][0] : 'web/core.js', files.length ? files[0][1] : `export const value = ${JSON.stringify(value)};\n`, `feat(web): set the value [G1]`).status, 0, 'the item change commits');
       rmSync(box.env.DEFER_MARKER, { force: true });
+      const commit = box.git(cwd, 'rev-parse', 'HEAD');
       const submitted = box.run(cwd, 'submit', String(id), '--json');
       assert.equal(submitted.code, 0, submitted.err + submitted.out);
-      const receipt = JSON.parse(submitted.out);
+      // The pulled gate is a runner job; wait for its receipt and read the gate the way an inline submit printed it [P7,C7].
+      const receipt = { ...(await settleSubmit(t, box, JSON.parse(submitted.out))), commit };
       const proof = onLocalBoard(box, board => JSON.parse(store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit').event_detail));
       return { id, receipt, proof, ran: ran() };
     };
