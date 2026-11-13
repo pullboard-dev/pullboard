@@ -55,15 +55,17 @@ if (runId) env.${TIMING_RUN_ID_ENV} = runId;
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
 const text = output.toString('utf8') + (ran.error ? String(ran.error.message) : '');
-let failures = null;
+let failures = null, cases = null;
 try {
   const rows = ran.status === 1 && light?.tapFailures ? light.tapFailures(text, root) : null;
-  if (Array.isArray(rows) && rows.length && rows.length <= ${CASES} && rows.every(row => row?.file && row.name)) failures = rows.map(({ file, name }) => ({ file, name: String(name).slice(0, 300) }));
-} catch { failures = null; }
+  if (Array.isArray(rows) && rows.length && rows.length <= ${CASES} && rows.every(row => row?.file && row.name)) cases = rows.map(({ file, name }) => ({ file, name: String(name) }));
+  failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 300) })) : null;
+} catch { failures = null; cases = null; }
 ${DIAGNOSTICS}
 // Each named case's diagnostic signature, as the gate job signs it, so a comparison tells two failures of one case apart [V4,C7].
 let failureSignatures = null;
-try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
+// Signed by the whole names, so a case the receipt clips still finds its own diagnostic (#7495).
+try { failureSignatures = cases ? caseSignatures(cases, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
 /** The run's case outcomes as [file, name, passed, skipped] rows from its frames under runId; null when none or malformed. */
 const framed = () => {
   const rows = [];
@@ -252,7 +254,7 @@ async function compareWithMain(ctx, run, { main, config, paths, agent, say }) {
   const mainRed = redFilesIn(onMain.output ?? '', present);
   for (const row of onMain.failures ?? []) if (present.includes(row.file)) mainRed.set(row.file, false);
   // Main's verdict per file is known when its run passed or names which files failed; otherwise no file is judged.
-  const known = onMain.green || mainRed.size ? files.map(file => ({ file, result: absent.includes(file) ? 'absent' : mainRed.has(file) ? 'red' : 'green' })) : [];
+  const known = onMain.green || mainRed.size ? files.map(file => ({ file, job: onMain.job, result: absent.includes(file) ? 'absent' : mainRed.has(file) ? 'red' : 'green' })) : [];
   if (!run.failures || !onMain.green && !onMain.failures) {
     return { notices: [], known, ...(known.length ? {} : { unavailable: !run.failures ? 'the run\'s output does not name every failing case' : `main's run of ${present.join(', ')} names no failing cases` }) };
   }
