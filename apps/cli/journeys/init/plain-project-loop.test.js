@@ -104,5 +104,7 @@ async t => {
   const landed = await stageOf(box, repo, id, 'landed');
   assert.match(landed, /\(landed\)/u, landed);
   assert.equal(existsSync(join(repo, 'src', 'add.js')), true, 'the item\'s file is on main');
-  assert.match(box.git(repo, 'log', '--oneline', 'main'), /Merge #\d+ onto main/u);
+  // The landing is a --no-ff merge carrying the engine's message: its body names the item (#7268) [C7].
+  assert.equal(box.git(repo, 'rev-list', '--parents', '-n', '1', 'main').split(' ').length, 3, 'main\'s tip is a two-parent landing merge');
+  assert.match(box.git(repo, 'log', '-1', '--format=%B', 'main'), new RegExp(`^Pullboard-Item: #${id}$`, 'mu'));
 });
