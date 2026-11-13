@@ -10,7 +10,7 @@ import { cellItem } from '../../../fixtures/cell.js';
 import { cellProject } from '../../../fixtures/cell.js';
 import { cellSeat } from '../../../fixtures/cell.js';
 
-test('clause 1: a hold row names the calling file and line, not the event log that runs the transaction [C7,#2282,#6825]', t => {
+test('clause 1 and clause 2: a hold row names the calling file and line, not the event log that runs the transaction [C7,#2282,#6825]', t => {
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   t.after(() => {
     if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
