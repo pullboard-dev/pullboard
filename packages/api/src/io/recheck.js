@@ -56,11 +56,16 @@ const ran = spawnSync(command + " '" + ('./' + file).replaceAll("'", "'\\\\''") 
 const text = (ran.stdout ?? '') + (ran.stderr ?? '') + (ran.error ? String(ran.error.message) : '');
 let failing = ran.status === 0 ? [] : null;
 if (ran.status !== 0) {
-  try {
-    const light = await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href);
-    const rows = light.tapFailures(text, process.cwd());
-    if (Array.isArray(rows) && rows.length && rows.length <= ${CASES}) failing = [...new Set(rows.map(row => String(row.name).slice(0, 120)))];
-  } catch { failing = null; }
+  let rows = null;
+  try { rows = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href)).tapFailures(text, process.cwd()); }
+  catch {
+    // A project without Pullboard's TAP reader on main: its plain TAP 'not ok' case lines, never a file-level wrapper,
+    // so a main red is named by case and a pulled gate can judge it main-owned [V4,B3,C7].
+    rows = text.split('\\n').map(line => /^ *not ok [0-9]+ - (.+)$/u.exec(line)?.[1]?.split(' # ')[0].trim())
+      .filter(name => name && !name.startsWith('/') && !/[.][cm]?js$/u.test(name)).map(name => ({ name }));
+  }
+  try { if (Array.isArray(rows) && rows.length && rows.length <= ${CASES}) failing = [...new Set(rows.map(row => String(row.name).slice(0, 120)))]; }
+  catch { failing = null; }
 }
 process.stdout.write(text.slice(-1500) + '\\n${MAIN_TEST_LINE}' + JSON.stringify({ green: ran.status === 0, status: ran.status, failing }) + '\\n');
 process.exitCode = ran.status === 0 ? 0 : 1;
