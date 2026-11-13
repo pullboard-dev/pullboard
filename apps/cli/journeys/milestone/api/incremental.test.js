@@ -123,12 +123,14 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     }
   }
 
-  /** Read one item's current lease from the fixture board without changing its event cursor. */
-  function leaseUntil(itemId) {
+  /** Run one read against the fixture board without changing its event cursor. */
+  function readBoard(read) {
     const current = openBoard(boardFile, undefined, { isMain: true });
-    try { return current.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(itemId).item_lease_until; }
+    try { return read(current); }
     finally { closeBoard(current); }
   }
+  /** Read one item's current lease from the fixture board. */
+  const leaseUntil = (itemId) => readBoard((current) => current.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(itemId).item_lease_until);
 
   try {
     const initialResponse = await apiFetch(api, `${path}/state?detail=full`);
@@ -227,7 +229,8 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     builds.length = 0;
     const expired = await assertFreshFullState('eventless claim lease expiry');
     assert.equal(leaseUntil(ids[299]), lease, 'advancing the test clock leaves the persisted lease deadline unchanged');
-    assert.equal(expired.sequence, sequenceBeforeExpiry, 'lease expiry appends no board event');
+    const lateEvents = readBoard((current) => current.db.prepare('SELECT event_id, event_by, event_kind, item_id, event_at FROM event WHERE event_id > ?').all(sequenceBeforeExpiry));
+    assert.equal(expired.sequence, sequenceBeforeExpiry, `lease expiry appends no board event: ${JSON.stringify(lateEvents)}`);
     assert.equal(expired.items.find((item) => item.id === ids[299]).status, 'open');
     assert.deepEqual(builds, [ids[299]], 'eventless lease expiry recomputes only the expired claim');
 
