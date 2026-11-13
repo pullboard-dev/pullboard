@@ -45,7 +45,7 @@ test('claimed companion submits the real core command and records exact composed
     'submit and verifier share the actual deterministic composition');
   assert.deepEqual(binding.phases.map(phase => phase.role), ['criterion', 'proof']);
   // The pulled gate hands the board its plan beside the event; replay it as the board host does [P7].
-  const options = { ...detail, agentId: f.builder.id, pulledPlan: { phases: binding.phases, proofFiles: detail.submissionProof.files } };
+  const options = { ...detail, agentId: f.builder.id, pulledPlan: { phases: binding.phases, proofFiles: detail.submissionProof.files, full: detail.submissionProof.full } };
   assert.equal(sealItemPatchSubmit(f.board, f.id, options), options);
   for (const index of [0, 1]) {
     const incomplete = { ...binding, receiptIds: [binding.receiptIds[index]], phases: [binding.phases[index]] };
