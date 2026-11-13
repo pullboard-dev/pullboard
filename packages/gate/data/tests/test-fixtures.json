@@ -3469,7 +3469,7 @@
     "model": 5,
     "tempdir": 1
   },
-  "packages/state/tests/fixtures/api.js": {
+  "apps/cli/tests/fixtures/api/settings.js": {
     "tempdir": 3,
     "raw-board": 1,
     "hand-policy": 8
