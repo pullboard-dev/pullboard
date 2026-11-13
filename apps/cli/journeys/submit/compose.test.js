@@ -38,7 +38,7 @@ async function completePlacementTrial(t, box) {
   success(box, probe, 'join', 'view', '--route', 'strong');
   const seat = success(box, probe, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: placement trial probe', '--specs', 'G1',
-    '--criterion', 'The placement trial observes an unplaced source.', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'The placement trial observes an unplaced source.', '--check', 'node check.cjs', '--accept-green', 'stand-in check keeps passing', '--wait').item.item_id;
   const claim = success(box, probe, 'claim', String(id));
   const file = 'src/view/placement-trial-probe.js';
   mkdirSync(join(probe, 'src/view'), { recursive: true });
@@ -89,7 +89,7 @@ async function ownPlacementFixture(t) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
   success(box, view, 'join', 'view', '--route', 'strong');
   const id = success(box, box.repo, 'add', 'view', 'Place an owned new file', '--specs', 'G1',
-    '--criterion', 'The builder owns the new file and only adds its canonical row.', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'The builder owns the new file and only adds its canonical row.', '--check', 'node check.cjs', '--accept-green', 'stand-in check keeps passing', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/own-placement-added.js';
   mkdirSync(join(view, 'src/view'), { recursive: true });
@@ -139,7 +139,7 @@ test('native view submit validates its core companion placement on the composed 
   }
   const author = success(box, core, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
-    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--accept-green', 'stand-in check keeps passing', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/plan-companion-added.js';
   mkdirSync(join(view, 'src/view'), { recursive: true });
