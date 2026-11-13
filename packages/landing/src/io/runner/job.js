@@ -235,6 +235,18 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
 }
 
 /**
+ * Each landed item's first-containing merge on the first-parent path from base to tip, by item id. Why: the board
+ * records each item at its own merge, as the Mac engine did, not every item at the batch tip [B3,R3,#7506].
+ */
+function firstMerges(root, base, tip, pending) {
+  const merges = {};
+  for (const merge of must(root, ['rev-list', '--reverse', '--first-parent', `${base}..${tip}`]).split('\n').filter(Boolean)) {
+    for (const entry of pending) if (!merges[entry.id] && tryGit(root, ['merge-base', '--is-ancestor', entry.commit, merge]).status === 0) merges[entry.id] = merge;
+  }
+  return merges;
+}
+
+/**
  * Land one job's accepted items on the trunk remote, from a runner. Each attempt fetches trunk, skips items trunk
  * already holds, merges the rest on that tip with --no-ff, numbers new engines into the last merge, runs the check on the merged tree, and pushes with
  * --force-with-lease=<trunk>:<the tip it merged on>: git's compare-and-swap, so the push lands only if trunk is still
@@ -316,7 +328,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });
-    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
+    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: (pushed.stderr || pushed.stdout).slice(0, 300) });
   }

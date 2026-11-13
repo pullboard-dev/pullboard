@@ -2311,7 +2311,6 @@
   },
   "apps/cli/journeys/land/merge.test.js": {
     "tempdir": 1,
-    "hand-policy": 2,
     "raw-board": 1
   },
   "apps/cli/journeys/move/merge.test.js": {
