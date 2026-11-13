@@ -32,6 +32,18 @@ import {
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 
+/**
+ * A planned project whose submits hold their gate in the submitting process.
+ * Why: the cases read the inline gate's receipt and its refusal-trial file, which a pulled gate job on a runner never leaves here.
+ */
+async function inlinePlannedProject(t, options) {
+  const box = await plannedProject(t, options);
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
+  return box;
+}
+
 /** Complete the placement rule's trial with native gates and their actual receipts. */
 async function completePlacementTrial(t, box) {
   const probe = join(box.dir, 'placement-trial-probe');
@@ -85,7 +97,7 @@ assert.equal(new Set(ids).size,ids.length);
 
 /** Join a real view seat and claim a completed-baseline item through the native CLI. */
 async function ownPlacementFixture(t) {
-  const box = await plannedProject(t, { companionLanes: true });
+  const box = await inlinePlannedProject(t, { companionLanes: true });
   const view = join(box.dir, 'own-placement-view');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
   success(box, view, 'join', 'view', '--route', 'strong');
@@ -141,7 +153,7 @@ test('adding an owned new-file row cannot lend authority to editing an existing 
 });
 
 test('native view submit validates its core companion placement on the composed source [C7,V4]', async t => {
-  const box = await plannedProject(t, { companionLanes: true });
+  const box = await inlinePlannedProject(t, { companionLanes: true });
   // Audited exception (#6821): the refusal-trial ledger this case completes and reads is kept only by the controller
   // gate; the pulled gate judges in the runner's own checkout, so the fixture keeps controller dispatch until the
   // pulled gate carries the ledger (0.9.5 remainder of #6821) [C7].
