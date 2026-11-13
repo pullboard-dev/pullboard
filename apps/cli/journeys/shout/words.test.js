@@ -175,12 +175,12 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
         assert.ok(selection.bookkeeping.length > 0 && selection.bookkeeping.every(id => !selection.raw.includes(id) && !selection.plain.includes(id)), 'bookkeeping remains native history without becoming a work row');
         assert.equal(selection.unchanged, true, 'both presentation modes preserve every raw native event field and identity');
         await chrome.stable('document.querySelectorAll("#activity details").forEach(node => { node.open = true; })');
-        const rows = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => node.innerText)');
+        const rows = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => node.innerText)');
         assert.ok(rows.some(text => /Measured|measurement/iu.test(text)), 'the genuine measurement has an Activity sentence');
         assert.ok(rows.every(text => text.trim()), 'no native Activity row is empty');
-        const subjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => (node.querySelector(".activity-who") || node.querySelector("summary b"))?.textContent)');
+        const subjects = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => (node.querySelector(".ph") || node.querySelector(".fa"))?.textContent)');
         assert.ok(subjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native Activity sentence has its actual actor or Sentinels subject');
-        const workSubjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].filter(node => !["shout", "sentinels"].includes(node.dataset.activityKind)).map(node => node.querySelector(".activity-item")?.textContent)');
+        const workSubjects = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].filter(node => !["Shout", "Sentinel"].includes(node.querySelector(".act-chip")?.textContent)).map(node => node.dataset.row ?? node.querySelector(".id")?.textContent ?? node.querySelector(".ph")?.textContent)');
         assert.ok(workSubjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native work sentence retains its actual item subject');
       }
       const text = await chrome.stable('document.querySelector("[data-pane=' + name + ']").innerText');
