@@ -206,7 +206,11 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
               waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
               waitingMeta: waitingMeta && rect(waitingMeta),
               waitingMetaLine: waitingMeta && Math.max(...[...waitingMeta.children].map(e => e.getBoundingClientRect().height)),
-              waitingMetaRows: waitingMeta && new Set([...waitingMeta.children].flatMap(e => { const range = document.createRange(); range.selectNodeContents(e); return [...range.getClientRects()].map(r => Math.round(r.top + r.height / 2)); }).map(y => Math.round(y / 6))).size,
+              waitingMetaRows: waitingMeta && (() => {
+                const ys = [...waitingMeta.children].flatMap(e => { const range = document.createRange(); range.selectNodeContents(e); return [...range.getClientRects()].map(r => r.top + r.height / 2); });
+                // Baseline alignment puts a smaller time label a few px off the address, so one row is a centre spread under half a line, not a rounding bucket [C7].
+                return Math.max(...ys) - Math.min(...ys) < 10 ? 1 : 2;
+              })(),
               waitingMain: waiting && rect(waiting.querySelector('.shout-main')), waitingText: waitingText && rect(waitingText),
               answerText: answerText && rect(answerText), button: button && rect(button),
             };
