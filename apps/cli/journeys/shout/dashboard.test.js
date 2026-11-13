@@ -62,7 +62,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     await chrome.waitFor('!!document.querySelector("#dashboard [data-dashboard-stat=building]")');
     assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=building]").dataset.value'),
       String(activeClaims.length), 'the headline and agent work use the same live claims');
-    for (const section of ['Rulings', 'Shipping now', 'Landed per hour', 'Agent time', 'Agents', 'Landing now', 'Just landed', 'In review', 'Next up']) {
+    for (const section of ['Rulings', 'Shipping now', 'Where the work is', 'Landed per hour', 'Agent time', 'Agents']) {
       assert.equal(await chrome.stable(`!!document.querySelector('#dashboard [aria-label=${JSON.stringify(section)}]')`),
         true, `${section} is rendered`);
     }
@@ -71,12 +71,10 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
     assert.equal(state.statsComparison.durationMinutes, comparisonMinutes, 'Dashboard compares the last two hours with the two hours before');
     assert.equal(state.statsComparison.current.until, state.observedAt, 'the full API comparison uses its own read clock');
     assert.ok(state.statsComparison.current.agentHours > 0, 'real seeded join and claim events produce observed-seat time');
-    await chrome.waitFor('document.querySelectorAll("#dashboard [data-stats-comparison]").length === 17');
-    await press(chrome, 'document.querySelector("#dashboard [data-dashboard-disclosure=comparison] summary")');
-    const pace = state.milestones[0].summary.pace;
-    assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=pace6]").dataset.value'),
-      String(pace.last6h / 6), 'Dashboard reads the Roadmap six-hour pace');
-    await chrome.waitFor(`!!document.querySelector('#dashboard svg[aria-label="Items landed per hour, last 24 hours"]')`);
+    // The two-hour comparison moved to Activity: open it there, measure it at each pass, then return to the Dashboard.
+    await press(chrome, 'document.querySelector("[data-tab=activity]")');
+    await chrome.waitFor('document.querySelectorAll("#activity-compare [data-stats-comparison]").length === 17');
+    await press(chrome, 'document.querySelector("#activity-compare [data-dashboard-disclosure=comparison] summary")');
     for (const [scheme, width] of [['light', 1440], ['dark', 1440], ['light', 375], ['dark', 375]]) {
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -92,17 +90,28 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
             current:String(group ? comparison.current[group][key] : comparison.current[key]),
             previous:String(group ? comparison.previous[group][key] : comparison.previous[key]),
             change:String(group ? comparison.change[group][key] : comparison.change[key]) })),
-          actual:Array.from(document.querySelectorAll('#dashboard [data-stats-comparison]'), row => ({ key:row.dataset.statsComparison,current:row.dataset.current,previous:row.dataset.previous,change:row.dataset.change })),
+          actual:Array.from(document.querySelectorAll('#activity-compare [data-stats-comparison]'), row => ({ key:row.dataset.statsComparison,current:row.dataset.current,previous:row.dataset.previous,change:row.dataset.change })),
           observedAt:data.project.observedAt, until:comparison.current.until,
-          shownAsOf:document.querySelector('#dashboard [data-stats-as-of]').dataset.statsAsOf,
-          visible:Array.from(document.querySelectorAll('#dashboard [data-stats-comparison]')).every(row => row.getBoundingClientRect().height > 0),
+          shownAsOf:document.querySelector('#activity-compare [data-stats-as-of]').dataset.statsAsOf,
+          visible:Array.from(document.querySelectorAll('#activity-compare [data-stats-comparison]')).every(row => row.getBoundingClientRect().height > 0),
         };
       })()`);
       assert.deepEqual(comparisonView.actual, comparisonView.expected, 'all 17 displayed scalars come unchanged from this rendered canonical API generation');
       assert.equal(comparisonView.until, comparisonView.observedAt, 'the comparison uses this snapshot read time');
       assert.equal(comparisonView.shownAsOf, comparisonView.until, 'the view shows the API observation clock rather than inventing one');
       assert.equal(comparisonView.visible, true, 'all 17 metrics remain visible when the comparison is opened');
-      assert.match(await chrome.stable(`document.querySelector('#dashboard .dash-comparison').textContent`), /all observed seat-hours as their denominator/u);
+      assert.match(await chrome.stable(`document.querySelector('#activity-compare .dash-comparison').textContent`), /all observed seat-hours as their denominator/u);
+    }
+    await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+    await chrome.waitFor('!!document.querySelector("#dashboard [data-dashboard-stat=building]")');
+    assert.equal(await chrome.stable('document.querySelectorAll("#dashboard [data-stats-comparison]").length'), 0, 'the comparison is not on the Dashboard');
+    const pace = state.milestones[0].summary.pace;
+    assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=pace6]").dataset.value'),
+      String(pace.last6h / 6), 'Dashboard reads the Roadmap six-hour pace');
+    await chrome.waitFor(`!!document.querySelector('#dashboard svg[aria-label="Items landed per hour, last 24 hours"]')`);
+    for (const [scheme, width] of [['light', 1440], ['dark', 1440], ['light', 375], ['dark', 375]]) {
+      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const fits = await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1');
       const overflow = await chrome.stable(`JSON.stringify([...document.body.querySelectorAll('*')].map(element => {
         const rect = element.getBoundingClientRect(), style = getComputedStyle(element);

@@ -1740,6 +1740,10 @@
       "cells": 5,
       "deep": 0
     },
+    "packages/drive/src/io/pull.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/drive/src/io/reclaim.js": {
       "cells": 2,
       "deep": 0
@@ -3298,6 +3302,10 @@
     },
     "packages/runners/src/io/wait.js": {
       "cells": 2,
+      "deep": 0
+    },
+    "packages/runners/src/io/worktree.js": {
+      "cells": 1,
       "deep": 0
     },
     "packages/runners/src/logic/stage.js": {

@@ -1273,7 +1273,7 @@
   },
   "apps/cli/journeys/roadmap/cockpit/items.test.js": {
     "raw-cli": 9,
-    "tempdir": 2
+    "tempdir": 1
   },
   "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
     "raw-cli": 1,
@@ -1296,7 +1296,6 @@
     "tempdir": 4
   },
   "apps/cli/journeys/roadmap/cockpit/stages.test.js": {
-    "raw-cli": 1,
     "tempdir": 1
   },
   "apps/cli/journeys/milestone/component.test.js": {
@@ -2107,9 +2106,6 @@
     "env-spread": 1
   },
   "apps/cli/journeys/fact/landing/red.test.js": {
-    "model": 1
-  },
-  "apps/cli/journeys/reopen/landing/stale.test.js": {
     "model": 1
   },
   "apps/cli/journeys/gate/landing/stop.test.js": {
@@ -4137,5 +4133,14 @@
     "tempdir": 1,
     "model": 2,
     "hand-policy": 3
+  },
+  "apps/cli/journeys/roadmap/cockpit/items-blocked.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/tests/fixtures/cockpit/roadmap-stages.js": {
+    "raw-cli": 1
   }
 }

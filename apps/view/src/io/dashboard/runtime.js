@@ -3,7 +3,7 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null }) {
   const histories = new Map();
   // The first-run tour keeps its stop across live redraws, so a refresh never sends it back to the start.
   const tour = { index: 0, auto: true, timer: null };
@@ -68,7 +68,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
    * Draw the Dashboard. With quick, as on a tab switch (#6613), a board that moved since the last model draws from that
    * model at once and returns true: the caller draws again after the frame, when the model is brought up to date.
    */
-  function draw(project, needs, { rules = '', capacity = '', needsHeader = '', quick = false } = {}) {
+  function draw(project, needs, { needsHeader = '', quick = false } = {}) {
     if (needs !== undefined) lastNeeds = { root: project.root, html: needs, header: needsHeader };
     else { needs = lastNeeds.root === project.root ? lastNeeds.html : ''; needsHeader = lastNeeds.root === project.root ? lastNeeds.header : ''; }
     const region = document.getElementById('dashboard');
@@ -80,12 +80,12 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     const observedAt = Date.parse(project.observedAt);
     const now = Number.isFinite(observedAt) ? observedAt : Date.now();
     // Native snapshots are JSON; include every field so changed live data or an observation clock always invalidates.
-    const projectKey = JSON.stringify(project), cached = held.modelCache;
+    const projectKey = JSON.stringify(project), cached = held.modelCache, atWork = working ? working(project) : null, atWorkKey = atWork ? atWork.join('|') : '';
     const fresh = cached && cached.projectKey === projectKey && cached.events === held.events && cached.version === held.version
-      && cached.prefix === prefix && cached.complete === complete && cached.now === now;
+      && cached.prefix === prefix && cached.complete === complete && cached.now === now && cached.atWorkKey === atWorkKey;
     const behind = !fresh && quick && Boolean(cached?.state);
-    const state = fresh || behind ? cached.state : model(project, upTo(held.events, prefix), { complete, now, fold: held.fold ??= {} });
-    if (!behind) held.modelCache = { projectKey, events: held.events, version: held.version, prefix, complete, now, state };
+    const state = fresh || behind ? cached.state : model(project, upTo(held.events, prefix), { complete, now, working: atWork, fold: held.fold ??= {} });
+    if (!behind) held.modelCache = { projectKey, events: held.events, version: held.version, prefix, complete, now, atWorkKey, state };
     const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const progress = state.milestone ? summary(state.milestone, { now, locale, timeZone })?.header ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
@@ -98,7 +98,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, seen(held, prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
-    const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
+    const usual = () => html(state, { needs, needsHeader, progress, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
       : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
     if (showFirstRun) startTour();
