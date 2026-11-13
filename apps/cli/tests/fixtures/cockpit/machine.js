@@ -91,7 +91,11 @@ function settleOfferedJobs(cwd, args, env) {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return;
+    if (!open || Date.now() >= deadline) {
+      if (args[0] === 'submit') { try { const db = new DatabaseSync(file, { readOnly: true }); console.error('DIAG jobs', JSON.stringify(db.prepare('SELECT * FROM job ORDER BY rowid DESC LIMIT 3').all()).slice(0, 4000)); db.close(); } catch (e) { console.error('DIAG', e.message); }
+        try { console.error('DIAG log', readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log'), 'utf8').slice(-3000)); } catch (e) { console.error('DIAG nolog', e.message); } }
+      return;
+    }
     // A command that offers a job without starting a runner (a verify, a land) still has one to take it.
     reviveFixtureLocalRunner(cwd, env);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
