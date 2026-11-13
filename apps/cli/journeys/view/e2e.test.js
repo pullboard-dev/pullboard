@@ -353,8 +353,15 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   // A pulled submit returns once its gate job is offered and the fixture settles that job, so the gate has recorded
   // its receipt before the reject below. The pull path starts no background review comparison [V4,C7,P7].
   await box.runLocal(box.web, 'submit', '1');
+  // The settle returns when the job queue is quiet, which can be before the receipt is applied; wait for the submission itself.
+  const submittedNow = () => {
+    const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    try { return store.getItem(board, 1).item_status === 'submitted'; } finally { store.closeBoard(board); }
+  };
+  await waitFor(submittedNow, 'the pulled gate to record the submission', 60_000); // budget: hang ceiling for the loopback runner's gate under runner load.
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
+  const rejected = await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
+  assert.equal(rejected.code, 0, rejected.out + rejected.err);
   box.git(box.repo, 'switch', '-q', 'main');
   const view = await startView(box, box.repo);
   try {
