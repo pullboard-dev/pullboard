@@ -110,7 +110,14 @@ export function openBoardForRead(file, clock = systemClock, { ports = null, conn
   const composedPorts = () => runtimePorts ??= freezeRuntimePorts(ports ?? nativeBoardPorts());
   lazyPort(board, 'runtimePorts', composedPorts);
   lazyPort(board, 'nativePorts', () => composedPorts().nativePorts);
-  lazyPort(board, 'enginePorts', () => composedPorts().enginePorts);
+  // The engine thresholds a queue read asks for are constants: answer them here, so next and show never load the ~600 provider modules for them.
+  const readEngines = store.readBoardSnapshot(board.db, board.clock).enginePorts;
+  lazyPort(board, 'enginePorts', () => new Proxy({}, {
+    get: (_, name) => readEngines[name] ?? composedPorts().enginePorts[name],
+    has: (_, name) => name in composedPorts().enginePorts,
+    ownKeys: () => Reflect.ownKeys(composedPorts().enginePorts),
+    getOwnPropertyDescriptor: (_, name) => Reflect.getOwnPropertyDescriptor(composedPorts().enginePorts, name),
+  }));
   return board;
 }
 
