@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { HOST } from '../../../tests/fixtures/runner/ssh.js';
-import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { fixture } from '../../../tests/fixtures/verify/compare.js';
 import { submit } from '../../../tests/fixtures/verify/compare.js';
 
@@ -18,10 +17,9 @@ test('an empty configured runner pool records an unavailable comparison without 
   assert.equal(removed.code, 0, removed.out + removed.err);
   const requests = join(box.dir, 'requests');
   const before = existsSync(requests) ? readFileSync(requests, 'utf8') : '';
-  const result = await runFixtureChildAsync(process.execPath,
-    [box.helpers.BIN, 'verify', String(box.id), '--compare', '--json'], { cwd: box.web, env: box.env });
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  const comparison = JSON.parse(result.stdout);
+  const result = await box.runLocal(box.web, 'verify', String(box.id), '--compare', '--json');
+  assert.equal(result.code, 1, result.out + result.err);
+  const comparison = JSON.parse(result.out);
   assert.equal(comparison.status, 'unavailable');
   assert.equal(comparison.source, head);
   assert.match(comparison.error, /no configured runner/u);
