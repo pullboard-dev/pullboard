@@ -1,12 +1,16 @@
 {
   "foreign": [
     "package.json",
+    "composer.json",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",
     "tsconfig.json",
     "jsconfig.json"
   ],
+  "pinned": {
+    "board.sqlite": "packages/store/src/io/board/sqlite.js"
+  },
   "stores": {
     ".journal.sqlite": {
       "kind": "sqlite",
@@ -86,7 +90,7 @@
     },
     "board.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/api/src/io/main.js"
+      "owner": "packages/store/src/io/board/sqlite.js"
     },
     "board.sqlite.presence.sqlite": {
       "kind": "sqlite",
