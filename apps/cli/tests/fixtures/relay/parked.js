@@ -31,7 +31,8 @@ export function shoutTexts(exported) {
  * The big fact is incompressible, so its sealed move is well over the relay's 100,000-byte request limit.
  */
 export async function parkedBoard(t) {
-  const box = await relayClientFixture(t);
+  // A relay that takes only the local API's 100 KB, so one move is too large for it however the hosted limit moves (#6707).
+  const box = await relayClientFixture(t, { moveBodyBytes: 100_000 });
   enableOutbox(box);
   await box.link();
   const printed = await box.cliLocal('relay', 'pair');
