@@ -14,7 +14,7 @@ import * as store from '../../../../packages/store/index.js';
 
 test('CI findings preserve the merged item and create one linked repair, then update the same PR [B2,R3]', async t => {
   const box = bridgeProject(t);
-  const entries = landBridgeItems(box);
+  const entries = await landBridgeItems(box);
   const provider = await bridgeProvider(t, box);
   const first = await runBridgeCLI(box, 'publish', '--json');
   assert.equal(first.code, 0, first.err);

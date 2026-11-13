@@ -12,7 +12,7 @@ import { logEvent } from '../../../store/index.js';
 import { getItem } from '../../../store/index.js';
 import { register } from '../../../store/index.js';
 import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
-import { policyRepository } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { policyRepository } from '../../../store/tests/fixtures/submit.js';
 import { captureLapsedClaims } from '../../index.js';
 import { sweepClaims } from '../../index.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';

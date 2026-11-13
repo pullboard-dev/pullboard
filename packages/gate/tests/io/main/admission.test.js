@@ -4,9 +4,9 @@ import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/e
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { withGateSlot } from '../../../index.js';
 import { awaitNestedRun } from '../../../index.js';
-import { timedFile } from '../../../../../apps/cli/tests/fixtures/gate/file-pool.js';
-import { fixture } from '../../../../../apps/cli/tests/fixtures/gate/file-pool.js';
-import { peak } from '../../../../../apps/cli/tests/fixtures/gate/file-pool.js';
+import { timedFile } from '../../fixtures/file-pool.js';
+import { fixture } from '../../fixtures/file-pool.js';
+import { peak } from '../../fixtures/file-pool.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
