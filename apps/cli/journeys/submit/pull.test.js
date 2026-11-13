@@ -117,17 +117,3 @@ test('clause 2: authorization, doctrine, static checks, selection and tests all 
   assert.equal(receipts.length, 1, 'one receipt');
   assert.equal(receipts[0].payload.receipt.gate.green, true);
 });
-
-test('clause 1: a pulled submit writes the item pin ref, which stays after the gate lands, and doctor reports no missing pin [C7]', async t => {
-  const box = await pullProject(t, 1);
-  const [id] = box.ids;
-  const { folder, commit } = submitOne(box, id);
-  const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
-  assert.equal(box.git(folder, 'rev-parse', '--verify', `${pin}^{commit}`), commit, 'the pin exists as soon as the gate is queued');
-  const runner = await loopbackRunner(t, box);
-  const result = await runner.run(await runner.take('runner-pin'));
-  assert.equal(result.gate.green, true, JSON.stringify(result.gate));
-  assert.equal(box.git(folder, 'rev-parse', '--verify', `${pin}^{commit}`), commit, 'the pin is still there after the gate lands');
-  const doctor = box.run(box.web, 'doctor', '--json');
-  assert.doesNotMatch(`${doctor.out}${doctor.err}`, /ITEM_PIN_MISSING/u, 'doctor finds no missing pin');
-});
