@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
-import { pullGit } from '../../../../../apps/cli/src/io/runner/git.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 
