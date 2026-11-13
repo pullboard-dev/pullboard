@@ -103,8 +103,11 @@ test("Pullboard's doctrine carries its four checks [D1,D3]", () => {
   assert.ok(staged.status === 0 || staged.status === 1, staged.stderr);
   if (staged.status === 1) box.git(checkout, 'commit', '-q', '-m', 'docs: exercise doctrine checks [D1,D3]');
 
-  const spec = box.run(checkout, 'spec', 'check', '--detail');
-  assert.equal(spec.code, 0, `${spec.out.split(/\r?\n/u).filter((line) => !/ warning: /u.test(line)).join('\n')}\n${spec.err}`);
+  // --json carries every finding; default text withholds lines past its byte budget, which hid the errors behind the warnings.
+  const spec = box.run(checkout, 'spec', 'check', '--json');
+  let findings = spec.out;
+  try { findings = (JSON.parse(spec.out).messages ?? []).filter((line) => !/ warning: /u.test(line)).join('\n'); } catch { /* the raw output is the message */ }
+  assert.equal(spec.code, 0, `${findings}\n${spec.err}`);
   const report = box.run(checkout, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
   const lines = report.out.trim().split(/\r?\n/u);
