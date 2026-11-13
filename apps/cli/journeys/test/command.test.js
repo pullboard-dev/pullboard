@@ -37,7 +37,7 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
   assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
-  for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
+  for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0'], ['gate.runnerDispatch', 'controller']]) {
     const set = await box.runLocal(box.repo, 'settings', key, value);
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
@@ -85,6 +85,8 @@ test('pullboard test names why it ran on this machine, and every installed hook 
   writeFileSync(join(box.repo, 'test/ok.test.js'), PASSES);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: focused runner and one test file');
+  // Pull dispatch is the default and would offer a runner job none serves here; this case judges the local run.
+  assert.equal((await box.runLocal(box.repo, 'settings', 'gate.runnerDispatch', 'controller')).code, 0);
   const ran = await box.runLocal(box.repo, 'test', 'test/ok.test.js', '--json');
   assert.equal(ran.code, 0, ran.err);
   const result = JSON.parse(ran.out);
