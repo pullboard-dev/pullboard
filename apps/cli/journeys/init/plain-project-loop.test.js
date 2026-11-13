@@ -62,6 +62,8 @@ async t => {
   await say(repo, 'init');
   await say(repo, 'spec', 'draft', 'Adding numbers works');
   await say(repo, 'lane', 'add', 'web', '--owns', 'src');
+  // A plain project with no test script detects no gate, and submit refuses NO_GATE until one is set.
+  await say(repo, 'gate', 'set', 'node --test src/add.test.js');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard [G1]');
   const builder = await say(repo, 'worktree', 'web', '--model', FIXTURE_MODEL, '--json');
