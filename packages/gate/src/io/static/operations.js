@@ -44,6 +44,8 @@ export const OPERATIONS = Object.freeze([
     marks: code => code.search(/['"`]worktree['"`]\s*,\s*['"`]add['"`]/u) },
   { name: 'stop-process-tree', entry: 'packages/jobs/src/io/launch.js', why: 'signals a whole process group',
     marks: code => code.search(/\bprocess\s*\.\s*kill\s*\(\s*-/u) },
+  { name: 'sync-sleep', entry: 'packages/kernel/src/logic/sleep.js', why: 'blocks the thread with Atomics.wait',
+    marks: code => code.search(/\bAtomics\s*\.\s*wait\s*\(/u) },
   { name: 'move-trunk', entry: 'packages/landing/src/io/step/publish.js', why: 'moves the trunk ref or pushes to main',
     marks: code => code.search(TRUNK_MOVE) },
 ]);
