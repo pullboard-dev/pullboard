@@ -1,6 +1,7 @@
 import { modelLabelRules } from "../cost/tab.js";
 /**
- * Read the private board's cost event history once per board state sequence.
+ * Read the private board's cost event history once per board and window, and again only after a usage, shared-usage
+ * or merged event has arrived since the last read. The drawn numbers stay on screen while a new read is on its way.
  * This function is serialized into the private page script and uses its page-local state.
  * @param {Record<string, any>} project - The current board state.
  * @returns {{loading: false, error: string}|{sequence: number, loading: boolean, error: string|null, model: any}} The private-history status or cached entry.
@@ -11,20 +12,30 @@ function readCostHistory(project) {
   const root = view.root;
   const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
   const window = view.costWindow ?? '7d';
-  const kept = costHistory.get(root);
-  if (kept?.sequence === sequence && kept.window === window) return kept;
-  const entry = { sequence, window, loading: true, error: null, model: null };
-  costHistory.set(root, entry);
+  const key = root + '\n' + window;
+  const kept = costHistory.get(key);
+  const events = project.events || [];
+  const seen = Math.max(0, ...events.map(event => Number(event.event_id) || 0));
+  if (kept) {
+    if (kept.loading && !kept.model) return kept;
+    const oldest = events.length ? Math.min(...events.map(event => Number(event.event_id) || 0)) : seen;
+    const costEvent = events.some(event => event.event_id > kept.seen && ['usage', 'shared-usage', 'merged'].includes(event.event_kind));
+    if (!costEvent && oldest <= kept.seen + 1) return kept;
+  }
+  const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model), error: null, model: kept?.model ?? null };
+  costHistory.set(key, entry);
   api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
-    if (costHistory.get(root) !== entry || root !== view.root || !reply.costAnalytics) return;
+    if (costHistory.get(key) !== entry || !reply.costAnalytics) return;
     entry.model = reply.costAnalytics;
     entry.loading = false;
-    if (view.tab === 'cost') render();
+    entry.refreshing = false;
+    if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d')) render();
   }).catch(error => {
-    if (costHistory.get(root) !== entry) return;
+    if (costHistory.get(key) !== entry) return;
     entry.loading = false;
-    entry.error = String(error.message || error);
-    if (view.tab === 'cost') render();
+    entry.refreshing = false;
+    if (!entry.model) entry.error = String(error.message || error);
+    if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d') && !entry.model) render();
   });
   return entry;
 }
@@ -43,8 +54,8 @@ const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
 ${readCostHistory.toString()}
 function costPaneHtml(history, project) {
-  if (history.loading) return '<p class="empty" role="status">Loading cost history…</p>';
-  if (history.error) return '<p class="empty" role="status">Cost history is unavailable.</p>';
+  if (history.loading && !history.model) return '<p class="empty" role="status">Loading cost history…</p>';
+  if (history.error && !history.model) return '<p class="empty" role="status">Cost history is unavailable.</p>';
   return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses });
 }` : '';
 return `${privateCostSource}
@@ -239,10 +250,32 @@ function projectGroups(projects) {
 }
 
 /**
- * Compose the multi-repo page from the public board list and each board's public state. A catch-up names the boards
- * whose events arrived in fresh and reads only those; every other board keeps what the page last drew (#545).
+ * Put one board's read on the page the moment it lands, not when the slowest board answers (#6589): a sidebar row
+ * still loading takes its counts, and the shown board's read goes to shown, which draws it. The full answer of the
+ * same read still draws after, so this only moves each part earlier.
  */
-async function boardState(root, mark, fresh = null) {
+function arrived(board, summary, shown, state) {
+  if (!data) return;
+  const same = (entry) => entry.root === board.root && entry.id === board.id;
+  const at = data.projects.findIndex((entry) => same(entry) && entry.loading);
+  if (at >= 0) {
+    data.projects[at] = summary;
+    data.groups = projectGroups(data.projects);
+    renderSide();
+  }
+  if (!shown) return;
+  const projects = data.projects.map((entry) => same(entry) ? summary : entry);
+  // An early draw that fails never fails the board's read: the full answer draws it again and reports its own error.
+  try { shown({ projects, groups: projectGroups(projects), project: state, group: null }); }
+  catch { /* the full answer redraws */ }
+}
+
+/**
+ * Compose the multi-repo page from the public board list and each board's public state. A catch-up names the boards
+ * whose events arrived in fresh and reads only those; every other board keeps what the page last drew (#545). shown,
+ * when given, takes the shown board's state as soon as it arrives (#6589).
+ */
+async function boardState(root, mark, fresh = null, shown = null) {
   const listed = await api('/api/v1/boards');
   if (!data) {
     // Names are already known: a slow board must not leave the project picker blank.
@@ -252,6 +285,8 @@ async function boardState(root, mark, fresh = null) {
     data = { root: null, project: null, group: null, projects, groups: projectGroups(projects) };
     renderSide();
     $('project-loading').hidden = projects.length === 0;
+    // A listed board draws the frame now; its state fills the frame in as it arrives (#6589).
+    if (projects.some((entry) => entry.ok)) drawFrame();
   }
   const states = new Map();
   const cursor = mark !== null && mark !== undefined && /^\\d+$/.test(String(mark)) && Number.isSafeInteger(Number(mark)) ? Number(mark) : null;
@@ -261,13 +296,16 @@ async function boardState(root, mark, fresh = null) {
       if (kept.state) states.set(board.root, kept.state);
       return kept.row;
     }
+    let summary;
     try {
       const state = await boardRead(board, board.root === root ? cursor : null);
       states.set(board.root, state);
-      return boardSummary(board, state);
+      summary = boardSummary(board, state);
     } catch (error) {
       return { ...board, ok: false, error: String(error.message || error) };
     }
+    if (!fresh) arrived(board, summary, board.root === root ? shown : null, states.get(board.root));
+    return summary;
   }));
   projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
     warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));

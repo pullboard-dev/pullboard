@@ -853,6 +853,18 @@ $('shouts-pane').addEventListener('click', (event) => {
 });
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
+// A Needs-you row stays as the person left it: each open or close is kept per board and screen before the native toggle,
+// so a live redraw neither reopens a closed row nor shuts an open one.
+document.addEventListener('click', (event) => {
+  const summary = event.target.closest?.('details[data-needs-key] > summary');
+  if (!summary) return;
+  const row = summary.parentElement, key = row.dataset.needsKey;
+  const place = JSON.stringify([view.root, row.closest('#dashboard') ? 'dashboard' : 'items']);
+  view.needsOpen ||= new Map();
+  const open = view.needsOpen.get(place) || new Set();
+  if (row.open) open.delete(key); else open.add(key);
+  view.needsOpen.set(place, open);
+}, true);
 document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
@@ -860,7 +872,9 @@ document.addEventListener('click', (event) => {
   if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; render(); return; }
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
-    view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
+    // Review and Next keep their own order; the step cards open Building, Passed and Landed by name.
+    view.dashboardList = dashboardList.dataset.dashboardList;
+    view.state = { review: 'verify', next: 'ready', building: 'building', passed: 'passed', landed: 'landed' }[view.dashboardList] ?? 'ready';
     view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
   }
   const timelineMore = event.target.closest('[data-timeline-more]');
@@ -905,6 +919,7 @@ document.addEventListener('click', (event) => {
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
+  if (t.id === 'proj-switch' && projectMenuToggle()) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costWindow) { view.costWindow = t.dataset.costWindow; view.costOpen = null; render(); return; }
@@ -1156,7 +1171,6 @@ $('q').addEventListener('blur', () => {
   if ($('find-results').hidden) return;
   closingFound = setTimeout(() => hideFound('left the field'), 120);
 });
-// "/" goes to the search from anywhere but a field.
 document.addEventListener('keydown', (event) => {
   if (!view.filterOpen) return;
   if (event.key === 'Escape') {
@@ -1176,12 +1190,7 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
-document.addEventListener('keydown', (event) => {
-  if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable]')) return;
-  event.preventDefault();
-  $('q').focus();
-  $('q').select();
-});
+// "/" opens the palette from anywhere but a field (io/palette).
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const root = view.root;
