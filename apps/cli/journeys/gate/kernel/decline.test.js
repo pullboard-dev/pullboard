@@ -17,8 +17,8 @@ import { answer } from '../../../tests/fixtures/submit/kernel.js';
 
 test('submit rechecks a person decline recorded while the real gate runs [C7]', async t => {
   const source = [
-    `import { openBoard } from ${JSON.stringify(new URL('../../../lib/src/logic/native.js', import.meta.url).href)};`,
-    `import * as store from ${JSON.stringify(new URL('../../../../packages/store/index.js', import.meta.url).href)};`,
+    `import { openBoard } from ${JSON.stringify(new URL('../../../../lib/src/logic/native.js', import.meta.url).href)};`,
+    `import * as store from ${JSON.stringify(new URL('../../../../../packages/store/index.js', import.meta.url).href)};`,
     "const board = openBoard(process.env.KERNEL_BOARD, undefined, { isMain: true });",
     "try { const lanes = ['coordinator', 'build'];",
     "const ask = store.shout(board, { from: 'coordinator', to: 'person', text: 'Reconsider the Kernel contract', decision: true, lanes });",
