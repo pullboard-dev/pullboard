@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
-import { pullGit } from '../../../../../apps/cli/src/io/runner/git.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 import { jobWorkers } from '../../../src/io/pull.js';
 import { JOB_WORKERS_ENV } from '../../../light.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
