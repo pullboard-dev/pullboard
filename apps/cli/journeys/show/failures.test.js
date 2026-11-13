@@ -9,6 +9,7 @@ import {
   fixture,
   cli,
   rows,
+  settledSubmit,
 } from '../../tests/fixtures/affected.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { baselineFailureDetails } from '../../../../packages/gate/index.js';
@@ -44,10 +45,9 @@ test('a red baseline with two real failing cases prints both first error lines i
   assert.match(shown.out, /second broken case: second diagnostic/u);
 });
 
-test('a derived main-red repair keeps the actual first error line and show prints it [C7,V4]', t => {
+test('a derived main-red repair keeps the actual first error line and show prints it [C7,V4]', async t => {
   const box = fixture(t, { autoFileMainReds: true });
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
+  await settledSubmit(t, box);
   const repairs = rows(box, "SELECT * FROM item WHERE item_title LIKE 'Main red:%'");
   assert.equal(repairs.length, 1);
   const shown = runFixtureChild('pullboard', ['show', String(repairs[0].item_id)], { cwd: box.root, env: box.env, encoding: 'utf8' });

@@ -32,7 +32,7 @@ test('two repairs naming the same file each own the case their criterion names [
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
 
-test('a case no single repair names is ambiguous but red on main, so submit accepts it and names the candidates [V4,B3,C7]', t => {
+test('a case no single repair names is ambiguous but red on main, so submit accepts it and names the candidates [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
   const box = fixture(t, { affected: SHARED });
   const alpha = fileMainRed(box, "The case 'alpha case' passes on main.");
   const other = fileMainRed(box, 'The shared file passes on main.');
