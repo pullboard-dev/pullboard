@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
+import { scanStaleTests } from './stale-test-sweep.js';
+import { sweepAllowed } from './stale-test-sweep.js';
 
 /** Set in the environment of a re-dispatched request so its own holder is never requeued a second time. */
 export const LIVENESS_RELAUNCH_ENV = 'PULLBOARD_LIVENESS_RELAUNCH';
@@ -22,6 +24,41 @@ export const LIVENESS_RELAUNCH_ENV = 'PULLBOARD_LIVENESS_RELAUNCH';
 function recordLiveness(db, kind, row, detail = '') {
   db.prepare('INSERT INTO liveness_event(at, kind, name, item, pid, detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(new Date().toISOString(), kind, row.name, row.item ?? '', row.pid, detail);
+}
+
+/**
+ * Record one event per stopped test process, naming its pid, command and reason.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
+ * @param {Array<{ pid: number, command: string, reason: string }>} stops - The processes the sweep stopped.
+ */
+export function recordStaleStops(db, stops) {
+  for (const stop of stops) recordLiveness(db, 'stale-test-stopped', { name: 'test-process', pid: stop.pid }, `${stop.command.slice(0, 300)}; ${stop.reason}`);
+}
+
+/** The machine sweep runs at most this often, on the cadence of lease expiry. */
+const SWEEP_EVERY_MS = 60_000;
+let lastSweep = 0;
+let scanning = false;
+const stoppedTests = [];
+
+/**
+ * Record the test processes a finished sweep stopped, then start the next sweep when its cadence is due.
+ * Why two steps: the census is read asynchronously, so its stops are written by the next pass inside a transaction.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
+ * @param {number} [now] - Epoch milliseconds.
+ * @returns {Array<{ pid: number, command: string, reason: string }>} The stops recorded by this pass.
+ */
+export function sweepStaleTestsEvery(db, now = Date.now()) {
+  const recorded = stoppedTests.splice(0);
+  recordStaleStops(db, recorded);
+  if (sweepAllowed() && !scanning && now - lastSweep >= SWEEP_EVERY_MS) {
+    lastSweep = now;
+    scanning = true;
+    scanStaleTests().then(stops => { stoppedTests.push(...stops); }).finally(() => { scanning = false; });
+  }
+  return recorded;
 }
 
 /**
@@ -61,6 +98,7 @@ function freeHolder(db, row, relaunches, why = 'process gone, or its PID now nam
  * @returns {Array<object>} Captured requests to re-dispatch after the commit.
  */
 export function reclaimHolders(db, now, probes) {
+  sweepStaleTestsEvery(db);
   const relaunches = [];
   for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched, agent, repo, kind FROM holder').all()) {
     if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
