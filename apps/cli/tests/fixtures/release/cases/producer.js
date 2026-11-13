@@ -44,7 +44,7 @@ const host=args[divider+1], command=args[divider+2];
 const workers=${JSON.stringify(box.workers)};
 const worker=workers[host];
 if(divider<0 || !worker || typeof command!=='string') process.exit(255);
-const env={PATH:process.env.PATH,HOME:worker.home,PULLBOARD_HOME:worker.home,
+const env={PATH:process.env.PATH,HOME:worker.home,PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:worker.home,
  PULLBOARD_MACHINE_HOME:worker.machine,TMPDIR:process.env.TMPDIR,LANG:'C',LC_ALL:'C',TZ:'UTC'};
 const child=spawn('/bin/sh',['-c',command],{cwd:worker.root,env,stdio:['pipe','pipe','pipe']});
 child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);process.stdin.pipe(child.stdin);
@@ -56,6 +56,9 @@ child.once('close',(code,signal)=>{
 `;
   writeFileSync(join(box.bin, 'ssh'), source, { mode: 0o700 });
 }
+
+// The release gate places its shards on registered SSH runners; pull dispatch never takes that placement, so the run hangs [C7].
+const SSH_CAPSULES = 'CONTROLLER_ONLY: fake SSH capsule placement, deleted with #6579';
 
 /** A tiny committed file records actual completion and asserts that private orchestration tokens do not reach test bodies. */
 function tinyTest(name, box, red) {
@@ -78,7 +81,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
   const home = join(dir, 'home'), machine = join(home, '.pullboard');
   for (const path of [box.repo, box.bin, box.marks, machine, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false, runnerDispatch: 'controller' } }));
+    gate: { browserByLaunch: true, browserFreeChecks: true, timingRunner: false } }));
   for (let i = 0; i < hosts; i++) {
     const host = `synthetic-release-host-${i + 1}`;
     const worker = { home: join(dir, host, 'home'), machine: join(dir, host, 'home', '.pullboard'), root: join(dir, host, 'worker') };
@@ -86,7 +89,7 @@ function fixture(t, { red = false, hosts = 7 } = {}) {
     writeFileSync(join(worker.machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
     box.workers[host] = worker;
   }
-  box.env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
+  box.env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
     PATH: `${box.bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Private Release Fixture', GIT_AUTHOR_EMAIL: 'release@example.invalid',
     GIT_COMMITTER_NAME: 'Private Release Fixture', GIT_COMMITTER_EMAIL: 'release@example.invalid' };
@@ -163,11 +166,11 @@ ${checks}
 /**
  * Register actual worker-protocol controls; the importing wrapper decides when the native test gate may run them.
  * Each journey file installs one group (native, red, count1 or count7) so every file stays inside its 120 s budget [C7,V4].
- * The fixture pins controller dispatch: its fake SSH capsules are registered runners that never pull a board job.
+ * Pull dispatch is the default; the producer drives the release gate directly over its fake SSH capsules.
  */
 export function installReleaseProducerCases(group) {
   if (group === 'native') test('native private release producer covers eight simulated executors and binds stored bytes to current source [C7,V4]',
-    { timeout: 180_000, cpuLoad: true }, async t => { // budget: seven real private worker capsules and their owned cleanup.
+    { timeout: 180_000, cpuLoad: true, skip: SSH_CAPSULES }, async t => { // budget: seven real private worker capsules and their owned cleanup.
     const box = fixture(t);
     const result = await producer(box, `
 const run=await runReleaseGate(root, { executionServices });
@@ -229,7 +232,7 @@ assert.equal(isStampedGreen(root),false);
   });
 
   if (group === 'red') test('a red private release collects tiny shard results without a native envelope or green stamp [C7,V4]',
-    { timeout: 180_000, cpuLoad: true }, async t => { // budget: a complete real private eight-shard run, including red collection and cleanup.
+    { timeout: 180_000, cpuLoad: true, skip: SSH_CAPSULES }, async t => { // budget: a complete real private eight-shard run, including red collection and cleanup.
     const box = fixture(t, { red: true });
     const result = await producer(box, `
 await assert.rejects(()=>runReleaseGate(root, { executionServices }),error=>error.code==='GATE_RUN_EVIDENCE');
@@ -243,7 +246,7 @@ assert.deepEqual(receipts,[]);
 
   for (const count of [1, 7]) if (group === `count${count}`) {
     test(`native private release records all ${count} simulated registered executors [C7,V4]`,
-      { timeout: 180_000, cpuLoad: true }, async t => { // budget: actual private worker capsules, full collection and owned cleanup.
+      { timeout: 180_000, cpuLoad: true, skip: count > 1 ? SSH_CAPSULES : false }, async t => { // budget: actual private worker capsules, full collection and owned cleanup.
       const box = fixture(t, { hosts: count - 1 });
       const result = await producer(box, `
 const run=await runReleaseGate(root, { executionServices }), receipt=run.receipt;

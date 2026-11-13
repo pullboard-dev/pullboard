@@ -46,6 +46,7 @@ test('every refusal a move raises today is declared on that move [M1]', () => {
   assert.deepEqual(raised.filter(code => !declared.has(code)), []);
 });
 `);
+  git('add', '-A'); // The cell inventory reads tracked files only (6193b1e81b), so the fixture's files are staged first.
   const manifest = writeTestTiers(root).manifest;
   assert.equal(manifest.files.find(row => row.file === 'apps/cli/journeys/verify/machine.test.js').tier, 'T3', 'the audit imports two packages, so it is a journey that waits for landing');
   const base = commitAll('test: base with the declaration audit [M1]');

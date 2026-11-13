@@ -76,7 +76,7 @@ export async function privateRepo(t) {
     GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   delete env.PULLBOARD_RELAY_TOKEN;

@@ -10,6 +10,7 @@ import { context } from '../../../index.js';
 import { waitForSubmissionVerdict } from '../../../../../packages/items/index.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { waitKit } from '../../../tests/fixtures/submit/wait.js';
 
 const { helpers, onBoard, waitingVerdict, waitPorts } = waitKit(store);
@@ -37,7 +38,7 @@ test('clause 1: a wait keeps its original receipt across a same-SHA refrozen res
   assert.equal(helpers.commitFile(box, box.web, 'web/retry.txt', 'same source\n', 'feat(web): pin the attempt [G1]').status, 0);
   const sent = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(sent.code, 0, sent.out + sent.err);
-  const submission = JSON.parse(sent.out);
+  const submission = { id: 1, commit: (await settleSubmit(t, box, JSON.parse(sent.out))).commit };
   const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', note: 'Refreeze the review bar before reviewing this source.' }));
   const refrozen = await box.runLocal(box.repo, 'refreeze', '1');
@@ -45,7 +46,7 @@ test('clause 1: a wait keeps its original receipt across a same-SHA refrozen res
   assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   const resent = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(resent.code, 0, resent.out + resent.err);
-  assert.equal(JSON.parse(resent.out).commit, submission.commit, 'the regression really resubmits the same SHA');
+  assert.equal((await settleSubmit(t, box, JSON.parse(resent.out))).commit, submission.commit, 'the regression really resubmits the same SHA');
   /** End the later attempt through its real verifier, including cleanup if the old wait stalls. */
   const rejectLaterAttempt = () => onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
     reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any', clause: 'The fixture check passes.',
