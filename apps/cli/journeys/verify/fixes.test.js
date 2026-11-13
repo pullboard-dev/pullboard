@@ -70,7 +70,7 @@ before(async () => {
   box.run(reviewer, 'join', 'tests', '--model', 'Floor reviewer');
   // The reviewer sends #6 back from its submitted commit, so the red mark sits on the reviewer's own line.
   box.git(reviewer, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:6`));
-  box.run(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back');
+  box.run(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back', '--no-next');
   box.git(reviewer, 'switch', '-q', '--detach', 'main');
   earlier(alpha.repo, Date.now(), board => store.reserveReview(board, 4, { agentId: 'tests-1', leaseMs: 3 * 60 * MINUTE, policy: 'any' }));
   // web-1 claims its next ready item, which it is building now.
