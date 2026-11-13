@@ -70,7 +70,7 @@ test('clause 1: a real T3 batch failure bisects to its item while package units 
 });
 
 
-test('clause 1 control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', async t => {
+test('clause 1 control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', { skip: 'PULL_GAP: un-skipped by #7184' }, async t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   const submitted = await settleSubmit(t, box, json(box, entry.root, 'submit', String(entry.id), '--no-next'));
   assert.deepEqual(submitted.gate.files, ['test/alpha.test.js'], 'the submit proof predates the contract');

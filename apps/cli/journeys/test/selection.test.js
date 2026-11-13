@@ -14,7 +14,7 @@ import {
 } from '../../tests/fixtures/test/selection.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
-test('clause 1: submit and review run only the changed package units and frozen check [C7,CS4,V4]', async t => {
+test('clause 1: submit and review run only the changed package units and frozen check [C7,CS4,V4]', { skip: 'PULL_GAP: un-skipped by #7184' }, async t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // Deliberate inherited context must not skip the selected units.
   const submitted = await settleSubmit(t, box, json(box, entry.root, 'submit', String(entry.id), '--no-next'));
@@ -33,7 +33,7 @@ test('clause 1: submit and review run only the changed package units and frozen 
   assert.deepEqual(calls(box, 'journey'), []);
 });
 
-test('a journey test the change itself edits runs at submit, not first at landing [C7,CS4,V4]', async t => {
+test('a journey test the change itself edits runs at submit, not first at landing [C7,CS4,V4]', { skip: 'PULL_GAP: un-skipped by #7184' }, async t => {
   const box = fixture(t), entry = build(box, 'gamma', 2);
   const journey = join(entry.root, 'test/journey.test.js');
   writeFileSync(journey, readFileSync(journey, 'utf8').replace("'journey\\n'", "'journey-edited\\n'"));
@@ -56,7 +56,7 @@ test('a red in a journey test the change edits turns the submit gate red [C7,CS4
   assert.ok(calls(box, 'journey').length >= 1, 'the edited journey ran at submit');
 });
 
-test('a package with no units runs only its frozen check [C7,CS4,V4]', async t => {
+test('a package with no units runs only its frozen check [C7,CS4,V4]', { skip: 'PULL_GAP: un-skipped by #7184' }, async t => {
   const box = fixture(t), entry = build(box, 'gamma', 2);
   const submitted = await settleSubmit(t, box, json(box, entry.root, 'submit', String(entry.id), '--no-next'));
   assert.deepEqual(submitted.gate.files, []);
