@@ -148,7 +148,10 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   assert.equal(receipt.gate.green, true);
   assert.equal(receipt.gate.full, false);
   assert.deepEqual(receipt.gate.files, ['test/a.test.js']);
-  assert.equal(receipt.gate.reason, '');
+  // The pulled receipt has no `reason`; its equivalent is that nothing widened or deferred the selection: the report names exactly the affected file.
+  assert.equal(receipt.gate.deferred, false);
+  assert.equal(receipt.gate.deferNote, undefined);
+  assert.equal(receipt.gate.report, 'affected tests: test/a.test.js');
   assert.equal(receipt.gate.check.command, checkCommand);
   assert.equal(receipt.gate.check.green, true);
   assert.ok(existsSync(checkMarker), 'submit executes the item check rather than merely reporting it');

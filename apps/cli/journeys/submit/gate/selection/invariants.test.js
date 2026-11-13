@@ -84,7 +84,8 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
   change(red.box);
   const refused = await submitWithEnv(t, red.box, (...args) => runLocal(red.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.notEqual(refused.code, 0, 'a failing configured invariant must refuse the submit');
-  assert.match(refused.err + refused.out, /GATE_RED/u);
+  // A pulled red begins `proof failed:`; GATE_RED is the inline gate's code.
+  assert.match(refused.err, /^proof failed: /u);
   assert.ok(existsSync(red.marker), 'the listed invariant actually ran');
   unstamped(red.box);
 
@@ -102,7 +103,7 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
   change(trusted.box);
   const ignored = await submitWithEnv(t, trusted.box, (...args) => runLocal(trusted.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.notEqual(ignored.code, 0, 'accepted main policy overrides both the claim-time list and candidate edit');
-  assert.match(ignored.err + ignored.out, /GATE_RED/u);
+  assert.match(ignored.err, /^proof failed: /u);
   assert.ok(existsSync(trusted.marker), 'the accepted-main invariant still ran');
   assert.doesNotMatch(ignored.err + ignored.out, /unrelated test must stay deferred/u);
   unstamped(trusted.box);
