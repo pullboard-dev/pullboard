@@ -105,7 +105,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
           pageWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
         };
       })())`));
-      assert.deepEqual(rendered.eventIds.toSorted((a, b) => a - b), expectedIds, `${width}px: every rendered row retains its exact API event identities`);
+      assert.deepEqual(rendered.eventIds.toSorted((a, b) => a - b), expectedIds, `${width}px: every rendered row retains its exact API event identities; missing ${JSON.stringify(expected.filter((entry) => !rendered.eventIds.includes(entry.eventId)).map((entry) => [entry.eventId, entry.type, entry.kind, entry.by, entry.at]))}`);
       assert.ok(rendered.ids[0] > rendered.ids.at(-1), `${width}px: history is shown newest first`);
       assert.equal(rendered.eventIds.length, expected.length, `${width}px: each API event appears exactly once, folded moves included`);
       assert.ok(rendered.rows <= expected.length && rendered.rows === rendered.ids.length, `${width}px: each row carries its event ids`);

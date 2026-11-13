@@ -487,7 +487,7 @@ function render({ tab: switching = false } = {}) {
     const holderChip = holder ? '<span class="chip holder" title="' + esc((stateOf(item) === 'verify' ? 'Reviewing: ' : 'Building: ') + agentName(holder)) + '">' + esc(agentName(holder)) + '</span>' : '';
     const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
     return '<header class="item-panel-head"><div class="item-panel-where">' + where.map(part => '<span class="chip">' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">'
-      + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p), false, false, Boolean(holderChip)) + holderChip + more + '</div></header>';
+      + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p), true, false, Boolean(holderChip)) + holderChip + more + '</div></header>';
   };
   if (opened?.error) store.paint($('detail'), '<div class="stack"><p class="detail-wait muted" role="status">Could not load #' + selected.id + ': ' + esc(opened.error) + '</p></div>');
   // Until its omitted fields arrive, an opened item paints its heading from its summary and fills the rest in place (#1039).
