@@ -20,7 +20,7 @@ import {
 import { pathToFileURL } from 'node:url';
 import { takeResource } from '../../../../../../packages/resources/index.js';
 import { runFixtureChildAsync } from '../../child.js';
-import { waitForState } from '../../check-baseline.js';
+import { waitForCondition as waitForState } from '../holders.js';
 
 /** Run one real paired-rerun case; the caller supplies the pinned tooling and round-trip harness. */
 export async function runPairedRerun(t, mode, { createE2eHelpers, cli, observe, startToolingCli,
