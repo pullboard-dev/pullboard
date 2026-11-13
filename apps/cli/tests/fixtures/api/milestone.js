@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { main } from '../native.js';
+import { fixtureSettledMachine } from '../testkit.js';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { runCliInProcess } from '../process.js';
 import { createLocalApiHandler } from '../../../../../packages/api/index.js';
@@ -116,6 +117,16 @@ export function isolatedMain(box) {
       }
     }
   };
+}
+
+/**
+ * A project whose submits settle whatever the machine's dispatch default is, so the review a move queues is ready [P7].
+ * Why: under pull dispatch a submit waits for a runner and the verifier's next answers REVIEW_NOT_READY (#6253).
+ */
+export function settledProject() {
+  const box = project();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
+  return box;
 }
 
 /** Serve the local API adapter directly so tests can exercise its optional origin allowlist. */

@@ -18,13 +18,13 @@ import { addRoutedItem } from '../../../tests/fixtures/api.js';
 import { commitWork } from '../../../tests/fixtures/api.js';
 import { checkOutSubmitted } from '../../../tests/fixtures/api.js';
 import { json } from '../../../tests/fixtures/api/project.js';
-import { project } from '../../../tests/fixtures/api/project.js';
 import { SPEC } from '../../../tests/fixtures/api/project.js';
 import { runLocal } from '../../../tests/fixtures/api/milestone.js';
+import { settledProject } from '../../../tests/fixtures/api/milestone.js';
 import { startLocalHandler } from '../../../tests/fixtures/api/milestone.js';
 
 test('one move recomputes only the items it touched [A2,N26]', async (t) => {
-  const box = project();
+  const box = settledProject();
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const board = openBoard(boardFile, undefined, { isMain: true });
   const ids = [];
