@@ -189,9 +189,19 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
     }))()`)) + ' probe ' + JSON.stringify(await chrome.stable(`(async () => { const out = {}; try { const mod = await import('/relay/client.js'); out.client = 'loads ' + Object.keys(mod).join(','); } catch (e) { out.client = String(e?.stack ?? e).slice(0, 500); } out.scripts = [...document.scripts].map(s => s.src || 'inline:' + s.textContent.length); out.slow = performance.getEntriesByType('resource').filter(r => r.responseStatus !== 200).map(r => r.name + ':' + r.responseStatus).slice(0, 10); out.transport = typeof transport !== 'undefined' ? typeof transport : null; out.dataNull = typeof data !== 'undefined' ? String(data === null) : 'undefined'; return out; })()`).catch(String)));
     throw error;
   }
-  await chrome.click(`document.querySelector('[data-tab="items"]')`);
-  assert.equal(await chrome.stable(`document.querySelector('[data-tab="items"]')?.classList.contains('on')`), true,
-  'the browser shows the Items tab before checking its chain');
+  try {
+    await chrome.click(`document.querySelector('[data-tab="items"]')`);
+    await chrome.waitFor( // budget: the same bounded 15 s page-state ceiling as the board read above.
+      `document.querySelector('[data-tab="items"]')?.classList.contains('on')`, SIGNED_IN_BOARD_RENDER_WAIT_MS,
+      'the browser shows the Items tab before checking its chain');
+  } catch (error) {
+    t.diagnostic('items tab click: ' + JSON.stringify(await chrome.stable(`(() => ({
+      tab: typeof view !== 'undefined' ? view.tab : null,
+      buttons: [...document.querySelectorAll('[data-tab="items"]')].map(node => ({ cls: node.className, hidden: node.hidden, box: node.getBoundingClientRect().toJSON(), parent: node.parentElement?.className })),
+      screen: { ...document.documentElement.dataset },
+    }))()`).catch(String)));
+    throw error;
+  }
   try {
     await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('legacy snapshot cursor')");
   } catch (error) {
