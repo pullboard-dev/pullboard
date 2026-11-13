@@ -39,9 +39,9 @@ function boardsBox(t, { reachable = true } = {}) {
 
 /** Record a commit citing `header` without running hooks, as history written before the rule. */
 function pastCommit(box, header) {
-  const tree = box.git('write-tree').stdout.trim();
-  const parent = box.git('rev-parse', 'HEAD').stdout.trim();
-  const sha = box.git('commit-tree', tree, '-p', parent, '-m', header).stdout.trim();
+  const tree = box.git('write-tree');
+  const parent = box.git('rev-parse', 'HEAD');
+  const sha = box.git('commit-tree', tree, '-p', parent, '-m', header);
   box.git('update-ref', 'refs/heads/main', sha);
   return sha;
 }
