@@ -48,7 +48,8 @@ async function parkedBoard(t) {
   const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
   const before = (await box.cliLocal('status')).document.relay.sequence;
   const big = randomBytes(68_000).toString('base64url');
-  assert.equal((await box.cliLocal('shout', 'all', big)).code, 0);
+  const bigShout = await box.cliLocal('shout', 'all', big);
+  assert.equal(bigShout.code, 0, JSON.stringify(bigShout.document?.error ?? bigShout.document).slice(0, 600));
   assert.equal((await box.cliLocal('shout', 'all', 'small after the big move')).code, 0);
   const synced = await box.cliLocal('status');
   assert.equal(synced.code, 0, synced.failure);
