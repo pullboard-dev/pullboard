@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { boardOf } from '../../tests/fixtures/cockpit/harness.js';
+import { openItemsNeeds } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
@@ -84,6 +85,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
 
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.waitFor('view.tab === "items" && !!document.querySelector("#needs")');
+    await openItemsNeeds(chrome);
     const needHash = '#needs [data-agent-approved="G1"] [data-needs-field="commit"] .hash-copy';
     await chrome.click(`document.querySelector(${JSON.stringify('#needs [data-agent-approved="G1"] summary')})`);
     await chrome.waitFor(`document.querySelector(${JSON.stringify(needHash)})`);

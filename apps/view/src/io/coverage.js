@@ -35,7 +35,7 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/logic/activity/model.js', names: ['activityModel'], tests: ['apps/view/tests/logic/activity/model/sentences.test.js'] },
   { module: 'apps/view/src/logic/activity/render.js', names: ['activityHtml', 'activityFilters'], tests: ['apps/view/tests/logic/activity/model/sentences.test.js'] },
   { module: 'apps/view/src/logic/activity/words.js', names: ['activityWords'], tests: ['apps/view/tests/logic/activity/model/sentences.test.js'] },
-  { module: 'apps/view/src/logic/needs/panel.js', names: ['needsPanelModel', 'needsPanelHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
+  { module: 'apps/view/src/logic/needs/panel.js', names: ['needsPanelModel', 'needsPanelHtml', 'itemsNeedsModel', 'itemsNeedsHtml'], tests: ['apps/view/tests/logic/main.test.js'] },
   { module: 'apps/view/src/logic/needs/list.js', names: ['needsEntries', 'renderNeedsRow'], tests: ['apps/view/tests/logic/main.test.js'] },
   { module: 'apps/view/src/logic/summary/roadmap.js', names: ['roadmapSummary', 'roadmapHeaders'], tests: ['apps/view/tests/logic/main.test.js'] },
   { module: 'apps/view/src/io/roadmap/block.js', names: ['roadmapBlock'], tests: ['apps/view/tests/logic/main.test.js'] },
