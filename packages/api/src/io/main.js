@@ -352,7 +352,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   let externalNextExpiry = null;
   let externalReferences = null;
   let registryMarker = null;
-  let notifications;
+  let notifications, revisionMs = 0; // what the last revision cost: the file waiter spaces its wakes by it (#6768)
   const listeners = new Set();
   let expiryTimer;
   /** Rebind named inputs and schedule only the earliest real lease/proof-window expiry. */
@@ -373,7 +373,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   try {
-    notifications = fileChangeWaiter([dbPath, dbPath + '-wal']);
+    notifications = fileChangeWaiter([dbPath, dbPath + '-wal'], { weight: () => revisionMs });
     dbMarker = fileMarkerForPath(dbPath);
     fileMarkers = files.map(fileMarker);
     fileContent = files.map(fileRevision);
@@ -472,7 +472,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   return {
-    revision,
+    revision() { const began = Date.now(); try { return revision(); } finally { revisionMs = Date.now() - began; } },
     subscribe(listener) {
       listeners.add(listener);
       const unsubscribe = notifications.subscribe(listener);

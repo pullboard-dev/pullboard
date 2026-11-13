@@ -11,7 +11,7 @@ function fakeKit() {
     callbacks.push(callback);
     return { on() {}, close() {} };
   };
-  const schedule = (run) => { const handle = { run }; scheduled.push(handle); return handle; };
+  const schedule = (run, delay) => { const handle = { run, delay }; scheduled.push(handle); return handle; };
   const cancel = (handle) => { handle.cancelled = true; };
   return { watch, schedule, cancel, callbacks, scheduled };
 }
@@ -45,4 +45,38 @@ test('closing a waiter cancels its pending pass [C7]', () => {
   assert.equal(kit.scheduled[0].cancelled, true);
   kit.scheduled[0].run();
   assert.equal(waiter.version(), 0, 'a closed waiter never wakes');
+});
+
+test('a costly wake spaces the next pass by a multiple of its cost, capped, and a quiet change is not delayed [C7]', () => {
+  const kit = fakeKit();
+  const name = `nonexistent-${process.pid}`;
+  let clock = 1000, cost = 100;
+  const waiter = fileChangeWaiter([`/${name}/input`], { ...kit, weight: () => cost, now: () => clock });
+  const fire = () => { for (const callback of kit.callbacks) callback('change', name); };
+  fire();
+  const window = kit.scheduled[0].delay;
+  kit.scheduled[0].run();
+  fire();
+  const spaced = kit.scheduled[1].delay;
+  assert.ok(spaced > window && spaced >= 2 * cost, 'a pass that cost something spaces the next one by a multiple of it');
+  clock += spaced;
+  kit.scheduled[1].run();
+  cost *= 1000;
+  fire();
+  clock += spaced;
+  kit.scheduled[2].run();
+  fire();
+  const capped = kit.scheduled[3].delay;
+  assert.ok(capped > spaced && capped < cost, 'a huge cost is capped, so a busy repository still wakes its waiters');
+  clock += capped;
+  kit.scheduled[3].run();
+  fire();
+  assert.equal(kit.scheduled[4].delay, capped, 'the cap is steady');
+  cost = 0;
+  clock += capped;
+  kit.scheduled[4].run();
+  clock += capped * 100;
+  fire();
+  assert.equal(kit.scheduled[5].delay, window, 'a change long after the last pass waits only the coalescing window');
+  waiter.close();
 });

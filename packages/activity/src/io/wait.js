@@ -12,10 +12,14 @@ import { fileURLToPath } from 'node:url';
 const RECHECK_MS = 5000;
 /** Native events arriving within this window of the first one share a single refresh, so a burst of file changes costs one pass, not one per file [C7]. */
 const COALESCE_MS = 50;
+/** Passes start at least this many times their own cost apart, so file changes never keep more than about one fifth of the event loop busy [C7]. */
+const PACE = 4;
+/** The longest a burst of changes may defer the next pass, so a busy repository still wakes its waiters at least this often. */
+const MAX_GAP_MS = 2000;
 
-/** Watch exact inputs (tests may inject the native watch and the coalescing timer), including files created or replaced later, and retain changes across reads and waits. */
-export function fileChangeWaiter(paths, { watch = nativeWatch, schedule = setTimeout, cancel = clearTimeout } = {}) {
-  let targets = [], generation = 0, closed = false, failure = null, pending = null;
+/** Watch exact inputs (tests may inject the native watch, the timer and the clock; weight names the milliseconds a wake costs its listeners), including files created or replaced later, and retain changes across reads and waits. */
+export function fileChangeWaiter(paths, { watch = nativeWatch, schedule = setTimeout, cancel = clearTimeout, weight = () => 0, now = Date.now } = {}) {
+  let targets = [], generation = 0, closed = false, failure = null, pending = null, gap = 0, endedAt = 0;
   const watchers = new Map(), listeners = new Set();
   let signatures = new Map();
   const fileWatchers = new Map();
@@ -36,14 +40,17 @@ export function fileChangeWaiter(paths, { watch = nativeWatch, schedule = setTim
     generation += 1;
     for (const listener of [...listeners]) listener(failure);
   }
-  /** One refresh, snapshot and wake for every native event that arrives while a pass is already scheduled. */
+  /** One refresh, snapshot and wake for every native event that arrives while a pass is already scheduled; the next pass waits out a gap scaled to what this one cost. */
   function coalesced() {
     if (closed || pending) return;
     pending = schedule(() => {
       pending = null;
       if (closed) return;
+      const started = now();
       try { refresh(); snapshot(); changed(); } catch (error) { changed(error); }
-    }, COALESCE_MS);
+      endedAt = now();
+      gap = Math.min(MAX_GAP_MS, PACE * (endedAt - started + Math.max(0, Number(weight()) || 0)));
+    }, Math.max(COALESCE_MS, gap - (now() - endedAt)));
   }
   /** Bind the nearest existing parent so creation and atomic replacement remain observable. */
   function refresh() {
