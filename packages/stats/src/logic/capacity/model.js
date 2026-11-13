@@ -171,10 +171,12 @@ function landingRepair(route) {
     const count = failed.filter(row => row.cause === cause).length;
     if (!count) continue;
     const service = route.repair[cause];
-    if (service.build === null) return { work: null, unknown: [...unknown, `${cause} repair build service is missing`] };
-    if (service.reworkGap === null) unknown.push(`${cause} repair gap is missing`);
+    // A cause with failures but no cause-specific build sample (a rare mid-route landing-test) repairs at the route's ordinary build service, as review rejects do.
+    const repairBuild = service.build ?? route.build;
+    if (repairBuild === null) return { work: null, unknown: [...unknown, `${cause} repair build service is missing`] };
+    // A missing repair gap is latency, never labor: it adds no work, so it cannot void the estimate.
     // The cause-specific build happens once; later review rejects use their own observed build service.
-    const labor = service.build + (route.review + route.q * (rejectBuild ?? 0)) / (1 - route.q);
+    const labor = repairBuild + (route.review + route.q * (rejectBuild ?? 0)) / (1 - route.q);
     weighted += count / route.outcomes.length * labor;
   }
   return { work: weighted / (1 - probability), unknown };

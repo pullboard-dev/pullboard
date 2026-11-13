@@ -229,7 +229,6 @@
     "apps/cli/journeys/shout/references.test.js->apps/cli/tests/fixtures/cockpit/harness.js": 1,
     "apps/cli/journeys/shout/references.test.js->src/relay-presentation.js": 1,
     "apps/cli/journeys/shout/references.test.js->src/serve.js": 1,
-    "apps/cli/journeys/shout/search.test.js->apps/cli/tests/fixtures/cockpit/harness.js": 1,
     "apps/cli/journeys/shout/shouts.test.js->apps/cli/tests/fixtures/cockpit/harness.js": 1,
     "apps/cli/journeys/shout/shouts.test.js->apps/cli/tests/fixtures/cockpit/stable.js": 1,
     "apps/cli/journeys/shout/shouts.test.js->src/board.js": 1,
