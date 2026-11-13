@@ -31,12 +31,15 @@ import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const folders = [];
 
 after(() => {
+  for (const folder of folders) stopFixtureLocalRunner(join(folder, 'home'));
   for (const folder of folders) rmSync(folder, { recursive: true, force: true });
 });
 
@@ -47,6 +50,7 @@ function fixtureEnv(home, bin) {
     ...env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, PATH: bin + delimiter + process.env.PATH,
     PULLBOARD_VIEW_BACKGROUND: '0', // Restore the fixture opt-out after removing inherited board identity.
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', // Fixture items carry near-identical titles, so the add duplicate guard stays off (#6864).
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Watch Test', GIT_AUTHOR_EMAIL: 'watch@example.invalid',
     GIT_COMMITTER_NAME: 'Watch Test', GIT_COMMITTER_EMAIL: 'watch@example.invalid',
@@ -72,10 +76,15 @@ async function project() {
   /** Run one CLI command with --json and return its document. */
   const local = async (cwd, ...args) => {
     args = fixtureJoinRoute(args, env.PULLBOARD_MODEL);
-    if (args[0] === 'submit') args.push('--wait');
     const result = await runLocal(cwd, ...args, '--json');
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}${result.stdout}`);
-    return JSON.parse(result.stdout);
+    const document = JSON.parse(result.stdout);
+    // A pull submit returns queued at once; the journey reads the settled gate, so it waits for the local runner's receipt [P7].
+    if (args[0] === 'submit' && document.queued) {
+      const run = async (here, ...rest) => { const out = await runLocal(here, ...rest); return { code: out.status, out: out.stdout, err: out.stderr }; };
+      await settledGateJob({ repo: root, env, run }, document.item ?? Number(args[1]));
+    }
+    return document;
   };
   git('init', '-q', '-b', 'main');
   await local(root, 'init');
