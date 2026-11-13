@@ -31,6 +31,7 @@ import {
   resolve,
 } from 'node:path';
 import { tmpdir } from 'node:os';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { test } from 'node:test';
 import { main } from '../../tests/fixtures/native.js';
 import { headCommit } from '../../../../packages/git/index.js';
@@ -58,7 +59,10 @@ function realGitPath() {
 /** Build a private real repo and linked agent worktree with an instrumented Git executable. */
 function fixture(t, { ruleProof = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-git-calls-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 })); // a submitted run may still be writing [C7]
+  t.after(() => {
+    stopFixtureLocalRunner(join(dir, 'home', '.pullboard-machine')); // a pulled gate starts the loopback runner, which heartbeats into the fixture [C7]
+    rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 }); // a submitted run may still be writing [C7]
+  });
   const repo = join(dir, 'repo');
   const worker = join(dir, 'worker');
   const home = join(dir, 'home');
