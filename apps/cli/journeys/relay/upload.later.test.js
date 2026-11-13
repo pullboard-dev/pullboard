@@ -12,6 +12,7 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import {
