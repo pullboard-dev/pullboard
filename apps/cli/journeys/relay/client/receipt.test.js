@@ -13,7 +13,7 @@ import {
 
 after(cleanupFixtureChildren);
 
-test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas refuse a receipt-missing descriptor stacked on an unverified submission', { timeout: 200_000 }, async (t) => {
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas refuse a receipt-missing descriptor stacked on an unverified submission', { timeout: 170_000 }, async (t) => {
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
