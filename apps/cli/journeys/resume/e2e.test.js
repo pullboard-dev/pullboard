@@ -24,6 +24,7 @@ import { claudeLoopRules } from '../../../../packages/config/index.js';
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
@@ -33,7 +34,12 @@ const {
   BIN, sandbox, CONFIG, SPEC, commitFile, LIGHT_BRIEF,
 } = e2e;
 
-const { project } = e2e;
+/** A journey project whose submits return their gate's verdict in the command, so the file pins controller dispatch (#6249,#6832). */
+function project(...args) {
+  const box = e2e.project(...args);
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  return box;
+}
 
 /** Assert and remove only the outer command's exact final text action; retain every body byte. */
 function withoutAction(text, action = 'pullboard next') {
