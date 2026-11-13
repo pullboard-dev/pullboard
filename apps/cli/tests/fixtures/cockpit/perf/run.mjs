@@ -163,7 +163,7 @@ export function assertRequiredNetworkEvidence(name, requests, requestBytes) {
 }
 
 /** Attach a private CDP observer that retains local request paths and actual encoded response byte counts. */
-async function openNetworkCapture(profile, localOrigin, targetId) {
+export async function openNetworkCapture(profile, localOrigin, targetId) {
   const port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]);
   if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) throw new Error('isolated Chrome did not publish a valid local DevTools port');
   const targetsResponse = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(5_000) });
@@ -483,6 +483,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       if (!other) throw new Error('the project-switch sample needs another registered board');
       if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
         await press(chrome, "document.querySelector('#proj-switch')");
+        await press(chrome, 'document.querySelector("[data-proj-all]")');
       }
       /** Find the listed project without interpolating fixture paths into a CSS selector. */
       const row = root => `[...document.querySelectorAll('#proj-list .repo[data-root]')].find(node => node.dataset.root === ${JSON.stringify(root)})`;
@@ -492,6 +493,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
         `view.root === ${JSON.stringify(other.root)} && data?.root === ${JSON.stringify(other.root)}`);
       if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
         await press(chrome, "document.querySelector('#proj-switch')");
+        await press(chrome, 'document.querySelector("[data-proj-all]")');
       }
       await beginAction(chrome, 'switchProject', 'mousedown');
       await press(chrome, row(measuredRoot));

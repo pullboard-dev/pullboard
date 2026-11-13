@@ -53,7 +53,7 @@ test('Dashboard is the landing page, Settings carries the rules, and migrates sa
     const html = await (await fetchPage(view)).text();
     const navigation = /<nav class="tabs"[^>]*>([\s\S]*?)<\/nav>/u.exec(html)?.[1] ?? '';
     const tabs = [...navigation.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>/gu)].map(([, tab]) => tab);
-    assert.equal(tabs[0], 'dashboard', 'Dashboard is the first tab');
+    assert.ok(tabs.includes('dashboard') && !tabs.includes('progress'), 'Dashboard is a tab and Progress is not');
     assert.doesNotMatch(html, /data-tab="home"|data-pane="home"/u, 'the retired Home tab and pane are absent');
 
     // A new board opens on Dashboard, which retains the rules and the calls waiting on the person.
@@ -68,7 +68,7 @@ test('Dashboard is the landing page, Settings carries the rules, and migrates sa
     fresh.run("view.tab = 'dashboard'; render();");
     const dashboard = fresh.show('dashboard');
     assert.match(dashboard, /aria-label="Rulings"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
-    assert.doesNotMatch(dashboard, /No rulings are waiting/u, 'a visible call suppresses the calm state');
+    assert.doesNotMatch(dashboard, /Nothing to rule on/u, 'a visible call suppresses the calm state');
     assert.doesNotMatch(dashboard, /dashboard-rules|dashboard-capacity|Your rules|Useful agents/u, 'the rules and capacity cards are on Settings, not the Dashboard');
 
     // Existing work also opens on Dashboard; the person's explicit Items choice is remembered.
@@ -79,6 +79,12 @@ test('Dashboard is the landing page, Settings carries the rules, and migrates sa
     const savedHome = storage();
     savedHome.setItem('pb.tab', 'home');
     assert.equal((await openPage(view, { store: savedHome })).run('view.tab'), 'dashboard', 'a saved Home tab opens on Dashboard');
+    const savedProgress = storage();
+    savedProgress.setItem('pb.tab', 'progress');
+    const retired = await openPage(view, { store: savedProgress });
+    assert.equal(retired.run('view.tab'), 'dashboard', 'a saved Progress tab opens on Dashboard');
+    assert.equal(retired.run("location.pathname = '/progress'; location.hash = '#progress'; addressTab()"), 'dashboard', 'the old Progress address goes to Dashboard');
+    assert.doesNotMatch(html, /data-tab="progress"|data-pane="progress"/u, 'the Progress tab and page are gone');
     await working.click({ tab: 'items' });
     assert.equal((await openPage(view, { store })).run('view.tab'), 'items', 'Items is one click back, and kept too');
   } finally {

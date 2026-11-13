@@ -16,7 +16,7 @@ import {
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('Needs you summarizes item809, keeps raw questions in details and places navigation in its header [N26,B26]', { timeout:120_000 }, async () => { // budget: native809-item seed, authenticated HTTP and real Chrome at desktop/phone widths.
+test('Rulings summarizes item809, keeps raw questions in details and places navigation in its header [N26,B26]', { timeout:120_000 }, async () => { // budget: native809-item seed, authenticated HTTP and real Chrome at desktop/phone widths.
   const box=machine();
   const spec='# Needs rows\n\n## G · Goals\n- G1 [draft, must] Keep a person decision readable. | gate: browser test\n- G2 [draft, aim] Keep another draft visible in the count. | gate: browser test\n';
   const demo=project(box,'needs-you-rows',spec);
@@ -65,13 +65,29 @@ test('Needs you summarizes item809, keeps raw questions in details and places na
       for(const id of asks) assert.doesNotMatch(result.text,new RegExp('#'+id+'\\b','u'),'no visible shout id');
       assert.deepEqual(result.actions,asks.slice(0,3).map(id=>'decide:'+id),'summary identities never replace the actual native action targets');
     }
+    const openOn = place => 'document.querySelectorAll("'+place+' .needs-call details[open]").length';
+    assert.equal(await chrome.stable(openOn('#dashboard')),0,'#6595: no Dashboard Rulings row opens by default');
     await chrome.click('document.querySelector("#dashboard .needs-call summary")');
     await chrome.waitFor('document.querySelector("#dashboard .needs-call details").open');
     assert.ok((await chrome.stable('document.querySelector("#dashboard .needs-call .needs-detail").innerText')).includes(question+' Choice 1.'),'expansion preserves the original words');
     await chrome.stable('render(); true');
+    assert.equal(await chrome.stable('document.querySelector("#dashboard .needs-call details").open'),true,'#6595: a row the person opened stays open across a live redraw');
+    await chrome.click('document.querySelector("#dashboard .needs-call summary")');
+    await chrome.waitFor('!document.querySelector("#dashboard .needs-call details").open');
+    await chrome.stable('render(); true');
+    assert.equal(await chrome.stable(openOn('#dashboard')),0,'#6595: a row the person closed stays closed across a live redraw');
     assert.equal(await chrome.stable('document.querySelector("#dashboard .needs-card header [data-needs-list]").textContent'),'1 more and 2 draft rows →','redraw retains the header navigation');
     await chrome.click('document.querySelector("#dashboard .needs-card header [data-needs-list]")');
     await chrome.waitFor('view.tab === "items" && document.querySelectorAll("#needs [data-needs-key]").length === 4');
     assert.equal(await chrome.stable('document.querySelector("#needs .needs-copy b").textContent'),'#'+asks[0]+question+' Choice 1.', 'the complete Needs list retains the original native question after compact navigation');
+    assert.equal(await chrome.stable(openOn('#needs')),0,'#6595: no Items Rulings row opens by default');
+    await chrome.click('document.querySelectorAll("#needs .needs-call summary")[1]');
+    await chrome.waitFor('document.querySelectorAll("#needs .needs-call details")[1].open');
+    await chrome.stable('render(); true');
+    assert.equal(await chrome.stable('document.querySelectorAll("#needs .needs-call details")[1].open && '+openOn('#needs')+' === 1'),true,'#6595: the opened Items row stays open, alone, across a live redraw');
+    await chrome.click('document.querySelectorAll("#needs .needs-call summary")[1]');
+    await chrome.waitFor(openOn('#needs')+' === 0');
+    await chrome.stable('render(); true');
+    assert.equal(await chrome.stable(openOn('#needs')),0,'#6595: the closed Items row stays closed across a live redraw');
   } finally {if(chrome) await closeSnapshotChrome(chrome);await server.stop();}
 });

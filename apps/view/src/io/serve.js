@@ -2,7 +2,11 @@ import { activeViewAgents } from "../logic/summary/state.js";
 import { viewProofSummary } from "../logic/summary/state.js";
 import { compactItemSummaries } from "../logic/summary/state.js";
 import { viewFlowSummary } from "../logic/summary/state.js";
+import { projectSummary } from "../logic/summary/project.js";
 import { modelPresentation } from "./cost/tab.js";
+import { noLinkPage } from "./no-link.js";
+import { NO_LINK_CSS } from "./no-link.js";
+import { NO_LINK_STYLESHEET } from "./no-link.js";
 import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
@@ -27,12 +31,16 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { Worker } from 'node:worker_threads';
@@ -40,6 +48,11 @@ import { isMainThread } from 'node:worker_threads';
 import { parentPort } from 'node:worker_threads';
 import { workerData } from 'node:worker_threads';
 import { createServer } from 'node:http';
+import {
+  brotliCompressSync,
+  constants as zlibConstants,
+  gzipSync,
+} from 'node:zlib';
 import {
   basename,
   dirname,
@@ -144,35 +157,57 @@ function requireViewServices({ runCommand, renderPage, refusalDocument, boardOpe
 }
 
 /**
+ * The most events one export read asks for. A large board's log (hundreds of thousands of events) is read, made
+ * portable and written in pages of this size, so the export never holds the whole log at once and finishes under
+ * Node's default heap.
+ */
+export const EXPORT_EVENT_BATCH = 5000;
+/** How many item details one export reads at a time while it writes each item in full. */
+const EXPORT_ITEM_READS = 16;
+
+/**
  * Export one board through the same API v1 used by the live page, closing its temporary local
  * transport before returning. The static page needs neither that transport nor its session key.
  * Its API reads go through fetchApi, fetchLocal unless a caller passes another; a test passes one
  * that records each address and then reads through fetchLocal, so it sees the requests the export sends.
+ * Nothing is read whole: the state comes as item summaries, and each item's detail (thread, history, verdicts,
+ * criterion) is read from its own path and written into state.json in full, a few items at a time; events are
+ * read in pages of at most eventBatch, each written to events.json before the next is read. On a big board the
+ * one-document full state or event log is larger than a string Node can build (#6587).
+ * A refused or failed export leaves no partial snapshot behind.
  *
  * @param {string} root
  * @param {string} directory
  * @returns {Promise<{path: string}>}
  */
-export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false, runCommand, renderPage, refusalDocument, boardOpeners } = {}) {
-  requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
+export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false, eventBatch = EXPORT_EVENT_BATCH, source, runCommand, renderPage, refusalDocument, boardOpeners } = {}) {
+  // source: an optional stand-in board reader, (path) => document; it replaces the local API so a test drives the export alone.
+  if (source) { if (typeof renderPage !== 'function') throw new Refused('VIEW_SERVICE_REQUIRED', 'the view needs its caller to provide renderPage'); } else requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
+  if (!Number.isSafeInteger(eventBatch) || eventBatch < 1) throw new TypeError('exportView needs eventBatch as a positive integer');
   const output = resolve(directory);
-  if (existsSync(output) && (!statSync(output).isDirectory() || readdirSync(output).length)) {
+  const existed = existsSync(output);
+  if (existed && (!statSync(output).isDirectory() || readdirSync(output).length)) {
     throw new Refused('EXPORT_EXISTS', `snapshot folder ${output} is not empty; use an empty folder`);
   }
-  const info = repoInfo(root);
-  const config = loadConfig(info.root);
-  const registered = listApiProjects().find((entry) => {
+  const info = source ? { root: resolve(root), commonDir: '' } : repoInfo(root);
+  const config = source ? {} : loadConfig(info.root);
+  const registered = source ? null : listApiProjects().find((entry) => {
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
-  const { serveApi } = await import("../../../../packages/api/index.js");
-  const api = await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
-  let listing;
-  let state;
-  let events;
+  let privateBoard = false;
+  if (publicMode && !source) {
+    const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
+  }
+  const { serveApi } = source ? {} : await import("../../../../packages/api/index.js");
+  const api = source ? { url: 'http://stand-in.invalid/?k=stand-in', close: async () => {} } : await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
+  let wrote = false;
   try {
     const address = new URL(api.url);
     /** Read an authenticated API document without putting its private key in the snapshot. */
     const read = async (path) => {
+      if (source) return source(path);
       let reply;
       try {
         reply = await fetchApi(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });
@@ -184,7 +219,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
       if (!reply.ok) throw new Refused(document.error.code, document.error.message);
       return document;
     };
-    listing = await read('/api/v1/boards');
+    let listing = await read('/api/v1/boards');
     const board = listing.boards[0];
     if (!board) {
       const version = listing.warnings?.map((warning) => warning.error?.error).find((error) => error?.code === 'EVENT_LOG_VERSION');
@@ -192,32 +227,72 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
       throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
     }
     const path = '/api/v1/boards/' + encodeURIComponent(board.id);
-    // Ask for every item's thread, verdicts and criterion: the snapshot has no API to fetch them from later.
-    state = await read(path + '/state?detail=full');
-    events = await read(path + '/events');
+    // The summary state, with every item's thread, verdicts and criterion added below: the snapshot has no API to fetch them from later.
+    let state = await read(path + '/state?detail=summary');
     const last = state.state.events[0]?.event_id ?? 0;
-    events.events = events.events.filter((event) => event.event_id <= last);
+    const summaries = state.state.items;
+    // Items are written one by one where this marker sits in the rest of the state's text.
+    const marker = '\u0000items-' + randomBytes(8).toString('hex');
+    listing = portableSnapshot(listing, info.root);
+    state = portableSnapshot({ ...state, state: { ...state.state, items: [] } }, info.root);
+    // Public checks are per location, so the state, each item and each page of events are checked on their own; any block refuses the whole export.
+    if (publicMode) ({ listing, state } = publicSnapshot({ listing, state }, { privateBoard }));
+    const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
+    mkdirSync(boardPath, { recursive: true });
+    wrote = true;
+    const [stateHead, stateTail] = JSON.stringify({ ...state, state: { ...state.state, items: marker } }).split(JSON.stringify(marker));
+    const stateFile = openSync(join(boardPath, 'state.json'), 'w');
+    try {
+      writeSync(stateFile, stateHead + '[');
+      for (let at = 0; at < summaries.length; at += EXPORT_ITEM_READS) {
+        const part = summaries.slice(at, at + EXPORT_ITEM_READS);
+        const details = await Promise.all(part.map((summary) => read(`${path}/items/${encodeURIComponent(String(summary.id))}`)));
+        let items = part.map((summary, index) => portableSnapshot({ ...summary, ...details[index].item }, info.root));
+        if (publicMode) items = publicSnapshot({ state: { state: { items } } }, { privateBoard }).state.state.items;
+        writeSync(stateFile, (at ? ',' : '') + items.map((item) => JSON.stringify(item)).join(','));
+      }
+      writeSync(stateFile, ']' + stateTail + '\n');
+    } finally { closeSync(stateFile); }
+    const file = openSync(join(boardPath, 'events.json'), 'w');
+    try {
+      let after = 0;
+      let eventsTail = null;
+      let written = 0;
+      let more = true;
+      while (more) {
+        const page = await read(`${path}/events?after=${after}&limit=${eventBatch}`);
+        const records = page.events;
+        if (eventsTail === null) {
+          // The first page's other fields (version, warnings) frame the whole log, in the order the API sent them.
+          let envelope = portableSnapshot({ ...page, events: [] }, info.root);
+          if (publicMode) envelope = publicSnapshot({ events: envelope }, { privateBoard }).events;
+          const [eventsHead, tail] = JSON.stringify({ ...envelope, events: marker }).split(JSON.stringify(marker));
+          writeSync(file, eventsHead + '[');
+          eventsTail = tail;
+        }
+        let kept = portableSnapshot(records.filter((event) => event.event_id <= last), info.root);
+        if (publicMode) kept = publicSnapshot({ events: { events: kept } }, { privateBoard }).events.events;
+        if (kept.length) writeSync(file, (written ? ',' : '') + kept.map((event) => JSON.stringify(event)).join(','));
+        written += kept.length;
+        // A short page is the log's end; events past the exported state are not part of this snapshot.
+        more = records.length === eventBatch && records.at(-1).event_id < last;
+        if (more) after = records.at(-1).event_id;
+      }
+      writeSync(file, ']' + eventsTail + '\n');
+    } finally { closeSync(file); }
+    writeFileSync(join(output, 'index.html'), renderPage('', { snapshot: true }));
+    writeFileSync(join(output, 'view.css'), SNAPSHOT_VIEW_CSS);
+    writeFileSync(join(output, 'api', 'v1', 'boards.json'), JSON.stringify(listing) + '\n');
+  } catch (error) {
+    // Never leave a partial snapshot that could be published: remove what this export wrote.
+    if (wrote) {
+      if (existed) for (const name of readdirSync(output)) rmSync(join(output, name), { recursive: true, force: true });
+      else rmSync(output, { recursive: true, force: true });
+    }
+    throw error;
   } finally {
     await api.close();
   }
-  listing = portableSnapshot(listing, info.root);
-  state = portableSnapshot(state, info.root);
-  events = portableSnapshot(events, info.root);
-  if (publicMode) {
-    const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
-    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
-    try {
-      const privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id'));
-      ({ listing, state, events } = publicSnapshot({ listing, state, events }, { privateBoard }));
-    } finally { store.closeBoard(board); }
-  }
-  const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
-  mkdirSync(boardPath, { recursive: true });
-  writeFileSync(join(output, 'index.html'), renderPage('', { snapshot: true }));
-  writeFileSync(join(output, 'view.css'), SNAPSHOT_VIEW_CSS);
-  writeFileSync(join(output, 'api', 'v1', 'boards.json'), JSON.stringify(listing) + '\n');
-  writeFileSync(join(boardPath, 'state.json'), JSON.stringify(state) + '\n');
-  writeFileSync(join(boardPath, 'events.json'), JSON.stringify(events) + '\n');
   return { path: output };
 }
 /**
@@ -473,6 +548,26 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
 }
 
 /**
+ * The items whose current merge was recorded in the last 24 hours, each with its commit: what the Dashboard's landing
+ * bars and lists match against its events. The older landings are not listed; the page counts them from its items.
+ *
+ * @param {any} board
+ * @param {any[]} all Every item row.
+ * @param {number} now
+ * @returns {{ id: number, commit: string }[]}
+ */
+function recentLandings(board, all, now) {
+  const landed = new Map(all.filter(item => item.item_merged_commit).map(item => [item.item_id, item.item_merged_commit]));
+  const recent = new Map();
+  for (const event of store.eventsOfKinds(board, ['merged'])) {
+    const commit = landed.get(event.item_id);
+    if (commit === undefined || recent.has(event.item_id) || Date.parse(event.event_at) <= now - 24 * 3_600_000) continue;
+    try { if (JSON.parse(event.event_detail).commit === commit) recent.set(event.item_id, commit); } catch { /* A malformed receipt lists nothing. */ }
+  }
+  return [...recent].map(([id, commit]) => ({ id, commit }));
+}
+
+/**
  * Everything in a project's state that only the board's recorded history, HEAD, the spec and doctrine files and the
  * minute decide: every field but the items, the agents and the unseen count. projectState keeps it while
  * derivedMarker is unchanged, so a read after an agent heartbeat or lease renewal rebuilds only what moved.
@@ -511,8 +606,8 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
     asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
     events: store.recentEvents(board, 80),
     dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-    dashboardLanded: all.filter(item => item.item_merged_commit)
-      .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
+    // Only the landings the Dashboard draws (the last 24 hours): every older landing is an item whose stage the page already holds (#6666).
+    dashboardLanded: recentLandings(board, all, now),
     landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
       .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
     holds: store.laneHolds(board),
@@ -656,7 +751,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -669,6 +764,32 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       ...headers,
     });
     res.end(body);
+  };
+  /** Compressed bytes by encoding and content hash, so a page or stylesheet is compressed once per build, not once per load. */
+  const compressed = new Map();
+  /**
+   * Answer a page or stylesheet compressed (brotli, else gzip, when the request accepts it) with a content-hash ETag, and 304
+   * when the request's If-None-Match names those bytes. It stays revalidated (no-cache) rather than cached for a time, so a
+   * reload after an upgrade can never show the old build, and costs a 304 with no body when nothing changed.
+   */
+  const asset = (req, res, type, text) => {
+    const accepted = String(req.headers['accept-encoding'] ?? '');
+    const encoding = /(?:^|[\s,])br\s*(?:;\s*q=(?!0(?:\.0*)?\s*(?:,|$))[\d.]+)?\s*(?:,|$)/iu.test(accepted) ? 'br'
+      : /(?:^|[\s,])gzip\s*(?:;\s*q=(?!0(?:\.0*)?\s*(?:,|$))[\d.]+)?\s*(?:,|$)/iu.test(accepted) ? 'gzip' : '';
+    const hash = createHash('sha256').update(text).digest('base64url').slice(0, 22);
+    const etag = `"${hash}${encoding ? '-' + encoding : ''}"`;
+    const headers = { 'cache-control': 'no-cache', etag, vary: 'accept-encoding' };
+    if (String(req.headers['if-none-match'] ?? '').split(',').some(tag => tag.trim().replace(/^W\//u, '') === etag)) return reply(res, 304, type, '', headers);
+    if (!encoding) return reply(res, 200, type, text, headers);
+    const key = etag;
+    if (!compressed.has(key)) {
+      if (compressed.size > 16) compressed.clear();
+      const raw = Buffer.from(text);
+      compressed.set(key, encoding === 'br'
+        ? brotliCompressSync(raw, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5, [zlibConstants.BROTLI_PARAM_SIZE_HINT]: raw.length } })
+        : gzipSync(raw, { level: 9 }));
+    }
+    return reply(res, 200, type, compressed.get(key), { ...headers, 'content-encoding': encoding });
   };
   const json = (res, code, value) => reply(res, code, 'application/json; charset=utf-8', JSON.stringify(value));
   // A page that only sends the browser on, and only when it is the top page: framed, it never runs and never shows.
@@ -846,6 +967,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       return apiHandler(req, res);
     }
     if (hosted) return json(res, 403, { error: 'open the printed view link for local pages; the hosted page uses the API' });
+    // The no-link page's stylesheet: the view's tokens and that page's rules only, so it opens before the link does.
+    if (req.method === 'GET' && url.pathname === NO_LINK_STYLESHEET) return reply(res, 200, 'text/css; charset=utf-8', NO_LINK_CSS);
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? url.searchParams.get('k') ?? ''));
     const validKey = credentialMatches(given, key);
     if (!validKey && !cookieMatches(req)) {
@@ -853,7 +976,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       const browserPage = req.method === 'GET' && url.pathname === '/' && !url.searchParams.has('k') && req.headers['x-pullboard-key'] === undefined
         && /(?:^|,)\s*text\/html(?:\s*;|\s*,|\s*$)/iu.test(String(req.headers.accept ?? ''))
         && (destination === undefined || destination === 'document');
-      if (browserPage) return reply(res, 401, 'text/html; charset=utf-8', '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Open your board</title><h1>Open your board</h1><p>The board opens at <a href="' + HOSTED_ORIGIN + '">app.pullboard.dev</a>.</p></html>');
+      if (browserPage) return reply(res, 401, 'text/html; charset=utf-8', noLinkPage(HOSTED_ORIGIN));
       return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
     }
     if (req.method === 'GET' && url.searchParams.has('k')) {
@@ -867,8 +990,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return reply(res, 200, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
-      if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
+      if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
       return json(res, 500, { error: error.message });
