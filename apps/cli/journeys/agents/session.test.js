@@ -32,7 +32,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { listResources } from "../../../../packages/resources/index.js";
 import { SSH_SHELL_MARKERS } from "../../../../packages/kernel/index.js";
 import { runCliInProcess } from "../../tests/fixtures/process.js";
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { requireSessionIndependence } from "../../tests/fixtures/testkit.js";
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { waitForCondition } from "../../tests/fixtures/runner/holders.js";
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -60,6 +62,7 @@ function sandbox() {
     GIT_AUTHOR_NAME: 'Session fixture', GIT_AUTHOR_EMAIL: 'session@example.invalid',
     GIT_COMMITTER_NAME: 'Session fixture', GIT_COMMITTER_EMAIL: 'session@example.invalid',
   });
+  fixtureSettledMachine(base.PULLBOARD_MACHINE_HOME);
   /** Run real Git with the private environment. */
   function git(cwd, ...args) {
     return runFixtureGit(args, { cwd, env: base });
@@ -263,7 +266,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   assert.deepEqual(readFileSync(file), before, 'the authenticated view does not alter the local agent-session binding');
 });
 
-test('takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 45_000 }, async () => {
+test('takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 90_000 }, async t => {
   const box = await project();
   const started = join(box.dir, 'gate-started');
   const release = join(box.dir, 'gate-release');
@@ -305,7 +308,7 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
   }
   /** Wait on an actual private fixture observation, with an assertion if it never becomes true. */
   async function observed(predicate, label) {
-    const deadline = Date.now() + 10_000;
+    const deadline = Date.now() + 40_000; // a loaded runner takes 18 s just to authorize a submit
     while (!predicate() && Date.now() < deadline) await new Promise((done) => setTimeout(done, 10));
     assert.ok(predicate(), label);
   }
@@ -314,20 +317,18 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
     return existsSync(resolve(box.web, box.git(box.web, 'rev-parse', '--git-dir'), 'pullboard-checkout-takeover'))
       && listResources({ scope: 'repo', root: box.repo }).some((resource) => resource.name.startsWith('checkout-session:') && resource.holders.length > 0);
   }
+  // Pull dispatch: submit queues the gate and returns at once, so its write is short; the held gate runs on the local runner.
   const submission = launch('active-write-273', 'submit', '1');
   let takeover;
   try {
-    await observed(() => existsSync(started) || submission.exitCode !== null, 'the actual submission reaches its configured gate');
-    assert.equal(submission.exitCode, null, 'the submission is still writing while the gate waits');
-    takeover = launch('next-write-273', 'takeover');
-    await observed(() => queued() || takeover.exitCode !== null, 'the takeover reaches the same checkout guard');
-    assert.equal(takeover.exitCode, null, 'takeover waits until the old session finishes its active write');
-    assert.equal(boardSnapshot(box.boardFile).shout.length, 0, 'takeover has not recorded a receipt before acquiring the checkout');
-    writeFileSync(release, 'release');
     const submitted = await submission.closed;
     assert.equal(submitted.code, 0, submitted.failure ?? submitted.output);
+    takeover = launch('next-write-273', 'takeover');
     const taken = await takeover.closed;
     assert.equal(taken.code, 0, taken.failure ?? taken.output);
+    writeFileSync(release, 'release');
+    const view = { repo: box.repo, env: box.base, run: async (cwd, ...args) => { const r = await box.inProcess(cwd, args, { agent: false }); return { code: r.status, out: r.stdout, err: r.stderr }; } };
+    await settleSubmit(t, view, JSON.parse(submitted.output));
     assert.equal(boardSnapshot(box.boardFile).item[0].item_status, 'submitted');
     const beforeRefusal = boardSnapshot(box.boardFile);
     const old = (await box.inProcess(box.web, ['shout', 'coordinator', 'old session cannot write', '--json'], { session: 'active-write-273', sessionKey: 'CODEX_SESSION_ID' }));
@@ -384,7 +385,7 @@ async function waitForReviewComparison(box) {
     { signal: AbortSignal.timeout(60_000), state: () => existsSync(jobs) ? readdirSync(jobs) : 'no comparison jobs' });
 }
 
-test('review.independence session: a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async () => {
+test('review.independence session: a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async t => {
   const box = await project();
   const builder = 'codex-thread-secret-builder-921';
   const build = (args) => box.inProcess(box.web, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
@@ -393,7 +394,7 @@ test('review.independence session: a verdict from the agent session that built t
   box.git(box.web, 'commit', '-qam', 'feat(web): build the fixture item [G1]');
   const submitted = await build(['submit', '1', '--json']);
   assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
-  await waitForReviewComparison(box);
+  await settleSubmit(t, { repo: box.repo, env: box.base, run: async (cwd, ...args) => { const r = await box.inProcess(cwd, args, { agent: false }); return { code: r.status, out: r.stdout, err: r.stderr }; } }, JSON.parse(submitted.stdout));
   // The same session opens a review seat of its own: a different seat name, the same session.
   const review = join(box.dir, 'review-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));

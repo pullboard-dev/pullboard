@@ -60,7 +60,7 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
       controllerPid: process.pid, started, ...(source ? { source } : {}),
       ...(deadline ? { deadline } : {}), ...(problem ? { problem } : {}) });
     if (!file) {
-      const candidate = join(directory, `${randomUUID()}.json`);
+      const candidate = join(directory, randomUUID() + '.json');
       writeFileSync(candidate, bytes, { flag: 'wx', mode: 0o600 });
       file = candidate;
       return;
@@ -126,8 +126,10 @@ export const CONTROLLER_GONE = 'controller process is gone';
 /** A matching caller incarnation and source identity distinguish an orphan from unknown observation. */
 function orphanReason(record, holder, sameProcess) {
   if (!record.holderStarted || record.holderStarted !== holder.started) return null;
-  if (!sameProcess(holder.pid, holder.started)) return 'holder process is gone';
-  if (!sameProcess(record.controllerPid, record.started)) return CONTROLLER_GONE;
+  const controllerAlive = sameProcess(record.controllerPid, record.started);
+  // Holder and controller both dead: the same orphan as a dead controller, so its runner stays in service (#7022) [C7].
+  if (!sameProcess(holder.pid, holder.started)) return controllerAlive ? 'holder process is gone' : CONTROLLER_GONE;
+  if (!controllerAlive) return CONTROLLER_GONE;
   const source = record.source;
   if (!source || source.root !== holder.repo || !isAbsolute(source.root)
     || !Number.isSafeInteger(source.dev) || !Number.isSafeInteger(source.ino)) return null;

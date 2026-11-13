@@ -45,7 +45,7 @@ export function replayClient(root, env, ...args) {
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
       try { return JSON.parse(withoutDiagnostics(result.stdout)); }
-      catch { throw new Error(result.failure ?? result.context); }
+      catch { throw new Error(`${result.failure ?? result.context}\nstdout (${result.stdout.length} chars, not one JSON document): ${result.stdout}`); }
     });
 }
 
@@ -115,13 +115,21 @@ export async function independentReplayOrigin(t, origin) {
   return 'http://127.0.0.1:' + proxy.address().port;
 }
 
+/** Parse one --json document; a trailing diagnostics envelope (printed when the engine warned) becomes its `diagnostics` list. */
+function parseWithDiagnostics(stdout) {
+  const document = JSON.parse(withoutDiagnostics(stdout));
+  const rest = stdout.slice(withoutDiagnostics(stdout).length);
+  if (rest === '') return document;
+  return { ...document, diagnostics: JSON.parse(rest).diagnostics ?? [] };
+}
+
 /** Capture a real linked command's warnings and structured refusal without changing its exit status. */
 export function replayResult(root, env, ...args) {
   return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: root, env })
     .then((result) => {
       if (result.error) throw new Error(result.failure);
-      try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
-      catch { throw new Error(result.failure ?? result.context); }
+      try { return { document: parseWithDiagnostics(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
+      catch { throw new Error(`${result.failure ?? result.context}\nstdout (${result.stdout.length} chars, not one JSON document): ${result.stdout}`); }
     });
 }
 /** Link one private fixture to a real relay with an engine-99 blocker at sequence one. */

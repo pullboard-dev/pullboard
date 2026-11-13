@@ -32,9 +32,6 @@ import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import { packageFiles } from '../../../../../packages/runners/index.js';
 import { copyPackageSubset } from '../../../tests/fixtures/copy.js';
 import { selectTestTreeGuards } from '../../../../../packages/gate/index.js';
-import { installSubmitTestTreeCases } from '../../../tests/fixtures/submit/cases.js';
-
-installSubmitTestTreeCases();
 
 /** Make a real committed ES-module graph without executing any candidate source. */
 function graph(t) {

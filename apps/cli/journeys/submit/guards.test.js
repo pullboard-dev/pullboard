@@ -20,10 +20,13 @@ test('submit runs the move registry guard for an item that adds a move and refus
   for (const number of [1, 2]) put(box.web, `web/other${number}.test.js`,
     "import { other } from '../src/other.js';\nimport { test } from 'node:test';\ntest('other works [G1]', () => {});\n");
   commit(box, box.web, 'feat(core): add fixture move [G1]');
+  // A pulled submit queues its gate and returns; the fixture command returns once the local runner settled it, so show reads the verdict [C7].
   const submitted = (await box.runLocal(box.web, 'submit', String(box.id)));
-  assert.equal(submitted.code, 1, 'a green item check cannot defer a touched registry guard: ' + submitted.out);
-  assert.match(submitted.err + submitted.out, /apps\/cli\/journeys\/relay\/credential\.test\.js/u, 'the refusal names the guard');
-  assert.match(submitted.err + submitted.out, /missing actor credential for newMove\.js/u, 'the refusal retains the missing entry');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  const red = JSON.parse((await box.runLocal(box.web, 'show', String(box.id), '--json', '--no-next')).out).gateJob;
+  assert.equal(red?.gate?.green, false, 'a green item check cannot defer a touched registry guard: ' + JSON.stringify(red));
+  assert.match(JSON.stringify(red), /apps\/cli\/journeys\/relay\/credential\.test\.js/u, 'the red gate names the guard');
+  assert.match(JSON.stringify(red), /missing actor credential for newMove\.js/u, 'the red gate retains the missing entry');
   const state = (await box.runLocal(box.web, 'show', String(box.id), '--json'));
   assert.equal(state.code, 0, state.err);
   assert.equal(JSON.parse(state.out).item_status, 'claimed', 'the rejected proof records no submission');

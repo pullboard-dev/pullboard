@@ -16,7 +16,7 @@ const CLOSE_GRACE_MS = 2_000;
 const HELD_SEQUENCES = 24;
 
 /** The error a worker reported, as a Refused when it was one, so a refusal still reaches the caller by name. */
-function workerError(error, Refused) {
+export function workerError(error, Refused) {
   if (error?.name === 'Refused' && typeof error.code === 'string') {
     const prefix = `[${error.code}] `;
     return new Refused(error.code, String(error.message).startsWith(prefix) ? String(error.message).slice(prefix.length) : String(error.message), error.next);
@@ -161,12 +161,12 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       entry.timer = setTimeout(() => { entry.timer = null; request(entry); }, entry.waiters.length ? 0 : BUILD_GAP_MS);
     }
   });
-  /** Stop serving from the worker for good: every waiting read fails over to the request thread's own build. */
+  /** Stop serving from the worker for good: every waiting read is refused STATE_WORKER_STOPPED by name, as a read after it is, never built on the request thread and never a generic service error [A2,C7]. */
   function stopped(error) {
     if (failure || closing) return;
     failure = error;
     onFailure?.(error);
-    for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(error); entry.waiters = []; }
+    for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(new Refused('STATE_WORKER_STOPPED', 'the state worker stopped, so this read is refused rather than built on the request thread; restart pullboard serve')); entry.waiters = []; }
   }
   worker.on('error', stopped);
   worker.on('exit', (code) => stopped(new Error(`the state worker exited with code ${code}`)));
@@ -216,6 +216,15 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       const variant = full ? record.full : compact ? (finished === 'omit' ? record.open : record.compact) : record.summary;
       if (!full) hold(board, record.sequence);
       return { json: joined(variant.json, unseen), validator: joined(variant.validator, unseen), reportValidator: record.reportValidator };
+    },
+    /**
+     * A board's summary text from the last build, answered at once: a change after that build starts the catching-up build
+     * but this read never waits for it, except before the board's first build. Why: the sidebar asks for every listed board.
+     */
+    async summaryJson(board) {
+      const record = await latest(board, { kept: true });
+      if (typeof record.summaryText === 'string') return record.summaryText;
+      return (await latest(board)).summaryText;
     },
     /** The finished items of the latest build, as the JSON text GET /boards/:id/finished serves; a read of an unchanged board starts no build. */
     async finishedJson(board) {

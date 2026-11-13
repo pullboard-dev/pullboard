@@ -305,7 +305,7 @@ test('clause 1: the private view shows its last twenty native landings; a public
     assert.equal(nativeBuilder.family, nativeVendor, 'the actual private API keeps the canonical native vendor');
     await press(chrome, "document.querySelector('[data-tab=cost]')");
     await chrome.waitFor("document.querySelector('#cost .cost-model-card')");
-    const analytics = JSON.parse(await chrome.stable("JSON.stringify(costHistory.get(view.root).model)"));
+    const analytics = JSON.parse(await chrome.stable("JSON.stringify(costHistory.get(view.root + '\\n' + (view.costWindow ?? '7d')).model)"));
     assert.equal(analytics.allItems, 22, 'the real endpoint counts the seeded landings: ' + JSON.stringify({ window: analytics.window, from: analytics.from, to: analytics.to, totals: analytics.totals }));
     assert.equal(analytics.longest.length, 5, 'the server selects the five longest landings');
     await chrome.waitFor("document.querySelectorAll('#cost .cost-row').length === 5");

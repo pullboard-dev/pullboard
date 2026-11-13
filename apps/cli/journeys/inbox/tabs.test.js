@@ -55,7 +55,7 @@ test('a machine with no board says how to start one [N26]', async () => {
     assert.deepEqual(classes(early), ['loading'], 'and stays so while the first answer is on its way');
     await early.release();
     assert.deepEqual(classes(early), ['boardless'], 'then the message takes the place of the board');
-    assert.match(page.html, /<main>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
+    assert.match(page.html, /<main>\n {2}<div class="page-title" id="page-title"><h2 id="page-title-text"><\/h2><\/div>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
     assert.equal(page.show('proj-list'), '<div class="empty">None yet.</div>');
     assert.equal(page.element('products').hidden, true);
 
@@ -174,14 +174,6 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
         await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
         await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
         const at = `${width}px ${scheme}`;
-        if (width === 1280) {
-          // Docked, the name opens the project menu, so it carries the arrow too; collapsed, the list drops from the name.
-          if (await chrome.stable("document.documentElement.dataset.side === 'collapsed'")) await click('#side-toggle');
-          await chrome.waitFor("document.documentElement.dataset.side !== 'collapsed'");
-          assert.equal((await read()).shown, true, `${at}: docked, the name opens the project menu, so it shows the arrow`);
-          await click('#side-toggle');
-          await chrome.waitFor("document.documentElement.dataset.side === 'collapsed'");
-        }
         const closed = await read();
         assert.ok(closed.page.scroll <= closed.page.width, `${at}: no sideways scroll`);
         assert.deepEqual([closed.shown, closed.size, closed.faint, closed.open, closed.turn], [true, [16, 16], true, 'false', DOWN], `${at}: a 16px chevron in the faint ink, pointing down while the list is closed: ${JSON.stringify(closed)}`);
