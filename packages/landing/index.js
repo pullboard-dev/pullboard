@@ -12,7 +12,6 @@ export * from "./src/logic/batch/history.js";
 export * from "./src/logic/batch/size.js";
 export * from "./src/logic/split.js";
 export * from "./src/logic/cadence.js";
-export * from "./src/io/candidates.js";
 export * from "./src/io/deferred/run.js";
 export * from "./src/io/doctrine.js";
 export * from "./src/logic/environment.js";
@@ -52,7 +51,6 @@ export { runLandingCliSmoke, runCommitCliSmoke, recordSmokeReceipt, smokeCandida
 export * from "./src/io/step/diagnose.js";
 export * from "./src/io/step/publish.js";
 export * from "./src/io/step/trunk.js";
-export * from "./src/io/step/parallel.js";
 export * from "./src/io/step/batch.js";
 export { withoutStaleVerdicts } from "./src/io/pulled/fresh.js";
 export * from "./src/io/train/repoints.js";

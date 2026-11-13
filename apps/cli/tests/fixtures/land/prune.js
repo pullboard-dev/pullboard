@@ -17,7 +17,6 @@ export function landOnce(box, ageMs = 0) {
     `import { runLandingBatch } from ${JSON.stringify(href('../../../../../packages/landing/index.js'))};`,
     `import { landingPorts } from ${JSON.stringify(href('../../../tests/fixtures/landing/ports.js'))};`,
     `import { checkAtCommit } from ${JSON.stringify(href('../../../../runner/index.js'))};`,
-    `const candidateWorkerFile = ${JSON.stringify(new URL('../../../../lib/src/io/landing/candidate.js', import.meta.url).pathname)};`,
     "import { join } from 'node:path';",
     'const [root] = process.argv.slice(1);',
     'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
@@ -25,7 +24,7 @@ export function landOnce(box, ageMs = 0) {
     `const aged = ${Number(ageMs)}; if (aged) board.clock = { ...board.clock, now: () => new Date(Date.now() + aged) };`,
     'try {',
     'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
-    'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (caught) { error = { code: caught.code, message: caught.message }; }',
+    'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (caught) { error = { code: caught.code, message: caught.message }; }',
     'console.log(JSON.stringify({ error, lines }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
