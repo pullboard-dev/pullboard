@@ -53,11 +53,16 @@ function fixture(t) {
 /** Runs shadow-batch with PULLBOARD_SCRATCH set (or cleared) and returns its output. */
 async function shadow(f, scratch) {
   const before = process.env.PULLBOARD_SCRATCH;
+  const home = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = f.env.PULLBOARD_MACHINE_HOME;
   if (scratch === undefined) delete process.env.PULLBOARD_SCRATCH; else process.env.PULLBOARD_SCRATCH = scratch;
   let stdout = '';
   try {
     await main(['shadow-batch', String(f.id)], { cwd: f.root, stdout: { isTTY: false, write: text => { stdout += text; } }, stderr: { write: () => {} } });
-  } finally { if (before === undefined) delete process.env.PULLBOARD_SCRATCH; else process.env.PULLBOARD_SCRATCH = before; }
+  } finally {
+    if (before === undefined) delete process.env.PULLBOARD_SCRATCH; else process.env.PULLBOARD_SCRATCH = before;
+    if (home === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = home;
+  }
   return stdout;
 }
 
