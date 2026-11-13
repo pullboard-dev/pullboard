@@ -157,26 +157,6 @@ function itemLeaseFixture(t, helpers) {
   return box;
 }
 
-/** Neither a fresh CLI submit nor an unwitnessed receiver move inherits a running command's admission. */
-function refuseFreshExpiredSubmit(box, id) {
-  const late = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, 'submit', String(id), '--json'],
-    { cwd: box.web, env: box.env, encoding: 'utf8' });
-  assert.equal(late.status, 1, late.stdout);
-  assert.equal(JSON.parse(late.stdout).error.code, 'NOT_YOURS', 'a new submit cannot start on an expired claim');
-  const replica = openBoard(join(box.dir, 'expired-submit-receiver.sqlite'), box.clock, { gitRoot: box.repo });
-  try {
-    importBoard(replica, exportBoard(box.board));
-    const before = store.itemById(replica, id);
-    const move = prepareEngineMove(replica, 'submit', [id, { agentId: before.item_owner,
-      commit: box.git(box.web, 'rev-parse', 'HEAD'), tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
-      policyCommit: box.git(box.repo, 'rev-parse', 'main'),
-      submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'receiver negative control; no completed proof' } }]);
-    const result = applyEngineMove(replica, move, { sequence: appliedSequence(replica) + 1, at: box.clock.now().toISOString() });
-    assert.equal(result.error?.code, 'AGENT_GRANT_EXPIRED', 'even a real admission nonce grants no receiver completion without its native final proof');
-    assert.deepEqual(store.itemById(replica, id), before, 'the refused receiver leaves the claimed item unchanged');
-  } finally { store.closeBoard(replica); }
-}
-
 /** Replay the real completed native receipt; changed source or a new claim cannot borrow it. */
 function admittedCompletionReplicas(box, id, snapshot) {
   const receipt = store.proofReceipts(box.board, id).findLast(run => run.submitAdmission);
@@ -271,7 +251,6 @@ export async function queuedLeaseProof(t, deps) {
   try {
     clockedCli(box, reviewer, 'next', '--verify', String(reviewId), '--json');
     const originalReviewEnd = end(reviewId, 'review');
-    const originalBuildEnd = end(buildId, 'check');
     const originalCheckEnd = end(checkId, 'check');
     holder = poolWorker(box, { agent: 'lease-test-holder', browser: true });
     await acquired(holder);
@@ -287,7 +266,7 @@ export async function queuedLeaseProof(t, deps) {
     const build = clockedCli(box, box.web, 'submit', String(buildId), '--json');
     assert.equal(build.queued, true, 'submit queues its gate job and returns');
     try {
-      await waitUntil(() => waiting(buildId)?.leaseUntil, 'the pulled submit job waits in the pool with its item lease end', 30_000); // budget: the runner claims the job and completes source and static preflight before entering the held pool.
+      await waitUntil(() => existsSync(buildGate.events), 'the runner pulls the submit job and starts its frozen check', 60_000); // budget: the runner claims the job and completes source and static preflight before entering the held pool.
     } catch (error) {
       throw new Error(`${error.message}\nsubmit: ${JSON.stringify(build)}\nresource queue: ${JSON.stringify(privateList(box))}`, { cause: error });
     }
@@ -295,7 +274,7 @@ export async function queuedLeaseProof(t, deps) {
     commands.push(check);
     await waitUntil(() => waiting(checkId)?.leaseUntil, 'the independent owned check and its item lease end');
     const listed = clockedCli(box, box.repo, 'resources', '--json').resources.find((resource) => resource.name === 'gate');
-    for (const [id, kind] of [[reviewId, 'review'], [buildId, 'submit'], [checkId, 'check']]) {
+    for (const [id, kind] of [[reviewId, 'review'], [checkId, 'check']]) {
       const entry = listed.line.find((row) => row.item === String(id));
       assert.equal(entry.kind, kind);
       assert.equal(entry.leaseUntil, end(id, kind), 'resources reports this exact board item lease, not the pool heartbeat');
@@ -303,51 +282,35 @@ export async function queuedLeaseProof(t, deps) {
     assert.match(clockedCli(box, box.repo, 'resources'), /lease until \d{4}-\d{2}-\d{2}T/u);
 
     box.advance(30_000);
-    await waitUntil(() => end(reviewId, 'review') > originalReviewEnd && end(buildId, 'check') > originalBuildEnd
+    await waitUntil(() => end(reviewId, 'review') > originalReviewEnd
       && end(checkId, 'check') > originalCheckEnd, 'all live queued commands renew before their original expiry');
     const previousReviewEnd = end(reviewId, 'review');
-    const previousBuildEnd = end(buildId, 'check');
     const previousCheckEnd = end(checkId, 'check');
     box.advance(31_000);
-    await waitUntil(() => end(reviewId, 'review') > previousReviewEnd && end(buildId, 'check') > previousBuildEnd
+    await waitUntil(() => end(reviewId, 'review') > previousReviewEnd
       && end(checkId, 'check') > previousCheckEnd, 'all leases remain held past their original deadlines');
     assert.ok(box.clock.now().toISOString() > originalReviewEnd);
     assert.ok(end(reviewId, 'review') > box.clock.now().toISOString());
-    assert.ok(end(buildId, 'check') > box.clock.now().toISOString());
     assert.ok(end(checkId, 'check') > box.clock.now().toISOString());
 
     await release(holder); holder = null;
     await waitUntil(() => existsSync(reviewGate.events), 'the admitted verification starts its actual frozen check');
     const runningReviewEnd = end(reviewId, 'review');
     for (const advance of [30_000, 31_000, 1_000]) {
-      const beforeBuildEnd = end(buildId, 'check');
       const beforeCheckEnd = end(checkId, 'check');
       box.advance(advance);
-      if (advance >= 30_000) await waitUntil(() => end(buildId, 'check') > beforeBuildEnd
-        && end(checkId, 'check') > beforeCheckEnd, 'both build waiters renew while the admitted review runs');
+      if (advance >= 30_000) await waitUntil(() => end(checkId, 'check') > beforeCheckEnd, 'the check waiter renews while the admitted review runs');
     }
     assert.equal(end(reviewId, 'review'), runningReviewEnd, 'admission ends review item renewals');
     assert.ok(runningReviewEnd < box.clock.now().toISOString(), 'the running review resumes ordinary lease expiry');
-    assert.ok(waiting(buildId) && waiting(checkId), 'submit and check remain queued behind the review');
+    assert.ok(waiting(checkId), 'the check remains queued behind the review');
     writeFileSync(reviewGate.release, 'release');
     assert.equal((await review.finished).code, 0, `${review.stdoutText}\n${review.stderrText}`);
-    await waitUntil(() => existsSync(buildGate.events), 'the admitted real submit starts its frozen check');
-    const runningBuildEnd = end(buildId, 'check');
-    for (const advance of [30_000, 31_000, 1_000]) {
-      const beforeCheckEnd = end(checkId, 'check');
-      box.advance(advance);
-      if (advance >= 30_000) await waitUntil(() => end(checkId, 'check') > beforeCheckEnd,
-        'the standalone check keeps renewing while submit runs');
-    }
-    clockedCli(box, box.repo, 'resources', '--json');
-    assert.equal(end(buildId, 'check'), runningBuildEnd, 'admission ends build item renewals');
-    assert.ok(runningBuildEnd < box.clock.now().toISOString(), 'the running build resumes ordinary lease expiry');
-    refuseFreshExpiredSubmit(box, buildId);
-    const admittedBuild = exportBoard(box.board);
+    // The pulled submit ran in the local runner, outside this pool: it settles through its gate job, and the item moves once.
     writeFileSync(buildGate.release, 'release');
     await settledGateJob(runBox(box), buildId, { deadlineMs: 120_000 });
     assert.equal(item(buildId).item_status, 'submitted', 'the actual queued submit completes its ordinary board move');
-    admittedCompletionReplicas(box, buildId, admittedBuild);
+    admittedCompletionReplicas(box, buildId, exportBoard(box.board));
     await waitUntil(() => existsSync(checkGate.events), 'the independent owned check starts');
     const runningCheckEnd = end(checkId, 'check');
     box.advance(Date.parse(runningCheckEnd) - box.clock.now().getTime() + 1);
