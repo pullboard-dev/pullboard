@@ -170,14 +170,15 @@ export async function checkTabSpeed(t, tabs) {
     const report = await measureTabSpeed(board, tabs);
     t.diagnostic(JSON.stringify({ population: { items: board.size, agents: board.agentCount, shouts: board.shoutCount }, ...report }));
     assert.equal(report.items, 1600);
-    // A hung tab may or may not have started its sample, so a hang stands in for at most its own missing click.
-    assert.ok(report.actions.length <= tabs.length * 2 && report.actions.length + report.hangs.filter(hang => hang.mode !== 'isolation').length >= tabs.length * 2, 'every click is measured or recorded as a hang');
+    // A tab that hung is recorded once in `hangs` and measured no further; every other tab keeps all its clicks.
+    const hungTabs = new Set(report.hangs.map(hang => hang.tab)), live = tabs.filter(tab => !hungTabs.has(tab));
+    assert.equal(report.actions.filter(sample => !hungTabs.has(sample.tab)).length, live.length * 2, 'every other tab is clicked first and again');
     assert.ok(report.parse.length > 0, 'actual state body bytes and JSON parse time are observed');
     assert.ok(report.fetch.length > 0, 'actual browser fetch time is observed');
-    assert.ok(report.render.length >= report.actions.length, 'every click retains its real render duration');
-    assert.ok(report.isolation.length <= tabs.length && report.isolation.length + report.hangs.filter(hang => hang.mode === 'isolation').length >= tabs.length, 'every isolation control is measured or recorded as a hang');
+    assert.ok(report.render.length >= live.length * 2, 'every click retains its real render duration');
+    assert.equal(report.isolation.filter(sample => !hungTabs.has(sample.tab)).length, live.length, 'every other tab has its isolation control');
     for (const sample of report.isolation) {
-      if (sample.ready === undefined && report.hangs.some(hang => hang.tab === sample.tab && hang.mode === 'isolation')) continue;
+      if (hungTabs.has(sample.tab)) continue;
       assert.deepEqual(sample.hiddenMutations, [], `${sample.tab} does not rebuild another tab's data`);
       assert.equal(sample.ready, true, `${sample.tab} isolation control reaches its real content`);
     }
@@ -187,7 +188,7 @@ export async function checkTabSpeed(t, tabs) {
       assert.ok(rows[hang.tab]?.hang === true, `${hang.tab} ${hang.mode} never answered the browser: ${hang.message} (goal ${goalMs} ms; record it in tab-speed-rows.mjs only as an audited exception)`);
     }
     for (const sample of report.actions) {
-      if (sample.ready === undefined && report.hangs.some(hang => hang.tab === sample.tab)) continue;
+      if (hungTabs.has(sample.tab)) continue;
       assert.equal(sample.ready, true, `${sample.tab} paints its actual content after the click`);
       assert.ok(Number.isFinite(sample.end), `${sample.tab} has a real painted timestamp`);
       const kind = sample.repeat ? 'repeat' : 'first', limit = rows[sample.tab]?.[kind] ?? goalMs, took = sample.end - sample.start;
