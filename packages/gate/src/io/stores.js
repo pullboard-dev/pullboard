@@ -14,10 +14,12 @@ import { readText } from './scan.js';
 import { report } from './scan.js';
 import { TEST_FILE } from './scan.js';
 import { walk } from './scan.js';
+import { STORE_REGISTRY } from './store-registry.js';
+import { STORE_REGISTRY_URL } from './store-registry.js';
 
-export const STORE_REGISTRY = 'packages/gate/data/baselines/stores.json';
+export { STORE_REGISTRY };
 export const STORE_BASELINE = 'packages/gate/data/baselines/store-homes.json';
-const REGISTRY_URL = new URL('../../data/baselines/stores.json', import.meta.url);
+const REGISTRY_URL = STORE_REGISTRY_URL;
 const BASELINE_URL = new URL('../../data/baselines/store-homes.json', import.meta.url);
 /** Shipped source: a package's or app's src tree and its root modules; tests, fixtures and data are not judged. */
 const SOURCE = /^(?:apps|packages)\/[^/]+\/(?:src\/.+|[^/]+)\.[cm]?js$/u;

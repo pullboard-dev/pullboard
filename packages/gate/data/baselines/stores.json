@@ -51,9 +51,32 @@
       "packages/verify/src/logic/verdict/assurance.js"
     ]
   },
+  "disk": {
+    "groups": [
+      "board database",
+      "worktree archives",
+      "test actions",
+      "flake evidence",
+      "check output",
+      "receipts"
+    ],
+    "unlisted": {
+      "board database": [
+        "board.db",
+        "board.sqlite-shm",
+        "board.sqlite-wal",
+        "board.sqlite.write-holders"
+      ],
+      "receipts": [
+        "native-flake-receipts",
+        "reviews"
+      ]
+    }
+  },
   "dirs": {
     "automatic-landing": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/cli-main/run.js",
       "homes": {
         "apps/view/src/io/live/read.js": 1,
@@ -63,18 +86,22 @@
     },
     "baseline-results": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/store/src/io/home.js"
     },
     "board": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/keys/src/io/relay.js"
     },
     "census": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/test/census.js"
     },
     "check-output": {
       "kind": "dir",
+      "disk": "check output",
       "owner": "apps/runner/src/io/private/privacy.js",
       "homes": {
         "packages/verify/src/io/compare.js": 1
@@ -82,10 +109,12 @@
     },
     "check-receipts": {
       "kind": "dir",
+      "disk": "receipts",
       "owner": "packages/git/src/io/check/receipts.js"
     },
     "flake-evidence": {
       "kind": "dir",
+      "disk": "flake evidence",
       "owner": "packages/flakes/src/io/native.js",
       "homes": {
         "packages/github/src/io/flakes.js": 1
@@ -93,6 +122,7 @@
     },
     "gate-receipts": {
       "kind": "dir",
+      "disk": "receipts",
       "owner": "packages/verify/src/io/review/packet.js",
       "homes": {
         "packages/gate/src/io/test/budget-rows.js": 1
@@ -100,6 +130,7 @@
     },
     "gate-spans": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/jobs/src/io/gate/span.js",
       "homes": {
         "packages/sentinels/src/io/waits.js": 1
@@ -107,34 +138,42 @@
     },
     "history-scan": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/runners/src/io/source/scan.js"
     },
     "landings": {
       "kind": "dir",
+      "disk": "receipts",
       "owner": "packages/landing/src/io/step/batch.js"
     },
     "ledger-cache": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/commands/ledger.js"
     },
     "main-audits": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "module-graphs": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/landing/src/io/guards.js"
     },
     "outside-check-output": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/sandbox/src/io/verify.js"
     },
     "packs": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/runners/src/io/run.js"
     },
     "publish": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/join.js",
       "homes": {
         "packages/github/src/io/pr/publish.js": 1,
@@ -143,18 +182,22 @@
     },
     "publish-index": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/github/src/io/pr/publish.js"
     },
     "release-coordinator-actions": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/gate/src/io/coordinator/release.js"
     },
     "release-receipts": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/gate/src/io/release.js"
     },
     "review-comparisons": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/verify/src/io/compare.js",
       "homes": {
         "packages/verify/src/io/comparison.js": 1
@@ -162,26 +205,32 @@
     },
     "review-packets": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/verify/src/io/review/packet.js"
     },
     "sandbox-exports": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/sandbox/src/io/verify.js"
     },
     "search": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/search/src/logic/sidecar.js"
     },
     "source-advances": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/sandbox/src/io/source/advance/worker.js"
     },
     "state-cache": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/api/src/io/main.js"
     },
     "submit-handoffs": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/sandbox/src/io/submit/handoff/origin.js",
       "homes": {
         "packages/gate/src/io/test/summary.js": 1,
@@ -190,42 +239,52 @@
     },
     "test-actions": {
       "kind": "dir",
+      "disk": "test actions",
       "owner": "packages/gate/src/io/test/action/cache.js"
     },
     "test-runs": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/drive/src/io/queue.js"
     },
     "test-value-index": {
       "kind": "dir",
+      "disk": "test actions",
       "owner": "packages/gate/src/io/test/economics/placement.js"
     },
     "tool-build-scheduler": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/tool/build.js"
     },
     "tool-builds": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/pinned/tool/build.js"
     },
     "trace": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/trace.js"
     },
     "trunk": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/git/src/io/trunk/ref.js"
     },
     "usage-due": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/stats/src/io/cost/due.js"
     },
     "worktree-archives": {
       "kind": "dir",
+      "disk": "worktree archives",
       "owner": "apps/cli/src/io/worktree/maintenance/archive.js"
     },
     "worktree-maintenance": {
       "kind": "dir",
+      "disk": "other",
       "owner": "apps/cli/src/io/worktree/maintenance/observation.js",
       "homes": {
         "apps/cli/src/io/worktree/maintenance/diagnostics.js": 1,
@@ -234,6 +293,7 @@
     },
     "worktree-prune": {
       "kind": "dir",
+      "disk": "other",
       "owner": "packages/landing/src/io/prune.js"
     }
   },
@@ -316,14 +376,17 @@
     },
     "board.sqlite": {
       "kind": "sqlite",
+      "disk": "board database",
       "owner": "packages/store/src/io/board/sqlite.js"
     },
     "board.sqlite.presence.sqlite": {
       "kind": "sqlite",
+      "disk": "board database",
       "owner": "apps/cli/src/io/disk/use.js"
     },
     "board.sqlite.worktrees.json": {
       "kind": "json",
+      "disk": "board database",
       "owner": "apps/cli/src/io/disk/use.js"
     },
     "boards.json": {
@@ -468,6 +531,7 @@
     },
     "gate-receipts.jsonl": {
       "kind": "jsonl",
+      "disk": "receipts",
       "owner": "apps/cli/src/io/disk/use.js"
     },
     "git-sync-pending.json": {
@@ -856,7 +920,7 @@
     },
     "stores.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/stores.js"
+      "owner": "packages/gate/src/io/store-registry.js"
     },
     "submission.json": {
       "kind": "json",
