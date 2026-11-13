@@ -13,6 +13,7 @@ import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { hostOf } from '../../../../packages/config/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
+import { pullGit } from '../../src/io/runner/git.js';
 
 /** Parse the `role: host host` lines doctor --hosts prints (the trailing next: line is skipped) into { role: [hosts] }. */
 function parseHosts(stdout) {
@@ -68,7 +69,7 @@ async t => {
     if (!allowed.has(host)) throw new Error(`blocked: ${host} is not in the runner allowlist`);
     return fetch(url, init);
   };
-  const served = await serveRunner({ board: `${box.origin}${box.path}?k=${box.key}`, runner: 'r-hosts', capabilities: [], cache: join(box.dir, 'runner-cache'), once: true, fetchImpl: confined });
+  const served = await serveRunner({ git: pullGit, board: `${box.origin}${box.path}?k=${box.key}`, runner: 'r-hosts', capabilities: [], cache: join(box.dir, 'runner-cache'), once: true, fetchImpl: confined });
   assert.deepEqual(served.jobs.map(job => job.outcome), ['posted']);
   assert.ok(reached.length > 0 && reached.every(host => allowed.has(host)), `runner reached only ${[...allowed]}; saw ${reached}`);
 });

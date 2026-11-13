@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runCommitCliSmoke } from '../../../index.js';
 import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
-import { temporaryRepository } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { temporaryRepository } from '../../../../store/tests/fixtures/submit.js';
 
 /** Commit a trivial CLI entry so the smoke tries to extract the tree. */
 function commitCli(repo) {

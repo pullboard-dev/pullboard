@@ -24,6 +24,7 @@ import { wording } from '../../logic/frozen.js';
 import { criterionClauses } from '../../../../state/index.js';
 import { earlierHeadFacts } from '../../../../state/index.js';
 import { linkEarlierFacts } from '../../../../state/index.js';
+import { storeName } from '../store-names.js';
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -63,7 +64,7 @@ function readBlobs(root, specs) {
 /** Where the board keeps the packet for one item head. */
 function reviewPacketPath(commonDir, id, head) {
   if (!Number.isSafeInteger(Number(id)) || !SHA.test(head ?? '')) return null;
-  return join(commonDir, 'pullboard', 'review-packets', String(id), `${head}.json`);
+  return join(commonDir, 'pullboard', 'review-packets', String(id), `${storeName(head)}`);
 }
 
 /** The stored packet for this head, or null when none was built. */
@@ -128,7 +129,7 @@ function mainReceiptFor(commonDir, ids, main, failure) {
   for (const id of new Set(ids)) {
     if (!commonDir || !/^[a-f0-9-]{36}$/u.test(id ?? '')) continue;
     try {
-      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${id}.json`), 'utf8'));
+      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(id)}`), 'utf8'));
       if (stored.id === id && stored.kind === 'main-red' && stored.head === main
         && (stored.failures ?? []).some(row => row.file === failure.file && row.name === failure.name)) return id;
     } catch { /* A missing or unreadable receipt names nothing; the next candidate may. */ }
@@ -161,7 +162,7 @@ function words(text) {
 function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   if (!commonDir || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) return [];
   try {
-    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${receipt.id}.json`), 'utf8'));
+    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(receipt.id)}`), 'utf8'));
     if (stored.id !== receipt.id || stored.head !== head) return [];
     return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => declared || !row.skipped);
   } catch { return []; }
@@ -411,12 +412,15 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   lines.push('clauses:');
   for (const clause of packet.clauses) {
     lines.push(`  ${clause.n}. ${clause.text}`);
-    if (!clause.runs.length) lines.push(`     ${clause.gap}: read this clause and name it in --read`);
+    // A clause with no mapped test says so and sends the reviewer to the diff; a deferred suite keeps its own reason (UX F6).
+    if (!clause.runs.length) lines.push(clause.gap === 'no recorded run'
+      ? '     no test maps to this clause: read the diff for it and name it in --read' : `     ${clause.gap}: read this clause and name it in --read`);
     for (const earlier of clause.earlier ?? []) {
       lines.push(`     ${earlier.stale ? 'stale' : 'earlier head'}: fact ${String(earlier.fact ?? '').slice(0, 8)} cites ${earlier.cited}; at the exact head ${short(packet.head)}: ${earlier.outcomes.map(row => `${row.outcome} "${row.name}"`).join('; ') || 'no named case to match'}${earlier.stale ? ` (clause ${clause.n} is stale: ${earlier.outcomes.some(row => row.outcome === 'missing') ? 'a named case is missing from the exact-head receipt' : 'the fact names no case the exact-head receipt answers'})` : ''}`);
     }
     for (const run of clause.runs) {
-      lines.push(`     ${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
+      const covered = run.why === "the item's check ran" && run.result === 'pass' ? `covered by the gate's item check (receipt ${run.receipt.slice(0, 8)}); ` : '';
+      lines.push(`     ${covered}${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
     }
   }
   lines.push(packet.failures.length ? 'failures at head:' : 'failures at head: none');

@@ -438,7 +438,9 @@ async function claimMore(ctx, values) {
     withBoardRead(ctx, board => {
       const me = whoAmI(ctx, board).id, items = store.listItems(board);
       const mine = items.filter(item => item.item_status === 'claimed' && item.item_owner === me);
-      const held = new Set(mine.flatMap(item => store.itemFiles(item)));
+      // A source the seat submitted and still awaits a verdict on holds its files too, so no extra claim overlaps it [#7061].
+      const awaiting = items.filter(item => item.item_status === 'submitted' && item.item_built_by === me);
+      const held = new Set([...mine, ...awaiting].flatMap(item => store.itemFiles(item)));
       // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
       for (const item of mine) omit.add(item.item_id);
       for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);

@@ -2,6 +2,8 @@
 import { fileURLToPath } from 'node:url';
 /** Report cells migration debt, or explicitly check/initialize/lower its root ratchet [C7,CD64]. */
 import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { readCellLintBaseline } from '../../../../index.js';
 import { writeCellLintBaseline } from '../../../../index.js';
@@ -34,7 +36,9 @@ withCellLintParser(compile => {
   else if (mode === '--init') {
     if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
-    writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
+    // The cell inventory reads tracked files only, so the new shards are staged before the verify re-reads them [C7].
+    const stage = () => { spawnSync('git', ['add', '--', dirname(CELL_BASELINE_DESCRIPTOR)], { cwd: root, stdio: 'ignore' }); };
+    writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => { stage(); return JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline); } });
   } else if (mode === '--update') {
     if (!existsSync(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
     const baseline = readCellLintBaseline(root);
@@ -47,6 +51,8 @@ withCellLintParser(compile => {
     // --check counts current main and this checkout now; no committed baseline must match either [C7].
     const main = mainCommit(root);
     process.exitCode = cachedCellsRun(root, ['cell-lints', mode, main ?? 'no-main'], () => {
+      // A committed baseline must stay hash-bound to its shards: an edit without a rebind refuses here, not only in --report [C7].
+      if (existsSync(file)) { try { readCellLintBaseline(root); } catch (error) { console.error(error.message); return 1; } }
       const current = build(), base = mainCellLintReport(root, parsers, main);
       if (!base) { console.error('no main branch to compare with; nothing can rise'); return 0; }
       // Advisory transition authority comes only from main, as in the submit check.

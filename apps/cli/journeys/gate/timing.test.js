@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { FIXTURE_GATE_DISPATCH } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { copyFixtureRunner } from '../../../../packages/gate/tests/fixtures/copy.js';
 
@@ -34,12 +35,12 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   box.git(box.repo, 'commit', '-q', '-m', 'test: add a browser-free named check');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { browserFreeChecks: true, runnersFirst: false, runnersOnly: false } }));
+  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { ...FIXTURE_GATE_DISPATCH, browserFreeChecks: true, runnersFirst: false, runnersOnly: false } }));
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Timed check', '--criterion', 'the check runs', '--check', 'node apps/cli/src/io/run/tests.js test/quick.test.js', '--route', 'strong').code, 0);
   const claimedOne = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(claimedOne.code, 0, `${claimedOne.out}${claimedOne.err}`);
   // A stand-in holds the only slot for HOLD_MS, then lets the check in.
-  const HOLD_MS = 6000; // budget: long enough that the wait cannot be confused with the check's own ~2 s of runner startup on a loaded runner.
+  const HOLD_MS = 15000; // budget: long enough that the wait cannot be confused with the check's own ~2 s of runner startup on a loaded runner.
   // process-level: a stand-in holds the only gate slot for a wall-clock span.
   const holder = spawn(process.execPath, ['--input-type=module', '-e', `import { takeResource } from ${JSON.stringify(resolve(import.meta.dirname, '../../../../packages/resources/index.js'))};
 const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: ${JSON.stringify(box.repo)}, agent: 'receipt-stand-in' });
@@ -50,7 +51,9 @@ console.log('ready'); setTimeout(() => { lease.release(); process.exit(0); }, ${
   assert.equal(checked.code, 0, checked.out + checked.err);
   const receipt = JSON.parse(checked.out).result?.receipt ?? JSON.parse(checked.out).receipt;
   assert.ok(receipt, checked.out);
-  assert.ok(receipt.waitMs >= HOLD_MS - 1000, `the wait covers the stand-in's hold: ${JSON.stringify(receipt)}`);
+  // budget: the check CLI boots (up to ~3 s on a loaded runner) before its wait starts, so the wait covers the hold less that boot.
+  const BOOT_SLACK_MS = 3000;
+  assert.ok(receipt.waitMs >= HOLD_MS - BOOT_SLACK_MS, `the wait covers the stand-in's hold: ${JSON.stringify(receipt)}`);
   assert.ok(receipt.runMs >= 150 && receipt.runMs < HOLD_MS - 1000, `the run time covers only the test: ${JSON.stringify(receipt)}`);
   for (const field of ['admissionMs', 'setupMs', 'evidenceMs']) assert.ok(Number.isFinite(receipt[field]) && receipt[field] >= 0, field);
   assert.deepEqual(receipt.slot, { kind: 'ordinary', reason: 'it launches no browser' }, 'the slot kind and why');

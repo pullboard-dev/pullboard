@@ -26,6 +26,7 @@ const ROWS = [
   ['gate.mainComparison', 'Compare red runs with main', 'on-red (default) compares a red submit or review run with main to tell known main reds from new ones; off treats a red gate as red, with no main comparison and no carried-red acceptance.', 'Capacity', 'on-red/off'],
   ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
+  ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
@@ -99,7 +100,7 @@ const ROWS = [
   ['affectedTests', 'Selected-test command', 'The command prefix that runs only the test files a change affects.', 'Checks', 'command'],
   ['submitInvariants', 'Always-run tests', 'Test files that run on every submit, however small the change.', 'Checks', 'list'],
   ['registryGuards', 'Registry guards', 'Source guards the selected-test runner adds when a change touches a registry.', 'Checks', 'list'],
-  ['submit.handoff', 'Return while checks run', 'Submit queues the captured candidate for runners and returns while its checks continue.', 'Checks', 'on/off'],
+  ['submit.handoff', 'Return while checks run', 'Deprecated no-op: submit always settles through the pull gate.', 'Checks', 'on/off'],
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemBuildBudgetMinutes', 'Item build budget', 'Expected build minutes allowed before an item must be cut into children.', 'Work', 'minutes'],
@@ -123,9 +124,11 @@ const ROWS = [
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
+  ['labels', 'Label bounds', 'How many items may carry each label at once, as a minimum and a maximum per label name.', 'Order', 'list'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
   ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
   ['review.excludeEarlierHolders', 'Exclude earlier holders from review', 'On refuses a review reservation by any seat that ever claimed, built, submitted or released the item; off excludes only its current builder and submitters.', 'Review', 'on/off'],
+  ['withdraw.review', 'Withdrawals need a second seat', 'On, a withdrawal waits as pending until another seat confirms it; off, withdraw closes the item at once.', 'Review', 'on/off'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
   // This repo: Claims
@@ -180,7 +183,7 @@ const ROWS = [
 ];
 
 // The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; apps/cli/journeys/settings/descriptions.test.js holds this equal to help.js SETTING_FORMS.
-const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses']);
+const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses', 'runnerRates']);
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 

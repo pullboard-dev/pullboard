@@ -58,6 +58,8 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   for (const code of codes) assert.ok(Object.hasOwn(NEXT_STEPS, code), `${code} has an explicit recovery entry`);
   assert.equal(refusalDocument({ code: 'FUTURE_REMOTE_RULE', message: 'The service refused.', next: 'ask the service owner to restore this board' }).error.next,
     'ask the service owner to restore this board', 'remote recovery guidance survives serialization');
+  assert.equal(refusalDocument(new Refused('SNAPSHOT_REQUIRED', 'fetch the latest sealed state, then resume after its sequence')).error.next,
+    'fetch the latest sealed state with GET /api/v2/boards/:id/state, then resume events after its sequence', 'the relay snapshot refusal names the exact call [H5]');
   assert.match(refusalDocument(new Refused('FUTURE_REMOTE_RULE', 'The service refused.')).error.next, /service owner.*FUTURE_REMOTE_RULE/u,
     'an unknown remote rule names its owner and code rather than inventing a command');
   assert.equal(refusalDocument(new Refused('REMOTE_COORDINATOR_MODEL',
@@ -129,12 +131,14 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   writeFileSync(join(gateWeb, 'web', 'RED'), 'armed\n');
   gateBox.git(gateWeb, 'add', '-A');
   gateBox.git(gateWeb, 'commit', '-q', '-m', 'test: arm gate fixture [G1]');
-  const red = gateBox.run(gateWeb, 'submit', String(redId));
-  assert.equal(red.code, 1, `${red.out}\n${red.err}`);
-  assert.equal((red.err.match(/\[GATE_RED\]/gu) ?? []).length, 1, `${red.out}\n${red.err}`);
-  assert.equal((red.err.match(/GATE_FAILURE_MARKER/gu) ?? []).length, 1, `the failure report appears once\n${red.out}\n${red.err}`);
-  assert.match(red.err, /next: .*fix.*commit.*submit/iu);
-  assert.equal((red.err.match(/^next: /gmu) ?? []).length, 1, 'plain refusals print one recovery footer');
+  // A pulled submit queues its gate and returns; the fixture command returns once the local runner settled it, so show reads the red verdict [C7].
+  const queued = gateBox.run(gateWeb, 'submit', String(redId));
+  assert.equal(queued.code, 0, `${queued.out}\n${queued.err}`);
+  const red = gateBox.run(gateWeb, 'show', String(redId), '--json', '--no-next');
+  assert.equal(red.code, 0, `${red.out}\n${red.err}`);
+  const redJob = JSON.parse(red.out).gateJob;
+  assert.equal(redJob?.gate?.green, false, `the pulled gate is red: ${red.out}`);
+  assert.equal((JSON.stringify(redJob).match(/GATE_FAILURE_MARKER/gu) ?? []).length >= 1, true, `the failure report names the marker\n${red.out}`);
   rmSync(join(gateWeb, 'web', 'RED'));
   gateBox.git(gateWeb, 'add', '-u');
   gateBox.git(gateWeb, 'commit', '-q', '-m', 'test: fix gate fixture [G1]');

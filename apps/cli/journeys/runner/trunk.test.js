@@ -17,6 +17,7 @@ import { trunkRemote } from '../../../../packages/config/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { offerLandingJob } from '../../../../packages/api/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
+import { pullGit } from '../../src/io/runner/git.js';
 import { landingRemote } from '../../../../packages/landing/index.js';
 import { runLandingJob } from '../../../../packages/landing/index.js';
 
@@ -53,7 +54,7 @@ async function readers(t, setting) {
   offerJob(db, { id: 'gate:one-remote', kind: 'gate', needs: [], candidate: commit, run: [process.execPath, '-e', '0'] });
   const answers = [];
   const fetchImpl = async (url, init) => { const response = await fetch(url, init); answers.push(await response.clone().json()); return response; };
-  const served = await serveRunner({ board, runner: 'r-one', capabilities: [], cache, once: true, fetchImpl });
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-one', capabilities: [], cache, once: true, fetchImpl });
   assert.deepEqual(served.jobs.map(job => job.outcome), ['posted'], 'runner serve fetched the candidate from the trunk remote');
   const before = tip();
   const offered = offerLandingJob(db, { items: [{ id: 1, commit, ref: 'refs/heads/item/1' }], expect: before, config: loadConfig(box.root), mode: 'pull' });

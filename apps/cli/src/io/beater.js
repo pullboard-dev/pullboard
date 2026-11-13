@@ -9,6 +9,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startDetachedCheck } from '../../../../packages/drive/index.js';
+import { storeName } from './store-names.js';
 
 /** The beater's cadence: four beats inside the two-minute seat-gone limit, so one missed beat never costs a claim. */
 export const BEATER_EVERY_MS = 30_000;
@@ -75,7 +76,7 @@ export function agentAlive({ pid, start }, { run = execFileSync, signal = proces
 }
 
 /** The lock file naming the beater that keeps `seat` alive, beside the board's private seat files. */
-function beaterLock(board, seat) { return join(dirname(board), 'beaters', `${encodeURIComponent(seat)}.json`); }
+function beaterLock(board, seat) { return join(dirname(board), 'beaters', `${storeName(encodeURIComponent(seat))}`); }
 
 /** The recorded beater for `seat`, or null. */
 function readLock(lock) { try { return JSON.parse(readFileSync(lock, 'utf8')); } catch { return null; } }

@@ -102,18 +102,19 @@ test('a new fact id is checked by index across current, legacy and archived fact
 
   store.closeBoard(board);
   const legacy = new DatabaseSync(file);
-  // A synthetic physical cold partition exercises compatibility without importing unlanded retention code.
-  legacy.exec(`CREATE TABLE event_archive AS SELECT * FROM event WHERE 0;
-    DROP INDEX event_fact_identity_v2; DROP INDEX event_fact_malformed_v2; DROP INDEX event_fact_unknown_v2;
+  legacy.exec(`DROP INDEX event_fact_identity_v2; DROP INDEX event_fact_malformed_v2; DROP INDEX event_fact_unknown_v2;
     CREATE INDEX event_fact_identity ON event(json_extract(event_detail,'$.id')) WHERE event_kind='fact' AND json_valid(event_detail);
     CREATE INDEX event_fact_legacy ON event(event_id) WHERE event_kind='fact' AND NOT json_valid(event_detail);`);
-  legacy.prepare("INSERT INTO event_archive (event_id,event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?,?)")
-    .run(900000, clock.now().toISOString(), 'coordinator', 'fact', first, JSON.stringify({ id: 'cold-identity', text: 'Cold legacy note' }));
   legacy.prepare("INSERT INTO event (event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?)")
     .run(clock.now().toISOString(), 'coordinator', 'fact', second, JSON.stringify({ id: 'legacy-0', text: 'Historical duplicate retained' }));
   recordSchemaStamp(legacy, SCHEMA_DIGEST);
-  legacy.close();
+  // An old writer opens before the cold table exists: once trunk's table is ahead of its declaration the open itself refuses (#5899, A5).
   const older = openBoard(file, clock, { isMain: false });
+  // A synthetic physical cold partition, created by trunk while the old writer is open, exercises compatibility without importing unlanded retention code.
+  legacy.exec('CREATE TABLE event_archive AS SELECT * FROM event WHERE 0');
+  legacy.prepare("INSERT INTO event_archive (event_id,event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?,?)")
+    .run(900000, clock.now().toISOString(), 'coordinator', 'fact', first, JSON.stringify({ id: 'cold-identity', text: 'Cold legacy note' }));
+  legacy.close();
   try {
     const before = older.db.prepare('SELECT * FROM event ORDER BY event_id').all();
     const schema = older.db.prepare('SELECT type,name,sql FROM sqlite_master ORDER BY type,name').all();

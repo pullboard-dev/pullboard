@@ -18,6 +18,7 @@ import {
 } from '../../../resources/index.js';
 import { validateRunner } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
+import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
@@ -146,6 +147,22 @@ export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);
   const current = loadMachineSettings();
   const next = { ...current, gate: { ...current.gate, runnerWaitMs: milliseconds } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
+ * Store one runner's rate card in machine settings, refusing a card with a missing or invalid field.
+ * Why: a later cost figure is only as honest as its inputs, so only a whole, valid card is stored.
+ *
+ * @param {string} host - The runner host the card belongs to.
+ * @param {unknown} card - { price, months, watts, kwhPrice }.
+ * @returns {object} The settings now stored.
+ */
+export function setRunnerRate(host, card) {
+  const parsed = parseRunnerRate(card, host);
+  const current = loadMachineSettings();
+  const next = { ...current, runnerRates: { ...current.runnerRates, [host]: parsed } };
   writeMachineSettings(next);
   return next;
 }
@@ -471,6 +488,14 @@ export function setRunnerDrain(host, drain) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { observation: true });
+}
+
+/**
+ * The share of each runner's slots every job class keeps (gate.jobReserve), or null: unset keeps today's claim order,
+ * set makes a claim take the highest class first while each class keeps its reserve [C7].
+ */
+export function jobReserve() {
+  return loadMachineSettings().gate?.jobReserve ?? null;
 }
 
 /** The hosts taken out of rotation with `pullboard runner drain`: a pull runner serving under one of these ids is given no job. */

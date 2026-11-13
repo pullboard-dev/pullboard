@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import {
   runFixtureGit,
   privateFixtureFiles,
-} from '../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../gate/tests/fixtures/child.js';
 import { warmAcceptedCells } from '../../../gate/index.js';
 import { withMainCheckout } from '../../index.js';
 import { withFileLock } from '../../../outbox/index.js';

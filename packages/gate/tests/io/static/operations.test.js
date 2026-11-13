@@ -10,10 +10,12 @@ import { OPERATIONS } from '../../../src/io/static/operations.js';
 import { operationSites } from '../../../src/io/static/operations.js';
 import { operationReport } from '../../../src/io/static/operations.js';
 import { operationEntryGrowth } from '../../../src/io/static/operations.js';
+import { operationEntryFiles } from '../../../src/io/static/operations.js';
 import { operationEntryCounts } from '../../../src/io/static/operations.js';
 import { operationRatchetGrowth } from '../../../src/io/static/operations.js';
 import { tightenOperationBaseline } from '../../../src/io/static/operations.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
+import { walk } from '../../../src/io/scan.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
@@ -26,18 +28,18 @@ function git(cwd, args) {
   runFixtureGit(['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd });
 }
 
-test('#5846 clause 1: the registry names one entry point for each of the six operations [C7]', () => {
-  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code']);
+test('#5846 clause 1: the registry names one entry point for each operation [C7]', () => {
+  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'execute-gate', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'create-worktree', 'stop-process-tree']);
   for (const { entry } of OPERATIONS) assert.ok(readFileSync(new URL(entry, ROOT), 'utf8').length > 0, `${entry} exists`);
 });
 
 test('#5846 clause 1: a second spawn of the test runner outside the registered entry is refused; the entry, a comment and a test file are not sites [C7]', () => {
   const sites = operationSites(RUNNER_SPAWN, 'packages/demo/src/io/runner.js');
   assert.deepEqual(sites.map(row => [row.operation, row.line]), [['run-tests', 2]]);
-  assert.match(sites[0].text, /outside packages\/gate\/src\/io\/run-tests\.js/u);
+  assert.match(sites[0].text, /outside apps\/cli\/src\/io\/run\/tests\.js/u);
   assert.deepEqual(operationEntryGrowth(sites, {}), sites, 'a file the baseline does not name is refused');
   assert.deepEqual(operationEntryGrowth(sites, { 'run-tests': ['packages/demo/src/io/runner.js'] }), [], 'a recorded second path is allowed until it goes');
-  assert.deepEqual(operationSites(RUNNER_SPAWN, 'packages/gate/src/io/run-tests.js'), [], 'the registered entry is not a second path');
+  assert.deepEqual(operationSites(RUNNER_SPAWN, 'apps/cli/src/io/run/tests.js'), [], 'the registered entry is not a second path');
   assert.deepEqual(operationSites(`// ${RUNNER_SPAWN.split('\n')[1]}\n`, 'packages/demo/src/io/runner.js'), [], 'a commented-out spawn is not a site');
   assert.deepEqual(operationSites(RUNNER_SPAWN, 'packages/demo/tests/runner.test.js'), [], 'tests are not shipped source');
   assert.deepEqual(operationSites("spawnSync('git', ['status']);\n", 'packages/demo/src/io/git.js'), [], 'a child that is not the test runner is not a site');
@@ -93,4 +95,82 @@ test('#5846 clause 2: the entry-point count may only fall; a baseline row main d
   tree.write(BASELINE, JSON.stringify({ 'run-tests': ['packages/demo/src/io/old.js', 'packages/demo/src/io/runner.js'] }) + '\n');
   assert.match(check.run(tree.root).join('\n'), /operation-entries\.json:1: run-tests gains a second entry point packages\/demo\/src\/io\/runner\.js/u,
     'recording the new spawn in the baseline is refused against main');
+});
+
+const ADD_TREE = "export const make = (git, path) => git(['worktree', 'add', '--detach', path]);\n";
+
+test('#6750 clause 1: create-worktree has one entry point, and a new git worktree add outside it fails the registry test [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'create-worktree');
+  assert.equal(entry?.entry, 'packages/git/src/io/worktree.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function addWorktree/u);
+  const sites = operationSites(ADD_TREE, 'packages/demo/src/io/tree.js');
+  assert.deepEqual(sites.map(row => [row.operation, row.line]), [['create-worktree', 1]]);
+  assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new file is refused');
+  assert.deepEqual(operationSites(ADD_TREE, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites("export const list = git => git(['worktree', 'list']);\n", 'packages/demo/src/io/tree.js'), [], 'worktree list is not a creation');
+});
+
+test('#6750 clause 2: the baseline lists the 18 current worktree-add files as known violations, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.equal(baseline['create-worktree'].length, 18);
+  assert.deepEqual(baseline['create-worktree'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['create-worktree']);
+  const grown = { ...baseline, 'create-worktree': [...baseline['create-worktree'], 'packages/demo/src/io/tree.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /create-worktree gains a second entry point/u);
+});
+
+const KILL_GROUP = "export const stop = pid => process.kill(-pid, 'SIGTERM');\n";
+
+test('#6751 clause 1: stop-process-tree is entered in packages/jobs, and a new process.kill(-pid) outside it fails the registry test [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'stop-process-tree');
+  assert.equal(entry?.entry, 'packages/jobs/src/io/launch.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function stopProcessTree/u);
+  const sites = operationSites(KILL_GROUP, 'packages/demo/src/io/stop.js');
+  assert.deepEqual(sites.map(row => [row.operation, row.line]), [['stop-process-tree', 1]]);
+  assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new file is refused');
+  assert.deepEqual(operationSites(KILL_GROUP, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites("export const stop = pid => process.kill(pid, 'SIGTERM');\n", 'packages/demo/src/io/stop.js'), [], 'a single-process kill is not a tree stop');
+});
+
+test('#6751 clause 2: the baseline lists the current process-group kill files as known violations, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline['stop-process-tree'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['stop-process-tree']);
+  assert.ok(baseline['stop-process-tree'].length > 0);
+  const grown = { ...baseline, 'stop-process-tree': [...baseline['stop-process-tree'], 'packages/demo/src/io/stop.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /stop-process-tree gains a second entry point/u);
+});
+
+test('#6748 clause 1: run-tests is entered at the shim the launcher spawns, and the registry refuses another entry [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'run-tests');
+  assert.equal(entry?.entry, 'apps/cli/src/io/run/tests.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /startRunTests\(/u, 'the entry launches the engine');
+  assert.deepEqual(operationSites(RUNNER_SPAWN, 'packages/gate/src/io/run-tests.js').map(row => row.operation), ['run-tests'], 'any file but the shim that spawns the runner is a second path');
+  assert.deepEqual(operationSites(RUNNER_SPAWN, entry.entry), [], 'the shim itself is not');
+});
+
+test('#6748 clause 2: the baseline records the shim and the bin forwarder as thin forwards, so the 4 names count as 1 operation [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline.forwards['run-tests'], ['apps/cli/src/io/run/tests.js', 'packages/gate/bin/run-tests.js']);
+  for (const path of baseline.forwards['run-tests']) assert.ok(readFileSync(new URL(path, ROOT), 'utf8').split('\n').length < 20, `${path} only forwards`);
+  assert.equal(operationEntryCounts(baseline)['run-tests'], 1 + baseline['run-tests'].length, 'forwards add no entry point');
+  assert.deepEqual(baseline.forwards, operationEntryFiles(operationReport(fileURLToPath(ROOT))).forwards, 'the recorded forwards are the registry\'s');
+});
+
+const RUN_GATE = "export async function runNewGate(root) { return root; }\n";
+
+test('#6749 clause 1: no two exported functions in the repository are both named runGate [C7]', () => {
+  const owners = walk(fileURLToPath(ROOT), /^(?:apps|packages)\/[^/]+\/(?:src|bin)\/(?:.*\/)?[^/]+\.[cm]?js$/u)
+    .filter(path => /export\s+(?:async\s+)?function\s+runGate\s*\(/u.test(readFileSync(new URL(path, ROOT), 'utf8')));
+  assert.deepEqual(owners, ['packages/gate/src/io/execution.js'], 'only the gate executor is named runGate');
+});
+
+test('#6749 clause 2: execute-gate is its own operation and a new unmarked run*Gate function fails the registry test [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'execute-gate');
+  assert.equal(entry?.entry, 'packages/gate/src/io/execution.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export async function runGate\(/u);
+  assert.notEqual(OPERATIONS.find(row => row.name === 'dispatch-gates').entry, entry.entry, 'dispatch is a separate operation');
+  const sites = operationSites(RUN_GATE, 'packages/demo/src/io/gate.js');
+  assert.deepEqual(sites.map(row => [row.operation, row.line]), [['execute-gate', 1]]);
+  assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new gate runner is refused');
+  assert.deepEqual(operationSites(RUN_GATE, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites("export function dispatchGate() {}\n", 'packages/demo/src/io/gate.js').map(row => row.operation), ['dispatch-gates'], 'a dispatcher is not an executor');
 });
