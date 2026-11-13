@@ -1,11 +1,10 @@
 /** The runs file opens beside the board behind a five-call port, and stays absent while runs_store is off [B2,P7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { cellSandbox } from '../../fixtures/cell.js';
 import { writeBoardMeta } from '../../../src/io/board/meta.js';
 import { RUNS_PORT_CALLS } from '../../../index.js';
 import { boardRunsPort } from '../../../index.js';
@@ -17,11 +16,9 @@ import { createJob } from '../../../../jobs/index.js';
 import { jobView } from '../../../../jobs/index.js';
 import { writeStep } from '../../../../jobs/index.js';
 
-/** A private folder holding one real board file, removed after the test. */
+/** A board file path in a private scratch folder the sandbox removes after the test. */
 function boardFile(t) {
-  const dir = privateFixtureFiles('pb-runs-').root;
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  return join(dir, 'board.sqlite');
+  return join(cellSandbox(t).dir, 'board.sqlite');
 }
 
 test('the runs file opens in WAL with a busy timeout, the job tables and a runs_meta stamp naming its board [B2,P7]', t => {
