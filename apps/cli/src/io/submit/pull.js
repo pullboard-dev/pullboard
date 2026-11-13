@@ -32,6 +32,7 @@ import { inventoryCommits } from './remote.js';
 import { ensureLocalRunner } from '../runner/local.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { exitLines } from '../../logic/runner/output.js';
+import { specFailureFiles } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
@@ -98,6 +99,7 @@ const keepOutput = (name, output) => {
 ${tapCaseErrors}
 ${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
+${specFailureFiles}
 ${fitReceipt}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
 let light = null, gate = null;
@@ -226,6 +228,8 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
   const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
+  const failedFiles = ran.status !== 0 && !failures ? specFailureFiles(text, root, { files: ${PHASE_CASES} }) : [];
   // Each named case's diagnostic signature, as the controller signs it, so the board tells two failures of one case apart [V4,B3].
   let failureSignatures = null;
   try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
@@ -244,7 +248,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   const counts = totals(text);
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
 else {
