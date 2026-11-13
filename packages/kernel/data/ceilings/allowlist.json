@@ -1,10 +1,11 @@
 {
-  "note": "CD31, CD32: the kernel holds only ids, errors, registries and the plugin shape. This list may only shrink; a file not on it fails packages/kernel/tests/allowlist.test.js.",
+  "note": "CD31, CD32: the kernel holds only ids, errors, registries and the plugin shape. This list may only shrink; a file not on it fails packages/kernel/tests/allowlist.test.js. logic/config-file.js is listed because #6982 moved it into the kernel on purpose for the thin kernel door; this list is born at main's measured state.",
   "files": [
     "logic/adapter.js",
     "logic/audit.js",
     "logic/cause.js",
     "logic/census.js",
+    "logic/config-file.js",
     "logic/detail.js",
     "logic/discovery.js",
     "logic/engine-declarations.js",
