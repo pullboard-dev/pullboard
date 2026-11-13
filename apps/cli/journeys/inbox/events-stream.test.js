@@ -114,7 +114,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   async function changedOnce(label) {
     // The mocked clock freezes the file waiter's coalescing timer; advance it in small steps while the frame is awaited [A2,N26].
     let waiting = true;
-    const pump = (async () => { while (waiting) { t.mock.timers.tick(60); await new Promise((resolve) => setImmediate(resolve)); } })();
+    const pump = (async () => { while (waiting) { t.mock.timers.tick(60); await new Promise((resolve) => realSetTimeout(resolve, 20)); } })();
     const frame = await Promise.race([
       nextFrame(),
       new Promise((_, reject) => realSetTimeout(() => reject(new Error(`changed event did not arrive within two seconds (${label})`)), 2000)), // budget: #554's criterion bounds a changed event at two seconds.
