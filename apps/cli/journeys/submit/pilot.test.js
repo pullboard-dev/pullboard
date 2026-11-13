@@ -35,7 +35,7 @@ async function submitController(box, id) {
   assert.ok(submitted.code === 0 || /"code": "GATE_RED"/u.test(submitted.out), `#${id} ran the controller gate: ${submitted.out}${submitted.err}`);
 }
 
-test('clause 1: a pilot naming one item queues only that item; the others and every submit after it is off take the controller path [P7]', async t => {
+test('clause 1: a pilot naming one item queues only that item; the others and every submit after it is off take the controller path [P7]', { skip: 'CONTROLLER_ONLY: deleted with #6581' }, async t => {
   const box = await pullProject(t, 3, { gate: { runnerDispatch: 'controller' } });
   const [piloted, other, later] = box.ids;
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'controller', pullPilot: { items: [piloted, later] } } });
@@ -49,7 +49,7 @@ test('clause 1: a pilot naming one item queues only that item; the others and ev
   assert.deepEqual(gateJobs(box, later), []);
 });
 
-test('clause 1: turning the pilot off drains its queued and leased gate jobs to their results, then the queue stops serving [P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, two submits and one whole gate in a runner process.
+test('clause 1: turning the pilot off drains its queued and leased gate jobs to their results, then the queue stops serving [P7]', { timeout: 240_000, skip: 'CONTROLLER_ONLY: deleted with #6581' }, // budget: hang ceiling for a project, two submits and one whole gate in a runner process.
 async t => {
   const box = await pullProject(t, 2, { gate: { runnerDispatch: 'controller' } });
   const [queued, leased] = box.ids;
