@@ -17,8 +17,12 @@ const CHECK = 'node test/runner.js test/affected.test.js';
 
 /** File an open repair for the shared file whose criterion names one case, or none. */
 function repair(box, criterion) {
-  const result = cli(box, box.root, 'add', 'core', `Main red: ${criterion}`, '--specs', 'G1', '--criterion', criterion,
-    '--check', CHECK, '--brief', 'Files: test/affected.test.js\nTest: shared cases');
+  const args = ['add', 'core', `Main red: ${criterion}`, '--specs', 'G1', '--criterion', criterion,
+    '--check', CHECK, '--brief', 'Files: test/affected.test.js\nTest: shared cases'];
+  let result = cli(box, box.root, ...args);
+  // The second repair reads like the first by design: answer the near-duplicate guard with the nearest id it names.
+  const nearest = /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.stdout + result.stderr)?.[1];
+  if (result.status !== 0 && nearest) result = cli(box, box.root, ...args, '--not-duplicate-of', `${nearest} each repair owns a different case`);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }
