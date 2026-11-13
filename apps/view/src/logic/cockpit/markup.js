@@ -69,14 +69,8 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   <section data-pane="dashboard" id="dashboard" class="dashboard" aria-label="Dashboard"></section>
   <section data-pane="items" class="two">
     <div class="primary">
-      <section class="card-panel proof-stats" id="proof-stats" aria-label="Board proof stats" hidden></section>
-      <div class="card-panel toolbar" id="items-toolbar">
-        <div class="items-view-switch" id="items-view-switch"></div>
-        <div class="filter-control"><button class="filter-toggle" id="filter-toggle" data-filter-toggle type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="filter-menu"><span class="filter-label" id="filter-label">Filter</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="filter-menu" id="filter-menu" role="menu" aria-label="Filter" hidden></div></div>
-        <button class="go" id="new-item" type="button" aria-label="New item"><span class="new-item-wide">New item</span><span class="new-item-narrow" aria-hidden="true">New</span></button>
-      </div>
       <section class="card-panel upgrade-note" id="upgrade-note" aria-label="What is new" hidden></section>
-      <div class="card-panel list-card" id="item-list"><ol class="needs" id="needs" aria-label="Rulings" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
+      <div class="card-panel list-card" id="item-list"><ol class="chain" id="chain" aria-label="Items"></ol><ol class="needs" id="needs" aria-label="Rulings" hidden></ol></div>
       <ol class="pipeline" id="pipeline" aria-label="Item pipeline" hidden></ol>
     </div>
     <aside class="card-panel detail" aria-label="Item detail">
@@ -111,6 +105,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
+    <div id="activity-compare"></div>
     <div class="activity-toolbar"><div id="activity-filters"></div><button class="ghost flow-show" id="flow-show" type="button" aria-controls="flow-panel" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13V8h3v5m2 0V3h3v10m2 0V6h2v7"/></svg>How work moves</button></div>
     <figure class="card-panel flow" id="flow-panel" hidden><div id="flow"></div><figcaption>Every item on the board, since the start. Hover a number for what it means.</figcaption></figure>
     <div class="card-panel feed" id="activity"></div>

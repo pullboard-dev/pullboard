@@ -24,6 +24,7 @@ import { boardStanding } from '../../../../../packages/store/index.js';
 import { recordSchemaStamp } from '../../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import { importBoard } from '../../../../../packages/store/index.js';
 import { undoQueued } from '../../../../../packages/outbox/index.js';
@@ -135,6 +136,8 @@ function choice(box, cwd, value) {
 
 test('a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
   const box = e2e.project();
+  // Pinned to controller dispatch: the copied candidate main source owns this board's declaration, so the worktree's loopback runner cannot open it to take a pulled job [#6577].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   choice(box, box.repo, 'base');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   const added = await succeeds(box, box.repo, 'add', 'web', 'Carry after declaration upgrade', '--specs', 'G1',
