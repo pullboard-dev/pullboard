@@ -7,7 +7,7 @@ import {
   submittedProof,
 } from '../../tests/fixtures/submit/red.js';
 
-test('clause 1 and clause 2: a red submit names its open Main red repair when exact-main comparison has no named test [C7,V4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
+test('clause 1 and clause 2: a red submit names its open Main red repair when exact-main comparison has no named test [C7,V4]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
   const box = fixture(t, {
     check: 'node test/runner.js test/inherited.test.js',
     affectedTests: 'false',
