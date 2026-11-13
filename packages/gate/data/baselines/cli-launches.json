@@ -113,9 +113,6 @@
   "apps/cli/journeys/runner/controller/cpu.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/handoff/dead/running.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/submit/preflight/order.test.js": {
     "launch": 3
   },
@@ -756,7 +753,7 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/search.test.js": {
-    "launch": 8
+    "launch": 1
   },
   "apps/cli/journeys/roadmap/card.test.js": {
     "launch": 4
@@ -910,9 +907,6 @@
   },
   "apps/cli/journeys/submit/compare.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/handoff/snapshot.test.js": {
-    "launch": 1
   },
   "packages/gate/tests/io/run/tests/options.test.js": {
     "launch": 3
@@ -1287,7 +1281,7 @@
     "launch": 3
   },
   "apps/cli/journeys/hold/demo.test.js": {
-    "launch": 12
+    "launch": 1
   },
   "apps/runner/tests/io/agent.test.js": {
     "launch": 1
@@ -1380,9 +1374,6 @@
     "launch": 6
   },
   "apps/cli/journeys/imports/closure-budget.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/gate/stalled.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/study/metrics.test.js": {
@@ -1559,14 +1550,8 @@
   "apps/cli/journeys/relay/sync.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/handoff/move.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/ship/command.test.js": {
     "launch": 2
-  },
-  "apps/cli/journeys/submit/handoff/worker.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/view/port.test.js": {
     "launch": 10
@@ -1645,5 +1630,8 @@
   },
   "apps/cli/journeys/runner/deadline/queue.test.js": {
     "launch": 2
+  },
+  "apps/cli/journeys/init/path-with-space.test.js": {
+    "launch": 1
   }
 }

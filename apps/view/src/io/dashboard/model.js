@@ -35,12 +35,12 @@ export function dashboardModel(project, history, { now, complete = true, working
    * Kept inside this function because the page embeds dashboardModel's source text, so no helper may sit outside it [N26].
    */
   const blank = () => ({ upto: -1, now: -Infinity, latest: new Map(), mergedAt: new Map(), joined: new Map(), lastBy: new Map(),
-    work: new Map(), closed: [], tail: [], tailCap: 8192 });
+    work: new Map(), closed: [], tail: [], tailCap: 8192, gateAt: new Map() });
   /** Fold one event, whose time is `at`, into a state. */
   const apply = (state, event, at) => {
     const kind = event.event_kind, id = event.item_id, by = event.event_by;
     const shout = kind === 'shout', closes = ['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(kind);
-    const needsDetail = shout || ['join', 'claim', 'renew', 'reserve', 'release', 'merged'].includes(kind);
+    const needsDetail = shout || ['join', 'claim', 'renew', 'reserve', 'release', 'merged', 'gate-run', 'proof-run'].includes(kind);
     const d = needsDetail ? detail(event) : null;
     if (kind === 'join' && typeof d.lane === 'string' && d.lane && d.lane !== 'coordinator' && by && !state.joined.has(by)) state.joined.set(by, at);
     /** End one open stay, keeping it for the windows that read it. */
@@ -50,12 +50,18 @@ export function dashboardModel(project, history, { now, complete = true, working
       state.work.delete(key);
     };
     state.lastBy.set(by, Math.max(state.lastBy.get(by) ?? 0, at));
-    if (['accept', 'reject', 'reopen'].includes(kind) || shout) {
-      state.tail.push({ at, kind, by, item: id, person: shout && d.to === 'person' });
-      if (state.tail.length >= state.tailCap) {
-        state.tail = state.tail.filter(entry => entry.at > start);
-        state.tailCap = Math.max(8192, state.tail.length * 2);
-      }
+    // The flow's own moves (#6847): a new claim, a submit with its build time, a build handed back, and a gate's verdict.
+    const building = state.work.get('build:' + id);
+    const gate = kind === 'gate-run' && typeof d.run?.green === 'boolean' ? d.run.green
+      : kind === 'proof-run' && ['submit', 'gate'].includes(d.receipt?.kind) && Number.isInteger(d.receipt?.exitCode) ? d.receipt.exitCode === 0 : null;
+    if (gate !== null && id) state.gateAt.set(id, at);
+    const flow = kind === 'claim' && building?.actor !== by ? 'claimed' : kind === 'submit' ? 'submitted'
+      : kind === 'release' && !d.review ? 'handed back' : gate === null ? null : gate ? 'green' : 'red';
+    if (flow) state.tail.push({ at, kind: flow, by, item: id, took: flow === 'submitted' && building ? at - building.start : null });
+    if (['accept', 'reject', 'reopen'].includes(kind) || shout) state.tail.push({ at, kind, by, item: id, person: shout && d.to === 'person' });
+    if (state.tail.length >= state.tailCap) {
+      state.tail = state.tail.filter(entry => entry.at > start);
+      state.tailCap = Math.max(8192, state.tail.length * 2);
     }
     for (const [key, held] of state.work) if (held.until <= at) close(key, held.until);
     state.latest.set(kind + ':' + id, event);
@@ -112,7 +118,7 @@ export function dashboardModel(project, history, { now, complete = true, working
   /** Attribute history only to registered seats; board automation is not an agent. */
   const row = id => {
     if (!seats.has(id) || id === 'coordinator') return null;
-    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, last: 0, current: [], sentBack: [],
+    if (!rows.has(id)) rows.set(id, { id, name: id, segments: [], build: 0, review: 0, idle: 0, shouts: 0, shoutAt: [], last: 0, current: [], sentBack: [],
       ...(state.joined.has(id) ? { start: Math.max(start, state.joined.get(id)) } : {}) });
     return rows.get(id);
   };
@@ -128,7 +134,7 @@ export function dashboardModel(project, history, { now, complete = true, working
     const actor = row(entry.by);
     if (entry.kind === 'accept') passed++;
     if (['reject', 'reopen'].includes(entry.kind)) { sentBack++; actor?.sentBack.push({ at: entry.at, item: entry.item }); }
-    if (entry.kind === 'shout') { if (entry.person) personShouts++; if (actor) actor.shouts++; }
+    if (entry.kind === 'shout') { if (entry.person) personShouts++; if (actor) { actor.shouts++; actor.shoutAt.push(entry.at); } }
   }
   // Every landing the page knows, matched to the first merge event that carries its current commit.
   for (const [id, entry] of merged) {
@@ -218,7 +224,48 @@ export function dashboardModel(project, history, { now, complete = true, working
   const order = new Map((project.dashboardNext ?? []).map((id, index) => [id, index]));
   const next = items.filter(item => item.status === 'open' && !(item.blockedBy?.length) && !heldItems.has(item.id) && !heldLanes.has(item.lane))
     .toSorted((a,b) => (order.get(a.id) ?? Infinity)-(order.get(b.id) ?? Infinity) || a.id-b.id);
+  /*
+   * The /live-style Dashboard (#6847): how work moved in the last four hours, where every item is now, the four short
+   * lists and the lanes, all read from the same items, folded events and landings as the rest of this model.
+   */
+  const reserved = item => Boolean(item.reviewer) && Date.parse(item.reviewUntil) > now;
+  // A submitted item is in the gate until a gate verdict is recorded after its submit, unless a reviewer already holds it.
+  const inGate = reviewing.filter(item => !reserved(item) && !((state.gateAt.get(item.id) ?? 0) >= last(item, 'submit'))).toSorted((a, b) => last(a, 'submit') - last(b, 'submit'));
+  const gateIds = new Set(inGate.map(item => item.id));
+  const checked = inReview.filter(item => !gateIds.has(item.id));
+  const moved = kind => state.tail.filter(entry => entry.kind === kind);
+  const took = moved('submitted').map(entry => entry.took).filter(Number.isFinite).sort((a, b) => a - b);
+  const median = took.length ? took[Math.floor((took.length - 1) / 2)] : null;
+  const landedRecent = [...landed].filter(([, at]) => at > start);
+  const lastLanded = Math.max(0, ...landed.values());
+  const waitingReview = checked.filter(item => !reserved(item));
+  const flow = complete ? {
+    claimed: moved('claimed').length, submitted: moved('submitted').length, handedBack: moved('handed back').length, buildMedian: median,
+    green: moved('green').length, red: moved('red').length, gateRunning: inGate.length,
+    accepted: passed, sentBack, waitingReview: waitingReview.length,
+    oldestWait: waitingReview.length ? Math.min(...waitingReview.map(item => last(item, 'submit'))) : null,
+    landed: landedRecent.length, lastLanded: lastLanded || null,
+  } : null;
+  const blocked = item => Boolean(item.blockedBy?.length);
+  const held = item => heldItems.has(item.id) || heldLanes.has(item.lane);
+  const open = items.filter(item => item.status === 'open');
+  const backItems = items.filter(item => ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT');
+  const stages = { ready: next.length, waiting: open.filter(item => blocked(item) && !held(item)).length, building: claims.length,
+    gate: inGate.length, review: checked.length, toLand: landing.length, sentBack: backItems.length, held: open.filter(held).length,
+    active: items.filter(item => !['withdrawn', 'verified'].includes(item.status)).length };
+  // Each lane's work now and its last four hours; the board's own lane list first, then any lane an item names.
+  const sentBackItems = new Set(state.tail.filter(entry => ['reject', 'reopen'].includes(entry.kind)).map(entry => entry.item));
+  const laneNames = [...new Set([...(project.lanes ?? []), ...items.filter(item => item.status !== 'withdrawn').map(item => item.lane)])].filter(lane => lane && lane !== 'coordinator');
+  const lanes = laneNames.map(lane => ({ lane,
+    building: claims.filter(item => item.lane === lane).length, review: reviewing.filter(item => item.lane === lane).length,
+    ready: next.filter(item => item.lane === lane).length,
+    landed: complete ? landedRecent.filter(([id]) => byId.get(id)?.lane === lane).length : null,
+    sentBack: complete ? [...sentBackItems].filter(id => byId.get(id)?.lane === lane).length : null }))
+    .filter(row => row.building + row.review + row.ready + (row.landed ?? 0) + (row.sentBack ?? 0) > 0);
+  const lists = { gate: inGate, review: checked, accepted: landing,
+    landed: landedRecent.map(([id, at]) => ({ item: byId.get(id), at })).sort((a, b) => b.at - a.at) };
   return { now, start, complete, pace, peak: complete ? peakAgents() : null, claims, reviewing, agents, milestone, comparison: project.statsComparison ?? null,
+    flow, stages, lanes, lists, runners: project.dashboardRunners ?? null,
     pipeline: project.statsPipeline ?? null,
     stageCounts,
     inFlight: { building: claims.filter(item => milestoneIds.has(item.id)), review: reviewing.filter(item => milestoneIds.has(item.id)) },
