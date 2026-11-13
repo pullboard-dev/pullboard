@@ -1,7 +1,6 @@
 /** Setup refusals the lifecycle audit reaches since the cells moves, each checked before any item move [M1,#2886]. */
 export const SETUP_REFUSALS = {
   BAD_BUILD_ESTIMATE: 'command input parses positive expected minutes before any lifecycle move',
-  BOARD_SCHEMA_BEHIND: 'a physical read refuses an older schema before starting an item move',
   BOARD_UNAVAILABLE: 'registered repository storage is unavailable before an item move can begin',
   GIT_SYNC_FOLDER: 'board transport storage must be a directory before synchronization',
   MILESTONES_CORRUPT: 'shared roadmap metadata is read before queue selection or health reporting',
