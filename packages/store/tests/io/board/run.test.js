@@ -10,9 +10,9 @@ import { exportBoard } from '../../../index.js';
 import { importBoard } from '../../../index.js';
 import { RUN_OBJECT_NAMES } from '../../../index.js';
 
-/** Every schema object on the board except the run table's and SQLite's own statistics tables, by name, with its SQL. */
+/** Every schema object on the board except the run table's own (its key index included) and SQLite's statistics tables, by name, with its SQL. */
 function otherObjects(db) {
-  return db.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT IN ('run', 'run_item_kind', 'run_open') AND name NOT LIKE 'sqlite_stat%' ORDER BY type, name").all().map(row => ({ ...row }));
+  return db.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE tbl_name <> 'run' AND name NOT LIKE 'sqlite_stat%' ORDER BY type, name").all().map(row => ({ ...row }));
 }
 
 /** The names of objects added, removed or rewritten between two schema listings, for a readable failure. */
