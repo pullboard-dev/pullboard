@@ -25,7 +25,7 @@ export function installSshStandIn({ bin, worker, home, machineHome, requests, st
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 const argv = process.argv.slice(2);
 const divider = argv.indexOf('--');
@@ -52,7 +52,7 @@ process.stdin.on('data', part => { stdinBytes += part.length; stdinHash.update(p
 const record = extra => appendFileSync(requests, JSON.stringify({ call, host, ...(registrationGuiProbe ? { registrationGuiProbe: true } : {}),
   options: divider < 0 ? [] : argv.slice(0, divider), remoteHasSecret: remoteCommand.includes(secret),
   framed: divider >= 0 && argv[divider] === '--', remoteCommandPresent: Boolean(remoteCommand),
-  remoteStartsWithConfiguredNode: remoteCommand.startsWith(configuredNode), ...(pullEnqueue ? { pullEnqueue: true, hasAgent: remoteCommand.includes('pullboard-runner-agent'), skipAgent, at: Date.now() } : {}),
+  remoteStartsWithConfiguredNode: remoteCommand.startsWith(configuredNode), ...(pullEnqueue ? { pullEnqueue: true } : {}),
   remoteHasLocalPath: remoteCommand.includes(${JSON.stringify(worker)}),
   remoteHasSourceHome: remoteCommand.includes(${JSON.stringify(home)}),
   remoteHasSourceMachineHome: remoteCommand.includes(${JSON.stringify(machineHome)}), ...extra }) + '\\n');
@@ -139,9 +139,10 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ho
     PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', PULLBOARD_AGENT_CORES: '4096', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
     ...((registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
-  // PULLBOARD_AGENT_CORES above: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job (#6734).
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
-  const child = spawn('/bin/sh', ['-c', (pullEnqueue && !skipAgent ? 'exec 2>>"$HOME/trace.out"; ' : '') + (skipAgent ? withoutAgent(remoteCommand) : remoteCommand).replace('( nohup sh -c', () => '( nohup sh -x -c').replace("< /dev/null > /dev/null 2>&1 &\\n) </dev/null", () => '< /dev/null > "$HOME/agent.out" 2>&1 &\\n) </dev/null')], { cwd: worker, env,
+  // A real ssh -T remote has no controlling terminal; detached gives the shell its own session, or the runner's tty makes BSD nohup refuse to start the agent (#6734).
+  // PULLBOARD_AGENT_CORES: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job.
+  const child = spawn('/bin/sh', ['-c', skipAgent ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env, detached: true,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   // READY and ordinary results stream; only a held-return fault withholds its receipt.
@@ -184,15 +185,12 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
     }, error => { record({ setupMarkerError: error.message }); child.kill('SIGKILL'); });
   }
   child.once('error', error => { record({ spawnError: error.code ?? error.name, stdinBytes }); process.exitCode = 255; });
-  child.once('close', async (code, signal) => {
-    if (pullEnqueue && !skipAgent) execFileSync('sleep', ['4']);
-    const agents = pullEnqueue && !skipAgent ? execFileSync('/bin/sh', ['-c', 'ps -axo pid,ppid,pgid,etime,command | grep pullboard-runner-agent | grep -v grep | cut -c1-120; ls -la ' + home + ' ' + home + '/.pullboard-runner | head -30']).toString() : '';
+  child.once('close', (code, signal) => {
     process.stdin.destroy(); child.stdin.destroy(); // a real ssh ends when its remote command does, even if the controller's pipe stays open
     appendFileSync(phases, 'returned\\n');
     if (hold === 'return') setInterval(() => {}, 60_000);
     cancelDropWait();
     record({ workerStarted: true, code, signal, stdinBytes, stdinSha256: stdinHash.digest('hex'),
-      agentOut: pullEnqueue && existsSync(home + '/agent.out') ? readFileSync(home + '/agent.out', 'utf8').slice(-1200) : null, traceOut: existsSync(home + '/trace.out') ? readFileSync(home + '/trace.out', 'utf8').slice(-1500) : null, lateAgents: pullEnqueue && !skipAgent ? execFileSync('/bin/sh', ['-c', 'ps -axo pid,ppid,etime,command | grep -E "nohup|runner-agent" | grep -v grep | cut -c1-100']).toString() : null, agentLoad: existsSync(home + '/.pullboard-runner/load'), agents, agentCtx: pullEnqueue && !skipAgent ? remoteCommand.slice(Math.max(0, remoteCommand.indexOf('nohup') - 120), remoteCommand.indexOf('nohup') + 60) + ' ...... ' + remoteCommand.slice(-500) : null,
       droppedAfterSetup,
       secretInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_RUNNER_FIXTURE_SECRET'),
       localPoolMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_POOL'),

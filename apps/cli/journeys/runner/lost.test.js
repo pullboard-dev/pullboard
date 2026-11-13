@@ -4,8 +4,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -45,10 +43,7 @@ function child(box, source) {
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000,
   });
-  const dump = f => { try { return readFileSync(f, 'utf8').split('\n').map(l => l.replace(/"stdinSha256":"[0-9a-f]+",?|"remote[A-Za-z]+":(true|false),?/g, '')).join('\n').slice(-3500); } catch { return 'none'; } };
-  const tree = dir => { let out = ''; const walk = (d, depth) => { let names; try { names = readdirSync(d, { withFileTypes: true }); } catch { return; } for (const e of names) { const f = join(d, e.name); if (e.isDirectory()) { out += `${f}/\n`; if (depth < 7 && e.name !== 'node_modules') walk(f, depth + 1); } else { let body = ''; try { const st = statSync(f); body = st.size < 4000 ? " :: " + readFileSync(f, "utf8").replace(/\n/g, " | ").slice(-1500) : ` (${st.size} bytes)`; } catch { body = " (unreadable)"; } out += `${f}${body}\n`; } } }; walk(dir, 0); return out.slice(-9000); };
-  if (result.status !== 0) process.stderr.write('DIAG tree:' + tree(join(box.dir, 'worker-home')).replaceAll(box.dir, '') + '\n');
-  assert.equal(result.status, 0, (result.failure || result.stderr || result.stdout) + '\nDIAG requests:' + dump(box.requests) + '\nDIAG pull:' + dump(box.requests + '.pull') + '\nDIAG phases:' + dump(box.requests + '.phases'));
+  assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   return JSON.parse(result.stdout);
 }
 
@@ -78,7 +73,7 @@ test('a failed SSH call preserves its command exit and stderr through the synchr
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
 // the SSH stand-in's own Node process boots and no start is recorded (3 of 12 concurrent runs red on 28 Oct, 4/4 green
 // alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.
-// Pull dispatch boots the stand-in for each enqueue and agent script, so at runner load 18-21 it needs 30 s: past 8 s the
+// Pull dispatch boots the stand-in for each enqueue and agent script, so under runner load it needs 30 s: past 8 s the
 // lease is admitted late with a 90 s startup budget and the 90 s child timeout fires first (lost.pull, #6734).
 const STAND_IN_BOOT_BUDGET_MS = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 30_000 : 8_000;
 
