@@ -33,10 +33,11 @@ async function startRun(marker, { orphan }) {
   const child = orphan
     ? spawn('/bin/sh', ['-c', `"${process.execPath}" -e '${PROGRAM}' bin/run-tests.js ${marker} &`], { stdio: ['ignore', 'pipe', 'ignore'] })
     : spawn(process.execPath, ['-e', PROGRAM, 'bin/run-tests.js', marker], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const exited = once(child, 'exit'); // armed now: the launching shell can exit before the first line arrives
   const [data] = await once(child.stdout, 'data');
   const pid = Number(String(data).trim());
   child.stdout.resume(); // flow, so the stream can end and close when the process dies
-  if (orphan) await once(child, 'exit');
+  if (orphan) await exited;
   // The run's stdout closes when the process dies, whoever owned it.
   return { pid, gone: once(child.stdout, 'close') };
 }
