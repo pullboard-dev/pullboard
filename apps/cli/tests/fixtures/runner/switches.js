@@ -3,7 +3,6 @@
  * child never sees a variable set between two commands [P7,C7,#5821]. Pure file helpers, so gate fixtures may import it.
  */
 import { mkdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -14,7 +13,7 @@ function switchFolder(env) {
 }
 
 /**
- * The fixture environment, where setting or deleting a non-Pullboard variable also writes or removes a file of that name
+ * The fixture environment, where setting or deleting a non-Pullboard variable also writes a file of that name (empty once deleted)
  * in the box's switch folder, which a fixture gate reads through fixtureSwitchSource.
  * Why: a pulled gate runs on the long-lived local runner, whose gate child never sees a variable the test sets between
  * two commands, so a switch such as LAND_SUPPRESS_RED reached no pulled gate (#7153).
@@ -25,9 +24,10 @@ function switchFolder(env) {
 export function runnerSwitchedEnv(env) {
   const mirror = (target, key) => {
     if (typeof key !== 'string' || key.startsWith('PULLBOARD_') || !/^[A-Z][A-Z0-9_]*$/u.test(key) || !target.PULLBOARD_MACHINE_HOME) return;
-    const file = join(switchFolder(target), key);
-    if (target[key] === undefined) rmSync(file, { force: true });
-    else { mkdirSync(switchFolder(target), { recursive: true }); writeFileSync(file, String(target[key])); }
+    // A deleted switch leaves an empty file, never none: a runner started while it was set still has it in its own
+    // environment, and a missing file falls back to that, so the deleted switch stayed on in its gates (#7396).
+    mkdirSync(switchFolder(target), { recursive: true });
+    writeFileSync(join(switchFolder(target), key), target[key] === undefined ? '' : String(target[key]));
   };
   return new Proxy(env, {
     set(target, key, value) { target[key] = value; mirror(target, key); return true; },
@@ -37,11 +37,11 @@ export function runnerSwitchedEnv(env) {
 
 /**
  * CommonJS source for a fixture gate script: `fixtureSwitch(name)` is the switch the test set last through
- * runnerSwitchedEnv, or the gate's own environment variable when the test never set it.
+ * runnerSwitchedEnv, undefined once the test deleted it, or the gate's own environment variable when the test never set it.
  *
  * @param {Record<string, string | undefined>} env - The fixture environment.
  * @returns {string}
  */
 export function fixtureSwitchSource(env) {
-  return `const fixtureSwitch = name => { try { return require('node:fs').readFileSync(require('node:path').join(${JSON.stringify(switchFolder(env))}, name), 'utf8'); } catch { return process.env[name]; } };`;
+  return `const fixtureSwitch = name => { let set; try { set = require('node:fs').readFileSync(require('node:path').join(${JSON.stringify(switchFolder(env))}, name), 'utf8'); } catch { return process.env[name]; } return set === '' ? undefined : set; };`;
 }

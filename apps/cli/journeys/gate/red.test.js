@@ -49,17 +49,27 @@ test('a check case red on main with two candidate repairs is reported as known-m
   const proof = JSON.parse(events[0].event_detail).submissionProof;
   assert.deepEqual(proof.knownMainAmbiguous, [{ file: 'test/affected.test.js', name: 'beta case [G1]', candidates: [alpha, shared] }]);
   assert.deepEqual(proof.knownMainFailures.failures.map(row => [row.name, row.item]), [['alpha case [G1]', alpha]], 'the uniquely owned case keeps its repair link');
-  assert.ok(JSON.stringify(shown.thread).includes(`(beta case [G1]): several candidate repairs #${alpha}, #${shared}`), JSON.stringify(shown.thread.slice(-4)));
+  assert.ok(JSON.stringify(shown.thread).includes(`(beta case [G1]): several candidate owners: #${alpha}, #${shared}`), JSON.stringify(shown.thread.slice(-4)));
 });
 
-test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', { skip: 'PULL_GAP: un-skipped by #7372' }, t => {
+test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', async t => {
   const box = fixture(t, { affected: SHARED, check: CHECK });
   repair(box, "The case 'alpha case' passes on main.");
   repair(box, 'The shared file passes on main.');
   appendFileSync(join(box.builder, 'test/affected.test.js'), "test('gamma case [G1]', () => assert.equal(1, 4));\n");
   runFixtureGit(['commit', '-qam', 'test(core): a new red case [G1]'], { cwd: box.builder, env: box.env });
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  const run = async (cwd, ...args) => {
+    const shown = await runCliInProcess(args, { cwd, env: box.env });
+    return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
+  };
+  const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
+  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  // The pulled gate settles once main's receipt for the file records: the new case is named new, never same as main (#7372).
+  const named = /new: \w+ test\/affected\.test\.js \(gamma case \[G1\]\)/u;
+  let shown = null;
+  const until = doc => { shown = doc; return doc?.item_status !== 'claimed' || named.test(JSON.stringify(doc?.thread ?? [])); };
+  await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(submitted.stdout), { until, deadlineMs: 75_000 });
+  assert.equal(shown.item_status, 'claimed', `a new red is never submitted: ${JSON.stringify(shown.thread.slice(-4)).slice(0, 2000)}`);
+  assert.match(JSON.stringify(shown.thread), named);
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });

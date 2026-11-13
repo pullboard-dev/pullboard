@@ -34,6 +34,8 @@ const REQUEST_BYTES = 60 * 1024;
 const PART_BYTES = 1024;
 // Budget: a whole request kept in its job's own request step, read only by the runner holding the job (#6150).
 const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
+// Budget: a job is claimed at most this many times (gate.jobMaxAttempts); at the cap it ends as a runaway and the coordinator hears once (#7386).
+export const JOB_MAX_ATTEMPTS = 12;
 /** The step a request too large for its offered row is kept in; its parts in the offer name it. */
 const REQUEST_STEP = 'request';
 // Budget: a progress step names each file once with a state word; it stays inline, under the 64 KiB blob threshold, so the live reader parses the row itself.
@@ -223,27 +225,59 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
-  return atomically(db, () => {
+  const ended = [];
+  const repeated = [];
+  const claimed = atomically(db, () => {
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
+      // A job claimed this many times is a runaway: it ends here and no runner takes it again.
+      if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
         .run(runner, now + leaseMs, now, row.job_id, now);
       if (taken.changes !== 1) continue;
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
       writeStep(db, row.job_id, 'claimed', { runner, capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
+      noteRepeatClaims(db, row, { now, repeated });
       return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
     }
     return null;
   });
+  // The shout is a board write of its own, so it follows the claim's transaction.
+  for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
+  for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
+  return claimed;
+}
+
+/** The window in which this many claims of one job make the sentinel shout, and the claim count that trips it (#7445). */
+const REPEAT_CLAIM_WINDOW_MS = 60_000;
+const REPEAT_CLAIM_COUNT = 3;
+
+/**
+ * Queue one sentinel report when this claim is the third of the job within 60 s, naming its runners. Why only the third:
+ * a runaway re-claimer would otherwise shout on every claim; the count passing 3 adds nothing, so the coordinator hears once [C7,P7].
+ */
+function noteRepeatClaims(db, row, { now, repeated }) {
+  const recent = db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'claimed' AND job_step_at > ?").all(row.job_id, now - REPEAT_CLAIM_WINDOW_MS);
+  if (recent.length !== REPEAT_CLAIM_COUNT) return;
+  const runners = [...new Set(recent.map(step => { try { return JSON.parse(step.payload).runner; } catch { return null; } }).filter(Boolean))];
+  repeated.push({ job: row.job_id, kind: row.job_kind, claims: recent.length, runners });
+}
+
+/** End a job claimed past its cap: a `runaway` step, then done, queued on `ended` for `onRunaway` so the coordinator hears once. */
+function endRunaway(db, row, { now, ended }) {
+  const detail = `claimed ${row.job_attempt} times without finishing; ended as a runaway`;
+  if (!writeStep(db, row.job_id, 'runaway', { attempts: row.job_attempt, detail }, { seq: row.job_attempt, now }).written) return;
+  finishJob(db, row.job_id, '', { now });
+  ended.push({ job: row.job_id, kind: row.job_kind, attempts: row.job_attempt, detail });
 }
 
 /**
@@ -301,9 +335,10 @@ export function jobRequest(db, { job, runner, token }) {
  * @param {{ job: string, runner: string, token: string, reason?: string, backoff?: boolean, now?: number }} request
  * @returns {{ released: boolean, until?: number }}
  */
-export function releaseJob(db, { job, runner, token, reason, backoff = true, now = Date.now() }) {
+export function releaseJob(db, { job, runner, token, reason, backoff = true, draining = false, now = Date.now() }) {
   const { attempt } = heldBy(db, job, runner, token);
-  if (backoff === false) return { released: releaseLease(db, job, runner, { now }) };
+  // A free release leaves no step and no backoff, so only a runner the board lists as draining may ask for one (#7386).
+  if (backoff === false && draining) return { released: releaseLease(db, job, runner, { now }) };
   return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
 }
 
@@ -370,16 +405,16 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve() });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
-  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, now });
+  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'receipt') {
     const posted = postReceipt(db, { job, runner, token, receipt, now });

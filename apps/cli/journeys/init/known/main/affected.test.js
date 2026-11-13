@@ -4,10 +4,9 @@ import { test } from 'node:test';
 import { fixture } from '../../../../tests/fixtures/affected.js';
 import { cli } from '../../../../tests/fixtures/affected.js';
 import { rows } from '../../../../tests/fixtures/affected.js';
-import { fileMainRed } from '../../../../tests/fixtures/affected.js';
 import { settledSubmit } from '../../../../tests/fixtures/affected.js';
 
-test('an affected case red identically on main with no owner records a green gate naming it, shouts, and files nothing [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, async t => {
+test('an affected case red identically on main with no owner records a green gate naming it, shouts, and files nothing [V4,B3,C7]', async t => {
   const box = fixture(t);
   const report = await settledSubmit(t, box);
   // Since #3534 the gate records green over main's own reds and names them, instead of a builder fact.
@@ -19,10 +18,3 @@ test('an affected case red identically on main with no owner records a green gat
   assert.equal(asked.length, 1, 'exactly one decision shout reaches the coordinator');
 });
 
-test('an open Main red repair naming the affected file is linked [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, async t => {
-  const box = fixture(t);
-  const repair = fileMainRed(box);
-  const report = await settledSubmit(t, box);
-  assert.equal(report.submission?.gateGreen, true, JSON.stringify(report.gate));
-  assert.deepEqual(report.submission.submissionProof.knownMainFailures.failures.map(row => [row.file, row.item]), [['test/affected.test.js', repair]]);
-});

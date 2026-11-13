@@ -146,7 +146,7 @@ const roadmapCardsHtml = (${roadmapCardsHtml.toString()});
 /** Prepare rich title markup and linked prerequisite notes from the current page only. */
 function milestonePresentation(row, titles) {
   let afterHtml = '';
-  for (const id of row.after || []) afterHtml += '<span class="roadmap-after"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>after <a class="ref" href="' + itemAddress(id, row.root) + '" data-go="item:' + id + '">#' + id + '</a></span>';
+  for (const id of (row.after || []).filter(id => id !== null && id !== undefined && String(id).trim() !== '')) afterHtml += '<span class="roadmap-after"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>after <a class="ref" href="' + itemAddress(id, row.root) + '" data-go="item:' + id + '">#' + id + '</a></span>';
   // The after chips share one group that ends in an ellipsis inside the row (#7303).
   if (afterHtml) afterHtml = '<span class="roadmap-afters">' + afterHtml + '</span>';
   return { root: view.root, open: view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + row.label])) === true,

@@ -44,7 +44,7 @@ test('candidate-only failures stay red, are first in text, and remain structured
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
-test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, async t => {
+test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', async t => {
   // Name the affected file in the frozen bar: own cases require an exact main failure signature.
   const box = fixture(t, { main: 2, candidate: 3, criterion: 'test/affected.test.js retains its behavior.' });
   const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
@@ -57,11 +57,12 @@ test('a case red on both sources with different diagnostics is not described as 
   const plain = await text(box, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], /^fails differently with your change:/u);
-  const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
-  const refusal = JSON.parse(submitted.stdout);
-  assert.equal(refusal.error.code, 'GATE_RED');
-  assert.equal(refusal.mainFailures[0].status, 'different-on-main');
-  assert.match(refusal.error.message, /^fails differently with your change:/u);
+  // The pulled gate keeps the item red and names the case as failing differently on main, never as main's own [V4,B3,P7].
+  const settled = await settledSubmit(t, box, { submitted: false });
+  assert.equal(settled.submission, null, 'a red that differs from main records no submit');
+  const shown = JSON.parse(cli(box, box.root, 'show', String(box.item)).stdout);
+  assert.equal(shown.item_status, 'claimed');
+  const red = shown.thread.find(entry => entry.type === 'fact' && /Gate job \S+ red/u.test(entry.text));
+  assert.ok(red && !red.text.includes(`also fails on main: proof ${FILE} (${NAME})`), JSON.stringify(shown.thread.slice(-4)));
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });

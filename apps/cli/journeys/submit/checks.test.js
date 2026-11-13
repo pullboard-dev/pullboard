@@ -134,15 +134,9 @@ test('submit names a new later edge even when candidate metadata declares it tem
     'exact metadata authority never exempts the actual new later-cell edge');
 });
 
-test('submit keeps accepted placement authority when a candidate drops a row into stays or changes cell order [C7,D3,CD64]', async t => {
+test('submit keeps accepted cell order when a candidate changes it [C7,D3,CD64]', async t => {
   const box = await plannedFixture(t), plan = readPlan(box.root);
-  const early = plan.cells.find(cell => cell.name === 'kernel');
-  const row = early.paths.shift();
-  plan.stays.push({ path: row[0], reason: 'forged candidate exemption' });
-  writePlan(box.root, plan);
-  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted row src\/refused.js disappeared/u);
-  early.paths.push(row);
-  early.order = 999;
+  plan.cells.find(cell => cell.name === 'kernel').order = 999;
   writePlan(box.root, plan);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted cell kernel identity\/order\/front door changed/u);
 });

@@ -32,7 +32,7 @@ const CASES = 100;
  * candidate's own focused runner in the candidate checkout and prints one receipt line with the run's output tail and
  * its failing cases, read by main's TAP reader. Why main's reader: it is the one the gate trusts to name cases.
  */
-const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX) => `import { spawnSync } from 'node:child_process';
+const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -60,6 +60,10 @@ try {
   const rows = ran.status === 1 && light?.tapFailures ? light.tapFailures(text, root) : null;
   if (Array.isArray(rows) && rows.length && rows.length <= ${CASES} && rows.every(row => row?.file && row.name)) failures = rows.map(({ file, name }) => ({ file, name: String(name).slice(0, 300) }));
 } catch { failures = null; }
+${DIAGNOSTICS}
+// Each named case's diagnostic signature, as the gate job signs it, so a comparison tells two failures of one case apart [V4,C7].
+let failureSignatures = null;
+try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
 /** The run's case outcomes as [file, name, passed, skipped] rows from its frames under runId; null when none or malformed. */
 const framed = () => {
   const rows = [];
@@ -75,7 +79,7 @@ const framed = () => {
 };
 const receipt = { version: 1, kind: 'test', main: input.main, source: input.source, files: input.files, steps: { test: Math.round(performance.now() - started) },
   environment: { node: process.versions.node, platform: process.platform, arch: process.arch }, green: ran.status === 0,
-  phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures } : {}) }] };
+  phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
 let keep = 40000, line;
@@ -122,12 +126,12 @@ function shellWord(value) {
  */
 async function offerTestJob(ctx, { item, commit, main, command, files, runId = null }) {
   const { root } = ctx.info;
-  const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
-    import('../../../../../packages/gate/index.js')]);
+  const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
+    import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
-  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX), data: { main, source: commit, command, files, ...(runId ? { runId } : {}) } }, commits: [main] };
+  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: { main, source: commit, command, files, ...(runId ? { runId } : {}) } }, commits: [main] };
   const job = withBoard(ctx, board => offerJob(board.db, { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request }));
   // With no registered runners this machine is its own runner, as a pull submit makes it: otherwise the job waits unclaimed [P7,C7].
@@ -176,7 +180,8 @@ async function runJobFor(ctx, fields, { agent, say }) {
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null, durationMs: receipt.durationMs ?? null, outcomes };
+    return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+      signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes };
   } finally {
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
@@ -251,11 +256,17 @@ async function compareWithMain(ctx, run, { main, config, paths, agent, say }) {
   if (!run.failures || !onMain.green && !onMain.failures) {
     return { notices: [], known, ...(known.length ? {} : { unavailable: !run.failures ? 'the run\'s output does not name every failing case' : `main's run of ${present.join(', ')} names no failing cases` }) };
   }
-  const mainCases = new Set((onMain.failures ?? []).map(row => `${row.file}\0${row.name}`));
-  return { known, notices: run.failures.filter(row => paths.includes(row.file) && !candidate.get(row.file)).map(row => {
-    const also = mainCases.has(`${row.file}\0${row.name}`);
-    return { status: also ? 'also-main' : 'candidate-only', main, file: row.file, name: row.name,
-      message: also ? `also fails on main at ${main}: ${row.file} :: ${row.name} (not yours; test job ${onMain.job})` : `fails only with your change: ${row.file} :: ${row.name} (main test job ${onMain.job})` };
+  // Main's failing cases with each one's diagnostic signature, so one case red on both sides in different ways is not main's [V4,B3].
+  const mainCases = new Map((onMain.failures ?? []).map((row, index) => [`${row.file}\0${row.name}`, onMain.signatures?.[index] ?? null]));
+  return { known, notices: run.failures.flatMap((row, index) => {
+    if (!paths.includes(row.file) || candidate.get(row.file)) return [];
+    const key = `${row.file}\0${row.name}`, mine = run.signatures?.[index] ?? null, theirs = mainCases.get(key) ?? null;
+    // An unsigned case on either side is never matched by its name alone [V4,B3].
+    const status = !mainCases.has(key) ? 'candidate-only' : mine && theirs && mine === theirs ? 'also-main' : 'different-on-main';
+    return [{ status, main, file: row.file, name: row.name,
+      message: status === 'also-main' ? `also fails on main at ${main}: ${row.file} :: ${row.name} (not yours; test job ${onMain.job})`
+        : status === 'different-on-main' ? `fails differently with your change: ${row.file} :: ${row.name} (main fails it another way at ${main}; main test job ${onMain.job})`
+        : `fails only with your change: ${row.file} :: ${row.name} (main test job ${onMain.job})` }];
   }) };
 }
 
