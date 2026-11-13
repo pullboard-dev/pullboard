@@ -217,6 +217,15 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       if (!full) hold(board, record.sequence);
       return { json: joined(variant.json, unseen), validator: joined(variant.validator, unseen), reportValidator: record.reportValidator };
     },
+    /**
+     * A board's summary text from the last build, answered at once: a change after that build starts the catching-up build
+     * but this read never waits for it, except before the board's first build. Why: the sidebar asks for every listed board.
+     */
+    async summaryJson(board) {
+      const record = await latest(board, { kept: true });
+      if (typeof record.summaryText === 'string') return record.summaryText;
+      return (await latest(board)).summaryText;
+    },
     /** A delta read: the change since a held sequence, or a reset naming why there is none. */
     async delta(board, seen, { since, eventLogVersion = null }, refusalDocument) {
       const record = await latest(board);
