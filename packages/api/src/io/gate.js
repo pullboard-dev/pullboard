@@ -278,7 +278,7 @@ export function failingParts(receipt) {
     }
     parts.push(...shardLogLines(phase));
     // A phase the runner found blocked by its environment is named by the controller's refusal code, never read as an ordinary red [C7].
-    if (typeof phase.sandboxBlocked === 'string' && phase.sandboxBlocked) parts.push(`SANDBOX_BLOCKED: the environment refused ${clip(phase.sandboxBlocked)}. Ask the coordinator to bring this operation to the person, or run the gate outside the sandbox; keep the tests unchanged.`);
+    if (typeof phase.sandboxBlocked === 'string' && phase.sandboxBlocked) parts.push(`SANDBOX_BLOCKED: the environment refused ${clip(phase.sandboxBlocked)}. Ask the coordinator to bring this operation to the person, or run the gate outside the sandbox; keep the tests unchanged; to ask: pullboard shout coordinator --kind question "<the denied operation>" --decision`);
     // Why the exit lines first: a plain tail of a crashed proof ends on its closing counts, which name nothing.
     if (!cases.length) parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
   }

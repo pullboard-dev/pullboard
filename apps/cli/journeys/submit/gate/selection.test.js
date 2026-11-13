@@ -107,29 +107,32 @@ function pythonChildTap(path, { traceback = true, frame = true, prefixMarker = f
 
 // A pulled gate runs on the runner, whose receipt names a sandbox refusal and whose jobs receive the shim through a FIXTURE_ name; the gate job's receipt carries SANDBOX_BLOCKED [C7,B26].
 test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t) => {
-  const box = await childFailureSubmitBox(t, childListenerTestSource());
-  const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
+  const explanatory = "  assert.equal(child.status, 0, `App exited before listening (code ${child.status}, signal ${child.signal}):\\n${child.stderr}`);";
+  const original = childListenerTestSource();
+  assert.equal(original.split(explanatory).length, 2, 'replace exactly one explanatory message');
+  const pythonSource = childPythonTestSource();
+  const pythonExplanation = "  assert.equal(child.status, 0, `Child process exited with code ${child.status}:\\n${child.stderr}`);";
+  assert.equal(pythonSource.split(pythonExplanation).length - 1, 1, 'the bare Python counter changes exactly one parent message');
+  const box = await childFailureSubmitBox(t, original);
+  const bareBox = await childFailureSubmitBox(t, original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);'));
+  const pythonBox = await childFailureSubmitBox(t, pythonSource);
+  pythonBox.env.CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
+  const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
+  barePythonBox.env.CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
+  // Each box has its own machine home and local runner, so the four pulled gates settle together, inside the file's time budget.
+  const [result, bare, python, barePython] = await Promise.all([box, bareBox, pythonBox, barePythonBox].map(one => submitSettled(t, one, (...args) => one.run(...args))));
   const output = `${result.out}\n${result.err}`;
   assert.equal(result.code, 1, output);
   assert.match(output, /SANDBOX_BLOCKED/u, 'submit names the denied child-process listen');
   assert.match(output, /listen \(EPERM\)/u);
   assert.doesNotMatch(output, /GATE_RED/u);
 
-  const explanatory = "  assert.equal(child.status, 0, `App exited before listening (code ${child.status}, signal ${child.signal}):\\n${child.stderr}`);";
-  const original = childListenerTestSource();
-  assert.equal(original.split(explanatory).length, 2, 'replace exactly one explanatory message');
-  const bareSource = original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);');
-  const bareBox = await childFailureSubmitBox(t, bareSource);
-  const bare = await submitSettled(t, bareBox, (...args) => bareBox.run(...args));
   const bareOutput = `${bare.out}\n${bare.err}`;
   assert.equal(bare.code, 1, bareOutput);
   assert.match(bareOutput, /SANDBOX_BLOCKED/u, 'bare stderr with structured fatal fields still names the denial');
   assert.match(bareOutput, /listen \(EPERM\)/u);
   assert.doesNotMatch(bareOutput, /GATE_RED/u);
 
-  const pythonBox = await childFailureSubmitBox(t, childPythonTestSource());
-  pythonBox.env.CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
-  const python = await submitSettled(t, pythonBox, (...args) => pythonBox.run(...args));
   const pythonOutput = `${python.out}\n${python.err}`;
   assert.equal(python.code, 1, pythonOutput);
   assert.match(python.err, /SANDBOX_BLOCKED/u, 'submit names a scanner-known denial from a child traceback');
@@ -139,12 +142,6 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t
   assert.doesNotMatch(python.err, /\bask the person\b/iu);
   assert.doesNotMatch(python.err, /GATE_RED/u);
 
-  const pythonSource = childPythonTestSource();
-  const pythonExplanation = "  assert.equal(child.status, 0, `Child process exited with code ${child.status}:\\n${child.stderr}`);";
-  assert.equal(pythonSource.split(pythonExplanation).length - 1, 1, 'the bare Python counter changes exactly one parent message');
-  const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
-  barePythonBox.env.CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
-  const barePython = await submitSettled(t, barePythonBox, (...args) => barePythonBox.run(...args));
   const barePythonOutput = `${barePython.out}\n${barePython.err}`;
   assert.equal(barePython.code, 1, barePythonOutput);
   assert.match(barePython.err, /SANDBOX_BLOCKED/u, 'complete bare Python stderr still names the known denial');
