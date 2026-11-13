@@ -1,3 +1,4 @@
+export { settleCapacity, HYSTERESIS_BAND, HYSTERESIS_HOLD_MS } from './src/logic/capacity/hysteresis.js';
 export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
