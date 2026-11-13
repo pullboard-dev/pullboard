@@ -1,5 +1,5 @@
 /** @pullboard-test-input packages/codemap/data/baselines/lints/shim-counts.json packages/codemap/src/io/cell/scripts/lints.js packages/kernel/index.js packages/kernel/src/logic/refused.js */
-/** Cell-lint and shim ratchets count main and the candidate at check time; no committed baseline must match source [C7]. */
+/** Cell-lint --check holds a candidate to main's committed baseline; shim ratchets still count at check time [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { existsSync } from 'node:fs';
@@ -122,23 +122,24 @@ function staleLintMain(t) {
   return { root, git, put, check };
 }
 
-test('cell-lints --check passes an unrelated item while main carries non-shim debt over its stale baseline [C7]', t => {
+test('cell-lints --check refuses an unrelated item while main carries non-shim debt over its committed baseline [C7]', t => {
   const box = staleLintMain(t);
   box.put('packages/sample/index.js', 'export const value = 2;\n');
   const checked = box.check();
-  assert.equal(checked.status, 0, checked.stderr);
-  assert.doesNotMatch(checked.stderr, /landed-stray\.js|exceeds/u);
+  assert.notEqual(checked.status, 0, "main's committed baseline is the allowance, so debt landed past it is still refused");
+  assert.match(checked.stderr, /strays:landed-stray\.js/u);
   rmSync(join(box.root, 'packages/codemap/data/baselines/lints'), { recursive: true, force: true });
   box.git('add', '-A'); box.git('commit', '-qm', 'candidate deletes the stored baseline');
   const without = box.check();
-  assert.equal(without.status, 0, `no committed baseline is needed: ${without.stderr}`);
+  assert.notEqual(without.status, 0, `deleting the stored baseline cannot lift main's committed allowance: ${without.stderr}`);
+  assert.match(without.stderr, /strays:landed-stray\.js/u);
 });
 
-test('cell-lints --check refuses only the debt the item adds over main, naming its file [C7]', t => {
+test("cell-lints --check names the debt the item adds over main's committed baseline, naming its file [C7]", t => {
   const box = staleLintMain(t);
   box.put('item-stray.js', 'void 0;\n');
   const checked = box.check();
   assert.notEqual(checked.status, 0);
   assert.match(checked.stderr, /strays:item-stray\.js/u);
-  assert.doesNotMatch(checked.stderr, /landed-stray\.js|boundaries/u);
+  assert.match(checked.stderr, /exceeds .* on main/u);
 });
