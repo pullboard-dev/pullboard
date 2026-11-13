@@ -11,9 +11,9 @@ import { withCountSweep } from '../../tests/fixtures/count-sweep.js';
 test('clause 1: every tab count describes its real list or named native set across a landing refresh [N26]', { timeout: 240_000 }, async () => {
   await withCountSweep(async ({ box, demo, chrome }) => {
     await pane(chrome, 'roadmap', 'before landing');
-    await liveMove(chrome, () => {
+    await liveMove(chrome, async () => {
       box.git(demo.repo, 'merge', '--no-ff', '--no-edit', demo.itemBranches.get(`${demo.baseBranch}:1`));
-      box.run(demo.repo, 'merged', '1', box.git(demo.repo, 'rev-parse', 'HEAD'));
+      await box.inProcess(demo.repo, 'merged', '1', box.git(demo.repo, 'rev-parse', 'HEAD'));
     }, 'document.querySelectorAll("#roadmap [data-stage=merged]").length === 1', 'landed');
   });
 });
