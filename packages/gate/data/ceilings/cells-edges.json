@@ -482,7 +482,7 @@
     },
     "apps/cli/src/io/landing/advance.js": {
       "cells": 7,
-      "deep": 0
+      "deep": 1
     },
     "apps/cli/src/io/landing/audit.js": {
       "cells": 6,
@@ -1074,19 +1074,19 @@
     },
     "apps/lib/src/io/check/baseline.js": {
       "cells": 3,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/drive/worker.js": {
       "cells": 4,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/handoff/dispatcher.js": {
       "cells": 6,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/landing/candidate.js": {
       "cells": 5,
-      "deep": 0
+      "deep": 1
     },
     "apps/lib/src/io/main/audit.js": {
       "cells": 5,
@@ -5165,8 +5165,8 @@
       "deep": 0
     },
     "apps/lib/src/io/slot/services.js": {
-      "cells": 4,
-      "deep": 0
+      "cells": 5,
+      "deep": 1
     },
     "apps/cli/tests/fixtures/init/shards.js": {
       "cells": 2,
@@ -5233,6 +5233,14 @@
       "deep": 0
     },
     "packages/store/tests/fixtures/timeout.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "apps/runner/src/io/register.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/tests/fixtures/submit.js": {
       "cells": 1,
       "deep": 0
     }
@@ -5306,6 +5314,7 @@
     "apps/lib": {
       "imports": [
         "apps/cli",
+        "apps/runner",
         "blueprints",
         "commits",
         "config",
@@ -6062,7 +6071,7 @@
     },
     "<-apps/runner": {
       "imports": [],
-      "deepImporters": 2
+      "deepImporters": 12
     },
     "<-apps/lib": {
       "imports": [],

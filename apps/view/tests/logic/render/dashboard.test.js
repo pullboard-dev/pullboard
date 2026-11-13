@@ -28,8 +28,8 @@ test('Dashboard time and number labels depend on supplied locale and zone, not t
   const tokyoProgress = roadmapSummary(model.milestone, { now: model.now, locale: 'en-GB', timeZone: 'Asia/Tokyo' })?.header ?? '';
   const utc = dashboardHtml(model, { locale: 'en-GB', timeZone: 'UTC', progress: utcProgress });
   const tokyo = dashboardHtml(model, { locale: 'en-GB', timeZone: 'Asia/Tokyo', progress: tokyoProgress });
-  assert.match(section(utc, 'Shipping now'), /done in about 3 hours, Wednesday afternoon/u);
-  assert.match(section(tokyo, 'Shipping now'), /done in about 3 hours, Thursday overnight/u);
+  assert.match(section(utc, 'Shipping now'), /Done at this pace<\/span><span class="dash-tile-value"><b>2–4 h<\/b><\/span><small>Wednesday, 14 to 16<\/small>/u);
+  assert.match(section(tokyo, 'Shipping now'), /Done at this pace<\/span><span class="dash-tile-value"><b>2–4 h<\/b><\/span><small>Wednesday 23 to Thursday 01<\/small>/u, 'the same estimate on the Tokyo clock crosses midnight');
   assert.match(section(utc, 'Landed per hour'), /28\/10\/2026, 11:00:00 – 12:00:00/u);
   assert.match(section(tokyo, 'Landed per hour'), /28\/10\/2026, 20:00:00 – 21:00:00/u);
   assert.match(utc, /1,234 landed all time/u);
@@ -58,14 +58,13 @@ test('Dashboard renders release, charts, agents, landings and capped lists from 
     const html = dashboardHtml(model, { progress });
     const shipping = section(html, 'Shipping now');
     const summary = model.milestone.summary;
-    assert.match(shipping, new RegExp(`${summary.left} to go`, 'u'));
-    assert.match(shipping, new RegExp(`${summary.landed} of ${summary.total} landed`, 'u'));
-    assert.match(shipping, new RegExp(`data-summary-segment="landed" data-count="${summary.landed}"`, 'u'));
-    assert.match(shipping, new RegExp(`${(model.pace.last6h / 6).toFixed(1)} items an hour`, 'u'));
-    assert.match(shipping, new RegExp(`${model.pace.last6h} landed in the last 6 h, ${model.pace.last2h} in the last 2 h`, 'u'));
-    assert.match(shipping, /done in about 3 hours, Wednesday afternoon/u, 'the shared estimate includes a weekday part of day');
-    assert.doesNotMatch(shipping, /dash-stats|Right now|Done at this pace/u, 'the old pace boxes are removed');
-    assert.match(shipping, /In review 6/u);
+    assert.match(shipping, /<h2>Shipping now<\/h2><p class="dash-release-name">/u, 'the card heads Shipping now, then the release name in the body face');
+    assert.match(shipping, new RegExp(`<b>${summary.left} to go</b><span>${summary.landed} of ${summary.total} landed</span>`, 'u'));
+    assert.match(shipping, new RegExp(`data-release-segment="landed" data-count="${summary.landed}"`, 'u'));
+    assert.match(shipping, new RegExp(`Today’s pace</span><span class="dash-tile-value"><b>${(model.pace.last6h / 6).toFixed(1)}</b><span>items an hour</span></span><small>${model.pace.last6h} landed in the last 6 hours</small>`, 'u'));
+    assert.match(shipping, new RegExp(`Right now</span><span class="dash-tile-value"><b>${(model.pace.last2h / 2).toFixed(1)}</b><span>items an hour</span></span><small>${model.pace.last2h} landed in the last 2 hours</small>`, 'u'));
+    assert.match(shipping, /data-dashboard-tile="eta"/u, 'the three pace tiles are back, as in the mockup');
+    assert.match(shipping, /In review <span>6<\/span>/u);
     assert.match(shipping, /<summary>Show 2 more<\/summary>/u, 'the in-flight review column expands beyond four rows');
 
     const chart = section(html, 'Landed per hour');
@@ -209,26 +208,11 @@ test('Dashboard has no Pipeline section and prints no raw milliseconds; The last
       idleReasons:{'nothing-eligible':0,held:0,'review-family':0,'main-red':0,unknown:0},stageShares:{build:0,rework:0,reviewWait:0,review:0,land:0} } };
   model.pipeline = { count: 1, limit: 20, items: [], totals: {}, causes: {}, unmeasuredGaps: [], evidence: 'raw' };
   const html = dashboardHtml(model);
-  // The compact stage strip (N38) is the one Pipeline element; the API's pipeline detail still never renders.
+  // Where the work is replaced the compact Pipeline strip (#6645); the API's pipeline detail still never renders.
   assert.ok(!/dash-pipeline|data-pipeline/u.test(html), 'no Pipeline detail section, even when the API supplies the data');
-  assert.equal([...html.matchAll(/aria-label="Pipeline"/gu)].length, 1, 'the compact stage strip is the only Pipeline section');
+  assert.equal([...html.matchAll(/aria-label="Pipeline"/gu)].length, 0, 'no Pipeline section; Where the work is shows the steps');
   assert.ok(!/\d\s?ms\b|milliseconds/u.test(html), 'no duration is printed in raw milliseconds');
   assert.match(html, /<h2>The last two hours<\/h2>/u, 'the approved window card remains');
-});
-
-test('Dashboard shows a compact pipeline strip of seven stages that link to Items > Pipeline [N38]', () => {
-  const input = dashboardData({ populated: true });
-  const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
-  const html = dashboardHtml(model);
-  const strip = section(html, 'Pipeline');
-  const keys = ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged'];
-  assert.deepEqual([...strip.matchAll(/data-dashboard-stage="([^"]+)"/gu)].map(match => match[1]), keys, 'all seven stages show, in pipeline order');
-  assert.equal([...strip.matchAll(/href="#items\/pipeline"/gu)].length, 7, 'each stage links to Items > Pipeline');
-  for (const key of keys) assert.match(strip, new RegExp(`data-dashboard-stage="${key}"><span>[^<]+</span> <b>\\d+</b>`, 'u'), `${key} shows a count`);
-  assert.equal(itemRows(strip), 0, 'the strip lists no item rows');
-  assert.doesNotMatch(strip, /\d\s?ms\b/u, 'the strip shows no millisecond durations');
-  const empty = dashboardHtml({ ...model, stageCounts: Object.fromEntries(keys.map(key => [key, 0])) });
-  assert.equal([...section(empty, 'Pipeline').matchAll(/<b>0<\/b>/gu)].length, 7, 'a stage with no items still shows 0');
 });
 
 test('Dashboard strip counts a verified item in a live landing batch as Landing, like Items Pipeline [N38]', () => {
