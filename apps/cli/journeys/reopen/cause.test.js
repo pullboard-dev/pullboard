@@ -69,7 +69,7 @@ async function submit(box, number = 1) {
     assert.equal(joined.code, 0, joined.out + joined.err);
   }
   const added = (await json(box, box.repo, 'add', 'web', 'Conflict fixture ' + number, '--specs', 'G1',
-    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE));
+    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE, '--accept-green', 'fixture check keeps passing'));
   const id = added.item.item_id;
   (await json(box, path, 'claim', String(id)));
   for (const file of [FILE, SECOND]) writeFileSync(join(path, file), `export const value = "item-${number}";\n`);
@@ -151,7 +151,7 @@ test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', async
 test('legacy notes preserve ordinary state refusals before a submitted commit exists [C7,B3]', async () => {
   const box = project();
   const added = (await json(box, box.repo, 'add', 'web', 'Still being built', '--specs', 'G1',
-    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE));
+    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE, '--accept-green', 'fixture check keeps passing'));
   const id = added.item.item_id;
   const trunk = box.git(box.repo, 'rev-parse', 'main');
   const note = `${FILE}: does not merge onto the trunk (conflicts: ${FILE}), reopened for the builder merge; merge commit ${trunk}`;
