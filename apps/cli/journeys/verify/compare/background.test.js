@@ -7,7 +7,7 @@ import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { fixture } from '../../../tests/fixtures/verify/compare.js';
 
-test('a green submission records its background comparison without a reviewer command [V4,C7]', async t => {
+test('a green submission records its background comparison without a reviewer command [V4,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:true,fixed:true,known:true,skip:true};\n');
   const head = box.helpers.attackCommit(box, box.web);
