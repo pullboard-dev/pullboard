@@ -14,6 +14,7 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -326,7 +327,8 @@ test('the view answers a request line no URL parser accepts with 403, and keeps 
 
 test('nothing a person types on the view sits inside what the refresh rewrites [N27]', () => {
   const page = cockpitSource();
-  const rewritten = [...page.matchAll(/\$\('([a-z-]+)'\)\.innerHTML = /g)].map((match) => match[1]);
+  // Every refresh part is written through store.paint (#6613), which replaced the direct innerHTML assignments.
+  const rewritten = [...new Set([...page.matchAll(/store\.paint\(\$\('([a-z-]+)'\)/g)].map((match) => match[1]))];
   assert.ok(['lanes', 'chain', 'detail', 'needs'].every((id) => rewritten.includes(id)), 'the refresh rewrites these');
   for (const id of rewritten) {
     const opening = new RegExp(`id="${id}"[^>]*>([^]*?)</`).exec(page);
@@ -352,7 +354,13 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try { return board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n; } finally { store.closeBoard(board); }
   };
-  await waitFor(() => comparisonFacts() >= 2, 'the background review comparison to record its result', 30_000); // budget: hang ceiling for the detached comparison worker under runner load.
+  try {
+    await waitFor(() => comparisonFacts() >= 2, 'the background review comparison to record its result', 30_000); // budget: hang ceiling for the detached comparison worker under runner load.
+  } catch (error) {
+    const directory = join(box.repo, '.git', 'pullboard', 'review-comparisons');
+    const logs = existsSync(directory) ? readdirSync(directory).map((job) => `${job}: ${readdirSync(join(directory, job)).join(',')}\n${existsSync(join(directory, job, 'worker.log')) ? readFileSync(join(directory, job, 'worker.log'), 'utf8') : ''}${existsSync(join(directory, job, 'result.json')) ? readFileSync(join(directory, job, 'result.json'), 'utf8') : ''}`) : ['(no comparison folder)'];
+    throw new Error(`${error.message}\n${logs.join('\n')}`);
+  }
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
   box.git(box.repo, 'switch', '-q', 'main');
@@ -408,6 +416,8 @@ test("the view's refresh re-renders only what changed [N26,A2]", async () => {
     sharingReady: null,
     sharingInvitation: () => Promise.resolve(),
     transport: null,
+    // The page's board store is outside the slice this test runs; set() hands back the state it was given.
+    store: { set: (next) => next },
     boardState: () => {
       let resolve;
       const promise = new Promise((done) => { resolve = done; });
