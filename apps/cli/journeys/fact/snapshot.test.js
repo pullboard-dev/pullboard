@@ -58,7 +58,9 @@ function assertSnapshotObservation(expected, actual, board, root, message) {
     assert.equal(observation.observedAt, new Date(now).toISOString(), 'the root read stamp matches its statistics observation clock');
     return portableSnapshot(JSON.parse(JSON.stringify(viewProofSummary(proofStats(board, { now }, statsReadPorts)))), root);
   };
-  assert.deepEqual(expected.proofStats, statisticsAt(expected), 'the live projection matches the public statistics reader at its clock');
+  /** Drop the newest-event stamps: the live read ran before the oracle's snapshot, so a later wake may sit past it and only its stamp moves [N26]. */
+  const withoutNewest = (value) => JSON.parse(JSON.stringify(value, (key, field) => (key === 'lastEventAt' ? undefined : field)));
+  assert.deepEqual(withoutNewest(expected.proofStats), withoutNewest(statisticsAt(expected)), 'the live projection matches the public statistics reader at its clock');
   const actualStatistics = statisticsAt(actual);
   assert.deepEqual(actual.proofStats, actualStatistics, 'the export projection matches the public statistics reader at its clock');
   /** Check the complete comparison window against the same locked event prefix at each read clock. */
@@ -410,7 +412,7 @@ test('static export redacts structured checkout paths but preserves paths people
     // the only allowed occurrences; project.root, agent_path and common Git metadata stay redacted.
     const brief = `Keep this literal checkout reference: ${projectRoot}`;
     const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
-    box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
+    box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief, '--not-duplicate-of', '1 a prose-path fixture, not the private checkout item');
     box.run(alpha.web, 'shout', 'all', shout);
     const proseOutput = box.exportSnapshot(alpha.repo, 'export-prose');
     const proseSnapshot = proseOutput.root;
