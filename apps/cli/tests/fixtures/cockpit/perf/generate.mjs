@@ -101,9 +101,13 @@ function run(command, args, cwd, env) {
   return result.stdout;
 }
 
-/** Start from a caller environment without inherited board, machine or gate identity switches. */
+/**
+ * Start from a caller environment without inherited board, machine or gate identity switches.
+ * NODE_TEST_CONTEXT goes too: inside a test run, init refuses to register a board whose home is outside the temp folder,
+ * so a stress board cached under the runner's home came out with an empty registry and the view said "No boards yet" [N26].
+ */
 function cleanEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_')));
+  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_') && key !== 'NODE_TEST_CONTEXT'));
 }
 
 /** Build a spec whose row count scales with board size and whose first draft appears in the default view. */
