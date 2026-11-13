@@ -41,7 +41,8 @@ function placeAtAddress(page = data) {
   const root = named ? repo?.root || group.key : null;
   if (named) parts.shift();
   const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && !addressReady && startupTabMigration) || (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
-  const tab = requested === 'home' ? 'dashboard' : requested;
+  // Home and the retired Progress page are Dashboard's old addresses.
+  const tab = requested === 'home' || requested === 'progress' ? 'dashboard' : requested;
   return { root, tab, detail: parts[0] ?? null, query };
 }
 
@@ -50,7 +51,7 @@ function placePairs(tab = view.tab) {
   const kind = tab === 'spec' || tab === 'doctrine' ? tab : null;
   return placeQuery({ tab, state: view.state, stateDefault: snapshot ? 'all' : 'active', lane: view.lane, q: $('q')?.value ?? '',
     rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
-    shouts: view.shoutFilter, activity: view.activityFilter || 'all', range: view.range || '6h',
+    shouts: view.shoutFilter, activity: view.activityFilter || 'all',
     shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null });
 }
 
@@ -108,7 +109,6 @@ function applyPlace(place, kept = null) {
   if (view.tab === 'spec' || view.tab === 'doctrine') view.rows[view.tab] = query.rows || (place.detail !== null ? 'all' : view.tab === 'spec' ? 'decide' : 'all');
   if (view.tab === 'shouts') view.shoutFilter = query.shouts || 'all';
   if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; }
-  if (view.tab === 'progress') view.range = query.range === '24h' ? '24h' : '6h';
   if (view.tab === 'roadmap') view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
   if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
   keep('pb.project', view.root);
@@ -148,7 +148,7 @@ function showNav() {
 function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
-  const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, range: view.range || '6h', shouts: view.shoutFilter || 'all',
+  const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
     shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && !readOnly });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
@@ -173,7 +173,6 @@ function pageControl(target) {
   if (kind === 'state') view.state = value;
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
-  else if (kind === 'range') view.range = value === '24h' ? '24h' : '6h';
   else if (kind === 'by') view.activityBy = value || null;
   else if (kind === 'shouts') { view.shoutFilter = value; view.shoutThread = null; view.shout = null; view.addressDetail = null; }
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
@@ -1034,7 +1033,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
-  if (!event.target.closest('.side, #proj-switch')) fold(false);
+  if (!event.target.closest('.side, #proj-switch, #proj-menu')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const control = event.target.closest('button[data-page-ctl]');
   if (control) { pageControl(control); return; }
@@ -1044,8 +1043,8 @@ document.addEventListener('click', (event) => {
   if (!t) return;
   // A pick in the project list's tools (Settings) closes the list, as a board pick does.
   if (t.dataset.tab && event.target.closest('.side')) fold(false);
-  if (t.id === 'proj-switch' && projectMenuToggle()) return;
-  if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
+  if (t.id === 'proj-switch' && $('side').classList.contains('open')) { fold(false); return; }
+  if (t.id === 'proj-switch') { projectMenuToggle(); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costWindow) { view.costWindow = t.dataset.costWindow; view.costOpen = null; render(); return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costCopy !== undefined) { navigator.clipboard?.writeText('Add model prices to Pullboard'); t.textContent = 'Copied'; return; }
@@ -1258,7 +1257,6 @@ function flipTheme() {
   keep('pb.theme', next);
   theme(next);
 }
-$('theme').addEventListener('click', flipTheme);
 $('ob-theme').addEventListener('click', flipTheme);
 // Each search has its own address; typing replaces the entry rather than adding one a keystroke.
 $('q').addEventListener('input', () => { search(); address(false); view.foundAt = 0; showFound(); });
