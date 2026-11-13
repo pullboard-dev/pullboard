@@ -157,16 +157,17 @@ async function landingCheck(payload, env) {
       if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]);
     }
     // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
-    const contracts = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
-    if (contracts) parts.push(['proof', contracts]);
-    let proof = null, waived = null;
+    const contractPart = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
+    if (contractPart) parts.push(['proof', contractPart]);
+    let proof = null, waived = null, contracts = null;
     for (const [role, part] of parts) {
       const result = await part(context);
       if (result?.proof) proof = result.proof;
+      if (result?.contracts) contracts = result.contracts;
       if (result?.waived?.length) waived = result.waived;
-      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}) };
+      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
     }
-    return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}) };
+    return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
   };
 }
 
@@ -273,6 +274,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     admitTrunk(root, { trunk, base });
     const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
+    if (result?.contracts) receipt.contracts = result.contracts;
     // A proof red only in tests the person waived lands waived, not green; the receipt names each waiver [#655].
     if (result?.ok && result.waived?.length) receipt.waived = result.waived;
     if (!result?.ok) {
