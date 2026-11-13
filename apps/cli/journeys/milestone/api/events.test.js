@@ -27,7 +27,8 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
   const app = join(box.dir, 'app-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
   assert.equal((await fixtureJoin((...a) => runLocal(box, ...a), app, 'app')).status, 0);
-  const api = await startLocalHandler(t, box);
+  // The standalone API serves the 'api' person channel; the handler's default is the view's [P6].
+  const api = await startLocalHandler(t, box, { personChannel: 'api' });
   const boards = await (await apiFetch(api, '/api/v1/boards')).json();
   const board = boards.boards.find((candidate) => candidate.root === box.repo);
   const path = `/api/v1/boards/${board.id}`;

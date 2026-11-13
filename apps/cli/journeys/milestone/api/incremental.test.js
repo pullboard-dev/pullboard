@@ -17,6 +17,7 @@ import { apiFetch } from '../../../tests/fixtures/api.js';
 import { addRoutedItem } from '../../../tests/fixtures/api.js';
 import { commitWork } from '../../../tests/fixtures/api.js';
 import { checkOutSubmitted } from '../../../tests/fixtures/api.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { json } from '../../../tests/fixtures/api/project.js';
 import { SPEC } from '../../../tests/fixtures/api/project.js';
 import { runLocal } from '../../../tests/fixtures/api/milestone.js';
@@ -63,6 +64,11 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
       }
     }
   }
+  /** The fixture project as the gate settle seam reads it: an async run answering code, out and err. */
+  const settleBox = { repo: box.repo, env: box.env, run: async (cwd, ...args) => {
+    const result = await runLocal(box, cwd, ...args);
+    return { code: result.status, out: result.stdout, err: result.stderr };
+  } };
   const realDateNow = Date.now.bind(Date);
   const realWallStart = realDateNow();
   let clockOffsetMs = 0;
@@ -138,7 +144,10 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
 
     builds.length = 0;
     await move('claim', ids[0], {}, builder.agent);
-    commitWork(box, builder, ids[0]); await move('submit', ids[0], {}, builder.agent);
+    commitWork(box, builder, ids[0]);
+    // Under pull dispatch the submit only queues its gate; wait for the loopback runner's receipt before the verifier's next [P7].
+    const submitted = await move('submit', ids[0], {}, builder.agent);
+    await settleSubmit(t, settleBox, submitted.result ?? submitted);
     checkOutSubmitted(box, builder, verifier); await move('next', undefined, { verify: true }, verifier.agent);
     // Keep the fixture's trunk fixed so automatic landing cannot invalidate every item during this incremental check.
     writeFileSync(join(box.repo, 'landing-fixture-dirty'), 'hold the trunk\n');
