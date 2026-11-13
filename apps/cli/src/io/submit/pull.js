@@ -232,9 +232,10 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
-  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run [V4,C7].
+  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run;
+  // a plain single-file check prints TAP only, so its cases are read from that TAP as the in-process gate did [V4,C7].
   let outcomes = null, blocked = null;
-  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; } catch { outcomes = null; }
+  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; outcomes ??= typeof gate?.singleFileTapOutcomes === 'function' ? gate.singleFileTapOutcomes(command, text) : null; } catch { outcomes = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
   const unreported = ran.status === 0 && selected?.length ? unaccounted(selected, outcomes, text) : null;
@@ -454,7 +455,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
   // id and pin keep the fields the inline submit document carried, so a script reading .id still reads the item (#6832).
-  if (ctx.json) ctx.io.result({ id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
+  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null };
+  if (ctx.json) ctx.io.result(acknowledgment);
   // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued (#7076).
   else await deliverSubmitActivity(ctx, id);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
@@ -462,5 +464,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).
   const sizeNote = oversizeNote(changedLines(root, main.commit, commit), main.config.itemSizeBudget);
   if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);
+  // The submit hands the seat its next work, and tops it up to its N claims, as the controller path did [N2,V4,C7].
+  if (ctx.afterSubmission) await ctx.afterSubmission(acknowledgment);
   return 0;
 }

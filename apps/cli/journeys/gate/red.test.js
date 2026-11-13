@@ -49,7 +49,7 @@ test('a check case red on main with two candidate repairs is reported as known-m
   const proof = JSON.parse(events[0].event_detail).submissionProof;
   assert.deepEqual(proof.knownMainAmbiguous, [{ file: 'test/affected.test.js', name: 'beta case [G1]', candidates: [alpha, shared] }]);
   assert.deepEqual(proof.knownMainFailures.failures.map(row => [row.name, row.item]), [['alpha case [G1]', alpha]], 'the uniquely owned case keeps its repair link');
-  assert.ok(JSON.stringify(shown.thread).includes(`(beta case [G1]): several candidate repairs #${alpha}, #${shared}`), JSON.stringify(shown.thread.slice(-4)));
+  assert.ok(JSON.stringify(shown.thread).includes(`(beta case [G1]): several candidate owners: #${alpha}, #${shared}`), JSON.stringify(shown.thread.slice(-4)));
 });
 
 test('a case newly red on the item still fails the gate even beside known-main reds [C7,V4,B3]', async t => {
