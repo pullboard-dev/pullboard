@@ -51,12 +51,12 @@ export function commit(box, root) {
 }
 
 /** One real assertion whose expected value decides whether the case is red. */
-export function source(expected) {
-  return `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('frozen case [G1]', () => assert.equal(1, ${expected}));\n`;
+export function source(expected, name = 'frozen case [G1]') {
+  return `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('${name}', () => assert.equal(1, ${expected}));\n`;
 }
 
 /** A claimed item whose frozen check runs test/frozen.test.js, red on main or green on main per `main`. */
-export function fixture(t, { main = 2, candidate = 2, check = FROZEN } = {}) {
+export function fixture(t, { main = 2, candidate = 2, check = FROZEN, name } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-frozen-')));
   // The fixture's local runner may still be finishing a main-test job as the test ends, so removal retries as it settles.
   t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
@@ -87,7 +87,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN } = {}) {
   put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js', affectedTests: 'node test/runner.js',
     lanes: { core: { owns: ['test/', 'change.txt'], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] The change works. | gate: test/frozen.test.js\n');
-  put(root, 'test/frozen.test.js', source(main));
+  put(root, 'test/frozen.test.js', source(main, name));
   put(root, 'test/other.test.js', source(1));
   put(root, 'test/runner.js', [
     "import { spawnSync } from 'node:child_process';",
@@ -107,7 +107,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN } = {}) {
   result = cli(box, box.builder, 'claim', String(box.item));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(box.builder, 'change.txt', 'The change.\n');
-  put(box.builder, 'test/frozen.test.js', source(candidate));
+  put(box.builder, 'test/frozen.test.js', source(candidate, name));
   box.head = commit(box, box.builder);
   return box;
 }

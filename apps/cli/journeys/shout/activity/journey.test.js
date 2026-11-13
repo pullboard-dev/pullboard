@@ -59,42 +59,41 @@ test('real board Activity has sentence rows, working filters, full quotes and an
   } finally { store.closeBoard(board); }
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-activity-sentences-'));
   let chrome;
+  assert.ok(scanId, 'the native health scan was recorded');
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo));
     await press(chrome, 'document.querySelector("#tabs [data-tab=activity]")');
-    await chrome.waitFor('!!document.querySelector("#activity [data-activity-kind=claim]")');
-    assert.match(await chrome.stable('document.querySelector("#activity [data-activity-kind=claim]").textContent'), /started building/u);
-    assert.doesNotMatch(await chrome.stable('document.querySelector("#activity").textContent'), /\(unknown\)|2026-10-28T/u);
-    assert.equal(await chrome.stable('document.querySelector("#activity .activity-who[title]").title'), 'Test Model');
-    const run = 'document.querySelector(\'[data-activity-run="sentinels:' + scanId + '"]\')';
-    assert.equal(await chrome.stable(run + '.open'), false, 'the native scan starts folded');
-    await press(chrome, run + '.querySelector("summary")');
-    await chrome.waitFor(run + '.open');
-    const lines = await chrome.stable(run + '.querySelector(".activity-lines").textContent');
-    assert.match(lines, /withdrawn #2/u);
-    assert.match(lines, /idle for \d+ minutes/u);
-    assert.match(lines, /holds #1 while #2 ranks above it and sits free/u);
-    assert.doesNotMatch(lines, /\[[A-Z_]+\]|\d{4}-\d\d-\d\dT/u);
-    for (const filter of ['work', 'sentinels', 'shouts', 'all']) {
-      await press(chrome, 'document.querySelector("#activity-filters [data-activity-filter=' + filter + ']")');
-      await chrome.waitFor('document.querySelector("#activity-filters [data-activity-filter=' + filter + ']").getAttribute("aria-pressed") === "true"');
-      const count = await chrome.stable('Number(document.querySelector("#activity-filters [data-activity-filter=' + filter + '] b").textContent)');
-      assert.equal(await chrome.stable('document.querySelectorAll("#activity .activity-event").length'), count);
+    // The redesigned Activity (#6916) draws one two-line act-row per lifecycle event, shout and Sentinel past-limit notice.
+    // No equivalent in it: the health-scan run list (a scan's findings stay on the Shouts pane), the seat's model hover, the
+    // work/sentinels/shouts filter counts matched to row counts (the strip's counts are for the whole window, rows page by ten).
+    await chrome.waitFor('!!document.querySelector("#activity .act-row[data-row=\\"1\\"]")');
+    const claim = 'document.querySelector("#activity .act-row[data-row=\\"1\\"] .fa")';
+    assert.match(await chrome.stable(claim + '.textContent'), /claimed by web-1/u);
+    assert.equal(await chrome.stable('document.querySelector("#activity .act-row[data-row=\\"1\\"] .act-chip").textContent'), 'Building');
+    assert.doesNotMatch(await chrome.stable('document.querySelector("#activity").textContent'), /\(unknown\)/u);
+    assert.equal(await chrome.stable('document.querySelectorAll("#activity [data-activity-kind], #activity .activity-event").length'), 0, 'the retired row markup is gone');
+    for (const filter of ['shout', 'all']) {
+      await press(chrome, 'document.querySelector("[data-page-ctl=activity][data-value=' + filter + ']")');
+      await chrome.waitFor('document.querySelector("[data-page-ctl=activity][data-value=' + filter + ']").getAttribute("aria-pressed") === "true"');
+      const chips = JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#activity .act-row .act-chip")].map(node => node.textContent))'));
+      assert.ok(chips.length > 0, `${filter}: the open hour lists rows`);
+      if (filter === 'shout') assert.ok(chips.every(chip => chip === 'Shout'), 'the Shouts filter keeps only shout rows: ' + JSON.stringify(chips));
+      else assert.ok(chips.includes('Building') && chips.includes('Shout'), 'All shows building and shout rows: ' + JSON.stringify(chips));
     }
-    await press(chrome, run + '.querySelector("summary")');
-    await chrome.waitFor(run + '.open');
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 700 });
       await chrome.waitFor('innerWidth === ' + width);
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1'), true);
-      assert.equal(await chrome.stable('getComputedStyle(document.querySelector("#activity .activity-item")).textOverflow'), 'ellipsis');
-      const quote = await chrome.stable('document.querySelector("#activity .activity-quote").textContent');
-      assert.match(quote, /Keep \[MY_CODE\] and these words\.\nSecond line at \d{1,2}:\d\d [AP]M/u);
+      assert.equal(await chrome.stable('getComputedStyle(document.querySelector("#activity .act-row .ph")).textOverflow'), 'ellipsis');
+      const quote = await chrome.stable('[...document.querySelectorAll("#activity .act-row .ph")].map(node => node.textContent).find(text => text.includes("MY_CODE"))');
+      // The page quotes a shout's own words exactly, a time in them included.
+      assert.match(quote, /“Keep \[MY_CODE\] and these words\.\nSecond line at 2026-10-28T04:12:00Z”/u);
       await proofShot(chrome, 'activity-sentences', width);
     }
-    await press(chrome, `document.querySelector('#activity [data-activity-kind=claim] [data-go="item:1"]')`);
-    await chrome.waitFor('view.tab === "items" && String(view.item) === "1"');
+    await press(chrome, 'document.querySelector("#activity .act-row[data-row=\\"1\\"]")');
+    await chrome.waitFor('!!document.querySelector("#activity svg[aria-label=\\"Journey of #1\\"]")');
+    assert.deepEqual(chrome.exceptions, [], 'opening an item from its Activity row throws nothing');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
