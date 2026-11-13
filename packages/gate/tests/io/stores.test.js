@@ -16,6 +16,10 @@ import { storeOwnerProblems } from '../../src/io/stores.js';
 import { storeReport } from '../../src/io/stores.js';
 import { storeDirGrowth } from '../../src/io/stores.js';
 import { storeSites } from '../../src/io/stores.js';
+import { stemlessSites } from '../../src/io/stores.js';
+import { isStoreSource } from '../../src/io/stores.js';
+import { walk } from '../../src/io/scan.js';
+import { storeWriteProblems } from '../../src/io/stores.js';
 import { tightenStoreBaseline } from '../../src/io/stores.js';
 
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
@@ -225,4 +229,42 @@ test('#6739 clause 2: the registry lists every current templated stem, and a new
 test('#6739 clause 2: a stem that gains a second home past its recorded ceiling is refused [CD2]', () => {
   const registry = { ...REGISTRY, stems: { 'fresh-*.json': { kind: 'json', owner: OWNER, homes: {} } } };
   assert.match(judge({ [OTHER]: 'const f = `fresh-${id}.json`;' }, { registry })[0], /CD2_SECOND_HOME: stem:fresh-\*\.json belongs to packages\/landing/u);
+});
+
+test('#6742 clause 1: every store owner in the registry holds a write call, is repo-data or is on the measured debt list [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.ok(Object.values(registry.stores).filter(row => row.kind === 'repo-data').length >= 19, 'read-only data files are marked repo-data');
+  assert.ok(registry.writeOwnerDebt.length <= 22, 'the debt list only shrinks');
+});
+
+test('#6742 clause 1: a new store whose owner writes nothing is refused, and a repaired debt row must leave the list [CD2]', () => {
+  const reads = { [OWNER]: 'export const x = readFileSync(file);', [OTHER]: 'writeFileSync(file, text);' };
+  const read = file => reads[file];
+  const silent = { stores: { 'fresh.json': { kind: 'json', owner: OWNER } } };
+  assert.match(storeWriteProblems(silent, read)[0].text, /CD2_OWNER_NO_WRITE: fresh\.json is owned by packages\/landing\/src\/io\/main\/red\.js, which holds no write call/u);
+  assert.deepEqual(storeWriteProblems({ stores: { 'fresh.json': { kind: 'repo-data', owner: OWNER } } }, read), []);
+  assert.deepEqual(storeWriteProblems({ ...silent, writeOwnerDebt: ['fresh.json'] }, read), []);
+  const repaired = { stores: { 'fresh.json': { kind: 'json', owner: OTHER } }, writeOwnerDebt: ['fresh.json'] };
+  assert.match(storeWriteProblems(repaired, read)[0].text, /fresh\.json now has a writing owner or is repo-data; remove it from writeOwnerDebt/u);
+});
+
+/** The stemless templated store names under one package: every one must come from the cell's registry const [CD2]. */
+function stemlessIn(cell) {
+  return walk(ROOT, /\.js$/u).filter(path => isStoreSource(path) && path.startsWith(cell))
+    .flatMap(path => stemlessSites(readFileSync(new URL(`../../../../${path}`, import.meta.url), 'utf8'), path).map(row => `${row.path}:${row.line} ${row.text}`));
+}
+
+test('#7003 clause 1: a stemless templated store-file name is found, and no site under packages/gate or packages/api holds one [CD2]', () => {
+  assert.deepEqual(stemlessSites('const a = `${id}.json`;\nconst b = `exit-${id}.json`;\nconst c = id + EXT;', OTHER).map(row => [row.line, row.text]), [[1, '${id}.json']]);
+  assert.deepEqual([...stemlessIn('packages/gate/'), ...stemlessIn('packages/api/')], [], 'name each file from a registry const such as storeName(key)');
+});
+
+test('#7012 clause 1: no store-file site under packages/runners builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/runners/'), [], 'name each file from the runners registry const storeName(key)');
+});
+
+test('#7014 clause 1: no store-file site under packages/landing builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/landing/'), [], 'name each file from the landing registry const storeName(key)');
 });
