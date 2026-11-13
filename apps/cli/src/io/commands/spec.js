@@ -124,6 +124,7 @@ import {
   pathToFileURL,
 } from 'node:url';
 import {
+  citationBoardFindings,
   citations,
   coordinatorFile,
   idList,
@@ -482,6 +483,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       errors += fileErrors;
       messages.push(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length + lost.length - fileErrors} warnings`);
     }
+    errors += citationBoardFindings(ctx.info.root, spec).reduce((count, finding) => (io.say(finding.message), count + (finding.level === 'error' ? 1 : 0)), 0);
     const unnamed = productProblems(ctx.config, spec);
     unnamed.forEach((problem) => messages.push(`${ctx.config.spec}: error: ${problem}`));
     errors += unnamed.length;
