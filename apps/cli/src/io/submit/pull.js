@@ -232,9 +232,10 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
-  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run [V4,C7].
+  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run;
+  // a plain single-file check prints TAP only, so its cases are read from that TAP as the in-process gate did [V4,C7].
   let outcomes = null, blocked = null;
-  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; } catch { outcomes = null; }
+  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; outcomes ??= typeof gate?.singleFileTapOutcomes === 'function' ? gate.singleFileTapOutcomes(command, text) : null; } catch { outcomes = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
   const unreported = ran.status === 0 && selected?.length ? unaccounted(selected, outcomes, text) : null;
