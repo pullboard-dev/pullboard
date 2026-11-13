@@ -145,32 +145,37 @@ test("the history is a timeline of the item's states [N26]", async () => {
   try {
     const page = await openPage(view);
     await page.click({ go: 'item:1' });
-    const done = timelineRows(page.show('detail')).reverse();
+    // Notes are now recorded as facts on the thread (the add, each claim and each submit leave one), and the landing leaves a
+    // quiet proof run; the measurement fact of the old fixture is no longer written. Moves are asserted on their own, notes beside them.
+    const everyRow = timelineRows(page.show('detail')).reverse();
+    const facts = everyRow.filter((row) => row.dot.includes('tl-fact'));
+    assert.ok(facts.length >= 2 && facts.every((row) => /added a note|recorded a measurement/.test(row.event)), 'the thread facts read as notes or measurements: ' + facts.map((row) => row.event).join(', '));
+    const done = everyRow.filter((row) => !row.dot.includes('tl-fact'));
+    if (done.at(-1).event === 'coordinator ran the proof') done.pop();
     assert.deepEqual(done.map((row) => [row.dot, row.event]), [
       ['tl-open', 'coordinator added this work'],
       ['tl-claimed', 'web-1 claimed it'],
       ['tl-claimed tl-quiet', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
-      ['tl-fact', 'web-1 recorded a measurement'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-open tl-back', 'coordinator sent it back'],
       ['tl-claimed', 'web-1 claimed it'],
       ['tl-claimed tl-quiet', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
-      ['tl-fact', 'web-1 recorded a measurement'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-verified', 'coordinator passed it'],
       ['tl-verified tl-quiet', 'coordinator landed it'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
-    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', '', 'now', 'submitted for', 'sent back for', 'claimed for', '', '', 'now', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
+    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', '', 'submitted for', 'sent back for', 'claimed for', '', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
     assert.ok(done.filter(row => !row.dot.includes('tl-quiet') && !row.dot.includes('tl-fact')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
     assert.ok(done.every((row) => /^\d{1,2}:\d\d [AP]M$/.test(row.time)), 'every event keeps its time');
 
     await page.click({ go: 'item:2' });
-    assert.deepEqual(timelineRows(page.show('detail')).reverse().map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
+    const movesOf = (rows) => rows.reverse().filter((row) => !row.dot.includes('tl-fact'));
+    assert.deepEqual(movesOf(timelineRows(page.show('detail'))).map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
     const later = await openPage(view, { later: 1 });
     await later.click({ go: 'item:2' });
-    assert.deepEqual(timelineRows(later.show('detail')).reverse().map((row) => row.stay).slice(1), ['claimed for 24h so far'], 'the stay so far counts on');
+    assert.deepEqual(movesOf(timelineRows(later.show('detail'))).map((row) => row.stay).slice(1), ['claimed for 24h so far'], 'the stay so far counts on');
 
     // A claim logged on an item the replay holds claimed: the clock lapsed the first claim between.
     const at = (minute) => new Date(Date.UTC(2026, 9, 6, 12, minute)).toISOString();
