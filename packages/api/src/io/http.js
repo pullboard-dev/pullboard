@@ -2,12 +2,16 @@
 import { createHash } from 'node:crypto';
 import { open } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 import { Refused } from '../../../kernel/index.js';
 import { relayStorage } from '../../../link/index.js';
 import { withGitFacts } from '../../../git/index.js';
 import { PAIR_PACKAGE_BODY_BYTES } from '../../../link/index.js';
 
 const BODY_BYTES = 100_000;
+/** Gzip a reply off the request thread, in the libuv pool, so a big state's compression never stalls other requests. */
+const gzipText = promisify(gzip);
 
 /** Keep unexpected internal failures out of the public refusal document, and write them to stderr; the caller supplies the renderer. */
 function refusalFor(refusalDocument, error) {
@@ -37,10 +41,12 @@ function stateText(state, eventLogVersion) {
  * unchanged board sends nothing (#1040). The digest blanks the clock readings stamped afresh on every
  * read (flow asOf, queue ageMinutes), as the view's own board comparison does (#644). Replies stay
  * no-store: the browser never answers a poll from its cache, so a page that wants the newest clock
- * readings still gets them by not asking If-None-Match.
+ * readings still gets them by not asking If-None-Match. A request that accepts gzip gets the text gzip-encoded under the
+ * same validator, which names the board state, not its bytes: a big board's 5-8 MB of JSON goes out as about 1 MB.
  */
-function sendState(req, res, text, tagged, validator = text, reportValidator) {
+async function sendState(req, res, text, tagged, validator = text, reportValidator) {
   const headers = { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' };
+  headers.vary = [res.getHeader('vary'), 'Accept-Encoding'].filter(Boolean).join(', ');
   if (typeof reportValidator === 'string' && /^[a-f0-9]{64}:[0-9]+$/u.test(reportValidator)) headers['x-pullboard-report-validator'] = reportValidator;
   if (tagged) {
     const board = validator.replace(/"(asOf|ageMinutes|observedAt)":(?:"[^"]*"|[-+.0-9eE]+|null)/gu, '"$1":null');
@@ -51,8 +57,26 @@ function sendState(req, res, text, tagged, validator = text, reportValidator) {
       return res.end();
     }
   }
+  if (acceptsGzip(req.headers['accept-encoding'])) {
+    const body = await gzipText(text);
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-encoding': 'gzip', ...headers });
+    return res.end(body);
+  }
   res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', ...headers });
   res.end(text);
+}
+
+/** Whether an Accept-Encoding header takes gzip: named, or covered by `*`, with a q above 0 (RFC 9110 12.5.3). */
+function acceptsGzip(header) {
+  let named = null, any = null;
+  for (const part of String(header ?? '').split(',')) {
+    const [coding, ...params] = part.trim().toLowerCase().split(';');
+    const q = params.map((param) => /^\s*q\s*=\s*([0-9.]+)\s*$/u.exec(param)).find(Boolean);
+    const weight = q ? Number(q[1]) : 1;
+    if (coding === 'gzip' || coding === 'x-gzip') named = weight;
+    else if (coding === '*') any = weight;
+  }
+  return (named ?? any ?? 0) > 0;
 }
 
 /**
@@ -291,13 +315,15 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|finished|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
       const trunkRoute = /^\/api\/v1\/boards\/([^/]+)\/trunk\/([^/]+)\.pack$/.exec(url.pathname);
       const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? proofRoute?.[1] ?? trunkRoute?.[1] ?? null;
       const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
+      // Health answers on the request thread from what it holds, never through a handler, so a busy pool still answers it [A2,C7].
+      if (url.pathname === '/api/v1/health') return json(res, 200, { ok: true, ...(await adapter.health?.(who)) });
       if (url.pathname === '/api/v1/settings') {
         if (req.method !== 'GET') throw new Refused('READ_ONLY', 'settings are read-only here; use the supported settings commands');
         if (typeof adapter.settings !== 'function') throw new Refused('SETTINGS_NOT_AVAILABLE', 'read machine and repository settings from the local API');
@@ -355,6 +381,11 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
         if (!item) return json(res, 404, refusal(new Refused('NO_ITEM', `no item #${rawId} on this board; use an id from the board state`)));
         return json(res, 200, { item });
       }
+      if (route?.[2] === 'finished') {
+        if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read the finished items with GET');
+        if (typeof adapter.finished !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'this API adapter does not serve finished items on their own; read its board state');
+        return await sendState(req, res, await adapter.finished(board, who), false);
+      }
       if (req.method === 'GET' && route?.[2] === 'items') {
         if (typeof adapter.search !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', "this API adapter does not provide item search; use its board state, which carries each item's full detail");
         return json(res, 200, { ids: await adapter.search(board, url.searchParams.get('q') ?? '', who) });
@@ -388,24 +419,34 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
           }
           options.items = 'compact';
         }
+        if (url.searchParams.has('finished')) {
+          // A first load that shows open work first leaves out the verified and withdrawn items; GET .../finished sends them [A2,N26].
+          if (url.searchParams.get('finished') !== 'omit' || options.items !== 'compact' || url.searchParams.has('since')) throw new Refused('BAD_REQUEST', 'finished=omit is only for a compact snapshot (items=compact); read ordinary deltas with since=N');
+          options.finished = 'omit';
+        }
+        if (url.searchParams.has('kept')) {
+          // A first load that catches up through deltas may take the state the server keeps, from before a later write [A2,C7].
+          if (url.searchParams.get('kept') !== '1' || url.searchParams.has('since')) throw new Refused('BAD_REQUEST', 'kept=1 is only for a snapshot; read deltas with since=N and no kept');
+          options.kept = true;
+        }
         if (url.searchParams.has('since')) {
           const since = sinceCursor(url.searchParams.get('since'));
           if (options.detail === 'full') throw new Refused('BAD_REQUEST', 'a delta brings item summaries up to date; use since=N without detail=full');
           if (typeof adapter.delta !== 'function') throw new Refused('DELTA_NOT_AVAILABLE', 'this API adapter does not answer since=N; use its board state');
           const delta = await adapter.delta(board, who, seen, { since, eventLogVersion: url.searchParams.get('eventLogVersion') });
-          return sendState(req, res, JSON.stringify({ version: 1, ...delta }), tagState, undefined, delta.reportValidator);
+          return await sendState(req, res, JSON.stringify({ version: 1, ...delta }), tagState, undefined, delta.reportValidator);
         }
         if (typeof adapter.stateJson === 'function') {
           const encoded = await adapter.stateJson(board, who, seen, options);
           const state = typeof encoded === 'string' ? encoded : encoded?.json;
           if (typeof state !== 'string' || encoded?.validator !== undefined && typeof encoded.validator !== 'string') throw new TypeError('the local state serializer must return JSON text and optional internal validator text');
           const eventLogVersion = await adapter.eventLogVersion?.(board, who);
-          return sendState(req, res, stateText(state, eventLogVersion), tagState,
+          return await sendState(req, res, stateText(state, eventLogVersion), tagState,
             typeof encoded?.validator === 'string' ? stateText(encoded.validator, eventLogVersion) : undefined, encoded?.reportValidator);
         }
         const state = await adapter.state(board, who, seen, options);
         const eventLogVersion = await adapter.eventLogVersion?.(board, who);
-        return sendState(req, res, JSON.stringify({ version: 1, state, ...(eventLogVersion === undefined ? {} : { eventLogVersion }) }), tagState);
+        return await sendState(req, res, JSON.stringify({ version: 1, state, ...(eventLogVersion === undefined ? {} : { eventLogVersion }) }), tagState);
       }
       if (req.method === 'GET' && route[2] === 'cost-analytics') {
         if (typeof adapter.costAnalytics !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only from the private local board');
@@ -464,7 +505,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
  * entries and, when given, their new key order (A2).
  *
  * @param {any} state
- * @param {{ replace: object, merge: Record<string, { key: string, set: object[], ids?: (string|number)[] }>, remove?: string[] }} delta
+ * @param {{ replace: object, merge: Record<string, { key: string, set: object[], ids?: (string|number)[] }>, milestonePace?: object, remove?: string[] }} delta
  * @returns {any}
  */
 export function applyStateDelta(state, delta) {
@@ -473,15 +514,18 @@ export function applyStateDelta(state, delta) {
   for (const [field, { key, set, ids }] of Object.entries(delta.merge)) {
     const entries = new Map((state[field] ?? []).map((entry) => [entry[key], entry]));
     for (const entry of set) entries.set(entry[key], entry);
-    next[field] = (ids ?? (state[field] ?? []).map((entry) => entry[key])).map((id) => entries.get(id));
+    // An open-first client holds no finished items, so an id it was never sent is skipped, not filled with a hole [#6588].
+    next[field] = (ids ?? (state[field] ?? []).map((entry) => entry[key])).map((id) => entries.get(id)).filter((entry) => entry !== undefined);
   }
+  // The rolling pace travels once, not inside each milestone it did not otherwise change, so a moved pace reaches every milestone here.
+  if (delta.milestonePace) next.milestones = (next.milestones ?? []).map((milestone) => milestone?.summary ? { ...milestone, summary: { ...milestone.summary, pace: delta.milestonePace } } : milestone);
   return next;
 }
 
 /** Choose the same HTTP refusal class for local and sealed relay adapters. */
 export function apiStatus(error) {
   if (error instanceof Refused && error.code === 'ACCOUNT_STORAGE_LIMIT') return 507;
-  return { RELAY_BOARD_DELETED: 410, AUTH_REQUIRED: 401, DEVICE_REVOKED: 403, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, NO_SHOUT: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, BASELINE_EXISTS: 412, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409 }[error.code] ?? (error instanceof Refused ? 400 : 500);
+  return { RELAY_BOARD_DELETED: 410, AUTH_REQUIRED: 401, DEVICE_REVOKED: 403, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, NO_SHOUT: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, BASELINE_EXISTS: 412, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409, API_BUSY: 503, API_WORKER_FAILED: 503, API_CALL_TIMEOUT: 503, API_CLOSED: 503 }[error.code] ?? (error instanceof Refused ? 400 : 500);
 }
 
 // Relay-only snapshot/delete routes reuse the exact shared bounded-body and refusal boundary.

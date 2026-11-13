@@ -13,6 +13,7 @@ import {
   press,
   project,
   startView,
+  openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
 test('Needs you shares grouped, expandable rows and exact person confirmation across Items and Dashboard [N26,B26]', { timeout: 120_000 }, async () => { // budget: native board/Git setup, two viewports and a real person confirmation.
@@ -51,6 +52,7 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       await capture('dashboard', width);
       await press(chrome, 'document.querySelector("#dashboard [data-needs-list]")');
       await chrome.waitFor('view.tab === "items" && view.state === "active"');
+      await openItemsNeeds(chrome);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Questions and sentinels · 2/u);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Rows approved in Git, waiting for you · 4/u);
       assert.equal(await chrome.stable('document.querySelector("#needs [data-needs-confirm]").dataset.needsConfirm'), 'G1 G2 G3 G4', 'Confirm all captures every eligible row, including rows beyond the summary');
