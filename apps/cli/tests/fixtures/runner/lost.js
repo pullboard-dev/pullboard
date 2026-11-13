@@ -191,7 +191,7 @@ export function registerRunnerJobLostTests() {
     assert.equal(observe(new Map()).state, 'unknown');
     assert.equal(observe(new Map()).cleanup, false);
   });
-  test('a quiet exact job whose native startup owner exited becomes named lost through the real controller bridge [C7,H16]', t => {
+  test('a quiet exact job whose native startup owner exited becomes named lost through the real controller bridge [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
     const box = transport(t, 'gone'), retry = retryContract(box), result = retry.loss;
     const recorded = JSON.parse(readFileSync(box.record, 'utf8'));
     assert.equal(result.code, 'RUNNER_JOB_LOST');
