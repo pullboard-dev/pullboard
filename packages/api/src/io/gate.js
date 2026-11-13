@@ -30,6 +30,7 @@ import { ownershipOnly } from './owner.js';
 import { routePulledOwnership } from './owner.js';
 import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
+import { caseReworkLines } from './gate/files.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -547,7 +548,9 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   if (routed?.refused) parts.push(`ownership routing refused: ${routed.refused}`);
   // A red whose phases name failed files but no cases (Node's spec reporter) is compared with main by file [V1,C7].
   const byFile = compared || green || waived ? null : compareFilesWithMain(board, receipt, main, compareWithMain);
-  if (byFile) parts.push(...fileMainLines(byFile));
+  if (byFile) parts.push(...fileMainLines(board, byFile));
+  // Cases main fails too name the open rework that owns them, as the inline gate's refusal named it [V1,C7].
+  else if (compared && !mainOnly) parts.push(...caseReworkLines(board, main, compared));
   const jobs = [...new Set([...(compared?.jobs ?? []), ...(atClaim?.jobs ?? []), ...(byFile?.jobs ?? [])])];
   if (jobs.length) parts.push(`main-test job ${jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
   if (green || mainOnly || waived || excused && !trials.refused.length) {
@@ -576,7 +579,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         const owner = row => owners.known?.failures.find(one => one.file === row.file && one.name === row.name)?.item;
         const candidates = row => owners.ambiguous.find(one => one.file === row.file && one.name === row.name)?.candidates ?? [];
         const lines = owners.failures.map(row => `main-owned ${row.file} (${row.name}): ${owner(row) ? `open repair #${owner(row)}${filed?.includes(owner(row)) ? ' (filed by this submit)' : ''}` : owners.unowned.some(red => red.file === row.file) ? 'no open Main red item; the coordinator is asked to own it' : `several candidate owners: ${candidates(row).map(item => `#${item}`).join(', ')}`}`);
-        store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\n${lines.join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
+        store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${[...caseLines(compared), ...lines, ...caseReworkLines(board, main, compared, { accepted: true })].join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
       }
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : owners ? `green over main-owned ${owners.checkOnly ? 'frozen check' : 'test'} cases` : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
