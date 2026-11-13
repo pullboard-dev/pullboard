@@ -48,9 +48,11 @@ export function settingsContentHtml(entry, scope = 'machine') {
   for (const row of rows) sources.set(row.source, (sources.get(row.source) || 0) + 1);
   const source = [...sources].sort((a, b) => b[1] - a[1])[0]?.[0];
   const rowHtml = row => {
-    const copyable = typeof row.cli === 'string' && row.cli && ['boolean', 'number', 'string'].includes(typeof row.value);
+    const unset = row.value === null || row.value === undefined;
+    const copyable = typeof row.cli === 'string' && row.cli && (unset || ['boolean', 'number', 'string'].includes(typeof row.value));
     const word = typeof row.value === 'boolean' ? (row.value ? 'on' : 'off') : typeof row.value === 'string' && !/^[\w./:@~-]+$/.test(row.value) ? "'" + row.value.replaceAll("'", "'\\''") + "'" : row.value;
-    const command = copyable ? 'pullboard settings ' + row.cli + ' ' + word : '';
+    const blank = { USD: '<dollars>', folder: '<folder>' }[row.unit] || '<value>';
+    const command = copyable ? 'pullboard settings ' + row.cli + ' ' + (unset ? blank : word) : '';
     const label = row.label || row.key;
     const value = row.secret ? (row.value === 'set' ? 'set' : 'not set') : human(row.value, row.unit);
     const was = row.secret ? 'not set' : human(row.default, row.unit);
