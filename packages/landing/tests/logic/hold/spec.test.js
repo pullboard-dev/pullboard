@@ -107,7 +107,6 @@ ${executionServicesSource(moduleURL('gate.js'))}
     import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
     import { listResources, takeResource } from ${JSON.stringify(moduleURL('resources.js'))};
     const root = ${JSON.stringify(f.repo)};
-    setTimeout(async () => { const { execFileSync } = await import('node:child_process'); process.stderr.write('DEBUG ' + JSON.stringify(process.getActiveResourcesInfo()) + '\\n' + execFileSync('ps', ['-axo', 'pid,ppid,stat,command']).toString().split('\\n').filter(l => l.includes(${JSON.stringify(f.directory)})).join('\\n') + '\\n'); }, 10000).unref();
     let refusal;
     try {
       await withGateSlot(root, async () => {
