@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { jobQueueCall } from './jobs.js';
@@ -553,7 +554,7 @@ export function gateLedgerHits(db, request, files) {
 export function applyJobReceipt(board, posted, ports = {}) {
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
   if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
-  if (kind === 'gate') return applyGateReceipt(board, posted, ports);
+  if (kind === 'gate') { try { const r = applyGateReceipt(board, posted, ports); appendFileSync('/tmp/ownerhold-debug.log', JSON.stringify(r) + '\n'); return r; } catch (error) { appendFileSync('/tmp/ownerhold-debug.log', String(error.code) + ' ' + String(error.stack) + '\n'); throw error; } }
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
