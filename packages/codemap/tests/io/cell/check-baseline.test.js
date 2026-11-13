@@ -10,7 +10,6 @@ import { checkCellLints } from '../../../index.js';
 import { withCellLintParser } from '../../../index.js';
 import { cellLintParsers } from '../../../index.js';
 import { cellLintReport } from '../../../index.js';
-import { cellLintBaseline } from '../../../index.js';
 import { planCellLintBaseline } from '../../../index.js';
 import { writeCellLintBaseline } from '../../../index.js';
 
@@ -24,7 +23,7 @@ test('--check exits 1 and names the cycle edge when main holds a cycle its commi
   put('packages/codemap/data/plan/path-map/sample.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   commit();
   const clean = planCellLintBaseline(cellLintReport(root, { importsIn, commonJsIn })).baseline;
-  writeCellLintBaseline(root, clean, { initialize: true, verify: () => { const a = JSON.stringify(cellLintBaseline(cellLintReport(root, { importsIn, commonJsIn }))), b = JSON.stringify(clean); if (a !== b) console.error("DBGA", a, "DBGB", b); return a === b; }, x: () => JSON.stringify(cellLintBaseline(cellLintReport(root, { importsIn, commonJsIn }))) === JSON.stringify(clean) });
+  writeCellLintBaseline(root, clean, { initialize: true });
   commit();
   assert.equal(run().status, 0, 'a clean main passes');
   // A landing that skipped the check adds a cycle and leaves the committed baseline alone.
