@@ -232,10 +232,6 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "live: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "apps/cli/journeys/init/origin.test.js": {
-    "kind": "journey",
-    "reason": "local-origin: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
-  },
   "apps/cli/journeys/milestone/limit.test.js": {
     "kind": "journey",
     "reason": "milestone-limit: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
