@@ -111,6 +111,9 @@ test('clause 2: g then a page letter jumps to that page, and a late or unknown s
     press('g'); press(letter);
     assert.deepEqual(calls.go, ['tab:' + tab], `g ${letter} opens ${tab}`);
   }
+  const gone = page();
+  gone.press('g'); gone.press('p');
+  assert.deepEqual(gone.calls.go, ['tab:dashboard'], 'g p, the retired Progress letter, opens Dashboard');
   const { press, calls } = page();
   press('g'); press('x');
   press('i');

@@ -16,7 +16,6 @@ import { navPages } from "../../logic/nav.js";
 import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
-import { progressHtml } from "../../logic/nav.js";
 import { navLayout } from "../../logic/nav.js";
 import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
@@ -42,7 +41,6 @@ ${navPages.toString()}
 ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
-${progressHtml.toString()}
 ${navLayout.toString()}
 ${pageControlsHtml.toString()}
 
@@ -131,7 +129,7 @@ function itemStageMarks(item, project) {
 
 /**
  * The navigation's board numbers: the notch's three (agents at work, landed per hour, rulings), the switcher's amber
- * rulings count, each menu page's fact, and the Progress page while it shows. Text only, so the shell never redraws.
+ * rulings count, and each menu page's fact. Text only, so the shell never redraws.
  */
 function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, active = 0 } = {}) {
   const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
@@ -146,15 +144,9 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
   text($('proj-rulings'), rulings ? String(rulings) : '');
   // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
   const release = nextMilestone(p);
-  const facts = { progress: pace === null ? '' : Math.round(pace) + '/h', items: active || '',
+  const facts = { items: active || '',
     roadmap: release && release.total > release.done ? release.total - release.done + ' to go' : '', spec: (p.spec || []).length, doctrine: (p.practice || []).length };
   for (const [page, value] of Object.entries(facts)) document.querySelectorAll?.('[data-nav-fact="' + page + '"]').forEach((node) => text(node, value ? String(value) : ''));
-  if (view.tab === 'progress') {
-    const day = view.range === '24h';
-    const landed = day ? p.dashboardPace?.last24h ?? null : p.dashboardPace?.last6h ?? null;
-    const html = progressHtml({ agents, perHour: day && Number.isFinite(landed) ? landed / 24 : pace, landed, range: day ? '24h' : '6h', rulings, building, review });
-    if ($('progress').innerHTML !== html) $('progress').innerHTML = html;
-  }
 }
 
 /**
