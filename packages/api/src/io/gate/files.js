@@ -4,6 +4,9 @@
  * still says which files failed, and the inline gate compared those files with main (compareMainFailures) [V1,C7].
  */
 
+import { tryGit } from '../../../../git/index.js';
+import { CONFIG_FILE } from '../../../../kernel/browser.js';
+
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 /** The main-red notes this process's board API words reds with; null until a host provides them. */
 let mainRedNotes = null;
@@ -56,6 +59,13 @@ export function caseReworkLines(board, main, compared, options) {
 }
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 
+/** True when accepted main's committed config names a focused test runner (affectedTests); unreadable reads as one, so nothing is claimed. */
+function focusedRunner(root, main) {
+  let config;
+  try { const shown = tryGit(root, ['show', `${main}:${CONFIG_FILE}`]); if (shown.status !== 0) return true; config = JSON.parse(shown.stdout); } catch { return true; }
+  return typeof config?.affectedTests === 'string' && config.affectedTests.trim() !== '';
+}
+
 /**
  * Compare the failed files of a red gate receipt with main's receipts, when its red phases name files (failedFiles,
  * read on the runner from the spec reporter's failure footer) and no cases. Each file comes back red or green on
@@ -67,14 +77,18 @@ const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
  * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: object[], files: string[] }) =>
  *   { files?: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[] } | null) | null} lookup
  * @returns {{ main: string, files: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[], jobs: string[], unavailable?: string } | null}
- *   unavailable says why main was not checked, with no files, when no red phase names a failed file; null when the red
+ *   unavailable says why main was not checked, with no files: main's config names no focused runner (affectedTests), or no
+ *   red phase names a failed file or case; null when the red
  *   is not only test phases without cases, no lookup is given (gate.mainComparison off), or main's receipts cannot be keyed.
  */
 export function compareFilesWithMain(board, receipt, main, lookup) {
   const gate = receipt?.gate ?? {};
   if (typeof lookup !== 'function' || !board.gitRoot || !SHA.test(String(main)) || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || gate.analysis?.ownership || gate.proofPlan) return null;
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
-  if (!red.length || red.some(phase => Array.isArray(phase.failures) && phase.failures.length)) return null;
+  if (!red.length) return null;
+  // With no focused runner in accepted main's config, nothing can be measured on main, cases or not, so it says so.
+  if (!focusedRunner(board.gitRoot, main)) return { main, files: [], jobs: [], unavailable: 'no focused test runner configured' };
+  if (red.some(phase => Array.isArray(phase.failures) && phase.failures.length)) return null;
   const files = [...new Set(red.flatMap(phase => Array.isArray(phase.failedFiles) ? phase.failedFiles : []))].filter(file => typeof file === 'string' && PROJECT_FILE.test(file));
   // A red that names neither cases nor files is never guessed to be main's: it says why main was not checked.
   if (!files.length) return { main, files: [], jobs: [], unavailable: 'could not read which tests failed' };
@@ -99,6 +113,7 @@ export function compareFilesWithMain(board, receipt, main, lookup) {
  * @returns {string[]}
  */
 export function fileMainLines(board, compared) {
+  if (compared.unavailable === 'no focused test runner configured') return ['main not checked: no focused test runner configured (affectedTests)'];
   if (compared.unavailable) return [`main not checked: ${compared.unavailable}`];
   const red = compared.files.filter(row => row.result === 'red').map(row => row.file);
   const said = mainRedLines(board, compared.main, red);
