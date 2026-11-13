@@ -45,7 +45,7 @@ ${notchPreviewData.toString()}
 ${notchPreview.toString()}
 ${notchRulings.toString()}
 const notchFloorModel = (${agentFloorModel.toString()});
-let notchHover = null, notchBoard = null;
+let notchHover = null, notchBoard = null, notchAgents = 0;
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -139,10 +139,11 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0 } = 
   const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
   const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
   // The preview reads what this page holds when the pointer arrives, never the board: the project, its recent events and its calls [#6651].
-  notchBoard = p;
+  notchBoard = p; notchAgents = agents;
   if (!notchHover && $('notch')) notchHover = notchPreview($('notch'), () => {
-    const board = notchBoard, events = board.events || [];
-    const floor = notchFloorModel(dashboardModel(board, events, { now: Date.now(), complete: false }), events);
+    const board = notchBoard, kept = dashboardView.held(board.root), events = kept ? kept.events : board.events || [];
+    const floor = notchFloorModel(kept ? kept.state : dashboardModel(board, events, { now: Date.now(), complete: false }), events);
+    floor.numbers.live = notchAgents;
     return notchPreviewData({ floor, ...notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago) });
   });
   text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));

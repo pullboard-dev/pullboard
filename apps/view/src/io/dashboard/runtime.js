@@ -104,5 +104,10 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     tour.index = (tour.index + by + stops) % stops;
     firstRun.kit.paint(document.getElementById('dashboard'), tour.index);
   }
-  return { draw, tourStep };
+  /** The model and history the last draw of this board held, or null before the Dashboard has drawn it; reads nothing from the board. */
+  function held(root) {
+    const kept = histories.get(root + '|' + boardPath(root));
+    return kept?.modelCache ? { state: kept.modelCache.state, events: kept.events.filter(event => event.event_id <= kept.modelCache.prefix) } : null;
+  }
+  return { draw, tourStep, held };
 }
