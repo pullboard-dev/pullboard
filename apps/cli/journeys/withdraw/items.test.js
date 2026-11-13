@@ -230,7 +230,8 @@ test('an item detail shows its pending, red and green check baselines from the A
       assert.ok(detail.indexOf('<h3>Done when</h3>') < detail.indexOf('<h3>Check</h3>')
         && detail.indexOf('<h3>Check</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'), 'the check sits beside the criterion');
       assert.ok(detail.includes(`<code>${checks[index].command}</code>`), 'the displayed check is the API command');
-      assert.ok(detail.includes(`<span class="chip ${checks[index].result === 'green' ? 'ok' : checks[index].result === 'red' ? 'no' : 'warn'}">${checks[index].result}</span>`),
+      const word = checks[index].result.charAt(0).toUpperCase() + checks[index].result.slice(1);
+      assert.ok(detail.includes(`<span class="chip ${checks[index].result === 'green' ? 'ok' : checks[index].result === 'red' ? 'no' : 'warn'}">${word} on main</span>`),
         `the ${checks[index].result} baseline is visible`);
       if (checks[index].result === 'green') {
         assert.ok(detail.includes('This check already passed before the work, so it proves nothing.'), 'green baseline warning is plain language');
@@ -251,7 +252,7 @@ test('an item detail shows its pending, red and green check baselines from the A
         await page.run('refresh()');
         const completed = page.show('detail');
         assert.match(completed, /<h2><span class="id">#\d+<\/span>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
-        assert.ok(completed.includes('<span class="chip ok">green</span>'), 'the open detail updates to the completed result');
+        assert.ok(completed.includes('<span class="chip ok">Green on main</span>'), 'the open detail updates to the completed result');
         assert.ok(completed.includes('This check already passed before the work, so it proves nothing.'), 'the completed warning appears without reopening the detail');
       }
     }
@@ -292,9 +293,9 @@ test('a sent-back item shows why first [N26]', async () => {
     const needs = page.show('needs');
     assert.doesNotMatch(needs, /Greeting|Farewell/, "work sent back is the agents' to move, so it stays out of Needs-you; its row says why");
     const row = itemRow(page.show('chain'), 1);
-    assert.ok(row.includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
+    assert.ok(row.includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
     assert.ok(!row.includes('second line'), 'the row shows the first line of the note only');
-    assert.ok(itemRow(page.show('chain'), 2).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> the farewell is missing'));
+    assert.ok(itemRow(page.show('chain'), 2).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">the farewell is missing</span>'));
 
     await page.click({ item: '1', classes: 'row' });
     const detail = page.show('detail');
@@ -316,7 +317,7 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.match(page.show('detail'), /item-panel-status[^]*In review[^]*Resubmitted after a send-back/);
     assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*the farewell is missing/);
 
-    assert.ok(itemRow(page.show('chain'), 5).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> the footer is empty'), 'a row being reworked still says why');
+    assert.ok(itemRow(page.show('chain'), 5).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">the footer is empty</span>'), 'a row being reworked still says why');
     await page.click({ item: '5', classes: 'row' });
     assert.match(page.show('detail'), /item-panel-status[^]*Building[^]*Resubmitted after a send-back/);
     assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the footer is empty/);
@@ -379,7 +380,7 @@ test('a sent-back reason reads once [N26]', { timeout: 90_000 }, async () => {
         await chrome.click(`document.querySelector('#chain .row[data-item="${id}"]')`);
         await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.includes('${title}')`);
         const rendered = JSON.parse(await chrome.stable(`JSON.stringify({
-          row: document.querySelector('#chain .row[data-item="${id}"] .why')?.textContent,
+          row: [...document.querySelectorAll('#chain .row[data-item="${id}"] .meta :is(.item-reason, .why)')].map((part) => part.textContent).join(' '),
           card: document.querySelector('#detail .sentback .verdict .note')?.textContent,
           reason: document.querySelector('#detail .sentback .verdict b')?.textContent,
           reasonCode: document.querySelector('#detail .sentback .verdict b [title]')?.title,
