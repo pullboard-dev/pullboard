@@ -21,6 +21,8 @@ import { buildLocalBoardState } from '../../../store/index.js';
 import { stateFileInputs } from '../../../store/index.js';
 import { fileRevision } from '../../../store/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../logic/fields.js';
+import { milestonePace } from '../logic/milestone-pace.js';
+import { milestoneWithoutPace } from '../logic/milestone-pace.js';
 import { capacityAtRead } from '../../../stats/index.js';
 import { nativeStateClockMatches } from '../../../store/index.js';
 import {
@@ -529,10 +531,11 @@ function fingerprint(state) {
     const key = Object.hasOwn(DELTA_KEYS, field) ? DELTA_KEYS[field] : null;
     const ids = key && Array.isArray(value) ? value.map((entry) => entry?.[key]) : null;
     if (ids && ids.every((id) => typeof id === 'number' || typeof id === 'string') && new Set(ids).size === ids.length) {
-      lists.set(field, { key, ids, digests: new Map(value.map((entry) => [entry[key], jsonDigest(entry)])) });
+      const own = field === 'milestones' ? milestoneWithoutPace : (entry) => entry;
+      lists.set(field, { key, ids, digests: new Map(value.map((entry) => [entry[key], jsonDigest(own(entry))])) });
     } else fields.set(field, jsonDigest(value));
   }
-  return { fields, lists };
+  return { fields, lists, pace: jsonDigest(milestonePace(state.milestones)) };
 }
 
 /** Whether two key lists name the same entries in the same order. */
@@ -549,7 +552,7 @@ function sameIds(left, right) {
  * @param {{ fields: Map<string, string>, lists: Map<string, any> }[]} bases
  * @param {{ fields: Map<string, string>, lists: Map<string, any> }} current
  * @param {any} state The current summary state, projected for this request.
- * @returns {{ replace: object, merge: object, remove?: string[] }}
+ * @returns {{ replace: object, merge: object, milestonePace?: object, remove?: string[] }}
  */
 function stateDelta(bases, current, state) {
   const replace = {};
@@ -566,7 +569,8 @@ function stateDelta(bases, current, state) {
     }
   }
   const remove = [...new Set(bases.flatMap((base) => [...base.fields.keys(), ...base.lists.keys()]))].filter((field) => !Object.hasOwn(state, field));
-  return { replace, merge, ...(remove.length ? { remove } : {}) };
+  const pace = milestonePace(state.milestones), paced = pace !== undefined && bases.some((base) => base.pace !== current.pace);
+  return { replace, merge, ...(paced ? { milestonePace: pace } : {}), ...(remove.length ? { remove } : {}) };
 }
 
 /** Add the request-specific unread count without mutating the reusable snapshot. */

@@ -5239,6 +5239,10 @@
     "apps/runner/src/io/register.js": {
       "cells": 1,
       "deep": 0
+    },
+    "packages/store/tests/fixtures/submit.js": {
+      "cells": 1,
+      "deep": 0
     }
   },
   "cells": {

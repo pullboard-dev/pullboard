@@ -500,7 +500,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
  * entries and, when given, their new key order (A2).
  *
  * @param {any} state
- * @param {{ replace: object, merge: Record<string, { key: string, set: object[], ids?: (string|number)[] }>, remove?: string[] }} delta
+ * @param {{ replace: object, merge: Record<string, { key: string, set: object[], ids?: (string|number)[] }>, milestonePace?: object, remove?: string[] }} delta
  * @returns {any}
  */
 export function applyStateDelta(state, delta) {
@@ -511,6 +511,8 @@ export function applyStateDelta(state, delta) {
     for (const entry of set) entries.set(entry[key], entry);
     next[field] = (ids ?? (state[field] ?? []).map((entry) => entry[key])).map((id) => entries.get(id));
   }
+  // The rolling pace travels once, not inside each milestone it did not otherwise change, so a moved pace reaches every milestone here.
+  if (delta.milestonePace) next.milestones = (next.milestones ?? []).map((milestone) => milestone?.summary ? { ...milestone, summary: { ...milestone.summary, pace: delta.milestonePace } } : milestone);
   return next;
 }
 

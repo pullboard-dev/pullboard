@@ -1,31 +1,43 @@
 import { modelLabelRules } from "../cost/tab.js";
 import { projectSummary } from "../../logic/summary/project.js";
 /**
- * Read the private board's cost event history once per board state sequence.
+ * Read the private board's cost event history once per board and window, and again only after a usage, shared-usage
+ * or merged event has arrived since the last read. The drawn numbers stay on screen while a new read is on its way.
  * This function is serialized into the private page script and uses its page-local state.
  * @param {Record<string, any>} project - The current board state.
+ * @param {boolean} [switching] - Whether a tab switch asks, which keeps analytics already read.
  * @returns {{loading: false, error: string}|{sequence: number, loading: boolean, error: string|null, model: any}} The private-history status or cached entry.
  */
-function readCostHistory(project) {
+function readCostHistory(project, switching = false) {
   if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
   project.costPrices = localCostPrices;
   const root = view.root;
   const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
   const window = view.costWindow ?? '7d';
-  const kept = costHistory.get(root);
-  if (kept?.sequence === sequence && kept.window === window) return kept;
-  const entry = { sequence, window, loading: true, error: null, model: null };
-  costHistory.set(root, entry);
+  const key = root + '\n' + window;
+  const kept = costHistory.get(key);
+  const events = project.events || [];
+  const seen = Math.max(0, ...events.map(event => Number(event.event_id) || 0));
+  if (kept) {
+    if (kept.loading && !kept.model) return kept;
+    const oldest = events.length ? Math.min(...events.map(event => Number(event.event_id) || 0)) : seen;
+    const costEvent = events.some(event => event.event_id > kept.seen && ['usage', 'shared-usage', 'merged'].includes(event.event_kind));
+    if (!costEvent && oldest <= kept.seen + 1) return kept;
+  }
+  const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model), error: null, model: kept?.model ?? null };
+  costHistory.set(key, entry);
   api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
-    if (costHistory.get(root) !== entry || root !== view.root || !reply.costAnalytics) return;
+    if (costHistory.get(key) !== entry || !reply.costAnalytics) return;
     entry.model = reply.costAnalytics;
     entry.loading = false;
-    if (view.tab === 'cost') render();
+    entry.refreshing = false;
+    if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d')) render();
   }).catch(error => {
-    if (costHistory.get(root) !== entry) return;
+    if (costHistory.get(key) !== entry) return;
     entry.loading = false;
-    entry.error = String(error.message || error);
-    if (view.tab === 'cost') render();
+    entry.refreshing = false;
+    if (!entry.model) entry.error = String(error.message || error);
+    if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d') && !entry.model) render();
   });
   return entry;
 }
@@ -44,8 +56,8 @@ const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
 ${readCostHistory.toString()}
 function costPaneHtml(history, project) {
-  if (history.loading) return '<p class="empty" role="status">Loading cost history…</p>';
-  if (history.error) return '<p class="empty" role="status">Cost history is unavailable.</p>';
+  if (history.loading && !history.model) return '<p class="empty" role="status">Loading cost history…</p>';
+  if (history.error && !history.model) return '<p class="empty" role="status">Cost history is unavailable.</p>';
   return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses });
 }` : '';
 return `${privateCostSource}
@@ -261,7 +273,7 @@ async function boardState(root, mark, fresh = null, shown = null) {
     const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
     projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
       warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));
-    data = { root: null, project: null, group: null, projects, groups: projectGroups(projects) };
+    data = store.set({ root: null, project: null, group: null, projects, groups: projectGroups(projects) });
     renderSide();
     $('project-loading').hidden = projects.length === 0;
     // A listed board draws the frame now; its state fills the frame in as it arrives (#6589).
