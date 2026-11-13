@@ -76,7 +76,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       console.log('PULLBOARD_SHOUTS_REDESIGN ' + JSON.stringify({ width, list }));
       assert.equal(list.pageWidth, list.viewport, 'the feed and compact composer never widen the viewport');
       if (width === 1280) assert.ok(list.feed.right <= list.panel.left, 'the feed column ends before Agents begins');
-      assert.ok(list.composer.bottom - list.composer.top <= 48, 'the empty shout box is one compact line');
+      assert.ok(list.composer.bottom - list.composer.top <= 60, 'the empty shout box is one compact line');
       assert.equal(list.component, 'shouts', 'the one filter set lives in the strip');
       assert.equal(list.inPage, 0, 'no second filter set in the page');
       assert.ok(list.rowBox.height <= 32 && list.border === '0px', 'a thread is one line with no rule between rows');

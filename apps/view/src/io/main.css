@@ -1366,10 +1366,10 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 #feed .shout .who { color: var(--violet); font: 600 var(--text-sm) var(--mono); }
 #feed .shout.lead .who { color: var(--accent-strong); }
 #feed .shout .to { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.agent-row { grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto; min-height: var(--tap); padding: 0 var(--space-3); gap: var(--space-3); border-radius: var(--radius-md); }
+.agent-row { grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto; min-height: 44px; padding: 0 var(--space-3); gap: var(--space-3); border-radius: var(--radius-md); }
 .agent-row .agent-who { overflow: hidden; }
 .agent-who b, .agent-card.lead .agent-who b { color: var(--ink); font-weight: 600; }
-.agent-row .agent-model { display: none; }
+.agent-row .agent-model { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); font-size: var(--text-2xs); }
 .agent-row .agent-doing { grid-column: 2; grid-row: 1; }
 .agent-state { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 .agent-state time { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
