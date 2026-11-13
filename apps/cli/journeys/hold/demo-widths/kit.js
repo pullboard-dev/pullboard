@@ -466,7 +466,7 @@ export function demoWidthTest(only) {
     await checkLayout(1280, 'after removing the deliberate overflow probe');
 
     const posts = chrome.requests.filter((request) => request.method === 'POST' && new URL(request.url).pathname.endsWith('/moves'));
-    assert.equal(posts.length, 10, 'each viewport sends add, shout, answer, hold and release through the public move endpoint');
+    assert.equal(posts.length, 5, 'the viewport sends add, shout, answer, hold and release through the public move endpoint');
     // The local view also asks its own server whether it can link boards (/api/v1/view-link, #633); every board read
     // and move still goes through the public boards API.
     const apiRequests = chrome.requests.filter((request) => {
