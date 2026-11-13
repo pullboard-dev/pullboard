@@ -1,13 +1,13 @@
-import { trunkRef } from '../../../../../packages/sandbox/index.js';
+import { trunkRef } from '../../../../../packages/sandbox/light.js';
 import { withBoardRead } from '../board/read.js';
 /** The pullboard list command, in its own module so an item adding another command never edits these lines. */
-import * as store from '../../../../../packages/store/index.js';
+import * as store from '../../../../../packages/store/light.js';
 import {
   mainMergeFor,
-} from '../../../../../packages/merge/index.js';
+} from '../../../../../packages/merge/light.js';
 import {
   verdictProjector,
-} from '../../../../../packages/verify/index.js';
+} from '../../../../../packages/verify/read.js';
 import {
   agentDisplayName,
   context,
