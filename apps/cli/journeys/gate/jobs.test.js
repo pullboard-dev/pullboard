@@ -107,7 +107,7 @@ test('clause 3: on a real board, the next `next` call ends a stale job whose ite
   assert.ok(job.steps.some(step => step.name === 'withdrawn' && step.payload.stale === true));
 });
 
-test('#4070 clause 1: a lapsed gate job serving a live pre-submit hand-off, its item claimed by the hand-off seat, is never ended stale [C7]', async t => {
+test('#4070 clause 1: a lapsed gate job serving a live pre-submit hand-off, its item claimed by the hand-off seat, is never ended stale [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
@@ -134,10 +134,7 @@ test('#4070 clause 1: a lapsed gate job serving a live pre-submit hand-off, its 
     helpers.cleanup();
   });
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'held\n', 'feat(web): held candidate [G1]').status, 0);
-  // The held gate stays open until the cleanup releases it, so the fixture must not wait for the queue to settle.
-  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
-  const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json').finally(() => { delete box.env.PULLBOARD_FIXTURE_UNSETTLED; });
-  assert.equal(JSON.parse(submitted.out).queued, true);
+  assert.equal(JSON.parse((await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json')).out).queued, true);
   await helpers.waitFor(() => existsSync(started), 'the gate is running its held check', 120000); // budget: real worker start ceiling, no timing assertion.
   const handoff = handoffState(boardFile, id);
   assert.ok(['queued', 'running'].includes(handoff.state), 'the hand-off is live while its item stays claimed');
@@ -170,7 +167,7 @@ test('#4071 clause 1: a lapsed gate-drive job is listed; one whose hand-off ende
   assert.notEqual(view('gate-drive:live-handoff').step, 'done', 'a gate-drive job still serving its hand-off is left to its worker');
 });
 
-test('a submitted item is current at the head its hand-off submitted, not at a gate job\'s composed candidate; such a job is never ended stale [C7]', async t => {
+test('a submitted item is current at the head its hand-off submitted, not at a gate job\'s composed candidate; such a job is never ended stale [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
