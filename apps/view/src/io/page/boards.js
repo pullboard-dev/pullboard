@@ -4,9 +4,10 @@ import { modelLabelRules } from "../cost/tab.js";
  * or merged event has arrived since the last read. The drawn numbers stay on screen while a new read is on its way.
  * This function is serialized into the private page script and uses its page-local state.
  * @param {Record<string, any>} project - The current board state.
+ * @param {boolean} [switching] - Whether a tab switch asks, which keeps analytics already read.
  * @returns {{loading: false, error: string}|{sequence: number, loading: boolean, error: string|null, model: any}} The private-history status or cached entry.
  */
-function readCostHistory(project) {
+function readCostHistory(project, switching = false) {
   if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
   project.costPrices = localCostPrices;
   const root = view.root;
@@ -282,7 +283,7 @@ async function boardState(root, mark, fresh = null, shown = null) {
     const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
     projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
       warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));
-    data = { root: null, project: null, group: null, projects, groups: projectGroups(projects) };
+    data = store.set({ root: null, project: null, group: null, projects, groups: projectGroups(projects) });
     renderSide();
     $('project-loading').hidden = projects.length === 0;
     // A listed board draws the frame now; its state fills the frame in as it arrives (#6589).
