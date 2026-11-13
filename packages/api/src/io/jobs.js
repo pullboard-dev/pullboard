@@ -34,6 +34,8 @@ const REQUEST_BYTES = 60 * 1024;
 const PART_BYTES = 1024;
 // Budget: a whole request kept in its job's own request step, read only by the runner holding the job (#6150).
 const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
+// Budget: a land job a runner cannot finish is handed back this many times (about 17 minutes of backoff), then ends released and its items wait in their lane (#7386).
+const LAND_RELEASE_LIMIT = 6;
 /** The step a request too large for its offered row is kept in; its parts in the offer name it. */
 const REQUEST_STEP = 'request';
 // Budget: a progress step names each file once with a state word; it stays inline, under the 64 KiB blob threshold, so the live reader parses the row itself.
@@ -304,7 +306,26 @@ export function jobRequest(db, { job, runner, token }) {
 export function releaseJob(db, { job, runner, token, reason, backoff = true, now = Date.now() }) {
   const { attempt } = heldBy(db, job, runner, token);
   if (backoff === false) return { released: releaseLease(db, job, runner, { now }) };
-  return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
+  const settled = giveUpLanding(db, { job, runner, token, attempt, reason, now });
+  return settled ?? backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
+}
+
+/**
+ * End a land job a runner has handed back LAND_RELEASE_LIMIT times: record a `released` receipt and mark it done, so the
+ * job writes no more claims and its items stay accepted in their lane for the next landing. Other kinds keep backing off,
+ * since a gate job's builder waits on its receipt. Null while the job is under the limit.
+ * Why: a land job whose runner could not finish it was claimed 122,801 times in 3.5 hours; backoff slows that, and this
+ * bounds it, so a job nothing can land stops costing board rows (#7386).
+ *
+ * @returns {{ released: true, gaveUp: true, posted: ReturnType<typeof postReceipt> } | null}
+ */
+function giveUpLanding(db, { job, runner, token, attempt, reason, now }) {
+  if (db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(job)?.job_kind !== 'land') return null;
+  const handed = db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_step_job = ? AND job_step_name = 'released'").get(job).n + 1;
+  if (handed < LAND_RELEASE_LIMIT) return null;
+  const detail = `a runner handed this job back ${handed} times and it was released to the lane; last reason: ${String(reason ?? 'unspecified').slice(0, 300)}`;
+  const receipt = { kind: 'land', outcome: 'released', landed: [], already: [], returned: [], attempts: attempt, detail };
+  return { released: true, gaveUp: true, posted: postReceipt(db, { job, runner, token, receipt, now }) };
 }
 
 /**
@@ -379,7 +400,15 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
-  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, now });
+  if (action === 'release') {
+    const released = releaseJob(db, { job, runner, token, reason, backoff, now });
+    if (!released.gaveUp) return released;
+    // A land job given up is a recorded receipt, so the board notes each item as it does any other land receipt.
+    const { posted, ...rest } = released;
+    if (!onReceipt) return rest;
+    try { return { ...rest, applied: onReceipt(posted) }; }
+    catch (error) { if (!error?.code) throw error; return { ...rest, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
+  }
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'receipt') {
     const posted = postReceipt(db, { job, runner, token, receipt, now });

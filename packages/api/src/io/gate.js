@@ -810,6 +810,16 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
 }
 
 /**
+ * Tell each unmerged item of a land job a runner gave up on why it still waits, and shout the coordinator once. The
+ * items stay accepted: the next landing offers them again, so nothing is withdrawn for a runner's trouble (#7386).
+ */
+function noteReleasedLanding(board, job, named, receipt) {
+  const waiting = [...named].filter(id => { const item = store.getItem(board, id); return item && !item.item_merged_commit; });
+  for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} was released to the lane: ${receipt.detail}`.slice(0, 900) });
+  if (waiting.length) store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `land job ${job} released after repeated runner hand-backs; ${waiting.map(id => `#${id}`).join(' ')} stay accepted. ${String(receipt.detail).slice(0, 300)}`.slice(0, 600) });
+}
+
+/**
  * Mark each item a landed receipt names merged at the trunk commit the runner pushed: the items it merged and those
  * trunk already held. An item no longer accepted and unmerged is left as it is. The items the receipt gives back (red
  * or colliding) return to their builders or park (returnLandedReds); a busy trunk or lost lease changes no item, and
@@ -823,6 +833,7 @@ export function applyLandingReceipt(board, { job, receipt }) {
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
+  if (receipt?.outcome === 'released') noteReleasedLanding(board, job, named, receipt);
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
   if (receipt?.red) { try { recordLandedRed(board, { job, receipt, item: returned[0] ?? null }); } catch { /* a diagnostic that cannot record leaves the red as it was */ } }
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
