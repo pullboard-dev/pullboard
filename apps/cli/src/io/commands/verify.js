@@ -295,6 +295,10 @@ export async function verifyHere(ctx, id, { second, values }) {
     const earlier = earlierHolderProblem(board, item, me.id);
     if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
+    // A forced-landed item takes one verdict: a second one, by any seat, is refused before the move [V1,H16].
+    if (item.item_status === 'withdrawn' && item.item_merged_commit && item.item_verdict) {
+      throw new Refused('NOT_LANDED', `item #${id} already has a ${item.item_verdict} verdict by ${item.item_verified_by ?? 'another seat'}; a forced-landed item takes one verdict`);
+    }
     // A forced merge landed this item around the gate; a verdict is recorded on the board and the landing stays (V1).
     if (decision === 'ACCEPT' && item.item_status === 'withdrawn' && item.item_merged_commit) {
       landedVerdict = true;
