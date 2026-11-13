@@ -67,10 +67,6 @@ function cpuLoadShell(e2e, commonjs, stage) {
   command('runner', 'add', HOST, '--node', process.execPath, '--slots', '1', '--browser', commonjs ? '1' : '0');
   command('settings', 'gate.runnersFirst', 'off');
   command('settings', 'gateSlots', '1');
-  // The gate runs in this process and the case counts its ssh requests, so it pins controller dispatch; pull would run the job on the loopback runner with no ssh request [P7].
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  writeFileSync(settingsFile, JSON.stringify({ ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } }));
   stage('runner-registered');
   const shell = { box, env, requests, standIn, remoteHome, remoteMachineHome, command, probeFile };
   kinds.set(commonjs, shell);
