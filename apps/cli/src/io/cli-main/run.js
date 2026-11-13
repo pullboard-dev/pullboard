@@ -53,17 +53,6 @@ export function writesBoard([command, first]) {
 }
 
 /**
- * Whether a command line wakes queued-handoff recovery: board writes do, reads and Git hooks never. Why: on 8 Nov a
- * commit-msg hook, heartbeats and inbox reads each ran recovery and waited minutes behind the dispatcher launch [C7].
- *
- * @param {string[]} positionals - The command and its verb.
- * @returns {boolean}
- */
-export function wakesHandoffRecovery(positionals) {
-  return writesBoard(positionals) && !['hook', 'hooks'].includes(positionals[0]);
-}
-
-/**
  * Bind this checkout to the session behind a write before any sync or side effect. Reads, help and authenticated
  * person channels keep their identity and load nothing for it.
  */
@@ -256,9 +245,6 @@ async function runMain(argv, streams) {
   try {
     if (needsRepo) {
       await rememberTrunk(io, git);
-      if (!parsed?.values['dry-run'] && wakesHandoffRecovery(parsed?.positionals ?? [])) {
-        await (await import('./recovery.js')).recoverQueuedHandoffs(io, git);
-      }
     }
     traceServeStartup('cli-command-preamble-start');
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.

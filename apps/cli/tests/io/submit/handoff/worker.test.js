@@ -1,9 +1,8 @@
-/** A dead gate worker is swept the moment it exits, the sweep reaches it fast, and a locked board never kills a driver [C7]. */
+/** A locked board never kills a gate driver, and a queued job keeps its place in line [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
@@ -14,16 +13,10 @@ import { createJob } from '../../../../../../packages/jobs/index.js';
 import { takeJob } from '../../../../../../packages/jobs/index.js';
 import { jobView } from '../../../../../../packages/jobs/index.js';
 import { recordJobRow } from '../../../../../../packages/drive/index.js';
-import { drainHandoffQueue } from '../../../../../../packages/resources/index.js';
-import { exitedWithoutResult } from '../../../../../../packages/resources/index.js';
-import { HANDOFF_SWEEP_EVERY_MS } from '../../../../../../packages/resources/index.js';
-import { queueHandoffLaunch } from '../../../../../../packages/resources/index.js';
-import { reserveHandoffTicket } from '../../../../../../packages/resources/index.js';
 import { queuedElsewhere } from '../../../../../../packages/resources/index.js';
 import { recordHandoffQueue } from '../../../../../../packages/resources/index.js';
 import { replaceLostTicketOnce } from '../../../../../../packages/resources/index.js';
 import { recordTicketSafely } from '../../../../src/io/submit/handoff/worker.js';
-import { waitForCondition } from '../../../fixtures/runner/holders.js';
 
 /** A worker that dies at once with no result, as a crashed gate driver does. */
 const DYING_WORKER = 'process.exit(1);\n';
@@ -43,38 +36,6 @@ function fixture() {
   };
   return { dir, tools, cleanup };
 }
-
-test('a worker that exits with no result is swept within seconds, not at the next timed sweep [C7]', async t => {
-  const box = fixture();
-  try {
-    const directory = join(box.dir, 'jobs', 'job1');
-    mkdirSync(directory, { recursive: true });
-    writeFileSync(join(directory, 'request.json'), JSON.stringify({ job: 'job1' }) + '\n');
-    queueHandoffLaunch({ directory, tools: box.tools, commonDir: box.dir, job: 'job1' }, await reserveHandoffTicket('job1'));
-    const sweptAt = [];
-    const started = Date.now();
-    // The timed sweep is far away, so only the exit can start the second sweep.
-    const drained = drainHandoffQueue({ capacity: 1, pollMs: 20, sweep: async () => { sweptAt.push(Date.now() - started); }, sweepEveryMs: 10 * 60_000 });
-    await waitForCondition(() => sweptAt.length >= 2, 'the dead worker swept on its exit', { signal: t.signal });
-    assert.ok(sweptAt[1] < 10_000, `the exit sweep ran ${sweptAt[1]} ms after the drain started; a dead gate restarts in seconds`);
-    assert.deepEqual((await drained).started, ['job1']);
-  } finally { box.cleanup(); }
-});
-
-test('the timed sweep runs every 15 s at most, and an exit with a written result asks for no extra sweep [C7]', () => {
-  assert.ok(HANDOFF_SWEEP_EVERY_MS <= 15_000, 'a worker an earlier dispatcher started is swept within 15 s of its death');
-  const dir = temporaryDirectory('pullboard-dead-result-');
-  try {
-    const startedAt = Date.now() - 1000;
-    writeFileSync(join(dir, 'submission.json'), '{}\n');
-    utimesSync(join(dir, 'submission.json'), new Date(), new Date());
-    const finished = new Map([[1, { exited: true, directory: dir, startedAt, resultAt: null }]]);
-    assert.equal(exitedWithoutResult(finished), false, 'a worker that wrote its result is not a death');
-    const dead = new Map([[1, { exited: true, directory: join(dir, 'none'), startedAt, resultAt: null }]]);
-    assert.equal(exitedWithoutResult(dead), true, 'a worker that exited with no result is a death');
-    assert.equal(exitedWithoutResult(dead), false, 'each death asks for one sweep');
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-});
 
 test('a lease renewal that meets a locked board answers not held and the driver lives; any other row still throws [C7]', t => {
   // File storage is needed to hold the real SQLite writer lock from a second connection.

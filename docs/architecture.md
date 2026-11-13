@@ -194,7 +194,6 @@ Harness results below are from 8 November 2026. Live receipts are this board's `
 | <a id="hop-runner-spec"></a>proof shards: spec under 1 MiB | A runner request naming every test file of this repository builds a spec under 1 MiB. | `packages/gate/tests/fixtures/pipeline/spec.js` (8 Nov), repro, refused RUNNER_REQUEST_LIMIT on `2640738102^`: 58 KiB for 1,445 files | none | PASS |
 | <a id="hop-test-receipt"></a>test run → receipt | A green gate leaves a proof receipt naming the submitted commit. | `packages/gate/tests/fixtures/pipeline/e2e.js` (8 Nov): release to green with its receipts in 6-16 s | result p50 737 ms over 29 gates | PASS |
 | <a id="hop-dead-requeue"></a>dead worker → requeue | A gate whose driver is killed is requeued on the same candidate within 20 s, with no builder red. | `packages/gate/tests/fixtures/pipeline/requeue.js` (8 Nov), repro, fails on `3a89d81fc5^`: requeued 0.7-1.6 s after the kill | requeue p50 1m41s over 22 gates | PASS, live disagrees |
-| <a id="hop-foreign-sweep"></a>another machine queue's sweep | A dispatcher from another machine home never recovers this home's gates; a gate whose driver died stays this home's to retry. | `packages/gate/tests/fixtures/pipeline/sweep.js` (8 Nov), repro, fails on `044d6c6c18^` with a launch in the other home: the dead gate left to its home, which retries it | none | PASS |
 | <a id="hop-green-review"></a>green → review | A green gate puts the item in review, waiting on an independent reviewer. | `packages/gate/tests/fixtures/pipeline/e2e.js` (8 Nov): submitted (in review) | none | PASS |
 | <a id="hop-accept-merged"></a>accept → landing batch → merged | An accept lands through a batch: main moves to the recorded merge and is pushed. | `packages/gate/tests/fixtures/pipeline/e2e.js` (8 Nov): accept, then `pullboard land`, in 5-19 s | none | PASS |
 | <a id="hop-landing-reopen"></a>reject or reopen during landing | An item reopened between selection and merge drops out of the landing batch: main never takes its commit and it records no merge. | `packages/gate/tests/fixtures/pipeline/a-reject-or-reopen-during-landing.js` (12 Nov): reopen while the landing gate holds | none | PASS |
@@ -361,14 +360,13 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 - **Serves:** no item: one per machine while tickets wait or drivers run.
 - **States:** `dispatcher.spawned`. Terminal: none (released, never done).
 - **Lease:** LEASE_MS 120 s; renewed every 5 s per pass; released when the queue empties; never done.
-- **Ends when its item moves on:** violated (gap SM1), at `startWorker` in `packages/resources/src/io/handoff/worker/cap.js`: launches every waiting ticket with no read of its item
-- **Harness:** `apps/cli/journeys/handoff/dispatcher/relaunch.test.js`.
+- **Ends when its item moves on:** held, at `ensureDispatcher` in `packages/drive/src/io/dispatcher.js`: the row launches nothing since #6579 deleted the hand-off dispatcher; it holds only its own lease
+- **Harness:** `apps/lib/tests/durable/drive.test.js`.
 
 | From | To | Trigger | Where |
 |---|---|---|---|
 | (lapsed) | `dispatcher.spawned` | submit, next or claim ensures it; takes the row only where the lease lapsed | `ensureDispatcher` in `packages/drive/src/io/dispatcher.js` |
 | `dispatcher.spawned` | `dispatcher.spawned` | each pass renews, or retakes a lapsed row | `renewDispatcher` in `packages/drive/src/io/dispatcher.js` |
-| `dispatcher.spawned` | (released) | queue empty or failure | `gateDispatcherRow` in `packages/drive/src/io/gate/admission.js` |
 
 #### `review`: review reservation
 
@@ -630,10 +628,8 @@ Every build claim and every review reservation is checked in one write transacti
 | gate driver killed | the gate is requeued on the same candidate within seconds, with no builder red | same | `packages/gate/tests/fixtures/pipeline/requeue.js` |
 | live driver mistaken for dead | a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone | same | `packages/gate/tests/fixtures/pipeline/driver.js` |
 | runner lost mid-shard | the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it | same | `packages/gate/tests/fixtures/pipeline/worker.js` |
-| dispatcher down with queued gates | next and claim recover a dead dispatcher; status, show and whoami never do | same | `apps/cli/journeys/handoff/dispatcher/relaunch.test.js` |
 | dispatcher on stale tools | it stops launching and hands over to one on current tooling within 45 s | same | `packages/gate/tests/fixtures/pipeline/dispatcher.js` |
 | seat runs a stale CLI | a worktree runs the main checkout's current CLI | same | `apps/cli/journeys/worktree/current.test.js` |
-| another machine's dispatcher sweeps this home | it never recovers this home's gates | same | `packages/gate/tests/fixtures/pipeline/sweep.js` |
 | landing crash | killing the lander at any stage lets the next accept land both items without manual recovery | same | `apps/cli/journeys/verify/landing/drill.test.js` |
 | two landers | the board landing lease admits one; a stalled relay cannot block the holder's heartbeat | same | `apps/lib/tests/landing/lease.test.js` |
 | a reject or reopen during landing | every landing step re-checks verified at the commit, so the item drops out of the batch | same, proven between select and merge | `packages/gate/tests/fixtures/pipeline/a-reject-or-reopen-during-landing.js` |
