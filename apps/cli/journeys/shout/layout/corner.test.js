@@ -42,7 +42,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
     const rgb = (css) => (css.match(/[\\d.]+/g) || []).map(Number);
     const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
-    const theme = document.querySelector('#theme'), bar = document.querySelector('.top-tier'), side = document.querySelector('.strip');
+    const theme = document.querySelector('#account'), bar = document.querySelector('.top-tier'), side = document.querySelector('.strip');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       mode: document.documentElement.dataset.side || 'docked', logo: box(document.querySelector('#side-toggle svg')), name: box(document.querySelector('#proj-name')),
@@ -53,7 +53,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
           asks: asks ? { text: asks.textContent, first: row.querySelector('small').firstElementChild === asks, warn: getComputedStyle(asks).color === warn } : null,
           tint: rgb(s.backgroundColor), edge: rgb(s.borderTopColor) };
       }),
-      theme: { scheme: document.documentElement.dataset.scheme || null, title: theme.title, box: box(theme), bar: box(bar), picked: document.documentElement.dataset.theme || null, side: box(side) },
+      theme: { scheme: document.documentElement.dataset.scheme || null, box: box(theme), bar: box(bar), picked: document.documentElement.dataset.theme || null, side: box(side) },
     };
   })())`));
   const click = (selector) => chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
@@ -73,10 +73,10 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width, `${at}: no sideways scroll`);
         assert.equal(r.wordmark, false, `${at}: the corner is the logo mark, never a wordmark`);
-        // The theme button sits centred in the top tier (the logo, the project, the theme), with the tab strip under it,
+        // The account control (it holds the theme row, #6648) sits centred in the top tier (the logo, the project, the theme), with the tab strip under it,
         // on a wide screen and a phone alike (#6614).
         const top = r.theme.bar;
-        assert.ok(Math.abs(middle(r.theme.box) - middle(top)) <= 2 && r.theme.box.left >= top.left && r.theme.box.right <= top.right, `${at}: the theme button sits centred in the top bar: ${JSON.stringify(r.theme)}`);
+        assert.ok(Math.abs(middle(r.theme.box) - middle(top)) <= 2 && r.theme.box.left >= top.left && r.theme.box.right <= top.right, `${at}: the account control sits centred in the top bar: ${JSON.stringify(r.theme)}`);
         assert.ok(top.top <= 0.5 && r.theme.side.top >= top.bottom - 1, `${at}: the top tier first, the tabs under it: ${JSON.stringify(r.theme)}`);
         if (width === 375) continue;
         // In the project list: a project is its name and what it holds, what needs the person first in the warning
@@ -120,26 +120,39 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     await chrome.waitFor("document.querySelector('#settings-pane') && !document.querySelector('#settings-pane').hidden");
     assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), false, 'the Settings action opens its pane from the collapsed desktop popover');
 
-    // The theme is light or dark: it starts from the system's, each press switches, the title says which, a reload keeps
-    // it; collapsed, the button still sits centred in the top bar.
-    assert.deepEqual([collapsed.theme.scheme, collapsed.theme.title, collapsed.theme.picked], ['light', 'Light theme: switch to dark', null], 'none picked yet: the system\'s, light here');
+    // The theme is a row in the account menu (#6648): it starts from the system's, each press switches light and dark,
+    // the row says which the person kept, a reload keeps it; collapsed, the account control still sits centred in the top bar.
+    /** The Theme row's hint, read after opening the account menu. */
+    const hint = async () => {
+      await click('#account');
+      await chrome.waitFor("!document.querySelector('#account-menu').hidden");
+      return chrome.stable("document.querySelector('#account-menu [data-theme-label]').textContent");
+    };
+    assert.deepEqual([collapsed.theme.scheme, collapsed.theme.picked, await hint()], ['light', null, 'System'], 'none picked yet: the system\'s, light here, and the row says System');
+    await click('#account');
     // With none picked the page follows the system as it changes.
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
     await frame();
     await chrome.waitFor("document.documentElement.dataset.scheme === 'dark'");
-    assert.equal((await read()).theme.title, 'Dark theme: switch to light', 'and the button says so');
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await frame();
     await chrome.waitFor("document.documentElement.dataset.scheme === 'light'");
-    assert.ok(Math.abs(middle(collapsed.theme.box) - middle(collapsed.theme.bar)) <= 2, `the button sits centred in the top bar: ${JSON.stringify(collapsed.theme)}`);
-    await click('#theme');
-    assert.deepEqual(Object.values((await read()).theme).slice(0, 2), ['dark', 'Dark theme: switch to light'], 'a press switches to dark');
-    await click('#theme');
-    assert.deepEqual([...Object.values((await read()).theme).slice(0, 2), await chrome.stable("localStorage.getItem('pb.theme')")], ['light', 'Light theme: switch to dark', 'light'], 'the next press is light again, never back to following the system');
-    await click('#theme');
+    assert.ok(Math.abs(middle(collapsed.theme.box) - middle(collapsed.theme.bar)) <= 2, `the account control sits centred in the top bar: ${JSON.stringify(collapsed.theme)}`);
+    /** Press the Theme row in the account menu, as a person does. */
+    const flip = async () => {
+      await hint();
+      await click('#account-menu [data-theme-flip]');
+      await frame();
+    };
+    await flip();
+    assert.deepEqual([(await read()).theme.scheme, await chrome.stable("localStorage.getItem('pb.theme')")], ['dark', 'dark'], 'a press switches to dark');
+    await flip();
+    assert.deepEqual([(await read()).theme.scheme, await chrome.stable("localStorage.getItem('pb.theme')")], ['light', 'light'], 'the next press is light again, never back to following the system');
+    await flip();
     await chrome.send('Page.reload');
-    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#theme')");
-    assert.deepEqual(Object.values((await read()).theme).slice(0, 2), ['dark', 'Dark theme: switch to light'], 'presses switch between the two, and a reload keeps the last');
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#account')");
+    assert.equal((await read()).theme.scheme, 'dark', 'presses switch between the two, and a reload keeps the last');
+    assert.equal(await hint(), 'Dark', 'the row says which the person kept');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
