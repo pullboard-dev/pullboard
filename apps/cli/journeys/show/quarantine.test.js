@@ -4,25 +4,19 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from '../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../tests/fixtures/cases/quarantine-submit.js';
-import { submit } from '../../tests/fixtures/cases/quarantine-submit.js';
+import { settledSubmit } from '../../tests/fixtures/cases/quarantine-submit.js';
 import { submitFlakePairs } from '../../../../packages/flakes/index.js';
 
-/** Each real submit is its own subtest, so the runner sees output between the two slow children and never reads the pause as a hang. */
-test('clause 1: a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', { skip: 'PULL_GAP: un-skipped by #7265' }, async t => {
+/** Each pulled submit settles on the fixture's local runner; the always-red case pairs red, so no quarantine excuses it [P7,C7]. */
+test('clause 1: a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', async t => {
   const box = fixture(t, true);
-  let first;
-  await t.test('original submit and its paired body', () => {
-    first = submit(box);
-    assert.ok([0, 1].includes(first.code), JSON.stringify(first.document));
-    assert.ok(box.readData(box.counter, 'utf8').trim().split('\n').length >= 2, 'the actual deterministic original and paired bodies executed: ' + JSON.stringify(first.document));
-    assert.deepEqual(snapshot(box).quarantines, []);
-  });
-  if (first.code === 1) {
-    await t.test('rerun submit', () => {
-      const second = submit(box);
-      assert.ok([0, 1].includes(second.code), JSON.stringify(second.document));
-      assert.deepEqual(snapshot(box).quarantines, []);
-    });
+  for (const attempt of ['original', 'rerun']) {
+    const settled = await settledSubmit(box);
+    const seen = JSON.stringify({ attempt, status: settled.document.item_status, gateJob: settled.document.gateJob, quarantines: snapshot(box).quarantines });
+    assert.equal(settled.code, 1, seen);
+    assert.equal(settled.document.item_status, 'claimed', seen);
+    assert.ok(box.readData(box.counter, 'utf8').trim().split('\n').length >= 2, 'the actual deterministic original and paired bodies executed: ' + seen);
+    assert.deepEqual(snapshot(box).quarantines, [], seen);
   }
 });
 
