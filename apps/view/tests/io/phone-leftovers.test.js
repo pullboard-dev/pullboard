@@ -28,7 +28,7 @@ test('clause 1: Spec and Doctrine tab labels have a one-word phone form and keep
   const css = composeViewStyles();
   assert.match(css, /#spec-chips \.seg-full, #doctrine-chips \.seg-full \{ display: none; \}/u, 'the phone shows the short word');
   assert.match(css, /#spec-chips \.seg-label, #doctrine-chips \.seg-label \{[^}]*overflow: visible/u, 'a label is never cut mid-word');
-  assert.doesNotMatch(css.match(/@media \(max-width: 700px\) \{\s*\/\* Each label[\s\S]*?\n\}/u)?.[0] ?? '', /text-overflow: ellipsis/u, 'no phone tab label ends in an ellipsis');
+  assert.doesNotMatch(css.match(/@media \(max-width: 700px\) \{\n  #spec-chips \.seg, [\s\S]*?\n\}/u)?.[0] ?? '', /text-overflow: ellipsis/u, 'no phone tab label ends in an ellipsis');
 });
 
 test('clause 2: a Settings row without a copy button keeps its value in the same column as one with it [N26]', () => {
