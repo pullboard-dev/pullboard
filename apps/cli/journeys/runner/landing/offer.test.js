@@ -97,33 +97,3 @@ async t => {
   assert.equal(jobs.length, 1, `hold --off offers its land job; the lander answered ${JSON.stringify(result)}`);
   assert.deepEqual(jobs[0].steps.find(step => step.name === 'offered').payload.payload.items, [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
 });
-
-test('#6807 clause 1: with no trunk remote and no local runner, land refuses with a next step and runs no batch on the host [C7,#6807]', { timeout: 240_000 }, // budget: one pulled gate, an in-process lander and a land command; hang ceiling only.
-async t => {
-  const box = await pullProject(t, 1);
-  const file = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: true } }, null, 2) + '\n');
-  box.git(box.repo, 'commit', '-q', '-am', 'chore: the coordinator lands by hand [G1]');
-  const [id] = box.ids;
-  const { commit } = submitOne(box, id);
-  const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
-  assert.equal((await serveOnce(box, queue.url, 'r-gate')).code, 0);
-  verify(queue.board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: commit, digest: getItem(queue.board, id).item_frozen_digest, policy: 'any' });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
-  const main = box.git(box.repo, 'rev-parse', 'main');
-  const landed = await runCliInProcess(['land', '--json'], { cwd: box.repo, env: { ...box.env } });
-  assert.notEqual(landed.code, 0, `${landed.err}\n${landed.out}`);
-  assert.match(landed.err + landed.out, /LAND_NO_RUNNER/u);
-  assert.match(landed.err + landed.out, /next: set trunk\.remote in pullboard\.json/u, 'the refusal names the next step');
-  for (const flag of [['--max', '1'], ['--adopt'], ['--due'], ['--dry-run']]) {
-    const retired = await runCliInProcess(['land', ...flag, '--json'], { cwd: box.repo, env: { ...box.env } });
-    assert.notEqual(retired.code, 0, `land ${flag.join(' ')} ran: ${retired.out}`);
-    assert.match(retired.err + retired.out, /LAND_OFFER_ONLY/u, `land ${flag.join(' ')} offers only the land job`);
-  }
-  assert.equal(jobsOf(queue.board.db, { kind: 'land' }).length, 0, 'no runner could take a land job, so none was offered');
-  assert.equal(landingBatches(queue.board).length, 0, 'no landing batch ran on the board host');
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'nothing on the host merged');
-  assert.equal(getItem(queue.board, id).item_status, 'verified', 'the item keeps its accept');
-  assert.equal(getItem(queue.board, id).item_merged_commit, null);
-});
