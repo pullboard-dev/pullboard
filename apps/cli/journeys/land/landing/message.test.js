@@ -166,8 +166,14 @@ test('a docs-only item lands green after both selected shard files complete with
   const log = join(box.dir, 'completed-docs-shard');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
   config.lanes.web.owns = ['docs/'];
+  writeFileSync(configFile, JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: let the web lane own docs');
+  const entry = await claimedItem(box, 'Land a docs-only note', ['G1'], 'docs/note.md');
+  await buildAndAccept(box, entry, 'docs(web): add only a landing note [G1]');
+  // Main then gains the two real shard files and the gate that runs only them, so the landing gate is the sharded one.
+  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
   writeFileSync(configFile, JSON.stringify(config));
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   for (const name of ['one', 'two']) writeFileSync(join(box.repo, `test/docs-${name}.test.js`), `import { test } from 'node:test';
@@ -176,8 +182,6 @@ test('docs shard ${name} completes [G1]', () => { appendFileSync(${JSON.stringif
 `);
   box.git(box.repo, 'add', 'pullboard.json', 'test');
   box.git(box.repo, 'commit', '-q', '-m', 'test: configure two real landing shard files [G1]');
-  const entry = await claimedItem(box, 'Land a docs-only note', ['G1'], 'docs/note.md');
-  await buildAndAccept(box, entry, 'docs(web): add only a landing note [G1]');
   advanceMain(box);
   await drainComparisons(box, t.signal);
   const changed = box.git(entry.path, 'diff', '--name-only', 'main...HEAD');

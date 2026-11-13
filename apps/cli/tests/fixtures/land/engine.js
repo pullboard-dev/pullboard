@@ -61,7 +61,10 @@ export async function landEnginesInOrder({ landProject, itemWorktree, submitItem
   const result = await settleLand(box, json(box, box.repo, 'land')); // plain pulled land job: one offer lands both in verdict order
   // The pulled land job picks its own landing order from the board; the numbers must follow whichever order it landed in.
   assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map((entry) => entry.item).sort((a, b) => a - b), 'the train lands both items');
-  const landedOrder = result.landed.map((item) => entries.findIndex((entry) => entry.item === item));
+  // The receipt's list need not be the merge order, so read the landing order from the trunk's own merges.
+  const merged = (index) => json(box, box.repo, 'show', String(entries[index].item)).item_merged_commit;
+  const mergeOrder = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..${result.batch.tip}`).split('\n').filter(Boolean);
+  const landedOrder = [0, 1].sort((left, right) => mergeOrder.indexOf(merged(left)) - mergeOrder.indexOf(merged(right)));
   for (const [position, index] of landedOrder.entries()) {
     const merge = json(box, box.repo, 'show', String(entries[index].item)).item_merged_commit;
     assert.equal(numberAt(box, merge, names[index]), 81 + position, `${names[index]} took ${81 + position}, its place in landing order, inside its own merge`);
