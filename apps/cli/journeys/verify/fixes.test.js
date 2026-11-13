@@ -136,12 +136,12 @@ test('the floor\'s numbers, Now column and queue cards follow the approved fixes
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.status [data-status=agents]')`);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.notch [data-status=agents]')`);
     // Clause 4: three more ways in, each beside the existing "Open the agent floor" link.
     const ways = [
       ['the Agents card title', '#dashboard [aria-label=Agents] h2 > a:first-child'],
       ['the Agents card working count', '#dashboard [aria-label=Agents] h2 .dash-agents-count'],
-      ['the status bar agents count', '.status [data-status=agents]'],
+      ['the notch agents count', '.notch [data-status=agents]'],
     ];
     assert.match(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-agents-count").textContent'), /^\d+ working$/u);
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-floor-link").textContent'), 'Open the agent floor →', 'the existing link stays');
