@@ -27,24 +27,24 @@ const shell = (privateCost) => cockpitMarkup({ repositoryAttribute: 'https://exa
 const tabsIn = (html) => [...html.matchAll(/class="tab[^"]*" data-tab="([a-z]+)"/gu)].map(match => match[1]);
 const stripLabels = (html) => [...html.matchAll(/<button class="(tab|tab-group-btn)[^"]*" data-(?:tab|nav-group)="[a-z]+"[^>]*>(?:<span class="group-label">)?([^<]+)/gu)].filter(match => !/role="menuitem"/u.test(match[0])).map(match => match[2]);
 
-test('clause 1: the pages are Items, Shouts, Roadmap, then Rules (Spec, Doctrine) and Insights (Dashboard, Activity, Cost), as in the prototype [N26]', () => {
+test('clause 1: the pages are Items, Shouts, Roadmap, then Rules (Spec, Doctrine) and Insights (Dashboard, Activity, Cost, Pipeline), as in the prototype [N26]', () => {
   assert.deepEqual(navPages({ cost: true }).map(page => [page.group, page.name]), [
     ['Work', 'Items'], ['Work', 'Shouts'], ['Work', 'Roadmap'],
     ['Rules', 'Spec'], ['Rules', 'Doctrine'],
-    ['Insights', 'Dashboard'], ['Insights', 'Activity'], ['Insights', 'Cost'],
+    ['Insights', 'Dashboard'], ['Insights', 'Activity'], ['Insights', 'Cost'], ['Insights', 'Pipeline'],
   ]);
-  assert.deepEqual(navPages().map(page => page.id), ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity'], 'Cost shows only where the view keeps private cost');
+  assert.deepEqual(navPages().map(page => page.id), ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'pipeline'], 'Cost shows only where the view keeps private cost');
   // The prototype's one line under each menu page.
   assert.deepEqual(Object.fromEntries(navPages({ cost: true }).map(page => [page.id, page.what])), {
     items: 'Every piece of work', shouts: 'Agents talking to the coordinator', roadmap: 'What ships next, in order',
-    spec: 'What the product must do', doctrine: 'How the work must be done', dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item',
+    spec: 'What the product must do', doctrine: 'How the work must be done', dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', pipeline: 'Why work isn\'t moving',
   });
 
   const strip = navStripHtml({ cost: true });
   assert.deepEqual(stripLabels(strip), ['Items', 'Shouts', 'Roadmap', 'Rules', 'Insights'], 'Work as plain tabs, then a menu each for Rules and Insights');
-  assert.deepEqual(tabsIn(strip), ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'cost'], 'every page is one data-tab button, in order');
+  assert.deepEqual(tabsIn(strip), ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'cost', 'pipeline'], 'every page is one data-tab button, in order');
   assert.match(strip, /data-tab="roadmap"[^>]*>Roadmap<\/button><span class="tab-sep" aria-hidden="true"><\/span><span class="tab-group"><button class="tab-group-btn" data-nav-group="rules"/u, 'a rule separates Work from the menus');
-  for (const [group, pages] of [['rules', ['spec', 'doctrine']], ['insights', ['dashboard', 'activity', 'cost']]]) {
+  for (const [group, pages] of [['rules', ['spec', 'doctrine']], ['insights', ['dashboard', 'activity', 'cost', 'pipeline']]]) {
     const menu = new RegExp(`<div class="tab-menu" id="nav-menu-${group}" data-nav-menu="${group}" role="menu" aria-label="[A-Za-z]+" hidden>(.*?)</div>`, 'u').exec(strip);
     assert.ok(menu, `${group}: a closed menu the button controls`);
     assert.match(strip, new RegExp(`data-nav-group="${group}" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-menu-${group}"`, 'u'));
@@ -135,8 +135,8 @@ test('clause 2: every filter and search has its own address, a default leaves no
   assert.equal(withPlaceQuery('?k=secret&state=verify&q=old', []), '?k=secret', 'leaving a place drops its keys and keeps the rest');
   assert.equal(withPlaceQuery('', []), '');
   assert.deepEqual(readPlaceQuery('?k=secret&state=verify&lane=web&q=greeting+card&rows=all&shouts=mine&activity=landed&shipped=1&by=coordinator'),
-    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed', shipped: '1', by: 'coordinator', win: null });
-  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null, shipped: null, by: null, win: null });
+    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed', shipped: '1', by: 'coordinator', win: null, window: null, ids: null });
+  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null, shipped: null, by: null, win: null, window: null, ids: null });
   for (const place of [{ tab: 'items', state: 'gated', lane: 'core' }, { tab: 'items', state: 'all', q: '#12' }, { tab: 'doctrine', rows: 'repo', rowsDefault: 'all' }, { tab: 'shouts', shouts: 'mine' }]) {
     const read = readPlaceQuery(at(place));
     assert.deepEqual(placeQuery({ ...place, ...Object.fromEntries(Object.entries(read).filter(([, value]) => value !== null)) }), placeQuery(place), `${JSON.stringify(place)} reads back as itself`);
@@ -148,7 +148,7 @@ test('clause 1: the sidebar lists the same pages in 28 px rows, each with its on
   assert.deepEqual([...html.matchAll(/<div class="side-h">([A-Za-z]+)<\/div>/gu)].map(match => match[1]), ['Work', 'Rules', 'Insights'], 'quiet group labels, as in the strip');
   const rows = [...html.matchAll(/<button class="side-row( on)?" data-tab="([a-z]+)" type="button"[^>]*><span class="side-name">([A-Za-z]+)<\/span><span class="f( a)?" data-nav-fact="([a-z]+)">([^<]*)<\/span><\/button>/gu)];
   assert.deepEqual(rows.map(match => match[2]), navPages({ cost: true }).map(page => page.id), 'the same pages in the same order as the strip');
-  assert.deepEqual(rows.map(match => [match[2], match[6]]), [['items', '653'], ['shouts', '4'], ['roadmap', '60 to go'], ['spec', '314'], ['doctrine', '46'], ['dashboard', ''], ['activity', ''], ['cost', '']], 'one fact a row, left empty until the board gives it');
+  assert.deepEqual(rows.map(match => [match[2], match[6]]), [['items', '653'], ['shouts', '4'], ['roadmap', '60 to go'], ['spec', '314'], ['doctrine', '46'], ['dashboard', ''], ['activity', ''], ['cost', ''], ['pipeline', '']], 'one fact a row, left empty until the board gives it');
   assert.deepEqual(rows.filter(match => match[4]).map(match => match[2]), ['shouts'], 'amber only where it needs the person; the rest are muted');
   assert.deepEqual(rows.filter(match => match[1]).map(match => match[2]), ['items'], 'one active row');
   assert.match(html, /data-tab="items" type="button" aria-current="page"/u);
@@ -219,14 +219,21 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.match(pageControlsHtml({ tab: 'items', state: 'verify' }), /<button type="button" data-page-ctl="state" data-value="verify" class="on" aria-pressed="true">In review<\/button>/u, 'the shown state is the pressed one');
   assert.equal((pageControlsHtml({ tab: 'items', state: 'building' }).match(/data-page-ctl="state"[^>]* class="on"/gu) || []).length, 1, 'one state at a time');
   assert.doesNotMatch(pageControlsHtml({ tab: 'items', writable: false }), /New item/u, 'a read-only view offers no New item');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'items', state: 'ids' })), ['Open', 'Building', 'In review', 'All', 'From Pipeline', 'List', 'Pipeline', 'New item'], 'Items opened from a Pipeline count says so, and only then');
+  assert.match(pageControlsHtml({ tab: 'items', state: 'ids' }), /data-value="ids" class="on"/u);
   assert.equal(pageControlsHtml({ tab: 'progress' }), '', 'Progress is gone: no controls');
-  assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'All'], 'Shouts: For you and All');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'shouts' })), ['For you', 'Questions', 'All'], 'Shouts: For you, Questions and All');
   assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'roadmap' })), ['Show shipped'], 'Roadmap: Show shipped');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'cost' })), ['Today', '7 days', '30 days'], 'Cost: its window sits in the strip');
+  assert.match(pageControlsHtml({ tab: 'cost', costWindow: '30d' }), /data-page-ctl="costwindow" data-value="30d" class="on" aria-pressed="true">30 days</u, 'the shown window is the pressed one');
   assert.match(pageControlsHtml({ tab: 'roadmap', shipped: true }), /aria-pressed="true">Hide shipped</u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'activity', people: ['agent-1', 'coordinator', 'person'] })), ['All', 'Landed', 'Sent back', 'Held', 'Blocked', 'Pending review', 'Rulings', 'Shouts', 'Everyone', 'agent-1', 'The coordinator', 'You', '6 h', '12 h', '24 h'], 'Activity: the event filters, a person filter and the window');
   assert.match(pageControlsHtml({ tab: 'activity', by: 'coordinator', people: ['coordinator'] }), /<option value="coordinator" selected>/u);
-  for (const tab of ['spec', 'doctrine', 'dashboard', 'cost', 'settings', null]) assert.equal(pageControlsHtml({ tab }), '', `${tab}: nothing to control shows nothing`);
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'pipeline' })), ['15m', '30m', '1h', '3h'], 'Pipeline: the 15m, 30m, 1h and 3h window');
+  assert.match(pageControlsHtml({ tab: 'pipeline' }), /data-page-ctl="window" data-value="1h" class="on" aria-pressed="true">1h</u, 'one hour is the default window');
+  assert.match(pageControlsHtml({ tab: 'pipeline', window: '3h' }), /data-value="3h" class="on"/u);
+  for (const tab of ['spec', 'doctrine', 'dashboard', 'settings', null]) assert.equal(pageControlsHtml({ tab }), '', `${tab}: nothing to control shows nothing`);
 
   // The served shell: the controls live in the strip, and the sidebar layout's title row waits to take them.
   const html = shell(false);
@@ -253,6 +260,14 @@ test('clause 2: each control\'s state is in the page address, and the address pu
     assert.deepEqual(placeQuery({ tab: place.tab, ...back(search) }), placeQuery(place), `${place.tab}: refresh, back and forward read it back`);
   }
   assert.equal(withPlaceQuery('', placeQuery({ tab: 'items' })), '', 'Open, the default, leaves the address plain');
+  // Pipeline's window and the items a Pipeline count opened Items on (#6869).
+  assert.equal(withPlaceQuery('', placeQuery({ tab: 'pipeline', window: '3h' })), '?w=3h', 'a window other than the default is in the address');
+  assert.equal(withPlaceQuery('', placeQuery({ tab: 'pipeline', window: '1h' })), '', 'one hour, the default, leaves it plain');
+  assert.equal(withPlaceQuery('', placeQuery({ tab: 'items', state: 'ids', ids: [6579, 6580, 5994] })), '?state=ids&ids=6579%2C6580%2C5994', 'Items opened from a count names its items');
+  assert.equal(withPlaceQuery('', placeQuery({ tab: 'activity', window: '3h', ids: [1] })), '', 'each page keeps only its own keys');
+  const opened = readPlaceQuery('?state=ids&ids=6579%2C6580%2C5994&w=15m');
+  assert.deepEqual([opened.state, opened.ids, opened.window], ['ids', '6579,6580,5994', '15m'], 'the address reads the items and the window back');
+  assert.deepEqual(opened.ids.split(',').map(Number), [6579, 6580, 5994]);
 });
 
 test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar above its list; filters and New item live in the strip [N26]', () => {

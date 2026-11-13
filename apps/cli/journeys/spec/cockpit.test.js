@@ -379,7 +379,7 @@ test('Spec and Doctrine line up, open on a row and decide with filled and outlin
       assert.deepEqual([spec.picked, spec.shown], ['spec:G1', 'G1'], `${width}: with nothing picked, the detail opens on the first row shown`);
       assert.deepEqual([spec.buttons.length, spec.decide.map((b) => b.word)], [0, ['Approve', 'Decline']], `${width}: a row carries no decision; the picked row's detail holds it once`);
       assert.ok(spec.decide.every((b) => b.height >= tapTarget(width) && b.border === '1px') && spec.decide[0].filled && !spec.decide[1].filled && spec.decide.map((b) => b.key).join() === 'A,D', `${width}: filled Approve and outlined Decline show their keys and meet the target: ${JSON.stringify(spec.decide)}`);
-      assert.ok(spec.section.length >= 1 && spec.section.every(Boolean), `${width}: Approve all stays quiet on the section header`);
+      assert.deepEqual(spec.section, [], `${width}: Spec group headers carry no Approve all; approval stays per row`);
       if (width === 1280) {
         assert.ok(spec.row.height <= 2 * spec.line + 22 && Math.round(spec.text.height / spec.line) <= 2, `${width}: a one-sentence row takes one or two lines: ${JSON.stringify([spec.row, spec.text, spec.line])}`);
       }
@@ -487,9 +487,7 @@ test('clause 1: spec rows read as a list, decided in the panel [N26]', { timeout
           }
           const picked = r.rows.find((row) => row.on);
           assert.ok(picked && neutral(picked.tint) && picked.edges, `${tab}: the picked row is a quiet neutral tint with no coloured edge: ${JSON.stringify(picked)}`);
-          // On Spec, Approve all stays on the section's header.
-          if (kind === 'spec') assert.deepEqual(r.section.map((b) => [b.word, b.head, b.height >= tapTarget(width)]), [[`Approve all ${undecidedNow.length} in this section`, true, true]], `${tab}: Approve all stays on the section header`);
-          else assert.deepEqual(r.section, [], `${tab}: Doctrine rules are decided one at a time`);
+          assert.deepEqual(r.section, [], `${tab}: ${kind} rows are decided one at a time; no group Approve all`);
 
           // With focus in the list the arrows move the pick, A approves and moves on, and D asks why, then records it.
           const [first, second, third] = undecidedNow.filter(([, chip]) => chip === null).map(([id]) => id);
@@ -526,7 +524,7 @@ test('clause 1: spec rows read as a list, decided in the panel [N26]', { timeout
           // The last layout decides the last two drafts, so only the earlier ones have a row after them to stay untouched.
           if (third) assert.deepEqual(await recorded(kind, third), { stage: 'draft', decided: null }, `${tab}: and nothing else`);
           assert.equal(await chrome.stable(`document.activeElement === document.querySelector('#${kind}-list')`), true, `${tab}: the dialog returns to the list`);
-          // The two decided rows leave Needs your decision.
+          // The two decided rows leave Rulings.
           expected[kind].decide = undecidedNow.filter(([id]) => id !== first && id !== second);
           await chrome.waitFor(`![...document.querySelectorAll('#${kind}-list .srow')].some((row) => ['${kind}:${first}', '${kind}:${second}'].includes(row.dataset.row))`, 15_000); // budget: hang ceiling for decided rows to leave Needs; no throughput claim.
 
@@ -639,7 +637,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       assert.equal(state.spec.find((row) => row.id === 'G2')?.decision, undefined, `${width}: and nothing else`);
       await chrome.waitFor("view.row.spec === 'G2' && document.querySelector('#spec-detail h2 span')?.textContent === 'G2'");
       assert.ok(await chrome.stable(`(() => { const e=document.querySelector('#spec-list [data-row="spec:G2"]'); const r=e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`), `${width}: next undecided G2 stays in the viewport after G1 approval`);
-      assert.equal(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b').textContent"), '30', `${width}: Needs your decision excludes the decided row`);
+      assert.equal(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b').textContent"), '30', `${width}: Rulings excludes the decided row`);
       if (width === 1280) assert.ok(await chrome.stable(`(() => {
         const row=document.querySelector('#spec-list [data-row="spec:G1"]');
         const chip=row.querySelector('.spec-row-side .chip').getBoundingClientRect();
@@ -649,7 +647,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       })()`), '1280: the approved row tier does not cover row text');
 
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
-      assert.equal(await chrome.stable("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')"), false, `${width}: approval immediately leaves Needs your decision`);
+      assert.equal(await chrome.stable("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')"), false, `${width}: approval immediately leaves Rulings`);
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
 
       await diagnosticClick(chrome, '#spec-detail [data-row-decision="decline"]', width, 'detail decline before cancel');
@@ -686,22 +684,12 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       await chrome.waitFor("!!document.querySelector('#spec-detail .spec-feedback.ok,#spec-detail .spec-feedback.no')");
 
       await chrome.stable("window.__confirmCalls = 0; window.confirm = () => { window.__confirmCalls += 1; return false; }");
-      const sectionSelector = `#spec-list [data-section-approve]`;
-      const followUp = `[...document.querySelectorAll(${JSON.stringify(sectionSelector)})].find(e=>e.parentElement.querySelector('h4')?.textContent.includes('Follow-up'))`;
-      await chrome.click(followUp);
-      await chrome.waitFor("!document.querySelector('#spec-approve-dialog').hidden");
-      assert.match(await chrome.stable("document.querySelector('#spec-approve-title').textContent"), /Approve all 2 undecided rows in/, `${width}: section approval asks for confirmation in the page`);
-      assert.ok(await chrome.stable(`[...document.querySelectorAll('#spec-approve-dialog button')].every(e => e.getBoundingClientRect().height >= ${tapTarget(width)})`), `${width}: the Approve all confirmation's controls meet the 44px target`);
-      await click(chrome, '#spec-approve-cancel');
-      await chrome.waitFor("document.querySelector('#spec-approve-dialog').hidden");
-      state = await boardOf(view, demo.repo);
-      assert.equal(await chrome.stable("!!document.querySelector('#spec-list .spec-feedback')"), false, `${width}: cancelling the confirmation starts no move`);
-      assert.equal(state.events.filter((event) => event.event_kind === 'row_decision').length, 2, `${width}: cancelling section confirmation records no events`);
-      assert.equal(state.spec.find((row) => row.id === 'K1')?.decision, undefined, `${width}: cancelled section approval leaves K1 undecided`);
-
-      await chrome.click(followUp);
-      await chrome.waitFor("!document.querySelector('#spec-approve-dialog').hidden");
-      await click(chrome, '#spec-approve-submit');
+      for (const id of ['K1', 'K2']) {
+        await click(chrome, '#spec-list [data-row="spec:' + id + '"]');
+        await chrome.waitFor(`view.row.spec === '${id}' && !!document.querySelector('#spec-detail [data-row-decision=approve]')`);
+        await click(chrome, '#spec-detail [data-row-decision="approve"]');
+        await chrome.waitFor(`data.project.spec.find(row => row.id === '${id}')?.stage === 'approved, pending apply'`);
+      }
       await chrome.waitFor("['K1','K2'].every(id => data.project.spec.find(row => row.id === id)?.stage === 'approved, pending apply' && document.querySelector('#spec-list [data-row=\"spec:' + id + '\"] .spec-row-side .chip')?.textContent === 'must')");
       state = await boardOf(view, demo.repo);
       const decisions = state.events.filter((event) => event.event_kind === 'row_decision');
@@ -722,7 +710,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       })`), '1280: the tier of every pending decision has room beside its row text');
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')");
       await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G3\"]') && !document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !document.querySelector('#spec-list [data-row=\"spec:G2\"]') && !document.querySelector('#spec-list [data-row=\"spec:K1\"]') && !document.querySelector('#spec-list [data-row=\"spec:K2\"]')");
-      assert.ok(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Needs your decision excludes all four decided rows`);
+      assert.ok(await chrome.stable("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Rulings excludes all four decided rows`);
       assert.equal(await chrome.stable('window.__confirmCalls'), 0, `${width}: Approve all never asks the browser's confirm dialog`);
       assert.deepEqual(chrome.exceptions, [], `${width}: Chrome reports no uncaught exceptions`);
     } finally {
@@ -739,134 +727,6 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
 
   await runWidth(375);
   await runWidth(1280);
-});
-
-test('approve all records its rows without the browser confirm dialog [B26,N26]', { timeout: 120_000 }, async () => { // budget: hang-only ceiling for Chrome startup, one in-page confirmation and the recorded decisions.
-  const executable = chromeExecutable();
-  assert.ok(executable, 'the Approve all check needs real Chrome');
-  const spec = '# Approve all\n\n## G · Goals\n- G1 [draft, must] First goal. | gate: web test\n- G2 [draft, must] Second goal. | gate: web test\n- G3 [draft, must] Third goal. | gate: web test\n\n## K · Follow-up\n- K1 [draft, must] Follow-up one. | gate: web test\n';
-  const box = machine();
-  const demo = project(box, 'spec-approve-all', spec);
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-approve-all-'));
-  let chrome;
-  try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor("typeof data === 'object' && !!data?.project");
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.click("document.querySelector('[data-tab=spec]')");
-    await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G3\"]') && !!document.querySelector('#spec-list [data-section-approve]')");
-    // A dismissed or blocked browser dialog answers false; the press must not depend on it.
-    await chrome.stable("window.__confirmCalls = 0; window.confirm = () => { window.__confirmCalls += 1; return false; }");
-    await press(chrome, "[...document.querySelectorAll('#spec-list [data-section-approve]')].find(e => e.parentElement.querySelector('h4')?.textContent.includes('Goals'))");
-    await chrome.waitFor("!document.querySelector('#spec-approve-dialog').hidden");
-    assert.match(await chrome.stable("document.querySelector('#spec-approve-title').textContent"), /^Approve all 3 undecided rows in “.*Goals”\?$/u, 'the page asks about the section and its count itself');
-    assert.equal(await chrome.stable("document.querySelector('#spec-approve-rows').textContent"), 'Rows: G1, G2, G3', 'the confirmation names the rows it will approve');
-    assert.equal(await chrome.stable('document.activeElement?.id'), 'spec-approve-submit', 'the confirmation takes focus on its Approve button');
-    await press(chrome, "document.querySelector('#spec-approve-submit')");
-    await chrome.waitFor("document.querySelector('#spec-approve-dialog').hidden && !!document.querySelector('#spec-list .spec-feedback.ok,#spec-list .spec-feedback.no')", 15_000); // budget: hang ceiling for the recorded decision and its note; no throughput claim.
-    assert.equal(await chrome.stable("document.querySelector('#spec-list .spec-feedback').textContent"), 'approved rows G1 G2 G3 (pending apply)', 'the note beside the rows says what the board recorded');
-    const state = await boardOf(view, demo.repo);
-    assert.deepEqual(['G1', 'G2', 'G3'].map((id) => state.spec.find((row) => row.id === id)?.stage), ['approved, pending apply', 'approved, pending apply', 'approved, pending apply'], 'each row the confirmation named is approved');
-    assert.equal(state.spec.find((row) => row.id === 'K1')?.decision, undefined, 'a row in another section stays undecided');
-    const decisions = state.events.filter((event) => event.event_kind === 'row_decision');
-    assert.deepEqual(decisions.map((event) => [event.event_by, JSON.parse(event.event_detail).channel]), [['person', 'view'], ['person', 'view'], ['person', 'view']], 'the person recorded one decision per row through the view');
-    assert.equal(await chrome.stable('window.__confirmCalls'), 0, "Approve all never asks the browser's confirm dialog");
-    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
-  } finally {
-    try { if (chrome) await closeSnapshotChrome(chrome); }
-    finally {
-      try { await view.stop(); }
-      finally { rmSync(profile, { recursive: true, force: true }); }
-    }
-  }
-});
-
-// #612: the in-page confirmation (#581) replaced window.confirm, which blocked the page. Opened on one board, it must
-// never record on another: the page behind it is inert, Tab stays inside it, and leaving the board closes it.
-test('approve all stays on the board it was opened on [B26,N26]', { timeout: 150_000 }, async () => { // budget: hang-only ceiling for Chrome startup, two boards and their recorded decisions.
-  const executable = chromeExecutable();
-  assert.ok(executable, 'the Approve all board check needs real Chrome');
-  const spec = '# Same rows\n\n## G · Goals\n- G1 [draft, must] First goal. | gate: web test\n- G2 [draft, must] Second goal. | gate: web test\n';
-  const box = machine();
-  const alpha = project(box, 'approve-alpha', spec);
-  const beta = project(box, 'approve-beta', spec);
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-approve-board-'));
-  let chrome;
-  /** Each board's G rows as the API reports them: status, stage and any decision. */
-  const decided = async (board) => JSON.stringify((await boardOf(view, board.repo)).spec.filter((row) => row.id.startsWith('G')).map((row) => [row.id, row.status, row.stage ?? null, row.decision ?? null]));
-  /** One real key press, as Chrome's own keyboard delivers it; Enter carries its text, so it activates a button. */
-  const key = async (name, code, keyCode, modifiers = 0) => {
-    await chrome.send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code, windowsVirtualKeyCode: keyCode, modifiers, ...(name === 'Enter' ? { text: '\r' } : {}) });
-    await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code, windowsVirtualKeyCode: keyCode, modifiers });
-  };
-  const open = "!document.querySelector('#spec-approve-dialog').hidden";
-  const goals = "[...document.querySelectorAll('#spec-list [data-section-approve]')].find(e => e.parentElement.querySelector('h4')?.textContent.includes('Goals'))";
-  try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor(`typeof data === 'object' && data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proj-list [data-root=${JSON.stringify(beta.repo)}]')`);
-    await chrome.click("document.querySelector('[data-tab=spec]')");
-    await chrome.waitFor(`!!(${goals})`);
-    const untouched = { alpha: await decided(alpha), beta: await decided(beta) };
-    assert.ok(!untouched.beta.includes('approved'), `board B starts with no approval: ${untouched.beta}`);
-    await press(chrome, goals);
-    await chrome.waitFor(open);
-
-    // Tab and Shift+Tab try to leave the confirmation for the project list, and to switch to board B with Enter.
-    const stops = [];
-    for (let step = 0; step < 40; step++) {
-      await key('Tab', 'Tab', 9, step % 5 === 4 ? 8 : 0);
-      const at = JSON.parse(await chrome.stable("JSON.stringify({ inside: !!document.activeElement?.closest('#spec-approve-dialog'), root: document.activeElement?.dataset?.root ?? null })"));
-      stops.push(at);
-      if (at.root === beta.repo) {
-        await key('Enter', 'Enter', 13);
-        await chrome.waitFor(`view.root === ${JSON.stringify(beta.repo)} && data?.project?.root === ${JSON.stringify(beta.repo)}`);
-        break;
-      }
-    }
-    const left = JSON.parse(await chrome.stable(`JSON.stringify({ root: view.root, open: ${open}, inertBehind: !!document.querySelector('.shell')?.inert })`));
-    // Whatever the keys reached, a confirmation still open on board B is pressed, as a person would press it.
-    if (left.open && left.root === beta.repo) {
-      await press(chrome, "document.querySelector('#spec-approve-submit')");
-      await chrome.waitFor("!!document.querySelector('#spec-list .spec-feedback')", 15_000); // budget: hang ceiling for a recorded decision's note; no throughput claim.
-    }
-    assert.equal(await decided(beta), untouched.beta, `no row on board B is ever approved: ${JSON.stringify({ left, stops })}`);
-    assert.ok(stops.every((stop) => stop.inside), `Tab and Shift+Tab stay inside the confirmation: ${JSON.stringify(stops)}`);
-    assert.deepEqual([left.root, left.open, left.inertBehind], [alpha.repo, true, true], 'board B is unreachable while the confirmation is open, and the page behind it is inert');
-
-    // A switch the confirmation does not see, such as a link, closes it and records nothing on either board.
-    await chrome.stable(`switchTo(${JSON.stringify(beta.repo)})`);
-    await chrome.waitFor(`!(${open}) && view.approvingAll === null && data?.project?.root === ${JSON.stringify(beta.repo)} && !document.querySelector('.shell').inert`);
-    await chrome.stable("document.querySelector('#spec-approve-form').requestSubmit()");
-    // Back to board A, then Back in history while the confirmation is open: it closes again.
-    await chrome.stable(`switchTo(${JSON.stringify(alpha.repo)})`);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!(${goals})`);
-    await press(chrome, goals);
-    await chrome.waitFor(open);
-    await chrome.stable('history.back()');
-    await chrome.waitFor(`!(${open}) && view.approvingAll === null`);
-    assert.deepEqual([await decided(alpha), await decided(beta)], [untouched.alpha, untouched.beta], 'leaving the board records nothing on either board');
-
-    // Opened and approved on board A, it records on board A only.
-    await chrome.stable(`switchTo(${JSON.stringify(alpha.repo)})`);
-    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!(${goals})`);
-    await press(chrome, goals);
-    await chrome.waitFor(open);
-    await press(chrome, "document.querySelector('#spec-approve-submit')");
-    await chrome.waitFor("!!document.querySelector('#spec-list .spec-feedback.ok,#spec-list .spec-feedback.no')", 15_000); // budget: hang ceiling for the recorded decision and its note; no throughput claim.
-    const state = await boardOf(view, alpha.repo);
-    assert.deepEqual(['G1', 'G2'].map((id) => state.spec.find((row) => row.id === id)?.stage), ['approved, pending apply', 'approved, pending apply'], 'board A records the rows its confirmation named');
-    assert.equal(await decided(beta), untouched.beta, 'and board B still has none');
-    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
-  } finally {
-    try { if (chrome) await closeSnapshotChrome(chrome); }
-    finally {
-      try { await view.stop(); }
-      finally { rmSync(profile, { recursive: true, force: true }); }
-    }
-  }
 });
 
 // #616: the decline-with-reason dialog has the same reach as Approve all's confirmation (#612). Opened on one board, it
@@ -1247,7 +1107,7 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
         const header = JSON.parse(await chrome.stable(`JSON.stringify((() => { const e=document.querySelector('#spec-list .spec-section-head'); return {text:e?.innerText??'', count:e?.querySelector('.section-count')?.textContent.trim()??null, approve:e?.querySelector('[data-section-approve]')?.innerText??null, button:e?.querySelector('[data-section-approve]')?.getBoundingClientRect().height??0}; })())`));
         assert.match(header.text, /Goals/u);
         assert.equal(header.count, '3', `${width}px ${theme}: the section header shows its three rows`);
-        assert.match(header.approve ?? '', /Approve all 2/u, `${width}px ${theme}: Spec keeps its two-undecided-row Approve all action`);
+        assert.equal(header.approve, null, `${width}px ${theme}: Spec group headers carry no Approve all`);
         assert.ok(header.button >= tapTarget(width), `${width}px ${theme}: Approve all meets the #371 target size`);
 
         filterTrace = await watchSpecFilter(chrome);
@@ -1316,7 +1176,7 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
         assert.equal(pb2.titleStyle.overflow, 'ellipsis');
         assert.equal(pb2.titleStyle.lines, 1);
         assert.ok(pb2.titleBox.width > 0, `${width}px ${theme}: the full-width detail rule still has a visible title line`);
-        const sectionCounts = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .spec-section-head')].map(e=>({name:e.querySelector('h4')?.innerText??'', count:e.querySelector('.section-count')?.textContent.trim()??null, review:e.querySelector('.doctrine-review-count')?.textContent??null})))`));
+        const sectionCounts = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .spec-section-head')].map(e=>({name:e.querySelector('h3')?.innerText??'', count:e.querySelector('.section-count')?.textContent.trim()??null, review:e.querySelector('.doctrine-review-count')?.textContent??null})))`));
         assert.ok(sectionCounts.some(e => e.name.startsWith('PB · Pullboard rules') && e.count === String(standard.rows.length - 2) && e.review === '1 to review'), `${width}px ${theme}: the inherited section excludes the two repository overrides and counts its one awaiting review`);
         assert.equal(sectionCounts.reduce((n, e) => n + Number(e.count), 0), standard.rows.length + 2, `${width}px ${theme}: separated source sections retain every merged rule exactly once`);
         assert.ok(sectionCounts.some(e => e.count === '2'), `${width}px ${theme}: the repo-only section keeps its own row count`);
