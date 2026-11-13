@@ -20,7 +20,7 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 /** The pulled gate keeps no counts, bounded refusal or log path on its receipt; the remainder is filed from #7045 (id in the skip). */
-const PULLED_SUMMARY = 'pending: the pulled gate receipt carries no gate.counts, bounded tail or logPath; remainder filed from #7045 (see its thread)';
+const PULLED_SUMMARY = 'pending: the pulled gate receipt carries no gate.counts, bounded tail or logPath; remainder requested from the coordinator on #7045 (its id is on that thread)';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
