@@ -37,7 +37,7 @@ test('clause 2: --not-duplicate-of with a reason files the item and records the 
   assert.match(`${shown.out}${shown.err}`, /Not a duplicate of #1: this one covers the private board only/u);
 });
 
-test('clause 3: a fixture box files near-identical titles without refusal while real adds keep the guard [C7]', async (t) => {
+test('clause 1: the fixture add path passes the opt-out, so a fixture box files near-identical titles without refusal while real adds keep the guard [C7]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox());
