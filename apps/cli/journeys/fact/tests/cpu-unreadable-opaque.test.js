@@ -15,7 +15,7 @@ after(e2e.cleanup);
 for (const [kind, declaration, binding] of [
   ['opaque options and an imported alias', 'Object.fromEntries([[ ["cpu", "Load"].join(""), true ]])', 'register'],
   ['invoked option factory', '(() => Object.fromEntries([[ ["cpu", "Load"].join(""), true ]]))()', 'test'],
-]) test(`unreadable ${kind} options conservatively use a registered runner [C7]`, { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
+]) test(`unreadable ${kind} options conservatively use a registered runner [C7]`, { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => {
   const box = cpuLoadFixture(e2e, { declaration, binding });
   const remote = await box.runGate();
   assert.equal(remote.result.status, 0, remote.result.context);

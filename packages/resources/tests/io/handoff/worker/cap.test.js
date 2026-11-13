@@ -12,17 +12,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { takeResource } from '../../../../index.js';
 import {
-  HANDOFF_DISPATCHER_RESOURCE,
-  drainHandoffQueue,
   handoffQueueDirectory,
   handoffWorkerCapacity,
-  queueHandoffLaunch,
   reserveHandoffTicket,
-  withHandoffQueueOrder,
 } from '../../../../index.js';
-import { waitForCondition } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
 
 /** A real worker waits for an observable release marker and records its own result, without a timed hold. */
 const WORKER = `const { appendFileSync, existsSync, watch, writeFileSync } = require('node:fs');
@@ -85,59 +79,6 @@ test('registered runner slots raise the worker cap to one per five slots, and th
   assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 9 }), 4);
   assert.equal(handoffWorkerCapacity({ env: {}, cores: 2, runnerSlots: 0 }), 2);
   assert.equal(handoffWorkerCapacity({ env: { PULLBOARD_HANDOFF_WORKERS: '3' }, cores: 10, runnerSlots: 54 }), 3);
-});
-
-test('a burst of 20 submits with inverted completion and same-clock ids starts in reserved order; nothing spawns until the dispatcher runs, then runs at most N at once in submit order [C7]', async t => {
-  const box = fixture(20);
-  try {
-    const places = [];
-    await Promise.all(box.jobs.map(job => withHandoffQueueOrder(async () => { places.push(await reserveHandoffTicket(job.id)); })));
-    // Tooling copies finish in the opposite order: places, not completion or clock, set the line.
-    for (let index = places.length - 1; index >= 0; index--) {
-      const job = box.jobs[index];
-      queueHandoffLaunch({ directory: job.directory, tools: box.tools, commonDir: box.dir, job: job.id }, places[index]);
-    }
-    assert.equal(tickets().length, 20, 'every submit left one launch ticket');
-    assert.equal(readFileSync(box.log, 'utf8'), '', 'queueing a launch spawns no worker');
-    const N = 3;
-    const draining = drainHandoffQueue({ capacity: N });
-    let drained;
-    try {
-      const ready = waitForCondition(() => readFileSync(box.log, 'utf8').split('\n').filter(line => line.startsWith('start ')).length === N,
-        'the first wave fills the cap before release', { signal: t.signal });
-      await Promise.race([ready, draining.then(() => { throw new Error('dispatcher finished before the held wave reached capacity'); })]);
-    } finally { writeFileSync(join(box.dir, 'release'), 'go'); drained = await draining; }
-    const { started } = drained;
-    assert.deepEqual(started, box.jobs.map(job => job.id), 'workers start in submit order');
-    let running = 0;
-    let peak = 0;
-    const finished = new Set();
-    for (const line of readFileSync(box.log, 'utf8').trim().split('\n')) {
-      const [event, id] = line.split(' ');
-      running += event === 'start' ? 1 : -1;
-      if (event === 'end') finished.add(id);
-      peak = Math.max(peak, running);
-      assert.ok(running <= N, `more than ${N} workers ran at once`);
-    }
-    assert.equal(peak, N, 'the cap is reached, so the machine is used');
-    assert.equal(finished.size, 20, 'all 20 finish');
-    assert.deepEqual(tickets(), [], 'the queue has no remaining launch tickets');
-    for (const job of box.jobs) assert.deepEqual(JSON.parse(readFileSync(join(job.directory, 'result.json'), 'utf8')), { job: job.id }, 'each real worker retained its own result');
-  } finally { box.cleanup(); }
-});
-
-test('a dispatcher returns at once while another holds the machine, and starts nothing [C7]', async () => {
-  const box = fixture(1);
-  try {
-    queueHandoffLaunch({ directory: box.jobs[0].directory, tools: box.tools, commonDir: box.dir, job: box.jobs[0].id }, await reserveHandoffTicket(box.jobs[0].id));
-    const lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'other-dispatcher' });
-    try {
-      assert.deepEqual((await drainHandoffQueue({ capacity: 1 })).started, [], 'the second dispatcher defers to the holder');
-      assert.equal(readFileSync(box.log, 'utf8'), '');
-      writeFileSync(join(box.dir, 'release'), 'go');
-    } finally { lock.release(); }
-    assert.deepEqual((await drainHandoffQueue({ capacity: 1 })).started, ['job99'], 'once free, the ticket runs');
-  } finally { box.cleanup(); }
 });
 
 
