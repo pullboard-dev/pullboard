@@ -18,7 +18,7 @@ import { submitFixture } from '../../tests/fixtures/board/submit.js';
 const HOUR = 3_600_000;
 
 /** Completed native fixture transitions are synthetic model inputs, never claims of executed gate proof. */
-function seededProject(t) {
+function seededProject(t, { messy = false } = {}) {
   const kit = createE2eHelpers();
   t.after(kit.cleanup);
   const box = kit.project('true');
@@ -30,10 +30,11 @@ function seededProject(t) {
   const builder = store.register(board, { lane: 'web', path: join(box.dir, 'capacity-builder'), route: 'strong' });
   const reviewer = store.register(board, { lane: 'review', path: join(box.dir, 'capacity-reviewer'), route: 'strong' });
   const adopted = [];
-  for (let index = 0; index < 6; index++) {
-    clock = now - (60 - index * 4) * HOUR;
-    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: `Measured model input ${index}`,
-      route: 'strong', brief: `Files: web/history-${index}.js` });
+  /** Add one strong web item as the coordinator. */
+  const add = (title, fields = {}) => store.addItem(board, { by: 'coordinator', lane: 'web', title, route: 'strong', ...fields });
+  /** Build, review and accept one synthetic history item from the current fixture clock. */
+  function accept(index) {
+    const id = add(`Measured model input ${index}`, { brief: `Files: web/history-${index}.js` });
     store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 8 * HOUR,
       freeze: item => ({ text: item.item_title, digest: `synthetic:${item.item_id}` }) });
     clock += HOUR;
@@ -46,8 +47,22 @@ function seededProject(t) {
     store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', policy: 'any', head: commit,
       digest: item.item_frozen_digest, note: 'Synthetic model history; no executed gate result is claimed.' });
     clock += HOUR / 4;
+    return { id, commit };
+  }
+  for (let index = 0; index < 6; index++) {
+    clock = now - (60 - index * 4) * HOUR;
+    const { id, commit } = accept(index);
     store.merged(board, id, { agentId: 'coordinator', commit });
     adopted.push({ id, commit });
+  }
+  if (messy) {
+    // Synthetic returns after accept: one typed stale reopen (a failed landing) and one with no matching source commit (unclassified).
+    clock = now - 34 * HOUR;
+    const stale = accept(6);
+    store.logEvent(board, 'coordinator', 'reopen', stale.id, { commit: stale.commit, note: 'verdict stale: web/history-6.js changed on main',
+      cause: 'refusal:REOPENED', causeDerivation: { kind: 'reopen-category', coarse: true } });
+    const loose = accept(7);
+    store.logEvent(board, 'coordinator', 'reopen', loose.id, { commit: '9'.repeat(40), note: 'Synthetic return naming another commit.' });
   }
   // This is a synthetic coordinator batch observation, not a real landing or proof receipt.
   store.logEvent(board, 'coordinator', 'landing_batch', null, { batch: {
@@ -55,8 +70,16 @@ function seededProject(t) {
     startedAt: new Date(clock - HOUR / 4).toISOString(), updatedAt: new Date(clock).toISOString(),
   } });
   clock = now;
-  for (let index = 0; index < 3; index++) store.addItem(board, { by: 'coordinator', lane: 'web',
-    title: `Remaining work ${index}`, route: 'strong', brief: `Files: web/remaining-${index}.js` });
+  for (let index = 0; index < 3; index++) add(`Remaining work ${index}`, { brief: `Files: web/remaining-${index}.js` });
+  if (messy) {
+    add('Remaining work with no files');
+    const held = add('Held work', { brief: 'Files: web/held.js' });
+    store.holdItem(board, held, { agentId: 'coordinator', reason: 'Waiting for a judgment' });
+    add('Blocked work', { brief: 'Files: web/blocked.js', after: [held] });
+    add('Person work', { brief: 'Files: web/person.js', specIds: ['N2'] });
+  }
+  // Live seats come from presence heartbeats, as a seat's own commands record them.
+  for (const agentId of [builder, reviewer]) store.heartbeatSeat(board, agentId);
   for (const agentId of [builder, reviewer]) store.appendFact(board, adopted[0].id, {
     agentId, kind: 'note', text: 'Synthetic current seat activity for the capacity fixture.',
   });
@@ -104,4 +127,23 @@ test('status shows max useful agents the binding constraint and its lever [N2,R1
   const again = await apiFetch(client, `/api/v1/boards/${board.id}/state`);
   assert.equal(again.status, 200);
   assert.deepEqual((await again.json()).state.capacityForecast, planner, 'serialized API cache hits preserve the capacity field');
+});
+
+test('waiting items, file-less items and failed landings still yield a number from live seats [C7]', async t => {
+  const box = seededProject(t, { messy: true });
+  const result = (await box.runLocal(box.repo, 'status', '--json'));
+  assert.equal(result.code, 0, result.out + result.err);
+  const planner = JSON.parse(result.out).capacityForecast;
+  assert.equal(planner.available, true, planner.unknown.join('; '));
+  assert.ok(planner.agents.recommended > 0);
+  assert.equal(planner.waiting, 3, 'held, person-waiting and blocked items lower supply as waiting work');
+  assert.equal(planner.needsYou.length, 1);
+  assert.ok(!planner.unknown.some(text => /held|needs a person|dependency|file collision|unmeasured|unclassified/u.test(text)), planner.unknown.join('; '));
+  assert.equal(planner.staffing.measuredLive, true, 'seats come from presence heartbeats');
+  assert.ok(planner.staffing.seats >= 2, 'both heartbeating seats count as live');
+  const text = (await box.runLocal(box.repo, 'status'));
+  assert.equal(text.code, 0, text.out + text.err);
+  assert.match(text.out, /Max useful agents now: \d+ /u);
+  assert.match(text.out, /Binding: (?!unknown)[a-zA-Z]+\./u);
+  assert.match(text.out, /Live seats: \d+ from presence heartbeats\./u);
 });
