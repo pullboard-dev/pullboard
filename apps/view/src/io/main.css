@@ -1490,7 +1490,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .spec-fact .spec-citing { border: 0; background: none; padding: 0; }
 
 /* Settings: a header card, then one card per group of one-height rows (N26). */
-#settings-pane { padding: var(--space-5); max-width: 980px; margin-inline: auto; }
+#settings-pane { padding: 0; }
 .settings-head { display: grid; gap: var(--space-4); padding: var(--space-5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow); }
 .settings-head h2 { margin: 0; font-size: var(--text-2xl); letter-spacing: var(--tracking-tight); }
 .settings-head p { margin: 0; color: var(--ink-muted); }
@@ -1527,7 +1527,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .copy[data-copied] { color: var(--accent-strong); border-color: var(--accent); opacity: 1; }
 @media (hover: none) { .copy { opacity: 1; } }
 @media (width < 600px) {
-  #settings-pane { padding: var(--space-4); }
+  #settings-pane { padding: 0; }
   .set { gap: 0 var(--space-3); padding: 0 var(--space-4); }
   .ghead p { display: none; }
   .val { min-width: 72px; max-width: 152px; }
