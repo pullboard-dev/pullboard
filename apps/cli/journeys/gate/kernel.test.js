@@ -9,6 +9,7 @@ import { kernelApprovalText } from '../../../../packages/verify/index.js';
 import { requireKernelApproval } from '../../../../packages/verify/index.js';
 import { openBoard } from '../../../lib/index.js';
 import * as store from '../../../../packages/store/index.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { privateRepo } from '../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../tests/fixtures/submit/gate.js';
 import { put } from '../../tests/fixtures/submit/gate.js';
@@ -29,6 +30,11 @@ function fixture(t, gate = 'true') {
   const claim = build.run('claim', '1');
   assert.equal(claim.code, 0, claim.err);
   return { ...build, mainRoot, base: build.git('rev-parse', 'HEAD') };
+}
+
+/** The box the pulled-gate settle helper reads: the fixture's builder checkout is its repo, and its run takes no folder [P7,#6249]. */
+function settleBox(box) {
+  return { env: box.env, repo: box.root, run: (_cwd, ...args) => box.run(...args) };
 }
 
 /** Open only this fixture's genuine shared board; normal operations provide all writes. */
@@ -77,6 +83,7 @@ test('an internal Kernel behavior change reaches normal submit without person co
   assert.equal(kernelGateChange(box.root, box.base, commit), null);
   const result = await runCliInProcess(['submit', '1', '--no-next', '--json'], { cwd: box.root, env: box.env });
   assert.equal(result.code, 0, result.out + result.err);
+  await settleSubmit(t, settleBox(box), JSON.parse(result.out));
   boardFor(box, board => assert.equal(store.getItem(board, 1).item_status, 'submitted'));
 });
 
@@ -94,6 +101,7 @@ test('only the person can approve the exact item and Kernel interface for submit
   boardFor(box, board => requireKernelApproval(board, { root: box.root, base: box.base, commit, item: 1 }));
   const result = await runCliInProcess(['submit', '1', '--no-next', '--json'], { cwd: box.root, env: box.env });
   assert.equal(result.code, 0, result.out + result.err);
+  await settleSubmit(t, settleBox(box), JSON.parse(result.out));
   boardFor(box, board => assert.equal(store.getItem(board, 1).item_status, 'submitted'));
 });
 
@@ -144,10 +152,10 @@ test('submit rechecks a person decline recorded while the real gate runs [C7]', 
   box.env.KERNEL_BOARD = join(box.mainRoot, '.git/pullboard/board.sqlite');
   box.env.KERNEL_DECLINE = kernelApprovalText(1, change.digest, false);
   const result = await runCliInProcess(['submit', '1', '--no-next', '--json'], { cwd: box.root, env: box.env });
-  assert.equal(result.code, 1, result.out + result.err);
-  assert.equal(JSON.parse(result.out).error.code, 'KERNEL_EXPORT_APPROVAL');
+  assert.equal(result.code, 0, result.out + result.err);
+  await settleSubmit(t, settleBox(box), JSON.parse(result.out));
   boardFor(box, board => {
-    assert.equal(store.getItem(board, 1).item_status, 'claimed');
+    assert.equal(store.getItem(board, 1).item_status, 'claimed', 'the decline recorded while the gate ran sends the item back to its builder');
     assert.ok(store.events(board).some(event => event.event_kind === 'answer'
       && event.event_by === 'person' && JSON.parse(event.event_detail).shout));
   });
