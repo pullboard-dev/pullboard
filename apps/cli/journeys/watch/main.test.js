@@ -464,7 +464,10 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
   const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
   const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));
-  assert.equal(allFacts.length, 8, 'only comparison and tier-1 shadow facts are recorded');
+  const dump = JSON.stringify({ facts: allFacts.map(e => [e.item_id, e.event_by, JSON.parse(e.event_detail).text.slice(0, 70)]),
+    usage: recorded.filter(e => e.event_kind === 'usage').length, delivered: recorded.filter(e => e.event_kind === 'activity-delivered').length,
+    proofs: recorded.filter(e => e.event_kind === 'proof-run').map(e => [e.item_id, e.event_by, JSON.parse(e.event_detail).receipt?.commit?.slice(0, 8)]), firstCommit: firstCommit.slice(0, 8), secondCommit: secondCommit.slice(0, 8) });
+  assert.equal(allFacts.length, 8, `only comparison and tier-1 shadow facts are recorded ${dump}`);
   assert.equal(shadows.length, 4, 'each gate proof has a tier-1 shadow fact');
   assert.equal(new Set(shadows.map(event => JSON.parse(event.event_detail).ref?.id)).size, 4, 'shadow references are distinct');
   for (const event of shadows) {
