@@ -62,6 +62,7 @@ import {
   CHECKOUT_LEASES,
 } from '../entry.js';
 import { isConfigFile } from '../../../../../packages/config/browser.js';
+import { anyRunnerLive } from '../runner/local.js';
 
 /**
  * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
@@ -176,7 +177,7 @@ export async function run(io, args) {
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
-  sayCheckBaseline(io, store.getItem(board, id));
+  sayCheckBaseline(io, store.getItem(board, id), { runnerLive: anyRunnerLive() });
   sayRelated(io, ctx, board, id, item);
   return 0;
 });
