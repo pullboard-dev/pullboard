@@ -81,7 +81,7 @@ async function proseReferencesAt(t, width) {
         assert.ok(metrics.present, `${width}: ${selector} contains its inline reference`);
         assert.equal(metrics.title, target, `${width}: the reference tooltip names the target on its own board`);
         assert.equal(metrics.border, '0px', `${width}: ${selector} has no box`);
-        assert.ok(Math.abs(metrics.height - metrics.line) < 1, `${width}: ${selector} keeps the text line height`);
+        assert.ok(Math.abs(metrics.height - metrics.line) < 1, `${width}: ${selector} keeps the text line height: ${JSON.stringify(metrics)}`);
         assert.equal(metrics.nested, false, `${width}: ${selector} never nests buttons`);
         if (metrics.rowHeight !== undefined) assert.ok(metrics.rowHeight >= tapTarget(width), `${width}: the containing Roadmap control keeps its target`);
         if (expands) {
