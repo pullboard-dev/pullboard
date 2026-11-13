@@ -95,13 +95,13 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
       const bar = await tabBar(chrome);
       for (const layout of bar.layouts) {
         const where = `${width}/${font}/${layout.on}`;
-        assert.ok(layout.tabs.length >= 3, where + ': the grouped nav keeps its top-level tabs on screen');
+        assert.equal(layout.tabs.length, 8, where + ': Dashboard and all retained complete labels remain');
         for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2,
           `${where}: ${tab.tab} retains the original two-pixel inset: ${JSON.stringify(tab)}`);
-        assert.ok(new Set(layout.tabs.map(tab => Math.round(tab.top))).size <= (width < 480 ? 2 : 1), where + ': the phone has at most two rows and desktop one');
+        assert.equal(new Set(layout.tabs.map(tab => Math.round(tab.top))).size, width < 480 ? 2 : 1, where + ': the phone has two rows and desktop one');
         layout.tabs.forEach((tab, index) => { if (index) assert.ok(tab.top >= layout.tabs[index - 1].bottom - 0.5 || tab.left >= layout.tabs[index - 1].right - 0.5, where + ': tabs never overlap'); });
         assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5
-          && layout.bar[1] <= bar.client, where + ': the whole tab bar fits the actual content width: ' + JSON.stringify({ bar: layout.bar, client: bar.client, first: layout.tabs[0], last: layout.tabs.at(-1) }));
+          && layout.bar[1] <= bar.client, where + ': the whole tab bar fits the actual content width');
       }
     }
     assert.deepEqual(chrome.exceptions, [], 'the real page raises no uncaught exception');
