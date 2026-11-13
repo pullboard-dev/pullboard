@@ -329,6 +329,8 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   const page = cockpitSource();
   // Every refresh part is written through store.paint (#6613), which replaced the direct innerHTML assignments.
   const rewritten = [...new Set([...page.matchAll(/store\.paint\(\$\('([a-z-]+)'\)/g)].map((match) => match[1]))];
+  // The items list is painted through a local named chain, the element with id="chain".
+  if (page.includes('store.paint(chain,')) rewritten.push('chain');
   assert.ok(['lanes', 'chain', 'detail', 'needs'].every((id) => rewritten.includes(id)), 'the refresh rewrites these');
   for (const id of rewritten) {
     const opening = new RegExp(`id="${id}"[^>]*>([^]*?)</`).exec(page);
@@ -347,7 +349,8 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runLocal(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
-  await box.runLocal(box.web, 'submit', '1');
+  // --wait keeps the submit alive until its pulled gate is green; only that process starts the review comparison [C7,P7].
+  await box.runLocal(box.web, 'submit', '1', '--wait');
   // Submit starts a background review comparison that records a second "Review comparison" fact when it settles [V4,C7];
   // wait for it so the history order below does not depend on whether it lands before or after the reject.
   const comparisonFacts = () => {
@@ -418,6 +421,7 @@ test("the view's refresh re-renders only what changed [N26,A2]", async () => {
     transport: null,
     // The page's board store is outside the slice this test runs; set() hands back the state it was given.
     store: { set: (next) => next },
+    warmTabs: () => {},
     boardState: () => {
       let resolve;
       const promise = new Promise((done) => { resolve = done; });
