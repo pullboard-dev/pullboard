@@ -15,7 +15,7 @@ import { fileFixtureItem } from '../../../tests/fixtures/testkit.js';
 test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
   const box = machine();
   const alpha = project(box, 'private-project');
-  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Private checkout item', criterion: 'exports without checkout paths', args: ['--specs', 'G1'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
+  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Private checkout item', criterion: 'exports without checkout paths', check: null, args: ['--specs', 'G1'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
   const projectRoot = alpha.repo;
   const worktreeRoot = alpha.web;
   const commonGitDir = box.git(alpha.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
@@ -51,7 +51,7 @@ test('static export redacts structured checkout paths but preserves paths people
     // the only allowed occurrences; project.root, agent_path and common Git metadata stay redacted.
     const brief = `Keep this literal checkout reference: ${projectRoot}`;
     const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
-    fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Path in prose', criterion: 'keeps prose literal', brief, args: ['--specs', 'G1', '--not-duplicate-of', '1 a prose-path fixture, not the private checkout item'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
+    fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Path in prose', criterion: 'keeps prose literal', check: null, brief, args: ['--specs', 'G1', '--not-duplicate-of', '1 a prose-path fixture, not the private checkout item'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
     box.run(alpha.web, 'shout', 'all', shout);
     const proseOutput = box.exportSnapshot(alpha.repo, 'export-prose');
     const proseSnapshot = proseOutput.root;
