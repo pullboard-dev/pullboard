@@ -231,7 +231,7 @@ function render() {
   } else {
     const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {
-      // With nothing for the person, the top of Items holds the one quiet Needs-you line.
+      // With nothing for the person, the top of Items holds the one quiet Rulings line.
       $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
       $('needs').tabIndex = -1;
       $('needs').innerHTML = needsHtml;

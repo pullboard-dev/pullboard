@@ -476,7 +476,7 @@ function moveMessage(move, result) {
 }
 
 /**
- * One sentinel draft in Needs-you: a watch the person has not approved, with the proof Rigor drafted it from.
+ * One sentinel draft in Rulings: a watch the person has not approved, with the proof Rigor drafted it from.
  * It says draft and waiting, never watching, so an unapproved check cannot pass for an approved one.
  */
 /** Keep sentinel controls identical on the full list and Dashboard, including the reviewed digest. */
@@ -497,7 +497,7 @@ function sentinelDraftRow(row) {
     + '<div class="muted sentinel-proof">' + esc(repeats) + (proof ? ' ' + proof : '') + '</div>'
     + '<div class="muted">Command: <code>' + esc(row.check) + '</code></div><div class="muted">Directory: ' + esc(row.directory) + '</div>'
     + '<div class="muted">Schedule: ' + esc(row.every) + '</div><div class="muted">Owner: ' + esc(row.owner) + '</div>'
-    + '<div class="meta"><span class="why"><b>NEEDS YOU</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
+    + '<div class="meta"><span class="why"><b>RULING</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
 }
 
 /** One blueprint fit proposal: its decision, its new text or reason, and where it came from. */
@@ -853,7 +853,7 @@ $('shouts-pane').addEventListener('click', (event) => {
 });
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
-// A Needs-you row stays as the person left it: each open or close is kept per board and screen before the native toggle,
+// A Rulings row stays as the person left it: each open or close is kept per board and screen before the native toggle,
 // so a live redraw neither reopens a closed row nor shuts an open one.
 document.addEventListener('click', (event) => {
   const summary = event.target.closest?.('details[data-needs-key] > summary');
