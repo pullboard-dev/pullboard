@@ -39,11 +39,13 @@ export function contractCheck(payload, env) {
   const proved = new Set([...(payload.proof?.files ?? []), ...Object.values(payload.deferred?.files ?? {}).flat()]);
   const derived = new Set((payload.badges ?? []).map(entry => entry?.path).filter(path => typeof path === 'string'));
   const waivers = Array.isArray(payload.waivers) ? payload.waivers : [];
+  // An enclosing node --test run's context never reaches the contracts, which would then report to it, not as their own run.
+  const { NODE_TEST_CONTEXT, ...own } = env;
   return async context => {
     const files = contractFiles(context.root, context.base, { proved, derived });
     if (!files.length) return { ok: true, detail: null };
     // No ledger hits: a file the merged change reaches has a new inputKey, so a hit list could reuse none of them.
-    const result = await ledgerProofCheck({ runner, files, ledger: null }, { env, waivers })(context);
+    const result = await ledgerProofCheck({ runner, files, ledger: null }, { env: own, waivers })(context);
     return { ok: result.ok, detail: result.ok ? null : result.detail?.replace(/^landing proof/u, 'landing contracts'), ...(result.waived ? { waived: result.waived } : {}) };
   };
 }
