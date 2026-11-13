@@ -51,6 +51,7 @@ export {
   workerBudget,
   setWorkerBudget,
   setGateRunnerWaitMs,
+  setRunnerRate,
   browserByLaunchEnabled,
   runnerDispatchMode,
   jobReserve,
