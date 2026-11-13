@@ -107,9 +107,9 @@ export function writeTarget(root, counter, alwaysPass = false, mutate = false) {
 import { appendFileSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 /** Record real executions; the fixture controls whether the assertion is passing or intermittent. */
-test(${JSON.stringify(TITLE)}, () => {
+test(${JSON.stringify(TITLE)}, async () => {
   const marker = ${JSON.stringify(counter)};
-  appendFileSync(marker, 'run ' + process.cwd() + ' ' + Date.now() + '\\n');
+  appendFileSync(marker, 'run ' + process.cwd() + ' ' + Date.now() + ' ' + (await import('node:child_process')).execSync('ps -o pid=,ppid=,command= -p ' + process.ppid + '; ps -o pid=,ppid=,command= -p $(ps -o ppid= -p ' + process.ppid + '); ps -o pid=,ppid=,command= -p $(ps -o ppid= -p $(ps -o ppid= -p ' + process.ppid + '))').toString().replace(/\\n/g, ' || ') + '\\n');
   ${mutate ? (mutate === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " : '') + 'appendFileSync(new URL(import.meta.url), ' + JSON.stringify('\n// fixture source changed\n') + ');' : ''}
   ${alwaysPass === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " + assertion : alwaysPass ? 'assert.ok(true);' : assertion}
 });\n`);
