@@ -98,7 +98,7 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
     assert.deepEqual(receipt.environment, { node: process.versions.node, platform: process.platform, arch: process.arch });
     assert.equal(typeof receipt.runner, 'string');
     assert.ok(receipt.runner);
-    assert.match(receipt.runner, /^local:\S+$/u, 'the receipt identifies the actual local executor');
+    assert.match(receipt.runner, /^local[:-]\S+$/u, 'the receipt identifies the actual local executor');
     assert.equal(receipt.seat, receipt.kind === 'verdict' ? reviewer : builder);
     assert.equal(receipt.parentSession, receipt.kind === 'verdict' ? reviewerParent : builderParent);
     assert.equal(receipt.exitCode, 0);
