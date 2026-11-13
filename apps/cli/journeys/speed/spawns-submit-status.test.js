@@ -12,13 +12,13 @@ import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { spawnEnv } from '../../tests/fixtures/spawns.js';
 
 /** A claimed fixture item with one commit, and the spawn counter loaded in every child. */
-function claimed(t) {
+async function claimed(t) {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
   const log = join(box.dir, 'spawns.log');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Status scan', diagnose: false, args: ['--specs', 'G1'] }).item_id;
-  const claim = box.run(box.web, 'claim', String(id), '--json');
+  const claim = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claim.code, 0, claim.err + claim.out);
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'scan.js'), 'export const scan = 1;\n');
@@ -34,8 +34,8 @@ function lines(log, name, rest = '') {
   return readFileSync(log, 'utf8').split('\n').filter(line => new RegExp(`\\sgit ${name}\\b.*${rest}`, 'u').test(line));
 }
 
-test('one status scan per submit [C7]', t => {
-  const { box, id, log } = claimed(t);
+test('one status scan per submit [C7]', async t => {
+  const { box, id, log } = await claimed(t);
   const submit = box.run(box.web, 'submit', String(id), '--no-next');
   assert.equal(submit.code, 0, submit.err + submit.out);
   const status = lines(log, 'status');
@@ -45,10 +45,10 @@ test('one status scan per submit [C7]', t => {
   assert.ok(untracked.length <= 2, `git ls-files --others ran ${untracked.length} times`);
 });
 
-test('uncommitted file still refused [C7]', t => {
-  const { box, id } = claimed(t);
+test('uncommitted file still refused [C7]', async t => {
+  const { box, id } = await claimed(t);
   writeFileSync(join(box.web, 'web', 'dirty.js'), 'export const dirty = 1;\n');
-  const submit = box.run(box.web, 'submit', String(id), '--no-next');
+  const submit = await box.runLocal(box.web, 'submit', String(id), '--no-next');
   assert.notEqual(submit.code, 0, 'an uncommitted file is refused');
   assert.match(submit.err + submit.out, /uncommitted|untracked|SUBMIT_DIRTY|commit/iu);
 });

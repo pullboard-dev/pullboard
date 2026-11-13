@@ -20,8 +20,8 @@ test('the runner worker closure holds the same gate modules after the move, with
   for (const body of bodies) assert.ok(files.includes(body), `${body} stays in the closure`);
   for (const old of BEFORE) assert.ok(!files.includes(old), `${old} left no shim in the closure`);
   const gate = files.filter(file => file.startsWith('packages/gate/'));
-  // Three deliberate additions: the preload's journal source split into its own module (d75861e52d), which the preload imports; the user directory read that the Chrome clone check, now in this cell, imports (#4808); and the runner source identity that gate/light.js re-exports for the runner main, request and result modules.
-  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/src/io/journal/source.js', 'packages/gate/src/io/directory.js', 'packages/gate/src/logic/runner-source.js', 'packages/gate/light.js'].sort(), 'no other gate module enters the closure');
+  // Three deliberate additions: the preload's journal source split into its own module (d75861e52d), which the preload imports; the user directory read that the Chrome clone check, now in this cell, imports (#4808); the runner source identity that gate/light.js re-exports for the runner main, request and result modules; and the store-name registry const that the result store imports (#7003).
+  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/src/io/journal/source.js', 'packages/gate/src/io/directory.js', 'packages/gate/src/logic/runner-source.js', 'packages/gate/src/io/store-names.js', 'packages/gate/light.js'].sort(), 'no other gate module enters the closure');
   assert.ok(!files.includes('packages/gate/index.js'), 'the worker does not load the gate front door');
 });
 

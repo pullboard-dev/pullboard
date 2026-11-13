@@ -157,7 +157,7 @@
   "packages/gate/tests/fixtures/p95.js": {
     "poll": 1
   },
-  "packages/gate/tests/io/main/admission.test.js": {
+  "packages/gate/tests/io/main/admission-loans.test.js": {
     "sleep": 5
   },
   "apps/cli/journeys/gate/profile.test.js": {

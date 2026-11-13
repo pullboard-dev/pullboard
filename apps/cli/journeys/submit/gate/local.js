@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { failingParts } from '../../../../../packages/api/index.js';
 import { runCliInProcess } from '../../../tests/fixtures/process.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { stopFixtureLocalRunner } from '../../../tests/fixtures/runner/local-stop.js';
@@ -58,7 +59,7 @@ export function copyRepositoryFixture(box, repository, tracked) {
 
 /**
  * Submit item 1 as the fixture's builder and wait for its pulled gate, answering in the shape an inline submit once printed:
- * code 1 when the gate came back red, with the gate job's receipt in `err`.
+ * code 1 when the gate came back red, with the board's failing parts (the builder's own shout text) and the gate job's receipt in `err`.
  * Why: a pulled submit queues its gate and returns at once; the verdict (a red gate, a sandbox refusal) is the runner's receipt [C7,P7].
  *
  * @param {import('node:test').TestContext} t
@@ -71,5 +72,5 @@ export async function submitSettled(t, box, run) {
   const submitted = await run('submit', '1', '--json');
   if (submitted.code !== 0) return { ...submitted, gateJob: null };
   const settled = await settleSubmit(t, { repo: box.root, env: box.env, run: (_cwd, ...args) => run(...args) }, JSON.parse(submitted.out));
-  return { code: settled.gate?.green === true ? 0 : 1, out: submitted.out, err: JSON.stringify(settled.gateJob), gateJob: settled.gateJob };
+  return { code: settled.gate?.green === true ? 0 : 1, out: submitted.out, err: `${settled.gate?.green === true ? '' : failingParts({ status: 1, gate: settled.gate }).join('\n')}\n${JSON.stringify(settled.gateJob)}`, gateJob: settled.gateJob };
 }

@@ -29,6 +29,7 @@ import { fetchFresh } from '../../tests/fixtures/http.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 /** Commit a fixture-owned app change so the native submit move has a real head to capture. */
 function commitAppChange(worktree, filename, env) {
@@ -80,7 +81,7 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   // This test never registers a runner, so its submit and next --verify must settle in the command: pin controller dispatch [P7].
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const settings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
   const one = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-one');
   const two = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-two');
   const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'HTTP item', criterion: 'complete', specs: 'G1', brief: FIXTURE_BRIEF } });
