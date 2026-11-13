@@ -16,7 +16,7 @@ test('landing with reruns off keeps its original red and runs nothing further [C
   // A red landing with reruns off returns the item, files no legacy defect and runs the target once; pull runs no base-main comparison (#3073).
   const settled = await settleLand(box);
   assert.equal(settled.item_merged_commit ?? null, null);
-  assert.equal(targetRuns(box), 1, 'only the original run executes, with no paired rerun');
+  assert.equal(targetRuns(box), 1, 'only the original run executes, with no paired rerun ' + JSON.stringify(settled).slice(0, 3000) + box.readData(box.counter, 'utf8'));
   const report = (await cliLocal(box, box.root, 'flakes')).document;
   assert.equal(report.flakes.length, 0, 'a whole-file diagnosis is not relabeled as exact-target confirmation');
   assert.equal(report.unclassified.length, 1, 'the new ledger still retains the original red');
