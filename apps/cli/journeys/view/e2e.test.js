@@ -339,7 +339,9 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   // never holds anything a person typed; every other field the script could build is still refused.
   // The Spec tab's Answer box is the one other field; its refresh case in spec/cockpit.test.js proves the draft and focus survive.
   const script = page.slice(page.indexOf('<script>')).replace(/\nasync function copyWords\([^]*?\n}\n/, '\n')
-    .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''");
+    .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''")
+    // The command palette's search box (pal-q) lives in its own overlay, opened and closed by the person, never in a refreshed part.
+    .replace(/overlay\.innerHTML = '<div class="pal-veil"[^\n]*/u, '');
   assert.doesNotMatch(script, /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
 });
 
