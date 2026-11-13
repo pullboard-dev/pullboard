@@ -149,7 +149,7 @@ function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
   const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24, writable: !snapshot && (!readOnly || requests) });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, costWindow: view.costWindow ?? '7d', win: view.activityWin || 24, writable: !snapshot && (!readOnly || requests) });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
   if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
@@ -173,6 +173,7 @@ function pageControl(target) {
   if (kind === 'state') view.state = value;
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
+  else if (kind === 'costwindow') { view.costWindow = value; view.costOpen = null; }
   else if (kind === 'by') view.activityBy = value || null;
   else if (kind === 'activity') view.activityFilter = value || 'all';
   else if (kind === 'win') view.activityWin = Number(value) || 24;
@@ -1033,7 +1034,7 @@ document.addEventListener('click', (event) => {
     itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
     return;
   }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side, #proj-switch, #proj-menu')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const control = event.target.closest('button[data-page-ctl]');
@@ -1047,7 +1048,6 @@ document.addEventListener('click', (event) => {
   if (t.id === 'proj-switch' && $('side').classList.contains('open')) { fold(false); return; }
   if (t.id === 'proj-switch') { projectMenuToggle(); return; }
   if (t.id === 'console') { t.hidden = true; return; }
-  if (privateCost && view.tab === 'cost' && t.dataset.costWindow) { view.costWindow = t.dataset.costWindow; view.costOpen = null; render(); return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costCopy !== undefined) { navigator.clipboard?.writeText('Add model prices to Pullboard'); t.textContent = 'Copied'; return; }
   if (privateCost && view.tab === 'cost' && t.dataset.costAll !== undefined) { openTab('items'); render(); return; }
   if (t.dataset.costRow && privateCost && view.tab === 'cost') {

@@ -169,13 +169,13 @@ export function withPlaceQuery(search, pairs) {
 /**
  * The controls a page puts at the right of the navigation strip (the sidebar layout puts them on the title row):
  * Items shows Open, Building, In review, All, a lane, List or Pipeline and New item; Shouts For you and All; Roadmap Show
- * shipped; Activity a person filter. A page with nothing to control gets nothing. Each control carries data-page-ctl,
+ * shipped; Activity a person filter; Cost its Today, 7 days and 30 days window. A page with nothing to control gets nothing. Each control carries data-page-ctl,
  * the hook the page's one handler reads, and the state each one shows is the state the address holds.
  *
- * @param {{ tab?: string|null, state?: string, shouts?: string, shipped?: boolean, by?: string|null, people?: string[], activity?: string, counts?: Record<string, number>|null, win?: number, writable?: boolean }} [place]
+ * @param {{ tab?: string|null, state?: string, shouts?: string, shipped?: boolean, by?: string|null, people?: string[], activity?: string, counts?: Record<string, number>|null, win?: number, writable?: boolean, costWindow?: string }} [place]
  * @returns {string}
  */
-export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', shipped = false, by = null, people = [], activity = 'all', counts = null, win = 24, writable = true } = {}) {
+export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', shipped = false, by = null, people = [], activity = 'all', counts = null, win = 24, writable = true, costWindow = '7d' } = {}) {
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' + (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + name + '</button>').join('') + '</span>';
   const select = (label, kind, current, options) => '<select class="sel" data-page-ctl="' + kind + '" aria-label="' + label + '">' + options.map(([value, name]) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select>';
@@ -184,6 +184,7 @@ export function pageControlsHtml({ tab = null, state = 'active', lane = null, la
     + seg('View', 'view', itemsView === 'pipeline' ? 'pipeline' : 'list', [['list', 'List'], ['pipeline', 'Pipeline']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
   if (tab === 'shouts') return seg('Shouts', 'shouts', shouts === 'you' ? 'you' : shouts === 'all' ? 'all' : '', [['you', 'For you'], ['all', 'All']]);
   if (tab === 'roadmap') return '<button class="sel" type="button" data-page-ctl="shipped" aria-pressed="' + Boolean(shipped) + '">' + (shipped ? 'Hide shipped' : 'Show shipped') + '</button>';
+  if (tab === 'cost') return seg('Window', 'costwindow', costWindow, [['today', 'Today'], ['7d', '7 days'], ['30d', '30 days']]);
   if (tab === 'activity') {
     // The Activity strip (#6916): the event filters with their counts, then Person and the window in hours.
     const filters = [['all', 'All'], ['landed', 'Landed'], ['sentback', 'Sent back'], ['held', 'Held'], ['blocked', 'Blocked'], ['pending', 'Pending review'], ['ruling', 'Rulings'], ['shout', 'Shouts']];

@@ -76,7 +76,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <aside class="card-panel detail" aria-label="Item detail">
       <div id="detail"></div>
       <form id="add-form" class="panel-form" hidden>
-        <h3>New item</h3>
+        <h3 class="hd2">New item</h3>
         <label>Lane<select id="add-lane"></select></label>
         <label>Title<input id="add-title" required placeholder="What to build"></label>
         <label>Criterion<input id="add-criterion" placeholder="How a verifier knows it is done"></label>
@@ -91,8 +91,8 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
       <div class="card-panel shouts-card"><form id="shout-form" class="shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div><span class="asks-slot" id="asks-slot"></span></form><section class="rulings-box" id="coordinator-decisions" aria-label="Coordinator decision queue" hidden></section><section class="rulings-box" id="decisions" aria-label="Decisions needed" hidden></section><div class="feed" id="feed"></div></div>
     </div>
     <aside class="card-panel detail" aria-label="Agents and lanes">
-      <div><h3 class="panel-head">Agents<button class="link" data-agents-toggle type="button">hide</button></h3><div id="agents"></div><section id="credentials" aria-label="Agent credentials"></section></div>
-      <div><h3>Lanes</h3><div id="lanes"></div></div>
+      <div><h3 class="panel-head hd2">Agents<button class="link" data-agents-toggle type="button">hide</button></h3><div id="agents"></div><section id="credentials" aria-label="Agent credentials"></section></div>
+      <div><h3 class="hd2">Lanes</h3><div id="lanes"></div></div>
       <form id="hold-form" class="panel-form"><label>Hold a lane<select id="hold-lane"></select></label><label>Why<input id="hold-reason" required placeholder="What its agents should wait for"></label><button class="go" type="submit">Hold lane</button></form>
     </aside>
   </section>
