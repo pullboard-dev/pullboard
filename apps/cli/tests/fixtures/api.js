@@ -1,4 +1,6 @@
 import { viewApiPorts } from '../../../view/index.js';
+/** The view's API ports, re-exported so the milestone API fixtures share one view import [A2]. */
+export { viewApiPorts };
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
