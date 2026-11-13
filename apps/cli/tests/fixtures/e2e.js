@@ -84,11 +84,30 @@ export function settlePulledJobs(cwd, args, env) {
     // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
     try {
       const db = new DatabaseSync(file, { readOnly: true });
-      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
+      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()) || unapplied(db); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
     if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
+}
+
+/** Budget: how long after a gate job turns done its receipt may still be applying to the item. */
+const APPLY_GRACE_MS = 5_000;
+
+/**
+ * Whether a gate job turned done in the last APPLY_GRACE_MS while its item is still claimed with no event since.
+ * Why: the board records the receipt (the job is done) and then applies it to the item in a second write, so a reader
+ * between the two saw the job done and the item still claimed (NOT_SUBMITTED on the next verify) [P7,#6832].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @returns {boolean}
+ */
+function unapplied(db) {
+  const since = Date.now() - APPLY_GRACE_MS;
+  return Boolean(db.prepare(`SELECT 1 FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'receipt'
+    JOIN item ON item.item_id = job.job_item WHERE job.job_kind = 'gate' AND job.job_step = 'done' AND step.job_step_at >= ?
+    AND item.item_status = 'claimed' AND NOT EXISTS (SELECT 1 FROM event WHERE event.item_id = job.job_item
+    AND event.event_at >= strftime('%Y-%m-%dT%H:%M:%fZ', step.job_step_at / 1000.0, 'unixepoch')) LIMIT 1`).get(since));
 }
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
