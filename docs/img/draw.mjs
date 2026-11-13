@@ -204,6 +204,7 @@ const ROUTES = {
   'open>withdrawn': { points: [[105, 208], [105, 313], [441, 313]], label: [210, 305, 'middle'] },
   'claimed>withdrawn': { points: [[315, 208], [315, 313]], tip: false },
   'submitted>withdrawn': { points: [[525, 208], [525, 280]] },
+  'verified>withdrawn': { points: [[675, 208], [675, 246], [585, 246], [585, 280]] },
 };
 
 /** Where the guards every move into a guarded state passes are listed, by state id. */
