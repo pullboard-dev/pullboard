@@ -375,7 +375,8 @@ function render({ tab: switching = false } = {}) {
     $('needs').tabIndex = -1;
     // Hidden under a filter, the panel is not drawn. Shown, it is made once per board state, address and the person's
     // choices in it, so a filter click or an opened item never makes its markup again (#6851).
-    const needsChoices = JSON.stringify([location.href, open, expandedNeeds, view.root, person, view.specFeedback ?? null, view.declining ?? null,
+    // Its links carry the address's query (and, off a routed host, its path), never the opened item.
+    const needsChoices = JSON.stringify([routed ? location.search : location.pathname + location.search, open, expandedNeeds, view.root, person, view.specFeedback ?? null, view.declining ?? null,
       view.declineKind ?? null, view.declineRoot ?? null, view.declineFrom ?? null, view.declineAnchor ?? null, view.declineDigest ?? null]);
     if (!hidden) store.paint($('needs'), store.select('items-needs', [data.project, needsChoices], () => {
       const itemsNeeds = itemsNeedsModel(needsModel());
