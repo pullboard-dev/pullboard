@@ -121,16 +121,32 @@ export function commandCheck(argv) {
 }
 
 /**
- * The land job's check of the items merged so far: each merged item's own check, the job's command, then the ledger
- * proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a culprit search
- * merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
+ * The controller's two landing guards on the merged tree: the composed module-parse and resolution guard over the
+ * lines merged since the base, then the candidate's CLI smoke on a scratch board. A refusal is the check's red, named
+ * by its code. Why: a pulled land job ran neither, so a duplicate import or a broken help reached trunk [C7,#7307].
+ */
+async function landingGuards({ root, base }) {
+  try {
+    await (await import('../guards.js')).requireLandingModuleResolution(root, base, 'HEAD');
+    (await import('../smoke.js')).runLandingCliSmoke(root);
+    return { ok: true, detail: null };
+  } catch (error) {
+    if (!error?.code) throw error;
+    return { ok: false, detail: `${error.code}: ${String(error.message).slice(0, 600)}` };
+  }
+}
+
+/**
+ * The land job's check of the items merged so far: the landing guards, each merged item's own check, the job's command,
+ * then the ledger proof over the proved files the merged tree holds, stopping at the first red. Why the file filter: a
+ * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
 async function landingCheck(payload, env) {
   const prove = payload.proof ? (await import('./proof.js')).ledgerProofCheck : null;
   return async context => {
     const merged = new Set(context.items);
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
-    const parts = [...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => commandCheck(['sh', '-c', payload.checks[entry.id]])),
+    const parts = [landingGuards, ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => commandCheck(['sh', '-c', payload.checks[entry.id]])),
       ...(payload.check ? [commandCheck(payload.check)] : []),
       ...(prove && files.length ? [prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })] : [])];
     let proof = null, waived = null;
