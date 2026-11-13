@@ -50,7 +50,10 @@ test('a real baseline worker completes during claim preparation without strandin
   let worker;
   t.after(async () => {
     writeFileSync(release, 'release');
+    // A worker whose runner job never ran would hold this file to the runner's kill; stop it so the failure reports (#6917).
+    const stop = setTimeout(() => worker?.child.kill('SIGKILL'), 30_000); // budget: a released baseline worker exits in seconds.
     if (worker) await worker;
+    clearTimeout(stop);
     peer?.close();
     if (board) store.closeBoard(board);
     e2e.cleanup();
@@ -137,7 +140,8 @@ test('a renewal whose board changes between preparation and the writer lock prep
   const real = board.enginePorts.store.claim;
   let calls = 0;
   board.enginePorts = { ...board.enginePorts, store: { ...board.enginePorts.store, claim(b, ...rest) {
-    if (++calls === 1) b.db.prepare("INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES ('race-control', 'x')").run();
+    // A row keyed to this item: a claim re-prepares only when its own rows change, never for a write elsewhere (#6016).
+    if (++calls === 1) b.db.prepare("INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, 'x')").run(`race-control:${id}`);
     return real(b, ...rest);
   } } };
   const renewed = writeBoardCommand(board, 'claim', [id, who()], agentId);
