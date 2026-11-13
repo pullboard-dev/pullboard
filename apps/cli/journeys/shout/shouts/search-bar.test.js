@@ -79,7 +79,13 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
   /** The page-controls strip's parts in order: Show, Lane, View, then New item [N26]. */
   const stripNames = () => ['state:active', 'state:building', 'state:verify', 'state:all', 'lane', 'view:list', 'view:pipeline', 'new'];
   const search = (words) => searchFor(chrome, words);
-  const chooseFilter = async (c, v) => { try { await chooseFilterRaw(c, v); } catch (e) { const d = await c.stable("JSON.stringify((() => { const el = document.querySelector('#page-controls [data-page-ctl=state]'); const r = el.getBoundingClientRect(); const h = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2); return {w: innerWidth, r: [r.x, r.y, r.width, r.height], hit: h && (h.tagName + '#' + h.id + '.' + h.className), strip: (() => { const q = document.querySelector('#nav-strip'); const b = q.getBoundingClientRect(); const pc = document.querySelector('#page-controls').getBoundingClientRect(); return [b.x,b.y,b.width,b.height,q.scrollLeft,q.scrollWidth,pc.x,pc.y,pc.width,pc.height,getComputedStyle(q).overflowX,getComputedStyle(q).display]; })(), stack: document.elementsFromPoint(r.x + r.width/2, r.y + r.height/2).slice(0,4).map((x) => x.tagName + '#' + x.id + '.' + x.className), chain: (() => { const out = []; for (let n = el; n; n = n.parentElement) { const c = getComputedStyle(n), b = n.getBoundingClientRect(); out.push(n.tagName + '#' + n.id + '.' + (n.className||'') + ' pe=' + c.pointerEvents + ' vis=' + c.visibility + ' pos=' + c.position + ' z=' + c.zIndex + ' box=' + [b.x,b.y,b.width,b.height].map(Math.round)); } return out; })(), probe: [20, 100, 200, 300, 360].map((x) => x + ':' + (document.elementFromPoint(x, 56) || {}).tagName), nav: document.documentElement.dataset.nav, sy: scrollY, view: view.tab + ' ' + view.item}; })())").catch((x) => String(x)); throw new Error(e.message + ' DIAG ' + d + ' ARG ' + v); } };
+  /** Bring the strip's control into view first: below 900px the strip scrolls sideways, and the harness only presses what is visible [N26]. */
+  const chooseFilter = async (c, choice) => {
+    const [kind, value] = [choice.slice(0, choice.indexOf(':')), choice.slice(choice.indexOf(':') + 1)];
+    const target = kind === 'state' ? `#page-controls [data-page-ctl="state"][data-value="${value}"]` : '#page-controls select[data-page-ctl="lane"]';
+    await c.stable(`document.querySelector(${JSON.stringify(target)}).scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'instant' })`);
+    await chooseFilterRaw(c, choice);
+  };
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 8 && data.project.shouts.length >= 2");
