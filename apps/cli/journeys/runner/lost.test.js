@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -44,6 +46,8 @@ function child(box, source) {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000,
   });
   const dump = f => { try { return readFileSync(f, 'utf8').split('\n').map(l => l.replace(/"stdinSha256":"[0-9a-f]+",?|"remote[A-Za-z]+":(true|false),?/g, '')).join('\n').slice(-3500); } catch { return 'none'; } };
+  const tree = dir => { let out = ''; const walk = (d, depth) => { let names; try { names = readdirSync(d, { withFileTypes: true }); } catch { return; } for (const e of names) { const f = join(d, e.name); if (e.isDirectory()) { out += `${f}/\n`; if (depth < 7 && e.name !== 'node_modules') walk(f, depth + 1); } else { let body = ''; try { const st = statSync(f); body = st.size < 700 ? ' :: ' + readFileSync(f, 'utf8').replace(/\n/g, ' | ') : ` (${st.size} bytes)`; } catch { body = " (unreadable)"; } out += `${f}${body}\n`; } } }; walk(dir, 0); return out.slice(-6000); };
+  if (result.status !== 0) process.stderr.write('DIAG tree:' + tree(join(box.dir, 'worker-home')).replaceAll(box.dir, '') + '\n');
   assert.equal(result.status, 0, (result.failure || result.stderr || result.stdout) + '\nDIAG requests:' + dump(box.requests) + '\nDIAG pull:' + dump(box.requests + '.pull') + '\nDIAG phases:' + dump(box.requests + '.phases'));
   return JSON.parse(result.stdout);
 }
