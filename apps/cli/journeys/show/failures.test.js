@@ -45,7 +45,7 @@ test('a red baseline with two real failing cases prints both first error lines i
   assert.match(shown.out, /second broken case: second diagnostic/u);
 });
 
-test('a derived main-red repair keeps the actual first error line and show prints it [C7,V4]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, async t => {
+test('a derived main-red repair keeps the actual first error line and show prints it [C7,V4]', async t => {
   const box = fixture(t, { autoFileMainReds: true });
   await settledSubmit(t, box);
   const repairs = rows(box, "SELECT * FROM item WHERE item_title LIKE 'Main red:%'");

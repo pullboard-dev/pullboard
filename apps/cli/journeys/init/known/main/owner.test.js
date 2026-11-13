@@ -1,9 +1,10 @@
-/** Several open repairs naming one test file each own the case their criterion names; an unnamed case is ambiguous [V4,B3]. */
+/** Several open repairs naming one test file each own the case their criterion names; an unnamed case is ambiguous, at the pulled gate [V4,B3,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from '../../../../tests/fixtures/affected.js';
 import { cli } from '../../../../tests/fixtures/affected.js';
 import { rows } from '../../../../tests/fixtures/affected.js';
+import { settledSubmit } from '../../../../tests/fixtures/affected.js';
 
 /** Two real cases red on main and unchanged by the item, so each needs its own owner. */
 const SHARED = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n"
@@ -21,26 +22,26 @@ function fileMainRed(box, criterion) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-test('two repairs naming the same file each own the case their criterion names [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
+test('two repairs naming the same file each own the case their criterion names [V4,B3,C7]', async t => {
   const box = fixture(t, { affected: SHARED });
   const alpha = fileMainRed(box, "The case 'alpha case' passes on main.");
   const beta = fileMainRed(box, "The case 'beta case [G1]' passes on main.");
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  const owners = Object.fromEntries(JSON.parse(result.stdout).gate.knownMainReworks.map(row => [row.name, row.item]));
+  const report = await settledSubmit(t, box);
+  assert.equal(report.submission?.gateGreen, true, JSON.stringify(report.gate));
+  const owners = Object.fromEntries(report.submission.submissionProof.knownMainFailures.failures.map(row => [row.name, row.item]));
   assert.deepEqual(owners, { 'alpha case [G1]': alpha, 'beta case [G1]': beta });
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
 
-test('a case no single repair names is ambiguous but red on main, so submit accepts it and names the candidates [V4,B3,C7]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
+test('a case no single repair names is ambiguous but red on main, so submit accepts it and names the candidates [V4,B3,C7]', async t => {
   const box = fixture(t, { affected: SHARED });
   const alpha = fileMainRed(box, "The case 'alpha case' passes on main.");
   const other = fileMainRed(box, 'The shared file passes on main.');
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  const gate = JSON.parse(result.stdout).gate;
-  assert.deepEqual(gate.knownMainAmbiguous, [{ file: 'test/affected.test.js', name: 'beta case [G1]', candidates: [alpha, other] }]);
-  assert.deepEqual(gate.knownMainReworks.map(row => [row.name, row.item]), [['alpha case [G1]', alpha]]);
-  assert.match(gate.report, /several candidate owners/u);
+  const report = await settledSubmit(t, box);
+  assert.equal(report.submission?.gateGreen, true, JSON.stringify(report.gate));
+  assert.deepEqual(report.submission.submissionProof.knownMainFailures.failures.map(row => [row.name, row.item]), [['alpha case [G1]', alpha]]);
+  const shown = JSON.parse(cli(box, box.root, 'show', String(box.item)).stdout);
+  const named = `main-owned test/affected.test.js (beta case [G1]): several candidate owners: #${alpha}, #${other}`;
+  assert.ok(shown.thread.some(entry => entry.type === 'fact' && entry.text.includes(named)), JSON.stringify(shown.thread.slice(-4)));
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
