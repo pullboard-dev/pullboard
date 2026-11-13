@@ -35,11 +35,11 @@ test('a wrong-typed setting is an error on its own row that names the setting [O
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   t.after(() => helpers.cleanup());
-  const bad = inventory(box, { runnersOnly: 'yes' }).find(row => row.scope === 'machine' && row.key === 'gate.runnersOnly');
+  const bad = inventory(box, { diskFloorMB: 'lots' }).find(row => row.scope === 'machine' && row.key === 'gate.diskFloorMB');
   assert.ok(bad.error, 'the wrong-typed setting carries its own problem');
   assert.equal(bad.value, null);
-  assert.match(bad.error.message, /gate\.runnersOnly/u);
-  assert.match(bad.error.fix, /Set gate\.runnersOnly back to false or remove it from /u);
+  assert.match(bad.error.message, /gate\.diskFloorMB/u);
+  assert.match(bad.error.fix, /Set gate\.diskFloorMB back to 10240 or remove it from /u);
   assert.doesNotMatch(JSON.stringify(bad.error), /BAD_SETTINGS|unsupported type/u);
 });
 
@@ -48,7 +48,7 @@ test('every other setting is still listed when one setting is wrong-typed [O5,O6
   const box = helpers.project('true');
   t.after(() => helpers.cleanup());
   const healthy = inventory(box, {}).filter(row => row.scope === 'machine');
-  const rows = inventory(box, { runnersOnly: 'yes' }).filter(row => row.scope === 'machine');
+  const rows = inventory(box, { diskFloorMB: 'lots' }).filter(row => row.scope === 'machine');
   assert.deepEqual(rows.map(row => row.key), healthy.map(row => row.key), 'no other setting disappears');
-  assert.ok(rows.filter(row => row.key !== 'gate.runnersOnly').every(row => !row.error), 'no other row is marked bad');
+  assert.ok(rows.filter(row => row.key !== 'gate.diskFloorMB').every(row => !row.error), 'no other row is marked bad');
 });
