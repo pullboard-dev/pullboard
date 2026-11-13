@@ -314,6 +314,27 @@ export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
     openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
 }
 
+/** The last runner read per board, so a burst of state reads opens the machine's lease records once. */
+const runnerReads = new Map();
+
+/**
+ * The Dashboard's runner card (#6847): the same anonymous runner progress /live/data.json carries, read at most once
+ * every fifteen seconds per board. A machine with no runner records, or one that cannot be read now, shows none.
+ *
+ * @param {string} root - The board's checkout root.
+ * @param {string} commonDir - The board's git common folder, which keys the kept read.
+ * @param {number} now - The snapshot clock in milliseconds.
+ * @returns {{ runners: object[], runs: object[] } | null}
+ */
+function dashboardRunners(root, commonDir, now) {
+  const kept = runnerReads.get(commonDir);
+  if (kept && now >= kept.at && now - kept.at < 15_000) return kept.value;
+  let value = null;
+  try { value = publicLiveSnapshot(root, { now }); } catch { value = null; }
+  runnerReads.set(commonDir, { at: now, value });
+  return value;
+}
+
 /** The CLI may offer --public only when this implementation checks every retained export value. */
 exportView.supportsPublicExport = true;
 
@@ -534,6 +555,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       // The hero's four-hour counts, so a board whose full history the browser never finishes reading still shows numbers.
       dashboardRecent: dashboardRecent(board, new Map(all.map(item => [item.item_id, item])), now),
       dashboardLanded: fields.dashboardLanded,
+      // The Dashboard's Runners card: this machine's runners, numbered and anonymous as on /live (#6847).
+      dashboardRunners: dashboardRunners(info.root, info.commonDir, now),
       landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: fields.holds,

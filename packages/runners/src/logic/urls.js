@@ -45,6 +45,7 @@ export function requireEdges(source) {
   if (declared.length !== 1) return null;
   const [text, name] = declared[0];
   const from = declared[0].index;
+  if (/^\s*\(/u.test(code.slice(from + text.length))) return null; // `createRequire(import.meta.url)(...)` binds a result, not a loader.
   const masked = code.slice(0, from) + ' '.repeat(text.length) + code.slice(from + text.length);
   if (/\brequire\s*[(.]|\bmodule\s*\.\s*require\b|\bcreateRequire\s*\(/u.test(masked)) return null;
   const edges = [];
