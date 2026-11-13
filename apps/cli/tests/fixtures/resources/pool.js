@@ -49,7 +49,7 @@ function fixture() {
     const result = runFixtureChild('git', ['init', '-q', repo], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.failure);
   }
-  return { dir, home, first, second, env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home } };
+  return { dir, home, first, second, env: { ...process.env, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home } };
 }
 
 /** Wait for a fixture command to create a marker file, with a hang ceiling only for failure. */
