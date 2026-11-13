@@ -24,6 +24,7 @@ import { claudeLoopRules } from '../../../../packages/config/index.js';
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
@@ -86,6 +87,8 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
 
 test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', async () => {
   const box = project();
+  // The runner's own submit must finish its gate before the verify below, so this case pins controller dispatch (#6249,#6832).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const script = (name, lines) => {
     writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web', ...lines, ''].join('\n'));
     return `sh ${join(box.dir, name)}`;
