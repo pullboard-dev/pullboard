@@ -968,7 +968,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   }
   assert.ok(Array.isArray((await json(source, source.repo, 'labels')).labels), 'labels lists each label [A1]');
   assert.equal((await json(source, source.repo, 'search', ['catalog'])).query, 'catalog', 'search echoes its query [A1]');
-  assert.ok(Array.isArray((await json(source, source.repo, 'why', ['release'], 'release')).items), 'why release lists the release flow [A1]');
+  assert.ok(Array.isArray((await json(source, source.repo, 'why', [], 'release')).items), 'why release lists the release flow [A1]');
   const trace = await json(source, source.repo, 'trace', [String(catalog.item_id)]);
   assert.deepEqual([trace.subject, trace.since, Array.isArray(trace.entries)], [String(catalog.item_id), null, true], 'trace reads one item timeline');
   assert.ok(Object.hasOwn(await json(source, source.repo, 'tool-build'), 'build'));
