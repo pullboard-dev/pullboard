@@ -78,6 +78,23 @@ test('clause 1: an exception needs the person\'s exact approval and an unexpired
   assert.ok(unsigned.some(line => /needs the person's answer: approve store exception/u.test(line)));
 });
 
+test('clause 1: resources.sqlite is owned by the module that writes it, and a read-only file as owner is refused [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  assert.equal(registry.stores['resources.sqlite'].owner, 'packages/resources/src/io/main.js');
+  assert.deepEqual(storeOwnerProblems(registry), []);
+  const reader = { ...registry, stores: { ...registry.stores, 'resources.sqlite': { kind: 'sqlite', owner: 'packages/config/src/io/settings/inventory.js' } } };
+  assert.match(storeOwnerProblems(reader)[0].text, /CD2_STORE_OWNER: resources\.sqlite is pinned to packages\/resources\/src\/io\/main\.js, not packages\/config\/src\/io\/settings\/inventory\.js/u);
+  assert.match(judge({ [OTHER]: 'export const x = 1;' }, { registry: reader })[0], /CD2_STORE_OWNER: resources\.sqlite/u);
+});
+
+test('clause 2: the recount under --ratchet raises no per-file ceiling once the settings inventory asks the resources module for its paths [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  const recount = tightenStoreBaseline(storeReport(ROOT), registry, baseline);
+  assert.deepEqual(storeBaselineGrowth(recount, baseline), []);
+  assert.equal(recount['packages/config/src/io/settings/inventory.js']?.['resources.sqlite'], undefined);
+});
+
 test('clause 2: the store baseline may only fall: a risen or new ceiling refuses, a fall passes [CD2]', () => {
   const accepted = { [OTHER]: { 'main-red.json': 2 } };
   assert.deepEqual(storeBaselineGrowth({ [OTHER]: { 'main-red.json': 1 } }, accepted), []);
@@ -143,6 +160,20 @@ test('clause 2: stores.json has a dirs section seeded with the directory stores,
   assert.deepEqual(storeDirGrowth(grown, accepted).map(row => row.text), [`CD2_BASELINE_ROSE: ${OTHER} dir:trace 1 -> 2; the store baseline may only fall`], 'a registered directory may not rise; a new one records its homes once');
   const shipped = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
   assert.ok(!JSON.stringify(shipped).includes('dir:'), 'directory ceilings live in their dirs rows');
+});
+
+test('clause 1: the coordinator release audit imports the release-receipts path from release.js and writes no second receipt [CD2]', () => {
+  const read = file => readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8');
+  const coordinator = read('packages/gate/src/io/coordinator/release.js');
+  assert.match(coordinator, /import \{ releaseReceiptFile \} from '\.\.\/release\.js';/u);
+  assert.equal(storeSites(coordinator, 'packages/gate/src/io/coordinator/release.js').filter(site => site.store === 'dir:release-receipts').length, 0);
+  assert.equal(storeSites(read('packages/gate/src/io/release.js'), 'packages/gate/src/io/release.js').filter(site => site.store === 'dir:release-receipts').length, 1, 'release.js names the folder once');
+});
+
+test('clause 2: the release-receipts second-home row is gone from the registry ceilings [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  assert.equal(registry.dirs['release-receipts'].owner, 'packages/gate/src/io/release.js');
+  assert.deepEqual(registry.dirs['release-receipts'].homes ?? {}, {});
 });
 
 test('clause 2: the repository adds no unregistered store or second home past the shipped baseline [CD2]', () => {
