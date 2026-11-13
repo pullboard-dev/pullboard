@@ -338,13 +338,15 @@ export async function threeReplicaFixture(t, timing) {
 
   // One pack file, not thousands of loose objects, so each clone copies a single file and a loaded runner cannot fail it mid-copy [C7].
   gitAt(seed, envs[0], 'repack', '-adq');
-  for (const clone of clones) gitAt(scratch, envs[0], 'clone', '-q', seed, clone);
+  // One real clone, copied twice: a loaded runner pays seconds per spawned git, so the copies spawn none [C7].
+  gitAt(scratch, envs[0], 'clone', '-q', seed, clones[0]);
+  gitAt(clones[0], envs[0], 'remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git');
+  for (const clone of clones.slice(1)) cpSync(clones[0], clone, { recursive: true });
   for (let index = 0; index < clones.length; index += 1) {
-    gitAt(clones[index], envs[index], 'remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git');
     gitAt(clones[index], envs[index], 'worktree', 'add', '-q', '-b', `web/race-${index + 1}`, worktrees[index], 'main');
   }
 
-  const seedBoard = store.openBoard(join(commonDir(seed, envs[0]), 'pullboard', 'board.sqlite'));
+  const seedBoard = store.openBoard(join(seed, '.git', 'pullboard', 'board.sqlite'));
   let boardId;
   let snapshot;
   try {
@@ -367,7 +369,7 @@ export async function threeReplicaFixture(t, timing) {
   } finally { store.closeBoard(seedBoard); }
 
   for (let index = 0; index < clones.length; index += 1) {
-    const replica = store.openBoard(join(commonDir(clones[index], envs[index]), 'pullboard', 'board.sqlite'));
+    const replica = store.openBoard(join(clones[index], '.git', 'pullboard', 'board.sqlite'));
     try { importBoard(replica, snapshot); } finally { store.closeBoard(replica); }
   }
 
@@ -408,7 +410,7 @@ export async function threeReplicaFixture(t, timing) {
         keyStorage: 'file', sequence: 0,
         cursor: snapshot.tables.event.at(-1)?.event_id ?? 0,
       };
-      const linkFile = join(commonDir(clones[index], envs[index]), 'pullboard', 'relay.json');
+      const linkFile = join(clones[index], '.git', 'pullboard', 'relay.json');
       writeFileSync(linkFile, JSON.stringify(state) + '\n', { mode: 0o600 });
       chmodSync(linkFile, 0o600);
     }
