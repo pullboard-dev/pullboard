@@ -285,7 +285,10 @@ function assertRequiredShape(value, required, label) {
 
 /** Parse a command's sole JSON document and check its public command shape. */
 async function json(box, cwd, command, args = [], subcommand) {
-  const result = await box.runLocal(cwd, command, ...args, '--json');
+  let result = await box.runLocal(cwd, command, ...args, '--json');
+  // The catalog files many near-identical items by design; answer the likely-duplicate guard once, naming the item it found.
+  const near = command === 'add' && result.status !== 0 ? /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.stdout + result.stderr)?.[1] : undefined;
+  if (near) result = await box.runLocal(cwd, command, ...args, '--not-duplicate-of', `${near} catalog fixture items repeat by design`, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
   const document = JSON.parse(result.stdout);
   if (command === 'check' && subcommand !== 'accept') {
