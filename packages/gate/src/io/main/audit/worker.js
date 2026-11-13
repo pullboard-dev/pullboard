@@ -369,14 +369,14 @@ async function audit(root, directory, job, write, options, testValueServices, ex
 }
 /**
  * Run the audit's board-command budget check, when the composition root supplies one, for the newest audited tip. A
- * breach is filed to the lane owning the CLI entry, or the newest landed item's lane when the coordinator owns it.
+ * breach is filed to the lane owning the CLI entry the caller names (ownerPath), or the newest landed item's lane when the coordinator owns it.
  * Why it never throws: a measurement that fails must not leave an audit obligation incomplete.
  */
-async function checkCommandBudget(root, { directory, job, write, openBoardForRead }, check) {
+async function checkCommandBudget(root, { directory, job, write, openBoardForRead, ownerPath }, check) {
   if (typeof check !== 'function') return;
   try {
     const config = policyAt(root, job.tip).config;
-    const owner = laneOf(config, 'apps/cli/pullboard.js');
+    const owner = laneOf(config, ownerPath);
     const lane = owner && owner !== 'coordinator' ? owner : job.items?.[0]?.lane ?? Object.keys(config.lanes)[0];
     await check({ directory, job, lane, write, read: action => readBoard(repoInfo(root), action, openBoardForRead) });
   } catch (error) {
@@ -437,7 +437,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
           // A refused notice or malformed job must not prevent remaining obligations.
         }
       }
-      if (jobs.length) await checkCommandBudget(root, { directory, job: jobs.at(-1), write, openBoardForRead }, services.commandBudget);
+      if (jobs.length) await checkCommandBudget(root, { directory, job: jobs.at(-1), write, openBoardForRead, ownerPath: services.commandBudgetOwnerPath }, services.commandBudget);
       const next = await withFileLock(lock, () => {
         const owner = readMainAudit(ownerFile);
         if (owner?.pid !== process.pid || owner.token !== token) throw new Error('main audit ownership changed');

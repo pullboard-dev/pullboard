@@ -22,4 +22,8 @@ if (!values.output || !values.head || landing.releaseSource(process.cwd()).head 
 const result = await landing.runReleaseGate(process.cwd(), { personOverride: values['person-override'], executionServices: { runners: runnerExecutionServices(), landing } });
 mkdirSync(dirname(values.output), { recursive: true });
 copyFileSync(result.file, values.output, constants.COPYFILE_EXCL);
-console.log(`release gate ${values.head}: ${result.receipt.participation.required.length} executors, ${result.seconds}s; native receipt ${result.file}`);
+console.log(`release gate ${values.head}: ${result.receipt.participation.required.length} executors, ${result.seconds}s of ${result.timing?.budgetSeconds ?? 900}s; native receipt ${result.file}`);
+if (result.overBudget) {
+  console.error(`[OVER_BUDGET] the release gate took ${result.seconds}s, past its ${result.timing.budgetSeconds}s budget; its receipt records this; speed up the slowest shard before releasing`);
+  process.exitCode = 1;
+}
