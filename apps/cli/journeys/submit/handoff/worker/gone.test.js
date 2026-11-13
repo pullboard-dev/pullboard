@@ -91,7 +91,7 @@ async function drainOnce(box, source, swept = () => true) {
   return `${run.stdout}${run.stderr}${logged}`;
 }
 
-test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and clause 2: show names the requeue and its reason [C7]', async t => {
+test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and clause 2: show names the requeue and its reason [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6833' }, async t => {
   const box = fixture(t);
   const source = resolve(import.meta.dirname, '../../../../../..');
   const tools = join(box.dir, 'silent-tools');
@@ -134,7 +134,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   assert.equal(json.queuedSubmit.requeuedFor, 'worker-gone', 'clause 2: show --json carries the reason');
 });
 
-test('clause 1: a drain ends a hand-off whose folder no longer exists as infrastructure once, and the builder keeps the claim [C7]', async t => {
+test('clause 1: a drain ends a hand-off whose folder no longer exists as infrastructure once, and the builder keeps the claim [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6833' }, async t => {
   const box = fixture(t);
   const source = resolve(import.meta.dirname, '../../../../../..');
   const tools = join(box.dir, 'silent-tools');
