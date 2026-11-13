@@ -32,7 +32,7 @@ function fixture(t, { dropFirst = true } = {}) {
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
     gateSlots: 0, browserSlots: 0, runners: [runner],
     // Live-load ranking probes each runner over SSH before admission, which the holding stand-ins below would stall past the deadline.
-    gate: { runnersFirst: true, loadAwareDispatch: false, runnerDispatch: process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller' },
+    gate: { runnersFirst: true, loadAwareDispatch: false },
   }));
   return { ...box, requests, starts, runner };
 }
@@ -55,9 +55,10 @@ function queue(t) {
   return db;
 }
 
-// PULLBOARD_LOST_CASES ('ssh', 'held', 'held:yield' or 'held:retry') picks one group of cases, so the pull-mode journeys
-// can run in separate files inside the file budget [#6734,#6917]; 'held' takes both held cases; unset runs all.
-const only = process.env.PULLBOARD_LOST_CASES;
+// PULLBOARD_LOST_CASES ('ssh', 'held', 'held:yield' or 'held:retry') picks one group of cases, so the journeys can run in
+// separate files inside the file budget [#6734,#6917]; 'held' takes both held cases; unset runs the ssh case, the held
+// cases being lost.pull.held and lost.pull.retry (the controller dispatch that ran them all in one file is gone, #5821).
+const only = process.env.PULLBOARD_LOST_CASES ?? 'ssh';
 const caseTest = (group, ...args) => (!only || only === group || group.startsWith(`${only}:`) ? test(...args) : undefined);
 
 caseTest('ssh', 'a failed SSH call preserves its command exit and stderr through the synchronous bridge [C7]', t => {
@@ -82,7 +83,7 @@ caseTest('ssh', 'a failed SSH call preserves its command exit and stderr through
 // lease is admitted late with a 90 s startup budget and the 90 s child timeout fires first (lost.pull, #6734). The held
 // first dispatch waits this budget out before failing over, then the second dispatch (a controller boot, the pack and
 // the job) needs up to 57 s on a loaded runner, so 30 s here left no margin inside the 90 s child timeout (#7090).
-const STAND_IN_BOOT_BUDGET_MS = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 15_000 : 8_000;
+const STAND_IN_BOOT_BUDGET_MS = 15_000;
 
 caseTest('held:yield', 'a worker missing READY yields to a free runner in the next admission cycle [C7,Q1,Q2]', t => {
   const box = fixture(t, { dropFirst: false });

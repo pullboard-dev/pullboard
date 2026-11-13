@@ -6,7 +6,7 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/runners.js';
 
-test('a red on a registered runner gets its paired rerun and ledger entry, or stays unclassified without the host load [C7]', { timeout: 300_000 }, async t => {
+test('a red on a registered runner gets its paired rerun and ledger entry, or stays unclassified without the host load [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
   for (const mode of ['remote-load', 'no-load', 'paired-no-load']) {
     await t.test(mode, child => runPairedRerun(child, mode, PAIRED_RERUN_FIXTURE));
   }
