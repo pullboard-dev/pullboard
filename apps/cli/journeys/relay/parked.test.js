@@ -46,7 +46,7 @@ async function parkedBoard(t) {
   const printed = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
-  const before = JSON.parse(readFileSync(box.linkFile, 'utf8')).sequence;
+  const before = (await box.cliLocal('status')).document.relay.sequence;
   const big = randomBytes(68_000).toString('base64url');
   assert.equal((await box.cliLocal('shout', 'all', big)).code, 0);
   assert.equal((await box.cliLocal('shout', 'all', 'small after the big move')).code, 0);
