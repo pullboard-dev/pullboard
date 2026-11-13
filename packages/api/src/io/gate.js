@@ -114,7 +114,7 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   const environment = gate.environment && ['node', 'platform', 'arch'].every(key => typeof gate.environment[key] === 'string' && gate.environment[key])
     ? { node: gate.environment.node, platform: gate.environment.platform, arch: gate.environment.arch } : null;
   // A plain submit's receipts are reusable by review: they name the admission witness and the plan they ran [C7,H16].
-  const reuse = admission ? { submitAdmission: admission.id, submitReuse: true, submitReusePlan: reusePlanDigest({ check: check ?? '', files: pulledProofFiles(receipt),
+  const reuse = admission ? { submitAdmission: admission.id, submitReuse: true, submitReusePlan: reusePlanDigest({ check: check ?? '', files: pulledProofFiles(receipt), deferred: gate.deferred === true,
     proofCommand: gate.analysis?.proofCommand ?? '' }) } : {};
   const ids = [];
   for (const phase of gate.phases ?? []) {
@@ -144,8 +144,8 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
  * (packages/verify/src/logic/plan.js), restated here because this cell may not import verify; the review-reuse journey
  * fails when they drift [C7,H16].
  */
-function reusePlanDigest({ check, files, proofCommand }) {
-  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full: false, deferred: false, proofCommand: proofCommand || '' })).digest('hex');
+function reusePlanDigest({ check, files, deferred = false, proofCommand }) {
+  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full: false, deferred, proofCommand: proofCommand || '' })).digest('hex');
 }
 
 /** The files a pulled gate's proof ran, as its analysis named them. */
