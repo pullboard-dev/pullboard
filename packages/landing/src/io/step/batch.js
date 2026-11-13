@@ -50,7 +50,6 @@ import { save } from './merge.js';
 import { splitRedBatch } from './split.js';
 import { mergeGroup } from './merge.js';
 import { gateGroup } from './gate.js';
-import { parallelLanding } from './parallel.js';
 import { diagnose } from './diagnose.js';
 import { waivedProof } from './failures.js';
 import { bisect } from './diagnose.js';
@@ -387,7 +386,7 @@ export async function pruneLandedSeats(state) {
 }
 
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
-export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts, spawnRefresh, named = null }) {
+export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, landingPorts, spawnRefresh, named = null }) {
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
@@ -493,7 +492,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const refreshStarted = (spawnRefresh ?? startBaseRefresh)({ root, say }, batch);
     if (refreshStarted) batch = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, refreshStarted }, revision: batch.revision }]);
   }
-  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, candidateWorkerFile, landingPorts, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
+  const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, landingPorts, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
   try {
     await save(state, { owner, pid: process.pid, host: landingHost(), refusal: null });
     await returnCulprits(state);
@@ -504,13 +503,6 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       const initialItems = (state.batch.candidates ?? state.batch.items)
         .filter((entry) => !state.culprits.some((culprit) => culprit.id === entry.id && culprit.commit === entry.commit));
       if (!existsSync(state.batch.root)) throw new Refused('LAND_WORKTREE', `the recorded landing worktree is missing at ${state.batch.root}; restore it before adopting`);
-      if (state.config.landing?.parallel === true && !state.batch.external) {
-        await parallelLanding(state, initialItems);
-        await returnMergeConflicts(state);
-        await pruneLandedSeats(state);
-        return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map(entry => entry.id) : [],
-          conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
-      }
       const build = await timedPhase(say, 'merge', () => mergeGroup(state, initialItems));
       await save(state, { ...build, conflicts: [...state.batch.conflicts, ...build.conflicts] });
       for (const entry of state.batch.blocked ?? []) say(entry.code === 'LAND_FILE_OVERLAP'

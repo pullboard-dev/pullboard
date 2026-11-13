@@ -1,9 +1,13 @@
-/** @pullboard-world-pin: the #6810 case reads the committed tree, which must no longer hold the in-process landing batch. */
+/** @pullboard-test-input source-tree */
+/** @pullboard-world-pin: the #6810 and #6812 cases read the committed tree, which must no longer hold the in-process landing batch or the candidate workers. */
 /** A landing reruns its items' submit proof, never the full plan, and a batch of many lands on its items' receipts [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { landingReceiptReuse } from '../../../index.js';
 import { submitProved } from '../../../src/io/step/gate.js';
@@ -63,4 +67,19 @@ test('#6810 clauses 1-2: the in-process landing batch file is gone and its runne
   try { named = execFileSync('git', ['grep', '-l', '-F', name], { cwd: root, encoding: 'utf8' }); }
   catch (error) { if (error.status !== 1) throw error; }
   assert.equal(named, '');
+});
+
+test('#6812 clauses 1-3: candidates.js and step/parallel.js are gone and no file imports either [C7,#6812]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const gone = ['packages/landing/src/io/candidates.js', 'packages/landing/src/io/step/parallel.js'];
+  for (const file of gone) assert.equal(existsSync(join(root, file)), false, file);
+  const files = execFileSync('git', ['ls-files', '-z', '--', '*.js', '*.mjs'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
+  const importers = [];
+  for (const file of files) {
+    const text = readFileSync(join(root, file), 'utf8');
+    for (const [, specifier] of text.matchAll(/(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/gu)) {
+      if (gone.includes(join(dirname(file), specifier))) importers.push(`${file} -> ${specifier}`);
+    }
+  }
+  assert.deepEqual(importers, []);
 });
