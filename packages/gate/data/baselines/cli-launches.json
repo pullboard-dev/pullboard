@@ -744,7 +744,7 @@
     "launch": 1
   },
   "apps/cli/journeys/land/adoption.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/submit/placement.test.js": {
     "launch": 1
