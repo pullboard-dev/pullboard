@@ -284,6 +284,8 @@ function render({ tab: switching = false } = {}) {
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
   const gatedOf = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
+  // The Pipeline page draws itself from the held event history on every refresh and tab switch; it needs no Rulings (#6869).
+  if (view.tab === 'pipeline') pipelineView.draw(p);
   if (draw && view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p, switching);
     store.paint($('cost'), costPaneHtml(history, p));
@@ -350,8 +352,6 @@ function render({ tab: switching = false } = {}) {
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
     if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
-  } else if (view.tab === 'pipeline') {
-    pipelineView.draw(p);
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
