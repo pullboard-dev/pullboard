@@ -2,13 +2,12 @@
 import { mergeableData } from '../logic/manifest.js';
 import { createHash } from 'node:crypto';
 import { gitExecFileSync } from '../../../git/index.js';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { resolveMechanicalIndex } from './mechanical.js';
 import { Refused } from '../../../kernel/index.js';
+import { scratchFolder } from '../../../config/index.js';
 
 const PREPARED = new WeakSet();
 
@@ -49,7 +48,7 @@ export async function withSourceComposition(root, inputHead, trunk, work) {
 async function compose(root, inputHead, trunk, work) {
   const virtual = git(root, ['merge-tree', '--write-tree', '--name-only', '-z', inputHead, trunk], { stdio: ['ignore','pipe','ignore'], allowed: [0,1] });
   const mergeTree = virtual.split('\0')[0].trim();
-  const outer = mkdtempSync(join(tmpdir(), 'pullboard-source-advance-'));
+  const outer = scratchFolder('pullboard-source-advance-');
   const directory = join(outer, 'source');
   let added = false;
   let controllerStarted = false;
