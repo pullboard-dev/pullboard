@@ -19,7 +19,7 @@ import {
 
 test('verify accepts an identical owned main red and records its exact case [V4,B3]', async t => {
   const box = fixture(t), repair = fileMainRed(box);
-  const settled = await settledSubmit(t, box);
+  const settled = await settledSubmit(t, box, { submitted: true });
   assert.equal(settled.submission?.gateGreen, true, 'the pulled gate records green over the main-owned case: ' + JSON.stringify(settled.gate));
   const { independent, review } = reviewer(box);
   const accepted = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'checked the frozen case');
@@ -48,7 +48,7 @@ test('verify refuses a frozen failure that is green on main [V4,B3]', t => {
 
 test('verify refuses an identical main failure without an open repair owner [V4,B3]', async t => {
   const box = fixture(t);
-  const settled = await settledSubmit(t, box);
+  const settled = await settledSubmit(t, box, { submitted: true });
   assert.equal(settled.submission?.gateGreen, true, 'the pulled gate records green over the main-owned case: ' + JSON.stringify(settled.gate));
   const { independent, review } = reviewer(box);
   const refused = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'no repair owns the case');
@@ -58,7 +58,7 @@ test('verify refuses an identical main failure without an open repair owner [V4,
 
 test('a frozen case red identically on main with no owner records a green gate listing it main-owned, shouts, and files nothing [V4,B3,C7]', async t => {
   const box = fixture(t);
-  const report = await settledSubmit(t, box);
+  const report = await settledSubmit(t, box, { submitted: true });
   // Since #3534 the gate records green over main's own reds and names them, instead of a builder fact.
   assert.equal(report.submission?.gateGreen, true, 'a red only in main\'s own case records green: ' + JSON.stringify(report.gate));
   const shown = JSON.parse(cli(box, box.root, 'show', String(box.item)).stdout);
@@ -73,7 +73,7 @@ test('a frozen case red identically on main with no owner records a green gate l
 test('an open Main red repair is linked, not duplicated [V4,B3]', async t => {
   const box = fixture(t);
   const repair = fileMainRed(box);
-  const report = await settledSubmit(t, box);
+  const report = await settledSubmit(t, box, { submitted: true });
   assert.equal(report.submission?.gateGreen, true, JSON.stringify(report.gate));
   assert.deepEqual(report.submission.submissionProof.knownMainFailures.failures.map(row => row.item), [repair]);
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 1);
