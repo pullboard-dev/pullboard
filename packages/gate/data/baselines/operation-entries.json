@@ -94,5 +94,11 @@
     "packages/runners/src/io/run.js",
     "packages/sandbox/src/io/captured.js",
     "packages/seats/src/io/agent/hook.js"
-  ]
+  ],
+  "forwards": {
+    "run-tests": [
+      "apps/cli/src/io/run/tests.js",
+      "packages/gate/bin/run-tests.js"
+    ]
+  }
 }
