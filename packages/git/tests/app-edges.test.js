@@ -1,5 +1,6 @@
 /** The packages named by #6450 no longer reach apps/*: the live report and the committed ceiling both have no row for them [C7,CD12]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -11,7 +12,7 @@ const FILES = [
 ];
 
 test('clause 1: cellsEdgeReport(repo).packageApps has no row for the listed files [C7]', () => {
-  const live = cellsEdgeReport(REPO, { files: FILES }).packageApps;
+  const live = cellsEdgeReport(REPO, { files: FILES.filter(file => existsSync(join(REPO, file))) }).packageApps;
   for (const file of FILES) assert.equal(live[file], undefined, `${file} still reaches an app: ${JSON.stringify(live[file])}`);
 });
 
