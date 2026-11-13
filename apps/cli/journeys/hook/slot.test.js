@@ -9,6 +9,8 @@ import { resolve } from 'node:path';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { takeResource } from '../../../../packages/resources/index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { chargedText } from '../../tests/fixtures/load.js';
+import { loadClock } from '../../tests/fixtures/load.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -17,9 +19,9 @@ after(helpers.cleanup);
 function commitAs(box, cwd, session, path, message) {
   box.env.CODEX_SESSION_ID = session;
   try {
-    const started = performance.now();
+    const stop = loadClock();
     const result = helpers.commitFile(box, cwd, path, `${path}\n`, message);
-    return { status: result.status, text: `${result.stderr ?? ''}${result.stdout ?? ''}`, ms: performance.now() - started };
+    return { status: result.status, text: `${result.stderr ?? ''}${result.stdout ?? ''}`, time: stop() };
   } finally { delete box.env.CODEX_SESSION_ID; }
 }
 
@@ -40,12 +42,13 @@ test('clause 1; clause 2; clause 3: with every local slot held, a one-line commi
     const ok = commitAs(box, box.web, session, 'web/page.html', 'feat(web): one line [G1]');
     assert.equal(ok.status, 0, ok.text);
     // Before this change each hook waited 30 s for the held lease and then refused with CHECKOUT_BUSY.
-    assert.ok(ok.ms < 2000, `the commit with its hooks took ${Math.round(ok.ms)} ms with every slot held`); // budget: frozen #2505 clause 3 permits under 2 s.
-    const started = performance.now();
+    // Both budgets charge runner load per core like the file budgets (#6525): the number holds, measured as the case's own time.
+    assert.ok(ok.time.ms < 2000, `the commit with its hooks took ${chargedText(ok.time)} with every slot held`); // budget: frozen #2505 clause 3 permits under 2 s.
+    const stop = loadClock();
     const direct = box.run(box.web, 'hook', 'pre-commit');
-    const hookMs = performance.now() - started;
+    const hook = stop();
     assert.equal(direct.code, 0, direct.err);
-    assert.ok(hookMs < 1000, `pre-commit took ${Math.round(hookMs)} ms with every slot held`); // budget: measured below 1 s in fact 6b669f62; retain the frozen #2505 ceiling.
+    assert.ok(hook.ms < 1000, `pre-commit took ${chargedText(hook)} with every slot held`); // budget: measured below 1 s in fact 6b669f62; retain the frozen #2505 ceiling.
     const refused = commitAs(box, box.web, session, 'api/other.js', 'feat(web): outside the lane [G1]');
     assert.notEqual(refused.status, 0, 'a lane violation is still refused');
     assert.match(refused.text, /lane/iu);

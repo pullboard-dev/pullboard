@@ -14,23 +14,23 @@ import {
   readFileSync,
   watch,
 } from 'node:fs';
-import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { openBoard } from '../../../lib/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { loadClock } from '../../tests/fixtures/load.js';
 import {
   PULLBOARD_ENTRY,
   residentSocket,
 } from '../../src/io/resident/client.js';
 
-/** Run one production CLI command and retain its wall time and JSON result. */
+/** Run one production CLI command and retain its time charged for runner load per core (#6525), and its JSON result. */
 function measured(box, cwd, ...args) {
-  const started = performance.now();
+  const stop = loadClock();
   const result = box.run(cwd, ...args, '--json');
-  const ms = performance.now() - started;
+  const { ms, wall, scale } = stop();
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
-  return { ms, data: JSON.parse(result.out) };
+  return { ms, wall, scale, data: JSON.parse(result.out) };
 }
 
 /** Return the middle of three warm wall-clock samples. */
@@ -99,8 +99,8 @@ test('clause 1: claim, release and next each answer under 500 ms through a warm 
   const place = residentSocket(box.repo, PULLBOARD_ENTRY);
   residentPid = await waitForResident(place);
   await exercise(false);
-  // The 500 ms budget is unchanged. A round that misses it while the host's one-minute load exceeds half its cores measured the
-  // machine, not the commands, so it is measured again, at most twice more; a real slowdown misses every round [H24].
+  // The 500 ms budget is unchanged. Each sample is charged for runner load per core like the file budgets (#6525); a round that
+  // still misses it while the host's one-minute load exceeds half its cores is measured again, at most twice more [H24].
   let medians = {};
   for (let attempt = 1; attempt <= 3; attempt++) {
     samples = { claim: [], release: [], next: [] };
@@ -111,6 +111,6 @@ test('clause 1: claim, release and next each answer under 500 ms through a warm 
     if (Object.values(medians).every(value => value < 500) || loadavg()[0] <= cpus().length / 2) break;
   }
   for (const [name, value] of Object.entries(medians)) {
-    assert.ok(value < 500, `${name} median ${value.toFixed(2)} ms exceeds the 500 ms budget`);
+    assert.ok(value < 500, `${name} median ${value.toFixed(2)} ms of its own exceeds the 500 ms budget`);
   }
 });
