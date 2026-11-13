@@ -4,10 +4,7 @@
  * Why one module: controller dispatch, which ran a gate inside the submitting process, is going; every fixture that
  * submits or lands needs a runner under pull, and a gate switch the test sets in box.env must reach that runner.
  */
-import { openSync } from 'node:fs';
-import { closeSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -49,11 +46,12 @@ export function startFixtureLocalRunner(env, root) {
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const kept = Object.fromEntries(Object.entries(env).filter(([key, value]) => value !== undefined && reachesRunner(key)));
   delete kept.NODE_TEST_CONTEXT;
-  const log = openSync(join(folder, 'runner.log'), 'a');
-  try {
-    const child = spawn(process.execPath, [BIN, 'runner', 'local'], { cwd: resolve(root), env: kept, detached: true, stdio: ['ignore', log, log] });
-    child.unref();
-  } finally { closeSync(log); }
+  // A shell starts the runner in the background and exits at once, so the runner is never this process's child. Why: an
+  // exited child stays a zombie until this event loop reaps it, and stopFixtureLocalRunner's synchronous wait then saw
+  // it alive for its whole 10 s budget per box, holding the test file open past its exit timeout.
+  const started = spawnSync('/bin/sh', ['-c', 'log=$1; shift; "$@" </dev/null >>"$log" 2>&1 &', 'sh', join(folder, 'runner.log'), process.execPath, BIN, 'runner', 'local'],
+    { cwd: resolve(root), env: kept, detached: true, stdio: 'ignore' });
+  if (started.status !== 0) throw new Error(`could not start the fixture local runner for ${root}: ${started.error?.message ?? `exit ${started.status}`}`);
   for (const until = Date.now() + START_MS; Date.now() < until;) {
     const state = localRunnerState(folder);
     if (state) return { pid: state.pid, started: true };
