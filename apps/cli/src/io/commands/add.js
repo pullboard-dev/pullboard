@@ -61,6 +61,7 @@ import {
   launchBaseline,
   CHECKOUT_LEASES,
 } from '../entry.js';
+import { isConfigFile } from '../../../../../packages/config/browser.js';
 
 /**
  * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
@@ -278,7 +279,7 @@ export function pathTokens(text) {
   const tokens = new Set();
   for (const match of String(text ?? '').matchAll(PATH_TOKEN)) {
     const token = match[1].replace(/^\.\//u, '');
-    if (token.endsWith('/') || token.includes('.') || token === 'pullboard.json') tokens.add(token);
+    if (token.endsWith('/') || token.includes('.') || isConfigFile(token)) tokens.add(token);
   }
   return [...tokens];
 }
@@ -309,7 +310,7 @@ export function barPaths(item, { prose = true } = {}) {
   const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
   // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
   const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
-  const scoped = scope ? named.map(path => (path === 'pullboard.json' || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
+  const scoped = scope ? named.map(path => (isConfigFile(path) || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
   return [...new Set(scoped)];
 }
 

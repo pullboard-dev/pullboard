@@ -33,6 +33,8 @@ export {
 } from './src/logic/route/escalation.js';
 export {
   takeoverReady,
+  seatSessionGone,
+  SEAT_SESSION_STALE_MS,
 } from './src/logic/line/capacity.js';
 export {
   ACTIVE_REVIEWER_WINDOW_MINUTES,

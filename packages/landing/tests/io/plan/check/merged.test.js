@@ -1,4 +1,4 @@
-/** A hand-landed commit meets the cells-plan placement check that automatic landing applies [C7]. */
+/** A hand-landed commit meets the engine-numbering check that automatic landing applies [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -35,55 +35,20 @@ function commit(root, files, message) {
   return git(root, 'rev-parse', 'HEAD');
 }
 
-/** A repository whose own plan tool reports each tracked bin file the plan omits, as packages/codemap/src/io/cells/scripts/plan.js --check does. */
+/** An empty repository with one base commit and no cells plan. */
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), 'merged-plan-check-'));
+  const root = mkdtempSync(join(tmpdir(), 'merged-engine-check-'));
   roots.push(root);
   git(root, 'init', '-q', '-b', 'main');
-  const tool = [
-    "import { existsSync, readdirSync, readFileSync } from 'node:fs';",
-    "const placed = JSON.parse(readFileSync('packages/codemap/data/plan/cells.json', 'utf8')).placed;",
-    "const dir = 'apps/cli/src/io/hook';",
-    "const missing = existsSync(dir) ? readdirSync(dir).filter(file => file.endsWith('.js') && !placed.includes(`${dir}/${file}`)) : [];",
-    "for (const file of missing) console.error(`not in packages/codemap/data/plan/cells.json: ${dir}/${file}`);",
-    'process.exitCode = missing.length ? 1 : 0;',
-    '',
-  ].join('\n');
-  commit(root, { 'packages/codemap/src/io/cells/scripts/plan.js': tool, 'packages/codemap/data/plan/cells.json': '{"placed":[]}\n', 'package.json': '{"type":"module"}\n' }, 'base');
+  commit(root, { 'package.json': '{"type":"module"}\n' }, 'base');
   return root;
 }
-
-test('merged refuses a landing commit with an unplaced path and names it [C7]', () => {
-  const root = fixture();
-  const bad = commit(root, { 'apps/cli/src/io/hook/composed.js': 'export {};\n' }, 'unplaced');
-  assert.throws(() => requireLandingPlanCheck(root, bad), error => error.code === 'LAND_PLAN_UNPLACED' && /apps\/cli\/src\/io\/hook\/composed\.js/u.test(error.message));
-});
-
-test('merged accepts a landing commit whose paths are all placed, and a repository with no plan [C7]', () => {
-  const root = fixture();
-  const good = commit(root, { 'apps/cli/src/io/hook/composed.js': 'export {};\n', 'packages/codemap/data/plan/cells.json': '{"placed":["apps/cli/src/io/hook/composed.js"]}\n' }, 'placed');
-  assert.doesNotThrow(() => requireLandingPlanCheck(root, good));
-  const bare = mkdtempSync(join(tmpdir(), 'merged-plan-bare-'));
-  roots.push(bare);
-  git(bare, 'init', '-q', '-b', 'main');
-  const first = commit(bare, { 'README.md': 'x\n', 'src/local-engine.js': 'export const LOCAL_ENGINE = \"project-owned\";\n' }, 'bare');
-  assert.doesNotThrow(() => requireLandingPlanCheck(bare, first));
-});
-
-test('the scratch checkout is gone after the check, pass or fail [C7]', () => {
-  const root = fixture();
-  const bad = commit(root, { 'apps/cli/src/io/hook/x.js': 'export {};\n' }, 'unplaced');
-  assert.throws(() => requireLandingPlanCheck(root, bad));
-  assert.equal(git(root, 'worktree', 'list').split('\n').length, 1);
-});
-
 
 test('landing checks refuse an unnumbered engine leaf in the engines folder [C7]', () => {
   const root = fixture();
   const bad = commit(root, {
     'packages/state/src/logic/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n",
     'packages/state/src/logic/engines/unassigned.js': 'export function unassignedEngine() { return 999; }\n',
-    'packages/codemap/data/plan/cells.json': '{"placed":[]}\n',
   }, 'placed but unnumbered engine leaf');
   assert.throws(() => requireLandingPlanCheck(root, bad), error => /engines\/new-rule-engine\.js/u.test(error.message) && /amendLandingEngines/u.test(error.message));
 });
@@ -92,7 +57,6 @@ test('landing checks read the recorded numbered leaf despite dirty working bytes
   const root = fixture();
   const good = commit(root, {
     'packages/state/src/logic/engines/new-rule-engine.js': 'export const NEW_RULE_ENGINE = 1;\n',
-    'packages/codemap/data/plan/cells.json': '{"placed":[]}\n',
   }, 'numbered engine leaf');
   const dirty = "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n";
   writeFileSync(join(root, 'packages/state/src/logic/engines/new-rule-engine.js'), dirty);

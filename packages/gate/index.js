@@ -12,7 +12,8 @@ export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrow
 export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserSlotGuard, BROWSER_SLOT_ENV } from "./src/io/browser/guard.js";
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/logic/summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/logic/format.js";
-export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/io/check/baseline/worker.js";
+export { runnerBaselineCommand } from "./src/io/check/baseline.js";
+export { recordPulledBaseline, retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/io/check/baseline/worker.js";
 export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, refuseCheckPullboardTest, prepareCheckBaseline } from "./src/io/check/baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
@@ -113,3 +114,4 @@ export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
+export { deriveTestRegistries } from './src/io/test/derived.js';

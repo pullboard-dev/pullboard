@@ -103,14 +103,16 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   observationBoard.db.exec('BEGIN');
   const observationEvents = JSON.parse(JSON.stringify(events(observationBoard)));
 
+  // The coordinator may write a landing wake after the observation: compare up to the observation cursor, never drop the equality.
+  const upToCursor = (rows) => rows.slice(0, observationEvents.length);
   const snapshotOutput = box.exportSnapshot(alpha.repo, 'snapshot-export');
   const exportDir = snapshotOutput.root;
   assert.ok(existsSync(join(exportDir, 'index.html')));
   assert.ok(existsSync(join(exportDir, 'view.css')));
   const exportedBoards = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards.json'), 'utf8'));
   const boardId = exportedBoards.boards[0].id;
-  const exportedEvents = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events;
-  const fullBoardLog = JSON.parse(box.run(alpha.repo, 'log', '--json')).events;
+  const exportedEvents = upToCursor(JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events);
+  const fullBoardLog = upToCursor(JSON.parse(box.run(alpha.repo, 'log', '--json')).events);
   assert.deepEqual(fullBoardLog, observationEvents, 'the live and exported projections share the same unchanged native history');
   assert.equal(exportedEvents.length, fullBoardLog.length, 'the snapshot exports every board event');
   assert.deepEqual(exportedEvents.map((event) => event.event_id), fullBoardLog.map((event) => event.event_id),

@@ -21,7 +21,9 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     const key = itemStageKey(itemStagePresentation(item, { gated: Boolean(item.blockedBy?.length || item.heldReason || item.laneHoldReason), landingBatchAt: item.landingBatchAt }).stage);
     if (key in stageCounts) stageCounts[key]++;
   }
-  const merged = new Map((project.dashboardLanded ?? []).map(entry => [entry.id, entry]));
+  // Every landed item is known from its own row; only the last day's landings list their commit, to match merge events (#6666).
+  const merged = new Map(items.filter(item => item.merged || item.stage === 'merged').map(item => [item.id, { id: item.id, commit: null }]));
+  for (const entry of project.dashboardLanded ?? []) merged.set(entry.id, entry);
   const prefix = project.sequence ?? Infinity;
   const events = history.filter(event => event.event_id <= prefix && Date.parse(event.event_at) <= now)
     .sort((a, b) => a.event_id - b.event_id);
@@ -157,6 +159,10 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     agent.group = agent.current.some(entry => entry.kind === 'build') ? 'building'
       : agent.current.length ? 'reviewing' : agent.last > now - 20 * 60_000 ? 'between items' : 'quiet';
   }
+  // The server's own four-hour counts stand in while the browser's history is incomplete; never a guess from a partial log.
+  const recent = project.dashboardRecent && typeof project.dashboardRecent === 'object' ? project.dashboardRecent : null;
+  /** One server-read count, or null when the board sent none. */
+  const read = key => Number.isInteger(recent?.[key]) && recent[key] >= 0 ? recent[key] : null;
   const times = [...landed.values()], pace = project.dashboardPace ?? project.milestones?.find(entry => entry.summary?.pace)?.summary.pace ?? null;
   const bins = Array.from({ length: 24 }, (_, index) => {
     const from = now - (24-index)*hour;
@@ -182,9 +188,11 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     totals: { working: agents.filter(agent => agent.group !== 'quiet').length,
       allTime: merged.size,
       day: pace?.last24h ?? (complete ? times.filter(at => at > now-24*hour).length : null),
-      recent: complete ? times.filter(at => at > start).length : null,
-      passed: complete ? passed : null,
-      sentBack: complete ? sentBack : null,
-      shouts: complete ? personShouts : null },
+      recent: complete ? times.filter(at => at > start).length : read('landed'),
+      passed: complete ? passed : read('passed'),
+      sentBack: complete ? sentBack : read('sentBack'),
+      shouts: complete ? personShouts : read('shouts') },
+    // Why a hero count is missing, for its hover; null once every count is a number.
+    unread: complete || recent ? null : 'The board has not sent its last-4-hour counts yet, and its full event history is still loading.',
   };
 }
