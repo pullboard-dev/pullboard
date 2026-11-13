@@ -17,6 +17,8 @@ import { navPages } from "../../logic/nav.js";
 import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
+import { accountHtml } from "../../logic/nav.js";
+import { accountMenuHtml } from "../../logic/nav.js";
 import { navLayout } from "../../logic/nav.js";
 import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
@@ -44,6 +46,8 @@ ${navPages.toString()}
 ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
+${accountHtml.toString()}
+${accountMenuHtml.toString()}
 ${navLayout.toString()}
 ${pageControlsHtml.toString()}
 
