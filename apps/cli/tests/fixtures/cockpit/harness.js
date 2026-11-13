@@ -1166,7 +1166,7 @@ async function readRoadmap(chrome) {
  * and the bar's edges. The tab picked now is picked again afterwards.
  */
 async function tabBar(chrome) {
-  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].map(tab => tab.dataset.tab)");
+  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length).map(tab => tab.dataset.tab)");
   const picked = await chrome.stable("document.querySelector('#tabs .tab.on')?.dataset.tab");
   const layouts = [];
   try {
@@ -1179,7 +1179,7 @@ async function tabBar(chrome) {
           const box = tab.getBoundingClientRect(), label = range.getBoundingClientRect();
           return { tab: tab.dataset.tab, top: box.top, bottom: box.bottom, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
         }) };
-      })()`, "document.querySelectorAll('#tabs, #tabs .tab')"));
+      })()`, "[document.querySelector('#tabs'), ...[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length)]"));
     }
   } finally {
     await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(picked)}))`);
