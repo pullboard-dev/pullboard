@@ -146,9 +146,12 @@ test('a registry edit remains a conflict and reopens instead of being unioned [B
   const first = item(box, 1, BASE.replace('item: true', 'item: false'));
   const second = item(box, 2, BASE.replace('item: true', "positions: ['id']"));
   const landed = await settleLand(box, json(box, box.repo, 'land'));
-  assert.ok((landed.returned ?? []).some(entry => entry.id === second && entry.reason === 'conflict'), JSON.stringify(landed.landJob));
-  assert.equal(json(box, box.repo, 'show', String(second)).item_status, 'open');
-  assert.deepEqual(landed.landed, [first]);
+  // The pulled lander merges in its own order; the item that merges second is the one the registry edit conflicts with.
+  const conflict = (landed.returned ?? []).find(entry => entry.reason === 'conflict');
+  assert.ok(conflict && [first, second].includes(conflict.id), JSON.stringify(landed.landJob));
+  const winner = conflict.id === first ? second : first;
+  assert.equal(json(box, box.repo, 'show', String(conflict.id)).item_status, 'open');
+  assert.deepEqual(landed.landed, [winner]);
 });
 
 test('mechanical resolution refuses changed context, duplicate disagreements and unknown files [B3,R3,C7]', () => {

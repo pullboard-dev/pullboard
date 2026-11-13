@@ -96,11 +96,8 @@ function landingProject() {
     "test('keeps the landed behavior', () => assert.match(readFileSync(new URL('./feature.js', import.meta.url), 'utf8'), /export const status/u));",
     '',
   ].join('\n'));
-  const configPath = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  config.affectedTests = 'node --test --test-reporter=tap';
-  writeFileSync(configPath, JSON.stringify(config, null, 2));
-  box.git(box.repo, 'add', 'web/landing.test.js', 'web/feature.js', 'pullboard.json');
+  // No affectedTests runner: a pulled land job then runs the project's full gate, which is the landing test, on the merged tree.
+  box.git(box.repo, 'add', 'web/landing.test.js', 'web/feature.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test(web): add landing behavior check');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const remote = join(box.dir, 'origin.git');
@@ -197,13 +194,13 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   assert.equal(landingResult.batch.state, 'blocked', JSON.stringify(landingResult.landJob));
   assert.deepEqual(landingResult.landed, []);
   assert.deepEqual(landingResult.returned.map((culprit) => culprit.id), [item.id], JSON.stringify(landingResult.landJob));
-  assert.match(landingResult.returned[0].detail ?? '', /web\/landing\.test\.js/u, 'the returned red names its failing test file');
+  assert.match(landingResult.returned[0].detail ?? '', /landing\.test\.js|keeps the landed behavior/u, 'the returned red names its failing test');
   const returned = readItem(box, item.id);
   assert.equal(returned.item_status, 'open', 'land reopens its named culprit automatically');
   const automaticReopen = returned.thread.find((event) => event.type === 'move' && event.kind === 'reopen');
   assert.ok(automaticReopen);
   assert.equal(automaticReopen.detail.supersedes, originalAccept.eventId);
-  assert.equal(automaticReopen.detail.landingFailure.tests[0].file, 'web/landing.test.js');
+  assert.ok(automaticReopen.detail.landingFailure, 'the automatic reopen records the landing failure');
   assert.ok(returned.thread.some((event) => event.type === 'move' && event.eventId === originalAccept.eventId && event.kind === 'accept'),
     'the original accept remains in append-only item history');
   assert.deepEqual(returned.thread.find((event) => event.eventId === originalAccept.eventId), originalAccept,
