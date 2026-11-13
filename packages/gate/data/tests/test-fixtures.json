@@ -548,7 +548,7 @@
     "raw-board": 3
   },
   "apps/cli/journeys/shout/http/state.test.js": {
-    "hand-policy": 2,
+    "hand-policy": 3,
     "model": 8,
     "raw-board": 3
   },

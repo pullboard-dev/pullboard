@@ -78,7 +78,9 @@ const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 async function submitSettled(t, box, move, id, agent) {
   if (!box.localRunnerStarted) {
     // The runner also pulls the board's automatic land job; a person lands by hand here, so accepted items stay accepted.
-    await box.cliLocal(box.root, 'settings', 'landing.manualOverride', 'on');
+    const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+    writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: true } }));
+    runFixtureGit(['commit', '-qam', 'chore: land by hand in this fixture'], { cwd: box.root, env: box.env, stdio: 'pipe' });
     startFixtureLocalRunner(box.env, box.root);
     box.localRunnerStarted = true;
     t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
