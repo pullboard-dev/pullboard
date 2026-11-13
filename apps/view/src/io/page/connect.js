@@ -15,7 +15,11 @@ import { itemListFields } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 import { withdrawnFromStatus } from "../../logic/pipeline/model.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
+import { stageSentence } from "../../logic/pipeline/model.js";
 import { pipelineHtml } from "../../logic/pipeline/render.js";
+import { pipelineWatchModel } from "../../logic/pipeline/watch.js";
+import { pipelineWatchHtml } from "../../logic/pipeline/watch.js";
+import { pipelineRuntime } from "../pipeline/runtime.js";
 import { lifecycleDiagramHtml } from "../../logic/lifecycle/diagram.js";
 import { timelineHtml as renderTimelineHtml } from "../../logic/timeline/render.js";
 import { timelineBodyHtml } from "../../logic/timeline/body.js";
@@ -27,7 +31,7 @@ import { timelineBodyHtml } from "../../logic/timeline/body.js";
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, comparisonHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, activityFlow, activityPageHtml, activityTipHtml, activityStep, activityStart, activityRuntime, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, comparisonHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
@@ -38,12 +42,28 @@ const activityFilters = (${activityFilters.toString()});
 const segmentedToggle = (${segmentedToggle.toString()});
 const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
+const activityFlow = (${activityFlow.toString()});
+const activityPageHtml = (${activityPageHtml.toString()});
+const activityTipHtml = (${activityTipHtml.toString()});
+const activityStep = (${activityStep.toString()});
+const activityStart = (${activityStart.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
 const comparisonHtml = (${comparisonHtml.toString()});
 /** Defer the shared clock lookup until the page has initialized its formatter. */
 const dashboardWhen = iso => when(iso);
 const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, agentsTable: () => view.tab === 'dashboard' && view.addressDetail === 'agents', floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+// The Activity page: the board's last hours of events and the live snapshot, drawn into #activity (#6916).
+const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html: activityPageHtml, tip: activityTipHtml, step: activityStep, start: activityStart, api, boardPath,
+  current: () => view.root, view: () => view, project: () => data?.project, active: () => view.tab === 'activity',
+  working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds,
+  controls: () => pageControlsHtml({ tab: 'activity', by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24 }),
+  onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(),
+  remember: (root, value) => value === undefined ? (Number(keep('pb.activity.left.' + root)) || null) : keep('pb.activity.left.' + root, String(value)) });
+// The Insights Pipeline page (#6869): the held event history the Dashboard reads, this machine's CPU samples, and the pure model and markup.
+const pipelineView = (${pipelineRuntime.toString()})({ model: (${pipelineWatchModel.toString()}), html: (${pipelineWatchHtml.toString()}), history: project => dashboardView.history(project), api, current: () => view.root,
+  redraw: () => { if (view.tab === 'pipeline' && data?.project) render(); }, windowMinutes: () => ({ '15m': 15, '30m': 30, '3h': 180 })[view.pipelineWindow] ?? 60,
+  itemsHref: ids => itemsIdsHref(ids), itemHref: id => itemAddress(id), openItems: ids => openPipelineItems(ids), machineHere: privateCost });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
@@ -313,10 +333,13 @@ const agoLong = (iso) => { const short = ago(iso); return short === 'now' ? 'now
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 // An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
 const age = (iso) => '<time data-ago="' + esc(iso) + '">' + ago(iso) + '</time>';
-const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ') + clock(iso);
+// The browser's date words come from formatters made once: making one per moment cost an item's history 100 ms (#6851).
+const dateWords = {};
+const dateFormat = (name, options) => dateWords[name] || (dateWords[name] = new Intl.DateTimeFormat([], options));
+const clock = (iso) => dateFormat('clock', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(iso));
+const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : dateFormat('day', { month: 'short', day: 'numeric' }).format(new Date(iso)) + ' ') + clock(iso);
 /** Keep the Roadmap detail's existing local display at the browser boundary. */
-const roadmapTime = iso => { const moment = new Date(iso), clock = moment.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); return moment.toDateString() === new Date().toDateString() ? clock : moment.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + clock; };
+const roadmapTime = iso => { const moment = new Date(iso), clock = dateFormat('roadmap', { hour: 'numeric', minute: '2-digit' }).format(moment); return moment.toDateString() === new Date().toDateString() ? clock : dateFormat('day', { month: 'short', day: 'numeric' }).format(moment) + ' ' + clock; };
 // A day as a feed names it: Today, Yesterday, or its weekday and date.
 const dayName = (iso) => {
   const then = new Date(iso).toDateString(), today = new Date();
@@ -546,6 +569,7 @@ const pipelineStage = (${pipelineStage.toString()});
 const itemStagePresentation = (${itemStagePresentation.toString()});
 const withdrawnFromStatus = (${withdrawnFromStatus.toString()});
 const itemStageKey = (${itemStageKey.toString()});
+const stageSentence = (${stageSentence.toString()});
 const pipelineSince = (${pipelineSince.toString()});
 const itemListFields = (${itemListFields.toString()});
 /** Bind the current lifecycle declaration at the page adapter boundary. */

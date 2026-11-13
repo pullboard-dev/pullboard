@@ -20,7 +20,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     assert.doesNotMatch(blocked, /More detail stays in Items/u, 'only the first criterion sentence is shown');
     assert.deepEqual(JSON.parse(await chrome.stable(`JSON.stringify([...${row('#2')}.parentElement.querySelectorAll('.roadmap-criterion .roadmap-ref')].map(chip=>chip.textContent))`)), [], 'references inside Criterion stay plain text');
     assert.equal(await chrome.stable(`${row('#2')}.parentElement.querySelectorAll('.roadmap-criterion em').length`),0,'criterion markup stays escaped');
-    assert.match(blocked, /Waits on#1 building.*web-2.*since/u, 'dependency includes state, holder and local time');
+    assert.match(blocked, /Blocked by#1 building.*web-2.*since/u, 'dependency includes state, holder and local time');
     assert.match(blocked, /History.*added/u); assert.match(blocked, /Release.*Next.*G1/u);
     // The other board also has an item #2, so only this board's reads count.
     const local = await chrome.stable('boardPath(view.root)');

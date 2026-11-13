@@ -8,11 +8,11 @@
  */
 function pbPalette(env) {
   const doc = env.document;
-  const KEYS = { items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c' };
+  const KEYS = { items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c', pipeline: 'p' };
   const WHAT = {
     items: 'Every piece of work', shouts: 'Agents talking to the coordinator',
     roadmap: 'What ships next, in order', spec: 'What the product must do', doctrine: 'How the work must be done',
-    dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', settings: 'This view and your account',
+    dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', pipeline: 'Why work isn\'t moving', settings: 'This view and your account',
   };
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const mod = env.mac ? '⌘' : 'Ctrl ';
@@ -65,13 +65,13 @@ function pbPalette(env) {
   function draw() {
     if (help) {
       overlay.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-help" role="dialog" aria-label="Keyboard shortcuts"><h2>Keyboard shortcuts</h2>'
-        + '<div><span>Search or jump anywhere</span><kbd>' + mod + 'K</kbd></div><div><span>Search</span><kbd>/</kbd></div>'
+        + '<div><span>Search anywhere</span><kbd>' + mod + 'K</kbd></div><div><span>Search</span><kbd>/</kbd></div>'
         + pages().filter((p) => p.key).map((p) => '<div><span>Go to ' + esc(p.name) + '</span><kbd>g ' + p.key + '</kbd></div>').join('')
         + '<div><span>Move the navigation</span><kbd>\\</kbd></div><div><span>Show these shortcuts</span><kbd>?</kbd></div><div><span>Close</span><kbd>Esc</kbd></div></div></div>';
       return;
     }
     if (!pal) { overlay.innerHTML = ''; return; }
-    overlay.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box" role="dialog" aria-label="Search or jump to"><input id="pal-q" role="combobox" aria-expanded="true" aria-controls="pal-res" autocomplete="off" spellcheck="false" placeholder="Search items, or jump to a page…" value="' + esc(pal.q) + '"><div class="pal-res" id="pal-res" role="listbox"></div></div></div>';
+    overlay.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box" role="dialog" aria-label="Search"><input id="pal-q" role="combobox" aria-expanded="true" aria-controls="pal-res" autocomplete="off" spellcheck="false" placeholder="Search" value="' + esc(pal.q) + '"><div class="pal-res" id="pal-res" role="listbox"></div></div></div>';
     drawResults();
     const input = overlay.querySelector('#pal-q');
     input.focus();
@@ -151,10 +151,10 @@ function pbPalette(env) {
   }
   doc.addEventListener('keydown', onKey, true);
 
-  // The visible search box: a borderless "Search or jump to…" with its shortcut beside it; a press opens the palette.
+  // The visible search box: a borderless "Search" with its shortcut beside it; a press opens the palette.
   const box = env.box;
   if (box) {
-    box.placeholder = 'Search or jump to…';
+    box.placeholder = 'Search';
     const hint = doc.createElement('kbd');
     hint.className = 'pal-hint';
     hint.setAttribute('aria-hidden', 'true');

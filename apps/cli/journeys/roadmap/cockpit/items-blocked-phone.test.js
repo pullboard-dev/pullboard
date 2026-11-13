@@ -28,7 +28,7 @@ test('a blocked roadmap item reads its prose plainly and its remote blocker on a
     }
     await chrome.send('Emulation.setDeviceMetricsOverride', {width:375,height:900,deviceScaleFactor:1,mobile:false});
     const remote = await opened('blocked-roadmap-other#2');
-    assert.match(remote, /Waits on#1 unclaimed/u); assert.match(remote, /Review the remote dependency/u);
+    assert.match(remote, /Blocked by#1 unclaimed/u); assert.match(remote, /Review the remote dependency/u);
     assert.match(remote, /Sent back.*Remote latest finding/u); assert.doesNotMatch(remote, /More detail stays in Items/u);
     const metrics = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('blocked-roadmap-other#2')},d=r.querySelector('.roadmap-after').getBoundingClientRect(),t=r.querySelector('.t').getBoundingClientRect();return {visible:d.width>0&&d.left>=t.left&&d.right<=t.right,after:[d.left,d.right,d.width],title:[t.left,t.right],columns:getComputedStyle(r).gridTemplateColumns,children:[...r.children].map(k=>[String(k.className).slice(0,30),Math.round(k.getBoundingClientRect().width)]),row:r.getBoundingClientRect().width,text:r.querySelector('.t').textContent,width:document.documentElement.scrollWidth,viewport:innerWidth};})())`));
     assert.ok(metrics.visible, `the remote blocker mark stays visible on a phone: ${JSON.stringify(metrics)}`); assert.ok(metrics.width<=metrics.viewport);

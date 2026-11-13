@@ -45,7 +45,7 @@ export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', t
       ['shouts', n.shouts, 'Shouts', 'shout', 'Shouts during the last 4 hours'],
     ]],
     ['waiting', 'Waiting', '', 3, [
-      ['in-review', n.inReview, 'In review', '', 'Items currently in review; ' + n.unreviewed + ' waiting for a reviewer'],
+      ['in-review', n.inReview, 'In review', '', 'Items currently in review; ' + n.unreviewed + ' pending review'],
       ['waiting', n.waiting, 'To land', '', 'Accepted items waiting to land, in line'],
       ['ready', n.ready, 'Ready', '', 'Items ready for an agent to build, nothing in the way'],
     ]],

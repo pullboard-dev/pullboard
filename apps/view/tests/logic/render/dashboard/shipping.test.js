@@ -1,4 +1,4 @@
-/** The Dashboard's Shipping now card matches the approved mockup [N26]. */
+/** The Dashboard's Release card matches the approved mockup [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardHtml } from '../../../../src/logic/render/dashboard.js';
@@ -27,17 +27,17 @@ function board() {
   return { project, events };
 }
 
-/** The rendered Shipping now section. */
+/** The rendered Release section. */
 function shipping(html) {
-  const start = html.indexOf('aria-label="Shipping now"');
-  assert.notEqual(start, -1, 'Shipping now renders');
+  const start = html.indexOf('aria-label="Release"');
+  assert.notEqual(start, -1, 'Release renders');
   return html.slice(start, html.indexOf('</section>', start));
 }
 
 test('clause 1: SHIPPING NOW, the release name in the body face, N to go · M of T landed, one stage bar and its legend in the stage colours [N26]', () => {
   const { project, events } = board();
   const card = shipping(dashboardHtml(dashboardModel(project, events, { now, complete: true }), { locale: 'en-US', timeZone: 'UTC' }));
-  assert.match(card, /^aria-label="Shipping now"><div class="dash-shd"><h2 class="dash-lbl">Release<\/h2><button type="button" class="dash-lk" data-tab="roadmap">Roadmap ›<\/button><\/div><div class="dash-card dash-ship"><div class="dash-ship-head">/u, 'the Release header sits above the card, with its way to the Roadmap (sheet v1.1)');
+  assert.match(card, /^aria-label="Release"><div class="dash-shd"><h2 class="dash-lbl">Release<\/h2><button type="button" class="dash-lk" data-tab="roadmap">Roadmap ›<\/button><\/div><div class="dash-card dash-ship"><div class="dash-ship-head">/u, 'the Release header sits above the card, with its way to the Roadmap (sheet v1.1)');
   assert.match(card, /<p class="dash-ship-name"><span class="dash-ver">0\.9\.4<\/span>Restructure for Speed and Cost<\/p>/u,
     'the version is faint and the name is a sentence-case paragraph, not a mono capital heading');
   assert.doesNotMatch(card, /class="release-name|roadmap-left|release-header/u, 'the shared Roadmap header with its mono capitals is not used here');
@@ -46,7 +46,7 @@ test('clause 1: SHIPPING NOW, the release name in the body face, N to go · M of
   assert.deepEqual([...card.matchAll(/data-release-segment="(\w+)" data-count="(\d+)"/gu)].map(([, key, n]) => [key, Number(n)]),
     [['landed', 26], ['landing', 1], ['review', 11], ['building', 7], ['waiting', 98], ['held', 9]], 'segments in stage order, sized by their counts');
   assert.deepEqual([...card.matchAll(/data-dashboard-list="([\w-]+)"><i class="dash-sw dash-seg-(\w+)"><\/i><b>(\d+)<\/b> ([^<]+)<\/button>/gu)].map(([, list, key, n, label]) => [key, n, label, list]),
-    [['landed', '26', 'landed', 'landed'], ['landing', '1', 'landing', 'passed'], ['review', '11', 'in review', 'review'], ['building', '7', 'building', 'building'], ['waiting', '98', 'waiting', 'gated'], ['held', '9', 'held', 'held']],
+    [['landed', '26', 'landed', 'landed'], ['landing', '1', 'landing', 'passed'], ['review', '11', 'in review', 'review'], ['building', '7', 'building', 'building'], ['waiting', '98', 'blocked', 'gated'], ['held', '9', 'held', 'held']],
     'the legend sits directly under the bar, one swatch per segment, each opening its list');
   assert.ok(card.indexOf('dash-sbar') < card.indexOf('dash-keys') && card.indexOf('dash-keys') < card.indexOf('dash-inflight'));
 });
@@ -66,7 +66,7 @@ test('clause 2: In flight shows Building and In review side by side as one-line 
   assert.deepEqual(tiles, [
     ['today', 'Today’s pace', '2.0', 'items an hour', '12 landed in the last 6 hours'],
     ['now', 'Right now', '3.0', 'items an hour', '6 landed in the last 2 hours'],
-    ['eta', 'Done at this pace', '42–63 h', '', 'Saturday, around 12:00 PM to Sunday 9:00 AM'],
+    ['eta', 'ETA', '42–63 h', '', 'Saturday, around 12:00 PM to Sunday 9:00 AM'],
   ]);
   assert.ok(card.indexOf('dash-inflight') < card.indexOf('dash-pace'), 'the tiles follow In flight');
 });

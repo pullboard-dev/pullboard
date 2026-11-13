@@ -285,11 +285,11 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
     const sessions = row.usageRows.length ? row.usageRows.map(sessionHtml).join('') : '<p class="cost-unknown">' + (row.sharedUsage
       ? 'Shared usage is not attributable to this item; token and cost figures are unavailable.'
       : 'No usage record; token and cost figures are unavailable.') + '</p>';
-    const returns = row.returns.length ? '<section class="cost-returns"><h3>Rejects and reopens</h3><ul>' + row.returns.map(entry => '<li><span>' + escapeHtml(entry.kind === 'reject' ? 'Rejected' : 'Reopened') + ' · ' + escapeHtml(dateLabel(entry.at)) + '</span><b>' + costFigure(entry.costUSD) + '</b></li>').join('') + '</ul></section>' : '';
+    const returns = row.returns.length ? '<section class="cost-returns"><h3 class="hd2">Sent back and reopened</h3><ul>' + row.returns.map(entry => '<li><span>' + escapeHtml(entry.kind === 'reject' ? 'Sent back' : 'Reopened') + ' · ' + escapeHtml(dateLabel(entry.at)) + '</span><b>' + costFigure(entry.costUSD) + '</b></li>').join('') + '</ul></section>' : '';
     const shared = row.sharedUsage ? '<p class="cost-unknown">Shared session usage is not split across its items.</p>' : '';
-    return summary + '<div class="cost-detail" id="cost-detail-' + row.id + '"><h3>Usage by agent, model and phase</h3>' + shared + sessions + returns + '</div>';
+    return summary + '<div class="cost-detail" id="cost-detail-' + row.id + '"><h3 class="hd2">Usage by agent, model and phase</h3>' + shared + sessions + returns + '</div>';
   }).join('') : '<p class="empty">No landed items yet.</p>';
-  return '<section class="cost-page" aria-label="Cost"><header class="cost-heading"><div><h1>Cost</h1><p>The last 20 landed items</p></div><span class="cost-private">Private to this view</span></header>'
+  return '<section class="cost-page" aria-label="Cost"><div class="shd cost-private-row"><span class="cap2">The last 20 landed items</span><span class="cap2 cost-private">Private to this view</span></div>'
     + tiles + '<section class="cost-list card-panel" aria-label="Landed items">' + cards + '</section></section>';
 }
 
