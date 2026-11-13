@@ -1701,9 +1701,12 @@
     "hand-policy": 1
   },
   "packages/gate/tests/io/main/admission.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
-    "env-spread": 1
+    "tempdir": 1,
+    "hand-policy": 1
+  },
+  "apps/cli/tests/fixtures/gate/file-pool.js": {
+    "tempdir": 1,
+    "hand-policy": 1
   },
   "packages/gate/tests/io/main/async.test.js": {
     "tempdir": 2
