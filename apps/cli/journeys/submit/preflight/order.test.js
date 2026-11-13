@@ -9,6 +9,7 @@ import { builderRepo } from '../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../tests/fixtures/submit/gate.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 const MARK = path => `node test/mark.mjs ${path}`;
 const GATE_FRONT_DOOR = fileURLToPath(new URL('../../../../../packages/gate/index.js', import.meta.url));
@@ -45,12 +46,13 @@ test('clause 1: a static failure in preflight refuses before the static, doctrin
   assert.equal(JSON.parse(box.run('show', '1', '--json').out).item_status, 'claimed');
 });
 
-test('clause 2: a clean change passes preflight and proceeds to the item check and the doctrine rule [V4,C7]', { timeout: 180_000 }, t => {
+test('clause 2: a clean change passes preflight and proceeds to the item check and the doctrine rule [V4,C7]', { timeout: 180_000 }, async t => {
   const { box, markers } = project(t);
   put(box.root, 'src/a.js', 'export const a = 2;\n');
   commitAll(box, 'feat(core): change source cleanly [G1]');
   const accepted = box.run('submit', '1', '--json', '--infra', 'preflight order fixture');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
+  await settleSubmit(t, box, JSON.parse(accepted.out)); // the pulled gate runs the stages on a runner
   assert.equal(existsSync(markers.staticCheck), true, 'the static stage ran after preflight');
   assert.equal(existsSync(markers.doctrine), true, 'the doctrine stage ran after preflight');
   assert.equal(existsSync(markers.item), true, 'the item check ran after preflight');
