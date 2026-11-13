@@ -1,7 +1,7 @@
 import { modelLabelRules } from "../cost/tab.js";
 /**
  * Read the private board's cost event history once per board and window, and again only after a usage, shared-usage
- * or merged event has arrived since the last read. The drawn numbers stay on screen while a new read is on its way.
+ * or merged event has arrived since the last read; a gap in the visible ids reads the event log for the missing ones. The drawn numbers stay on screen while a new read is on its way.
  * This function is serialized into the private page script and uses its page-local state.
  * @param {Record<string, any>} project - The current board state.
  * @param {boolean} [switching] - Whether a tab switch asks, which keeps analytics already read.
@@ -22,6 +22,30 @@ function readCostHistory(project, switching = false) {
     const oldest = events.length ? Math.min(...events.map(event => Number(event.event_id) || 0)) : seen;
     const costEvent = events.some(event => event.event_id > kept.seen && ['usage', 'shared-usage', 'merged'].includes(event.event_kind));
     if (!costEvent && oldest <= kept.seen + 1) return kept;
+    if (!costEvent && !kept.stale) {
+      // A gap of ids may hide a cost event, but a gap alone is not a reason to read cost-analytics: the missing
+      // events are read from the event log (cheap) once per gap, and only a cost-bearing one among them reads again.
+      if (kept.gapUpTo !== oldest) {
+        kept.gapUpTo = oldest;
+        const gapKey = key;
+        const scan = after => api(boardPath(root) + '/events?after=' + after).then(reply => {
+          const batch = Array.isArray(reply.events) ? reply.events : [];
+          const missing = batch.filter(event => event.event_id < oldest);
+          if (missing.some(event => ['usage', 'shared-usage', 'merged'].includes(event.event_kind))) throw { found: true };
+          const last = batch.length ? Number(batch[batch.length - 1].event_id) : oldest;
+          if (batch.length && last < oldest - 1) return scan(last);
+        });
+        scan(kept.seen).then(() => {
+          if (costHistory.get(gapKey) === kept) kept.seen = Math.max(kept.seen, oldest - 1);
+        }).catch(found => {
+          if (costHistory.get(gapKey) !== kept) return;
+          if (found && found.found) kept.stale = true;
+          else kept.gapUpTo = null;
+          if (kept.stale && view.tab === 'cost' && root === view.root) render();
+        });
+      }
+      return kept;
+    }
   }
   const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model), error: null, model: kept?.model ?? null };
   costHistory.set(key, entry);
