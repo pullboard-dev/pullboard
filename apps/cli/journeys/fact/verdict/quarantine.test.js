@@ -214,7 +214,7 @@ const checkedItem=await withBoard(ctx,async board=>{
  const id=store.addItem(board,{by:agentId,lane:'web',title:'Quarantined actual private criterion',
   criterion:'The real committed test still executes while its active native quarantine changes only blocking authority.',check:config.gate});
  await ordered(ctx,board,'refreeze',[id,{agentId,freeze:freezer(ctx,{board})}]);
- return {...store.getItem(board,id),item_commit:git(root,['rev-parse','HEAD'])};
+ return {...store.getItem(board,id),item_commit:git(root,['rev-parse','HEAD']),item_claim_head:git(root,['rev-parse','HEAD'])};
 });
 const privateRun=await withGateSlot(root,lease=>{
  lease.quarantines=quarantines;lease.proof={seat:agentId};
