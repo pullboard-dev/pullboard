@@ -104,7 +104,8 @@ export function submit(box) {
   const deadline = Date.now() + 180_000;
   for (;;) {
     const job = box.builder.cli('show', String(box.id), '--no-next').document?.gateJob;
-    if (job?.step === 'done') return { ...result, document: { ...result.document, gate: job.gate, gateJob: job } };
+    // An inline submit exited 1 on a red gate (GATE_RED); the settled receipt's verdict maps to the same exit code.
+    if (job?.step === 'done') return { ...result, code: job.gate?.green === false ? 1 : 0, document: { ...result.document, gate: job.gate, gateJob: job } };
     assert.ok(Date.now() < deadline, `gate for #${box.id} did not settle (last step ${job?.step ?? 'none'})`);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
