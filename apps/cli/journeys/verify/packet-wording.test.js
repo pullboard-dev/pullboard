@@ -36,9 +36,9 @@ export default async function* report(events) {
 }
 `;
 
-/** Run the actual CLI and keep its complete output when an assertion fails. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+/** Run the production dispatcher in this process and keep its complete output when an assertion fails. */
+async function ok(box, cwd, ...args) {
+  const result = await box.runIn(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -59,12 +59,12 @@ test('clauses 1-3: the packet names what covers a clause, what does not, and acc
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed packet wording fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  assert.equal((await joinFixtureSeat(box, builder, 'web')).code, 0);
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1',
+  assert.equal((await joinFixtureSeat(box, builder, 'web', { run: box.runIn })).code, 0);
+  const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1',
     '--criterion', '1. The page shows a greeting [test] 2. Legacy callers keep working [test] 3. Old browsers fall back to plain text [test]',
-    '--check', `${RUN} web/packet.test.js`, '--json').out);
+    '--check', `${RUN} web/packet.test.js`, '--json')).out);
   const id = added.item.item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
   writeFileSync(join(builder, 'web/packet.test.js'), [
     "import assert from 'node:assert/strict';",
@@ -78,18 +78,18 @@ test('clauses 1-3: the packet names what covers a clause, what does not, and acc
   box.git(builder, 'add', '-A');
   box.git(builder, 'commit', '-q', '-m', 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
-  for (const n of [1, 2, 3]) ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
-  assert.equal(JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out).gate.green, true, 'the fixture gate is green');
+  for (const n of [1, 2, 3]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
+  assert.equal(JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out).gate.green, true, 'the fixture gate is green');
 
-  const review = ok(box, box.repo, 'show', String(id), '--review').out;
+  const review = (await ok(box, box.repo, 'show', String(id), '--review')).out;
   assert.match(review, /^ {5}covered by the gate's item check \(receipt [0-9a-f]{8}\)/mu, 'clause 1: a clause the item check ran green reads covered');
   assert.match(review, /^ {5}no test maps to this clause: read the diff for it and name it in --read$/mu, 'clause 2: an unmapped clause says so');
   assert.doesNotMatch(review, /no recorded run: read this clause/u);
 
   const reviewer = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  assert.equal((await joinFixtureSeat(box, reviewer, 'api')).code, 0);
-  ok(box, reviewer, 'next', '--verify', String(id));
-  const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--read', '3', '--note', 'read the diff for clause 3; the skipped case is not claimed');
+  assert.equal((await joinFixtureSeat(box, reviewer, 'api', { run: box.runIn })).code, 0);
+  await ok(box, reviewer, 'next', '--verify', String(id));
+  const accepted = await ok(box, reviewer, 'verify', String(id), 'accept', '--read', '3', '--note', 'read the diff for clause 3; the skipped case is not claimed');
   assert.match(accepted.out, /accepted on the gate's green receipts and your reading of clause 3/u, 'clause 3: accept says what was read');
 });
