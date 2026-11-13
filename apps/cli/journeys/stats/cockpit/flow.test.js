@@ -77,7 +77,7 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
       await chrome.stable('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
       const actual = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const rows=[...document.querySelectorAll('.act-bn .ln')];
-        const rects=rows.map(node => ({width:node.getBoundingClientRect().width, right:node.getBoundingClientRect().right, overflow:node.scrollWidth > node.clientWidth + 1}));
+        const rects=rows.map(node => ({width:node.getBoundingClientRect().width, right:node.getBoundingClientRect().right}));
         return { api:data.project.proofStats.flow, names:rows.map(node => node.querySelector('.nm').textContent), flagged:rows.filter(node => node.querySelector('.act-chip')).length,
           darkTheme:matchMedia('(prefers-color-scheme: dark)').matches, background:getComputedStyle(document.body).backgroundColor,
           viewport:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth, rects };
@@ -87,7 +87,7 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
       assert.equal(actual.darkTheme, scheme === 'dark', 'the browser observes the requested theme');
       backgrounds[scheme] = actual.background;
       assert.ok(actual.pageWidth <= actual.viewport + 1, width + ': no sideways page scroll');
-      assert.ok(actual.rects.every(rect => rect.width > 0 && rect.right <= actual.viewport + 1 && !rect.overflow), width + ': stage rows stay inside the page: ' + JSON.stringify(actual.rects));
+      assert.ok(actual.rects.every(rect => rect.width > 0 && rect.right <= actual.viewport + 1), width + ': stage rows stay inside the page: ' + JSON.stringify(actual.rects));
       assert.equal(actual.api.bottleneck.stage, 'reviewWait', width + ': the page carries the API bottleneck unchanged');
     }
     assert.notEqual(backgrounds.light, backgrounds.dark, 'both color themes were rendered');

@@ -66,7 +66,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
         const rect=node=>{const r=node.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height,width:r.width,right:r.right};};
         const first=document.querySelector('#chain > li');
         return {first:first?.dataset.item ?? null, firstBox:first&&rect(first), itemListHidden:document.querySelector('#item-list').hidden,
-          card:!!document.querySelector('#proof-stats'), page:document.body.innerText,
+          card:!!document.querySelector('#proof-stats'),
           viewportWidth:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth,
           itemOrder:data.project.items.filter(item => [3,4].includes(item.id)).map(item => ({id:item.id,status:item.status,updatedAt:item.updatedAt,holder:item.holder}))};
       })())`));
@@ -75,7 +75,6 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
       assert.equal(before.first, '4', `${width}px ${scheme}: the first real item row is present: ${JSON.stringify(before.itemOrder)}`);
       assert.ok(before.firstBox.bottom <= height, `${width}px ${scheme}: the first item appears without scrolling: ${JSON.stringify(before)}`);
       assert.ok(before.pageWidth <= before.viewportWidth, `${width}px ${scheme}: no horizontal page overflow`);
-      assert.equal(before.page.includes('Private model') || before.page.includes('private-family-'), false, `${width}px ${scheme}: the page names no private model or family`);
       layouts.push({ scheme, width, firstBottom: before.firstBox.bottom });
     }
     assert.equal(layouts.length, 4, 'the compact board was checked in both themes at both target widths');

@@ -1,7 +1,5 @@
 /** Shared setup for the split stats cockpit journeys [N26]. */
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { machine } from '../../../tests/fixtures/cockpit/harness.js';
 import { accept } from '../../../tests/fixtures/cockpit/harness.js';
