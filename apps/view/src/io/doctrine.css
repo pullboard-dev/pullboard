@@ -1,5 +1,5 @@
 /* Shared Doctrine redesign details for authenticated and exported views. */
-.rule-source-chip { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; padding: 0 var(--space-2); border-radius: var(--radius-pill); font-size: var(--text-2xs); line-height: var(--leading-body); }
+.rule-source-chip { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; padding: 0 var(--space-2); border-radius: var(--radius-chip); font-size: var(--text-2xs); line-height: var(--leading-body); }
 .rule-source-chip.standard { background: var(--blue-soft); color: var(--blue); }
 .rule-source-chip.repo { background: var(--surface-2); color: var(--ink-muted); }
 .doctrine-check { color: var(--ink-muted); font-size: var(--text-xs); }
