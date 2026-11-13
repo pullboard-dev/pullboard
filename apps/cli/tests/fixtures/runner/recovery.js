@@ -120,7 +120,9 @@ export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true],
     assert.equal(existsSync(join(root, 'recovery-launches', legacy.request)), false, 'an old request cannot be guessed never-started');
   });
   for (const workerFirst of workerFirstCases) {
-    test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, t => {
+    // The worker-first case drives runOnRunnerAsync over the SSH stand-in, a launch only the controller path has; #6579 deletes it with the dispatcher.
+    const skip = workerFirst ? 'CONTROLLER_ONLY: deleted with #6579' : false;
+    test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, { skip }, t => {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
       const bin = join(box.dir, 'launch-bin'), worker = join(box.dir, 'worker'), home = join(box.dir, 'remote-home');
