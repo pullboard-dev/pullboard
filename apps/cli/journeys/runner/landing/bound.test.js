@@ -37,7 +37,7 @@ test('#7386 clause 1: a runner that releases every land claim is claimed at most
   assert.equal(call({ action: 'claim', runner: 'r-two', capabilities: [], kinds: ['land'] }, 3.5 * HOUR + 1).claim, null);
   assert.equal(getItem(board, id).item_merged_commit ?? null, null);
   const notes = itemThread(board, id).filter(entry => /released to the lane/u.test(entry.text ?? ''));
-  assert.equal(notes.length, 1, JSON.stringify(itemThread(board, id)));
+  assert.equal(notes.length, 1, JSON.stringify([ended.applied, itemThread(board, id)]));
   assert.match(notes[0].text, /could not fetch the item/u);
 });
 
