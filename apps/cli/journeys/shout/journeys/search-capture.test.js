@@ -75,8 +75,8 @@ test('spec rows keep newest-first order across a capture that moves [N26]', { ti
     box.git(alpha.repo, 'add', 'capture.txt');
     box.git(alpha.repo, 'commit', '-q', '-m', 'test(view): advance the capture [G1]');
     const captured = box.git(alpha.repo, 'rev-parse', 'HEAD');
-    const wrapper = join(box.dir, 'bin', 'git');
-    const program = join(box.dir, 'bin', 'git-wrapper.mjs');
+    const wrapper = join(box.dir, 'bin/git');
+    const program = join(box.dir, 'bin/git-wrapper.mjs');
     writeFileSync(program, `
 import { spawnSync } from 'node:child_process';
 import {

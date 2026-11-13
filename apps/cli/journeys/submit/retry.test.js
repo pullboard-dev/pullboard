@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { committedToolingSnapshot } from '../../tests/fixtures/runner/tooling.js';
 import { cleanupToolingSnapshots } from '../../tests/fixtures/runner/tooling.js';
 import { openBoard } from '../../../lib/index.js';
@@ -98,6 +99,8 @@ test('a tooling landing during submit reloads the committed CLI once and counts 
   const result = await submit(box);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(JSON.parse(result.stdout).id, box.id, 'one final JSON document belongs to the fresh successful submit');
+  // The submit queues its gate as a pulled job; the item is submitted once the loopback runner posts the receipt [P7,#6832].
+  await settleSubmit(t, box, JSON.parse(result.stdout));
   assert.equal(readFileSync(box.marker, 'utf8'), 'move\n', 'one real tooling landing occurred');
   assert.equal((result.stderr.match(/retrying submit once from committed CLI/gu) ?? []).length, 1);
   const recorded = observation(box);
