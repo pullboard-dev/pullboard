@@ -11,6 +11,7 @@ import { sandboxBlockedOperation } from '../../../../../packages/gate/index.js';
 import { fileDenialWatcher } from '../../../../../packages/sandbox/index.js';
 import { coordinatorLocal } from './local.js';
 import { runLocal } from './local.js';
+import { submitSettled } from './local.js';
 import { SPEC } from '../../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../tests/fixtures/submit/gate.js';
@@ -106,7 +107,7 @@ function pythonChildTap(path, { traceback = true, frame = true, prefixMarker = f
 
 test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t) => {
   const box = await childFailureSubmitBox(t, childListenerTestSource());
-  const result = await runLocal(box, 'submit', '1');
+  const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   const output = `${result.out}\n${result.err}`;
   assert.equal(result.code, 1, output);
   assert.match(output, /SANDBOX_BLOCKED/u, 'submit names the denied child-process listen');
@@ -118,7 +119,7 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t
   assert.equal(original.split(explanatory).length, 2, 'replace exactly one explanatory message');
   const bareSource = original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);');
   const bareBox = await childFailureSubmitBox(t, bareSource);
-  const bare = bareBox.run('submit', '1');
+  const bare = await submitSettled(t, bareBox, (...args) => bareBox.run(...args));
   const bareOutput = `${bare.out}\n${bare.err}`;
   assert.equal(bare.code, 1, bareOutput);
   assert.match(bareOutput, /SANDBOX_BLOCKED/u, 'bare stderr with structured fatal fields still names the denial');
@@ -127,7 +128,7 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t
 
   const pythonBox = await childFailureSubmitBox(t, childPythonTestSource());
   pythonBox.env.CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
-  const python = pythonBox.run('submit', '1');
+  const python = await submitSettled(t, pythonBox, (...args) => pythonBox.run(...args));
   const pythonOutput = `${python.out}\n${python.err}`;
   assert.equal(python.code, 1, pythonOutput);
   assert.match(python.err, /SANDBOX_BLOCKED/u, 'submit names a scanner-known denial from a child traceback');
@@ -142,7 +143,7 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t
   assert.equal(pythonSource.split(pythonExplanation).length - 1, 1, 'the bare Python counter changes exactly one parent message');
   const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
   barePythonBox.env.CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
-  const barePython = barePythonBox.run('submit', '1');
+  const barePython = await submitSettled(t, barePythonBox, (...args) => barePythonBox.run(...args));
   const barePythonOutput = `${barePython.out}\n${barePython.err}`;
   assert.equal(barePython.code, 1, barePythonOutput);
   assert.match(barePython.err, /SANDBOX_BLOCKED/u, 'complete bare Python stderr still names the known denial');
@@ -233,7 +234,7 @@ test('an ordinary failure stays gate red [C7,B26]', async (t) => {
     'bare Python in-repo access stays an ordinary failure');
   assert.equal(sandboxBlockedOperation(box.root, pythonChildTap(outside, { wrapper: false, assertionFooter: '1 !== 0' }), { includeFilePaths: false }), null,
     'bare Python does not bypass the file-path classification switch');
-  const result = await runLocal(box, 'submit', '1');
+  const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   const output = `${result.out}\n${result.err}`;
   assert.equal(result.code, 1, output);
   assert.match(output, /GATE_RED/u);
