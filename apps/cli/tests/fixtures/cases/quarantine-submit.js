@@ -11,7 +11,7 @@ import { flakyProject } from '../../../../../packages/git/tests/fixtures/flakes.
 import { TITLE } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import { copyCommittedPackageFiles } from '../copy.js';
 import { runFixtureGit } from '../child.js';
-import { fixtureMachineSettings } from '../testkit.js';
+import { fixtureSettledMachine } from '../testkit.js';
 import { openBoard } from '../../../../lib/index.js';
 import { flakeQuarantines } from '../../../../lib/index.js';
 import { gateRuns } from '../../../../lib/index.js';
@@ -31,9 +31,8 @@ export function fixture(t, deterministic = false, companion = false) {
     writeFileSync(listing, JSON.stringify(cells, null, 2) + '\n');
     return join(root, 'apps/cli/pullboard.js');
   } });
-  // These cases read the submit's gate result and its counter file at once, so the gate runs in the submitting process (#6249).
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
+  // The flake fixture's own machine settings pin controller dispatch (#7178); these cases run on the pull path [P7,#6249].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/', 'packages/controlled/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
@@ -76,7 +75,9 @@ export function fixture(t, deterministic = false, companion = false) {
     const attached = box.cli('patch', 'attach', String(id), patchFile, '--key', 'controlled-companion', '--author', author, '--source', git('rev-parse', 'HEAD'));
     assert.equal(attached.code, 0, JSON.stringify(attached.document));
   }
-  return { ...box, builder: { root, cli, git }, id };
+  const runnerPids = [];
+  t.after(() => { for (const pid of runnerPids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } } });
+  return { ...box, builder: { root, cli, git }, id, runnerPids };
 }
 
 /** Open this journey's real private fixture board, shared with its actual native CLI processes; the caller closes it. */
@@ -95,5 +96,16 @@ export function snapshot(box) {
 /** Begin another actual Submit admission with the controlled case failing on its initial body. */
 export function submit(box) {
   writeFileSync(box.counter, '');
-  return box.builder.cli('submit', String(box.id), '--infra', 'private controlled native fixture', '--no-next');
+  const result = box.builder.cli('submit', String(box.id), '--infra', 'private controlled native fixture', '--no-next');
+  if (result.code !== 0 || !result.document?.queued) return result;
+  // A pull submit returns queued; the loopback local runner's gate job settles it and its receipt's gate answers as an inline submit did [P7,#6249].
+  const pid = result.document.localRunner?.pid;
+  if (pid) box.runnerPids?.push(pid);
+  const deadline = Date.now() + 180_000;
+  for (;;) {
+    const job = box.builder.cli('show', String(box.id), '--no-next').document?.gateJob;
+    if (job?.step === 'done') return { ...result, document: { ...result.document, gate: job.gate, gateJob: job } };
+    assert.ok(Date.now() < deadline, `gate for #${box.id} did not settle (last step ${job?.step ?? 'none'})`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
 }

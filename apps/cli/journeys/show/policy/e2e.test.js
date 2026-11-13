@@ -18,21 +18,13 @@ import { openBoard } from '../../../../lib/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  attackCommit, historicalCheckSubmission, LIGHT_BRIEF,
+  attackCommit, historicalCheckSubmission, LIGHT_BRIEF, project,
 } = e2e;
-
-/** A fixture project whose gate settles in the submit's own process: these journeys read the refusal a red gate returns at once (#6249). */
-function project(...args) {
-  const box = e2e.project(...args);
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  return box;
-}
 
 /**
  * Assert a green submit routed only foreign paths to their owner: the builder is freed and nothing is submitted (B3,L1,V4).
