@@ -78,12 +78,13 @@ async function baseReds({ root, base }, { runner, trunk = 'refs/heads/main', fai
   if (files.some(file => tryGit(root, ['cat-file', '-e', `${base}:${file}`]).status !== 0)) return null;
   const head = must(root, ['rev-parse', 'HEAD']);
   const visit = commit => { must(root, ['checkout', '-q', '--detach', '--force', commit]); must(root, ['clean', '-q', '-fd']); admitTrunk(root, { trunk, base }); };
-  let onBase;
+  let onBase = null;
+  // A base that cannot be checked out or run proves nothing about main, so the red stays the merge's own.
   try {
     visit(base);
     onBase = await ledgerProofCheck({ runner, files, ledger: null }, { env })({ root });
-  } finally { visit(head); }
-  if (onBase.ok || !onBase.failures) return null;
+  } catch { onBase = null; } finally { visit(head); }
+  if (!onBase || onBase.ok || !onBase.failures) return null;
   const shared = new Set(onBase.failures.map(row => `${row.file}\0${row.name}`));
   return failures.every(row => shared.has(`${row.file}\0${row.name}`)) ? failures.map(row => ({ file: row.file, name: row.name })) : null;
 }
