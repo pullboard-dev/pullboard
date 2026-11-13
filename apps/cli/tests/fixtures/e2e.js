@@ -149,6 +149,8 @@ function sandbox({ declareFamilies = false } = {}) {
     GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
+    // A fixture board's nested pullboard test starts at once; the outer gated run owns the load budget (#7257).
+    PULLBOARD_FIXTURE_BOARD: '1',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
