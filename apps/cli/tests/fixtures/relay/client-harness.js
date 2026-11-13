@@ -127,6 +127,7 @@ export async function relayServer(t, directory, auth, { legacyRelay = false } = 
   let refuseMoves = false;
   let loseReply = null;
   let refuseReads = false;
+  let hangMoves = false;
   let now = Date.now();
   const calls = [];
   const uploads = [];
@@ -138,6 +139,8 @@ export async function relayServer(t, directory, auth, { legacyRelay = false } = 
       res.writeHead(404, { 'content-type': 'application/json' }).end('{"version":1,"error":{"code":"NOT_FOUND","message":"legacy relay has no pages router"}}');
       return;
     }
+    // A server that accepts the move and never replies: the client alone must end the call [3968].
+    if (hangMoves && req.method === 'POST' && /\/moves$/.test(req.url)) return;
     if (req.method === 'POST' && /\/moves$/.test(req.url)) {
       const drop = loseReply;
       const end = res.end.bind(res);
@@ -214,7 +217,7 @@ export async function relayServer(t, directory, auth, { legacyRelay = false } = 
     const since = calls.slice(dropArmedAt).map(({ method, path }) => `${method} ${path.split('?')[0]}`);
     throw new Error(`relay fixture: the reply drop armed before ${at} was never consumed by a move; relay calls since arming: ${since.join(', ') || 'none'}`);
   }
-  return { origin, calls, uploads, failMoves(value) { refuseMoves = value; },
+  return { origin, calls, uploads, failMoves(value) { refuseMoves = value; }, hangMoves(value) { hangMoves = value; },
     dropNextReply({ offline = false, operation, item, key, boardId } = {}) {
       requireDropConsumed('arming another drop');
       if (operation !== undefined && (typeof operation !== 'string' || !key || !boardId)) {
@@ -285,7 +288,7 @@ export async function threeReplicaFixture(t, timing) {
   for (const tool of ['sh', 'tar', 'ps', 'lsof']) symlinkSync(realpathSync(toolDirs.map((entry) => join(entry, tool)).find(existsSync)), join(privateBin, tool));
   symlinkSync(resolve(import.meta.dirname, '../../../pullboard.js'), join(privateBin, 'pullboard'));
   const envs = homes.map((home) => {
-    const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
+    const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
     for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[key];
     for (const key of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[key];

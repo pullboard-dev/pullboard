@@ -216,10 +216,6 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "items-empty: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "apps/cli/journeys/withdraw/items.test.js": {
-    "kind": "journey",
-    "reason": "items: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
-  },
   "apps/cli/journeys/milestone/routes.test.js": {
     "kind": "adapter",
     "reason": "journey-routes: existing source/VM/transport contract, not a pure-render witness"
@@ -235,10 +231,6 @@ export const VIEW_TEST_ROLES = Object.freeze({
   "apps/cli/journeys/claim/live.test.js": {
     "kind": "journey",
     "reason": "live: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
-  },
-  "apps/cli/journeys/init/origin.test.js": {
-    "kind": "journey",
-    "reason": "local-origin: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
   "apps/cli/journeys/milestone/limit.test.js": {
     "kind": "journey",
@@ -269,6 +261,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "reason": "open-board: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
   "apps/cli/journeys/init/perf.test.js": {
+    "kind": "adapter",
+    "reason": "perf: existing source/VM/transport contract, not a pure-render witness"
+  },
+  "apps/cli/journeys/init/perf/projects.test.js": {
     "kind": "adapter",
     "reason": "perf: existing source/VM/transport contract, not a pure-render witness"
   },
@@ -377,6 +373,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "reason": "stats: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
   "apps/cli/journeys/init/speed.test.js": {
+    "kind": "adapter",
+    "reason": "tab-speed: existing source/VM/transport contract, not a pure-render witness"
+  },
+  "apps/cli/journeys/init/origin/speed.test.js": {
     "kind": "adapter",
     "reason": "tab-speed: existing source/VM/transport contract, not a pure-render witness"
   },

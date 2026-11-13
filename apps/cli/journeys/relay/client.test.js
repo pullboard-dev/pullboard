@@ -76,6 +76,7 @@ test('clause 2: [H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, ref
     ...process.env,
     HOME: home,
     PULLBOARD_HOME: pullboardHome,
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
     PATH: privateBin,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
@@ -339,7 +340,7 @@ async function lostReplyFixture(t) {
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
   symlinkSync(realpathSync('/bin/sh'), join(privateBin, 'sh'));
   const env = {
-    ...process.env, HOME: home, PULLBOARD_HOME: pullboardHome, PATH: privateBin,
+    ...process.env, HOME: home, PULLBOARD_HOME: pullboardHome, PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PATH: privateBin,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Relay Test', GIT_AUTHOR_EMAIL: 'relay-test@example.com',
     GIT_COMMITTER_NAME: 'Relay Test', GIT_COMMITTER_EMAIL: 'relay-test@example.com',
@@ -475,6 +476,18 @@ test('[H16,C7] a relay transport failure names its cause', async (t) => {
   assert.match(lines[0], new RegExp(`^pullboard: recovered move \\d+ \\(addItem\\) whose earlier reply was lost: ${literal(cause)}$`, 'u'));
   assert.ok(!secrets.some((secret) => repeated.stderr.includes(secret) || JSON.stringify(repeated.document).includes(secret)), 'the recovery line never prints a held token or key');
   assert.equal(repeated.document.item.item_title, 'reply lost at the transport', 'the recovered command reports its original outcome');
+});
+
+test('[H16,C7] a relay that accepts a move and never answers ends within the client budget', async (t) => {
+  const { root, env, lane, relay } = await lostReplyFixture(t);
+  relay.hangMoves(true);
+  const started = Date.now();
+  const hung = await cliResult(root, env, 'add', lane, 'server never answers');
+  const elapsed = Date.now() - started;
+  assert.equal(hung.status, 1, hung.stderr);
+  assert.equal(hung.document.error.code, 'RELAY_UNAVAILABLE', 'a never-answering relay is refused, not waited on');
+  assert.match(hung.document.error.message, /did not answer \(timed out after \d+ ms on POST \/api\/v1\/boards\/[0-9a-f]{32}\/moves\)/u, 'the refusal names the stalled request');
+  assert.ok(elapsed < 60_000, `the command ended in ${elapsed} ms, inside its budget`); // budget: client ceiling is 10 s per request.
 });
 
 test('[H16,C7] a relay transport failure names its cause when a read recovers the move', async (t) => {

@@ -56,7 +56,7 @@ test('reference point 23: actual PR create and update publish handled references
   const publicReference = 'https://example.com/acknowledged-report';
   const privateReference = 'https://example.com/PRIVATE-REFERENCE-SENTINEL';
   const privateContinuation = 'PRIVATE-CONTINUATION-SENTINEL @PrivatePerson';
-  const entries = landBridgeItems(box, { briefs: [
+  const entries = await landBridgeItems(box, { briefs: [
     `Reference: ${publicReference} @Reporter\n${privateContinuation}\nReference: ${privateReference}`,
     'Reference: PRIVATE-CONVERSATION-SENTINEL',
   ] });
@@ -83,7 +83,7 @@ test('reference point 21: shipping checks only the selected release and every la
   const shared = 'https://example.com/shared @Reporter';
   const first = 'https://example.com/first @FirstReporter';
   const second = 'https://example.com/second @SecondReporter';
-  const entries = landBridgeItems(box, { briefs: [
+  const entries = await landBridgeItems(box, { briefs: [
     `Reference: ${shared}\nReference: ${first}\nReference: PRIVATE-RELEASE-SENTINEL`,
     `Reference: ${shared}\nReference: ${second}`,
   ] });

@@ -78,6 +78,18 @@ async function openConversation(chrome, key = 'none') {
   await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
 }
 
+/**
+ * Wait until the agents panel shows this many cards, letting the page's requests settle between looks.
+ * Why: a click's settle ends when no request is out, which a loaded runner can reach before the agents arrive; the deadline only bounds a hang.
+ */
+async function cardsShown(page, count) {
+  const deadline = Date.now() + 30_000; // budget: hang-only wait for the agents data to reach the panel.
+  while (agentEntries(page.show('agents')).length < count && Date.now() < deadline) {
+    await page.release();
+    await new Promise((done) => setImmediate(done));
+  }
+}
+
 test('the agents panel says what each agent holds [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -96,6 +108,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   try {
     const page = await openPage(view);
     await page.click({ tab: 'shouts' });
+    await cardsShown(page, 2);
     assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
     assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator"><span>1 idle<\/span>/);
     page.run('view.open.idle = true; render();');
@@ -164,6 +177,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
           return { id: row.dataset.agent, text: row.innerText.replace(/\\s+/g, ' ').trim(), title: row.title, height: box(row).height, on: card.classList.contains('on'),
             avatars: row.querySelectorAll('.avatar').length, name: row.querySelector('.agent-who b').textContent, model: row.querySelector('.agent-model').textContent,
             state: row.querySelector('.agent-state').textContent, item: row.querySelector('.agent-what').textContent.trim(),
+            lines: [...row.querySelectorAll('.agent-who b, .agent-model')].map((part) => { const range = document.createRange(); range.selectNodeContents(part); return range.getClientRects().length; }),
+            cut: [...row.querySelectorAll('.agent-who b, .agent-model')].some((part) => part.scrollWidth > part.clientWidth),
             whoBottom: row.querySelector('.agent-who').getBoundingClientRect().bottom, itemTop: row.querySelector('.agent-doing').getBoundingClientRect().top,
             work: [...card.querySelectorAll('.agent-work[data-item]')].map((work) => [work.dataset.item, box(work).height]) };
         }),
@@ -184,7 +199,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
         assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
-        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
+        assert.match(row.state, /^(?:now|\d+[mhd])Building$/, `${at}: native age stays beside the stage, which does not repeat the agent the row names`);
+        assert.deepEqual([row.lines, row.cut], [[1, 1], false], `${at}: the agent id and model each stay on one line, uncut`);
         assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
@@ -357,7 +373,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         assert.ok((await text('#detail')).includes(expected.builder), `${at}: held item detail`);
         assert.equal(await text('#needs details[data-needs-key^="decision:"] [data-needs-field="asked-by"]'), expected.reviewer, `${at}: Needs-you decision author`);
         assert.ok((await text('#needs details[data-needs-key^="hold:"] .needs-copy small')).includes('lane held by ' + expected.reviewer), `${at}: Needs-you lane holder`);
-        await chooseFilter(chrome, 'state:verified');
+        await chooseFilter(chrome, 'state:all');
         await settled(chrome, '!!document.querySelector("#chain [data-item=\\"2\\"]")');
         await press(chrome, 'document.querySelector("#chain [data-item=\\"2\\"]")');
         await settled(chrome, `view.item === 2 && !!document.querySelector("#detail h2") && !document.querySelector('#detail [aria-busy="true"]') && !!document.querySelector('#detail .verdict .by')`);

@@ -20,6 +20,9 @@ import { refuseTestsOnCoordinator } from '../../index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { tmpdir } from 'node:os';
 
+export { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
+export { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
+
 // A bare node --test of a suite on the coordinator refuses here, before any fixture starts (#3899).
 refuseTestsOnCoordinator({ read: loadMachineSettings });
 
@@ -195,6 +198,15 @@ export function runFixtureGit(args, options = {}) {
   const result = runFixtureChild('git', args, { encoding: 'utf8', ...options });
   if (result.status !== 0) throw new Error(result.failure);
   return result.stdout.trim();
+}
+
+/**
+ * Run a Git fixture setup step; a `commit` skips the repository's hooks, which each cost a Node launch [C7].
+ * Why: setup commits are not what a journey tests; a journey about hooks commits through tryGit or runFixtureGit and keeps them.
+ */
+export function runFixtureSetupGit(args, options = {}) {
+  const setup = args[0] === 'commit' ? ['-c', 'core.hooksPath=/dev/null', ...args] : args;
+  return runFixtureGit(setup, options);
 }
 
 /** Preserve execFileSync output and failure fields while adding common child diagnostics. */

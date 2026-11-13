@@ -38,3 +38,15 @@ for (const fault of FAULTS) {
     assert.ok(result.elapsedMs <= LIVENESS_BOUND_MS, `the board took ${result.elapsedMs} ms, past the ${LIVENESS_BOUND_MS} ms bound`);
   });
 }
+
+test("clause 1: the gate step runs the real submit, then a fixture runner holds the item's gate lease and the kit returns it with a done predicate [C7]", async t => {
+  const result = await runLivenessFlow(t, { step: 'gate', fault: 'cut', seed: 3 });
+  assert.equal(result.step, 'gate');
+  assert.match(result.victim, /^runner-fixture-/u, 'the holder is the fixture gate runner');
+  assert.equal(typeof result.state, 'string');
+});
+
+test("clause 2: STEP_NAMES lists 'gate' and an unknown step is still refused LIVENESS_STEP [C7]", async t => {
+  assert.ok(STEP_NAMES.includes('gate'));
+  await assert.rejects(() => runLivenessFlow(t, { step: 'nowhere' }), error => error.code === 'LIVENESS_STEP');
+});

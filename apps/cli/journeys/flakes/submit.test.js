@@ -2,28 +2,26 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/sandbox/index.js */
 import assert from 'node:assert/strict';
-import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { privateBuilder } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { commitCandidate } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 
-test('a red submit records diagnostics without submitting the item [C7,V4,H16]', async t => {
+test('a red submit records diagnostics without submitting the item [C7,V4,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = flakyProject(t);
-  // The submitting process holds this fixture's gate, so it pins controller dispatch like the cockpit fixture does [P7].
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const id = checkedItem(box);
   const builder = privateBuilder(box);
   const claimed = await builder.call('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
   commitCandidate(builder, 'chore: controlled submission candidate');
   const result = await builder.call('submit', String(id));
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 0, 'a pull submit queues its gate and returns at once');
+  // The red arrives as the gate job's receipt, which returns the item to its builder [P7,C7].
+  await whenRunnerSettles(box.env, async () => (await box.call('show', String(id))).document.gateJob?.step === 'done', { deadlineMs: 180_000, what: `the gate for #${id}` });
   assert.equal((await box.call('show', String(id))).document.item_status, 'claimed');
   // Changed today with the submit/landing rerun change: a red submit runs the target four times, and its pair stays red beside a green pinned main.
   assert.equal(targetRuns(box), 4, 'a red submit runs the target four times');

@@ -22,6 +22,9 @@ import { exactStart } from '../../../../../packages/gate/index.js';
 import { ensureDispatcher } from '../../../../../packages/drive/index.js';
 import { DISPATCHER_JOB } from '../../../../../packages/drive/index.js';
 import { gateDriveJobId } from '../../../../../packages/drive/index.js';
+/** The dispatcher file inside a captured tools tree, named here so the resources cell never reaches an app [CD12]. */
+const DISPATCHER_ENTRY = 'apps/lib/src/io/handoff/dispatcher.js';
+
 /** The drive cell's detector for gate drives that renew their lease with no step; the sentinel command shouts each as Stuck (#3661). */
 export { stalledGateDriveFindings } from '../../../../../packages/drive/index.js';
 import { releaseLease } from '../../../../../packages/jobs/index.js';
@@ -34,7 +37,6 @@ import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
-  mkdtempSync,
   cpSync,
   renameSync,
   rmSync,
@@ -50,7 +52,6 @@ import {
   relative,
   basename,
 } from 'node:path';
-import { tmpdir } from 'node:os';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
@@ -67,6 +68,8 @@ import { submitHandoffRoot } from '../../../../../packages/sandbox/index.js';
 import { advanceIdleToolTree } from '../toolsnapshot.js';
 import { keepToolsIndex } from '../toolsnapshot.js';
 import { checkoutCommittedTools } from '../toolsnapshot.js';
+import { scratchFolder } from '../../../../../packages/config/index.js';
+import { scratchRoot } from '../../../../../packages/config/index.js';
 
 /** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
 export function copyTools(toolRoot, target) {
@@ -96,7 +99,7 @@ export function rebuildCapturedTools(directory) {
   const { tools, toolRoot, toolsCommit } = request;
   if (typeof tools !== 'string') return false;
   if (existsSync(tools)) return true;
-  if (!/^[0-9a-f]{40}$/u.test(toolsCommit ?? '') || typeof toolRoot !== 'string' || dirname(tools) !== tmpdir()
+  if (!/^[0-9a-f]{40}$/u.test(toolsCommit ?? '') || typeof toolRoot !== 'string' || dirname(tools) !== scratchRoot()
     || !handoffToolsAllowed(tools, request.job)) return false;
   try { toolsSnapshot(toolRoot, request.job, request.commonDir, { rebuild: { tools, commit: toolsCommit } }); } catch { /* The retry then retains the evidence. */ }
   return existsSync(tools);
@@ -153,7 +156,7 @@ async function relaunchRunningGate(ctx, itemId, current, worker, directory) {
   catch { throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result, and its captured request is unreadable'); }
   if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
     || !handoffToolsAllowed(request.tools, current.id) || !existsSync(request.tools)
-    || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())) {
+    || dirname(realpathSync(request.tools)) !== realpathSync(scratchRoot())) {
     throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result, and its captured request or tools cannot be proved');
   }
   // The dead driver is proven gone, so its drive lease is freed now; the relaunched driver is admitted at once, not
@@ -197,7 +200,7 @@ export function sharedToolsTarget(toolRoot) {
   const read = tryGit(toolRoot, ['rev-parse', 'HEAD', '--show-toplevel']);
   const [head, top, ...rest] = read.status === 0 ? read.stdout.split('\n') : [];
   if (read.status !== 0 || rest.length || !/^[0-9a-f]{40}$/u.test(head ?? '') || !top || realpathSync(top) !== realpathSync(toolRoot)) return null;
-  return { tools: join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`), commit: head };
+  return { tools: join(scratchRoot(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`), commit: head };
 }
 
 /**
@@ -225,17 +228,17 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
   }
   if (!clean) {
     assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
-    const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
+    const tools = scratchFolder(`pullboard-handoff-tools-${job}-`);
     copy(toolRoot, tools);
     return tools;
   }
   // An idle kept snapshot moved to this commit writes only the files that differ, proved by tree id (#3663).
   const commit = target.commit;
   // The move runs before the room check: that check's sweep removes idle snapshots, the very ones worth moving.
-  const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: tmpdir() });
+  const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: scratchRoot() });
   if (advanced) sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
   else assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
-  const staging = advanced?.path ?? mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
+  const staging = advanced?.path ?? scratchFolder(`pullboard-handoff-staging-${job}-`);
   try {
     if (!advanced) { copyCommitted(toolRoot, staging, commit); keepToolsIndex(toolRoot, staging, commit); }
     renameSync(staging, shared);
@@ -326,7 +329,7 @@ export async function ensureGateDispatcher(file, tools, commonDir) {
   withRawBoard(file, board => ensureDispatcher(board.db, { owner, spawn: () => { taken = true; } }));
   if (!taken) return false;
   let launched = false;
-  try { launched = await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart, owner }); }
+  try { launched = await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart, owner, entry: DISPATCHER_ENTRY }); }
   finally { if (!launched) withRawBoard(file, board => releaseLease(board.db, DISPATCHER_JOB, owner)); }
   return launched;
 }
@@ -478,7 +481,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
       || !handoffToolsAllowed(request.tools, current.id)
-      || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())
+      || dirname(realpathSync(request.tools)) !== realpathSync(scratchRoot())
       || existsSync(submitHandoffRoot(ctx.info.commonDir, current))) {
       throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the dead queued worker lacks safe captured tooling or already has a private source; preserve its evidence and resubmit the captured commit');
     }

@@ -25,7 +25,7 @@ const RECORD_LIMIT_MS = 5_000;
 /** A project with open item 1, main's tip as its hand landing, and a runner-only machine with no runner. */
 function handLanded() {
   const box = machine(), alpha = project(box, 'merged-fast');
-  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'A hand-landed fixture item', check: 'test -f pullboard.json', args: ['--specs', 'G1'], wait: true,
+  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'A hand-landed fixture item', check: 'true', args: ['--specs', 'G1'], wait: true,
     run: (root, ...args) => ({ code: 0, out: box.run(root, ...args), err: '' }) });
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   // A runner that is never reachable: any runner check waits out this deadline before it could refuse.

@@ -17,6 +17,7 @@ import {
   readListing,
   testCellsProblems,
   testCellsReport,
+  impurePureHelpers,
   installsHooks,
   spawnsCli,
   writeTestCells,
@@ -211,4 +212,21 @@ test('clause 1: a test in a later app cell importing an earlier app\'s light.js 
   assert.deepEqual(door.problems, []);
   assert.equal(door.tier, 'component');
   assert.equal(reading('../../view/src/core/view.js').problems.length, 1, 'a deep import past the door stays refused');
+});
+
+test('clause 1: a listed helper that spawns the CLI through process.execPath by a path function is not pure, one spawning an unrelated script is [C7,#4621]', () => {
+  const root = fixture({
+    'apps/cli/pullboard.js': 'export const main = 0;\n',
+    'apps/cli/tests/fixtures/launcher.js': "import { join } from 'node:path';\nfunction resolveBin() {\n  return join(import.meta.dirname, '../../pullboard.js');\n}\nconst BIN = resolveBin();\nexport const run = () => runFixtureChild(process.execPath, [BIN, 'list']);\n",
+    'apps/cli/tests/fixtures/other.js': "import { join } from 'node:path';\nconst SCRIPT = join(import.meta.dirname, 'tool.js');\nexport const run = () => runFixtureChild(process.execPath, [SCRIPT, 'list']);\nexport const config = join(import.meta.dirname, 'pullboard.json');\n",
+  });
+  const listing = { pureHelpers: { 'apps/cli/tests/fixtures/launcher.js': 'claimed pure', 'apps/cli/tests/fixtures/other.js': 'runs a plain script' } };
+  const problems = impurePureHelpers(root, listing).map(problem => `${problem.path}: ${problem.text}`);
+  assert.deepEqual(problems, ['apps/cli/tests/fixtures/launcher.js: listed as a pure helper but it launches the CLI or installs hooks']);
+});
+
+test('clause 2: the real submit gate fixture is not pure [C7,#4621]', () => {
+  const root = join(import.meta.dirname, '../../../..');
+  const gate = 'apps/cli/tests/fixtures/submit/gate.js';
+  assert.equal(impurePureHelpers(root, { pureHelpers: { [gate]: 'claimed pure' } }).length, 1);
 });

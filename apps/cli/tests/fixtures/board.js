@@ -1,10 +1,8 @@
 import { fileURLToPath } from 'node:url';
 /** SQLite fixture boards default to memory; disk is an explicit boundary contract [C7]. */
 import {
-  mkdtempSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // The board composition root by its module, not the library front door: that door also exports the CLI's main (#3852).
 import { openBoard } from '../../../lib/index.js';
@@ -38,12 +36,10 @@ import {
 import { checkpointPublisher } from '../../../../packages/outbox/index.js';
 import { relayOrdering } from '../../../../packages/outbox/index.js';
 
+export { temporaryDirectory };
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
 
-/** Make an empty temporary directory; the caller removes it. The single place fixtures create one [C7]. */
-export function temporaryDirectory(prefix) {
-  return mkdtempSync(join(tmpdir(), prefix));
-}
+import { temporaryDirectory } from '../../../../packages/store/tests/fixtures/tmp.js';
 
 /**
  * Open the production schema and moves in memory, with cleanup owned by the test.

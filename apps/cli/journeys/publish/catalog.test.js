@@ -75,7 +75,7 @@ import { assertSpecCorrectionRefreezesCitations } from '../../tests/fixtures/ref
 import {
   FIXTURE_MODEL,
   fixtureJoin,
-  fixtureSettledMachine,
+  fixtureMachineSettings,
 } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -186,8 +186,9 @@ function sandbox() {
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     NODE_COMPILE_CACHE: COMPILE_CACHE,
   };
-  // The cases read a submit's or test run's result at once, so it settles whatever the machine's dispatch default is [P7].
-  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
+  // The cases read a submit's result at once and verify it, so the gate runs in the submitting process (#6249).
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.PULLBOARD_STARTUP_TRACE_FILE;
   delete env.PULLBOARD_STARTUP_TRACE_ENTRY;
@@ -284,7 +285,10 @@ function assertRequiredShape(value, required, label) {
 
 /** Parse a command's sole JSON document and check its public command shape. */
 async function json(box, cwd, command, args = [], subcommand) {
-  const result = await box.runLocal(cwd, command, ...args, '--json');
+  let result = await box.runLocal(cwd, command, ...args, '--json');
+  // The catalog files many near-identical items by design; answer the likely-duplicate guard once, naming the item it found.
+  const near = command === 'add' && result.status !== 0 ? /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.stdout + result.stderr)?.[1] : undefined;
+  if (near) result = await box.runLocal(cwd, command, ...args, '--not-duplicate-of', `${near} catalog fixture items repeat by design`, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
   const document = JSON.parse(result.stdout);
   if (command === 'check' && subcommand !== 'accept') {
@@ -902,7 +906,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual([shippedLater.into, shippedLater.moved, shippedLater.notMoved], [null, [], []], 'an empty milestone ships with nothing to move');
   await json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
   await json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
-  const reopenItem = (await json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true'], 'add')).item;
+  const reopenItem = (await json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
   assert.equal((await json(source, source.repo, 'check', ['accept', String(reopenItem.item_id)], 'accept')).check, 'true', 'the person accepts the check as it reads');
   await json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
   await commitItemChange(source, source.repo, reopenItem.item_id);
@@ -913,7 +917,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   await json(source, source.repo, 'reopen', [String(reopenItem.item_id), '--note', 'exercise the versioned reopen result']);
   // A cause repeated on two items becomes a draft row once its check is proved red, then green (#714).
   for (const title of ['Rigor catalog one', 'Rigor catalog two']) {
-    const caused = (await json(source, source.repo, 'add', ['coordinator', title, '--criterion', 'Exercise a caused reopen.', '--check', 'true'], 'add')).item;
+    const caused = (await json(source, source.repo, 'add', ['coordinator', title, '--criterion', 'Exercise a caused reopen.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
     await json(source, source.repo, 'claim', [String(caused.item_id)]);
     await commitItemChange(source, source.repo, caused.item_id);
     await json(source, source.repo, 'submit', [String(caused.item_id), '--no-next']);
@@ -955,13 +959,20 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   // Registration measures the host over the probe, so the record also carries what the probe observed.
   const { cores, gui, measuredAt, memoryMB, node, publicKey, ...registered } = runner.runner;
   assert.deepEqual(registered, { host: HOST, slots: 2, browser: 1, fixed: true });
-  assert.deepEqual([typeof cores, typeof gui, typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey], ['number', 'boolean', 'string', 'number', 'string', 'string']);
+  assert.ok(typeof gui === 'boolean' || gui === null, 'gui is what the probe saw, or null when it saw no display');
+  assert.deepEqual([typeof cores, typeof (gui ?? false), typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey], ['number', 'boolean', 'string', 'number', 'string', 'string']);
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
   assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
   assert.ok(Array.isArray((await json(source, source.repo, 'seats')).seats));
   assert.equal(typeof (await json(source, source.repo, 'stats', ['time'], 'time')).time, 'object');
   assert.equal(typeof (await json(source, source.repo, 'stats', ['disk'], 'disk')).disk, 'object', 'stats disk reports disk use per store');
+  for (const name of ['agents', 'review', 'runners']) {
+    assert.equal(typeof (await json(source, source.repo, 'stats', [name], name))[name], 'object', `stats ${name} has its own additive JSON shape [A1]`);
+  }
+  assert.ok(Array.isArray((await json(source, source.repo, 'labels')).labels), 'labels lists each label [A1]');
+  assert.equal((await json(source, source.repo, 'search', ['catalog'])).query, 'catalog', 'search echoes its query [A1]');
+  assert.ok(Array.isArray((await json(source, source.repo, 'why', [], 'release')).items), 'why release lists the release flow [A1]');
   const trace = await json(source, source.repo, 'trace', [String(catalog.item_id)]);
   assert.deepEqual([trace.subject, trace.since, Array.isArray(trace.entries)], [String(catalog.item_id), null, true], 'trace reads one item timeline');
   assert.ok(Object.hasOwn(await json(source, source.repo, 'tool-build'), 'build'));
@@ -1000,7 +1011,7 @@ catalogCase('[A1,C7] map exposes its main stamp and every rendered view through 
   assert.equal(card.main, main);
   assert.match(card.map, /src\/map-fixture\.js#mapFixture/u);
   const item = await json(box, box.repo, 'add', ['coordinator', 'Map source', '--specs', 'G1',
-    '--criterion', 'src/map-fixture.js defines mapFixture', '--check', 'true']);
+    '--criterion', 'src/map-fixture.js defines mapFixture', '--check', 'true', '--accept-green', 'catalog fixture']);
   const slice = await json(box, box.repo, 'map', ['--for', String(item.item.item_id)]);
   assert.equal(slice.main, main);
   assert.match(slice.map, /src\/map-fixture\.js/u);
@@ -1053,7 +1064,7 @@ catalogCase('[A1,H11] sync shares a board through a real Git remote without an a
 
 catalogCase('[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON', async () => {
   const source = await project();
-  const parent = (await json(source, source.repo, 'add', ['coordinator', 'Slice parent', '--criterion', 'Every slice inherits this bar.', '--check', 'true'], 'add')).item;
+  const parent = (await json(source, source.repo, 'add', ['coordinator', 'Slice parent', '--criterion', 'Every slice inherits this bar.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
   await json(source, source.repo, 'check', ['accept', String(parent.item_id)], 'accept');
   await json(source, source.repo, 'claim', [String(parent.item_id)]);
   const { item } = await uncataloguedRootJSON(source, source.repo, 'slice', [String(parent.item_id), 'Slice part', '--files', 'app/part.js', '--check', 'true']);
@@ -1068,6 +1079,22 @@ catalogCase('[A1,C7] red explain reports absent evidence through the catalog', a
   const result = await json(box, box.repo, 'red', ['explain', 'test/catalog.test.js']);
   assert.equal(result.file, 'test/catalog.test.js');
   assert.equal(result.unavailable, 'no recorded red on main history');
+});
+
+catalogCase('[A1,C7] compact reports a dry run through the catalog', async () => {
+  const box = await project();
+  const report = await json(box, box.repo, 'compact', ['--dry-run']);
+  assert.equal(report.dryRun, true);
+  assert.equal(report.rows, 0, 'a new board has no old finished steps to archive');
+});
+
+catalogCase('[A1,C7] contribute check reports an accepted record through the catalog', async () => {
+  const box = await project();
+  const file = join(box.dir, 'record.yml');
+  writeFileSync(file, 'rows:\n  - G1.2\nversion: "0.9.5"\nran: pullboard next\nblocks: nothing\nbar:\n  - 1: the command prints a line [test]\ncheck:\n  - 1: apps/cli/tests/x.test.js > prints a line\nrefusal: |\n  NO_LINE: nothing printed\n');
+  const report = await json(box, box.repo, 'contribute', ['check', file, 'Bug'], 'check');
+  assert.equal(report.ok, true, JSON.stringify(report.failures));
+  assert.deepEqual([report.shape, report.failures], ['Bug', []]);
 });
 
 test('[A1] every catalog command and subcommand has a real CLI exercise', { concurrency: true }, async (t) => {

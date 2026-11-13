@@ -15,6 +15,8 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { cpus } from 'node:os';
+import { loadavg } from 'node:os';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import {
@@ -24,7 +26,7 @@ import {
 import { stopGroup } from './group.js';
 
 export const TOOLING_SNAPSHOTS = new Map();
-export const ROUND_TRIP_DEADLINES = { dispatch: 20_000, 'remote run': 30_000, 'result return': 10_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit.
+export const ROUND_TRIP_DEADLINES = { dispatch: 45_000, 'remote run': 30_000, 'result return': 30_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit; dispatch took 20 s and result return 10 s on runners at twice their cores.
 
 /** Run Git in the private source repository and preserve useful failure context. */
 export function git(repo, env, ...args) {
@@ -45,7 +47,7 @@ export function committedToolingSnapshot(sourceRoot, env) {
   mkdirSync(home, { recursive: true });
   try {
     copyPackageFiles(key, root);
-    const gitEnv = { ...env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'),
+    const gitEnv = { ...env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(home, '.pullboard'),
       PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_COUNT: '0',
       GIT_AUTHOR_NAME: 'Runner Tooling Fixture', GIT_AUTHOR_EMAIL: 'runner-tooling@example.invalid',
@@ -99,7 +101,10 @@ export function awaitRoundTrip(child, closed, phasesFile, before, deadlines = RO
 
 /** Monitor the owned child's progress and cancellation inside its single explicit yielding wait. */
 async function monitorRoundTrip(child, closed, phasesFile, before, deadlines, firstReceiptAccepted) {
-  const limits = { ...ROUND_TRIP_DEADLINES, ...deadlines };
+  // A phase left at its default deadline is charged for machine load, so a loaded runner is not mistaken for a stuck one.
+  const scale = Math.min(6, Math.max(1, loadavg()[0] / Math.max(1, cpus().length)));
+  const limits = Object.fromEntries(Object.entries(ROUND_TRIP_DEADLINES).map(([name, ms]) =>
+    [name, deadlines === ROUND_TRIP_DEADLINES || deadlines?.[name] === undefined ? Math.round(ms * scale) : deadlines[name]]));
   let done = null;
   closed.then(result => { done = result; });
   const timings = [];

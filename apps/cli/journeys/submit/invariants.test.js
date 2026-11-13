@@ -99,7 +99,7 @@ function landing(box, id, submit, commit, files, diagnostics = [], green = false
   }));
 }
 
-test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
+test('a landing escape is proposed as a submit invariant [C7,V4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = e2e.project('node --test web/page.test.js');
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));

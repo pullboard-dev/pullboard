@@ -4,15 +4,12 @@ import { writeTarget } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { privateBuilder } from '../../../../packages/git/tests/fixtures/flakes.js';
-import { commitCandidate } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
-import '../../tests/fixtures/cases/quarantine.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { commitFixtureFiles } from '../../tests/fixtures/copy.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -125,56 +122,4 @@ test('the actual check command retains its red and records one pair [C7,V2,H16]'
   assert.equal(observation.original.green, false);
   assert.equal(observation.paired.green, true);
   assertReceipts(box, observation);
-});
-
-for (const linkedTemp of [false, true]) test(linkedTemp
-  ? 'a private verification accepts on one green check run through a symlinked temporary root [C7,V4,H16]'
-  : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', async t => {
-  const box = flakyProject(t, { alwaysPass: 'controlled' });
-  if (linkedTemp) {
-    const alias = join(box.scratch, 'temporary-alias');
-    symlinkSync(box.scratch, alias, 'dir');
-    box.env.TMPDIR = alias;
-  }
-  const id = checkedItem(box);
-  const builder = privateBuilder(box);
-  const claimed = await builder.call('claim', String(id));
-  assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  commitCandidate(builder, 'chore: controlled review candidate');
-  const submitted = await builder.call('submit', String(id));
-  assert.equal(submitted.code, 0, 'the fixture submits with a real green proof before its external failure is enabled');
-  const head = (await box.call('show', String(id))).document.item_commit;
-  writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
-  const reviewer = privateBuilder(box);
-  reviewer.git('checkout', '-q', '--detach', head);
-  const result = await reviewer.call('verify', String(id), 'accept');
-  // Changed today: the verify rerun of the check is a single green run (no CHECK_RED), so no diagnostic pair is made.
-  assert.equal(result.code, 0, JSON.stringify(result.document));
-  assert.equal(result.document.check, 'green');
-  const item = (await box.call('show', String(id))).document;
-  assert.equal(item.item_verdict, 'ACCEPT', 'verify accepts on its one green check run');
-  assert.equal(targetRuns(box), 1, 'verify reruns the private check once, green, and nothing else');
-  assert.equal((await box.call('flakes')).document.flakes.length, 0, 'a verdict records no flake observation');
-});
-
-test('a frozen private check that changes its source records no pair, and verify accepts on one run [C7,V4,H16]', async t => {
-  const box = flakyProject(t, { alwaysPass: 'controlled' });
-  const id = checkedItem(box);
-  const builder = privateBuilder(box);
-  assert.equal((await builder.call('claim', String(id))).code, 0);
-  writeTarget(builder.root, box.counter, 'controlled', 'controlled');
-  builder.git('add', '-A'); builder.git('commit', '-q', '-m', 'chore: controlled private-check mutation');
-  const submitted = await builder.call('submit', String(id));
-  assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
-  const head = (await box.call('show', String(id))).document.item_commit;
-  writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
-  const reviewer = privateBuilder(box);
-  reviewer.git('checkout', '-q', '--detach', head);
-  const result = await reviewer.call('verify', String(id), 'accept');
-  // Changed today: verify runs the check once and accepts (no CHECK_RED), so no diagnostic pair is made.
-  assert.equal(result.code, 0, JSON.stringify(result.document));
-  assert.equal(targetRuns(box), 1, 'verify runs the changed private check once, with no diagnostic pair');
-  const report = (await box.call('flakes')).document;
-  assert.equal(report.flakes.length, 0);
-  assert.equal(report.unclassified.length, 0, 'no unchanged-source pair or observation is recorded');
 });

@@ -166,7 +166,7 @@ function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUp
  * Why: `export --json` streams the board, then a paused relay adds a second `{version, diagnostics}` envelope; the fixture folds the
  * diagnostics into the first document so callers see exactly one, as they would if that notice went to stderr (#6231).
  */
-function parseCommandDocument(text) {
+export function parseCommandDocument(text) {
   try { return JSON.parse(text); }
   catch (error) {
     // Top-level documents are pretty-printed, so each ends at a line holding only a closing brace.
@@ -226,7 +226,7 @@ export { childResult as relayFixtureChild };
  * fixture once used, a loaded machine kept the test process busy enough that browser replies queued past their
  * deadlines (#955, #979). A case that needs a faster poll passes pollMs by name and says why.
  */
-export async function relayClientFixture(t, { cliChildren, coordinatorModel, accountStorageBytes, pollMs = 200, host = '127.0.0.1' } = {}) {
+export async function relayClientFixture(t, { cliChildren, coordinatorModel, accountStorageBytes, moveBodyBytes, pollMs = 200, host = '127.0.0.1' } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-cleanup-')));
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');
@@ -244,7 +244,7 @@ export async function relayClientFixture(t, { cliChildren, coordinatorModel, acc
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
   symlinkSync(realpathSync(CLI), join(hookBin, 'pullboard'));
   const env = {
-    ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'),
+    ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(home, '.pullboard'),
     PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PATH: privateBin,
     TERM_SESSION_ID: createHash('sha256').update(scratch).digest('hex'),
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -303,7 +303,7 @@ globalThis.fetch = function tracedFetch(input, init) {
 `, { mode: 0o600 });
   writeFileSync(traceFile, '', { mode: 0o600 });
   for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN', ...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[name];
-  const srv = await relayServerFixture(t, { accountStorageBytes, pollMs, host, scratch, beforeClose: () => stopSender(root) });
+  const srv = await relayServerFixture(t, { accountStorageBytes, moveBodyBytes, pollMs, host, scratch, beforeClose: () => stopSender(root) });
   const { provider, privateKeys, pageWork, snapshotWriteLog, snapshotWriteCountNow, origin, auth, authDatabase, ...serverApi } = srv;
   /** Invoke the production CLI in this private repository. */
   let cliChildIndex = 0;

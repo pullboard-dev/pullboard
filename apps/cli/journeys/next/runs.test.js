@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -12,6 +11,7 @@ import {
   fixture,
   cli,
 } from '../../tests/fixtures/next/take.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { shout } from '../../../../packages/store/index.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
@@ -20,7 +20,7 @@ import * as store from '../../../../packages/store/index.js';
 
 /** A fixture whose actor seat holds a claimed item and has a second item open for it. */
 async function seatWithClaim(t, { heldGate = false } = {}) {
-  const box = await fixture(t);
+  const box = await fixture(t, heldGate ? { dispatch: 'pull' } : {});
   box.board.gitRoot = box.root;
   const seat = box.seats.actor;
   let gate;
@@ -30,16 +30,10 @@ async function seatWithClaim(t, { heldGate = false } = {}) {
     const script = join(directory, 'held-gate.cjs');
     gate = { entered: join(directory, 'gate-entered'), release: join(directory, 'gate-release') };
     writeFileSync(script, `const fs = require('node:fs'); fs.writeFileSync(${JSON.stringify(gate.entered)}, 'entered'); const end = Date.now() + 90000; while (!fs.existsSync(${JSON.stringify(gate.release)}) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); process.exit(1);\n`);
-    const configFile = join(box.root, 'pullboard.json');
-    const config = JSON.parse(readFileSync(configFile, 'utf8'));
-    config.gate = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
-    config.submit = { ...config.submit, handoff: true };
-    writeFileSync(configFile, JSON.stringify(config));
-    box.git(box.root, 'add', 'pullboard.json');
-    box.git(box.root, 'commit', '-q', '-m', 'chore: configure held gate [G1]');
-    box.git(seat.path, 'merge', '-q', '--ff-only', 'main');
+    gate.command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
   }
-  const first = box.add('Submitted and waiting on its gate', { brief: 'Files: web/first.js\nTest: submitted work stays the seat\'s own.' });
+  // The held command is the item's frozen check: a pulled gate runs the check phase on the runner whatever its proof selects [P7].
+  const first = box.add('Submitted and waiting on its gate', { brief: 'Files: web/first.js\nTest: submitted work stays the seat\'s own.', ...(gate ? { check: gate.command } : {}) });
   const second = box.add('New work offered while the first is checked', { brief: 'Files: web/second.js\nTest: the idle seat builds on.' });
   const claimed = await cli(box, seat.path, ['claim', String(first), '--no-next']);
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
@@ -69,8 +63,12 @@ test('next offers new work while the gate is queued or running, and the red item
   const submitted = runFixtureChildAsync(process.execPath, [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), 'submit', String(first), '--no-next', '--json'], { cwd: seat.path, env: { ...process.env }, encoding: 'utf8' });
   try {
     await waitForCondition(() => existsSync(gate.entered), 'the real submit gate enters', { signal: AbortSignal.timeout(60_000) }); // Budget: runaway ceiling for a real runner gate to start.
-    const running = store.submitHandoff(box.board, first);
-    assert.equal(running?.state, 'running', `the observed gate belongs to a running submit handoff: ${JSON.stringify(running)}`);
+    const queued = JSON.parse((await submitted).stdout ?? '{}');
+    const pid = queued.localRunner?.pid;
+    if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
+    assert.equal(queued.queued, true, `the real submit queues its gate for the local runner: ${JSON.stringify(queued)}`);
+    const gateStep = async () => (await cli(box, seat.path, ['show', String(first), '--no-next'])).document?.gateJob?.step;
+    assert.ok(['claimed', 'progress'].includes(await gateStep()), 'the observed gate belongs to a pulled gate job a runner holds');
   const offered = await cli(box, seat.path, ['next', '--build']);
   assert.equal(offered.code, 0, offered.out + offered.err);
   assert.equal(offered.document.item.item_id, second, 'a running gate does not hold the seat idle');
@@ -79,7 +77,8 @@ test('next offers new work while the gate is queued or running, and the red item
   const release = await cli(box, seat.path, ['release', String(second), '--reason', 'ROUTED_ELSEWHERE', '--no-next']);
   assert.equal(release.code, 0, release.out + release.err);
   writeFileSync(gate.release, 'release');
-  await waitForCondition(() => store.submitHandoff(box.board, first)?.state === 'red', 'the real submit gate reports red', { signal: AbortSignal.timeout(60_000) }); // Budget: runaway ceiling for the owned worker to finish.
+  const red = await settledGateJob({ repo: seat.path, env: process.env, run: (cwd, ...args) => cli(box, cwd, args) }, first, { deadlineMs: 60_000 }); // Budget: runaway ceiling for the local runner to finish the gate.
+  assert.equal(red.gate?.green, false, 'the pulled gate reports red');
   const back = await cli(box, seat.path, ['next', '--build']);
   assert.equal(back.code, 0, back.out + back.err);
   assert.equal(back.document.item.item_id, first, 'the red item returns before any new work');

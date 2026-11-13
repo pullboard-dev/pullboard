@@ -289,7 +289,7 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   assert.doesNotMatch(red.stdout, /slowest test files:/);
 });
 
-test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,V10]', async () => {
+test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,V10]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = await project();
   const projectConfig = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...projectConfig, verify: { policy: 'any', unrelatedTrunkMoves: false } }, null, 2) + '\n');
@@ -573,7 +573,7 @@ async function runProfileSubmission(box, queue) {
   return { result, queued, elapsedMs: Date.now() - startedAt };
 }
 
-test('a submit timing profile records both phases and one queue wait for selected and full proofs [C7,V4,V16]', async () => {
+test('a submit timing profile records both phases and one queue wait for selected and full proofs [C7,V4,V16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   for (const scenario of [
     { name: 'affected subset', full: false, queue: true },
     { name: 'full fallback', full: true, queue: false },

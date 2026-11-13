@@ -26,6 +26,9 @@ import { context } from '../read.js';
 import { withBoard } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { localRunnerStatus } from '../../../../../packages/drive/index.js';
+import { localRunnerFolder } from '../runner/local.js';
+import { pullGit } from '../runner/git.js';
 import { installRunnerService } from '../../../../../packages/runners/index.js';
 import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
@@ -62,8 +65,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
         fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}) };
     });
-    io.result?.({ runners });
-    io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
+    // The auto-started local runner is no registered runner, so it is named from its own state file [P7].
+    const folder = localRunnerFolder();
+    const local = localRunnerStatus(folder);
+    io.result?.({ runners, ...(local ? { local } : {}) });
+    const localLine = local ? (local.state === 'live' ? `local (pid ${local.pid}, live)` : 'local (stopped)') : null;
+    if (localLine && !runners.length) { io.say(localLine); return 0; }
+    io.say(runners.length ? [...(localLine ? [localLine] : []), ...runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`)].join('\n') : 'no runners registered');
     return 0;
   }
   if (first === 'status') {
@@ -90,7 +98,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;

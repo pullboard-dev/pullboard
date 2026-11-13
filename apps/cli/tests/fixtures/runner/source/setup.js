@@ -35,7 +35,7 @@ export async function sourceSetupFailureFixture(t, { cli, git, runThroughGate, g
   const executed = join(dir, 'command-executed'), preload = join(dir, 'checkout-lock.mjs');
   for (const path of [home, machineHome, remoteHome, remoteMachineHome, repo, worker, bin]) mkdirSync(path, { recursive: true });
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+  const env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Setup Fixture', GIT_AUTHOR_EMAIL: 'setup@example.invalid',
     GIT_COMMITTER_NAME: 'Setup Fixture', GIT_COMMITTER_EMAIL: 'setup@example.invalid' };

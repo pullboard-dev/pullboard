@@ -41,12 +41,12 @@ test('Dashboard Shipping now and the Roadmap release header read the same releas
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && data.project.milestones?.some(m => m.name === '0.9.4: Restructure for Speed and Cost')`);
     for (const width of [1280, 320]) {
       await press(chrome, "document.querySelector('[data-tab=dashboard]')");
-      await chrome.waitFor("document.querySelector('#dashboard .dash-release-card .dash-release-name')");
+      await chrome.waitFor("document.querySelector('#dashboard .dash-ship .dash-ship-name')");
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      // The Dashboard draws the approved Shipping now card (#6646); the Roadmap keeps its own release header.
-      const dashboard = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-release-card'),name=c.querySelector('.dash-release-name'),bar=c.querySelector('.dash-release-bar'),keys=c.querySelector('.dash-release-keys'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}};return {eyebrow:c.querySelector('h2').textContent,eyebrowShown:getComputedStyle(c.querySelector('h2')).textTransform,name:name.textContent,nameFont:getComputedStyle(name).fontFamily,nameSize:getComputedStyle(name).fontSize,nameCase:getComputedStyle(name).textTransform,left:c.querySelector('.dash-release-left').textContent,bars:c.querySelectorAll('.dash-release-bar').length,bar:box(bar),keys:box(keys),keysBelow:keys.getBoundingClientRect().top>=bar.getBoundingClientRect().bottom,tiles:[...c.querySelectorAll('[data-dashboard-tile] .dash-tile-key')].map(n=>n.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})())"));
-      assert.equal(dashboard.eyebrow, 'Shipping now');
-      assert.equal(dashboard.eyebrowShown, 'uppercase', 'the eyebrow reads SHIPPING NOW');
+      // The Dashboard draws the approved Shipping now card (#6646, #6847); the Roadmap keeps its own release header.
+      const dashboard = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),name=c.querySelector('.dash-ship-name'),bar=c.querySelector('.dash-sbar'),keys=c.querySelector('.dash-keys'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}};return {eyebrow:c.closest('section').querySelector('.dash-shd h2').textContent,eyebrowShown:getComputedStyle(c.closest('section').querySelector('.dash-shd h2')).textTransform,name:name.textContent,nameFont:getComputedStyle(name).fontFamily,nameSize:getComputedStyle(name).fontSize,nameCase:getComputedStyle(name).textTransform,left:c.querySelector('.dash-togo').textContent,bars:c.querySelectorAll('.dash-sbar').length,bar:box(bar),keys:box(keys),keysBelow:keys.getBoundingClientRect().top>=bar.getBoundingClientRect().bottom,tiles:[...c.querySelectorAll('[data-dashboard-tile] .dash-stat-k')].map(n=>n.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})())"));
+      assert.equal(dashboard.eyebrow, 'Release');
+      assert.equal(dashboard.eyebrowShown, 'uppercase', 'the header above the card reads RELEASE (sheet v1.1)');
       assert.equal(dashboard.name, '0.9.4Restructure for Speed and Cost', 'the version, then the release name');
       assert.doesNotMatch(dashboard.nameFont, /mono/iu, 'the release name is in the body face');
       assert.equal(dashboard.nameCase, 'none', 'the release name is never set in capitals');
@@ -56,8 +56,8 @@ test('Dashboard Shipping now and the Roadmap release header read the same releas
       assert.ok(dashboard.bar.width > 0 && dashboard.keys.width > 0 && dashboard.keysBelow, `${width}px the legend sits under the bar`);
       assert.deepEqual(dashboard.tiles, ['Today’s pace', 'Right now', 'Done at this pace']);
       assert.equal(dashboard.overflow, false, `${width}px Dashboard has no horizontal overflow`);
-      // The bar and its legend paint in the formal stage colours: each segment and its swatch resolve to the same stage token.
-      const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-release-card'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','stage-ready']]){out[key]={token:token(name),fill:getComputedStyle(c.querySelector('rect.dash-release-'+key)).fill,swatch:getComputedStyle(c.querySelector('i.dash-release-'+key)).backgroundColor};}probe.remove();return out;})())"));
+      // The bar and its legend paint in the formal stage colours (Waiting is the sheet's grey): each segment and its swatch resolve to the same token.
+      const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','waiting']]){out[key]={token:token(name),fill:getComputedStyle(c.querySelector('rect.dash-seg-'+key)).fill,swatch:getComputedStyle(c.querySelector('i.dash-seg-'+key)).backgroundColor};}probe.remove();return out;})())"));
       for (const [key, seen] of Object.entries(colours)) {
         assert.equal(seen.fill, seen.token, `${width}px the ${key} segment is its stage colour`);
         assert.equal(seen.swatch, seen.token, `${width}px the ${key} legend swatch is its stage colour`);
@@ -65,7 +65,7 @@ test('Dashboard Shipping now and the Roadmap release header read the same releas
 
       await press(chrome, "document.querySelector('[data-tab=roadmap]')");
       await chrome.waitFor("document.querySelector('#roadmap .release-header .release-name')");
-      const roadmap = JSON.parse(await chrome.stable("JSON.stringify((()=>{const h=document.querySelector('#roadmap .release-header'),top=h.querySelector('.release-header-top'),title=top.querySelector('.release-name'),left=top.querySelector('.roadmap-left'),line=top.querySelector('.roadmap-forecast'),bar=h.querySelector('.roadmap-summary-bar'),legend=h.querySelector('.roadmap-summary-legend'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}},br=bar.getBoundingClientRect(),lr=legend.getBoundingClientRect();return {title:title.textContent,line:line.textContent.replace(/\\s+/g,' ').trim(),left:left.textContent.replace(/\\s+/g,' ').trim(),leftLabel:left.querySelector('[aria-label]').getAttribute('aria-label'),font:getComputedStyle(title).fontSize,header:box(h),top:box(top),lineBox:box(line),bar:box(bar),legend:box(legend),rowAligned:bar.closest('.roadmap-summary-row')===legend.closest('.roadmap-summary-row')&&br.right<=lr.left&&br.bottom>lr.top&&lr.bottom>br.top,carets:h.querySelectorAll('.release-header-toggle > .caret').length,limit:h.querySelector('.milestone-limit')?.textContent||'',overflow:document.documentElement.scrollWidth>innerWidth};})())"));
+      const roadmap = JSON.parse(await chrome.stable("JSON.stringify((()=>{const h=document.querySelector('#roadmap .release-header'),top=h.querySelector('.release-header-top'),title=top.querySelector('.release-name'),left=top.querySelector('.roadmap-left'),line=top.querySelector('.roadmap-forecast'),bar=h.querySelector('.roadmap-summary-bar'),legend=h.querySelector('.roadmap-summary-legend'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}},br=bar.getBoundingClientRect(),lr=legend.getBoundingClientRect();return {title:title.textContent,line:line.textContent.replace(/\\s+/g,' ').trim(),left:left.textContent.replace(/\\s+/g,' ').trim(),leftLabel:left.querySelector('[aria-label]').getAttribute('aria-label'),font:getComputedStyle(title).fontSize,header:box(h),top:box(top),lineBox:box(line),bar:box(bar),legend:box(legend),rowAligned:bar.closest('.roadmap-summary-row')===legend.closest('.roadmap-summary-row')&&lr.top>=br.bottom&&lr.left<br.right,carets:h.querySelectorAll('.release-header-toggle > .caret').length,limit:h.querySelector('.milestone-limit')?.textContent||'',overflow:document.documentElement.scrollWidth>innerWidth};})())"));
       assert.equal(roadmap.title, '0.9.4: Restructure for Speed and Cost');
       assert.match(roadmap.line, /^0\.5 items an hour · 3 landed in the last 6 h, 3 in the last 2 h · done in about 3 hours, /u);
       assert.equal(roadmap.left, '2 to go3 of 5 landed');
@@ -73,7 +73,8 @@ test('Dashboard Shipping now and the Roadmap release header read the same releas
       assert.equal(roadmap.carets, 1, 'Roadmap keeps its release disclosure caret');
       assert.equal(roadmap.limit, '', 'Roadmap removes the extra total-items label');
       assert.equal(roadmap.overflow, false, `${width}px Roadmap has no horizontal overflow`);
-      assert.ok(roadmap.rowAligned, `${width}px the Roadmap state key shares its aligned row with the progress bar`);
+      // The approved Roadmap mockup stacks the state key under the bar (96ebc863f2): one summary row, key below the bar and under its width.
+      assert.ok(roadmap.rowAligned, `${width}px the Roadmap state key sits directly under the progress bar in the same summary row`);
     }
     assert.deepEqual(chrome.exceptions, []);
   } finally {

@@ -119,7 +119,7 @@ before(() => {
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
     PATH: `${shims}${delimiter}${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log'),
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log'),
     PULLBOARD_RESIDENT_TRACE: join(dir, 'resident-trace.log') };
   for (const name of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_RELAY_KEY']) delete env[name];
   copyCode(code, env);
@@ -128,11 +128,11 @@ before(() => {
   chmodSync(join(shims, 'pullboard'), 0o755);
   const hook = moduleHook(dir);
   /** Run the copied CLI in a folder and return its output, exit code and wall time. */
-  const runIn = (cwd, args, { modules = false } = {}) => {
+  const runIn = (cwd, args, { modules = false, maxBuffer } = {}) => {
     if (modules) writeFileSync(env.RESIDENT_MODULE_LOG, '');
     const started = performance.now();
     // Process-level: the thin client and the resident process it reaches are the subject, so every call is a real child.
-    const result = runFixtureChild(process.execPath, [...(modules ? ['--import', hook] : []), bin, ...args], { cwd, env, encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [...(modules ? ['--import', hook] : []), bin, ...args], { cwd, env, encoding: 'utf8', ...(maxBuffer === undefined ? {} : { maxBuffer }) });
     const ms = performance.now() - started;
     const loaded = modules ? [...new Set(readFileSync(env.RESIDENT_MODULE_LOG, 'utf8').split('\n').filter(Boolean))] : null;
     return { status: result.status, stdout: result.stdout, stderr: result.stderr, ms, loaded };
@@ -166,7 +166,7 @@ before(() => {
       last = runIn(repo, ['version'], { modules: true });
       if (last.status === 0 && last.loaded.length < 20 && residentPid()) return last;
     }
-    assert.fail(`no resident process answered within 20 s; last client loaded ${last?.loaded.length} modules`);
+    assert.fail(`no resident process answered within 20 s; last client loaded ${last?.loaded.length} modules: ${(last?.loaded ?? []).map(url => url.replace(/^.*\/(apps|packages)\//, '$1/')).join(', ')}`);
   };
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, env });
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: 'true',
@@ -175,8 +175,9 @@ before(() => {
   assert.equal(runIn(repo, ['init']).status, 0);
   runFixtureGit(['add', '-A'], { cwd: repo, env });
   runFixtureGit(['commit', '-q', '-m', 'chore(repo): set up the resident fixture'], { cwd: repo, env });
-  for (const title of ['First', 'Second']) {
-    const added = runIn(repo, ['add', 'core', title, '--specs', 'H24', '--criterion', 'it works', '--brief', 'Files: src/a.js\nTest: it works.']);
+  // Distinct titles and bars, so the likely-duplicate guard does not read the second as a copy of the first.
+  for (const [title, criterion] of [['Warm the show path', 'show answers from the warm process'], ['Cache inbox rows', 'the inbox reads cached rows']]) {
+    const added = runIn(repo, ['add', 'core', title, '--specs', 'H24', '--criterion', criterion, '--brief', 'Files: src/a.js\nTest: it works.']);
     assert.equal(added.status, 0, added.stdout + added.stderr);
   }
   const worktree = join(dir, 'core-1');
@@ -511,4 +512,14 @@ test('clause 2: pullboard test --status is served by the resident process, a thi
   const warm = fx.runIn(fx.repo, ['test', '--status', 'no-such-run'], { modules: true });
   assert.ok(warm.loaded.length < 20, `test --status was served warm (client loaded ${warm.loaded.length} modules)`);
   assert.match(warm.stdout + warm.stderr, /no-such-run|run/u);
+});
+
+test('clause 1: stats --json answers through the warm resident process with testWallBudgets [C7,#6415]', () => {
+  fx.awaitResident();
+  // The scaled board's document is over spawnSync's default 1 MB buffer, so this child gets room to answer.
+  const warm = fx.runIn(fx.repo, ['stats', '--json'], { maxBuffer: 256 * 1024 * 1024 });
+  assert.equal(warm.status, 0, `${warm.stderr}`);
+  const document = JSON.parse(warm.stdout);
+  assert.ok(document.testWallBudgets && typeof document.testWallBudgets === 'object', 'the resident answer carries testWallBudgets');
+  assert.ok(document.stats, 'the resident answer carries the board stats');
 });

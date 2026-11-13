@@ -1,6 +1,7 @@
 /** @pullboard-test-input apps/cli/pullboard.js apps/lib/index.js apps/lib/src/io/worker/checkpoint/relay.js packages/link/index.js packages/outbox/index.js */
 /** Legacy API1 refusals recover without blocking moves; current API2 pause proofs live in relay-upload-pause.test.js [H16,B26]. */
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
 import {
   mkdirSync,
@@ -20,14 +21,21 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { legacyRelayClientFixture } from '../../tests/fixtures/relay/client.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
-/** Start the private relay fixture with controller dispatch: a pull-dispatch submit only queues a gate job, and these journeys read the submitted row at once (#6182-#6185). */
+/** Start the private relay fixture; its pulled gates run on the machine's loopback local runner, stopped when the test ends [P7]. */
 async function relayClientFixture(t, options) {
   const box = await legacyRelayClientFixture(t, options);
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true, mode: 0o700 });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   return box;
+}
+
+/** Settle a linked checkout's pulled submit: the fixture local runner takes the gate job and its receipt makes the item submitted [P7,#5821]. */
+function settleLinkedSubmit(t, box, cwd, submitted) {
+  const run = async (_root, ...args) => { const ran = await box.cliAt(cwd, ...args.filter(arg => arg !== '--json')); return { code: ran.code, out: JSON.stringify(ran.document), err: '' }; };
+  return settleSubmit(t, { repo: box.root, env: box.env, run }, submitted.document);
 }
 
 // The subtests each start their own private relay fixture, so they run side by side: back to back they outlast the file's wall limit on a loaded runner.
@@ -94,6 +102,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   const submitted = await box.cliAt(agentRoot, 'submit', String(item));
   assert.equal(submitted.code, 0, 'the linked agent submits locally while the baseline is refused');
   assertPaused(submitted.document);
+  await settleLinkedSubmit(t, box, agentRoot, submitted);
   const shouted = await box.cliAt(agentRoot, 'shout', 'all', 'Relay pause fixture remains available');
   assert.equal(shouted.code, 0, 'the linked agent shouts locally while the baseline is refused');
   assertPaused(shouted.document);
@@ -622,10 +631,12 @@ test('a refused later checkpoint names each distinct ordered move with the same 
     assert.match(line, /relay checkpoint refused for [0-9a-f]{32}: BAD_UPLOAD malformed sealed snapshot/u);
     assert.match(line, /moves still sync in order.*npm i -g pullboard.*relay off then relay on --all/u);
   }
-  const exported = await box.cli('export');
-  assert.equal(exported.code, 0);
-  for (const text of ['same io first ordered move', 'same io second ordered move']) {
-    assert.equal(exported.document.tables.shout.filter(row => row.shout_text === text).length, 1,
-      'each acknowledged move has exactly one committed native effect');
-  }
+  // Read the committed shout rows straight from the board file: no CLI child is needed to count them.
+  const db = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try {
+    for (const text of ['same io first ordered move', 'same io second ordered move']) {
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_text = ?').get(text).n, 1,
+        'each acknowledged move has exactly one committed native effect');
+    }
+  } finally { db.close(); }
 });

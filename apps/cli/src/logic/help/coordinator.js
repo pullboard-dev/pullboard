@@ -9,6 +9,7 @@ export const coordinatorHelp = `Coordinator
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
   pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3] [--forced "<why>"]  record verified work with its native batch receipt; --forced records hand-landed work as landed without a verify
   pullboard withdraw <id> <reason>      drop an item nobody should build
+                                        with withdraw.review on: waits for another seat's withdraw <id> --confirm or --reject
   pullboard refreeze <id>               adopt a corrected criterion or changed spec rows
   pullboard reopen <id> [--withdraw-verdict] --note "why" [--cause <key>]
                                         withdraw your own accept before landing, or coordinator-return a submission
