@@ -35,7 +35,7 @@
   --accent: var(--stage-merged); --idle: light-dark(#ececec, #232e29); --waiting: light-dark(#d6d6d6, #34423b);
   --building-ink: var(--stage-building); --building-soft: light-dark(#e8eef7, #142231); --review-ink: light-dark(#8a6400, #e4b25a);
   --review-soft: light-dark(#faf2dc, #241d10); --merged-soft: light-dark(#e6f4ec, #10231c);
-  --dash-card: var(--radius-md); --dash-chip: var(--radius-sm);
+  --dash-card: var(--radius-card); --dash-chip: var(--radius-chip);
   /* Sheet v1.1: numbers are the sans with tabular figures; monospace only for ids, seats, commits and code. */
   --code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; --mono: var(--sans);
   display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); min-width: 0; color: var(--ink); font-size: var(--text-md); line-height: 1.45; font-variant-numeric: tabular-nums;
@@ -64,7 +64,7 @@
 .dash-live .dash-icon { width: 13px; height: 13px; }
 .dash-live .dash-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ink-faint); }
 .dash-dot.building { background: var(--stage-building); } .dash-dot.review { background: var(--stage-review); } .dash-dot.merged { background: var(--stage-merged); }
-.dash-dot.ready { background: var(--stage-ready); } .dash-dot.gated, .dash-dot.waiting { background: var(--stage-gated); } .dash-dot.back { background: var(--mark-back); }
+.dash-dot.ready { background: var(--stage-ready); } .dash-dot.gated, .dash-dot.waiting { background: var(--stage-gated); } .dash-dot.gate { background: var(--stage-gate); } .dash-dot.back { background: var(--mark-back); }
 .dash-dot.held { background: none; border: 1.5px dashed var(--mark-held); width: 8px; height: 8px; }
 .dash-dot.landing { background: var(--stage-stripe); }
 

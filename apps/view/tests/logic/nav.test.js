@@ -135,8 +135,8 @@ test('clause 2: every filter and search has its own address, a default leaves no
   assert.equal(withPlaceQuery('?k=secret&state=verify&q=old', []), '?k=secret', 'leaving a place drops its keys and keeps the rest');
   assert.equal(withPlaceQuery('', []), '');
   assert.deepEqual(readPlaceQuery('?k=secret&state=verify&lane=web&q=greeting+card&rows=all&shouts=mine&activity=landed&shipped=1&by=coordinator'),
-    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed', shipped: '1', by: 'coordinator' });
-  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null, shipped: null, by: null });
+    { state: 'verify', lane: 'web', q: 'greeting card', rows: 'all', shouts: 'mine', activity: 'landed', shipped: '1', by: 'coordinator', win: null });
+  assert.deepEqual(readPlaceQuery(''), { state: null, lane: null, q: null, rows: null, shouts: null, activity: null, shipped: null, by: null, win: null });
   for (const place of [{ tab: 'items', state: 'gated', lane: 'core' }, { tab: 'items', state: 'all', q: '#12' }, { tab: 'doctrine', rows: 'repo', rowsDefault: 'all' }, { tab: 'shouts', shouts: 'mine' }]) {
     const read = readPlaceQuery(at(place));
     assert.deepEqual(placeQuery({ ...place, ...Object.fromEntries(Object.entries(read).filter(([, value]) => value !== null)) }), placeQuery(place), `${JSON.stringify(place)} reads back as itself`);
@@ -224,7 +224,7 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.match(pageControlsHtml({ tab: 'shouts', shouts: 'you' }), /data-value="you" class="on"/u);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'roadmap' })), ['Show shipped'], 'Roadmap: Show shipped');
   assert.match(pageControlsHtml({ tab: 'roadmap', shipped: true }), /aria-pressed="true">Hide shipped</u);
-  assert.deepEqual(labels(pageControlsHtml({ tab: 'activity', people: ['agent-1', 'coordinator', 'person'] })), ['Everyone', 'agent-1', 'The coordinator', 'You'], 'Activity: a person filter');
+  assert.deepEqual(labels(pageControlsHtml({ tab: 'activity', people: ['agent-1', 'coordinator', 'person'] })), ['All', 'Landed', 'Sent back', 'Held', 'Blocked', 'Pending review', 'Rulings', 'Shouts', 'Everyone', 'agent-1', 'The coordinator', 'You', '6 h', '12 h', '24 h'], 'Activity: the event filters, a person filter and the window');
   assert.match(pageControlsHtml({ tab: 'activity', by: 'coordinator', people: ['coordinator'] }), /<option value="coordinator" selected>/u);
   for (const tab of ['spec', 'doctrine', 'dashboard', 'cost', 'settings', null]) assert.equal(pageControlsHtml({ tab }), '', `${tab}: nothing to control shows nothing`);
 
@@ -284,9 +284,11 @@ test('clause 1: the top right is one account control, the person\'s initial when
   assert.match(accountHtml({ signedIn: false }), />Sign in<\/button>$/u);
   const text = (html) => [...html.matchAll(/<(?:b|small|button)[^>]*>(.*?)<\/(?:b|small|button)>/gu)].map((m) => m[1].replace(/<[^>]+>/gu, ''));
   const signedIn = accountMenuHtml({ signedIn: true, login: 'coreyolson', theme: 'dark' });
-  assert.deepEqual(text(signedIn), ['@coreyolson', 'GitHub', 'Settings,', 'ThemeDark', 'Pair a phone']);
+  assert.deepEqual(text(signedIn), ['@coreyolson', 'GitHub', 'Settings', 'ThemeDark', 'Pair a phone']);
   const signedOut = accountMenuHtml({ signedIn: false });
-  assert.match(signedOut, /Not signed in/u);
+  assert.doesNotMatch(signedOut, /Not signed in|class="who"|<small>/u, 'signed out is one quiet row, no banner block');
+  assert.equal(text(signedOut)[0], 'Sign in with GitHub');
+  assert.doesNotMatch(signedIn + signedOut, /Settings<span>/u, 'no stray comma after Settings');
   assert.match(signedOut, /data-account-signin>Sign in with GitHub</u);
   assert.doesNotMatch(signedIn + signedOut, /Sign out/u, 'no Sign out row: the view has no real sign-out yet, and relay off is destructive');
   for (const html of [signedIn, signedOut]) for (const word of ['Settings', 'Theme', 'Pair a phone']) assert.match(html, new RegExp(word, 'u'));

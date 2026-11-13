@@ -114,7 +114,7 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
   const environment = gate.environment && ['node', 'platform', 'arch'].every(key => typeof gate.environment[key] === 'string' && gate.environment[key])
     ? { node: gate.environment.node, platform: gate.environment.platform, arch: gate.environment.arch } : null;
   // A plain submit's receipts are reusable by review: they name the admission witness and the plan they ran [C7,H16].
-  const reuse = admission ? { submitAdmission: admission.id, submitReuse: true, submitReusePlan: reusePlanDigest({ check: check ?? '', files: pulledProofFiles(receipt),
+  const reuse = admission ? { submitAdmission: admission.id, submitReuse: true, submitReusePlan: reusePlanDigest({ check: check ?? '', files: pulledProofFiles(receipt), deferred: gate.deferred === true,
     proofCommand: gate.analysis?.proofCommand ?? '' }) } : {};
   const ids = [];
   for (const phase of gate.phases ?? []) {
@@ -144,8 +144,8 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
  * (packages/verify/src/logic/plan.js), restated here because this cell may not import verify; the review-reuse journey
  * fails when they drift [C7,H16].
  */
-function reusePlanDigest({ check, files, proofCommand }) {
-  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full: false, deferred: false, proofCommand: proofCommand || '' })).digest('hex');
+function reusePlanDigest({ check, files, deferred = false, proofCommand }) {
+  return createHash('sha256').update(JSON.stringify({ check: check || '', files: [...files].sort(), full: false, deferred, proofCommand: proofCommand || '' })).digest('hex');
 }
 
 /** The files a pulled gate's proof ran, as its analysis named them. */
@@ -525,13 +525,17 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     // A red only in main's own frozen-check cases is a green gate that names them main-owned, as the controller's verdict records [C7,#3534].
     const owners = mainOnly ? mainOwnership(board, id, compared, main) : null;
     const gateGreen = green || Boolean(owners?.checkOnly);
+    // Deferral is the plan's own: the runner's receipt carries it, as the controller's gate returns it [C7].
+    const deferred = receipt.gate?.deferred === true;
+    const deferredFiles = deferred && Array.isArray(receipt.gate.deferredFiles) && receipt.gate.deferredFiles.every(file => typeof file === 'string' && PROJECT_FILE.test(file)) ? receipt.gate.deferredFiles : null;
     try {
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
       const companion = submit.companion ? { ...submit.companion, receiptIds: phaseReceipts.map(row => row.id),
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
       store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
+        ...(deferred && typeof receipt.gate.deferNote === 'string' ? { note: receipt.gate.deferNote.replace(/[\r\n\u2028\u2029]/gu, ' ') } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
-        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
+        submissionProof: { version: 1, files, full: false, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
           ...(owners?.known ? { knownMainFailures: owners.known } : {}) } });
       if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
       if (mainOnly) {

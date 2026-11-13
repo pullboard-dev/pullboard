@@ -1,7 +1,7 @@
 /** Optional indexed flow-report accounting around the canonical lifecycle reducer [R1,R2]. */
 const STAGES = ['ready', 'later', 'build', 'reviewWait', 'review', 'mergeWait', 'rework'];
 const BUCKETS = ['under100', '100to300', '300to800', '800plus', 'unknown'];
-export const FLOW_REPORT_VERSION = 3;
+export const FLOW_REPORT_VERSION = 4;
 
 /** Only lifecycle and recorded policy moves can change report accounting. */
 export function reportEvent(event, detail) {
@@ -41,7 +41,8 @@ export function frozenReport(value) {
 function stage(item, policy, at) {
   const report = item.report;
   if (!report.known || ['merged', 'withdrawn'].includes(item.state)) return null;
-  if (item.state === 'claimed') return Number.isFinite(item.leaseUntil) && item.leaseUntil <= at ? 'rework' : 'build';
+  // A claim past its lease was not sent back by anyone: it waits to be taken again, so it is not rework.
+  if (item.state === 'claimed') return Number.isFinite(item.leaseUntil) && item.leaseUntil <= at ? 'ready' : 'build';
   if (item.state === 'submitted') return item.reserve && (!Number.isFinite(item.reserve.until) || item.reserve.until > at) ? 'review' : 'reviewWait';
   if (item.state === 'accepted') return 'mergeWait';
   if (item.state !== 'open') return null;
@@ -88,7 +89,6 @@ export function projectReportWindows(items, policy, now, windows) {
 /** Preserve missing lifecycle boundaries before the canonical transition replaces them. */
 export function prepareReportMove(item, event, detail) {
   const report = item.report;
-  if (item.state === 'claimed' && Number.isFinite(item.leaseUntil) && item.leaseUntil <= Date.parse(event.event_at)) report.returned = true;
   report.matchingDecision = ['accept', 'reject'].includes(event.event_kind) && item.state === 'submitted' && detail.commit === item.commit;
   if (event.event_kind === 'submit' && item.state !== 'claimed') report.missing.push('build');
   if (['accept', 'reject'].includes(event.event_kind) && detail.commit === item.commit && item.state === 'submitted') {
@@ -105,7 +105,8 @@ export function recordReport(item, event, detail) {
   if (event.event_kind === 'hold_item') report.held = true;
   if (event.event_kind === 'unhold_item') report.held = false;
   if (event.event_kind === 'claim') report.returned = false;
-  if (['reject', 'reopen', 'refreeze', 'escalate', 'lapse'].includes(event.event_kind) && !(event.event_kind === 'refreeze' && detail.retainedClaim) || event.event_kind === 'release' && !detail.review && item.state === 'open') report.returned = true;
+  // Rework is time after a reviewer sent the item back; a release, a lapse, an escalation or a refreeze sends nothing back.
+  if (['reject', 'reopen'].includes(event.event_kind)) report.returned = true;
   if (event.event_kind === 'submit') {
     if (!Number.isFinite(item.claimAt)) report.missing.push('build');
     report.submissions += 1;

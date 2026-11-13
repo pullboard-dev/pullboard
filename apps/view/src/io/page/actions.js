@@ -6,14 +6,7 @@
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart4(scope) {
-return `function showFlow(shown) {
-  keep('pb.flow', shown ? 'shown' : 'hidden');
-  $('flow-panel').hidden = !shown;
-  $('flow-show').setAttribute('aria-expanded', String(shown));
-  if (shown && data && data.project) $('flow').innerHTML = lifecycleChart(data.project, data.project.moveCounts ? new Map(Object.entries(data.project.moveCounts)) : moveCounts(data.project.items), data.project.items.filter(item => stateOf(item) === 'back').length);
-}
-
-function showTab() {
+return `function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
   document.documentElement.dataset.tab = view.tab;
@@ -28,7 +21,8 @@ function placeAtAddress(page = data) {
   const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const hash = location.hash || '';
   // A place's filters and search ride in the query: the page's own on a routed host, after a "?" in the fragment elsewhere.
-  const query = readPlaceQuery(routed ? location.search || '' : hash.includes('?') ? hash.slice(hash.indexOf('?')) : '');
+  const search = routed ? location.search || '' : hash.includes('?') ? hash.slice(hash.indexOf('?')) : '';
+  const query = { ...readPlaceQuery(search), ...readRoadmapPlace(search) };
   let path = routed ? location.pathname || '/' : hash.split('?')[0].slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
   if (hash.startsWith('#shout-')) path = 'shouts/' + hash.slice(7);
@@ -52,7 +46,8 @@ function placePairs(tab = view.tab) {
   return placeQuery({ tab, state: view.state, stateDefault: snapshot ? 'all' : 'active', lane: view.lane, q: $('q')?.value ?? '',
     rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
     shouts: view.shoutFilter, activity: view.activityFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, win: view.activityWin || 24,
+    release: view.roadmapPage?.release ?? null, page: view.roadmapPage?.page ?? 1 });
 }
 
 /** Name each repo even beneath a group; one repo needs no prefix. */
@@ -108,8 +103,13 @@ function applyPlace(place, kept = null) {
   if (view.tab === 'items' || query.state || query.lane) { view.state = query.state || (query.q ? 'all' : snapshot ? 'all' : 'active'); view.lane = query.lane; view.before = query.q && !query.state ? (snapshot ? 'all' : 'active') : null; }
   if (view.tab === 'spec' || view.tab === 'doctrine') view.rows[view.tab] = query.rows || (place.detail !== null ? 'all' : view.tab === 'spec' ? 'decide' : 'all');
   if (view.tab === 'shouts') view.shoutFilter = query.shouts || 'all';
-  if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; }
-  if (view.tab === 'roadmap') view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
+  if (view.tab === 'activity') { view.activityFilter = query.activity || 'all'; view.activityBy = query.by || null; view.activityWin = Number(query.win) || 24; }
+  if (view.tab === 'roadmap') {
+    view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
+    // The release a person opened and the page of its landed items come back with the address, so a reload keeps them.
+    view.roadmapPage = query.release ? { release: query.release, page: query.page } : null;
+    if (query.release) view.roadmapOpen.set(JSON.stringify([view.root, 'm:' + query.release]), true);
+  }
   if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
   keep('pb.project', view.root);
   if (place.tab !== 'roadmap') keep('pb.tab', place.tab);
@@ -149,7 +149,7 @@ function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
   const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && (!readOnly || requests) });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24, writable: !snapshot && (!readOnly || requests) });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
   if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
@@ -174,6 +174,8 @@ function pageControl(target) {
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
   else if (kind === 'by') view.activityBy = value || null;
+  else if (kind === 'activity') view.activityFilter = value || 'all';
+  else if (kind === 'win') view.activityWin = Number(value) || 24;
   else if (kind === 'shouts') { view.shoutFilter = value; view.shoutThread = null; view.shout = null; view.addressDetail = null; }
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
   drawPageControls();
@@ -985,8 +987,6 @@ document.addEventListener('click', (event) => {
 document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
-  const activityFilter = event.target.closest('[data-activity-filter]');
-  if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; address(); render(); return; }
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
     // Every Dashboard count opens Items narrowed to what it counts (#6847): its stage, and its lane when it names one.
@@ -1033,7 +1033,7 @@ document.addEventListener('click', (event) => {
     itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
     return;
   }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side, #proj-switch, #proj-menu')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const control = event.target.closest('button[data-page-ctl]');
@@ -1085,6 +1085,13 @@ document.addEventListener('click', (event) => {
       const detail = roadmapDetails.get(JSON.stringify([view.root, key]));
       if (detail) panel.innerHTML = detail();
     }
+    // Opening a release puts it in the address, at the page of landed items it was on; closing it takes it out.
+    if (key.startsWith('m:')) {
+      const name = key.slice(2), paged = view.roadmapPage?.release === name;
+      if (open) view.roadmapPage = { release: name, page: paged ? view.roadmapPage.page : 1 };
+      else if (paged) view.roadmapPage = null;
+      address(false);
+    }
     t.setAttribute('aria-expanded', String(open));
     if (panel) panel.hidden = !open;
     requestAnimationFrame(() => setTimeout(() => {
@@ -1093,6 +1100,7 @@ document.addEventListener('click', (event) => {
     }));
     return;
   }
+  if ('roadmapPage' in t.dataset) { view.roadmapPage = { release: t.dataset.roadmapPage, page: Number(t.dataset.page) || 1 }; address(); render(); return; }
   if ('roadmapAll' in t.dataset) { view.roadmapOnly = null; render(); return; }
   if ('roadmapHeld' in t.dataset) { view.roadmapHeld = view.roadmapHeld === t.dataset.roadmapHeld ? null : t.dataset.roadmapHeld; render(); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
@@ -1248,9 +1256,6 @@ $('spec-approve-form').addEventListener('submit', (event) => {
   if (asked && asked.root === view.root) decideRow('spec', 'spec-approve', { ids: asked.ids.join(' ') });
 });
 $('answer-cancel').addEventListener('click', () => answer(null));
-$('flow-show').addEventListener('click', () => showFlow($('flow-panel').hidden));
-$('flow-panel').hidden = keep('pb.flow') !== 'shown';
-$('flow-show').setAttribute('aria-expanded', String(!$('flow-panel').hidden));
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
 /** Pick the scheme the page does not show now, and keep it. */
 function flipTheme() {
