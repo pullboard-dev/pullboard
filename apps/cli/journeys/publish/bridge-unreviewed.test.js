@@ -19,7 +19,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 test('a later verified item cannot hide an unreviewed commit and grafted ancestry publishes nothing [B3,R3]', async t => {
   const proven = bridgeProject(t);
-  const entries = landBridgeItems(proven, { independent: true });
+  const entries = await landBridgeItems(proven, { independent: true });
   assert.ok(onBoard(proven, board => entries.every(entry => store.acceptedVerdict(board, store.getItem(board, entry.id)).assurance === 'independent')),
     'the positive uses actual CLI checks and immutable independently registered fixture parent receipts');
   const github = await bridgeProvider(t, proven);

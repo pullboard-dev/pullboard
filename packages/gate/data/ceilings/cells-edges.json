@@ -6145,12 +6145,6 @@
     "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
     ],
-    "packages/runners/src/io/dispatch.js": [
-      "apps/runner"
-    ],
-    "packages/runners/src/io/pull/delegate.js": [
-      "apps/runner"
-    ],
     "packages/runners/tests/fixtures/advance.js": [
       "apps/cli"
     ],
