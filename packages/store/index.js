@@ -8,6 +8,7 @@ export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
+export { compactJobSteps, jobHistory, stepArchivePath, COMPACT_AFTER_DAYS, STEP_ARCHIVE_NAME } from './src/io/board/compact.js';
 export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
 export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
 export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
