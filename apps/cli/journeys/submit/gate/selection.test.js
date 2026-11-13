@@ -34,7 +34,7 @@ async function childFailureSubmitBox(t, testSource) {
     '  throw error;',
     '};',
   ].join('\n'));
-  box.env.LISTEN_DENIAL_SHIM = join(box.root, 'test/listen-denial.js');
+  box.env.FIXTURE_LISTEN_DENIAL_SHIM = join(box.root, 'test/listen-denial.js');
   put(box.root, 'test/child-listener.test.js', testSource);
   commitAll(box);
   box = builderRepo(box);
@@ -54,7 +54,7 @@ function childListenerTestSource() {
     "import { spawnSync } from 'node:child_process';",
     "import '../src/listener-probe.js';",
     "test('the server child binds', () => {",
-    "  const child = spawnSync(process.execPath, ['--import', process.env.LISTEN_DENIAL_SHIM, '--input-type=module', '-e', \"import { createServer } from 'node:net'; createServer().listen(0, '127.0.0.1');\"], { encoding: 'utf8' });",
+    "  const child = spawnSync(process.execPath, ['--import', process.env.FIXTURE_LISTEN_DENIAL_SHIM, '--input-type=module', '-e', \"import { createServer } from 'node:net'; createServer().listen(0, '127.0.0.1');\"], { encoding: 'utf8' });",
     "  assert.equal(child.status, 0, `App exited before listening (code ${child.status}, signal ${child.signal}):\\n${child.stderr}`);",
     '});',
   ].join('\n');
