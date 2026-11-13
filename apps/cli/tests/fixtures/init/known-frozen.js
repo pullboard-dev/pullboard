@@ -58,7 +58,8 @@ export function source(expected) {
 /** A claimed item whose frozen check runs test/frozen.test.js, red on main or green on main per `main`. */
 export function fixture(t, { main = 2, candidate = 2, check = FROZEN } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-frozen-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  // The fixture's local runner may still be finishing a main-test job as the test ends, so removal retries as it settles.
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
