@@ -604,11 +604,11 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     assert.ok(!r.panelShown && r.showAgents && r.showAgents.left >= r.asks.right, `hidden, Show agents sits on the composer's line after the asks: ${JSON.stringify([r.asks, r.showAgents])}`);
     await click('.asks-slot [data-agents-toggle]');
     assert.ok((await read()).panelShown, 'and brings the panel back');
-    // A sent shout shows as a row in the conversation list; no note pushes into the composer's line.
+    // A sent shout shows in the feed, as a row or as a card in the open thread; no note pushes into the composer's line.
     await chrome.stable("document.querySelector('#shout-text').focus()");
     await chrome.send('Input.insertText', { text: 'Footer after the greeting.' });
     await click('#shout-send');
-    await chrome.waitFor("[...document.querySelectorAll('#feed .conversation-row')].some((row) => row.textContent.includes('Footer after the greeting.'))", 15_000); // budget: hang ceiling for the sent shout to appear as a conversation row; no throughput claim.
+    await chrome.waitFor("[...document.querySelectorAll('#feed .conversation-row, #feed .shout')].some((row) => row.textContent.includes('Footer after the greeting.'))", 15_000); // budget: hang ceiling for the sent shout to appear as a conversation row; no throughput claim.
     r = await read();
     assert.equal(r.okNote, false, 'a sent shout is its row, with no note beside the composer');
     // However many calls there are, each is a row: six more decisions make ten rows, none folded into a count.
