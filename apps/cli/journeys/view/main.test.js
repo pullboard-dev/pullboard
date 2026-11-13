@@ -319,9 +319,9 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   const restore = usePrivateEnvironment(box.env);
   t.after(restore);
 
-  const add = async (project, title) => {
+  const add = async (project, title, notDuplicateOf) => {
     const result = await fixtureAdd(box.runLocal, project.repo, 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'strong',
-      '--brief', 'Files: app/fixture.js\nChange: create fixture work\nTest: inspect the local API', '--check', 'true', '--json');
+      '--brief', 'Files: app/fixture.js\nChange: create fixture work\nTest: inspect the local API', '--check', 'true', '--json', ...(notDuplicateOf ? ['--not-duplicate-of', notDuplicateOf] : []));
     assert.equal(result.status, 0, result.failure ?? result.stderr);
     return JSON.parse(result.stdout).item;
   };
@@ -422,7 +422,7 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
     'the unscoped resolver still follows the registered foreign board');
 
   const localStreamTitle = `LOCAL-STREAM-${randomUUID()}`;
-  const localStreamItem = await add(local, localStreamTitle);
+  const localStreamItem = await add(local, localStreamTitle, `${localItem.item_id} stream probe differs`);
   const localFrame = await nextViewStreamEvent(reader, frame => frame.event?.event_kind === 'add'
     && frame.event.item_id === localStreamItem.item_id);
   assert.ok(!JSON.stringify(localFrame).includes(foreignTitle), 'stream event data contains no foreign item title');

@@ -128,7 +128,7 @@ export function dispatcherPass(row, { finish = finishAwaitingVerdicts, stale = s
 }
 
 /** Hand the machine over (the runners cell's), launching the successor with the gate cell's exact process start (DJ16). */
-export function handOver(tools, exit, ports = {}) { return runnersHandOver(tools, exit, { startOf: exactStart, ...ports }); }
+export function handOver(tools, exit, ports = {}) { return runnersHandOver(tools, exit, { startOf: exactStart, entry: DISPATCHER_ENTRY, ...ports }); }
 
 /** Failures a drain pass can meet from a busy disk or a busy writer: the pass is retried, never the dispatcher ended. */
 export const TRANSIENT_DRAIN_ERRORS = new Set(['SLOT_DB_LOCKED', 'BOARD_BUSY']);
@@ -197,6 +197,9 @@ export function reportDispatcherRetry(error, waitMs) {
   catch { /* an unwritable log still leaves stderr, and the retry itself still happens */ }
 }
 
+/** This file inside a captured tools tree: the entry a launcher starts, named here so the packages never reach an app [CD12]. */
+export const DISPATCHER_ENTRY = 'apps/lib/src/io/handoff/dispatcher.js';
+
 /** The argument that runs the detached recovery check a board command starts instead of the drain. */
 export const RECOVER_ARG = '--recover';
 
@@ -209,7 +212,7 @@ export const RECOVER_ARG = '--recover';
  * @returns {Promise<void>}
  */
 export async function runRecoveryCheck({ mayBeDead = handoffDispatcherMayBeDead, recover = recoverHandoffDispatcher } = {}) {
-  try { if (mayBeDead()) await recover({ loadStartOf: async () => exactStart }); }
+  try { if (mayBeDead()) await recover({ loadStartOf: async () => exactStart, entry: DISPATCHER_ENTRY }); }
   catch (error) {
     try { appendFileSync(handoffDispatcherLog(), `${new Date().toISOString()} recovery check failed: ${error.code ?? error.name}: ${error.message}\n`, { mode: 0o600 }); }
     catch { /* an unwritable log leaves the next command's check to try again */ }

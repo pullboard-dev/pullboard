@@ -116,6 +116,10 @@ export function cellSandbox(t, { model = FIXTURE_MODEL } = {}) {
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     PULLBOARD_CLAIM_BEATER: '0',
     PULLBOARD_MODEL: model,
+    // Fixture items carry near-identical numbered titles, so add's duplicate guard stays off, as in the e2e sandbox (#6864).
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
+    // The loopback runner a pull submit starts stops with this test process, as in the e2e sandbox [P7].
+    ...(process.env.PULLBOARD_TEST_RUNNER_PID ? { PULLBOARD_TEST_RUNNER_PID: process.env.PULLBOARD_TEST_RUNNER_PID } : {}),
   });
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });

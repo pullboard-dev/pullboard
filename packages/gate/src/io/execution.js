@@ -157,6 +157,7 @@ import {
 import {
   sandboxBlockedOperation,
 } from '../../../sandbox/index.js';
+import { storeName } from './store-names.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
@@ -371,7 +372,7 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
         ...(Array.isArray(run.shards) ? { shards: run.shards } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     if (lease) {
       lease.proofReceiptIds ??= [];
@@ -683,7 +684,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       ...(releaseRequest ? { participationDigest: releaseParticipationDigest(run.releaseParticipation) } : {}) });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     if (!run.proofReceiptId) retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     return receipt.id;
   } catch { return null; }

@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { failingParts } from '../../../../../packages/api/index.js';
 import { runCliInProcess } from '../../../tests/fixtures/process.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../../tests/fixtures/runner/local-stop.js';
 import {
   commitAll,
   put,
@@ -52,4 +55,22 @@ export function copyRepositoryFixture(box, repository, tracked) {
     stagedBytes += estimate; pending = true;
   }
   return pending ? commitAll(box) : head;
+}
+
+/**
+ * Submit item 1 as the fixture's builder and wait for its pulled gate, answering in the shape an inline submit once printed:
+ * code 1 when the gate came back red, with the board's failing parts (the builder's own shout text) and the gate job's receipt in `err`.
+ * Why: a pulled submit queues its gate and returns at once; the verdict (a red gate, a sandbox refusal) is the runner's receipt [C7,P7].
+ *
+ * @param {import('node:test').TestContext} t
+ * @param {{ root: string, env: object, dir: string }} box - A fixture box from privateRepo or builderRepo.
+ * @param {Function} run - (...args) => { code, out, err } or a promise of it: the box's own sync run or runLocal.
+ * @returns {Promise<{ code: number, out: string, err: string, gateJob: object | null }>}
+ */
+export async function submitSettled(t, box, run) {
+  t.after(() => { stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME); });
+  const submitted = await run('submit', '1', '--json');
+  if (submitted.code !== 0) return { ...submitted, gateJob: null };
+  const settled = await settleSubmit(t, { repo: box.root, env: box.env, run: (_cwd, ...args) => run(...args) }, JSON.parse(submitted.out));
+  return { code: settled.gate?.green === true ? 0 : 1, out: submitted.out, err: `${settled.gate?.green === true ? '' : failingParts({ status: 1, gate: settled.gate }).join('\n')}\n${JSON.stringify(settled.gateJob)}`, gateJob: settled.gateJob };
 }

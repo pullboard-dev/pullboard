@@ -13,7 +13,7 @@ import {
   prepareEngineMove,
 } from '../../state/index.js';
 import { REVIEW_GRANT_ENGINE } from '../../state/index.js';
-import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from './fixtures/submit.js';
 
 const BASE = 'a'.repeat(40);
 const COMMIT = 'b'.repeat(40);

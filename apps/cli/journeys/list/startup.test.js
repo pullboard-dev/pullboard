@@ -75,7 +75,7 @@ function moduleHook(dir) {
 /** A real coordinator repo with one item on its board, a counting Git shim and a module-load hook. */
 function fixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-startup-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
   const repo = join(dir, 'repo');
   const shims = join(dir, 'shims');
   const home = join(dir, 'home');
@@ -200,4 +200,13 @@ test('a read command loads only its own modules [C7]', async (t) => {
 
 test('startup budget keeps fresh read medians under 100 ms [C7]', async (t) => {
   await assertStartupBudgets(t);
+});
+
+test('offline status loads its measured module set and starts no Git beyond the board read [C7]', async (t) => {
+  const box = fixture(t);
+  const status = box.run('status', '--json');
+  assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
+  assert.deepEqual(status.gitCalls, [], `status started Git: ${status.gitCalls.join(' | ')}`);
+  // Measured 13 Nov at 1615 modules; the eleven heavy modules in its startup-heavy.json row stay until the status de-barrel lands.
+  assert.ok(status.modules.length <= 1615, `status loaded ${status.modules.length} repository modules; heavy: ${heavyBeyondRow('status', status.modules).join(', ')}`);
 });

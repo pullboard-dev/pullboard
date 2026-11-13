@@ -53,6 +53,14 @@ export function archivedToolingSource(root) {
 const PREFIX = 'pullboard-committed-runner-';
 /** The most shared controller folders left in the temp directory after a sweep, newest kept. */
 export const SHARED_KEEP_COUNT = 8;
+
+/**
+ * The runner controller entry inside a repository tree.
+ * Why: dispatch callers without a committed export run the checkout's own controller, and only this file names where it lives.
+ *
+ * @param {string} root
+ */
+export function runnerControllerEntry(root) { return join(root, 'apps/runner/src/io/controller.js'); }
 /** Shared folders this process is running from, by path, with their run counts; a sweep never removes one. */
 const inUse = new Map();
 /** The folder beside the shared exports holding one empty lease file per export and process: `<key>.<pid>`. */
