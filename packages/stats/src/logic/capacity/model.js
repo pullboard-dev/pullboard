@@ -220,13 +220,17 @@ function itemCost(item, parameters) {
 /** Evaluate the closed form once; graph and collision structure are reused by all replicates. */
 function evaluate(graph, width, parameters) {
   const finish = new Map();
+  const repairs = new Map();
   let work = 0;
   let tail = 0;
   for (const id of graph.order) {
     const item = graph.nodes.get(id);
     const cost = itemCost(item, parameters);
     if (!cost) return null;
-    work += cost.work; tail = Math.max(tail, cost.tail);
+    // Post-accept landing-repair labor is work too, now that a failed landing no longer voids the estimate.
+    if (!repairs.has(item.route)) repairs.set(item.route, landingRepair(parameters.routes.get(item.route)).work);
+    if (repairs.get(item.route) === null) return null;
+    work += cost.work + repairs.get(item.route); tail = Math.max(tail, cost.tail);
     finish.set(id, Math.max(0, ...graph.predecessors.get(id).map(dep => finish.get(dep) ?? 0)) + cost.path);
   }
   if (parameters.service === null) return null;
