@@ -95,3 +95,35 @@ export function sweepAllowed(env = process.env) {
 export async function scanStaleTests() {
   try { return sweepStaleTests({ processes: await readProcesses() }); } catch { return []; /* A census failure never blocks the queue. */ }
 }
+
+/**
+ * Record one event per stopped test process, naming its pid, command and reason.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
+ * @param {Array<{ pid: number, command: string, reason: string }>} stops - The processes the sweep stopped.
+ * @param {(db: object, kind: string, row: object, detail: string) => void} record - The liveness event writer.
+ */
+export function recordStaleStops(db, stops, record) {
+  for (const stop of stops) record(db, 'stale-test-stopped', { name: 'test-process', pid: stop.pid }, `${stop.command.slice(0, 300)}; ${stop.reason}`);
+}
+
+/** The machine sweep runs at most this often, on the cadence of lease expiry. */
+const SWEEP_EVERY_MS = 60_000;
+
+/**
+ * A sweeper for one process: each lease pass records the stops its previous scan finished, then starts the next scan when due.
+ * Why two steps: the census is read asynchronously, so its stops are written by the next pass inside a transaction.
+ * A process inside a test run never scans, because it shares the machine with other test files' live processes.
+ *
+ * @returns {{ pass: (db: object, record: Function, now?: number) => void }} The per-pass entry.
+ */
+export function staleTestSweeper() {
+  let last = 0;
+  const stopped = [];
+  return { pass(db, record, now = Date.now()) {
+    recordStaleStops(db, stopped.splice(0), record);
+    if (!sweepAllowed() || now - last < SWEEP_EVERY_MS) return;
+    last = now;
+    scanStaleTests().then(stops => { stopped.push(...stops); });
+  } };
+}
