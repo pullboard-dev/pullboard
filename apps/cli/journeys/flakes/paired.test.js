@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+import { settledCommit } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { writeTarget } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
@@ -142,7 +143,7 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   commitCandidate(builder, 'chore: controlled review candidate');
   const submitted = await builder.call('submit', String(id));
   assert.equal(submitted.code, 0, 'the fixture submits with a real green proof before its external failure is enabled');
-  const head = (await box.call('show', String(id))).document.item_commit;
+  const head = await settledCommit(box, id);
   writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
@@ -165,7 +166,7 @@ test('a frozen private check that changes its source records no pair, and verify
   builder.git('add', '-A'); builder.git('commit', '-q', '-m', 'chore: controlled private-check mutation');
   const submitted = await builder.call('submit', String(id));
   assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
-  const head = (await box.call('show', String(id))).document.item_commit;
+  const head = await settledCommit(box, id);
   writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);

@@ -23,6 +23,7 @@ import {
 import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js';
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { startFixtureLocalRunner } from '../../../../apps/cli/tests/fixtures/runner/local-start.js';
+import { whenRunnerSettles } from '../../../../apps/cli/tests/fixtures/runner/local-start.js';
 import { stopFixtureLocalRunner } from '../../../../apps/cli/tests/fixtures/runner/local-stop.js';
 import { evidenceReader } from './evidence.js';
 
@@ -165,4 +166,9 @@ export function checkedItem(box) {
   assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
   writeFileSync(box.counter, '');
   return added.document.item.item_id;
+}
+
+/** Wait for a pulled submit's gate to settle and return the item's submitted commit; the machine's local runner posts the receipt [P7,C7]. */
+export function settledCommit(box, id) {
+  return whenRunnerSettles(box.env, async () => (await box.call('show', String(id))).document?.item_commit, { deadlineMs: 180_000, what: `the gate for #${id}` });
 }
