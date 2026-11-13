@@ -43,7 +43,8 @@ function child(box, source) {
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000,
   });
-  assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+  const dump = f => { try { return readFileSync(f, 'utf8').split('\n').map(l => l.replace(/"stdinSha256":"[0-9a-f]+",?|"remote[A-Za-z]+":(true|false),?/g, '')).join('\n').slice(-3500); } catch { return 'none'; } };
+  assert.equal(result.status, 0, (result.failure || result.stderr || result.stdout) + '\nDIAG requests:' + dump(box.requests) + '\nDIAG pull:' + dump(box.requests + '.pull') + '\nDIAG phases:' + dump(box.requests + '.phases'));
   return JSON.parse(result.stdout);
 }
 
