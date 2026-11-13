@@ -19,6 +19,8 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
+import { quarantinedReds } from './flakes.js';
+import { recordPulledPairs } from './flakes.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -379,6 +381,9 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     const sharded = offerProofShards(board, { job, receipt, offered });
     if (sharded) return sharded;
   }
+  // Quarantines filed before this receipt excuse its reds; its own paired reruns are recorded after that judgement [C7,H16].
+  const excused = quarantinedReds(board, receipt);
+  recordPulledPairs(board, { job, receipt, item: id, candidate, main, submit });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
@@ -399,7 +404,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   let parts = compared ? [...trials.refused, ...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
     ...(receipt.gate.phases ?? []).flatMap(shardLogLines)] : [...trials.refused, ...failingParts(receipt)];
   if (compared?.jobs.length) parts.push(`main-test job ${compared.jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
-  if (green || mainOnly) {
+  if (green || mainOnly || excused) {
     const files = Array.isArray(receipt.gate?.analysis?.proofFiles) ? receipt.gate.analysis.proofFiles.filter(file => typeof file === 'string' && PROJECT_FILE.test(file)) : [];
     try {
       // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
@@ -407,9 +412,9 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
       store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen: green, ...(submit.infra ? { infra: submit.infra } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
-        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : ''}` } });
+        submissionProof: { version: 1, files, full: false, deferred: false, reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : excused && !green ? '; red only in quarantined cases' : ''}` } });
       if (mainOnly) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
-      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : 'red only on main\'s own cases'} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : mainOnly ? 'red only on main\'s own cases' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
       // A green gate is one real gate for every refusal on trial, counted once per receipt set, as the controller's own submit counts it [C7].
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
