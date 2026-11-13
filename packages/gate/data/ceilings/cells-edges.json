@@ -2084,10 +2084,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/git/tests/fixtures/flakes.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/github/src/io/flakes.js": {
       "cells": 2,
       "deep": 0
@@ -6147,9 +6143,6 @@
       "apps/cli"
     ],
     "packages/gate/tests/fixtures/watchdog/legacy.js": [
-      "apps/cli"
-    ],
-    "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
     ],
     "packages/landing/tests/fixtures/plan.js": [
