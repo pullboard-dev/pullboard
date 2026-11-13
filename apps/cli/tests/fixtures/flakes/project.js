@@ -21,14 +21,14 @@ import {
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../../apps/cli/tests/fixtures/child.js';
-import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js';
-import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
-import { HOST } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { evidenceReader } from './evidence.js';
+} from '../child.js';
+import { runCliInProcess } from '../process.js';
+import { fixtureMachineSettings } from '../testkit.js';
+import { HOST } from '../runner/ssh.js';
+import { installSshStandIn } from '../runner/ssh.js';
+import { evidenceReader } from '../../../../../packages/git/tests/fixtures/evidence.js';
 
-const BIN = resolve(import.meta.dirname, '../../../../apps/cli/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
 
 /** Initialize a real private board and Git history; optional pre-init source seeding can return the fixture CLI path. */
