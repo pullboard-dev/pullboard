@@ -146,8 +146,8 @@ async function remoteCells(encoded) {
     return result.stdout;
   };
   const git = (...args) => run('git', ['--no-replace-objects', ...args]);
-  // Generic projects have no Pullboard checker modules. Match the local no-cells result on the runner.
-  if (!git('ls-tree', '--name-only', input.main, '--', 'packages/codemap/index.js').toString().trim()) {
+  // Generic projects have no cells plan or Pullboard's own checker modules. Match the local no-plan result on the runner.
+  if (!git('ls-tree', '--name-only', input.main, '--', 'packages/codemap/data/plan/cells.json').toString().trim()) {
     process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify({ acceptedMain: input.main, source: input.source,
       cells: [], existingCuts: [], problems: [], warnings: [], reorg: null }) + '\n');
     return;
@@ -223,7 +223,7 @@ process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n')
  * @returns {string[]}
  */
 export function inventoryCommits(root, main, source) {
-  if (!git(root, ['ls-tree', '--name-only', main, '--', 'packages/codemap/index.js']).trim()) return [];
+  if (!git(root, ['ls-tree', '--name-only', main, '--', 'packages/codemap/data/plan/cells.json']).trim()) return [];
   const commits = [main];
   if (source) {
     const base = git(root, ['merge-base', main, source]).trim();

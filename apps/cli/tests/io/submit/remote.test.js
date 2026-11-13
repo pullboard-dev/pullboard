@@ -24,7 +24,7 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
   try {
     git('init', '--quiet');
     put('package.json', '{"type":"module"}\n');
-    put('packages/codemap/index.js', 'export {};\n');
+    put('packages/codemap/data/plan/cells.json', '{"version":1,"cells":[]}\n');
     const trustedGate = 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }; export function readAcceptedCells(){}; export function warmAcceptedCells(){}\n';
     put('packages/gate/index.js', trustedGate);
     put('packages/landing/index.js', 'export function withMainCheckout(){}\n');

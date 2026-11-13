@@ -25,8 +25,8 @@ test('submit skips cells inventory for an accepted private tree without a cells 
   box.git(box.web, 'add', 'web/page.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): update generic project [G1]');
   const acceptedMain = box.git(box.repo, 'rev-parse', 'main');
-  assert.equal(box.git(box.repo, 'ls-tree', '--name-only', acceptedMain, '--', 'packages/codemap/index.js'), '',
-    'the accepted private Git tree has no cells tooling');
+  assert.equal(box.git(box.repo, 'ls-tree', '--name-only', acceptedMain, '--', 'packages/codemap/data/plan/cells.json'), '',
+    'the accepted private Git tree has no cells plan');
 
   const submitted = await box.runLocal(box.web, 'submit', String(id), '--wait', '--no-next');
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
