@@ -209,7 +209,7 @@ export function registerRunnerJobLostTests() {
     assert.match(retry.unavailable[0].until, /exact-job cleanup/u);
     assert.equal(retry.unavailable[0].diagnostic.confirmingProbe, null, 'ordinary healthy SSH cannot erase unknown cleanup');
   });
-  test('cleanup timeout settles owned TERM-ignoring SSH and inherited pipes without claiming remote cleanup [C7,H16]', async t => {
+  test('cleanup timeout settles owned TERM-ignoring SSH and inherited pipes without claiming remote cleanup [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
     const box = transport(t, 'cleanup'), result = await run(box), recorded = JSON.parse(readFileSync(box.record, 'utf8'));
     assert.equal(result.code, 'RUNNER_CLEANUP_TIMEOUT');
     assert.equal(result.diagnostic.request, recorded.job);
@@ -222,7 +222,7 @@ export function registerRunnerJobLostTests() {
     assert.equal(waited[0].command, process.execPath);
     assert.match(result.message, new RegExp(`pid=${waited[0].pid} command=`));
   });
-  test('independent job observations never invent remote owner death [C7,H16]', { concurrency: 3 }, async t => {
+  test('independent job observations never invent remote owner death [C7,H16]', { concurrency: 3, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
     await Promise.all(['running', 'unknown', 'healthy'].map(mode => t.test(`a ${mode} job observation never invents remote owner death [C7,H16]`, async child => {
     const box = transport(child, mode), result = await run(box, true);
     assert.notEqual(result.code, 'RUNNER_JOB_LOST');
