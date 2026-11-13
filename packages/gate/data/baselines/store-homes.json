@@ -206,9 +206,6 @@
   "packages/config/src/io/git/sync.js": {
     "git-sync.json": 1
   },
-  "packages/config/src/io/main.js": {
-    "pullboard.json": 1
-  },
   "packages/config/src/io/settings/inventory.js": {
     "state.json": 1,
     "pullboard.json": 1,
