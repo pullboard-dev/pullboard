@@ -34,3 +34,14 @@ test('Items never cuts a question id off: the folded group shows each id whole [
   assert.match(css, /\.needs-fold \.needs-id \{ max-width: none; overflow: visible; \}/u, 'Items shows doctrine:RG4901 whole');
   assert.match(css, /\.needs-fold-questions \.needs-group-head \{ display: none; \}/u, 'the folded group names itself once');
 });
+
+test('clause 1: the Dashboard Rulings show each reference whole and cut a title only at the row\'s width [N26]', () => {
+  const css = composeViewStyles();
+  const card = [...css.matchAll(/\.needs-card \.needs-id \{([^}]*)\}/gu)].map(match => match[1]);
+  assert.ok(card.some(rule => /max-width: none; overflow: visible;/u.test(rule)), 'no fixed width or clip on the reference in the Dashboard card');
+  assert.ok(card.some(rule => /display: block;/u.test(rule) && /overflow-wrap: anywhere;/u.test(rule)), 'on a phone the reference has its own line and wraps rather than clipping');
+  const title = /\.needs-copy b, \.needs-copy small \{([^}]*)\}/u.exec(css)?.[1] ?? '';
+  assert.match(title, /overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'a title is cut with an ellipsis where its row ends');
+  assert.doesNotMatch(title + ([...css.matchAll(/\.needs-copy b \{([^}]*)\}/gu)].map(match => match[1]).join(' ')), /(?:^|[ {;])(?:max-)?width:/u, 'no fixed width on the title');
+});
+
