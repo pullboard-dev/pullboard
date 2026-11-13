@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import {
   closeBoard,
   events,
@@ -33,18 +35,30 @@ import {
   MACHINE_MODEL,
 } from '../../../tests/fixtures/cockpit/machine.js';
 
-/** Pins controller dispatch: the fixture's accept reads the commit a controller submit records at once; pull leaves it to the gate job [P7]. */
-function pinController(box) {
+/** Unpins the cockpit machine's controller dispatch so each submit queues its gate for the local runner [P7]. */
+function pullDispatch(box) {
   const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   let settings = {};
   try { settings = JSON.parse(readFileSync(file, 'utf8')); } catch { /* no settings written yet */ }
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'pull' } });
 }
 
-test('clause 1: the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
+/** Submit in process and wait for the pulled gate job, so the review that follows sees the item in review [P7,C7]. */
+async function submitSettled(t, box, cwd, item) {
+  const env = { ...box.env, PULLBOARD_MODEL: MACHINE_MODEL };
+  /** The settle helper's CLI seam, in process like the rest of this journey. */
+  const run = async (at, ...args) => { const result = await runCliInProcess(args, { cwd: at, env }); return { code: result.status, out: result.stdout, err: result.stderr }; };
+  const submitted = await run(cwd, 'submit', String(item), '--no-next', '--json');
+  assert.equal(submitted.code, 0, `submit #${item}: ${submitted.err}${submitted.out}`);
+  const settled = await settleSubmit(t, { repo: cwd, env, run }, JSON.parse(submitted.out));
+  assert.equal(settled.gate?.green, true, `the pulled gate for #${item} is green: ${JSON.stringify(settled.gateJob)}`);
+  return settled;
+}
+
+test('clause 1: the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'The frozen timeline journey requires real Chrome.');
-  const box = machine(); pinController(box); const demo = project(box, 'item-timeline');
+  const box = machine(); pullDispatch(box); const demo = project(box, 'item-timeline');
   await box.inProcess(demo.repo, 'add', 'web', 'Timeline sentences', '--specs', 'G1', '--criterion', 'The real fixture module parses.', '--check', 'node --check web/timeline.js', '--wait');
   await box.inProcess(demo.repo, 'add', 'web', 'Reference target', '--specs', 'G1', '--criterion', 'The reference opens this actual item.');
   const reviewer = JSON.parse(await box.inProcess(demo.repo, 'worktree', 'web', '--model', 'Timeline reviewer fixture', '--json'));
@@ -62,7 +76,7 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
   for (const [kind, text] of [['note', body], ['measurement', 'The real module parsed twice.'], ['capture', 'The native item has an actual committed module.']]) {
     fixtureFacts.push(JSON.parse(await box.inProcess(demo.web, 'fact', '1', kind, text, '--json')).fact);
   }
-  await box.inProcess(demo.web, 'submit', '1', '--no-next');
+  await submitSettled(t, box, demo.web, 1);
   box.git(reviewer.path, 'switch', '--detach', head);
   await box.inProcess(reviewer.path, 'next', '--verify', '1');
   await box.inProcess(reviewer.path, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The real fixture module parses.', '--note', 'Exercise the actual sent-back timeline sentence.', '--no-next');
@@ -71,7 +85,7 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
   box.git(demo.web, 'add', 'web/timeline.js');
   box.git(demo.web, 'commit', '-m', 'test(web): correct real timeline source after review [G1]');
   const correctedHead = box.git(demo.web, 'rev-parse', 'HEAD');
-  await box.inProcess(demo.web, 'submit', '1', '--no-next');
+  await submitSettled(t, box, demo.web, 1);
   // @pullboard-board-file journey: record native health transitions in the private SQLite file read by this HTTP/Chrome journey.
   const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
