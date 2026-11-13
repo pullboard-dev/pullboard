@@ -892,10 +892,6 @@
       "kind": "json",
       "owner": "packages/flakes/src/io/native.js"
     },
-    "recovery.guard.sqlite": {
-      "kind": "sqlite",
-      "owner": "apps/cli/src/io/submit/handoff.js"
-    },
     "recovery.json": {
       "kind": "json",
       "owner": "packages/config/src/io/git/sync.js"
@@ -906,7 +902,7 @@
     },
     "refusal.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/submit/handoff.js"
+      "owner": "apps/cli/src/io/submit/handoff/worker.js"
     },
     "refusals.json": {
       "kind": "json",
@@ -946,7 +942,7 @@
     },
     "request.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/submit/handoff.js"
+      "owner": "packages/items/src/io/submit/recovery.js"
     },
     "resources.sqlite": {
       "kind": "sqlite",

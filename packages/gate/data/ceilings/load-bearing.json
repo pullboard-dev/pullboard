@@ -49,9 +49,6 @@
   "apps/cli/src/io/submit/wait.js": {
     "daemon-loop": 1
   },
-  "apps/cli/src/io/submit/handoff.js": {
-    "state-file": 11
-  },
   "apps/cli/src/io/tool/build.js": {
     "detached": 1,
     "unref": 1

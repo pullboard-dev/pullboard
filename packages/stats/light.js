@@ -13,6 +13,7 @@ export function agentSessionDigest(environment = process.env) {
 export {
   hasInputSplit,
 } from './src/logic/split.js';
+export { itemCost, publicUsage } from './src/io/cost/usage.js';
 
 /*
  * The stats that store, verify, pages and the CLI's exit rules read or write while a board command runs: no runner, agent, review or report readers,
