@@ -268,6 +268,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "adapter",
     "reason": "perf: existing source/VM/transport contract, not a pure-render witness"
   },
+  "apps/cli/journeys/init/perf/projects.test.js": {
+    "kind": "adapter",
+    "reason": "perf: existing source/VM/transport contract, not a pure-render witness"
+  },
   "apps/cli/journeys/withdraw/projector.test.js": {
     "kind": "journey",
     "reason": "projector: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
