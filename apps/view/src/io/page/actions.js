@@ -1198,7 +1198,7 @@ document.addEventListener('click', (event) => {
   if (row.hasAttribute('data-theme-flip')) { flipTheme(); return; }
   closeAccount();
   if (row.hasAttribute('data-account-signin') || row.hasAttribute('data-account-pair')) $('share-start')?.click();
-  else if (row.hasAttribute('data-account-signout')) { $('share-panel').hidden = false; $('share-status').textContent = 'To sign out, run pullboard relay off in a terminal inside each linked board. That also removes the board\'s copy on pullboard.dev.'; }
+  else if (row.hasAttribute('data-account-signout')) { $('share-panel').hidden = false; $('share-status').textContent = 'To sign out, run pullboard relay off in a terminal inside each linked board. That also removes the copy of that board on pullboard.dev.'; }
 });
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !$('account-menu').hidden) { closeAccount(); $('account')?.focus({ preventScroll: true }); return; }
