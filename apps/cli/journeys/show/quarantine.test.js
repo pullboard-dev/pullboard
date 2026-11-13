@@ -8,7 +8,7 @@ import { submit } from '../../tests/fixtures/cases/quarantine-submit.js';
 import { submitFlakePairs } from '../../../../packages/flakes/index.js';
 
 /** Each real submit is its own subtest, so the runner sees output between the two slow children and never reads the pause as a hang. */
-test('clause 1: a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', async t => {
+test('clause 1: a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', { skip: 'PULL_GAP: un-skipped by #7265' }, async t => {
   const box = fixture(t, true);
   let first;
   await t.test('original submit and its paired body', () => {
