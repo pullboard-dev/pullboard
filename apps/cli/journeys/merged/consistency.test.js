@@ -142,11 +142,11 @@ function countPairs() {
       recentEvents.filter(event => ['reject', 'reopen'].includes(event.event_kind)).length,
       recentEvents.filter(event => event.event_kind === 'shout' && JSON.parse(event.event_detail).to === 'person').length].entries()) {
       const value = chips[index]?.textContent.trim().split(/\s+/)[0];
-      if (value === '—') add('Dashboard/explicitly unknown historical count/' + index, historyLoading, true);
+      if (chips[index]?.classList.contains('dash-unread')) add('Dashboard/unread count says why on hover/' + index, Boolean(historyLoading && chips[index].title.includes('not read yet')), true);
       else add('Dashboard/4h chip/' + index, Number.parseInt(value?.replaceAll(',', ''), 10), expected);
     }
     const rate = document.querySelector('.dash-rate');
-    add('Dashboard/all-time landed', Number(/(\d[\d,]*) landed all time/.exec(rate.textContent)?.[1].replaceAll(',', '')), p.dashboardLanded.length);
+    add('Dashboard/all-time landed', Number(/(\d[\d,]*) landed all time/.exec(rate.textContent)?.[1].replaceAll(',', '')), items.filter(item => item.merged || item.stage === 'merged').length);
     const bins = all('.dash-chart rect title').map(node => Number(/(\d+) landed$/.exec(node.textContent)?.[1] || 0));
     if (bins.length) {
       add('Dashboard/landing histogram total', bins.reduce((sum, count) => sum + count, 0), landedInDay.size);
@@ -158,10 +158,10 @@ function countPairs() {
     const release = p.milestones.find(milestone => !milestone.shipped && milestone.summary?.left > 0);
     if (release) {
       const entries = release.items.filter(ref => items.some(item => item.id === ref.id));
-      const landed = entries.filter(ref => p.dashboardLanded.some(item => item.id === ref.id)).length;
-      const headline = document.querySelector('.dash-release-card .roadmap-left');
-      const progress = headline?.querySelector('[aria-label]')?.getAttribute('aria-label').match(/^(\d+)\/(\d+) landed$/);
-      const summary = document.querySelector('.dash-release-card .roadmap-summary-bar');
+      const landed = entries.filter(ref => items.some(item => item.id === ref.id && (item.merged || item.stage === 'merged'))).length;
+      const headline = document.querySelector('.dash-release-card .dash-release-left');
+      const progress = headline?.querySelector('span')?.textContent.replaceAll(',', '').match(/^(\d+) of (\d+) landed$/);
+      const summary = document.querySelector('.dash-release-card .dash-release-bar');
       add('Dashboard/release remaining', number(headline?.querySelector('b')), entries.length - landed);
       add('Dashboard/release landed', Number(progress?.[1]), landed);
       add('Dashboard/release total', Number(progress?.[2]), entries.length);
@@ -172,7 +172,7 @@ function countPairs() {
   if (view.tab === 'dashboard' && view.addressDetail === 'floor') {
     source('[data-floor-stat], .floor-foot');
     const recent = p.events.filter(event => Date.parse(event.event_at) > Date.now() - 4 * 3_600_000);
-    const landedIds = new Set(p.dashboardLanded.map(item => item.id));
+    const landedIds = new Set(items.filter(item => item.merged || item.stage === 'merged').map(item => item.id));
     const dayIds = new Set(p.events.filter(event => event.event_kind === 'merged'
       && Date.parse(event.event_at) > Date.now() - 24 * 3_600_000
       && p.dashboardLanded.some(item => item.id === event.item_id && item.commit === JSON.parse(event.event_detail).commit)).map(event => event.item_id));
