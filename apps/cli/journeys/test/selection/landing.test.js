@@ -93,7 +93,7 @@ test('alpha keeps its front door value [G1]', () => { appendFileSync(${JSON.stri
   assert.ok(!json(box, box.repo, 'show', String(entry.id)).item_merged_commit, 'the change that breaks the contract never lands');
 });
 
-test('a runner that ignores selected units cannot report a false green [C7,V4]', { skip: 'PULL_GAP: un-skipped by #7184' }, async t => {
+test('a runner that ignores selected units cannot report a false green [C7,V4]', { skip: 'PULL_GAP: un-skipped by #7276' }, async t => {
   const box = fixture(t);
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
