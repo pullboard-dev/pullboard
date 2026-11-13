@@ -74,7 +74,9 @@ function shimmed(t) {
   writePlan(box.root, plan);
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'shimmed fixture');
-  return { ...box, plan };
+  // The cell inventory reads indexed files only (6193b1e81b), so a file a case adds after this commit is staged as it is put.
+  const put = (file, source) => { box.put(file, source); git(box.root, 'add', '--', file); };
+  return { ...box, put, plan };
 }
 
 /** Read one fixture file's current bytes. */
