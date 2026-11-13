@@ -3,7 +3,9 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 
-const PREFIX = '# pullboard test outcomes ';
+/** The line prefix a test runner frames each case outcome under; a pulled job's entry reads the same frames. */
+export const TEST_OUTCOMES_PREFIX = '# pullboard test outcomes ';
+const PREFIX = TEST_OUTCOMES_PREFIX;
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
 
 import { testOutcomeFields } from '../../../../verify/light.js';
