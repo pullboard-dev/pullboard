@@ -16,6 +16,7 @@ import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
 import { namedProofTests } from '../entry.js';
@@ -32,6 +33,14 @@ import { exitLines } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
+
+/**
+ * The tooling tree that judges this submit (RFC 0007 SC7), for the board to record with the submit it applies, so review
+ * reuses the pulled gate's receipts only under the same tooling; an unreadable pin records none and nothing is reused [C7].
+ */
+function pulledTooling(root, commit) {
+  try { return { tooling: toolingFor(root, commit).tooling }; } catch { return {}; }
+}
 
 /** The line a gate job prints its receipt on, the last line of its output; runner serve reads the same prefix. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
@@ -415,7 +424,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // The claim base rides along, so the board never excuses a red at a later main that the item's own base passed [V4,B3].
   // root: the builder checkout the board seals an owner wait from when the runner finds only lane ownership [B3,L1].
   request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files, root, ...(claimHead ? { claimBase: claimHead } : {}),
-    ...(companion ? { companion } : {}), ...(infra ? { infra } : {}) };
+    ...(companion ? { companion } : {}), ...(infra ? { infra } : {}), ...pulledTooling(root, commit) };
   // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
   withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
