@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
+import { settleSubmit } from '../submit/settle.js';
 
 export const BIN = join(import.meta.dirname, '../../../pullboard.js');
 const roots = [];
@@ -90,8 +91,9 @@ export function fixture(t, { spec, source, affectedTests = 'node test/runner.js'
   put(root, 'test/runner.js', [
     "import { appendFileSync } from 'node:fs';",
     "import { spawnSync } from 'node:child_process';",
-    // The item check marks its own runs; only gate and main-comparison runs are counted (#2349).
-    "if (process.env.MAIN_RED_RUNS && process.env.MAIN_RED_STAGE !== 'check') appendFileSync(process.env.MAIN_RED_RUNS, `${process.cwd()}\\n`);",
+    // The item check marks its own runs; only gate and main-comparison runs are counted (#2349). The log's path is written
+    // in, since a pulled gate's runner does not inherit this test's environment.
+    `if (process.env.MAIN_RED_STAGE !== 'check') appendFileSync(${JSON.stringify(env.MAIN_RED_RUNS)}, \`\${process.cwd()}\\n\`);`,
     "const files = process.argv.slice(2).length ? process.argv.slice(2) : ['test/inherited.test.js'];",
     `const result = spawnSync(process.execPath, ['--test', ...${JSON.stringify(reporter ? [`--test-reporter=${reporter}`] : [])}, ...files], { cwd: process.cwd(), env: process.env, encoding: 'utf8' });`,
     "if (result.stdout) process.stdout.write(result.stdout);",
@@ -129,6 +131,27 @@ export function builder(box) {
   assert.equal(made.code, 0, made.err || made.out);
   const root = JSON.parse(made.out).path;
   return { root, run: (...args) => cli(root, box.env, ...args) };
+}
+
+/**
+ * Submit a claimed item through its pulled gate and wait until the board has applied the gate's receipt and `until`
+ * accepts the shown item. Why: a pull submit returns queued at once and the gate's result is the item's thread, not
+ * the submit's own refusal; a red compared with main by file settles once main's receipt records [P7,C7].
+ *
+ * @returns {Promise<{ shown: object, job: { id: string, gate: object | null } }>}
+ */
+export async function settledRed(t, box, submitter, item, { args = [], until = () => true } = {}) {
+  const submitted = submitter.run('submit', String(item), ...args, '--json', '--no-next');
+  assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  let shown = null;
+  const run = (cwd, ...rest) => cli(cwd, box.env, ...rest);
+  const settled = await settleSubmit(t, { repo: submitter.root, env: box.env, run }, JSON.parse(submitted.out), { until: doc => { shown = doc; return until(doc); } });
+  return { shown, job: settled.gateJob };
+}
+
+/** The text of every fact the board recorded for one gate job's result, oldest first; the note offering the job is not one. */
+export function gateFacts(shown, job) {
+  return (shown?.thread ?? []).map(entry => String(entry.text ?? '')).filter(text => text.startsWith(`Gate job ${job} `) && !text.startsWith(`Gate job ${job} offered for `));
 }
 
 /** Assert the public refusal identifies both next steps and excludes false unique attribution. */

@@ -899,9 +899,6 @@
   "apps/cli/journeys/milestone/text.test.js": {
     "launch": 2
   },
-  "packages/api/tests/io/handoff.test.js": {
-    "launch": 1
-  },
   "apps/cli/tests/io/verify.test.js": {
     "launch": 1
   },
