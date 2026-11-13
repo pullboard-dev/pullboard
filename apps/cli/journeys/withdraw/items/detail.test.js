@@ -69,7 +69,8 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project?.items?.find((item) => item.id === 1)');
-    await chrome.waitFor('document.querySelectorAll("#detail .tl [data-event-id]").length === ' + expected.length);
+    // Consecutive moves by one seat fold into a single row, so count the events the rows carry, not the rows.
+    await chrome.waitFor('[...document.querySelectorAll("#detail .tl [data-event-ids]")].reduce((sum, row) => sum + row.dataset.eventIds.split(" ").length, 0) === ' + expected.length);
     await chrome.click("document.querySelector('#detail [data-item-panel-tab=history]')");
     await chrome.waitFor("!document.querySelector('#detail [data-item-panel-panel=history]').hidden");
     const expectedIds = expected.map((entry) => entry.eventId);
@@ -108,7 +109,8 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
       })())`));
       assert.deepEqual(rendered.eventIds.toSorted((a, b) => a - b), expectedIds, `${width}px: every rendered row retains its exact API event identities`);
       assert.ok(rendered.ids[0] > rendered.ids.at(-1), `${width}px: history is shown newest first`);
-      assert.equal(rendered.rows, expected.length, `${width}px: each API event appears exactly once`);
+      assert.equal(rendered.eventIds.length, expected.length, `${width}px: each API event appears exactly once, folded moves included`);
+      assert.ok(rendered.rows <= expected.length && rendered.rows === rendered.ids.length, `${width}px: each row carries its event ids`);
       const expectedFacts = expected.filter((entry) => entry.type === 'fact');
       assert.deepEqual(rendered.kinds, expectedFacts.toReversed().map((entry) => entry.kind.replaceAll('-', ' ')), `${width}px: every native fact kind has its readable visible chip`);
       assert.deepEqual(rendered.authors, expectedFacts.toReversed().map((entry) => entry.by), `${width}px: each fact names its API author`);
@@ -186,7 +188,7 @@ test('in-text item references stay inline and open their target at phone and des
         const need = [...document.querySelectorAll('#needs .needs-call')].find((entry) => entry.textContent.includes('Please choose'));
         const needRef = need?.querySelector('.needs-detail p a.ref[data-go]');
         const needAction = need?.querySelector('.needs-detail button[data-go]');
-        const realButton = document.querySelector('#new-item');
+        const realButton = document.querySelector('button[data-page-ctl="new"]');
         /** Measure the element box independently of the inline-link assertion. */
         const rect = node => { const r=node.getBoundingClientRect(); return {height:r.height,width:r.width}; };
         return {
@@ -334,6 +336,8 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
       for (const row of rows) {
         await chrome.click(`document.querySelector('#chain .row[data-item="${row.id}"]')`);
         await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.startsWith('#${row.id}')`);
+        // A chip's colour eases in on the row just opened; read the paint once the transitions have settled.
+        await chrome.waitFor("document.getAnimations().every((animation) => animation.playState !== 'running')");
         const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
           const chip = document.querySelector('#detail .item-panel-status .item-stage'), listed = document.querySelector('#chain .row[data-item="${row.id}"] .row-side .item-stage');
           const word = chip.querySelector('.stage-word'), listedWord = listed.querySelector('.stage-word'), seat = listed.querySelector('.item-seat');

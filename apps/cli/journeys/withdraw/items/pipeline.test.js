@@ -178,7 +178,9 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
     assert.equal(await chrome.stable("document.querySelector('#pipeline [data-pipeline-stage=verified] .pipeline-oldest').textContent"), 'No items', 'a recorded merge advances only the verified item and leaves an honest empty stage');
     await press(chrome, "document.querySelector('[data-page-ctl=view][data-value=list]')");
     await chrome.waitFor("!location.hash && !document.querySelector('#item-list').hidden && document.querySelector('#pipeline').hidden");
-    assert.equal(await chrome.stable(listRead), listBefore, 'returning to List preserves its Active rows, metadata and ordering');
+    // A stage age ticks over a minute while the case runs, so compare the rows without it.
+    const unaged = (rows) => rows.replace(/"tag":"\d+m/g, '"tag":"');
+    assert.equal(unaged(await chrome.stable(listRead)), unaged(listBefore), 'returning to List preserves its Active rows, metadata and ordering');
     assert.deepEqual(JSON.parse(listBefore).map(row => row.id).sort((a,b)=>a-b), [3,4,5,6]);
     await travel(chrome, -1);
     await settled(chrome, "typeof data !== 'undefined' && location.pathname === '/items/6' && !document.querySelector('#pipeline').hidden");

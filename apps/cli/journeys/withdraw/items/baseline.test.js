@@ -28,6 +28,7 @@ test('an item detail shows its pending, red and green check baselines from the A
     { title: 'Red baseline', command: 'node --test red.test.js', result: 'red', seconds: 2 },
     { title: 'Green baseline', command: 'node --test green.test.js', result: 'green', seconds: 1 },
   ];
+  // @pullboard-board-file journey: the view reads the baseline rows this test seeds through the real board file
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   let ids;
   try {
@@ -66,6 +67,7 @@ test('an item detail shows its pending, red and green check baselines from the A
         assert.doesNotMatch(detail, /proves nothing/, 'pending and red baselines do not claim the check proves nothing');
       }
       if (checks[index].result === 'pending') {
+        // @pullboard-board-file journey: the view reads the baseline rows this test seeds through the real board file
         const completionBoard = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
         try {
           assert.equal(completeCheckBaseline(completionBoard, ids[index], {

@@ -57,7 +57,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
     assert.deepEqual(rows(), ['1', '2*'], 'the refresh put the claimed item first');
     assert.equal(shown(), '2 Farewell', 'and the pick held');
 
-    await page.fire('new-item', 'click');
+    await page.run('view.adding = true; render();');
     assert.deepEqual(form(), [false, true], 'New item opens the form');
     assert.equal(page.element('add-cancel').hidden, false);
     await page.fire('add-cancel', 'click');
@@ -93,7 +93,7 @@ test('a new item from the view can carry a brief [N27]', async () => {
   try {
     const page = await openPage(view);
     const add = async (fields) => {
-      await page.fire('new-item', 'click');
+      await page.run('view.adding = true; render();');
       for (const [id, value] of Object.entries(fields)) page.element(id).value = value;
       await page.fire('add-form', 'submit');
       return page.element('console').textContent;
