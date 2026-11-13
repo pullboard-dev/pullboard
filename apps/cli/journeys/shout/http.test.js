@@ -55,7 +55,11 @@ import { preparePersonRequest } from '../../../../packages/person/light.js';
 import { receivePersonRequest } from '../../../../packages/link/index.js';
 import { apiHttpFixture as fixture } from '../../tests/fixtures/api.js';
 import { apiHttpBox as httpBox } from '../../tests/fixtures/api.js';
-import { registerFixtureRunner } from '../../tests/fixtures/api.js';
+import {
+  startFixtureLocalRunner,
+  whenRunnerSettles,
+} from '../../tests/fixtures/runner/local-start.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 import {
   commitWork,
@@ -65,6 +69,26 @@ import {
   DETAIL_BRIEF,
 } from '../../tests/fixtures/api.js';
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+
+/**
+ * Submit one claimed item through the served board and wait for its pulled gate to settle.
+ *
+ * Why: a pulled submit leaves the item claimed until the host's local runner posts the gate receipt, so a review or a
+ * snapshot read right after the move would see no submission [P7,N26].
+ */
+async function submitSettled(t, box, move, id, agent) {
+  if (!box.localRunnerStarted) {
+    startFixtureLocalRunner(box.env, box.root);
+    box.localRunnerStarted = true;
+    t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
+  }
+  const result = await move({ verb: 'submit', item: id, agent });
+  await whenRunnerSettles(box.env, async () => {
+    const row = (await box.call(box.path + '/state')).document.state.items.find((entry) => entry.id === id);
+    return row.status === 'claimed' ? null : row;
+  }, { deadlineMs: 60_000, what: `the pulled gate of #${id}` });
+  return result;
+}
 
 /** Run a private view in a child process with child-process accounting enabled only for warmed reads. */
 const REPEATED_READ_HARNESS = `
@@ -626,7 +650,6 @@ test('[A2, N26] an unchanged board state is reused and a move rebuilds it', cach
 
 test("[A2, N26] the board state sends summaries and an item's detail comes from its own path", async (t) => {
   const box = await httpBox(t);
-  registerFixtureRunner(t, box);
   const builder = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
   const verifier = await box.cliLocal(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */
@@ -641,7 +664,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   } })).item.item_id;
   await move({ verb: 'claim', item: accepted, agent: builder.agent });
   await move({ verb: 'fact', item: accepted, agent: builder.agent, args: { kind: 'note', text: 'a fact only the thread carries' } });
-  commitWork(box, builder, accepted); await move({ verb: 'submit', item: accepted, agent: builder.agent });
+  commitWork(box, builder, accepted); await submitSettled(t, box, move, accepted, builder.agent);
   checkOutSubmitted(box, builder, verifier); await move({ verb: 'next', agent: verifier.agent, args: { verify: true } });
   await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'ran the check and read the summary' } });
   const claimed = (await move({ verb: 'add', args: { lane: 'app', title: 'Claimed summary item', criterion: 'stays claimed', specs: 'G1', brief: FIXTURE_BRIEF } })).item.item_id;
@@ -787,7 +810,7 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   async function submitted(title) {
     const id = (await move({ verb: 'add', args: { lane: 'app', title, criterion: 'shows a greeting', specs: 'G1', brief: FIXTURE_BRIEF } })).item.item_id;
     await move({ verb: 'claim', item: id, agent: builder.agent });
-    commitWork(box, builder, id); await move({ verb: 'submit', item: id, agent: builder.agent });
+    commitWork(box, builder, id); await submitSettled(t, box, move, id, builder.agent);
     checkOutSubmitted(box, builder, verifier); await move({ verb: 'next', agent: verifier.agent, args: { verify: true } });
     return id;
   }
@@ -874,7 +897,7 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
     'only the declared per-read projections and small decision lists travel whole');
   assert.deepEqual(still.replace.decisionQueue, [], 'the unchanged empty coordinator queue travels as a whole field');
 
-  commitWork(box, builder, item); await move({ verb: 'submit', item, agent: builder.agent });
+  commitWork(box, builder, item); await submitSettled(t, box, move, item, builder.agent);
   assert.equal((await catchUp('submit')).merge.items.set[0].status, 'submitted');
 
   checkOutSubmitted(box, builder, verifier); await move({ verb: 'next', agent: verifier.agent, args: { verify: true } });
