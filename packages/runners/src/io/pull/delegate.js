@@ -10,6 +10,7 @@ import { RunnerDropped } from '../main.js';
 import { forgetRuntimeHeld } from '../runtime.js';
 import { recordRuntimeHeld } from '../runtime.js';
 import { committedRunnerController } from '../tooling/committed.js';
+import { runnerControllerEntry } from '../tooling/committed.js';
 import { loadedToolingFiles } from '../tooling/remote.js';
 import { probeRunnerJob } from '../health.js';
 import { watchSource } from './observe.js';
@@ -22,7 +23,7 @@ async function shortController(mode, payload, { root, runner, signal }) {
   const installation = committedRunnerController(fileURLToPath(new URL('../../../../../', import.meta.url)), { shared: true });
   try {
     if (!installation) loadedToolingFiles({ rescan: false });
-    const entry = installation?.entry ?? fileURLToPath(new URL('../../../../../apps/runner/src/io/controller.js', import.meta.url));
+    const entry = installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../../', import.meta.url)));
     const child = spawn(process.execPath, [entry, '--pullboard-runner-controller', mode], { cwd: mode === '--submit' ? root : scratchRoot(), stdio: ['pipe', 'pipe', 'pipe'] });
     const output = [], diagnostics = [];
     let bytes = 0, error;

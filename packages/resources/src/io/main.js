@@ -838,9 +838,13 @@ function unavailableRunnerHosts(db, now, runners = []) {
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
-  const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
-  const gui = observed ? observed.gui === 1 : runner.gui === true;
-  return !unavailable.has(runner.host) && (waiter.browser !== 1 || runner.browser >= 1) && (waiter.gui !== 1 || gui);
+  return !unavailable.has(runner.host) && (waiter.browser !== 1 || runner.browser >= 1) && (waiter.gui !== 1 || runnerHasGui(db, runner));
+}
+
+/** A runner's GUI session: the observed fact if recorded, else its setting [#6875]. */
+function runnerHasGui(db, runner) {
+  const seen = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
+  return seen ? seen.gui === 1 : runner.gui === true;
 }
 
 /** List configured runners with active slot usage from the same local admission database. */
@@ -1164,6 +1168,9 @@ export async function takeResource(options) {
             refused.infrastructureAttempt = { kind: 'runner-wait', code: 'RUNNER_WAIT_DEADLINE', runners: runnerDeadline.runners };
             throw refused;
           }
+        }
+        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) {
+          throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
         }
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,

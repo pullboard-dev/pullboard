@@ -37,6 +37,8 @@ export const OPERATIONS = Object.freeze([
     marks: code => code.search(/[[,]\s*['"`]fetch['"`]/u) },
   { name: 'create-worktree', entry: 'packages/git/src/io/worktree.js', why: 'runs git worktree add',
     marks: code => code.search(/['"`]worktree['"`]\s*,\s*['"`]add['"`]/u) },
+  { name: 'stop-process-tree', entry: 'packages/jobs/src/io/launch.js', why: 'signals a whole process group',
+    marks: code => code.search(/\bprocess\s*\.\s*kill\s*\(\s*-/u) },
 ]);
 
 /** A comment inside a template-string script: a line comment that starts its line, or a block comment. */

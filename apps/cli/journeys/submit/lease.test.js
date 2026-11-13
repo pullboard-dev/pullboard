@@ -17,6 +17,7 @@ import {
 } from 'node:path';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -62,7 +63,12 @@ function launchAs(box, cwd, command, args, session) {
   finally { delete box.env.CODEX_SESSION_ID; }
 }
 
-test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, async () => {
+/**
+ * Under pull a submit returns at once and its gate is a job the machine's local runner holds, so the test holds that job
+ * open and proves the board-only commands stay responsive and the checkout stays owned while it runs [P7]. A pulled submit
+ * leaves no writer record behind, so a takeover during the held gate has no submit to wait for: it completes at once.
+ */
+test('a seat can shout while its own submit runs [V4,C7]', { timeout: 180_000 /* budget: hang ceiling while the local runner starts the gate on a loaded machine */ }, async () => {
   const box = helpers.sandbox();
   const gate = helpers.holdingGate(box);
   const project = helpers.project(gate.command, box);
@@ -90,11 +96,15 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
   let missingBindingSession;
   let wrongSession;
   let takeover;
+  let localRunnerPid = null;
   try {
-    submit = launchAs(project, project.web, process.execPath, [helpers.BIN, 'submit', '1'], owner);
+    submit = launchAs(project, project.web, process.execPath, [helpers.BIN, 'submit', '1', '--json'], owner);
     children.push(submit);
-    await waitFor(() => helpers.gateEvents(gate).includes('start'), 'submit to enter its held gate');
-    assert.equal(submit.exitCode, null, 'submit remains active inside the gate');
+    await waitFor(() => helpers.gateEvents(gate).includes('start'), 'the pulled gate to start on the local runner', 60_000); // budget: hang ceiling for the local runner to start its gate.
+    const queued = await within(submit.closed, 30_000, 'the pull submit to return queued');
+    assert.equal(queued.code, 0, submit.failure ?? submit.stderrText);
+    localRunnerPid = JSON.parse(submit.stdoutText).localRunner?.pid ?? null;
+    assert.deepEqual(helpers.gateEvents(gate), ['start'], 'the submitted gate is held open on the local runner');
 
     const beforeBoardOnly = boardState(database);
     const shout = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'all', 'still responsive during submit'], owner);
@@ -110,7 +120,6 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     const readResult = await within(read.closed, 5_000, 'same-session read');
     assert.equal(readResult.code, 0, read.failure ?? read.stderrText);
     assert.deepEqual(helpers.gateEvents(gate), ['start'], 'board-only commands do not release or restart the held gate');
-    assert.equal(submit.exitCode, null);
     const afterBoardOnly = boardState(database);
     assert.deepEqual(afterBoardOnly.item, beforeBoardOnly.item);
     assert.equal(afterBoardOnly.shout.length, beforeBoardOnly.shout.length + 1);
@@ -147,25 +156,21 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     assert.equal(JSON.parse(wrongSession.stdoutText).error.code, 'NOT_YOUR_CHECKOUT');
     assert.deepEqual(boardState(database), afterRebind, 'a wrong-session write adds no board rows');
 
-    // A takeover waits for the running submit's writer record, holding the checkout so no new write slips in.
+    // The pulled submit left no writer record, so a takeover has nothing to wait for and completes while the gate is held.
     takeover = launchAs(project, project.web, process.execPath, [helpers.BIN, 'takeover', '--json'], intruder);
     children.push(takeover);
     const intent = resolve(project.web, project.git(project.web, 'rev-parse', '--git-dir'), 'pullboard-checkout-takeover');
-    await waitFor(() => existsSync(intent) || takeover.exitCode !== null, 'takeover to wait for the active submit');
-    assert.equal(takeover.exitCode, null, 'takeover waits while the submit writes');
-    assert.equal(submit.exitCode, null);
-    assert.deepEqual(boardState(database), afterRebind, 'takeover adds no board rows before the submit finishes');
-    assert.equal(helpers.gateEvents(gate).join(','), 'start');
+    const takeoverResult = await within(takeover.closed, 30_000, 'takeover with no writer in flight');
+    assert.equal(helpers.gateEvents(gate).join(','), 'start', 'the takeover neither released nor restarted the held gate');
 
     writeFileSync(gate.release, 'released');
-    const [submitResult, takeoverResult] = await Promise.all([submit.closed, takeover.closed]);
-    assert.equal(submitResult.code, 0, submit.failure ?? submit.stderrText);
-    assert.match(submit.stdoutText, /submitted #1/u);
+    await settledGateJob(project, 1);
     assert.equal(takeoverResult.code, 0, takeover.failure ?? takeover.stderrText);
     assert.equal(existsSync(intent), false, 'takeover removes its intent when it ends');
     assert.equal(project.git(project.web, 'rev-parse', 'HEAD'), expectedHead, 'submit leaves the originally submitted HEAD unchanged');
-    assert.equal(project.git(project.repo, 'rev-parse', `refs/pullboard/items/1/${expectedHead.slice(0, 12)}`), expectedHead,
-      'the submit receipt pins exactly the original HEAD');
+    // Under pull the candidate is pinned by the gate's own ref, not by the controller's per-item receipt ref.
+    assert.ok(project.git(project.repo, 'for-each-ref', '--format=%(objectname)', 'refs/pullboard/').split('\n').includes(expectedHead),
+      'the submitted gate pins exactly the original HEAD');
     assert.equal(boardState(database).item[0].item_status, 'submitted');
     assert.deepEqual(helpers.gateEvents(gate), ['start', 'end']);
 
@@ -179,9 +184,9 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     assert.deepEqual(boardState(database), beforeOldOwner, 'takeover leaves the previous session unable to append a shout');
   } finally {
     writeFileSync(bindingFile, originalBinding);
+    if (localRunnerPid) { try { process.kill(localRunnerPid, 'SIGKILL'); } catch { /* already gone */ } }
     writeFileSync(gate.release, 'released');
     for (const child of children) if (child.exitCode === null) child.kill('SIGTERM');
-    if (submit?.exitCode === null) submit.kill('SIGTERM');
-    await Promise.all([...children, ...(submit ? [submit] : [])].map((child) => child.closed));
+    await Promise.all(children.map((child) => child.closed));
   }
 });

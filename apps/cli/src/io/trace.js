@@ -12,6 +12,7 @@ import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { storeName } from './store-names.js';
 
 /** Environment names that carry an agent session id (kept literal so a trace loads no discovery module). */
 const SESSION_ENV = ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID'];
@@ -107,7 +108,7 @@ export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat
     };
     const dir = join(where.common, 'pullboard', 'trace');
     mkdirSync(dir, { recursive: true });
-    appendFileSync(join(dir, `${at.toISOString().slice(0, 10)}.jsonl`), `${JSON.stringify(line)}\n`);
+    appendFileSync(join(dir, `${storeName(at.toISOString().slice(0, 10), '.jsonl')}`), `${JSON.stringify(line)}\n`);
     return line;
   } catch { return null; }
 }

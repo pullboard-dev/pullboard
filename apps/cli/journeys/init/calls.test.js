@@ -31,6 +31,7 @@ import {
   resolve,
 } from 'node:path';
 import { tmpdir } from 'node:os';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { test } from 'node:test';
 import { main } from '../../tests/fixtures/native.js';
 import { headCommit } from '../../../../packages/git/index.js';
@@ -58,7 +59,10 @@ function realGitPath() {
 /** Build a private real repo and linked agent worktree with an instrumented Git executable. */
 function fixture(t, { ruleProof = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-git-calls-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 })); // a submitted run may still be writing [C7]
+  t.after(() => {
+    stopFixtureLocalRunner(join(dir, 'home', '.pullboard-machine')); // a pulled gate starts the loopback runner, which heartbeats into the fixture [C7]
+    rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 }); // a submitted run may still be writing [C7]
+  });
   const repo = join(dir, 'repo');
   const worker = join(dir, 'worker');
   const home = join(dir, 'home');
@@ -308,10 +312,11 @@ test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
   // No detached review comparison: it keeps writing into the fixture, and the cleanup then retries past the file budget [C7].
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
   const run = box.ok(box.worker, 'run', '--agent-light', `sh ${agent}`, '--items', '1', '--attempts', '1', '--minutes', '1');
-  assert.match(run.stdout, /submitted #1/u);
+  assert.match(run.stdout, /#1 is in the gate as job /u);
   const current = box.git(box.worker, 'rev-parse', 'HEAD');
+  // A pull submit offers its gate at the commit the run made, and names it in the job id, so the offered job proves the runner's new HEAD [C7].
   const shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
-  assert.equal(shown.item_commit, current, 'submit records the HEAD created by this command');
+  assert.equal(shown.gateJob?.id.split(':')[2], current.slice(0, 12), 'submit offers the HEAD created by this command');
 });
 
 /** Create a promise gate for a deterministic overlap between command fact scopes. */
