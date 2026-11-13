@@ -35,7 +35,7 @@ test('clause 1: Node\'s runtime warning lines after TAP\'s final count leave the
   assert.equal(tapFailures(tap('(Use `node --trace-warnings ...` to show where the warning was created) and more'), '/repo'), null);
 });
 
-test('clause 1: a submit gate whose only failure also fails on its main base records it as a main red and returns green [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832', timeout: 240_000 }, t => {
+test('clause 1: a submit gate whose only failure also fails on its main base records it as a main red and returns green [C7]', { skip: 'PULL_GAP: un-skipped by #7104', timeout: 240_000 }, t => {
   // Main fails 'shared failure [G1]'; the candidate leaves it exactly as main has it and the gate runner prints its phase line.
   const box = fixture(t, { phases: true });
   const result = cli(box, box.builder, 'submit', String(box.item));
@@ -48,7 +48,7 @@ test('clause 1: a submit gate whose only failure also fails on its main base rec
     [{ file: 'test/inherited.test.js', name: 'shared failure [G1]', item: box.rework }], 'the board records the case as main red, owned by its repair');
 });
 
-test('clause 2: a failure that passes on the main base and fails at the item still returns the gate red [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832', timeout: 240_000 }, t => {
+test('clause 2: a failure that passes on the main base and fails at the item still returns the gate red [C7]', { skip: 'PULL_GAP: un-skipped by #7104', timeout: 240_000 }, t => {
   // Main fails only 'shared failure [G1]'; the candidate keeps it and adds a case of its own that fails.
   const candidate = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n"
     + "test('shared failure [G1]', () => assert.equal(1, 2));\ntest('item failure [G1]', () => assert.equal(1, 3));\n";
