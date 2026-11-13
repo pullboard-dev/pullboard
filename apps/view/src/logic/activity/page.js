@@ -242,7 +242,8 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     + '<pattern id="act-p-sr" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="p-sra" width="4" height="4"/><rect class="p-srb" width="2" height="4"/></pattern>'
     + '<pattern id="act-p-held" width="6" height="6" patternUnits="userSpaceOnUse"><rect class="p-held" width="6" height="3.2"/></pattern></defs></svg>';
   const feed = '<div class="act-feedcol" aria-label="What happened, newest first">' + sinceHtml + bottlenecks + resband + '<div class="act-hours" id="act-hours">' + hoursHead + legend + hourSections + '</div>' + end + '</div>';
-  return defs + (controls ? '<div class="act-mfilters">' + controls + '</div>' : '') + '<div class="act-cols">' + feed + rail + '</div>';
+  // The zero-size pattern sprite comes last, so the page's first child is its own content, never a 0 x 0 box.
+  return (controls ? '<div class="act-mfilters">' + controls + '</div>' : '') + '<div class="act-cols">' + feed + rail + '</div>' + defs;
 }
 
 /**

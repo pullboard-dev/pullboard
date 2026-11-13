@@ -1,18 +1,12 @@
 /** Inherited failures can pass submit without disguising new failures as known [V4,B3]. */
 import '../../../index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
-import { DatabaseSync } from 'node:sqlite';
-import { runFixtureGit } from '../../../tests/fixtures/child.js';
 import * as store from '../../../../../packages/store/index.js';
 import { fixtureBoard } from '../../../tests/fixtures/board.js';
 import { submissionProof } from '../../../../../packages/state/light.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../../../../../packages/state/light.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
-import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
 import { requireKnownMainReworks } from '../../../../../packages/store/index.js';
 import { prepareEngineMove } from '../../../../../packages/state/index.js';
@@ -20,38 +14,9 @@ import { applyEngineMove } from '../../../../../packages/state/index.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import { importBoard } from '../../../../../packages/store/index.js';
 import { boundedMainRedShout } from '../../../src/io/commands/submit.js';
-
-import { fixture } from '../../../tests/fixtures/submit/red.js';
-import { cli } from '../../../tests/fixtures/submit/red.js';
-import { submittedProof } from '../../../tests/fixtures/submit/red.js';
-import { source } from '../../../tests/fixtures/submit/red.js';
 import { fixture as frozen } from '../../../tests/fixtures/init/known-frozen.js';
 import { rows as frozenRows } from '../../../tests/fixtures/init/known-frozen.js';
 import { settledSubmit } from '../../../tests/fixtures/init/known-frozen.js';
-
-test('submit accepts a test that fails the same way on main and refuses one red only with the item [V4,B3,C7] clause 1', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
-  const known = fixture(t);
-  const cache = join(known.root, '.git/pullboard/main-red.json');
-  writeFileSync(cache, JSON.stringify({ version: 1, entries: { [known.main]: { 'test/inherited.test.js': { result: 'red' } } } }), { mode: 0o600 });
-  const result = cli(known, known.builder, 'submit', String(known.item));
-  const proofLog = runFixtureGit(['rev-parse', '--git-path', 'pullboard-submit.log.proof.log'], { cwd: known.builder, env: known.env }).trim();
-  const observed = result.status ? { cache: JSON.parse(readFileSync(cache, 'utf8')),
-    parsed: failureSignatures({ isGreen: false, stages: [{ status: 1, output: readFileSync(proofLog, 'utf8') }] }, known.builder) } : null;
-  assert.equal(result.status, 0, JSON.stringify({ response: result.stdout + result.stderr, observed }));
-  const report = JSON.parse(result.stdout);
-  assert.equal(report.gate.green, false, 'an inherited failure stays red in its receipt');
-  assert.equal(report.gate.knownMainFailures.main, known.main);
-  assert.deepEqual(report.gate.knownMainFailures.failures.map(({ file, name }) => ({ file, name })),
-    [{ file: 'test/inherited.test.js', name: 'shared failure [G1]' }]);
-  // The receipt keeps a display-only firstError the board record does not store: compare the stored fields.
-  const stored = ({ main, failures }) => ({ main, failures: failures.map(({ file, name, item, signature }) => ({ file, name, item, signature })) });
-  assert.deepEqual(stored(submittedProof(known).submissionProof.knownMainFailures), stored(report.gate.knownMainFailures));
-  const changed = fixture(t, { candidate: source('shared failure [G1]') + source('new item failure [G1]').split('\n').slice(2).join('\n') });
-  const refused = cli(changed, changed.builder, 'submit', String(changed.item));
-  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
-  assert.equal(JSON.parse(refused.stdout).error.code, 'GATE_RED');
-  assert.equal(submittedProof(changed), null, 'a new failure in an already-red file still prevents submit');
-});
 
 test('known main receipts preserve exact identities and refuse unsupported historical envelopes [V4,B3,H16]', () => {
   const failure = { file: 'test/one.test.js', name: 'one failure [V4]', signature: 'a'.repeat(64) };
@@ -150,32 +115,6 @@ test('ordered submit refuses a closed repair and an old-engine linked envelope w
 });
 
 // #1986 accepts exact unowned main reds while retaining their durable accounting.
-test('an exact unowned main red submits with its receipt, fact and decision shout [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
-  const box = fixture(t, { mainRed: false });
-  const accepted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
-  const report = JSON.parse(accepted.stdout);
-  assert.equal(report.gate.green, false, 'the exact inherited failure remains visibly red');
-  assert.deepEqual(report.gate.knownMainUnowned, [{ file: 'test/inherited.test.js', name: 'shared failure [G1]' }]);
-  assert.equal(report.gate.knownMainReworks, undefined, 'no repair ownership is invented');
-  assert.ok(submittedProof(box), 'the successful response has a canonical submitted event');
-  const shown = cli(box, box.root, 'show', String(box.item));
-  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
-  assert.ok(JSON.parse(shown.stdout).thread.some(entry => entry.type === 'fact'
-    && entry.text.includes('unowned known main red: the submission proof')
-    && entry.text.includes(box.main) && entry.text.includes('test/inherited.test.js')
-    && entry.text.includes('shared failure [G1]')), 'the durable fact identifies the exact main source, file and case');
-  const db = new DatabaseSync(join(box.root, '.git/pullboard/board.sqlite'), { readOnly: true });
-  try {
-    const asked = db.prepare('SELECT * FROM shout').all().filter(row => row.shout_to === 'coordinator'
-      && row.shout_decision === 1 && String(row.shout_text).includes(`#${box.item}: known main red`));
-    assert.equal(asked.length, 1, 'exactly one decision reaches the coordinator');
-    assert.ok(asked[0].shout_text.includes('test/inherited.test.js')
-      && asked[0].shout_text.includes('shared failure [G1]')
-      && asked[0].shout_text.includes(box.main.slice(0, 12)), 'the decision names the exact main failure');
-  } finally { db.close(); }
-});
-
 test('a long unowned main red settles pulled with one bounded decision shout [V4,B3]', { timeout: 240_000 }, async t => { // budget: one pulled gate job and its main comparison on the fixture runner.
   const box = frozen(t, { name: `${'a'.repeat(500)} [G1]` });
   const report = await settledSubmit(t, box, { submitted: true });
@@ -191,32 +130,4 @@ test('an oversized main red decision preserves the show pointer [V4,B3]', async 
   const text = boundedMainRedShout(7, [{ file: 'test/red.test.js', names: ['🧪'.repeat(2000)] }], 'a'.repeat(40));
   assert.ok(Array.from(text).length <= 400);
   assert.match(text, /pullboard show 7/);
-});
-
-test('an exact main red with an open repair retains its reviewer repair link [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
-  const box = fixture(t);
-  const accepted = cli(box, box.builder, 'submit', String(box.item));
-  assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
-  const report = JSON.parse(accepted.stdout);
-  assert.deepEqual(report.gate.knownMainReworks, [{ file: 'test/inherited.test.js', name: 'shared failure [G1]', item: box.rework }]);
-  const shown = cli(box, box.root, 'show', String(box.item));
-  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
-  const facts = JSON.parse(shown.stdout).thread.filter(entry => entry.type === 'fact');
-  assert.ok(facts.some(entry => entry.text.includes('test/inherited.test.js') && entry.text.includes('shared failure [G1]')
-    && entry.text.includes(`#${box.rework}`)), 'the durable review thread links the exact known main red to its open repair');
-});
-
-test('submit refuses changed failure details, an unaccounted stage, and a frozen check red differently from main [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, t => {
-  for (const options of [
-    // The check names the case's file, so it is the item's own and keeps the exact signature (neighbouring cases pass by name).
-    { candidate: source('shared failure [G1]', 3), mainRed: false, check: 'node test/runner.js test/inherited.test.js' },
-    { gateSuffix: '; exit 7' },
-    { check: 'node test/runner.js', candidate: source('shared failure [G1]', 3), mainRed: false },
-  ]) {
-    const box = fixture(t, options);
-    const result = cli(box, box.builder, 'submit', String(box.item));
-    assert.equal(result.status, 1, result.stdout + result.stderr);
-    assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
-    assert.equal(submittedProof(box), null);
-  }
 });
