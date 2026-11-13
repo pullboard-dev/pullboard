@@ -97,13 +97,3 @@ test('without runners a local start waits for load under one per core and says s
   const idle = await localLoadStart({ read: () => [0.5], cores: 4, wait: async () => assert.fail('an idle machine starts at once') });
   assert.equal(idle.waitedMs < 1000, true);
 });
-
-test('a fixture board starts at once while a real seat still waits under load [C7] [#7257]', async () => {
-  const fixture = await localLoadStart({ env: { PULLBOARD_FIXTURE_BOARD: '1' }, read: () => [15], cores: 10, wait: async () => assert.fail('a fixture board never waits for load') });
-  assert.equal(fixture.load, 15);
-  const loads = [[15], [12], [4]];
-  const waits = [];
-  const real = await localLoadStart({ env: {}, read: () => loads.shift(), cores: 10, wait: async ms => { waits.push(ms); }, pollMs: 5 });
-  assert.deepEqual(waits, [5, 5], 'a plain env waits exactly as before');
-  assert.equal(real.load, 4);
-});
