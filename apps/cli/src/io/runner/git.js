@@ -1,6 +1,5 @@
 /** The Git launches a pull serve is handed: the app owns the git I/O, so the drive cell imports no git [C7]. */
 import { gitSpawn } from '../../../../../packages/git/light.js';
-import { fetchTrunk } from '../../../../runner/index.js';
 
 // Budget: 16 MiB of a git command's output is kept; the serve's commands print a ref list at most.
 const KEPT = 16 * 1024 * 1024;
@@ -30,4 +29,10 @@ export function runPullGit(cwd, args, input = null) {
 }
 
 /** What every serveRunner caller passes as its git option: commands by runPullGit, the trunk fetch by the runner's fetch home. */
-export const pullGit = Object.freeze({ run: runPullGit, fetchTrunk: (store, trunk, refs) => fetchTrunk(runPullGit, store, trunk, refs) });
+/** The trunk fetch loads the runner app only when a serve actually fetches, so cold reads never pay for it [C7]. */
+async function fetchPullTrunk(store, trunk, refs) {
+  const { fetchTrunk } = await import('../../../../runner/index.js');
+  return fetchTrunk(runPullGit, store, trunk, refs);
+}
+
+export const pullGit = Object.freeze({ run: runPullGit, fetchTrunk: fetchPullTrunk });
