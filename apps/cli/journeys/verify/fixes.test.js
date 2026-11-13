@@ -46,7 +46,7 @@ before(async () => {
   try { await seed(); } catch (error) { seeded.failure = error; }
 }, { timeout: 120_000 });
 async function seed() {
-  const T0 = Date.now(); const lap = label => console.log('LAP', label, Date.now() - T0);
+  const T0 = Date.now();
   const box = machine();
   const real = box.inProcess;
   box.inProcess = (cwd, ...args) => Promise.race([real(cwd, ...args), new Promise((_, no) => setTimeout(() => no(new Error(`seed step hung: ${args.slice(0, 3).join(' ')} after ${Date.now() - T0} ms`)), 25_000).unref())]);
@@ -62,41 +62,29 @@ async function seed() {
   }
   for (const id of [1, 2]) {
     await buildLocal(box, alpha, id, `landed-${id}.txt`);
-  lap('await buildLocal(box, alpha, id, `landed');
     await acceptLocal(box, alpha, id);
-  lap('await acceptLocal(box, alpha, id);');
     box.git(alpha.repo, 'merge', '--no-ff', '-m', `chore: land floor item ${id}`, alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
     await box.inProcess(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  lap('await box.inProcess(alpha.repo, merged');
   }
   await buildLocal(box, alpha, 3, 'accepted.txt');
-  lap('await buildLocal(box, alpha, 3, accepte');
   await acceptLocal(box, alpha, 3);
-  lap('await acceptLocal(box, alpha, 3);');
   await buildLocal(box, alpha, 4, 'review-4.txt');
-  lap('await buildLocal(box, alpha, 4, review-');
   await buildLocal(box, alpha, 5, 'review-5.txt');
-  lap('await buildLocal(box, alpha, 5, review-');
   await buildLocal(box, alpha, 6, 'sent-back.txt');
-  lap('await buildLocal(box, alpha, 6, sent-ba');
   const reviewer = join(box.dir, 'agent-floor-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/agent-floor-reviewer', reviewer, 'main');
   await box.inProcess(reviewer, 'join', 'tests', '--model', 'Floor reviewer');
-  lap('await box.inProcess(reviewer, join, t');
   // The reviewer sends #6 back from its submitted commit, so the red mark sits on the reviewer's own line.
   box.git(reviewer, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:6`));
   await box.inProcess(reviewer, 'verify', '6', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'shows on the agent floor', '--note', 'the floor fixture sends it back', '--no-next');
-  lap('await box.inProcess(reviewer, verify, ');
   box.git(reviewer, 'switch', '-q', '--detach', 'main');
   earlier(alpha.repo, Date.now(), board => store.reserveReview(board, 4, { agentId: 'tests-1', leaseMs: 3 * 60 * MINUTE, policy: 'any' }));
   // web-1 claims its next ready item, which it is building now.
   await box.inProcess(alpha.web, 'claim', '7');
-  lap('await box.inProcess(alpha.web, claim, ');
   for (const index of [1, 2]) {
     const path = join(box.dir, `agent-floor-quiet-${index}`);
     box.git(alpha.repo, 'worktree', 'add', '-q', '-b', `tests/agent-floor-quiet-${index}`, path, 'main');
     await box.inProcess(path, 'join', 'quiet', '--model', `Floor seat ${index}`);
-  lap('await box.inProcess(path, join, quiet');
     seeded[`quiet${index}`] = path;
   }
   const clockBase = Date.now();
