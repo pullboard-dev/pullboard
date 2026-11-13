@@ -40,7 +40,7 @@ async function fixture(t, manualOverride = false, redStatic = false, cadence) {
   const config = { ...helpers.CONFIG, gate: 'true', landing: { perItem: false, publish: 'separate', manualOverride, ...(cadence ? { cadence } : {}) } };
   if (redStatic) {
     config.staticChecks = 'node static.cjs';
-    writeFileSync(join(box.repo, 'static.cjs'), `if (require('node:fs').existsSync(${JSON.stringify(join(box.dir, 'red-static'))})) { console.log('automatic static guard is red'); process.exit(1); }\n`);
+    writeFileSync(join(box.repo, 'static.cjs'), `if (require('node:fs').existsSync(${JSON.stringify(join(box.dir, 'red-static'))})) { console.log('static.cjs:1: automatic static guard is red'); process.exit(1); }\n`);
   }
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -104,7 +104,7 @@ test('only an explicit valid trunk override permits manual landing [B35,B3]', ()
 });
 
 
-test('a red automatic landing returns its accepted item with gate output [B35,B3,R3]', { skip: 'PULL_GAP: a pulled land job runs no staticChecks guard on the merged tree; no owner item yet' }, async t => {
+test('a red automatic landing returns its accepted item with gate output [B35,B3,R3]', async t => {
   const { box, id, reviewer } = await fixture(t, false, true);
   writeFileSync(join(box.dir, 'red-static'), 'red\n');
   const accepted = await box.runLocal(reviewer, 'verify', String(id), 'accept', '--note', 'The frozen file check passed.');
@@ -117,6 +117,7 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
   const reopens = onBoard(box, board => store.events(board, { itemId: id }).filter(event => event.event_kind === 'reopen'));
   assert.equal(reopens.length, 1, 'one red landing returns the item once');
   assert.match(reopens[0].event_detail, /automatic static guard is red/u);
+  assert.match(reopens[0].event_detail, /LAND_STATIC_RED: the static guard staticChecks .* static\.cjs:1: automatic static guard is red/u, 'the returned item names the failing guard row');
 });
 
 

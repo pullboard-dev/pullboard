@@ -1,4 +1,3 @@
-import { gateRuns as nativeGateRuns } from '../../../../packages/flakes/index.js';
 /** Opt-in landing cadence uses real acceptances and an injected observation clock [E30,E10,E29]. */
 import assert from 'node:assert/strict';
 import {
@@ -14,7 +13,6 @@ import {
 import * as store from '../../../../packages/store/index.js';
 import { configFromSource } from '../../../../packages/config/index.js';
 import {
-  cadenceDeferral,
   landingCadenceStatus,
 } from '../../../../packages/landing/index.js';
 import { acceptedVerdict } from '../../../../packages/verify/index.js';
@@ -104,23 +102,6 @@ function assertThresholds(box) {
   });
 }
 
-/** Existing duration-only manual landing keeps its start-to-start cooldown at both exact clock boundaries. */
-function assertLegacyCooldown(box) {
-  onBoard(box, board => {
-    const batch = store.landingBatches(board).at(-1);
-    const start = Date.parse(batch.startedAt);
-    const policy = configFromSource(JSON.stringify({ landing: { cadence: '10m' } }));
-    board.clock = { now: () => new Date(start + EVERY - 1) };
-    assert.ok(cadenceDeferral(board, policy, batch.branch, () => {}).deferredUntil);
-    assert.equal(cadenceDeferral(board, policy, `${batch.branch}-other`, () => {}), null, 'another trunk has no recorded cooldown');
-    board.clock = { now: () => new Date(start + EVERY) };
-    assert.equal(cadenceDeferral(board, policy, batch.branch, () => {}), null);
-    board.clock = { now: () => new Date(start) };
-    const object = configFromSource(JSON.stringify({ landing: { cadence: { every: '10m', accepted: 2 } } }));
-    assert.equal(cadenceDeferral(board, object, batch.branch, () => {}), null, 'object policy creates no legacy cooldown that cancels its count trigger');
-  });
-}
-
 test('landing cadence is opt-in and validates both compatible policy forms [E30,E29]', () => {
   assert.equal(configFromSource('{}').landing?.cadence, undefined);
   assert.equal(configFromSource('{"landing":{"cadence":"10m"}}').landing.cadenceMs, EVERY);
@@ -133,46 +114,14 @@ test('landing cadence is opt-in and validates both compatible policy forms [E30,
   assert.equal(configFromSource('{"landing":{"cadence":{"every":"10m","accepted":5,"extra":true}}}').landing.cadenceMs, EVERY);
 });
 
-test('land runs on cadence at either injected-clock boundary and lands all waiting acceptances [E30,E10,E29]', { timeout: 120_000 }, // budget: two private real submit/accept cycles and one full landing; hang ceiling, not speed.
-async () => {
+test('cadence thresholds read native acceptance times at both exact clock boundaries [E30,E10,E29]', { timeout: 120_000 }, // budget: two private real submit/accept cycles; hang ceiling, not speed.
+() => {
   const box = project();
-  const off = json(box, box.repo, 'land', '--due');
-  assert.equal(off.cadence.enabled, false);
-  assert.equal(off.batch, null, 'default off is a real no-op');
   configure(box, { every: '10m', accepted: 2 });
-  const first = accepted(box, 'first');
-  const base = box.git(box.repo, 'rev-parse', 'main');
-  const waiting = await box.runLocal(box.repo, 'land', '--due', '--json');
-  assert.equal(waiting.code, 0, waiting.err + waiting.out);
-  const status = JSON.parse(waiting.out);
-  assert.equal(status.batch, null);
-  assert.equal(status.cadence.count, 1);
-  assert.equal(status.cadence.threshold, 2);
-  assert.equal(status.cadence.everyMs, EVERY);
-  assert.equal(status.cadence.due, false);
-  assert.equal(typeof status.cadence.oldestWaitMs, 'number');
-  assert.ok(Number.isFinite(status.cadence.oldestWaitMs), 'the native observation serializes a finite numeric age');
-  const explanation = await box.runLocal(box.repo, 'land', '--due');
-  assert.equal(explanation.code, 0, explanation.err + explanation.out);
-  assert.match(explanation.err + explanation.out, /count 1\/2/u);
-  assert.match(explanation.err + explanation.out, /oldest wait .*\/600000ms/u);
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), base);
-  const second = accepted(box, 'second');
+  accepted(box, 'first');
+  accepted(box, 'second');
   assertThresholds(box);
-  const landed = json(box, box.repo, 'land', '--due');
-  assert.deepEqual(landed.landed, [first, second], 'default due landing keeps native acceptance order and takes every waiting item');
-  assert.equal(landed.batch.state, 'landed');
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), landed.batch.tip);
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), landed.batch.tip);
-  for (const id of [first, second]) assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit);
-  assertLegacyCooldown(box);
-  const recorded = onBoard(box, board => ({ batches: store.landingBatches(board).length, gates: nativeGateRuns(board).length }));
-  // Only this disposable fixture simulates a crash after genuine receipts but before the local Git fast-forward.
-  box.git(box.repo, 'reset', '--hard', landed.batch.base);
-  const recovered = json(box, box.repo, 'land', '--due');
-  assert.equal(recovered.batch, null, 'an empty queue needs only recorded Git repair, not a new landing');
-  assert.equal(recovered.cadence.count, 0);
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), landed.batch.tip, 'due no-op cannot strand the recorded Git repair');
-  assert.deepEqual(onBoard(box, board => ({ batches: store.landingBatches(board).length, gates: nativeGateRuns(board).length })), recorded,
-    'repair neither creates a new batch nor records another gate run');
 });
+
+// CONTROLLER_ONLY: `land --due`, its cadence explanation and the recorded-repair no-op are the batch engine's scheduler; pulled landing offers a job when work is accepted and has no cadence gate [E30,E10,E29].
+test('land runs on cadence at either injected-clock boundary and lands all waiting acceptances [E30,E10,E29]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});

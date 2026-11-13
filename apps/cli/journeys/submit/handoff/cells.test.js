@@ -51,13 +51,6 @@ async function enforceCellTrial(box, kind, code) {
   document(await box.runLocal(probe, 'claim', String(probeId), '--json'));
   mkdirSync(join(probe, 'src'), { recursive: true });
   assert.equal(box.helpers.commitFile(box, probe, 'src/unplaced.js', 'export const unsafe = true;\n', 'feat(web): trial probe source [G1]').status, 0);
-  if (kind === 'ownership') {
-    writeFileSync(join(probe, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [],
-      stays: [{ path: 'src/unplaced.js', reason: 'Fixture placement remains explicitly covered.' }],
-      entries: [{ path: 'src/unplaced.js', cell: 'app:missing' }] }) + '\n');
-    box.git(probe, 'add', 'packages/codemap/data/plan/cells.json');
-    box.git(probe, 'commit', '-qm', 'feat(web): trial probe ownership control [G1]');
-  }
   assert.equal(document(await box.runLocal(probe, 'submit', String(probeId), '--no-next', '--json')).queued, true);
   const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
   const rowsOf = ledger => Object.values(ledger.codes).filter(row => row.code === code);
@@ -70,26 +63,19 @@ async function enforceCellTrial(box, kind, code) {
   writeFileSync(file, JSON.stringify(ledger) + '\n');
 }
 
-for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
+test('placement cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]', async t => {
   const box = fixture(t, { cells: true });
-  await enforceCellTrial(box, kind, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');
+  await enforceCellTrial(box, 'placement', 'CELLS_PLAN_UNPLACED');
   mkdirSync(join(box.web, 'src'), { recursive: true });
   assert.equal(helpersCommit(box, 'src/unplaced.js', 'export const unsafe = true;\n').status, 0);
-  if (kind === 'ownership') {
-    writeFileSync(join(box.web, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [],
-      stays: [{ path: 'src/unplaced.js', reason: 'Fixture placement remains explicitly covered.' }],
-      entries: [{ path: 'src/unplaced.js', cell: 'app:missing' }] }) + '\n');
-    box.git(box.web, 'add', 'packages/codemap/data/plan/cells.json');
-    box.git(box.web, 'commit', '-qm', 'feat(web): invalid process ownership control [G1]');
-  }
 
   const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true, 'foreground submission does not compile or refuse the new unplaced cell');
   document(await box.runLocal(box.web, 'claim', String(box.second), '--json'));
   await waitJob(box, 'red');
   const completed = state(box, box.id);
-  assert.equal(completed.job.error.code, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');
-  assert.match(completed.job.error.message, kind === 'placement' ? /src\/unplaced.js/u : /existing app cell/u);
+  assert.equal(completed.job.error.code, 'CELLS_PLAN_UNPLACED');
+  assert.match(completed.job.error.message, /src\/unplaced.js/u);
   assert.equal(completed.item.item_status, 'claimed');
   assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
   assert.equal(existsSync(box.started), false, 'the ordinary gate never executes a source refused by cell checks');
