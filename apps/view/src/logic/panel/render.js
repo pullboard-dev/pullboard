@@ -8,8 +8,8 @@ export function agentsPanelHtml(panel) {
     const tip = agent.tipHtml + (more ? ' · +' + more + ' more ' + (more === 1 ? 'item' : 'items') : '');
     return '<div class="agent-card' + agent.markClasses + '"><button class="agent-row" data-agent="' + esc(agent.agentId) + '" title="' + tip + '" type="button">'
       + '<span class="agent-who"><b>' + agent.nameHtml + '</b><span class="agent-model">' + (agent.modelHtml || '') + '</span></span>'
-      + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + first.titleTextHtml + '</span></span>'
-      + '<span class="agent-state">' + state(agent, first, true) + (first.ageHtml || agent.ageHtml) + '</span></button>'
+      + '<span class="agent-state">' + (first.ageHtml || agent.ageHtml) + state(agent, first, true) + '</span>'
+      + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + first.titleTextHtml + '</span></span></button>'
       + (panel.activeAgent === agent.agentId ? agent.holding.map(item => '<div class="agent-work" data-item="' + item.id + '" data-go="item:' + item.id + '"><span>#' + item.id + ' ' + item.titleHtml + '</span>' + state(agent, item) + '</div>').join('') : '') + '</div>';
   };
   const pill = agent => '<button class="agent-pill' + agent.markClasses + '" data-agent="' + esc(agent.agentId) + '" title="' + agent.tipHtml + '" type="button"><span>' + agent.nameHtml + '</span></button>';

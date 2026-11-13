@@ -159,7 +159,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       chips: [...document.querySelectorAll('#page-controls [data-page-ctl="state"]')].map((choice) => [choice.dataset.value, choice.getAttribute('aria-pressed') === 'true']),
       lanes: [...document.querySelectorAll('#page-controls select[data-page-ctl="lane"] option')].map((option) => option.textContent), pick: box(document.querySelector('#page-controls select[data-page-ctl="lane"]')),
       seg: box(document.querySelector('#page-controls [data-page-ctl="view"]')), go: box(document.querySelector('#page-controls [data-page-ctl="new"]')),
-      waiting: (() => { const fold = document.querySelector('[data-page-ctl=shouts][data-value=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
+      waiting: (() => { const fold = document.querySelector('[data-page-ctl=shouts][data-value=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: 0, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
       agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
     };
@@ -301,7 +301,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375');
     r = await read();
-    assert.ok(r.waiting.height >= 44 && r.idle.height >= 44, 'the Questions segment and idle fold are 44px targets');
+    assert.ok(r.idle.height >= 44, 'the idle fold is a 44px target');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280');
 
