@@ -87,7 +87,7 @@ test('clause 1, clause 2: [V17] submit refuses a candidate stacked on another it
   assert.equal((await box.runLocal(box.web, 'submit', String(first))).code, 0);
 
   const stacked = (await add(box, 'web', 'Stacked submission'));
-  assert.equal((await box.runLocal(box.web, 'claim', String(stacked))).code, 0);
+  { const claimed = (await box.runLocal(box.web, 'claim', String(stacked))); assert.equal(claimed.code, 0, claimed.out + claimed.err); }
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'stacked submission');
   assertStackRefusal((await box.runLocal(box.web, 'submit', String(stacked), '--json')), first, firstCommit);
   assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(stacked), '--json')).out).item_status, 'claimed');
@@ -110,7 +110,7 @@ test('[V17] accept refuses a historical candidate stacked on another item', asyn
   assert.equal((await box.runLocal(box.web, 'submit', String(first))).code, 0);
 
   const stacked = (await add(box, 'web', 'Historical stacked submission'));
-  assert.equal((await box.runLocal(box.web, 'claim', String(stacked))).code, 0);
+  { const claimed = (await box.runLocal(box.web, 'claim', String(stacked))); assert.equal(claimed.code, 0, claimed.out + claimed.err); }
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'historical stacked submission');
   // @pullboard-board-file journey: read the board file the real CLI submission wrote
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
@@ -138,7 +138,7 @@ test('[V17] accept refuses a historical candidate stacked on another item', asyn
  */
 async function trunkStack(box, { historical = false } = {}) {
   const stacked = (await add(box, 'coordinator', 'Single-checkout stack'));
-  assert.equal((await box.runLocal(box.repo, 'claim', String(stacked))).code, 0);
+  { const claimed = (await box.runLocal(box.web, 'claim', String(stacked))); assert.equal(claimed.code, 0, claimed.out + claimed.err); }
   const first = (await add(box, 'web', 'Unverified trunk commit'));
   assert.equal((await box.runLocal(box.web, 'claim', String(first))).code, 0);
   const firstCommit = commitFile(box, box.web, 'web/trunk.txt', 'unverified trunk commit');
@@ -198,7 +198,7 @@ test('[V17] a trunk-merged unverified commit is outside a newer candidate range'
   box.git(box.repo, 'merge', '--ff-only', '-q', 'web/one');
 
   const stacked = (await add(box, 'web', 'After trunk merge'));
-  assert.equal((await box.runLocal(box.web, 'claim', String(stacked))).code, 0);
+  { const claimed = (await box.runLocal(box.web, 'claim', String(stacked))); assert.equal(claimed.code, 0, claimed.out + claimed.err); }
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'after trunk merge');
   assert.notEqual(stackedCommit, firstCommit);
   const submitted = (await box.runLocal(box.web, 'submit', String(stacked), '--json'));
