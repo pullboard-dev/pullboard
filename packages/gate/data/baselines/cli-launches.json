@@ -1383,7 +1383,7 @@
     "launch": 1
   },
   "apps/cli/journeys/hold/demo.test.js": {
-    "launch": 7
+    "launch": 1
   },
   "apps/cli/journeys/hold/demo-widths.test.js": {
     "launch": 5

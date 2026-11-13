@@ -146,7 +146,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         await chrome.waitFor("document.querySelector('#feed').textContent.includes('Should the desktop demo ship?')", 15_000); // budget: hang ceiling for the demo decision shout to appear in the shout feed; no throughput claim.
       }
       await setViewport(width);
-      await click('[data-tab="items"]');
+      await click('.tab[data-tab="items"]');
       if (width <= 900) {
         await click('#proj-switch');
         await click('[data-proj-all]');
@@ -158,7 +158,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         await click('[data-proj-all]');
         await click(`[data-root="${demo.repo}"]`);
         await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
-        await click('[data-tab=items]');
+        await click('.tab[data-tab="items"]');
         await chrome.waitFor("!!document.querySelector('#chain .row')");
       }
       assert.ok(await chrome.stable("[...document.querySelectorAll('#proj-list .pname')].some(e=>e.textContent==='phone-demo')"), `${width}: demo appears in the project list`);
@@ -220,7 +220,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
             `${width}: the Answer button sits under the ask it answers: ${JSON.stringify(asks)}`);
         }
       }
-      await click('[data-tab="items"]');
+      await click('.tab[data-tab="items"]');
 
       await click('#new-item');
       await checkLayout(width, 'add form');
@@ -232,7 +232,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await chrome.waitFor("document.querySelector('#console.ok') && document.querySelector('#console').textContent.includes('added #')");
       await checkLayout(width, 'successful add toast');
 
-      await click('[data-tab="shouts"]');
+      await click('.tab[data-tab="shouts"]');
       await checkLayout(width, 'shout and hold forms');
       const answerText = `Phone answer ${width}`;
       let answerLifecycleCaptureArmed = false;
