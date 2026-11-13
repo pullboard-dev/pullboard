@@ -257,6 +257,8 @@ function element(id) {
     focus() {},
     scrollIntoView() { this.scrolled += 1; },
     getBoundingClientRect: () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 }),
+    // The palette's search box hint is added beside its box.
+    parentNode: { appendChild() {} },
     querySelectorAll: () => [],
   };
 }
@@ -347,10 +349,13 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const inflight = new Set();
   const requests = [];
   const document = {
-    body: element('body'),
+    body: Object.assign(element('body'), { appendChild() {} }),
     documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
+    // The palette builds its overlay at load: a created element is a plain node the page may append and listen on.
+    createElement: () => element('created'),
+    querySelector: () => null,
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
@@ -362,6 +367,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const context = vm.createContext({
     document,
     location: { search: '' },
+    navigator: { platform: '', userAgent: '' },
     URLSearchParams,
     structuredClone,
     innerWidth: width,
@@ -545,6 +551,11 @@ function accept(box, p, id) {
 function needEntries(html) {
   return [...html.matchAll(/<li class="row ask"(?: data-go="([^"]*)")?><span class="dot ask"><\/span><div><div class="t">(?:<span>([^<]*)<\/span>)?([^]*?)<\/div>(?:<span class="row-age">[^]*?<\/span>)?<div class="meta"><span class="why"><b>NEEDS YOU<\/b> ([^<]*)<\/span><\/div><\/div><span class="chip warn">([^<]*)<\/span><\/li>/g)]
     .map((row) => [row[1] ?? null, row[2] ?? null, row[3], row[4], row[5]]);
+}
+
+/** Open the Items page's collapsed questions-and-sentinels group so its rows can be pressed and measured [N26]. */
+async function openItemsNeeds(chrome) {
+  await chrome.waitFor("(() => { const group = document.querySelector('#needs details[data-items-needs]'); if (group && !group.open) group.open = true; return !!group?.open; })()");
 }
 
 /**
@@ -1262,4 +1273,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
