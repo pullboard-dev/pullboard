@@ -32,6 +32,7 @@ import { primaryCheckoutRoot } from '../worktree.js';
 import { exitLines } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
+import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
 
 /**
  * The tooling tree that judges this submit (RFC 0007 SC7), for the board to record with the submit it applies, so review
@@ -93,6 +94,7 @@ const keepOutput = (name, output) => {
   try { writeFileSync(join(keptFolder, name), output.length > ${KEPT_PHASE_BYTES} ? output.subarray(-${KEPT_PHASE_BYTES}) : output, { mode: 0o600 }); return name; } catch { return null; }
 };
 ${tapCaseErrors}
+${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
 ${fitReceipt}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
@@ -222,6 +224,9 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
   const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  // Each named case's diagnostic signature, as the controller signs it, so the board tells two failures of one case apart [V4,B3].
+  let failureSignatures = null;
+  try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
@@ -236,7 +241,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   const counts = totals(text);
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
 else {
@@ -431,8 +436,9 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check: frozenCheck(held) }, pairPrefix) : null;
   if (pairing) request.input.data.flakes = pairing;
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
+  // The claim base rides along, so the board never excuses a red at a later main that the item's own base passed [V4,B3].
   // root: the builder checkout the board seals an owner wait from when the runner finds only lane ownership [B3,L1].
-  request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files, root,
+  request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files, root, ...(claimHead ? { claimBase: claimHead } : {}),
     ...(companion ? { companion } : {}), ...(infra ? { infra } : {}), ...pulledTooling(root, commit) };
   // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
   withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
