@@ -40,7 +40,7 @@ export async function seedRareLifecycleJourneys({ board, journeys, readProject }
   for (const [name, kinds] of requirements) {
     assert.equal(typeof journeys[name], 'function', 'wire the existing real ' + name + ' journey');
     const before = store.events(board).at(-1)?.event_id ?? 0;
-    console.log('PULLBOARD_LIFECYCLE_NATIVE ' + name);
+    console.log('PULLBOARD_LIFECYCLE_NATIVE ' + name + ' @' + Date.now());
     let id;
     try { id = await journeys[name](); }
     catch (error) { throw new Error(name + ': ' + error.message, { cause: error }); }
