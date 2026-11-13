@@ -42,7 +42,10 @@ test('Dashboard keeps between-items agents behind one line and paints their real
     // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
     await chrome.waitFor('!!data?.project');
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    // Seats that only shouted are between items: the /live-style table keeps them behind one line until it is opened (#6847).
+    // The table lists the agents the notch counts (#6773). These seats only shouted, so the journey hands the notch's list
+    // all of them, as the sentinel journeys hand the page its calls; at work and holding nothing, they are between items,
+    // which the /live-style table keeps behind one line until it is opened (#6847).
+    await chrome.stable(`(() => { globalThis.ownNavNumbers = navNumbers; navNumbers = p => ({ ...ownNavNumbers(p), agentIds: p.agents.filter(agent => agent.agent_id !== 'coordinator').map(agent => agent.agent_id) }); view.allAgents = !view.allAgents; render(); return true; })()`);
     await chrome.waitFor(`view.tab === 'dashboard' && !!document.querySelector('#dashboard [data-dashboard-quiet]')`);
     assert.equal(await chrome.stable(`document.querySelectorAll('#dashboard [data-dashboard-quiet-rows] [data-dashboard-agent]').length`), 0,
       'the closed between-items rows are not built offscreen');
@@ -67,8 +70,8 @@ test('Dashboard keeps between-items agents behind one line and paints their real
     assert.equal(await chrome.stable(`document.querySelector('#dashboard [data-dashboard-quiet-rows]').hidden`), false);
     assert.ok((await chrome.stable(`document.querySelector('#dashboard [data-dashboard-agent="${agents[0]}"] td.who').title`)).includes('fresh model'),
       'an open table redraws from the current model');
-    // Advance only the displayed observation clock: after twenty quiet minutes a seat is no longer at work and leaves the table.
-    await chrome.stable(`data.project.observedAt = new Date(Date.now()+30*60_000).toISOString(); render(); true`);
+    // Back on the notch's own list, which counts no seat that holds nothing, the seats leave the table.
+    await chrome.stable(`(() => { navNumbers = ownNavNumbers; view.allAgents = !view.allAgents; render(); return true; })()`);
     await chrome.waitFor(`!document.querySelector('#dashboard [data-dashboard-agent]')`);
   } finally {
     try { if (chrome) await closeSnapshotChrome(chrome); }
