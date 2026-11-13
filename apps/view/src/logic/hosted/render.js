@@ -106,6 +106,12 @@ export function hostedState(state, facts = {}) {
   const opening = 'Help me open my Pullboard board.';
   const updating = 'Help me update Pullboard.';
   const shared = facts.linked || [];
+  // A refusal the page was handed is the person's to read: its bracketed code goes, and words naming a command, token or relay term give way to the fallback [C6,N26].
+  // Kept inside hostedState because the page carries this function's source.
+  const plain = (text, fallback) => {
+    const said = String(text ?? '').replace(/\[[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\]\s*/gu, '').replace(/`/gu, '').trim();
+    return said && !/\([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\)|(?:^|[\s$])(?:pullboard|node|git|npm|npx|sh|bash)\s+[-\w./<]|\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._~+/=-]{16,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{32,}={0,2})\b|\b(?:checkpoints?|outbox(?:es)?|digests?|leases?)\b/iu.test(said) ? said : fallback;
+  };
   const share = { kind: 'state', heading: 'One step on your computer', text: 'On the computer with your projects, open a terminal and run this once:', parts: ['command'], command: 'pullboard relay on --all', ask: 'Help me share my boards with my phone.',
     small: 'It shares every project with your account. Your boards show up here by themselves.', live: 'Waiting for your boards' };
   const models = {
@@ -121,7 +127,7 @@ export function hostedState(state, facts = {}) {
     'not-running': { kind: 'state', heading: 'Where are your projects?', parts: ['two'], live: 'Still looking on this computer', wide: true },
     'mismatch': { kind: 'state', heading: 'Update Pullboard on this computer', text: 'The Pullboard on this computer does not match this page. Update it, and this page opens your boards by itself.', parts: ['command'],
       command: 'npm i -g pullboard', ask: updating, live: 'Still looking on this computer', lead: agent, help: updating },
-    'problem': { kind: 'state', heading: 'Open your board', text: facts.detail || 'This page could not take the connection Pullboard on this computer sent back.', parts: ['open'], lead: agent, help: opening },
+    'problem': { kind: 'state', heading: 'Open your board', text: plain(facts.detail, 'This page could not take the connection Pullboard on this computer sent back.'), parts: ['open'], lead: agent, help: opening },
     'signed-out': facts.phone
       ? { kind: 'state', heading: 'Your boards, on your phone', text: 'Sign in with the GitHub account you use on your computer.', parts: ['github'], small: 'Nothing to install on your phone.',
         lead: 'Stuck? On your computer, ask your agent', help: 'Help me see my boards on my phone.' }
@@ -135,8 +141,8 @@ export function hostedState(state, facts = {}) {
       small: 'Your account shares ' + (shared.join(', ') || 'your boards') + '. This browser opens ' + (shared.length === 1 ? 'it' : 'them') + ' from that link.' },
     // A browser paired here before whose relay session ended: its shared boards cannot load, so it says why (#902).
     'signed-out-paired': { kind: 'note', heading: 'Signed out of pullboard.dev', text: 'Your session here ended, so your shared boards cannot open. Sign in again to see them; the boards on this computer stay open.', parts: ['github'] },
-    'linked-failed': { kind: 'note', heading: 'Shared boards did not load', text: 'They show here by themselves once they answer.', parts: [], detail: facts.detail },
-    'local-failed': { kind: 'note', heading: 'This computer\'s boards did not load', text: 'They show here by themselves once Pullboard answers.', parts: [], detail: facts.detail },
+    'linked-failed': { kind: 'note', heading: 'Shared boards did not load', text: 'They show here by themselves once they answer.', parts: [], detail: plain(facts.detail, undefined) },
+    'local-failed': { kind: 'note', heading: 'This computer\'s boards did not load', text: 'They show here by themselves once Pullboard answers.', parts: [], detail: plain(facts.detail, undefined) },
   };
   const model = state ? models[state] : null;
   return model ? { state, ...model, parts: [...model.parts,

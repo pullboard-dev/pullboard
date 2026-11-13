@@ -1,13 +1,13 @@
 /** Render a private costAnalytics/1 projection; arithmetic and attribution remain server-owned [N26]. */
-export function costOverviewHtml(data = {}, opened = null, { hasPrices = false } = {}) {
+export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, vendorClasses = [] } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const duration = ms => ms == null ? '' : ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min' : ms < 36000000 ? (ms / 3600000).toFixed(1) + ' h' : Math.round(ms / 3600000) + ' h';
   const percent = value => value == null ? '' : Math.round(value * 100) + '%';
   const bold = value => '<b>' + esc(value) + '</b>';
   const landed = value => { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date) : ''; };
   const tokens = count => count >= 1e6 ? Math.round(count / 1e6) + 'M' : count >= 1e3 ? Math.round(count / 1e3) + 'K' : String(count);
-  /** A model's vendor colour class, from the vendor the server names or, for a session line, the model's name. */
-  const vendorClass = value => /anthropic|claude|opus|sonnet|haiku/i.test(value ?? '') ? 'anthropic' : /openai|gpt|codex|^o\d/i.test(value ?? '') ? 'openai' : 'other';
+  /** A model's vendor colour class: the first `vendorClasses` rule (from model-names.json) whose pattern matches the vendor or model name [P5]. */
+  const vendorClass = value => vendorClasses.find(rule => new RegExp(rule.match, 'iu').test(value ?? ''))?.class ?? 'other';
   const dot = (label, vendor) => '<span class="cost-model-dot"><i class="' + vendorClass(vendor ?? label) + '" aria-hidden="true"></i>' + esc(label) + '</span>';
   const totals = data.totals ?? {}, back = totals.sentBack ?? {};
   const pill = value => ({ clear: ['clear', 'Clear'], leaning: ['lean', 'Leaning'], 'nothing-to-compare': ['more', 'Nothing to compare'] })[value];
@@ -87,7 +87,7 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
       const result = await readWindow(window);
       if (selected !== window) return;
       model = result;
-      element.innerHTML = costOverviewHtml(model, opened, { hasPrices });
+      element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses });
       element.querySelector('[data-cost-window="' + window + '"]')?.focus();
     } catch (error) {
       if (selected !== window) return;
@@ -101,7 +101,7 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
     if (target.dataset.costCopy !== undefined) { void copyText('Add model prices to Pullboard'); return; }
     if (target.dataset.costAll !== undefined) { showAll(); return; }
     if (target.dataset.go?.startsWith('item:')) { event.preventDefault(); openItem(Number(target.dataset.go.slice(5))); return; }
-    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { hasPrices }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
+    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
   });
   return load(selected);
 }

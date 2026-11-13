@@ -1,13 +1,13 @@
-/** Adapt the shared Needs-you calls to the cockpit's legacy row shape without changing ownership. */
+/** Adapt the shared Rulings calls to the cockpit's legacy row shape without changing ownership. */
 
 /** What the person reads when a call's own words carry a code, command, token or relay term [C6,N26]. */
-const PLAIN_FALLBACK = Object.freeze({
+export const PLAIN_FALLBACK = Object.freeze({
   block: ['Pullboard stopped a request that only you can clear.', 'Ask your coordinator to take the next step.'],
   pending: [null, 'Answer it in the Spec tab.'],
   'relay-health': [null, 'Keep working; your moves wait here until the connection to your phone is back.'],
 });
 /** One pattern per leak kind: a bracketed or parenthesised code, a shell command line, a token or key, a relay term. */
-const LEAKS = [
+export const LEAKS = [
   /\[[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\]|\([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\)/u,
   /(?:^|[\s`$])(?:\$ ?)?(?:pullboard|node|git|npm|npx|sh|bash)\s+[-\w./<]/u,
   /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._~+/=-]{16,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{32,}={0,2})\b/u,
@@ -17,7 +17,7 @@ const LEAKS = [
 /**
  * Give a call that is only the person's to read plain words: a leaking field is swapped for its fallback.
  * Why: the person never knows how Pullboard works (H23); agent-facing output keeps its codes elsewhere.
- * @param {object} row - One shared Needs-you call.
+ * @param {object} row - One shared Rulings call.
  * @returns {object} The same call, or a copy with plain text and step.
  */
 export function plainNeedWords(row) {
@@ -45,10 +45,10 @@ export function needsEntries(personalNeeds, holds) {
 }
 
 /**
- * Render each adapted Needs-you row with its established action, except a local relay alert is inspection-only.
- * @param {Function} needRow - The page's escaped standard Needs-you renderer.
+ * Render each adapted Rulings row with its established action, except a local relay alert is inspection-only.
+ * @param {Function} needRow - The page's escaped standard Rulings renderer.
  * @param {Function} specRevisionRow - The page's spec revision renderer.
- * @param {object|Array<unknown>} entry - One adapted Needs-you row.
+ * @param {object|Array<unknown>} entry - One adapted Rulings row.
  * @returns {string}
  */
 export function renderNeedsRow(needRow, specRevisionRow, entry) {

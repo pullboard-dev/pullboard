@@ -179,7 +179,7 @@
   "apps/cli/tests/fixtures/cockpit/journey/every.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/init/known/main/output.test.js": {
+  "apps/cli/journeys/init/known/main/cancelled.test.js": {
     "poll": 1
   },
   "apps/cli/journeys/land/hooklock.test.js": {

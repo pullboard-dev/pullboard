@@ -199,5 +199,6 @@ export { CLAUSE_EVIDENCE_ENGINE } from './src/logic/engines/clause-evidence-engi
 export { lintBar, MAX_BAR_CLAUSES } from './src/logic/bar-lint.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings, guardBar } from './src/logic/evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
+export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export { INFRA_RELEASE_ENGINE } from './src/logic/engines/infra-release-engine.js';

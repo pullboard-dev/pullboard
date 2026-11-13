@@ -27,8 +27,8 @@ test('clause 1: defaults, move refusals and the init loop never suggest a timed 
   const resume = readFileSync(new URL('../../src/io/commands/resume.js', import.meta.url), 'utf8');
   assert.doesNotMatch(resume, /--wait/u);
   assert.doesNotMatch(template, /--wait/u);
-  assert.match(template, /next, build or review, commit, submit, next/u);
-  assert.match(template, /When next has nothing for your seat, end your turn/u);
+  assert.match(template, /Never wait: submit and move on/u);
+  assert.match(template, /Stop:\*\* after 4 empty .{1,4}next.{1,4} answers in a row/u);
   assert.equal(successfulNext('submit', {}), 'pullboard next --take');
   assert.equal(successfulNext('next', {}), 'nothing for this seat: end your turn');
   assert.throws(() => requireManualLanding({}), error => {

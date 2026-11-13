@@ -120,10 +120,11 @@ async t => {
 async function journey(t, box) {
   const [first, second, third, fourth] = box.ids;
 
-  // Clause 1: the first submit starts the one local runner, and its gate runs and posts its receipt through it.
+  // Clause 1: the first add's check baseline started the one local runner (#6560); the first submit finds it running, and its gate posts its receipt through it.
   const one = submitOne(box, first);
   assert.equal(one.document.queued, true);
-  assert.equal(one.document.localRunner?.started, true, JSON.stringify(one.document));
+  assert.equal(one.document.localRunner?.started, false, JSON.stringify(one.document));
+  assert.ok(runnerState(box)?.pid, 'the add left the local runner running');
   const pid = one.document.localRunner.pid;
   box.pids.add(pid);
   await until(box, board => getItem(board, first).item_status === 'submitted');

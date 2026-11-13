@@ -8,6 +8,9 @@ import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** How long a wait sleeps before it re-stats its inputs in case a native event was lost. */
+const RECHECK_MS = 5000;
+
 /** Watch exact inputs, including files created or replaced later, and retain changes across reads and waits. */
 export function fileChangeWaiter(paths) {
   let targets = [], generation = 0, closed = false, failure = null;
@@ -67,9 +70,12 @@ export function fileChangeWaiter(paths) {
   }
   /** Replace the input set after configuration or referenced boards change. */
   function update(values) {
+    // An input that changed since the last snapshot must still wake the next wait: a write landing between a caller's read and this update would otherwise be absorbed when the lagging native event is lost under load [C7].
+    const moved = targets.length > 0 && targets.some(target => signatures.has(target) && signatures.get(target) !== signature(target));
     targets = [...new Set(values.filter(Boolean).map(path => resolve(path instanceof URL ? fileURLToPath(path) : path)))];
     refresh();
     snapshot();
+    if (moved && !closed) changed();
   }
   /** Observe future notifications and replay any change that preceded subscription. */
   function subscribe(listener) {
@@ -87,7 +93,13 @@ export function fileChangeWaiter(paths) {
       /** Release only this waiter and its deadline timer on every completion path. */
       function finish(error) { clearTimeout(timer); listeners.delete(finish); error ? reject(error) : done(); }
       listeners.add(finish);
-      if (Number.isFinite(deadline)) timer = setTimeout(finish, Math.max(0, deadline - Date.now()));
+      /** Native events can be lost (macOS in-place WAL writes under load); one stat per input every few seconds catches them, so a missed wake costs seconds, not the whole wait. */
+      function recheck() {
+        try { reconcile(); } catch (error) { return finish(error); }
+        if (closed || generation !== after || Date.now() >= deadline) return finish();
+        timer = setTimeout(recheck, Math.min(RECHECK_MS, Math.max(0, deadline - Date.now())));
+      }
+      timer = setTimeout(recheck, Math.min(RECHECK_MS, Number.isFinite(deadline) ? Math.max(0, deadline - Date.now()) : RECHECK_MS));
     });
   }
   /** Close native handles and settle pending sleeps when their command or stream ends. */

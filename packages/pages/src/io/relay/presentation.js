@@ -17,7 +17,7 @@ import { fileRevision } from "../../../../store/index.js";
 import { resolveCommit } from "../../../../git/index.js";
 import { trunkRevisionReader } from "../../../../git/index.js";
 import { cachedVerdictStates } from "../../../../verify/index.js";
-import { compareFlowWindows } from "../../../../stats/index.js";
+import { compareFlowWindows } from "../../../../stats/light.js";
 import { recordedClaimWorktrees } from "../../../../activity/index.js";
 import { claimOverlaps } from "../../../../items/index.js";
 
