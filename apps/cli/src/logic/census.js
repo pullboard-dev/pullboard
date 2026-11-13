@@ -90,13 +90,15 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
   const isHung = file => stopped.some(path => path === file || path.endsWith(`/${file}`));
   // A red shard that printed no TAP totals never ran its tests (a missing engine, a crash), so it vouches for no file.
   const ran = /^# tests \d+/mu.test(String(output)) || status === 'green';
+  // In a red shard a file is green only on its own pass record; a file with no row of its own is no-result, never green.
+  const passed = new Set(outcomes.filter(row => row.passed).map(row => row.file));
   const cut = /^Landing gate stopped early|Landing shard .* stopped by the landing/mu.test(String(output));
   return files.map((file) => {
     const ms = times[file];
     const verdict = status !== 'green' && status !== 'red' ? 'unrun'
       : isHung(file) ? 'hung'
         : failed.has(file) ? 'red'
-          : !ran ? 'no-result'
+          : !ran || (status === 'red' && !passed.has(file)) ? 'no-result'
           : cut && !Number.isFinite(ms) ? 'unrun' : 'green';
     return { file, status: verdict, cases: failed.get(file) ?? [], secs: Number.isFinite(ms) ? Math.round(ms / 100) / 10 : null, sha, shard: label, host };
   });

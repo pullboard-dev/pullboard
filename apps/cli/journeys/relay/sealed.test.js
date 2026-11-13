@@ -1,3 +1,5 @@
+// pullboard: browser
+/** @pullboard-test-gui */
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { fixture } from '../../tests/fixtures/relay/sealed.js';

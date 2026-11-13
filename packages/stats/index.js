@@ -155,6 +155,8 @@ export {
 export {
   wilson,
   costAnalytics,
+  costWindowStart,
+  costAnalyticsSliced,
 } from './src/io/cost/analytics.js';
 export {
   TIME_PHASES,
