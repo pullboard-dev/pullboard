@@ -3,7 +3,7 @@ import { heldChip } from "../held.js";
 
 /** Render one prepared milestone item and its in-place detail. */
 export function milestoneRowHtml(row, presentation = {}) {
-  const { hidden = false, open = false, root } = presentation;
+  const { hidden = false, open = false, root, slot = null } = presentation;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const title = presentation.titleHtml ?? '<span class="muted">' + esc(row.why) + '</span>';
   const order = Number.isInteger(row.order) && row.order > 0 ? row.order : row.position;
@@ -29,7 +29,7 @@ export function milestoneRowHtml(row, presentation = {}) {
   const toggle = 'class="milestone-item' + (row.block?.dot ? ' blocked' : '') + '" data-roadmap-key="' + esc(key) + '" aria-expanded="' + open + '"' + board + ' title="' + esc(row.title ? row.title + (!row.open && row.why ? ' (' + row.why + ')' : '') : row.why) + '"';
   const detail = row.block ? row.block.detail : '<p>' + esc(row.why || row.word) + '</p>';
   // Every row stays on the Roadmap; only its explicit Open in Items link navigates (#605).
-  return '<li' + (hidden ? ' hidden' : '') + '><div ' + toggle + ' role="button" tabindex="0">' + inner + '</div>'
+  return '<li' + (slot === null ? '' : ' data-slot="' + esc(slot) + '"') + (hidden ? ' hidden' : '') + '><div ' + toggle + ' role="button" tabindex="0">' + inner + '</div>'
     + '<div class="milestone-why"' + (open ? '' : ' hidden') + (row.pending ? ' aria-busy="true"' : '') + '>' + detail + '</div></li>';
 }
 
@@ -70,9 +70,12 @@ export function roadmapRemainingCount(reads) {
   return total;
 }
 
-/** Render release cards, shipping counts and shipped history without browser state. */
+/**
+ * Render release cards, shipping counts and shipped history without browser state. With slotKey and place, each row's
+ * markup goes to place(key, html) and what place returns stands in the list, so the page can patch rows by key (#6679).
+ */
 export function roadmapCardsHtml(read, presentation = {}) {
-  const { only = null, root, held, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map() } = presentation;
+  const { only = null, root, held, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map(), slotKey = null, place = null } = presentation;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   /** Format the latest shipped date; keep this dependency inside the renderer embedded in the page script. */
   function shippedDate(milestone) {
@@ -110,7 +113,7 @@ export function roadmapCardsHtml(read, presentation = {}) {
   const body = (read) => {
     const { milestone, rows, done, total } = read;
     const progress = headerFor(read) ? '' : '<svg class="milestone-progress" viewBox="0 0 100 1" preserveAspectRatio="none" role="progressbar" aria-label="' + esc(milestone.name) + ': ' + done + ' of ' + total + ' landed" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + done + '"><rect width="' + (total ? (100 * done) / total : 0) + '" height="1"/></svg>';
-    return (rows.length ? progress + '<ul>' + rows.map((row) => milestoneRowHtml(row, { ...rowPresentation.get(row), hidden: held === milestone.name && !row.held })).join('') + '</ul>' : '<p class="milestone-empty">No items yet.</p>')
+    return (rows.length ? progress + '<ul>' + rows.map((row) => { const slot = slotKey ? slotKey(milestone, row) : null, html = milestoneRowHtml(row, { ...rowPresentation.get(row), hidden: held === milestone.name && !row.held, slot }); return slot !== null && place ? place(slot, html) : html; }).join('') + '</ul>' : '<p class="milestone-empty">No items yet.</p>')
       + (milestone.note ? '<p class="milestone-note">' + (notes.get(read) ?? esc(milestone.note)) + '</p>' : '');
   };
   /** Keep folding consistent while the roadmap disclosure reuses the shared release-header presentation. */
