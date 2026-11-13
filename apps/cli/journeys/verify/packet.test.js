@@ -110,7 +110,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
-  assert.equal(submitted.gate.green, true, 'the fixture gate is green');
+  assert.equal(submitted.gate?.green, true, 'the fixture gate is green: ' + JSON.stringify(submitted).slice(0, 1500));
 
   const stored = join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`);
   assert.ok(existsSync(stored), 'the packet is stored when the gate goes green, before anyone asks for it');
@@ -230,7 +230,7 @@ test('a test clause with no case of its own is proved by the item\'s check cases
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   for (const n of [1, 2, 3]) ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
   const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
-  assert.equal(submitted.gate.green, true, 'the fixture gate is green');
+  assert.equal(submitted.gate?.green, true, 'the fixture gate is green: ' + JSON.stringify(submitted).slice(0, 1500));
   const packet = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`), 'utf8'));
   const [greeting, legacy, old] = packet.clauses;
   assert.ok(greeting.runs.length, 'the greeting clause is matched by its words');
