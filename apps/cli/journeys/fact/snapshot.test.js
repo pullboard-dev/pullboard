@@ -285,7 +285,8 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
       /** Observe replay pacing while preserving each native browser timeout unchanged. */
       window.setTimeout = (callback, delay, ...args) => {
         if (callback === window.advanceReplay) window.__replayScheduledDelays.push(delay);
-        return nativeSetTimeout(callback, delay, ...args);
+        // While a measured replay runs, the step fires at once: the assertion reads the scheduled value, and a board with 30 or more events takes over 30 s at 1×.
+        return nativeSetTimeout(callback, window.__replayFast && callback === window.advanceReplay ? 0 : delay, ...args);
       };
     })()`);
     /** Replay the complete exported history and compare scheduled timer values, not elapsed time. */
@@ -298,8 +299,10 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
         select.dispatchEvent(new Event('change', { bubbles: true }));
       })()`);
       assert.equal(await evaluate("document.querySelector('#replay-speed').value"), speed);
+      await evaluate('window.__replayFast = true');
       await chrome.click("document.querySelector('#replay-play')");
       await chrome.waitFor('!snapshotReplay.playing', 30_000); // budget: hang-only ceiling for one complete replay.
+      await evaluate('window.__replayFast = false');
       assert.equal(await evaluate('snapshotReplay.playing'), false, `${speed}× replay reaches its end`);
       assert.equal(await evaluate('snapshotReplay.index'), initial.total, `${speed}× replay renders the final exported event`);
       const scheduled = JSON.parse(await evaluate('JSON.stringify(window.__replayScheduledDelays)'));
