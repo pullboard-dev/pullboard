@@ -165,7 +165,7 @@ function recordSubmitAdmission(board, { id, item, candidate, submit }) {
   if (!(left > 0)) return null;
   const witness = { id: randomUUID(), commit: candidate, tree: submit.tree };
   try {
-    store.claim(board, id, { agentId: submit.agentId, lane: item.item_lane, leaseMs: left, freeze: () => null, submitAdmission: witness });
+    store.admitSubmit(board, id, { agentId: submit.agentId, lane: item.item_lane, leaseMs: left, freeze: () => null, submitAdmission: witness });
     return witness;
   } catch (error) {
     if (!error?.code) throw error;
