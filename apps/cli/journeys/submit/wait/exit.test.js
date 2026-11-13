@@ -65,7 +65,7 @@ function assertUnreviewed(box) {
   assert.ok(!document.verdicts?.length, 'no review is needed to end the gate wait');
 }
 
-test('submit --wait exits on an accepted known-main red and retains its repair owner [V4,B3]', async t => {
+test('submit --wait exits on an accepted known-main red and retains its repair owner [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const { box, child, document } = await submitToGate(t);
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
   assert.equal(document.gate.green, false);
@@ -75,7 +75,7 @@ test('submit --wait exits on an accepted known-main red and retains its repair o
   assertUnreviewed(box);
 });
 
-test('submit --wait exits with the actual candidate-only gate refusal [V4,B3]', async t => {
+test('submit --wait exits with the actual candidate-only gate refusal [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const { box, child, document } = await submitToGate(t, { candidate: source('candidate-only failure [G1]') });
   assert.equal(child.exitCode, 1, child.stdoutText + child.stderrText);
   assert.equal(document.error.code, 'GATE_RED');
@@ -93,7 +93,7 @@ test('a claim-holding seat gets the queued acknowledgment at once and still reac
   assertUnreviewed(box);
 });
 
-test('a lost queued worker is recovered by the follow-up submit, never fabricated into an outcome [V4,B3,P7]', async t => {
+test('a lost queued worker is recovered by the follow-up submit, never fabricated into an outcome [V4,B3,P7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   let child;
   let barrier;
   let worker;
