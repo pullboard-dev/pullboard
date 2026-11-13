@@ -168,6 +168,9 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       assert.ok(await chrome.stable("!!document.querySelector('#detail h2')"), `${width}: selected item detail is visible`);
       await checkLayout(width, 'items, Needs you and detail');
       for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
+        // Spec and Doctrine sit in the Rules menu and Activity in the Insights menu, so open the group first [N26].
+        const group = { spec: 'rules', doctrine: 'rules', activity: 'insights' }[tab];
+        if (group) await click(`[data-nav-group="${group}"]`);
         await click(`.tab[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
         if (tab === 'spec') {
