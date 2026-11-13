@@ -41,9 +41,9 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
   const phase = name => t.diagnostic('roadmap phase ' + name + ' ' + (Date.now() - phaseStarted) + 'ms');
   phase('start');
   const { box, beacon, titles } = await roadmapStagesBoard(phase);
-  // The sent-back #3 carries no queue position now, so it follows the queued #4 and the ranked #2 (#7303).
-  // What the person reads on each row: the approved stage word; rejected work is a separate mark. Rows follow the
-  // backend's queue order, queued items first by position (36add4ed61, f8e8ce444a), never re-sorted by stage (b83469ff53).
+  // What the person reads on each row: the approved stage word; rejected work is a separate mark. A release lists its moving
+  // work by stage first (building, in review or verified, ready, blocked), each stage in the backend's queue order, then landed work (#6841,
+  // dccb0c4a9d). The sent-back #3 holds queue position 1 but is Ready, so it follows the in-review #4 and the verified #2.
   const words = [
     { id: '#4', label: 'In review', tone: 'in-review' },
     { id: '#2', label: 'Verified', tone: 'verified' },
@@ -94,7 +94,7 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
       assert.deepEqual(rows.map(({ id, label, tone }) => ({ id, label, tone })), words, `${width}: each roadmap row uses an approved stage word`);
       assert.deepEqual(rows.filter((row) => row.id === '#3' || row.id === 'beacon#1').map((row) => row.marks), [['Sent back'], ['Sent back']], `${width}: a rejected item keeps its mark beside its stage`);
       assert.ok(rows.every((row) => row.seen), `${width}: every stage is on screen`);
-      assert.deepEqual(rows.map((row) => row.title), [titles[3], titles[1], titles[2], 'Billing webhook retries', titles[0], titles[4], titles[5]], `${width}: queued items lead in queue order, then the rest, then landed items (36add4ed61)`);
+      assert.deepEqual(rows.map((row) => row.title), [titles[3], titles[1], titles[2], 'Billing webhook retries', titles[0], titles[4], titles[5]], `${width}: moving work leads by stage in queue order, then landed items (#6841)`);
       assert.deepEqual(rows.map((row) => row.tip), rows.map((row) => row.title), `${width}: each row's tooltip is its whole title`);
       assert.ok(rows.every((row) => row.lines === 1 && row.ellipsis), `${width}: every title holds one line, set to end in an ellipsis: ${JSON.stringify(rows)}`);
       assert.ok(rows.find((row) => row.id === '#6').cut, `${width}: the long title is cut, so its ellipsis shows`);
