@@ -137,7 +137,11 @@ export async function settledSubmit(t, box, { submitted = false } = {}) {
     const shown = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' });
     return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
   };
-  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), submitted ? { until: shown => shown?.item_status === 'submitted' } : {});
+  let shown = null;
+  const until = document => { shown = document; return document?.item_status === 'submitted'; };
+  // budget: under the runner's 90 s silent-hang ceiling, so a red that never settles names its thread instead of hanging.
+  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), submitted ? { until, deadlineMs: 75_000 } : {})
+    .catch(error => { throw new Error(`${error.message.split('\n')[0]}; item ${shown?.item_status}; thread:\n${JSON.stringify((shown?.thread ?? []).slice(-6)).slice(0, 3000)}`); });
   const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1", box.item)[0];
   return { ...settled, submission: event ? JSON.parse(event.event_detail) : null };
 }
