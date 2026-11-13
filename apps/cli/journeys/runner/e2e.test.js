@@ -38,6 +38,7 @@ import * as store from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -166,6 +167,7 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   await addDiagnosedLight(box, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
   const webRunner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
   assert.match((await box.runLocal(webRunner, 'run', '--agent-light', good, '--attempts', '1')).out, /#1 is in the gate as job /);
+  await settledGateJob(box, 1); // the pulled gate posts its receipt after the run returns [C7]
   const commit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', commit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--no-next', '--note', 'ran the check, then emptied the file and saw it fail')).out, /verified #1/);
@@ -195,6 +197,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
   writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
   assert.match((await box.runLocal(dependencyRunner, 'run', '--agent-light', upstreamAgent, '--attempts', '1')).out, /#1 is in the gate as job /);
+  await settledGateJob(box, 1); // the pulled gate posts its receipt after the run returns [C7]
   const dependencyCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', dependencyCommit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.')).out, /verified #1/);
