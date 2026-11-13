@@ -6,6 +6,7 @@ import { discardUnpublished } from '../src/relay-local-recovery.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
 import * as store from '../src/board.js';
 import { applyRelayMove, appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -18,7 +19,7 @@ import { undoQueued } from '../src/relay-outbox-undo.js';
 import { seal, unseal } from '../src/seal.js';
 
 /** Real SQLite, native changesets and sealed queue; the only remote is an in-process ordered fixture. */
-async function fixture(t, { partialReapply = false, setup, pending } = {}) {
+async function fixture(t, { partialReapply = false, setup, pending, fileBacked = false } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-rebuild-recovery-'));
   const names = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN'];
   const prior = Object.fromEntries(names.map(name => [name, process.env[name]]));
@@ -27,7 +28,11 @@ async function fixture(t, { partialReapply = false, setup, pending } = {}) {
   process.env.PULLBOARD_MACHINE_HOME = join(directory, 'machine');
   delete process.env.PULLBOARD_RELAY_KEY;
   delete process.env.PULLBOARD_RELAY_TOKEN;
-  const board = store.openBoard(':memory:', { now: () => new Date('2026-10-24T00:00:00Z') });
+  if (fileBacked) {
+    assert.equal(spawnSync('git', ['-c', 'init.defaultBranch=main', 'init', '-q', directory]).status, 0);
+    mkdirSync(join(directory, '.git', 'pullboard'), { mode: 0o700 });
+  }
+  const board = store.openBoard(fileBacked ? join(directory, '.git', 'pullboard', 'board.sqlite') : ':memory:', { now: () => new Date('2026-10-24T00:00:00Z') });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: directory, sessionDigest: 'a'.repeat(64) });
   const extra = setup?.(board, directory);
@@ -37,8 +42,8 @@ async function fixture(t, { partialReapply = false, setup, pending } = {}) {
   storeBoardKey(id, key);
   const checkpoint = { native: exportBoard(board), sequence: 1 };
   const state = { board: id, sequence: 2, mode: 'ordered', machine: 'fixture-machine', outbox: { moves: [] } };
-  mkdirSync(join(directory, 'link'), { mode: 0o700 });
-  const file = join(directory, 'link', 'relay.json');
+  if (!fileBacked) mkdirSync(join(directory, 'link'), { mode: 0o700 });
+  const file = fileBacked ? join(directory, '.git', 'pullboard', 'relay.json') : join(directory, 'link', 'relay.json');
   const records = [], posts = [], reads = [], errors = [];
   /** Authenticate the fixture's actual sealed record and use the real deterministic board engine. */
   async function replay(board, key, state, record) {
@@ -477,8 +482,8 @@ for (const kind of ['shout', 'event']) test(`review unshifted positional ${kind}
 });
 
 /** Explicit service-first selection uses real durable queue/link files and native SQLite, no live relay. */
-async function lossFixture(t) {
-  const f = await fixture(t, { partialReapply: true,
+export async function lossFixture(t, options = {}) {
+  const f = await fixture(t, { partialReapply: true, ...options,
     setup(board, directory) {
       const actor = store.register(board, { lane: 'core', path: join(directory, 'builder'), route: 'mid' });
       return { actor };
@@ -505,6 +510,8 @@ for (const cut of ['none', 'held', 'archived', 'restored']) test(`service-first 
   }
   const result = await discardUnpublished(f.link, f.choice);
   assert.equal(result.sequence, 3);
+  assert.equal(result.nativeEventCursor, f.board.db.prepare('SELECT max(event_id) AS id FROM event').get().id);
+  assert.match(result.targetDigest, /^[0-9a-f]{64}$/u);
   assert.deepEqual(f.posts, [], 'neither settled nor uncertain nor abandoned old moves were posted');
   assert.deepEqual(engineReceipt(f.board, f.third.id), f.receipt);
   assert.equal(engineReceipt(f.board, f.fourth.id), null, 'abandonment did not invent a refusal/receipt');
@@ -552,7 +559,7 @@ for (const failure of ['wrong-digest', 'changed-during-fetch', 'foreign-checkpoi
   assert.deepEqual(f.posts, []);
 });
 
-for (const failure of ['changed-plan', 'changed-queue', 'changed-board']) test(`service-first persisted ${failure} keeps its recovery hold and refuses replacement [H16,H21]`, async t => {
+for (const failure of ['changed-plan', 'changed-queue', 'changed-board', 'changed-link']) test(`service-first persisted ${failure} keeps its recovery hold and refuses replacement [H16,H21]`, async t => {
   const f = await lossFixture(t);
   f.link.io.recoveryCut = name => { if (name === 'held') throw new Error('fixture interruption'); };
   await assert.rejects(discardUnpublished(f.link, f.choice), /fixture interruption/u);
@@ -560,6 +567,7 @@ for (const failure of ['changed-plan', 'changed-queue', 'changed-board']) test(`
   if (failure === 'changed-plan') writeFileSync(join(f.link.root, 'link', 'local-recovery', f.choice.queueSha256, 'plan.json'), '{}');
   if (failure === 'changed-queue') writeFileSync(outboxFile(f.link.file), 'changed queue');
   if (failure === 'changed-board') store.shout(f.board, { from: 'coordinator', to: 'all', text: 'new writer must not be lost', lanes: [] });
+  if (failure === 'changed-link') { const state = f.link.loadLink(); state.pending = { move: { id: 'new-uncertain-writer' } }; f.link.saveLink(f.link.file, state); }
   const after = exportBoard(f.board), queue = readFileSync(outboxFile(f.link.file));
   await assert.rejects(discardUnpublished(f.link, f.choice));
   assert.deepEqual(exportBoard(f.board), after); assert.deepEqual(readFileSync(outboxFile(f.link.file)), queue);

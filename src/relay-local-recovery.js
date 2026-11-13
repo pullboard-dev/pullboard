@@ -13,6 +13,12 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const refusal = text => new Refused('RELAY_LOCAL_RECOVERY', text);
 const nativeDigest = board => semanticBoardDigest(exportBoard(board));
 
+/** Bind all retained link inputs across a held retry, not only its recovery marker. */
+function linkInputs(state) {
+  const { recovery, ...inputs } = state;
+  return digest(JSON.stringify(inputs));
+}
+
 /** Preserve every existing ordered outcome exactly; loss permission applies only to local unpublished work. */
 function preservesReceipts(before, after) {
   const meta = new Map(after.tables.board_meta.map(row => [row.meta_key, row.meta_value]));
@@ -44,7 +50,7 @@ export async function discardUnpublished(link, { queueSha256, decision }) {
     if (!existsSync(archive) || digest(readFileSync(archive)) !== queueSha256 || digest(readFileSync(planFile)) !== state.localRecovery.planSha256) {
       throw refusal('the completed recovery custody changed; do not repeat the reset');
     }
-    return { board: state.board, sequence: state.localRecovery.sequence, queueSha256, alreadyCompleted: true, archive, plan: planFile,
+    return { board: state.board, sequence: state.localRecovery.sequence, nativeEventCursor: state.localRecovery.nativeEventCursor, targetDigest: state.localRecovery.targetDigest, queueSha256, alreadyCompleted: true, archive, plan: planFile,
       disposition: 'read back the original recovery completion; later native work was not reset' };
   }
   let marker = state.recovery;
@@ -89,7 +95,7 @@ export async function discardUnpublished(link, { queueSha256, decision }) {
       const bytes = JSON.stringify(plan);
       const temporary = planFile + '.tmp';
       writeFileSync(temporary, bytes, { mode: 0o600 }); renameSync(temporary, planFile);
-      marker = { kind: 'discard-unpublished', queueSha256, decision, planSha256: digest(bytes), sourceDigest, targetDigest, sequence: checkpoint.sequence };
+      marker = { kind: 'discard-unpublished', queueSha256, decision, planSha256: digest(bytes), sourceDigest, targetDigest, sequence: checkpoint.sequence, linkInputsSha256: linkInputs(state) };
       state.recovery = marker; saveLink(file, state);
     });
     await io.recoveryCut?.('held');
@@ -97,6 +103,7 @@ export async function discardUnpublished(link, { queueSha256, decision }) {
   return withOutboxGuard(file, async () => {
     const current = loadLink(file);
     if (JSON.stringify(current.recovery) !== JSON.stringify(marker)) throw refusal('the selected recovery hold changed');
+    if (linkInputs(current) !== marker.linkInputsSha256) throw refusal('retained link inputs changed after the recovery hold; reconcile that writer before resuming');
     const bytes = readFileSync(planFile);
     if (digest(bytes) !== marker.planSha256) throw refusal('the retained recovery plan changed; keep its hold');
     const plan = JSON.parse(bytes);
@@ -122,10 +129,10 @@ export async function discardUnpublished(link, { queueSha256, decision }) {
     current.sequence = plan.sequence;
     // Mirror cursor names native event IDs, not relay positions; retain that distinction after a lossy rebase.
     current.cursor = localRecords(root, board => board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
-    current.localRecovery = { kind: 'discard-unpublished', queueSha256, decision, sequence: plan.sequence, planSha256: marker.planSha256 };
+    current.localRecovery = { kind: 'discard-unpublished', queueSha256, decision, sequence: plan.sequence, nativeEventCursor: current.cursor, targetDigest: plan.targetDigest, planSha256: marker.planSha256 };
     saveLink(file, current);
     Object.keys(state).forEach(key => delete state[key]); Object.assign(state, current);
-    return { board: state.board, sequence: plan.sequence, queueSha256, retiredQueuedEntries: plan.queued,
+    return { board: state.board, sequence: plan.sequence, nativeEventCursor: current.cursor, targetDigest: plan.targetDigest, queueSha256, retiredQueuedEntries: plan.queued,
       archive, plan: planFile, originalReceiptCount: plan.originalReceiptCount,
       disposition: 'authenticated ordered baseline restored; unpublished local messages abandoned, not declared absent or successful' };
   });
