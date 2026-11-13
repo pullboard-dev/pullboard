@@ -26,7 +26,9 @@ export const OPERATIONS = Object.freeze([
   { name: 'run-tests', entry: 'packages/gate/src/io/run-tests.js', why: 'spawns the test runner',
     marks: code => (TEST_RUNNER.test(code) ? code.search(CHILD) : -1) },
   { name: 'dispatch-gates', entry: 'apps/cli/src/io/submit/pull.js', why: 'defines a gate dispatch',
-    marks: code => code.search(/export\s+(?:async\s+)?function\s+(?:run|offer|dispatch|start)\w*Gate\w*\s*\(/u) },
+    marks: code => code.search(/export\s+(?:async\s+)?function\s+(?:offer|dispatch|start)\w*Gate\w*\s*\(/u) },
+  { name: 'execute-gate', entry: 'packages/gate/src/io/execution.js', why: 'defines a gate runner', from: 'dispatch-gates',
+    marks: code => code.search(/export\s+(?:async\s+)?function\s+run\w*Gate\w*\s*\(/u) },
   { name: 'landing', entry: 'packages/api/src/io/landing.js', why: 'defines a landing',
     marks: code => code.search(/export\s+(?:async\s+)?function\s+(?:land|land[A-Z]\w*|offerLanding\w*|runLanding\w*)\s*\(/u) },
   { name: 'record-proof', entry: 'packages/store/src/io/receipts.js', why: 'defines a proof or clause-tick writer',
@@ -102,7 +104,8 @@ export function operationEntryGrowth(sites, baseline) {
 }
 
 /**
- * Baseline rows that raise an operation's entry-point count over accepted main's: the count may only fall.
+ * Baseline rows that raise an operation's entry-point count over accepted main's: the count may only fall. An operation
+ * split out of another (`from`) may hold the rows that other held on main: moving a file is not growth.
  *
  * @param {Record<string, string[]>} baseline - This tree's baseline.
  * @param {Record<string, string[]> | null} accepted - Main's baseline; none means nothing to compare.
@@ -110,7 +113,8 @@ export function operationEntryGrowth(sites, baseline) {
  */
 export function operationRatchetGrowth(baseline, accepted) {
   if (!accepted) return [];
-  return Object.entries(baseline).flatMap(([name, files]) => files.filter(file => !(accepted[name] ?? []).includes(file))
+  const allowed = name => [...(accepted[name] ?? []), ...(accepted[OPERATIONS.find(row => row.name === name)?.from] ?? [])];
+  return Object.entries(baseline).flatMap(([name, files]) => files.filter(file => !allowed(name).includes(file))
     .map(file => ({ path: OPERATION_ENTRIES_BASELINE, line: 1, text: `${name} gains a second entry point ${file}; the entry-point count may only fall [C7]` })));
 }
 
