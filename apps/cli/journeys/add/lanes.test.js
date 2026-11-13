@@ -15,6 +15,7 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
+import { withoutPullboardEnv } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   runFixtureGit,
@@ -38,7 +39,7 @@ async function project(t, lanes = LANES) {
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(shims, 'pullboard'), 0o755);
   const env = {
-    ...process.env, PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    ...withoutPullboardEnv(process.env), PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(root, '.private-home'), PULLBOARD_MACHINE_HOME: join(root, '.machine-home'),
