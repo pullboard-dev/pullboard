@@ -15,6 +15,7 @@ import { operationEntryCounts } from '../../../src/io/static/operations.js';
 import { operationRatchetGrowth } from '../../../src/io/static/operations.js';
 import { tightenOperationBaseline } from '../../../src/io/static/operations.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
+import { walk } from '../../../src/io/scan.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
@@ -28,7 +29,7 @@ function git(cwd, args) {
 }
 
 test('#5846 clause 1: the registry names one entry point for each operation [C7]', () => {
-  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'stop-process-tree']);
+  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'execute-gate', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'stop-process-tree']);
   for (const { entry } of OPERATIONS) assert.ok(readFileSync(new URL(entry, ROOT), 'utf8').length > 0, `${entry} exists`);
 });
 
@@ -131,4 +132,24 @@ test('#6748 clause 2: the baseline records the shim and the bin forwarder as thi
   for (const path of baseline.forwards['run-tests']) assert.ok(readFileSync(new URL(path, ROOT), 'utf8').split('\n').length < 20, `${path} only forwards`);
   assert.equal(operationEntryCounts(baseline)['run-tests'], 1 + baseline['run-tests'].length, 'forwards add no entry point');
   assert.deepEqual(baseline.forwards, operationEntryFiles(operationReport(fileURLToPath(ROOT))).forwards, 'the recorded forwards are the registry\'s');
+});
+
+const RUN_GATE = "export async function runNewGate(root) { return root; }\n";
+
+test('#6749 clause 1: no two exported functions in the repository are both named runGate [C7]', () => {
+  const owners = walk(fileURLToPath(ROOT), /^(?:apps|packages)\/[^/]+\/(?:src|bin)\/(?:.*\/)?[^/]+\.[cm]?js$/u)
+    .filter(path => /export\s+(?:async\s+)?function\s+runGate\s*\(/u.test(readFileSync(new URL(path, ROOT), 'utf8')));
+  assert.deepEqual(owners, ['packages/gate/src/io/execution.js'], 'only the gate executor is named runGate');
+});
+
+test('#6749 clause 2: execute-gate is its own operation and a new unmarked run*Gate function fails the registry test [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'execute-gate');
+  assert.equal(entry?.entry, 'packages/gate/src/io/execution.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export async function runGate\(/u);
+  assert.notEqual(OPERATIONS.find(row => row.name === 'dispatch-gates').entry, entry.entry, 'dispatch is a separate operation');
+  const sites = operationSites(RUN_GATE, 'packages/demo/src/io/gate.js');
+  assert.deepEqual(sites.map(row => [row.operation, row.line]), [['execute-gate', 1]]);
+  assert.deepEqual(operationEntryGrowth(sites, JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))), sites, 'a new gate runner is refused');
+  assert.deepEqual(operationSites(RUN_GATE, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites("export function dispatchGate() {}\n", 'packages/demo/src/io/gate.js').map(row => row.operation), ['dispatch-gates'], 'a dispatcher is not an executor');
 });

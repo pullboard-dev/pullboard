@@ -188,6 +188,7 @@ export { readPipelineLedger } from './src/io/ledger.js';
 export { nearestRank } from './src/logic/runners/rank.js';
 export { HEALTH_PAYLOAD_STEPS, HEALTH_STEP_NAMES, UP_GAP_MS, runnerHealth, runnerHealthLines } from './src/logic/runners/health.js';
 export { ABANDONED_AFTER_MS, WAIT_STEP_NAMES, runnerWaitLines, runnerWaits, waitRows } from './src/logic/runners/wait.js';
+export { runnerMinutes } from './src/logic/runners/minutes.js';
 export { serveHosts } from './src/logic/runners/serves.js';
 export { lastLimit } from './src/io/runners/limits.js';
 export { recordLimitChange as recordLimitEvent } from './src/io/runners/limits.js';
