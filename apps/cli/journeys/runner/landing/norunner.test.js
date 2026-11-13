@@ -32,7 +32,7 @@ async t => {
   const landed = await runCliInProcess(['land', '--json'], { cwd: box.repo, env: { ...box.env } });
   assert.notEqual(landed.code, 0, `${landed.err}\n${landed.out}`);
   assert.match(landed.err + landed.out, /LAND_NO_RUNNER/u);
-  assert.match(landed.err + landed.out, /next: set trunk\.remote in pullboard\.json/u, 'the refusal names the next step');
+  assert.match(landed.err + landed.out, /"next": "set trunk\.remote in pullboard\.json to the trunk's git URL/u, 'the refusal names the next step');
   for (const flag of [['--max', '1'], ['--adopt'], ['--due'], ['--dry-run']]) {
     const retired = await runCliInProcess(['land', ...flag, '--json'], { cwd: box.repo, env: { ...box.env } });
     assert.notEqual(retired.code, 0, `land ${flag.join(' ')} ran: ${retired.out}`);
