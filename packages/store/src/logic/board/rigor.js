@@ -5,9 +5,9 @@
  */
 import { COORDINATOR } from "../../../../config/index.js";
 import { Refused } from "../../../../kernel/light.js";
-import { CAUSE } from "./rigor/cause.js";
-import { CAUSE_FORMS } from "./rigor/cause.js";
-export { CAUSE_FORMS } from "./rigor/cause.js";
+import { CAUSE } from "./rigor/provenance.js";
+import { CAUSE_FORMS } from "./rigor/provenance.js";
+export { CAUSE_FORMS } from "./rigor/provenance.js";
 import { HEALTH_SENTINEL_ENGINE } from "./receipts.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../state/light.js";

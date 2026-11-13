@@ -2,9 +2,9 @@
 import { parseSpec } from "../../../../../spec/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 import { readRigorSource } from "./provenance.js";
-import { automaticSourceFromText } from "./cause.js";
-import { readAutomaticRigorSource } from "./cause.js";
-export { automaticSourceFromText, readableRigorText, readAutomaticRigorSource } from "./cause.js";
+import { automaticSourceFromText } from "./provenance.js";
+import { readAutomaticRigorSource } from "./provenance.js";
+export { automaticSourceFromText, readableRigorText, readAutomaticRigorSource } from "./provenance.js";
 import {
   rowDecisionContext,
   staleRowDecision,
