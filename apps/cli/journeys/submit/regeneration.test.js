@@ -1,7 +1,6 @@
 /** @pullboard-test-input packages/codemap/data/plan/seed.json */
 /** Real recorded tool commands regenerate conflicting source, with fresh full proof and no inherited verdict [C7,V4,V6]. */
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -9,7 +8,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
-import { waitFor } from '../../tests/fixtures/gate/resource.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { withBrief } from '../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../tests/fixtures/submit/gate.js';
@@ -19,9 +17,6 @@ import { put } from '../../tests/fixtures/submit/gate.js';
 import { planCellLintBaseline } from '../../../../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
 import { recordedToolCommits } from '../../../../packages/git/index.js';
-import { warmAcceptedCells } from '../../../../packages/gate/index.js';
-import { withMainCheckout } from '../../../../packages/landing/index.js';
-import { withFileLock } from '../../../../packages/outbox/index.js';
 
 /** Execute the real installed cell tool against this small project, never a simulated transform. */
 function tool(box, name, ...args) {
@@ -106,60 +101,6 @@ function advance(main) {
   put(main.root, 'test/work.test.js', before.replace('assert.equal(value, 1)', 'assert.equal(value, 2)'));
   return commitAll(main, 'feat(core): advance the accepted leaf [G1]');
 }
-
-/** Read the item once its queued gate has settled; the fixture's detached worker runs the real gate. */
-function settledSubmit(box) {
-  // Process-level: waitFor polls synchronously, so this read of the detached worker's result stays a launch.
-  const settled = () => {
-    const item = JSON.parse(box.run('show', '1', '--json').out);
-    return ['queued', 'running'].includes(item.queuedSubmit?.state) ? null : item;
-  };
-  return waitFor(settled, 'the queued regeneration gate to settle', 120_000); // budget: hang ceiling for the detached worker's real full gate.
-}
-
-for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
-  const { main, box, marker } = await project(t, command === 'remove-shims');
-  let original = move(box, main.dir);
-  if (command === 'remove-shims') {
-    tool(box, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'build');
-    original = commitAll(box, 'refactor(core): remove the leaf shim [G1]');
-  }
-  tool(box, 'cells-plan.js', '--check');
-  tool(box, 'cell-lints.js', '--check');
-  const before = main.git('rev-parse', 'HEAD');
-  assert.equal(recordedToolCommits(box.root, before, original).at(-1).commands[0].tool, command);
-  const currentMain = advance(main);
-  // This private board has no background producer; build its real accepted inventory before queuing the gate.
-  const previousHome = process.env.PULLBOARD_MACHINE_HOME;
-  process.env.PULLBOARD_MACHINE_HOME = main.env.PULLBOARD_MACHINE_HOME;
-  try { await warmAcceptedCells(main.root, currentMain, { withCheckout: withMainCheckout, withLock: withFileLock }); }
-  finally { if (previousHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousHome; }
-  assert.equal(existsSync(marker), false);
-  // Process-level: the detached gate worker and its full-gate marker need a real submit process.
-  const submitted = box.run('submit', '1', '--wait', '--no-next', '--json', '--infra', 'recorded tool regeneration fixture');
-  assert.equal(submitted.code, 0, submitted.err + submitted.out + (submitted.code ? `\nCurrent item: ${(await local(box, box.root, 'show', '1', '--json')).out}` : ''));
-  // A seat holding its claim gets submit back at once [P7]; the journey reads the queued gate's settled result.
-  assert.equal(JSON.parse(submitted.out).queued, true, 'the regenerated source goes through the queued handoff');
-  const item = await settledSubmit(box);
-  const head = box.git('rev-parse', 'HEAD');
-  assert.notEqual(head, original);
-  assert.equal(box.git('rev-parse', command === 'remove-shims' ? 'HEAD~2' : 'HEAD^'), currentMain);
-  assert.match(readFileSync(join(box.root, 'packages/leaf/src/core/leaf.js'), 'utf8'), /value = 2/u);
-  assert.ok(existsSync(marker), 'regeneration runs the full gate even when normal submit defers it');
-  // The proof phase ran the project's full configured gate, whose receipt names that command's digest.
-  const fullGate = createHash('sha256').update(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate).digest('hex');
-  assert.ok(item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === head && receipt.submitPhase === 'proof' && receipt.command === fullGate),
-    'the new head has a full-gate proof receipt');
-  assert.equal(item.queuedSubmit.state, 'green', 'recorded tools use a real queued handoff, not the foreground exemption');
-  assert.equal(item.queuedSubmit.commit, head, 'the immutable queue captures the regenerated tool source');
-  assert.equal(item.item_status, 'submitted');
-  assert.equal(item.item_commit, head);
-  assert.equal(item.item_verdict, null);
-  assert.equal(item.item_verified_by, null);
-  assert.ok(item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === head), 'the new head has its own proof');
-  assert.ok(!item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === original));
-  assert.equal(recordedToolCommits(box.root, currentMain, head).at(-1).commands[0].tool, command, 'another main advance can replay this new head too');
-});
 
 test('a hand edit mixed into a tool result retains the ordinary main-conflict refusal and its source [C7,V6]', async t => {
   const { main, box, marker } = await project(t);
