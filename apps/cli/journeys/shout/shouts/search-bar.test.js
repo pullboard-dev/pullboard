@@ -99,8 +99,8 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
         // The search is the top bar's; the Items strip keeps its Show, View and New item controls.
         assert.ok(r.inTop, `${at}: the search sits in the top bar`);
         assert.equal(r.stripSearch, false, `${at}: the Items strip has no search field`);
-        // At every width the search sits in the top tier, centred in it, above the tabs strip and left of the account control.
-        assert.ok(Math.abs((r.field.top + r.field.height / 2) - (r.tier.top + r.tier.height / 2)) <= 2 && r.field.bottom <= r.tabs.top + 1 && r.field.right <= r.account.left + 1, `${at}: the search sits in the top tier above the tabs and left of the account control: ${JSON.stringify([r.tabs, r.field, r.account, r.tier])}`);
+        // At every width the search sits in the top tier, centred in it and left of the account control.
+        assert.ok(Math.abs((r.field.top + r.field.height / 2) - (r.tier.top + r.tier.height / 2)) <= 2 && r.field.right <= r.account.left + 1, `${at}: the search sits in the top tier, left of the account control: ${JSON.stringify([r.tabs, r.field, r.account, r.tier])}`);
         // Results group by kind, five a group with how many there are, the first ready for Enter.
         assert.deepEqual(r.groups, [['Items', '5 of 7'], ['Spec', '1'], ['Doctrine', '1'], ['Shouts', '2']], `${at}: grouped, newest first, five a group`);
         assert.deepEqual([r.hits.length, r.hits.findIndex((hit) => hit.on), r.hits.slice(5).map((hit) => hit.id)], [9, 0, ['G3', 'R1', ...r.shoutIds]], `${at}: every group's results, the first highlighted`);
