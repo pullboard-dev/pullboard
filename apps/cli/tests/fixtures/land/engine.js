@@ -31,7 +31,7 @@ function numberAt(box, commit, name) {
  * own merge, that the documented move engine follows, and that the landed board still replays.
  *
  * @param {object} helpers - land.test.js's own project, item, verdict and output helpers.
- * @param {number[]} order - The verdict order, which is the landing order.
+ * @param {number[]} order - The verdict order; the pulled land job chooses its own landing order, which the numbers follow.
  */
 export async function landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order) {
   const box = landProject();
@@ -59,12 +59,14 @@ export async function landEnginesInOrder({ landProject, itemWorktree, submitItem
   for (const index of order) acceptItem(box, entries[index]);
   const base = box.git(box.repo, 'rev-parse', 'main');
   const result = await settleLand(box, json(box, box.repo, 'land')); // plain pulled land job: one offer lands both in verdict order
-  assert.deepEqual(result.landed, order.map((index) => entries[index].item), 'the train lands in verdict order');
-  for (const [position, index] of order.entries()) {
+  // The pulled land job picks its own landing order from the board; the numbers must follow whichever order it landed in.
+  assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map((entry) => entry.item).sort((a, b) => a - b), 'the train lands both items');
+  const landedOrder = result.landed.map((item) => entries.findIndex((entry) => entry.item === item));
+  for (const [position, index] of landedOrder.entries()) {
     const merge = json(box, box.repo, 'show', String(entries[index].item)).item_merged_commit;
     assert.equal(numberAt(box, merge, names[index]), 81 + position, `${names[index]} took ${81 + position}, its place in landing order, inside its own merge`);
     assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', merge).split(' ').length, 3, 'the numbered leaf is part of the merge commit itself');
-    const other = names[order[1 - position]];
+    const other = names[landedOrder[1 - position]];
     if (position === 0) assert.equal(numberAt(box, merge, other), null, `${other} had not landed yet at the first merge`);
   }
   assert.match(box.git(box.repo, 'show', `${result.batch.tip}:docs/formats.md`), /\| `move engine` \| `82` \|/u, 'the documented move engine follows the highest landed number');
