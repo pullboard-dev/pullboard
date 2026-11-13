@@ -199,10 +199,10 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
     assert.match(detail, /Keep \[MY_CODE\] in this quoted review note\./u, 'reviewer words remain exact');
     assert.equal(await chrome.stable('document.querySelector("#detail .verdict.no [title=BEHAVIOR_MISMATCH]")?.title'), 'BEHAVIOR_MISMATCH', 'the exact reason survives as a tooltip');
     await tab(chrome, 'activity');
-    if (!await chrome.stable('document.querySelectorAll("#flow svg title").length > 0')) await press(chrome, 'document.querySelector("#flow-show")');
-    await chrome.waitFor('document.querySelectorAll("#flow svg title").length > 0');
-    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#flow svg text")].map(node => node.textContent).join(" ")'), /rehomeImport|submit-merge|\bintake\b|\bpatch\b/u, 'lifecycle labels use plain action words');
-    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#flow svg title")].map(node => node.textContent).join(" ")'), /\b(?:rehomeImport|submit-merge|intake|patch)\b/u, 'lifecycle hover text uses plain action words as well');
+    // The redesigned Activity page draws its waterfall and journey charts inline (#6916); their labels and hover text carry the same plain-word rule.
+    await chrome.waitFor('document.querySelectorAll("#activity svg text").length > 0');
+    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#activity svg text")].map(node => node.textContent).join(" ")'), /rehomeImport|submit-merge|\bintake\b|\bpatch\b/u, 'lifecycle labels use plain action words');
+    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#activity svg title")].map(node => node.textContent).join(" ")'), /\b(?:rehomeImport|submit-merge|intake|patch)\b/u, 'lifecycle hover text uses plain action words as well');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
