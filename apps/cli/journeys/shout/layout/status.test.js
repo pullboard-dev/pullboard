@@ -188,7 +188,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
         // The header carries the tabs and nothing else: no counts, no clock.
-        assert.deepEqual(r.tabs.map((label) => label.split(' · ')[0]), ['Progress', 'Items', 'Shouts', 'Roadmap', 'Rules', 'Insights'], `${at}: the strip carries no counts`);
+        assert.deepEqual(r.tabs.map((label) => label.split(' · ')[0]), ['Items', 'Shouts', 'Roadmap', 'Rules', 'Insights'], `${at}: the strip carries no counts`);
         assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
         // On a phone the bar stays out of the way while the board is live.
         if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);
