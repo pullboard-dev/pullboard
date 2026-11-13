@@ -7,7 +7,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 import * as store from '../src/board.js';
 import { applyRelayMove, appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../src/exchange.js';
+import { impliesSeed } from '../src/implies.js';
+import { submitFixture } from './board-submit-fixture.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { relayOrdering } from '../src/relay-ordering.js';
 import { flushOutbox, outboxFile, queueMove, readOutbox, writeOutbox } from '../src/relay-outbox.js';
@@ -367,6 +369,99 @@ for (const kind of ['shout', 'event']) test(`review positional ${kind} shift ref
   assert.deepEqual(readFileSync(outboxFile(f.link.file)), queued);
   assert.equal(refusal.code, 'RELAY_OUTBOX_REFERENCE');
   assert.deepEqual(f.posts, []);
+});
+
+/** A formerly successful implied verdict is refused locally, but would succeed at the later ordered clock. */
+test('review2 refused legacy reapply retains its transport veto across persisted retries [H16,H21,B30,B31]', async t => {
+  const start = Date.parse('2026-10-24T00:00:00Z');
+  t.mock.timers.enable({ apis: ['Date'], now: start + 5_000 });
+  const f = await fixture(t, {
+    setup(board, directory) {
+      const [builder, reviewer, blocker] = [1, 2, 3].map(n => {
+        const seat = store.register(board, { lane: 'core', path: join(directory, `review-${n}`), route: 'mid', createdBy: 'coordinator' });
+        // Synthetic prior enrollment, as in relay-client.test.js: not a live credential or approval.
+        board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_enrolled:${seat}`, 'coordinator');
+        return seat;
+      });
+      const item = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'reviewed source', criterion: 'synthetic source', route: 'mid',
+        check: 'true', brief: 'Files: src/relay-outbox.js\nTest: retained refusal identity' });
+      const target = store.addItem(board, { by: 'coordinator', lane: 'coordinator', title: 'implication', criterion: 'retain correction' });
+      const text = JSON.stringify({ policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } });
+      store.claim(board, item, { agentId: builder, lane: 'core', leaseMs: 60_000, freeze: () => ({ text, digest: 'fixture-digest' }) });
+      submitFixture(board, item, { agentId: builder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+      return { item, target, reviewer, blocker };
+    },
+    async pending({ board, link, extra }) {
+      board.clock = store.systemClock;
+      const args = [extra.item, { agentId: extra.reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'synthetic original verdict',
+        head: 'a'.repeat(40), digest: 'fixture-digest', policy: 'any', implies: [extra.target] }];
+      extra.verdict = prepareEngineMove(board, 'verify', args, { id: 'legacy-verdict', actor: extra.reviewer });
+      await queueMove(link, { operation: 'verify', args, move: extra.verdict, quiet: true, applyLocally: () => store.verify(board, ...args) });
+      const fact = store.events(board).filter(e => e.event_kind === 'fact').at(-1);
+      extra.originalId = JSON.parse(fact.event_detail).id;
+      const correction = [extra.target, { agentId: 'coordinator', kind: 'note', text: 'original correction', supersedes: extra.originalId }];
+      extra.correction = prepareEngineMove(board, 'appendFact', correction, { id: 'legacy-correction', actor: 'coordinator' });
+      correction[1].factId = extra.correction.id;
+      await queueMove(link, { operation: 'appendFact', args: correction, move: extra.correction, quiet: true, applyLocally: () => store.appendFact(board, ...correction) });
+    },
+  });
+  const reservation = prepareEngineMove(f.board, 'reserveReview', [f.extra.item, { agentId: f.extra.blocker, leaseMs: 2_000, policy: 'any' }],
+    { id: 'intervening-reservation', actor: f.extra.blocker });
+  f.records.push(await f.record(reservation, 4));
+  const cp = await f.ordering.advanceCheckpoint(f.key, f.link.state, f.checkpoint, f.records, 4);
+  for (const [elapsed, expected] of [[5_000, 'REVIEW_HELD'], [7_000, undefined]]) {
+    const copy = store.openBoard(':memory:');
+    try {
+      importBoard(copy, cp.native);
+      const at = new Date(start + elapsed).toISOString();
+      const outcome = applyRelayMove(copy, f.extra.verdict, { sequence: 5, at, kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: f.extra.reviewer } });
+      assert.equal(outcome.error?.code, expected, 'the authentic reservation distinguishes local refusal from later ordered success');
+      if (!expected) {
+        const correction = applyRelayMove(copy, f.extra.correction, { sequence: 6, at, kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: 'coordinator' } });
+        assert.equal(correction.error?.code, 'NO_FACT', 'sending would lose the original correction');
+      }
+    } finally { store.closeBoard(copy); }
+  }
+  const original = readFileSync(outboxFile(f.link.file));
+  const queued = await readOutbox(outboxFile(f.link.file), f.key, f.id);
+  for (const attempt of [1, 2]) {
+    // A fresh link/state still reads the sealed original; no process-local veto may be required.
+    const link = { ...f.link, state: structuredClone(f.link.state) };
+    let refusal; try { await flushOutbox(link); } catch (error) { refusal = error; }
+    assert.deepEqual(f.posts, [], `attempt ${attempt} must not send even the earlier unrelated queued move`);
+    assert.equal(refusal?.code, 'RELAY_OUTBOX_IDENTITY');
+    assert.deepEqual(readFileSync(outboxFile(f.link.file)), original, 'the refused replay must not replace its only identity evidence with empty captures');
+    assert.deepEqual((await readOutbox(outboxFile(f.link.file), f.key, f.id)).moves, queued.moves);
+    assert.equal(engineReceipt(f.board, f.extra.verdict.id), null);
+    t.mock.timers.setTime(start + 20_000);
+  }
+});
+
+for (const length of [73, 80]) test(`review2 canonical ${length}-character implied move seed remains deliverable [H16,H21,B31]`, async t => {
+  const f = await fixture(t, {
+    setup(board, directory) {
+      store.register(board, { lane: 'web', path: join(directory, 'web-1') });
+      const target = store.addItem(board, { by: 'coordinator', lane: 'coordinator', title: 'long implied identity', criterion: 'canonical seed' });
+      const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'original stable question', decision: true, lanes: ['web'] });
+      return { target, question };
+    },
+    async pending({ board, link, extra }) {
+      const id = 'v'.repeat(length);
+      const args = [extra.question, { agentId: 'coordinator', text: 'canonical long answer', lanes: ['web'], implies: [extra.target] }];
+      extra.move = prepareEngineMove(board, 'answerDecision', args, { id, actor: 'coordinator' });
+      args[1].impliesId = id;
+      await queueMove(link, { operation: 'answerDecision', args, move: extra.move, quiet: true, applyLocally: () => store.answerDecision(board, ...args) });
+      extra.originalId = JSON.parse(store.events(board).filter(e => e.event_kind === 'fact').at(-1).event_detail).id;
+      assert.equal(extra.originalId, `${impliesSeed(id)}-i${extra.target}`);
+    },
+  });
+  await flushOutbox(f.link);
+  assert.deepEqual(f.posts, [f.fourth.id, f.extra.move.id]);
+  assert.equal(engineReceipt(f.board, f.extra.move.id)?.outcome.error, undefined);
+  assert.ok(engineReceipt(f.board, f.extra.move.id), 'the canonical implied answer really reached ordered application');
+  const facts = store.events(f.board).filter(e => e.event_kind === 'fact').map(e => JSON.parse(e.event_detail));
+  assert.deepEqual(facts.map(fact => fact.id), [f.extra.originalId]);
+  assert.equal(await readOutbox(outboxFile(f.link.file), f.key, f.id), null);
 });
 
 for (const kind of ['shout', 'event']) test(`review unshifted positional ${kind} references retain meaning and deliver [H16,H21,B27,N26]`, async t => {

@@ -51,6 +51,7 @@ import { captureBoardChanges } from './board-capture.js';
 import { capturedInserts, undoQueued } from './relay-outbox-undo.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
 import { Refused } from './refused.js';
+import { impliesSeed } from './implies.js';
 import {
   outboxFile,
   outboxSummaryFile,
@@ -520,6 +521,15 @@ function retainedLocalInput(board, entry) {
   return input;
 }
 
+/** Refuse original identities the authoritative move cannot reproduce, using its canonical implied-seed rule. */
+function refuseUnrepresentedIdentities(move, { identities }) {
+  if ((identities.factId !== undefined && identities.factId !== move.id) ||
+      (identities.impliesId !== undefined && (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/u.test(move.id) ||
+        identities.impliesId !== impliesSeed(move.id)))) {
+    throw new Refused('RELAY_OUTBOX_IDENTITY', 'a queued move has original fact identities missing from its sealed payload; keep the original queue and native captures for supported identity recovery before sending');
+  }
+}
+
 /** Use only prevalidated original identities in local reconstruction, never in the authoritative ordered engine. */
 function localExecutableArgs(board, move, input) {
   const args = executableArgs(move, board);
@@ -539,7 +549,14 @@ async function reapply(link, outbox, entry, input) {
     const clock = board.clock;
     board.clock = { now: () => new Date(input.at) };
     try { return store.atomic(board, () => store[move.operation](board, ...args)); }
-    catch (error) { if (!(error instanceof Refused)) throw error; return null; }
+    catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      // A refused operation captures no rows. Do not erase the only retained identity evidence and then send
+      // the legacy chain on this or a later process's attempt. Throw before replacing/persisting any captures;
+      // the original sealed outbox remains the recovery input even if this rebuild advanced the local prefix.
+      refuseUnrepresentedIdentities(entry.move, input);
+      return null;
+    }
     finally { board.clock = clock; }
   }));
   entry.changes = encodeChanges(applied.changes);
@@ -805,10 +822,7 @@ async function sendQueued(link, key) {
   localRecords(root, board => {
     for (const entry of outbox?.moves ?? []) {
       if (engineReceipt(board, entry.move.id)) continue;
-      const { identities } = retainedLocalInput(board, entry);
-      if (Object.values(identities).some(id => id !== entry.move.id)) {
-        throw new Refused('RELAY_OUTBOX_IDENTITY', 'a queued move has original fact identities missing from its sealed payload; keep the original queue and native captures for supported identity recovery before sending');
-      }
+      refuseUnrepresentedIdentities(entry.move, retainedLocalInput(board, entry));
     }
   });
   let sent = 0;
