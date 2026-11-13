@@ -308,7 +308,7 @@ test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
   // No detached review comparison: it keeps writing into the fixture, and the cleanup then retries past the file budget [C7].
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
   const run = box.ok(box.worker, 'run', '--agent-light', `sh ${agent}`, '--items', '1', '--attempts', '1', '--minutes', '1');
-  assert.match(run.stdout, /submitted #1/u);
+  assert.match(run.stdout, /#1 is in the gate as job /u);
   const current = box.git(box.worker, 'rev-parse', 'HEAD');
   const shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
   assert.equal(shown.item_commit, current, 'submit records the HEAD created by this command');
