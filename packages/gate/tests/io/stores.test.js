@@ -265,6 +265,10 @@ test('#7012 clause 1: no store-file site under packages/runners builds its name 
   assert.deepEqual(stemlessIn('packages/runners/'), [], 'name each file from the runners registry const storeName(key)');
 });
 
+test('#7014 clause 1: no store-file site under packages/landing builds its name from a stemless template [CD2]', () => {
+  assert.deepEqual(stemlessIn('packages/landing/'), [], 'name each file from the landing registry const storeName(key)');
+});
+
 test('#7015 clause 1: no store-file site in any package or app builds its name from a stemless template, and a new one is refused as unregistered [CD2]', () => {
   assert.deepEqual(stemlessIn(''), [], 'name each file from its cell registry const storeName(key)');
   const failures = judge({ [OTHER]: 'const f = join(dir, `${id}.json`);' }, { registry: REGISTRY });
