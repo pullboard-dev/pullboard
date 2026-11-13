@@ -97,7 +97,7 @@ async function controllerCase(t, { invalidSpec, browser }) {
   fixtureSettledMachine(f.machine, { gateSlots: 1, browserSlots: 1 }); // a pulled dispatch would wait for an agent this fixture never starts
   const requests = join(f.directory, 'requests.jsonl');
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine,
-    requests, invalidSpec });
+    requests, invalidSpec, stderrLog: join(f.directory, 'worker.err') });
   const FRONT_DOORS = { 'gate.js': 'packages/gate/index.js', 'runners.js': 'packages/runners/index.js', 'resources.js': 'packages/resources/index.js' };
   const moduleURL = name => pathToFileURL(resolve(import.meta.dirname, '../../../../..', FRONT_DOORS[name])).href;
   const script = `
@@ -107,6 +107,7 @@ ${executionServicesSource(moduleURL('gate.js'))}
     import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
     import { listResources, takeResource } from ${JSON.stringify(moduleURL('resources.js'))};
     const root = ${JSON.stringify(f.repo)};
+    setTimeout(async () => { const fs = await import('node:fs'); const { execFileSync } = await import('node:child_process'); const rd = p => { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return 'none'; } }; process.stderr.write('DEBUG requests=' + rd(${JSON.stringify(requests)}) + '\\nWORKERERR=' + rd(${JSON.stringify(join(f.directory, 'worker.err'))}) + '\\n' + execFileSync('ps', ['-axo', 'pid,ppid,stat,command']).toString().split('\\n').filter(l => l.includes(${JSON.stringify(f.directory)})).join('\\n') + '\\n'); }, 8000).unref();
     let refusal;
     try {
       await withGateSlot(root, async () => {
@@ -131,6 +132,7 @@ ${executionServicesSource(moduleURL('gate.js'))}
   });
   assert.equal(result.status, 0, result.stderr || result.failure);
   assert.deepEqual(JSON.parse(result.stdout), { failed: true, reason: 'RUNNER_WORK_SPEC', slotFree: true });
+  console.error('DEBUGCALLS', readFileSync(requests, 'utf8'), 'WERR', (()=>{try{return readFileSync(join(f.directory,'worker.err'),'utf8')}catch{return 'none'}})());
   const calls = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(calls.length, 1, 'a named refusal is not automatically requeued');
   assert.equal(calls[0].code, 1, 'the actual worker exited nonzero before the SSH stand-in returned');
