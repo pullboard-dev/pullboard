@@ -362,6 +362,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const context = vm.createContext({
     document,
     location: { search: '' },
+    navigator: { platform: '', userAgent: '' },
     URLSearchParams,
     structuredClone,
     innerWidth: width,
