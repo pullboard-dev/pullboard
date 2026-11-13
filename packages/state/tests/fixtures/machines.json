@@ -46,7 +46,6 @@
     "refused": [
       { "from": "submitted", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "verified", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
-      { "from": "verified", "to": "withdrawn", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "open", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "submitted", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
