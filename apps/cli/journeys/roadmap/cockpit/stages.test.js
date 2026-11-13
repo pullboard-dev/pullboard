@@ -82,7 +82,8 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
       await chrome.waitFor(`innerWidth === ${width} && ${showing('roadmap', roadmapPath)}`);
       seen = await readRoadmap(chrome);
       phase('rows-read-' + width);
-      assert.deepEqual([seen.address, seen.shown, seen.tab], [roadmapPath, ['roadmap'], 'roadmap'], `${width}: the direct address shows the Roadmap tab, and only it`);
+      // Opening every release card leaves the last one chosen in the address (?release=Later, dccb0c4a9d); the path stays the Roadmap's.
+      assert.deepEqual([seen.address.replace(/\?release=[^#]*$/u, ''), seen.shown, seen.tab], [roadmapPath, ['roadmap'], 'roadmap'], `${width}: the direct address shows the Roadmap tab, and only it`);
       assert.ok(seen.document <= seen.client && seen.body <= seen.client, `${width}: no sideways scroll: ${JSON.stringify(seen)}`);
       assert.deepEqual(seen.cards.map((card) => card.name), ['Launch', 'Next', 'Later'], `${width}: a card for each milestone, in order`);
       assert.deepEqual(seen.cards.map((card) => card.note), ['Ships when the review lands; your call on the name.', 'Queued behind Launch.', 'Ideas not filed yet.'], `${width}: each card's note`);
