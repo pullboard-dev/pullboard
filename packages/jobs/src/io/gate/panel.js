@@ -37,3 +37,18 @@ export function stalledGates(db, { now = Date.now(), workerAlive } = {}) {
   }
   return stalled;
 }
+
+/**
+ * Every gate job still queued with no lease for longer than a wait, oldest first.
+ * Why: doctor names a gate no runner has taken, so a person sees the wait is a missing runner, not a slow gate [C7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{now?: number, waitMs?: number}} [options]
+ * @returns {{id: string, item: number|null, waitedMs: number}[]}
+ */
+export function unclaimedGateJobs(db, { now = Date.now(), waitMs = 120_000 } = {}) {
+  try {
+    return db.prepare("SELECT job_id, job_item, job_created FROM job WHERE job_kind = 'gate' AND job_step = 'queued' AND job_lease_owner IS NULL AND job_created <= ? ORDER BY job_created, job_id")
+      .all(now - waitMs).map(row => ({ id: row.job_id, item: row.job_item, waitedMs: now - row.job_created }));
+  } catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
+}
