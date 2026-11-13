@@ -10,6 +10,7 @@ import { OPERATIONS } from '../../../src/io/static/operations.js';
 import { operationSites } from '../../../src/io/static/operations.js';
 import { operationReport } from '../../../src/io/static/operations.js';
 import { operationEntryGrowth } from '../../../src/io/static/operations.js';
+import { operationEntryFiles } from '../../../src/io/static/operations.js';
 import { operationEntryCounts } from '../../../src/io/static/operations.js';
 import { operationRatchetGrowth } from '../../../src/io/static/operations.js';
 import { tightenOperationBaseline } from '../../../src/io/static/operations.js';
@@ -26,8 +27,8 @@ function git(cwd, args) {
   runFixtureGit(['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd });
 }
 
-test('#5846 clause 1: the registry names one entry point for each of the six operations [C7]', () => {
-  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code']);
+test('#5846 clause 1: the registry names one entry point for each operation [C7]', () => {
+  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'move-trunk']);
   for (const { entry } of OPERATIONS) assert.ok(readFileSync(new URL(entry, ROOT), 'utf8').length > 0, `${entry} exists`);
 });
 
@@ -93,4 +94,27 @@ test('#5846 clause 2: the entry-point count may only fall; a baseline row main d
   tree.write(BASELINE, JSON.stringify({ 'run-tests': ['packages/demo/src/io/old.js', 'packages/demo/src/io/runner.js'] }) + '\n');
   assert.match(check.run(tree.root).join('\n'), /operation-entries\.json:1: run-tests gains a second entry point packages\/demo\/src\/io\/runner\.js/u,
     'recording the new spawn in the baseline is refused against main');
+});
+
+const MOVE_REF = "export const move = (git, trunk, tip) => git(['update-ref', trunk, tip]);\n";
+const PUSH_MAIN = "export const push = (git, remote, entry) => git(['push', remote, `+${entry.commit}:${entry.ref}`]);\n";
+
+test('#6747 clause 1: move-trunk marks an update-ref of a trunk ref and a push to main, entered at publish.js [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'move-trunk');
+  assert.equal(entry?.entry, 'packages/landing/src/io/step/publish.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export async function moveTrunkRef/u);
+  assert.deepEqual(operationSites(MOVE_REF, 'packages/demo/src/io/move.js').map(row => [row.operation, row.line]), [['move-trunk', 1]]);
+  assert.deepEqual(operationSites(PUSH_MAIN, 'packages/demo/src/io/push.js').map(row => [row.operation, row.line]), [['move-trunk', 1]]);
+  assert.deepEqual(operationSites("git(['update-ref', 'refs/heads/main', tip]);\n", 'packages/demo/src/io/move.js').length, 1, 'a literal main ref counts');
+  assert.deepEqual(operationSites("git(['update-ref', `refs/pullboard/x/${id}`, tip]);\n", 'packages/demo/src/io/pin.js'), [], 'a pin is not a trunk move');
+  assert.deepEqual(operationSites(MOVE_REF, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationEntryGrowth(operationSites(MOVE_REF, 'packages/demo/src/io/move.js'), JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'))).length, 1, 'a new file is refused');
+});
+
+test('#6747 clause 2: the baseline lists the other trunk movers as known violations, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline['move-trunk'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['move-trunk']);
+  assert.equal(baseline['move-trunk'].length, 7, 'measured: 7 other files, the bar said 6');
+  const grown = { ...baseline, 'move-trunk': [...baseline['move-trunk'], 'packages/demo/src/io/move.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /move-trunk gains a second entry point/u);
 });

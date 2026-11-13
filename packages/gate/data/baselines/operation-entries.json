@@ -79,5 +79,14 @@
     "packages/sandbox/src/io/regeneration.js",
     "packages/sandbox/src/io/verify.js",
     "packages/sync/src/io/main.js"
+  ],
+  "move-trunk": [
+    "apps/cli/src/io/landing/pull.js",
+    "apps/runner/src/io/private/privacy.js",
+    "apps/runner/src/io/worker/checkout.js",
+    "packages/drive/src/io/pull.js",
+    "packages/gate/src/io/test/run.js",
+    "packages/landing/src/io/runner/job.js",
+    "packages/sandbox/src/io/regeneration.js"
   ]
 }
