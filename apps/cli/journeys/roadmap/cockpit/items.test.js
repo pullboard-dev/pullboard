@@ -157,8 +157,8 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
       }
     }
     const ordered = JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('State summary')}.querySelectorAll('.milestone-item .id')].map(row => row.textContent))`));
-    // Open work follows the backend's queue positions, whatever the shuffled membership; accepted and landed items have none and follow it (36add4ed61, f8e8ce444a, b83469ff53; milestone/order.test.js reads the same).
-    assert.deepEqual(ordered, ['#7', '#8', '#9', '#10', '#6', '#5'], 'a milestone lists open work by backend queue position, then the unpositioned accepted and landed items, despite shuffled membership');
+    // Since #6841 a release lists building first, then in review and accepted, then ready, then held or blocked, then landed; within a group the backend's queue order stands, whatever the shuffled membership (36add4ed61, f8e8ce444a, b83469ff53).
+    assert.deepEqual(ordered, ['#8', '#7', '#6', '#9', '#10', '#5'], 'a milestone lists building, then in review and accepted, then ready, then held work, then landed items, despite shuffled membership');
     // Equal bounds read as one number, and the legend says waiting.
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.summary={...m.summary,estimate:{low:2.5,high:2.5}};render();return true;})()");
     const single=await chrome.stable(`${milestone('State summary')}.querySelector('.roadmap-completion')?.textContent||''`);

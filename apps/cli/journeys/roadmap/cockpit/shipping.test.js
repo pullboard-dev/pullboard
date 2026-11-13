@@ -12,19 +12,27 @@ import { test } from 'node:test';
 import {
   machine,
   project,
-  build,
+  buildLocal,
   startView,
-  accept,
+  acceptLocal,
   chromeExecutable,
   closeSnapshotChrome,
   press,
   settled,
   proofShot,
 } from '../../../tests/fixtures/cockpit/harness.js';
-import {
-  openRoadmapChrome,
-  landRoadmapItem,
-} from '../../../tests/fixtures/cockpit/roadmap.js';
+import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
+
+/**
+ * Build, accept and land one item, awaiting each board command in this process rather than launching a Node per call.
+ * Why: under pull dispatch every submit and verify waits on the local runner, and a launch per command put this file past its budget [C7].
+ */
+async function landLocal(box, p, id) {
+  await buildLocal(box, p, id, `page-${id}.html`);
+  await acceptLocal(box, p, id);
+  box.git(p.repo, 'merge', '--no-ff', '--no-edit', p.itemBranches.get(`${p.baseBranch}:${id}`));
+  await box.inProcess(p.repo, 'merged', String(id), box.git(p.repo, 'rev-parse', 'HEAD'));
+}
 
 test('a milestone lists work to ship first, shipped below, and no withdrawn items [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
@@ -34,7 +42,7 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
   for (const title of ['First verified', 'First open', 'Second verified', 'Dropped idea', 'Second open']) {
     await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   }
-  for (const id of [1, 3]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
+  for (const id of [1, 3]) await landLocal(box, alpha, id);
   await box.inProcess(alpha.repo, 'withdraw', '4', 'not needed');
   // Placing an item in an open release takes it out of the other open ones (2a3a0f7555), so Shipped ships before Next
   // takes the same items; a shipped release keeps its history.
@@ -170,7 +178,7 @@ test('the roadmap keeps every upcoming release open [N26]', {
   const box = machine();
   const alpha = project(box, 'all-upcoming-open');
   for (const title of ['Shipped one', 'Shipped two', 'Next release', 'Later release']) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
-  for (const id of [1, 2]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
+  for (const id of [1, 2]) await landLocal(box, alpha, id);
   await box.inProcess(alpha.repo, 'milestone', 'add', '0.1', '--reason', 'Arrange fixture release', '--items', '1');
   await box.inProcess(alpha.repo, 'milestone', 'add', '0.2', '--reason', 'Arrange fixture release', '--items', '2');
   await box.inProcess(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--reason', 'Arrange fixture release', '--items', '3');
