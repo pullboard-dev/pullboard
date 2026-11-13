@@ -66,8 +66,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
     await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
     await chrome.click(`document.querySelector('#detail [data-item-panel-history]')`);
-    // The timeline lists newest first, so the long note is the last note row.
-    const noteSelector = '#detail .tl-fact[data-timeline-kind="note"]:not(:has(~ .tl-fact[data-timeline-kind="note"])) .tl-note';
+    // Other notes sit around it (the add records a short one), so the long note is found by its first line.
+    const noteKey = await chrome.stable(`[...document.querySelectorAll('#detail .tl-note')].find(note => note.textContent.includes('Line 1: the complete note')).querySelector('[data-timeline-more]').dataset.timelineMore`);
+    const noteSelector = '#detail .tl-note:has([data-timeline-more=' + JSON.stringify(noteKey) + '])';
     const bodySelector = noteSelector + ' .tl-body';
     assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(bodySelector)})).webkitLineClamp`), '3');
     assert.equal(await chrome.stable(`(() => { const body = document.querySelector(${JSON.stringify(bodySelector)}), style = getComputedStyle(body); return body.getBoundingClientRect().height <= parseFloat(style.lineHeight) * 3 + 1; })()`), true, 'the note is clamped to three visible lines');
@@ -80,8 +81,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).dataset.copy`), commit);
+    await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(timelineHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
     await press(chrome, `document.querySelector(${JSON.stringify(timelineHash)})`);
-    assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), /^(Copied|Could not copy) full hash$/u);
+    assert.match(await chrome.stable(`window.__titles[0]`), /^(Copied|Could not copy) full hash$/u);
 
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.waitFor('view.tab === "items" && !!document.querySelector("#needs")');
@@ -92,8 +94,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).textContent`), approval.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).title`), approval);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).dataset.copy`), approval);
+    await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(needHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
     await press(chrome, `document.querySelector(${JSON.stringify(needHash)})`);
-    assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).title`), /^(Copied|Could not copy) full hash$/u);
+    assert.match(await chrome.stable(`window.__titles[0]`), /^(Copied|Could not copy) full hash$/u);
 
     await chrome.send('Page.navigate', { url: href.href });
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-copy]")');
@@ -102,8 +105,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).dataset.copy`), commit);
+    await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(itemHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
     await press(chrome, `document.querySelector(${JSON.stringify(itemHash)})`);
-    assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), /^(Copied|Could not copy) full hash$/u);
+    assert.match(await chrome.stable(`window.__titles[0]`), /^(Copied|Could not copy) full hash$/u);
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
