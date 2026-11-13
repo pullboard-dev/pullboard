@@ -42,6 +42,8 @@ import { createUploadStatusHandler } from '../logic/status.js';
 import { createRelayBoardLinks } from './board/links.js';
 
 const SNAPSHOT_BODY = SNAPSHOT_BODY_BYTES;
+/** A sealed move is base64 text, so a 136 KB move needs about 180 KB; the hosted relay takes up to 10 MB, while the local API keeps its 100 KB default (GitHub #14, #6707). */
+export const RELAY_MOVE_BODY_BYTES = 10_000_000;
 const STORED_BYTES = SEALED_SNAPSHOT_BYTES;
 
 /** Validate a board identity before deriving its private, internal database path. */
@@ -145,7 +147,7 @@ function sender(who, personOnly = false) {
 }
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
-export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority }) {
+export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES }) {
   const origin = trustedOrigin(publicOrigin);
   if (typeof directory !== 'string' || !directory.trim() || !auth) throw new Refused('RELAY_CONFIG', 'configure a private relay directory and sign-in component');
   const root = resolve(directory);
@@ -380,7 +382,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     warnings: (board) => [quota?.notice(board.id), keyRequestStore.count(board.id) ? { code: 'KEY_REQUESTS', count: keyRequestStore.count(board.id) } : null].filter(Boolean),
     move: append,
     request: async (board, body, who) => (await append(board, body, who, 'request')).body,
-  }, { pollMs });
+  }, { pollMs, bodyBytes: { moves: moveBodyBytes, requests: moveBodyBytes } });
 
   const uploadStatus = createUploadStatusHandler({ authorize: authorizedRequest, withJournal, sender });
   let boardLinks = null;

@@ -20,6 +20,7 @@ import { Refused } from '../../../../kernel/index.js';
 import { readBoardKey } from '../../../../keys/index.js';
 import {
   outboxAhead,
+  outboxParkedOnly,
   outboxWaiting,
 } from '../relay.js';
 import { withOutboxGuard } from './guard.js';
@@ -67,6 +68,9 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
     if (pass >= CATCH_UP_PASSES) throw new Refused('RELAY_BUSY', 'moves kept queuing on this machine while it caught up; they stay queued for the next send');
     // Queued moves sit on top of this board: the outbox rebuilds it from the relay's order with them on top (#1013).
     if (outboxAhead(state) || outboxWaiting(file)) await flush(root, file, state, io, senderPolicy);
+    // Only parked moves are left: the flush already brought this board to the relay's order with them on top, and
+    // another machine's moves must not land under them until pullboard relay recover resolves them (#6693).
+    if (outboxParkedOnly(file)) return;
     const key = readBoardKey(state.board);
     const after = localRecords(root, appliedSequence);
     let remote;

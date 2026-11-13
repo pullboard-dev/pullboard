@@ -7,14 +7,14 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
-import { SPEC } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { machine } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { project } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { startView } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { openPage } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { chromeExecutable } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { openSnapshotChrome } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { closeSnapshotChrome } from '../../../cli/tests/fixtures/cockpit/harness.js';
+import { SPEC } from '../../tests/fixtures/cockpit/harness.js';
+import { machine } from '../../tests/fixtures/cockpit/harness.js';
+import { project } from '../../tests/fixtures/cockpit/harness.js';
+import { startView } from '../../tests/fixtures/cockpit/harness.js';
+import { openPage } from '../../tests/fixtures/cockpit/harness.js';
+import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
+import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
+import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 
 test('the project list drops from the switcher at the top left, over a full-width board [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
