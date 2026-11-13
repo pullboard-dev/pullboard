@@ -13,7 +13,7 @@ function specRevisionRow(row) {
     + '<section data-revision-before><h3>Current row</h3><pre>' + esc(row.source ?? row.old?.text ?? '') + '</pre></section>'
     + '<section data-revision-after><h3>Proposed row</h3><pre>' + esc(row.replacement ?? row.proposed?.text ?? '') + '</pre></section></div>'
     + '<p class="revision-reason">Reason: ' + esc(row.reason ?? '') + '</p>' + (feedback ? specFeedback(feedback) : '')
-    + '<div class="meta"><span class="why"><b>NEEDS YOU</b> ' + esc(row.what ?? 'approve or decline revision') + '</span></div>'
+    + '<div class="meta"><span class="why"><b>RULING</b> ' + esc(row.what ?? 'approve or decline revision') + '</span></div>'
     + (controls ? '<div class="actions">' + controls + '</div>' : '') + '</div></li>';
 }
 `;
