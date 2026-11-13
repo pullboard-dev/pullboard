@@ -193,7 +193,7 @@ export async function privateReviewRunnerEdges(t, e2e, from = 0, to = undefined)
     if (edge.problem) assert.match(response.error.message, edge.problem);
     // The controller can take the worker's result and exit before the ssh stand-in records its request on exit (#5743).
     const settled = () => { const now = phaseCounts(requests + '.phases'); return now.returned - before.returned >= now.dispatched - before.dispatched; };
-    await waitForCondition(settled, 'every dispatched ssh stand-in recorded its request', { state: () => phaseCounts(requests + '.phases') });
+    await waitForCondition(settled, 'every dispatched ssh stand-in recorded its request', { state: () => phaseCounts(requests + '.phases'), signal: AbortSignal.timeout(60_000) }); // budget: a ceiling for the stand-in's exit record on a loaded runner; 20 s missed at twice its cores.
     const dispatched = readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean);
     assert.equal(dispatched.length, edge.dispatches ?? (edge.guard ? 2 : 1), 'a valid restored or guard check dispatches; an invalid descriptor cannot start another remote check');
     const outputRoot = join(box.repo, '.git/pullboard/check-output');
