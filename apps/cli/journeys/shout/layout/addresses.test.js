@@ -36,18 +36,18 @@ test('clause 2: every tab, filter and search has its own address, and back, forw
       places.push(await exact());
     };
     // Every page in the strip, the menus' pages included, at its own address.
-    for (const tab of ['progress', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'items']) await step(`document.querySelector('[data-tab="${tab}"]')`, `location.pathname === '/${tab}'`);
+    for (const tab of ['shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'items']) await step(`document.querySelector('[data-tab="${tab}"]')`, `location.pathname === '/${tab}'`);
     assert.deepEqual(places.slice(1).map(place => [place.address, place.crumb, place.panes.join()]), [
-      ['/progress', 'Progress', 'progress'], ['/shouts', 'Shouts', 'shouts'], ['/roadmap', 'Roadmap', 'roadmap'], ['/spec', 'Spec', 'spec'],
+      ['/shouts', 'Shouts', 'shouts'], ['/roadmap', 'Roadmap', 'roadmap'], ['/spec', 'Spec', 'spec'],
       ['/doctrine', 'Doctrine', 'doctrine'], ['/dashboard', 'Dashboard', 'dashboard'], ['/activity', 'Activity', 'activity'], ['/items', 'Items', 'items'],
     ]);
     // A filter and an open row.
-    await press(chrome, "document.querySelector('#filter-toggle')");
-    await step("document.querySelector('#filter-menu [data-filter-choice=\"state:all\"]')", "location.search.includes('state=all')");
+    await step("document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"all\"]')", "location.search.includes('state=all')");
     await step("document.querySelector('#chain .row[data-item=\"2\"]')", "location.pathname === '/items/2'");
     assert.deepEqual([places.at(-2).address, places.at(-2).state, places.at(-1).address], ['/items?state=all', 'all', '/items/2?state=all']);
     // A search: typing keeps one entry, its words in the address.
-    await press(chrome, "document.querySelector('#q')");
+    // A press on the box opens the command palette (f3505cc3a2); the typed search is the box's own, so focus it as Tab does.
+    await chrome.stable("document.querySelector('#q').focus()");
     await chrome.send('Input.insertText', { text: 'second' });
     await settled(chrome, "location.search.includes('q=second')");
     places[places.length - 1] = await exact();

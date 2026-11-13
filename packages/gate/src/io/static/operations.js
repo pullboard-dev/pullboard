@@ -38,6 +38,8 @@ export const OPERATIONS = Object.freeze([
     marks: code => code.search(/\bdetached\s*:\s*true\b/u) },
   { name: 'fetch-runner-code', entry: 'apps/runner/src/io/worker/checkout.js', why: 'runs a git fetch',
     marks: code => code.search(/[[,]\s*['"`]fetch['"`]/u) },
+  { name: 'create-worktree', entry: 'packages/git/src/io/worktree.js', why: 'runs git worktree add',
+    marks: code => code.search(/['"`]worktree['"`]\s*,\s*['"`]add['"`]/u) },
   { name: 'stop-process-tree', entry: 'packages/jobs/src/io/launch.js', why: 'signals a whole process group',
     marks: code => code.search(/\bprocess\s*\.\s*kill\s*\(\s*-/u) },
 ]);
