@@ -38,19 +38,19 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
     seedGraph(box);
     const fullMarker = join(box.dir, 'full-suite.log');
     const checkMarker = join(box.dir, 'item-check.log');
-    box.env.FULL_SUITE_MARKER = fullMarker;
-    box.env.ITEM_CHECK_MARKER = checkMarker;
+    box.env.FIXTURE_FULL_SUITE_MARKER = fullMarker;
+    box.env.FIXTURE_ITEM_CHECK_MARKER = checkMarker;
     for (const [file, name] of [['a', 'first'], ['b', 'second'], ['c', 'third']]) {
       put(box.root, `test/${file}.test.js`, [
         "import { appendFileSync } from 'node:fs';",
         ...(file === 'a' ? ["import '../src/entry.js';"] : []),
-        `appendFileSync(process.env.FULL_SUITE_MARKER, '${name}\\n');`,
+        `appendFileSync(process.env.FIXTURE_FULL_SUITE_MARKER, '${name}\\n');`,
       ].join('\n') + '\n');
     }
     put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 1;\n');
     commitAll(box, 'chore(core): prepare landing-gate fixture');
     box = builderRepo(box, ['apps/cli/src/io/run/tests.js']);
-    const check = `node -e "require('node:fs').appendFileSync(process.env.ITEM_CHECK_MARKER, 'check\\n')"`;
+    const check = `node -e "require('node:fs').appendFileSync(process.env.FIXTURE_ITEM_CHECK_MARKER, 'check\\n')"`;
     assert.equal((await coordinatorLocal(box, 'add', 'build', 'Landing gate fixture', '--check', check)).code, 0);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     rmSync(fullMarker, { force: true });

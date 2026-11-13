@@ -26,9 +26,9 @@ test('a jest project submits with its own gate [V4,C7]', async (t) => {
     let box = privateRepo(t);
     const gateMarker = join(box.dir, `jest-gate-${optedIn}.log`);
     const testMarker = join(box.dir, `jest-tests-${optedIn}.log`);
-    box.env.JEST_GATE_MARKER = gateMarker;
-    box.env.JEST_TEST_MARKER = testMarker;
-    if (optedIn) box.env.FAIL_UNSELECTED = '1';
+    box.env.FIXTURE_JEST_GATE_MARKER = gateMarker;
+    box.env.FIXTURE_JEST_TEST_MARKER = testMarker;
+    if (optedIn) box.env.FIXTURE_FAIL_UNSELECTED = '1';
     put(box.root, 'pullboard.json', JSON.stringify({
       gate: 'npm test',
       ...(optedIn ? { affectedTests: 'node test/jest-runner.js' } : {}),
@@ -44,7 +44,7 @@ test('a jest project submits with its own gate [V4,C7]', async (t) => {
       "import { resolve } from 'node:path';",
       "import { pathToFileURL } from 'node:url';",
       "const files = process.argv.slice(2).length ? process.argv.slice(2) : ['./test/a.test.js', './test/b.test.js'];",
-      "appendFileSync(process.env.JEST_GATE_MARKER, process.argv.slice(2).length ? 'prefix\\n' : 'full\\n');",
+      "appendFileSync(process.env.FIXTURE_JEST_GATE_MARKER, process.argv.slice(2).length ? 'prefix\\n' : 'full\\n');",
       'const pending = [];',
       "globalThis.describe = (_name, run) => run();",
       "globalThis.it = (_name, run) => pending.push(Promise.resolve().then(run));",
@@ -58,7 +58,7 @@ test('a jest project submits with its own gate [V4,C7]', async (t) => {
       "import { appendFileSync } from 'node:fs';",
       "import { value } from '../src/a.js';",
       "describe('relative ESM imports', () => it('runs with jest-style globals', () => {",
-      "  appendFileSync(process.env.JEST_TEST_MARKER, 'a\\n');",
+      "  appendFileSync(process.env.FIXTURE_JEST_TEST_MARKER, 'a\\n');",
       '  expect(value).toBe(2);',
       '}));',
     ].join('\n') + '\n');
@@ -66,8 +66,8 @@ test('a jest project submits with its own gate [V4,C7]', async (t) => {
       "import { appendFileSync } from 'node:fs';",
       "import { value } from '../src/b.js';",
       "describe('relative ESM imports', () => it('runs the other configured test', () => {",
-      "  if (process.env.FAIL_UNSELECTED) throw new Error('unselected test ran');",
-      "  appendFileSync(process.env.JEST_TEST_MARKER, 'b\\n');",
+      "  if (process.env.FIXTURE_FAIL_UNSELECTED) throw new Error('unselected test ran');",
+      "  appendFileSync(process.env.FIXTURE_JEST_TEST_MARKER, 'b\\n');",
       '  expect(value).toBe(8);',
       '}));',
     ].join('\n') + '\n');

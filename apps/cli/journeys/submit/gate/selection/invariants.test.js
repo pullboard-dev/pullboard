@@ -32,15 +32,15 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
       submitGate: 'landing', shared: ['pullboard.json'], ...(invariants === undefined ? {} : { submitInvariants: invariants }) }));
     seedGraph(box);
     const marker = join(box.dir, 'invariants.log');
-    box.env.INVARIANT_MARKER = marker;
+    box.env.FIXTURE_INVARIANT_MARKER = marker;
     put(box.root, 'test/invariant.test.js', [
       "import assert from 'node:assert/strict';",
       "import { appendFileSync } from 'node:fs';",
       "import { value } from '../src/a.js';",
-      "appendFileSync(process.env.INVARIANT_MARKER, 'invariant\\n');",
+      "appendFileSync(process.env.FIXTURE_INVARIANT_MARKER, 'invariant\\n');",
       failing ? 'assert.equal(value, 1, "the project invariant stays enforced");' : 'assert.ok(value < 3);',
     ].join('\n') + '\n');
-    put(box.root, 'test/a.test.js', "import '../src/entry.js';\nimport { appendFileSync } from 'node:fs';\nappendFileSync(process.env.INVARIANT_MARKER, 'selected\\n');\n");
+    put(box.root, 'test/a.test.js', "import '../src/entry.js';\nimport { appendFileSync } from 'node:fs';\nappendFileSync(process.env.FIXTURE_INVARIANT_MARKER, 'selected\\n');\n");
     put(box.root, 'test/c.test.js', "throw new Error('unrelated test must stay deferred');\n");
     put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 1;\n');
     commitAll(box);
