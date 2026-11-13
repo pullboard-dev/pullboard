@@ -32,6 +32,7 @@ import { inventoryCommits } from './remote.js';
 import { ensureLocalRunner } from '../runner/local.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { exitLines } from '../../logic/runner/output.js';
+import { specFailureFiles } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
@@ -98,6 +99,7 @@ const keepOutput = (name, output) => {
 ${tapCaseErrors}
 ${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
+${specFailureFiles}
 ${fitReceipt}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
 let light = null, gate = null;
@@ -206,6 +208,15 @@ const unaccounted = (files, outcomes, text) => {
   try { gate.requireTestTierAccount({ green: true, testOutcomes: outcomes, profile: { tests: typeof gate.tapTests === 'function' ? gate.tapTests(text, root) : [] } }, files); return null; }
   catch (error) { return String(error?.message ?? error).replace(/^\\[\\w+\\] /u, ''); }
 };
+/**
+ * The checkout's HEAD and its tracked-file changes, or null when Git cannot read them. Why: a gate that moves the
+ * checkout it judges proves some other tree, so its phases are bracketed by this read (MOVED_DURING_GATE) [V16,C7].
+ */
+const checkoutState = () => {
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  const tracked = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' });
+  return head.status === 0 && tracked.status === 0 ? { head: head.stdout.trim(), tracked: tracked.stdout.trim() } : null;
+};
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
@@ -226,15 +237,18 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
   const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
+  const failedFiles = ran.status !== 0 && !failures ? specFailureFiles(text, root, { files: ${PHASE_CASES} }) : [];
   // Each named case's diagnostic signature, as the controller signs it, so the board tells two failures of one case apart [V4,B3].
   let failureSignatures = null;
   try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
-  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run [V4,C7].
+  // The phase's per-case outcomes ride to the board whole or not at all, so the review packet can map a clause to a run;
+  // a plain single-file check prints TAP only, so its cases are read from that TAP as the in-process gate did [V4,C7].
   let outcomes = null, blocked = null;
-  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; } catch { outcomes = null; }
+  try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; outcomes ??= typeof gate?.singleFileTapOutcomes === 'function' ? gate.singleFileTapOutcomes(command, text) : null; } catch { outcomes = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
   const unreported = ran.status === 0 && selected?.length ? unaccounted(selected, outcomes, text) : null;
@@ -243,7 +257,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   const counts = totals(text);
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
 else {
@@ -275,7 +289,7 @@ else {
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
     message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
   if (!refusals.length && !receipt.analysis.infra) {
-    const PATH = cliPath();
+    const PATH = cliPath(), before = checkoutState();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
     const plan = analysis.plan ?? {}, cores = availableParallelism();
     // Test tiers make the controller demand an account for every selected file; the pulled proof demands the same [C7].
@@ -290,6 +304,10 @@ else {
     } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
     // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
     for (const phase of receipt.phases) if (phase.unreported) refusals.push({ part: phase.role, code: 'TEST_SELECTION_UNVERIFIED', message: phase.unreported });
+    // A gate that commits or edits a tracked file in this checkout no longer proves the candidate it was given, as the controller refused it [V16,C7].
+    const after = checkoutState();
+    if (before && JSON.stringify(after) !== JSON.stringify(before)) refusals.push({ part: 'gate', code: 'MOVED_DURING_GATE',
+      message: 'the gate left the checkout changed (' + (after?.head !== before.head ? 'a new commit ' + String(after?.head).slice(0, 12) : 'edited tracked files: ' + String(after?.tracked).split('\\n').slice(0, 5).join(', ')) + ') while checking ' + before.head.slice(0, 12) + '; next: leave the worktree alone until the gate finishes, then submit again' });
   }
 }
 }

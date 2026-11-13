@@ -59,16 +59,6 @@ function assertUnreviewed(box) {
   assert.ok(!document.verdicts?.length, 'no review is needed to end the gate wait');
 }
 
-test('submit --wait exits on an accepted known-main red and retains its repair owner [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7104' }, async t => {
-  const { box, child, document } = await submitToGate(t);
-  assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
-  assert.equal(document.gate.green, false);
-  assert.equal(document.gate.knownMainFailures.main, box.main);
-  assert.equal(document.gate.knownMainReworks[0].item, box.rework);
-  assert.equal(document.verdict, undefined);
-  assertUnreviewed(box);
-});
-
 test('a claim-holding seat gets the queued acknowledgment at once and still reaches the exact known-main outcome through show [V4,B3,P7]', { skip: 'CONTROLLER_ONLY: deleted with #6833' }, async t => {
   const { box, child } = await submitToGate(t, { handoff: true });
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);

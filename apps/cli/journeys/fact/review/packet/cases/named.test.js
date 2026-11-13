@@ -12,6 +12,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../../../tests/fixtures/e2e.js';
+import { settledGateJob } from '../../../../../tests/fixtures/submit/settle.js';
 import {
   fileFixtureItem,
   fixturePolicy,
@@ -76,7 +77,9 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   for (const n of [1, 2]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/cases.test.js case clause ${n}`);
-  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
+  // A pulled submit returns queued; its gate is the settled job's, read through the shared settle seam (#6249).
+  const queued = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
+  const submitted = queued.gate ? queued : { ...queued, gate: (await settledGateJob(box, id)).gate };
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
 
   // The exact-head receipts the gate wrote, read from its own store.
