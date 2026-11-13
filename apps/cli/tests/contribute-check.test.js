@@ -29,7 +29,7 @@ test('clause 1: a record with several failures prints each one as field or line,
   const checked = await box.runLocal(box.web, 'contribute', 'check', file, 'Bug');
   assert.equal(checked.code, 1, `${checked.out}\n${checked.err}`);
   const lines = checked.out.trim().split('\n');
-  const tab = lines.find(line => line.startsWith('line 4:'));
+  const tab = lines.find(line => line.startsWith('line 5:'));
   assert.ok(tab, checked.out);
   assert.match(tab, /CONTRIB_TAB; rule: .*; fix: indent with two spaces; skill: pullboard contribute check /u);
   const key = lines.find(line => line.startsWith('bogus:'));

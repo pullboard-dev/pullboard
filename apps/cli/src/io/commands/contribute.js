@@ -52,7 +52,7 @@ function blankOut(block, field) {
 
 /** Split a parser refusal into the field or line, the rule and the fix. */
 function failure(error, file, offset) {
-  const parts = error.message.match(/^field "(.*?)": (.*); fix: (.*)$/su);
+  const parts = error.message.replace(/^\[\w+\] /u, '').match(/^field "(.*?)": (.*); fix: (.*)$/su);
   const field = parts?.[1] ?? 'record';
   const where = field.match(/^line (\d+)$/u);
   const row = contributionFix(error.code);
