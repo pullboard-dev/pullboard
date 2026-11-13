@@ -250,7 +250,8 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     await press(chrome, `document.querySelector('[data-rows="spec:all"]')`);
     const specId = await chrome.stable(`document.querySelector('#spec-list [data-row]')?.dataset.row.split(':')[1]`);
     await press(chrome, `document.querySelector('#spec-list [data-row]')`);
-    await checkPlace('#spec/' + specId, `view.tab === 'spec' && view.row.spec === ${JSON.stringify(specId)} && document.querySelector('#spec-detail h2 > span')?.textContent === ${JSON.stringify(specId)}`);
+    // The All rows filter rides in the address with the open row (#6614).
+    await checkPlace('#spec/' + specId + '?rows=all', `view.tab === 'spec' && view.row.spec === ${JSON.stringify(specId)} && document.querySelector('#spec-detail h2 > span')?.textContent === ${JSON.stringify(specId)}`);
     await press(chrome, `document.querySelector('[data-tab="doctrine"]')`);
     const doctrineId = await chrome.stable(`document.querySelector('#doctrine-list [data-row]')?.dataset.row.split(':')[1]`);
     await press(chrome, `document.querySelector('#doctrine-list [data-row]')`);
