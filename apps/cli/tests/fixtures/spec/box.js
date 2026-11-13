@@ -51,7 +51,7 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
     // Beside the repo, not in it: the board write log lives in the machine home and must not dirty the committed tree.
-    PULLBOARD_HOME: `${root}-home`,
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: `${root}-home`,
     PULLBOARD_MACHINE_HOME: `${root}-home`,
   };
   t.after(() => rmSync(`${root}-home`, { recursive: true, force: true }));
