@@ -17,7 +17,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 
 const e2e = createE2eHelpers();
@@ -27,8 +27,6 @@ const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } 
 /** A plain landing project in the default shape: no affectedTests, per-item landing, no landing.publish, pushed to its origin. */
 function defaultProject() {
   const box = landProject();
-  // These cases assert the submit's gate running in the command; pinned to controller dispatch until #5821 lands [P7].
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   delete config.affectedTests;
@@ -83,8 +81,11 @@ async () => {
   moveMainPastSubmit(box);
   const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.repo, 'rev-parse', 'origin/main');
   const landed = await box.runLocal(box.repo, 'land', '--json');
-  const output = landed.out + landed.err;
+  const settled = await settleLand(box, JSON.parse(landed.out));
+  const output = landed.out + landed.err + JSON.stringify(settled.landJob ?? {});
   assert.doesNotMatch(output, /LAND_MAIN_COMPARISON/u, output);
+  assert.equal(settled.batch.state, 'blocked', output);
+  assert.deepEqual(settled.landed, [], 'nothing landed');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'main keeps its tree');
   assert.equal(box.tryGit(box.repo, 'ls-remote', 'origin', 'main').stdout.split(/\s+/u)[0], origin, 'origin keeps its tree');
   const row = await itemRow(box, entry.item);
@@ -103,7 +104,7 @@ async () => {
   const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.repo, 'rev-parse', 'origin/main');
   box.env.LAND_SUPPRESS_RED = '1';
   let output;
-  try { const landed = await box.runLocal(box.repo, 'land', '--json'); output = landed.out + landed.err; }
+  try { const landed = await box.runLocal(box.repo, 'land', '--json'); output = landed.out + landed.err + JSON.stringify((await settleLand(box, JSON.parse(landed.out))).landJob ?? {}); }
   finally { delete box.env.LAND_SUPPRESS_RED; }
   assert.match(output, /LAND_PUSH|pre-push/u, `the push reached the red pre-push gate: ${output}`);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'main keeps its tree');

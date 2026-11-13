@@ -1,6 +1,8 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-module-loads apps/lib/index.js */
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
+import { startFixtureLocalRunner } from '../runner/local-start.js';
+import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -40,7 +42,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(key)) delete env[key];
   for (const key of ['NODE_TEST_CONTEXT','PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN','PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN','PULLBOARD_RELAY_TOKEN','SSH_AUTH_SOCK']) delete env[key];
-  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:1,browserSlots:1,gate:{browserFreeChecks:true,runnerDispatch:'controller'}}));
+  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:1,browserSlots:1,gate:{browserFreeChecks:true}}));
   /** Real Git output is retained on failure rather than replaced with fixture results. */
   function git(cwd,...args) {
     const run = runFixtureChild('git',args,{cwd,env,encoding:'utf8'});
@@ -118,11 +120,12 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     }
   }
   t.after(()=>{
+    stopFixtureLocalRunner(machine);
     const owner=join(directory,'owner.json');
     assert.equal(existsSync(owner),false,`private worker custody remains live; preserve ${scratch}`);
     rmSync(scratch,{recursive:true,force:true});
   });
   /** The ordinary health worker is the production automatic entry point; old source has no replacement stub. */
-  function trigger() { const wake=join(directory,'wake.json');expectedGeneration=(existsSync(wake)?JSON.parse(readFileSync(wake,'utf8')).generation:0)+1;const run=cli('sentinel','run','--health-only','--json');assert.equal(run.status,0,run.context ?? run.stderr);return run; }
+  function trigger() { startFixtureLocalRunner(env,repo);const wake=join(directory,'wake.json');expectedGeneration=(existsSync(wake)?JSON.parse(readFileSync(wake,'utf8')).generation:0)+1;const run=cli('sentinel','run','--health-only','--json');assert.equal(run.status,0,run.context ?? run.stderr);return run; }
   return {repo,installed,env,store,board,git,cli,trigger,settled,id,actors,accepted,trunk,tree,base,original,marker,directory,scratch,gateEntered,gateRelease};
 }
