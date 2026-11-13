@@ -315,7 +315,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|finished|events|moves|requests|code|tokens|items|cost-analytics|jobs)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
@@ -379,6 +379,11 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
         if (!item) return json(res, 404, refusal(new Refused('NO_ITEM', `no item #${rawId} on this board; use an id from the board state`)));
         return json(res, 200, { item });
       }
+      if (route?.[2] === 'finished') {
+        if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read the finished items with GET');
+        if (typeof adapter.finished !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'this API adapter does not serve finished items on their own; read its board state');
+        return await sendState(req, res, await adapter.finished(board, who), false);
+      }
       if (req.method === 'GET' && route?.[2] === 'items') {
         if (typeof adapter.search !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', "this API adapter does not provide item search; use its board state, which carries each item's full detail");
         return json(res, 200, { ids: await adapter.search(board, url.searchParams.get('q') ?? '', who) });
@@ -411,6 +416,11 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
             throw new Refused('BAD_REQUEST', 'items=compact is only for a summary snapshot; read ordinary deltas or use detail=full without compact items');
           }
           options.items = 'compact';
+        }
+        if (url.searchParams.has('finished')) {
+          // A first load that shows open work first leaves out the verified and withdrawn items; GET .../finished sends them [A2,N26].
+          if (url.searchParams.get('finished') !== 'omit' || options.items !== 'compact' || url.searchParams.has('since')) throw new Refused('BAD_REQUEST', 'finished=omit is only for a compact snapshot (items=compact); read ordinary deltas with since=N');
+          options.finished = 'omit';
         }
         if (url.searchParams.has('kept')) {
           // A first load that catches up through deltas may take the state the server keeps, from before a later write [A2,C7].
@@ -502,7 +512,8 @@ export function applyStateDelta(state, delta) {
   for (const [field, { key, set, ids }] of Object.entries(delta.merge)) {
     const entries = new Map((state[field] ?? []).map((entry) => [entry[key], entry]));
     for (const entry of set) entries.set(entry[key], entry);
-    next[field] = (ids ?? (state[field] ?? []).map((entry) => entry[key])).map((id) => entries.get(id));
+    // An open-first client holds no finished items, so an id it was never sent is skipped, not filled with a hole [#6588].
+    next[field] = (ids ?? (state[field] ?? []).map((entry) => entry[key])).map((id) => entries.get(id)).filter((entry) => entry !== undefined);
   }
   return next;
 }
