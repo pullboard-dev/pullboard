@@ -83,7 +83,8 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
   // The exact-head receipts the gate wrote, read from its own store.
   const shown = JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out);
   const receipts = shown.proofReceipts.map(row => JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'gate-receipts', `${row.id}.json`), 'utf8')));
-  const criterion = receipts.find(receipt => receipt.proof?.submitPhase === 'criterion') ?? receipts[0];
+  // A reused submit proof carries no case outcomes of its own; the receipt that ran the check does.
+  const criterion = receipts.find(receipt => receipt.proof?.submitPhase === 'criterion' && receipt.testOutcomes?.length) ?? receipts.find(receipt => receipt.testOutcomes?.length) ?? receipts[0];
   assert.equal(criterion.head, head, 'the receipt is for the exact head');
   const outcomes = (criterion.testOutcomes ?? []).map(({ file, name, passed, skipped }) => `${file} ${passed ? 'pass' : 'fail'}${skipped ? ' skip' : ''} ${name}`).sort();
   assert.deepEqual(outcomes, [
@@ -91,7 +92,7 @@ test('clause 1 and clause 2: the real submit gate records every case name of a p
     'web/cases.test.js pass an empty name still greets [G1]',
     'web/cases.test.js pass clause 1: the page shows a greeting [G1]',
     'web/cases.test.js pass clause 2: the visitor is named # by first name [G1]',
-  ].sort(), `every case name with its outcome: ${JSON.stringify(criterion)}`);
+  ].sort(), `every case name with its outcome: ${JSON.stringify(receipts.map(r => ({ id: r.id, head: r.head, phase: r.proof?.submitPhase, reuse: r.proof?.submitReuse, outcomes: r.testOutcomes?.length ?? null })))}`);
 
   // Clause 2 of the bar: show --review lists each [test] clause's named case from that receipt, never a file-level row.
   const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
