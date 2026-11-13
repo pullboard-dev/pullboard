@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
-import { openBoard } from '../../../board/index.js';
-import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
-import { AGENT_SHELL_MARKERS } from '../../../gate/tests/fixtures/child.js';
-import { SSH_SHELL_MARKERS } from '../../../gate/tests/fixtures/child.js';
+import { openKitBoard } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
+import { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
 import { addItem } from '../../index.js';
 import { agentById } from '../../index.js';
 import { claim } from '../../index.js';
@@ -86,7 +86,7 @@ export function cellRepo(t, { config = CELL_CONFIG, spec = CELL_SPEC } = {}) {
  * @returns {object} The open board.
  */
 export function cellBoard(t, file, clock, options) {
-  const board = openBoard(file, clock, options);
+  const board = openKitBoard(file, clock, options);
   t.after(() => { try { closeBoard(board); } catch { /* A test that closed it itself already released it. */ } });
   return board;
 }
@@ -100,7 +100,7 @@ export function cellBoard(t, file, clock, options) {
  * @returns {object} The open board.
  */
 export function openCellBoard(file, clock, options) {
-  return openBoard(file, clock, options);
+  return openKitBoard(file, clock, options);
 }
 
 export { closeBoard as closeCellBoard };

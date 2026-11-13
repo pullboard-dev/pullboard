@@ -3,11 +3,11 @@
  * review, red hands it back to its builder), and a landing's receipt marks its items merged at the pushed commit [P7].
  */
 import { createHash } from 'node:crypto';
-import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
+import { phaseReceiptId } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
@@ -117,7 +117,7 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
     const command = phase.role === 'check' ? check : gate.analysis?.proofCommand;
     // The runner's own per-case outcomes; the receipt body refuses malformed ones, and then the phase records none and maps no clause to a run.
     const testOutcomes = Array.isArray(phase.testOutcomes) ? phase.testOutcomes : null;
-    const run = { version: 2, id: randomUUID(), kind: 'submit', tree: submit.companion?.tree ?? submit.tree, head: candidate, main,
+    const run = { version: 2, id: phaseReceiptId(job, phase.role), kind: 'submit', tree: submit.companion?.tree ?? submit.tree, head: candidate, main,
       command: createHash('sha256').update(String(command ?? phase.role)).digest('hex'), green: true, failures: [], load: null, at: new Date().toISOString(), ...(testOutcomes ? { testOutcomes } : {}),
       proof: { item: id, frozenDigest: submit.digest ?? null, seat: submit.agentId, runner: runnerName, exitCode: phase.status,
         durationMs: Number.isSafeInteger(gate.steps?.[phase.role]) && gate.steps[phase.role] >= 0 ? gate.steps[phase.role] : 0,
@@ -183,7 +183,7 @@ function offerProofShards(board, { job, receipt, offered }) {
     const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
-        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }).id;
+        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}) } } } } }).id;
   });
   store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
     text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls, and the gate result applies when the last one posts.` });

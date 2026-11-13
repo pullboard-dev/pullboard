@@ -6,6 +6,7 @@ import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
+import { pulledRedLines } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
@@ -15,6 +16,7 @@ import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
+import { settledGate } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../board/read.js';
 import {
   testRuntimeEnvironment,
@@ -65,12 +67,13 @@ export const nativeBoardRequired = false;
  * The item's newest gate job as its step and, once done, the gate its receipt recorded; null when it has none.
  * Why: a pulled submit returns queued at once, and this is how a script reads the gate's settled verdict [C7,#6821].
  */
-function newestGateJob(db, id) {
+function newestGateJob(db, id, receipts = []) {
   let job;
   try { job = jobsOf(db, { kind: 'gate', item: id }).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!job) return null;
-  const receipt = job.steps.find(step => step.name === 'receipt')?.payload?.receipt ?? null;
-  return { id: job.id, step: job.step, gate: receipt?.gate ?? null };
+  // The receipt's plan, counts and log read back in the inline gate's shape; a receipt without them reads as it was [P7].
+  const posted = job.steps.find(step => step.name === 'receipt')?.payload ?? null;
+  return { id: job.id, step: job.step, gate: settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
 }
 
 /** Run `pullboard show` and return its exit code. */
@@ -94,9 +97,10 @@ export async function run(io, { first, values }) {
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names
     // the newest gate job and, once done, its receipt's gate: a pulled gate keeps no hand-off record to read instead [C7].
-    if (values.json) return { ...result, gateJob: newestGateJob(board.db, id) };
+    const gateJob = newestGateJob(board.db, id, result.proofReceipts);
+    if (values.json) return { ...result, gateJob };
     const history = store.events(board, { itemId: id });
-    return { ...result, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+    return { ...result, gateJob, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
       agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
   });
@@ -143,6 +147,7 @@ export async function run(io, { first, values }) {
   if (comparison) io.say(renderVerificationComparison(comparison));
   io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
+  for (const line of pulledRedLines(gateJob, item)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
