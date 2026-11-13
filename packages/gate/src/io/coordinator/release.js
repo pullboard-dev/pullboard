@@ -13,6 +13,7 @@ import { Refused } from '../../../../kernel/index.js';
 import { previousCoordinatorMilestone } from '../../../../stats/index.js';
 import { coordinatorActions } from '../../../../stats/index.js';
 import { coordinatorActionRise } from '../../../../stats/index.js';
+import { storeName } from '../store-names.js';
 
 /** Keep audit files tied to actual privately stored release envelopes. */
 function directory(root) { return join(repoInfo(root).commonDir, 'pullboard', 'release-coordinator-actions'); }
@@ -20,7 +21,7 @@ function directory(root) { return join(repoInfo(root).commonDir, 'pullboard', 'r
 /** Read a recorded release's gauge and person override; missing custody never authorizes publication. */
 export function readCoordinatorRelease(root, id) {
   if (!/^[a-f0-9-]{36}$/u.test(id ?? '')) return null;
-  const file = join(directory(root), `${id}.json`);
+  const file = join(directory(root), storeName(id));
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
 
@@ -75,6 +76,6 @@ export function recordCoordinatorRelease(root, id, head, report, at = new Date()
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const sequence = Math.max(0, ...releaseAudits(root).map(row => row.sequence ?? 0)) + 1;
   const record = { version: 1, id, head, sequence, at: at.toISOString(), ...report };
-  writeFileSync(join(folder, `${id}.json`), JSON.stringify(record) + '\n', { flag: 'wx', mode: 0o600 });
+  writeFileSync(join(folder, storeName(id)), JSON.stringify(record) + '\n', { flag: 'wx', mode: 0o600 });
   return record;
 }
