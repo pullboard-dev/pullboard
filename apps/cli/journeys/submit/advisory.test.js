@@ -2,6 +2,7 @@
 /** The Cells reorg-only checks refuse only Cells reorg work; every other item proceeds with printed warnings [C7,D3]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -28,6 +29,7 @@ import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const ORDINARY = 'Health counts work-free claim releases';
 const MOVE = 'Cells move 1/1: kernel moves into packages/kernel behind shims';
@@ -48,6 +50,7 @@ async function refusal(promise) {
 async function plannedFixture(t, { moved = false, prepare = () => {} } = {}) {
   const box = fixture(t);
   prepare(box);
+  git(box.root, 'add', '-A');
   writePlan(box.root, computePlan(box.root));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'plan actual fixture');
@@ -200,8 +203,10 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   box.git(box.web, 'add', 'src/ordinary-added.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add an ordinary source [G1]');
   rmSync(marker, { force: true });
-  const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next');
+  const submitted = await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  assert.match(submitted.out + submitted.err, /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place src\/ordinary-added\.js/u);
+  await settleSubmit(t, box, JSON.parse(submitted.out));
+  // The pulled gate runs the cells stage on the runner and writes its warning lines to the runner's own hand-off log.
+  assert.match(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'handoff.log'), 'utf8'), /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place src\/ordinary-added\.js/u);
   assert.equal(existsSync(marker), true, 'the ordinary item proceeds to its check');
 });
