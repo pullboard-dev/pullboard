@@ -175,10 +175,10 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
         await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
         const at = `${width}px ${scheme}`;
         if (width === 1280) {
-          // Docked, the name opens no list, so there is no arrow; collapsed, the list drops from the name.
+          // Docked, the name opens the project menu, so it carries the arrow too; collapsed, the list drops from the name.
           if (await chrome.stable("document.documentElement.dataset.side === 'collapsed'")) await click('#side-toggle');
           await chrome.waitFor("document.documentElement.dataset.side !== 'collapsed'");
-          assert.equal((await read()).shown, false, `${at}: docked, with no list to drop, there is no arrow`);
+          assert.equal((await read()).shown, true, `${at}: docked, the name opens the project menu, so it shows the arrow`);
           await click('#side-toggle');
           await chrome.waitFor("document.documentElement.dataset.side === 'collapsed'");
         }
