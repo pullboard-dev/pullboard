@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { tracingChannel } from 'node:diagnostics_channel';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
+import { Server } from 'node:net';
 
 /** The variable that tells a replacement its predecessor's listening socket is its descriptor 3. */
 export const SERVE_FD_ENV = 'PULLBOARD_SERVE_FD';
@@ -12,13 +13,14 @@ const HANDED_FD = 3;
 const LISTEN_WAIT_MS = 60_000;
 
 /**
- * Run `start` and answer its value with `socketFd(port)`: the descriptor of the server `start` opened listening on
- * that port, or null where it cannot be handed on (Windows, or no such server).
+ * Run `start` and answer its value with `socketFd(port)`, the descriptor of the server `start` opened listening on
+ * that port (null where it cannot be handed on: Windows, or no such server), and `drain(port)`, which stops that
+ * server accepting and settles once every connection it holds has had its requests answered and closed.
  * Why: the listening server is built deep inside the API, and the restart path takes its socket without reaching in.
  *
  * @template T
  * @param {() => Promise<T>} start
- * @returns {Promise<{ value: T, socketFd: (port: number) => number | null }>}
+ * @returns {Promise<{ value: T, socketFd: (port: number) => number | null, drain: (port: number) => Promise<void> }>}
  */
 export async function catchListeners(start) {
   const servers = [];
@@ -27,8 +29,21 @@ export async function catchListeners(start) {
   channel.subscribe(handlers);
   try {
     const value = await start();
-    return { value, socketFd: (port) => descriptor(servers.find((server) => server.address()?.port === port)) };
+    const on = (port) => servers.find((server) => server.address()?.port === port);
+    return { value, socketFd: (port) => descriptor(on(port)), drain: (port) => drain(on(port)) };
   } finally { channel.unsubscribe(handlers); }
+}
+
+/**
+ * Stop accepting without dropping a connection: every request still to come on a held connection is answered with
+ * Connection: close, and the promise settles when the last connection ends.
+ * Why: http's own close also destroys connections with no request in flight, including one just accepted whose
+ * request is still on the wire and a keep-alive one a client is about to reuse; each of those is a reset request.
+ */
+function drain(server) {
+  if (!server) return Promise.resolve();
+  server.prependListener('request', (_, res) => { if (!res.headersSent) res.setHeader('connection', 'close'); });
+  return new Promise((done) => { Server.prototype.close.call(server, () => done()); });
 }
 
 /** A listening server's own descriptor, or null. */

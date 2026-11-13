@@ -37,7 +37,7 @@ if (inherited) announceListening();
 const socket = listening.socketFd(api.port);
 const revision = () => execFileSync('git', ['rev-parse', 'HEAD'], { cwd: here, encoding: 'utf8' }).trim();
 await fetch(report, { method: 'POST', body: JSON.stringify({ pid: process.pid, port: api.port, commit: revision() }) });
-const fresh = restartOnCodeMove({ root: here, revision, close: api.close, interval: 100, handoff: socket !== null, log: () => {},
+const fresh = restartOnCodeMove({ root: here, revision, close: () => listening.drain(api.port).then(api.close), interval: 100, handoff: socket !== null, log: () => {},
   relaunch: () => spawnOnSocket(process.execPath, process.argv.slice(1), { fd: socket, cwd: here, log: here + 'serve.log' }) });
 await fresh.restarted;
 process.exit(0);
