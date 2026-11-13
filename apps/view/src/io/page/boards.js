@@ -329,7 +329,8 @@ async function boardRead(board, seen) {
       return state;
     }
   }
-  const query = [mark, local ? 'items=compact' : ''].filter(Boolean).join('&');
+  // A first load takes the state the server keeps (kept=1): the stream's opening catch-up reads the delta to now [A2,C7].
+  const query = [mark, local ? 'items=compact' : '', local && !held ? 'kept=1' : ''].filter(Boolean).join('&');
   const reply = await api(path + (query && '?' + query));
   const state = expandItemSummaries(reply.state);
   if (local) sentStates.set(board.id, { state, sequence: state.sequence, version: reply.eventLogVersion });
