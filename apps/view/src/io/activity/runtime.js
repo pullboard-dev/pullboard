@@ -156,7 +156,7 @@ export function activityRuntime({ flow, html, tip, step, start, api, boardPath, 
     });
     const keepLook = () => { const root = current(); if (root) remember(root, Date.now()); };
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') keepLook(); });
-    addEventListener('pagehide', keepLook);
+    if (typeof addEventListener === 'function') addEventListener('pagehide', keepLook);
     if (typeof ResizeObserver === 'function') {
       watcher = new ResizeObserver(() => { clearTimeout(resizing); resizing = setTimeout(() => { const project = held_project(); if (project && node.isConnected && active()) paint(project, true); }, 80); });
       watcher.observe(node);

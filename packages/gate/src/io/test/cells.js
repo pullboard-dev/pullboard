@@ -120,18 +120,26 @@ export function testCellOf(file) {
   return match[1] === 'apps' ? `apps/${match[2]}` : match[2];
 }
 
+/** The declared rule file: every cell from lowest to highest, keyed as cellOf names cells. */
+export const ORDER = 'packages/gate/data/tests/cell-order.json';
+
 /**
- * Each planned cell's order from the packages/codemap/data/plan/cells.json index, keyed as cellOf names cells (an `app:<name>` cell is
- * `apps/<name>`). A component test may import only cells below its own, so the order decides which front doors it may use.
+ * Each cell's order, read from the folders under packages/ and apps/ and the declared list in packages/gate/data/tests/cell-order.json,
+ * keyed as cellOf names cells (an app is `apps/<name>`), ordered from 1 in list order. A component test may import only cells
+ * below its own, so the order decides which front doors it may use; a listed cell with no folder is skipped, and so is a folder
+ * the list does not name [C7].
  *
  * @param {string} root
  * @returns {Map<string, number>}
  */
 export function planOrder(root) {
-  const path = resolve(root, 'packages/codemap/data/plan/cells.json');
+  const path = resolve(root, ORDER);
   if (!existsSync(path)) return new Map();
-  const cells = JSON.parse(readFileSync(path, 'utf8')).cells ?? [];
-  return new Map(cells.map(cell => [cell.name.startsWith('app:') ? `apps/${cell.name.slice(4)}` : cell.name, cell.order]));
+  const declared = JSON.parse(readFileSync(path, 'utf8')).order ?? [];
+  const present = name => existsSync(resolve(root, name.startsWith('apps/') ? name : `packages/${name}`));
+  const order = new Map();
+  for (const name of declared.filter(present)) order.set(name, declared.indexOf(name) + 1);
+  return order;
 }
 
 /** The listing's pure helpers as path to reason; an older array listing carries no reasons. */

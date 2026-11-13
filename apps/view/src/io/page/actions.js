@@ -477,9 +477,20 @@ function pick(id, root = view.root) {
   reveal();
 }
 
-/** Where the list and the detail stack (under 900px), bring the detail into view. */
+/**
+ * Where the list and the detail stack (under 900px), put the opened detail just below the sticky nav (#7403).
+ * Placed at once and again next frame, because the detail's content lands after the click and moves its top.
+ */
 function reveal() {
-  if (matchMedia('(max-width: 900px)').matches) $('detail').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  if (!matchMedia('(max-width: 900px)').matches) return;
+  const place = () => {
+    const detail = $('detail'), bar = document.querySelector('.top');
+    if (!detail) return;
+    const below = Math.ceil(bar ? bar.getBoundingClientRect().bottom : 0) + 8;
+    window.scrollTo({ top: Math.max(0, detail.getBoundingClientRect().top + window.scrollY - below), behavior: 'instant' });
+  };
+  place();
+  requestAnimationFrame(place);
 }
 
 /**

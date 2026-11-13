@@ -340,9 +340,29 @@ export function prepareClaim(board, id, options, ports) {
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
 export function claim(board, id, options, ports) {
-  const { moveItem } = ports;
   const prepared = prepareClaim(board, id, options, ports);
-  const binding = PREPARED_CLAIMS.get(prepared);
+  return commitClaim(board, id, prepared, PREPARED_CLAIMS.get(prepared), ports);
+}
+
+/**
+ * Record a submit admission on the caller's own live claim without ever sleeping: one preparation, one write.
+ * Why: an API request records the witness for a pulled green gate, and a request must not park its thread on
+ * Atomics.wait; a board that moved under the preparation refuses BOARD_BUSY and the caller skips the witness [C7].
+ */
+export function admitSubmit(board, id, options, ports) {
+  const snapshot = boardWriteSnapshot(board);
+  const rows = claimRows(board, id);
+  const plan = claimPlan(board, id, options, ports);
+  ports.checkedItemMove(board, id, 'claim', plan.how.checks);
+  const binding = { board, id, snapshot, rows, strict: true, plan };
+  if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
+  return commitClaim(board, id, Object.freeze({ ...options }), binding, ports);
+}
+
+/** Write a prepared claim under the board write lock; shared by a claim and an admission. */
+function commitClaim(board, id, prepared, binding, ports) {
+  const { moveItem } = ports;
+  const options = prepared;
   const { snapshot, plan } = binding;
   const { agentId, head = null, reviewSkipped = null } = prepared;
   const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;

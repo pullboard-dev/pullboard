@@ -29,7 +29,7 @@ test('a pulled gate over submitDeferAbove records the deferral from its plan, no
   assert.match(green.receipt.gate.report, /30 affected test files deferred to the landing gate/u);
 });
 
-test('a large affected selection is deferred to landing at submit, and a red deferred selection lands nothing [C7]', { skip: 'PULL_GAP: un-skipped by #7282 (the pulled land job runs the deferred files at landing)' }, async t => {
+test('a large affected selection is deferred to landing at submit, and a red deferred selection lands nothing [C7]', async t => {
   const selected = Array.from({ length: 30 }, (_, index) => `web/selected-${String(index).padStart(2, '0')}.test.js`);
   const all = [...Array.from({ length: 30 }, (_, index) => String(index)), 'guard'].sort();
   const on = largeSelectionProject(t, 20);

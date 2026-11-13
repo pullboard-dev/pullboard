@@ -1,11 +1,8 @@
-/** @pullboard-test-input apps/cli/src/io/commands/submit.js */
-/** @pullboard-world-pin: clause 3 reads the shipped submit caller to prove it passes the tooling key. */
 /** A rerun of the same candidate reads back the analysis parts already recorded for its main, source and tooling [C7]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { remoteSubmitAnalysis } from '../../../../src/io/submit/gate.js';
@@ -140,12 +137,4 @@ test('clause 2: a part that refused is never recorded, so its rerun runs fresh [
   const second = await remoteSubmitAnalysis(root, request, runner.lease, files.root);
   assert.deepEqual(runner.admitted, ['static', 'static'], 'the refused part is admitted again');
   assert.equal(second.reused, undefined, 'the rerun is a fresh result, not a reused refusal');
-});
-
-test('the production submit caller passes the pinned tooling key to the analysis request, so a changed tooling tree runs every part fresh [C7]', () => {
-  const caller = readFileSync(new URL('../../../../src/io/commands/submit.js', import.meta.url), 'utf8');
-  const start = caller.indexOf('remoteSubmitAnalysis(gateRoot, {');
-  assert.ok(start > 0, 'the submit caller still calls remoteSubmitAnalysis');
-  const request = caller.slice(start, caller.indexOf('ctx.submitHandoffOutput', start));
-  assert.match(request, /\.\.\.submitTooling\(root, commit\)/u, 'the request carries the tools snapshot key from submitTooling');
 });

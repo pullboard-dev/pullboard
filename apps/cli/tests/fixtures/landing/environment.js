@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fixtureMachineSettings } from '../testkit.js';
+import { reviveFixtureLocalRunner } from '../runner/local-start.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import {
@@ -89,6 +90,26 @@ function landingEvidence(result) {
   return JSON.stringify({ result, gates });
 }
 
+/** Budget: hang ceiling for the loopback local runner to take and apply one fixture gate. */
+const GATE_SETTLE_MS = 180_000;
+
+/**
+ * Wait until the item's pulled gate receipt has moved it to submitted, reviving the local runner a gate switch stopped.
+ * Why: every submit offers its gate as a pull job (#6832), but this fixture pins controller dispatch for its landings,
+ * and the shared settle skips controller-pinned boards, so the verify after a submit would race the receipt.
+ */
+function submittedAfterGate(box, cwd, id) {
+  const deadline = Date.now() + GATE_SETTLE_MS;
+  for (;;) {
+    const shown = command(box, cwd, 'show', String(id), '--no-next');
+    const status = shown.document?.item_status;
+    if (status && status !== 'claimed') { assert.equal(status, 'submitted', `#${id} gate: ${shown.out}`); return; }
+    assert.ok(Date.now() < deadline, `#${id} gate did not settle in ${GATE_SETTLE_MS} ms: ${shown.out}${shown.err}`);
+    reviveFixtureLocalRunner(cwd, box.env);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
+}
+
 /** Build and independently verify a fixture item at its actual committed head. */
 function verified(box, name, { touchTest = false } = {}) {
   const path = join(box.dir, name);
@@ -104,6 +125,7 @@ function verified(box, name, { touchTest = false } = {}) {
   if (touchTest) writeFileSync(join(path, 'web/landing.test.js'), readFileSync(join(path, 'web/landing.test.js'), 'utf8') + '// Candidate-only test edit.\n');
   const head = commit(box, path, 'feat(web): build the landing fixture [G1]');
   success(box, path, 'submit', String(id));
+  submittedAfterGate(box, path, id);
   box.git(box.repo, 'switch', '-q', '--detach', head);
   try {
     success(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator',
@@ -236,7 +258,10 @@ export function assertNoCulpritTrunkHold(helpers) {
   assert.deepEqual(waived.landed, entries.map(entry => entry.id));
   assert.equal(waived.batch.proof.tree, box.git(waived.batch.root, 'rev-parse', 'HEAD^{tree}'));
   assert.ok(waived.batch.proof.failures.every(failure => failure.waiver), 'the red tree stays explicitly waived');
+}
 
+/** S7e: a committed correction to the held test releases the trunk without a waiver; an uncommitted edit does not [C7,#5862]. */
+export function assertTrunkHoldCorrection(helpers) {
   const fixed = fixture(helpers);
   const fixedEntries = [verified(fixed, 'a'), verified(fixed, 'b')];
   assert.deepEqual(success(fixed, fixed.repo, 'land').landed, []);

@@ -22,9 +22,13 @@ import { apiBoardOpeners } from './board.js';
 import { main } from './native.js';
 import { runCliInProcess } from './process.js';
 import { fixtureSettledMachine } from './testkit.js';
+import { fixtureProjectPolicy } from './testkit.js';
 import { refusalDocument } from '../../index.js';
 import { JSON_SHAPES } from '../../../../packages/config/index.js';
 import { fetchFresh } from './http.js';
+import { startFixtureLocalRunner } from './runner/local-start.js';
+import { whenRunnerSettles } from './runner/local-start.js';
+import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { safeFixtureDiagnostic } from './child.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import {
@@ -202,7 +206,8 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 /** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
 export function apiHttpFixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // A pulled submit starts the loopback local runner in this machine home; it stops before the sandbox goes, or it keeps writing into it.
+  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true }); });
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
@@ -308,3 +313,25 @@ export function withoutClaimHealth({ claimHealth, ...rest }) {
 export const FIXTURE_BRIEF = 'Files:\n- app/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- the fixture case passes';
 /** The brief the summary case checks stays out of summaries and shows in the detail. */
 export const DETAIL_BRIEF = 'Files:\n- app/fixture.js\nTest:\n- A brief only the detail carries';
+
+/**
+ * Submit one claimed item through the served board and wait for its pulled gate to settle.
+ *
+ * Why: a pulled submit leaves the item claimed until the host's local runner posts the gate receipt, so a review or a
+ * snapshot read right after the move would see no submission [P7,N26].
+ */
+export async function submitSettled(t, box, move, id, agent) {
+  if (!box.localRunnerStarted) {
+    // The runner also pulls the board's automatic land job; a person lands by hand here, so accepted items stay accepted.
+    const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+    fixtureProjectPolicy(box.root, { config: { ...config, landing: { ...config.landing, manualOverride: true } } });
+    startFixtureLocalRunner(box.env, box.root);
+    box.localRunnerStarted = true;
+  }
+  const result = await move({ verb: 'submit', item: id, agent });
+  await whenRunnerSettles(box.env, async () => {
+    const row = (await box.call(box.path + '/state')).document.state.items.find((entry) => entry.id === id);
+    return row.status === 'claimed' ? null : row;
+  }, { deadlineMs: 60_000, what: `the pulled gate of #${id}` });
+  return result;
+}

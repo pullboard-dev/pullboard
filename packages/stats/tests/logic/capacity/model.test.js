@@ -197,10 +197,13 @@ test('accepted work includes known typed landing-return repair labor and a faile
   assert.ok(!result.unknown.some(text => /unmeasured/u.test(text)), result.unknown.join('; '));
   const noGap = plan([item(1, { state: 'accepted', files: [] })], fit(rows.filter(row => !(row.kind === 'reworkGap' && row.attempt === 'conflict'))));
   assert.equal(noGap.workHours, 14, 'known labor does not turn an unknown idle gap into zero latency');
-  assert.match(noGap.unknown.join('; '), /conflict repair gap is missing/);
+  assert.ok(!/repair gap is missing/u.test(noGap.unknown.join('; ')), 'a cause gap falls back to the pooled route gap, so it cannot void the estimate');
   const noBuild = plan([item(1, { state: 'accepted', files: [] })], fit(rows.filter(row => !(row.kind === 'build' && row.attempt === 'conflict'))));
-  assert.equal(noBuild.workHours, null);
-  assert.match(noBuild.unknown.join('; '), /conflict repair build service is missing/);
+  assert.equal(noBuild.available, true, 'a cause with no repair-build sample repairs at the route build service instead of voiding the board');
+  assert.ok(Number.isFinite(noBuild.workHours));
+  const noAnyBuild = plan([item(1, { state: 'accepted', files: [] })], fit(rows.filter(row => row.kind !== 'build')));
+  assert.equal(noAnyBuild.workHours, null);
+  assert.match(noAnyBuild.unknown.join('; '), /repair build service is missing/);
 });
 
 test('accepted zero labor requires genuinely observed zero landing-return outcomes [R1,R2]', () => {

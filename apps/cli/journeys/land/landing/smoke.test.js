@@ -22,6 +22,7 @@ import {
   runLandingCliSmoke,
 } from '../../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 
 const ROOT = resolve(import.meta.dirname, '../../../../..');
@@ -40,7 +41,7 @@ const BREAKABLE_CLI = [
  * Land one accepted item whose merged tree breaks the project's own CLI through the ordinary, non-parallel path, and
  * return main and origin before and after. `separate` takes the local-trunk path instead of the inline batch gate.
  */
-function landBrokenCli({ separate }) {
+async function landBrokenCli({ separate }) {
   const box = landProject();
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -55,8 +56,9 @@ function landBrokenCli({ separate }) {
   submitItem(box, entry, '// BREAK PASS\n');
   acceptItem(box, entry);
   const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.remote, 'rev-parse', 'main');
-  const landed = box.run(box.repo, 'land');
-  return { landed, main, origin, mainAfter: box.git(box.repo, 'rev-parse', 'main'), originAfter: box.git(box.remote, 'rev-parse', 'main') };
+  const offered = box.run(box.repo, 'land', '--json');
+  const landed = await settleLand(box, JSON.parse(offered.out));
+  return { landed, receipt: JSON.stringify(landed.landJob?.receipt ?? {}), main, origin, mainAfter: box.git(box.repo, 'rev-parse', 'main'), originAfter: box.git(box.remote, 'rev-parse', 'main') };
 }
 
 /** A candidate tree whose CLI entry throws on import, committed in a throwaway repository. */
@@ -95,18 +97,19 @@ test('a candidate that ships no CLI entry has nothing to smoke [C7]', t => {
   assert.deepEqual(runLandingCliSmoke(dir), { ran: [] });
 });
 
-test('a non-parallel inline landing whose candidate help throws is refused before main moves, naming the command [C7]', { timeout: 180_000 }, () => {
-  const { landed, main, origin, mainAfter, originAfter } = landBrokenCli({ separate: false });
-  assert.notEqual(landed.code, 0, landed.out);
-  assert.match(landed.err, /LAND_CLI_SMOKE/u);
-  assert.match(landed.err, /pullboard help/u);
+test('a non-parallel inline landing whose candidate help throws is refused before main moves, naming the command [C7]', { timeout: 180_000 }, async () => {
+  const { landed, receipt, main, origin, mainAfter, originAfter } = await landBrokenCli({ separate: false });
+  assert.notEqual(landed.batch.state, 'landed', receipt);
+  assert.match(receipt, /LAND_CLI_SMOKE/u);
+  assert.match(receipt, /pullboard help/u);
   assert.equal(mainAfter, main, 'main did not move');
   assert.equal(originAfter, origin, 'origin did not move');
 });
 
-test('a local-trunk landing whose candidate help throws lands nothing, naming the command [C7]', { timeout: 180_000 }, () => {
-  const { landed, main, origin, mainAfter, originAfter } = landBrokenCli({ separate: true });
-  assert.match(`${landed.out}\n${landed.err}`, /nothing landed: .*pullboard help/u);
+test('a local-trunk landing whose candidate help throws lands nothing, naming the command [C7]', { timeout: 180_000 }, async () => {
+  const { landed, receipt, main, origin, mainAfter, originAfter } = await landBrokenCli({ separate: true });
+  assert.notEqual(landed.batch.state, 'landed', receipt);
+  assert.match(receipt, /pullboard help/u);
   assert.equal(mainAfter, main, 'main did not move');
   assert.equal(originAfter, origin, 'origin did not move');
 });

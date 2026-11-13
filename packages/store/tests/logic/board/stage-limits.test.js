@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { configFromSource } from '../../../../config/index.js';
-import { stageLimits } from '../../../src/logic/stage-limits.js';
+import { stageLimits } from '../../../src/logic/clock.js';
 
 test('[A2] clause 1: stageLimits reads each stage from its own setting, never a constant [#6940]', () => {
   const config = configFromSource(JSON.stringify({ itemBuildBudgetMinutes: 12.5, review: { starveMinutes: 9 }, check: { timeout: '7m' }, reviewLease: '45m', landing: { timeout: '20m' } }));

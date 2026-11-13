@@ -140,6 +140,50 @@
         "spawns a child process (apps/cli/journeys/shout/http.test.js)"
       ]
     },
+    "apps/cli/journeys/shout/http/delta.test.js": {
+      "cells": [
+        "api",
+        "app:cli",
+        "app:lib",
+        "app:view",
+        "config",
+        "kernel",
+        "link",
+        "outbox",
+        "person",
+        "runners",
+        "seats",
+        "sync"
+      ],
+      "reasons": [
+        "imports past app:cli front door (apps/cli/src/io/commands/view.js)",
+        "imports past app:lib front door (apps/lib/src/logic/native.js)",
+        "runs the CLI (apps/cli/tests/fixtures/api.js)",
+        "spawns a child process (apps/cli/journeys/shout/http/delta.test.js)"
+      ]
+    },
+    "apps/cli/journeys/shout/http/state.test.js": {
+      "cells": [
+        "api",
+        "app:cli",
+        "app:lib",
+        "app:view",
+        "config",
+        "kernel",
+        "link",
+        "outbox",
+        "person",
+        "runners",
+        "seats",
+        "sync"
+      ],
+      "reasons": [
+        "imports past app:cli front door (apps/cli/src/io/commands/view.js)",
+        "imports past app:lib front door (apps/lib/src/logic/native.js)",
+        "runs the CLI (apps/cli/tests/fixtures/api.js)",
+        "spawns a child process (apps/cli/journeys/shout/http/state.test.js)"
+      ]
+    },
     "apps/cli/journeys/request/requests/api.test.js": {
       "cells": [
         "api",
@@ -2632,7 +2676,24 @@
         "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
       ]
     },
-    "apps/cli/journeys/shout/search.test.js": {
+    "apps/cli/journeys/shout/journeys/search-ages.test.js": {
+      "cells": [
+        "app:lib",
+        "gate",
+        "kernel",
+        "outbox",
+        "person",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
+        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
+        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
+        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
+      ]
+    },
+    "apps/cli/journeys/shout/journeys/search-capture.test.js": {
       "cells": [
         "app:lib",
         "gate",
