@@ -112,8 +112,8 @@ test('init lets the agent add the first lane and tell the person, never stop to 
   const agents = readFileSync(join(box.root, 'AGENTS.md'), 'utf8');
   assert.match(readFileSync(join(box.root, 'CLAUDE.md'), 'utf8'), /AGENTS\.md/u, 'CLAUDE.md sends the agent to AGENTS.md');
   assert.doesNotMatch(agents, /once the person agrees|writes none until the person accepts/u, 'the written instructions agree with what init printed');
-  assert.match(agents, /adds those first lanes without waiting, then tells the person which lanes it made/u);
-  assert.match(agents, /a change to which lane owns a path waits for the person's OK/u, 'later ownership changes stay the person\'s');
+  assert.match(agents, /- \*\*Lanes:\*\* join one with `pullboard join <lane>`\./u, 'the approved block sends the agent to a lane, with no wait for the person');
+  assert.match(agents, /Change an approved spec row without the person's OK\./u, 'later changes to approved rows stay the person\'s');
   const added = await box.runLocal('lane', 'add', 'app', '--owns', 'server/,test/');
   assert.equal(added.status, 0, 'the agent in the main checkout can run the printed command itself: ' + added.stderr);
   assert.deepEqual(box.lanes().app.owns, ['server/', 'test/']);
