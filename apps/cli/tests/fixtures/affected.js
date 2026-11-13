@@ -28,7 +28,7 @@ import {
   runFixtureGit,
 } from './child.js';
 import {
-  fixtureMachineSettings,
+  fixtureSettledMachine,
 } from './testkit.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
@@ -40,9 +40,32 @@ function put(root, file, text) {
   writeFileSync(join(root, file), text);
 }
 
-/** Run the actual command with isolated identity and machine settings. */
-export function cli(box, root, ...args) {
+/** The actual command once, with isolated identity and machine settings. */
+function once(box, root, args) {
   return runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: box.env, encoding: 'utf8' });
+}
+
+/**
+ * Run the actual command. A pull submit returns queued at once, so a queued submit waits here for the loopback local
+ * runner's gate job and prints the pulled receipt's gate under `gate`, the shape these journeys read [P7,C7,#6249].
+ */
+export function cli(box, root, ...args) {
+  const result = once(box, root, args);
+  if (args[0] !== 'submit' || result.status !== 0) return result;
+  let submitted;
+  try { submitted = JSON.parse(result.stdout); } catch { return result; }
+  if (!submitted?.queued) return result;
+  const pid = submitted.localRunner?.pid;
+  if (pid && !box.runnerPids.includes(pid)) box.runnerPids.push(pid);
+  const deadline = Date.now() + 180_000;
+  for (;;) {
+    const shown = once(box, root, ['show', String(submitted.item ?? submitted.id), '--no-next']);
+    let job = null;
+    try { job = shown.status === 0 ? JSON.parse(shown.stdout).gateJob ?? null : null; } catch { /* a partial read; read again */ }
+    if (job?.step === 'done') return { ...result, stdout: JSON.stringify({ ...submitted, gate: job.gate, gateJob: job }) };
+    assert.ok(Date.now() < deadline, `gate for #${submitted.item} did not settle (last step ${job?.step ?? 'none'})`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
 }
 
 /** Commit fixture changes normally, retaining real Git history. */
@@ -78,10 +101,10 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, criterion 
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'known-main-affected-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
-  // A child submit must return the gate's verdict, so the fixture pins controller dispatch; pull submits return queued (#6249,#6832).
-  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  const box = { directory, root, env };
+  // A submit is a pulled gate job the loopback local runner takes; cli() waits for its receipt [P7,#6249].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
+  const box = { directory, root, env, runnerPids: [] };
+  t.after(() => { for (const pid of box.runnerPids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } } });
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
   chmodSync(join(directory, 'bin/pullboard'), 0o755);
