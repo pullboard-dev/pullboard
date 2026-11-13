@@ -1,10 +1,14 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
-import { sharedToolsTarget } from '../submit/handoff.js';
-import { toolsSnapshot } from '../submit/handoff.js';
+import { sharedToolsTarget } from '../toolsnapshot.js';
+import { toolsSnapshot } from '../toolsnapshot.js';
+import { runPulledComparison } from '../test/pull.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { committedTestOutcomes } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
@@ -18,10 +22,7 @@ import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
-import { committedNeedsGui } from '../../../../../packages/landing/index.js';
 import { mainRunnerSource } from '../../../../../packages/landing/index.js';
-import { runProfiledShellAsync } from '../../../../../packages/gate/index.js';
-import { testsNeedBrowser } from '../../../../../packages/gate/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../../../../packages/gate/index.js';
 import { testTierCommand } from '../../../../../packages/gate/index.js';
@@ -90,6 +91,7 @@ import {
   invalidateGitFacts,
   isClean,
   resolveCommit,
+  tryGit,
   untracked,
 } from '../../../../../packages/git/index.js';
 import {
@@ -618,23 +620,20 @@ export async function run(io, args) {
           const allowed = new Set(units);
           return { ...selected, files: selected.files.filter(file => allowed.has(file)) };
         },
-        // The runner receives the commit id and reads its files from this repository's object store, so there is no
-        // checkout or worktree here; a slot that would run on this machine is refused, never served from a clone [C7,V4].
-        runTests: async (commit, files, { profileFile, artifactDirectory }) => {
+        // Each side is a pulled test job at its commit id: any runner, the machine's own loopback runner included, claims
+        // it, so no checkout or worktree is made here and no SSH controller transport is needed [C7,V4,P7].
+        runTests: async (commit, files, { profileFile }) => {
           const root = ctx.info.root;
           const source = mainRunnerSource(root, commit, policy.commit);
           if (!source) return { unavailable: 'the exact comparison commit could not be read from the object store' };
           const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
-          const browser = await testsNeedBrowser(root, files, { commit });
-          return withGateSlot(root, lease => {
-            if (!lease.runner) throw new Refused('RUNNER_SOURCE', 'a review comparison runs on a runner from commit ids; no local checkout is made, so register a runner and retry');
-            lease.testTiers = true;
-            return runProfiledShellAsync(root, command,
-              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true,
-                pinnedSource: { head: source.head, tree: source.tree } });
-          }, { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
-            browser, gui: files.some(file => committedNeedsGui(root, commit, file)), shortEligible: true, item: String(id), kind: 'compare',
-            pinnedSource: { commit: source.head, tree: source.tree, trunk: source.trunk } });
+          const runId = randomUUID();
+          const ran = await runPulledComparison(ctx, { item: id, commit: source.head, main: policy.commit, command, files, runId });
+          // Outcomes count only for regular test files at the run's own commit; anything else leaves the side unaccounted.
+          const testOutcomes = committedTestOutcomes(root, source.head, ran.outcomes, tryGit);
+          const profile = { id: runId, job: ran.job, runner: ran.runner, green: ran.green, ...(testOutcomes ? { testOutcomes } : {}) };
+          writeFileSync(profileFile, JSON.stringify(profile) + '\n', { mode: 0o600 });
+          return { id: runId, isGreen: ran.green, executionRunner: ran.runner, profile, ...(testOutcomes ? { testOutcomes } : {}) };
         },
       });
       compared = { ...compared, status: 'complete', source: item.item_commit, digest: item.item_frozen_digest };
@@ -663,7 +662,7 @@ async function recordComparison(ctx, item, result) {
 }
 
 /** How a comparison gets its tools: a cold shared snapshot is built by the detached worker, so submit returns first (#5752) [C7]. */
-const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../submit/handoff.js', import.meta.url).href };
+const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../toolsnapshot.js', import.meta.url).href };
 
 /** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
 export async function startAutomaticComparison(ctx, id) {

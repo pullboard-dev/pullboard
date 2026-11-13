@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runModuleChild } from '../../tests/fixtures/runner/module-child.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { initializeRunnerRecovery } from '../../../../packages/resources/index.js';
@@ -48,14 +48,7 @@ function fixture(t, { dropFirst = true } = {}) {
 }
 
 /** Execute the current implementation inside the fixture's own environment and retain an actionable assertion. */
-function child(box, source) {
-  // Process-level: a fresh node process proves the module graph loads without the CLI seam.
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
-    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 90_000,
-  });
-  assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
-  return JSON.parse(result.stdout);
-}
+const child = runModuleChild;
 
 /** Synthetic queue identities exercise generation guards, never certify an actual worker. */
 function recoveryIdentity() { return { version: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64) }; }

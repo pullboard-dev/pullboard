@@ -18,7 +18,10 @@ import {
   spawn,
   spawnSync,
 } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+} from 'node:fs';
 import {
   join,
   resolve,
@@ -29,6 +32,8 @@ import {
 } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+/** The CLI entry the package manifest names as its pullboard bin, so this file names no app path. */
+const CLI = join(ROOT, JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).bin.pullboard);
 const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
@@ -285,12 +290,12 @@ export function renderMatrix(rows, meta) {
  * @returns {{ report: object | null, statusMs: number | undefined }}
  */
 function liveReceipts(since) {
-  const health = spawnSync(process.execPath, [join(ROOT, 'apps/cli/pullboard.js'), 'gate-health', '--since', since, '--json'], { cwd: process.cwd(), encoding: 'utf8', timeout: 120_000 });
+  const health = spawnSync(process.execPath, [CLI, 'gate-health', '--since', since, '--json'], { cwd: process.cwd(), encoding: 'utf8', timeout: 120_000 });
   let report = null;
   try { report = health.status === 0 ? JSON.parse(health.stdout).report : null; }
   catch (error) { process.stderr.write(`gate-health answered unreadable JSON: ${error.message}\n`); }
   const started = performance.now();
-  const status = spawnSync(process.execPath, [join(ROOT, 'apps/cli/pullboard.js'), 'status'], { cwd: process.cwd(), encoding: 'utf8', timeout: 60_000 });
+  const status = spawnSync(process.execPath, [CLI, 'status'], { cwd: process.cwd(), encoding: 'utf8', timeout: 60_000 });
   return { report, statusMs: status.status === 0 ? performance.now() - started : undefined };
 }
 

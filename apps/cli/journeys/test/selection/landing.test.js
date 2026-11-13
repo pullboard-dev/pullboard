@@ -71,7 +71,7 @@ test('clause 1: a real T3 batch failure bisects to its item while package units 
 });
 
 
-test('clause 1 control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', { skip: 'PULL_GAP: un-skipped by #7184' }, async t => {
+test('clause 1 control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'alpha', 2);
   const submitted = await settleSubmit(t, box, json(box, entry.root, 'submit', String(entry.id), '--no-next'));
   assert.deepEqual(submitted.gate.files, ['test/alpha.test.js'], 'the submit proof predates the contract');
@@ -93,7 +93,7 @@ test('alpha keeps its front door value [G1]', () => { appendFileSync(${JSON.stri
   assert.ok(!json(box, box.repo, 'show', String(entry.id)).item_merged_commit, 'the change that breaks the contract never lands');
 });
 
-test('a runner that ignores selected units cannot report a false green [C7,V4]', { skip: 'PULL_GAP: un-skipped by #7184' }, async t => {
+test('a runner that ignores selected units cannot report a false green [C7,V4]', async t => {
   const box = fixture(t);
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -102,9 +102,11 @@ test('a runner that ignores selected units cannot report a false green [C7,V4]',
   commit(box, box.repo, 'test: configure a no-op focused runner [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const entry = build(box, 'beta', 'broken');
-  // The pulled gate takes the no-op runner's empty proof as green and the item reaches submitted: no TEST_SELECTION_UNVERIFIED is raised on pull.
+  // The no-op runner exits 0 with no test account; the pulled gate refuses it by name, as the controller gate does.
   const settled = await settleSubmit(t, box, JSON.parse((await box.runLocal(entry.root, 'submit', String(entry.id), '--no-next', '--json')).out));
   assert.notEqual(settled.gate.green, true, 'a runner that ran none of the selected units is not green');
+  const refused = settled.gate.analysis.refusals.find(row => row.code === 'TEST_SELECTION_UNVERIFIED');
+  assert.match(refused?.message ?? '', /test\/beta\.test\.js/u, JSON.stringify(settled.gate.analysis.refusals));
   assert.deepEqual(calls(box, 'beta'), []);
   assert.equal(json(box, box.repo, 'show', String(entry.id)).item_status, 'claimed');
 });
