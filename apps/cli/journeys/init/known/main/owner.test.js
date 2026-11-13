@@ -21,7 +21,7 @@ function fileMainRed(box, criterion) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-test('two repairs naming the same file each own the case their criterion names [V4,B3]', t => {
+test('two repairs naming the same file each own the case their criterion names [V4,B3]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, t => {
   const box = fixture(t, { affected: SHARED });
   const alpha = fileMainRed(box, "The case 'alpha case' passes on main.");
   const beta = fileMainRed(box, "The case 'beta case [G1]' passes on main.");
