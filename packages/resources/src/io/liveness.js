@@ -19,9 +19,16 @@ export const LIVENESS_RELAUNCH_ENV = 'PULLBOARD_LIVENESS_RELAUNCH';
  * @param {{ name: string, item: string, pid: number }} row - The holder the decision concerns.
  * @param {string} [detail] - A short human reason for the event.
  */
-function recordLiveness(db, kind, row, detail = '') {
+export function recordLiveness(db, kind, row, detail = '') {
   db.prepare('INSERT INTO liveness_event(at, kind, name, item, pid, detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(new Date().toISOString(), kind, row.name, row.item ?? '', row.pid, detail);
+}
+
+/** The machine's stale-test sweep, loaded on the first lease pass so the runner worker bundle's closure leaves it out (#4140). */
+let sweeper;
+function sweepStaleTests(db) {
+  if (sweeper) sweeper.pass(db, recordLiveness);
+  else import('./stale-' + 'test-sweep.js').then(module => { sweeper = module.staleTestSweeper(); }).catch(() => {});
 }
 
 /**
@@ -61,6 +68,7 @@ function freeHolder(db, row, relaunches, why = 'process gone, or its PID now nam
  * @returns {Array<object>} Captured requests to re-dispatch after the commit.
  */
 export function reclaimHolders(db, now, probes) {
+  sweepStaleTests(db);
   const relaunches = [];
   for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched, agent, repo, kind FROM holder').all()) {
     if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }

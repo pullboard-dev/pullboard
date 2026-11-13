@@ -15,9 +15,11 @@ import { report } from './scan.js';
 import { TEST_FILE } from './scan.js';
 import { walk } from './scan.js';
 
+/** The registry file, its one home: the disk report reads it through `diskStores`, and this scan judges it [CD2,C7]. */
 export const STORE_REGISTRY = 'packages/gate/data/baselines/stores.json';
+export const STORE_REGISTRY_URL = new URL('../../data/baselines/stores.json', import.meta.url);
 export const STORE_BASELINE = 'packages/gate/data/baselines/store-homes.json';
-const REGISTRY_URL = new URL('../../data/baselines/stores.json', import.meta.url);
+const REGISTRY_URL = STORE_REGISTRY_URL;
 const BASELINE_URL = new URL('../../data/baselines/store-homes.json', import.meta.url);
 /** Shipped source: a package's or app's src tree and its root modules; tests, fixtures and data are not judged. */
 const SOURCE = /^(?:apps|packages)\/[^/]+\/(?:src\/.+|[^/]+)\.[cm]?js$/u;
@@ -330,4 +332,30 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     }
     else report(storeGrowth(sites, registry, baseline, new Date().toISOString().slice(0, 10)));
   }
+}
+
+/** The shipped registry, parsed. */
+export function storeRegistry() {
+  return JSON.parse(readFileSync(STORE_REGISTRY_URL, 'utf8'));
+}
+
+/**
+ * The names under .git/pullboard that make up each disk group: a row's `disk` group, plus the names the registry lists
+ * as `disk.unlisted` (files with no row of their own, such as SQLite sidecars). Why: one registry names every store, so
+ * a store added there cannot be left out of the disk report.
+ *
+ * @param {{ disk: { groups: string[], unlisted?: Record<string, string[]> }, stores: Record<string, { disk?: string }>, dirs?: Record<string, { disk?: string }> }} registry
+ * @returns {Record<string, string[]>} Group name to top-level names; the group `other` is never listed.
+ */
+export function diskStoresFrom(registry) {
+  const stores = Object.fromEntries(registry.disk.groups.map(group => [group, [...(registry.disk.unlisted?.[group] ?? [])]]));
+  for (const rows of [registry.stores, registry.dirs ?? {}]) {
+    for (const [name, row] of Object.entries(rows)) if (stores[row.disk]) stores[row.disk].push(name);
+  }
+  return stores;
+}
+
+/** The disk groups of the shipped registry (see diskStoresFrom). */
+export function diskStores() {
+  return diskStoresFrom(storeRegistry());
 }

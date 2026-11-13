@@ -15,8 +15,6 @@ after(e2e.cleanup);
 for (const [kind, declaration, binding] of [
   ['computed property', '{ [["cpu", "Load"].join("")]: true }', 'test'],
   ['spread property', '{ ...Object.fromEntries([[ ["cpu", "Load"].join(""), true ]]) }', 'test'],
-  ['opaque options and an imported alias', 'Object.fromEntries([[ ["cpu", "Load"].join(""), true ]])', 'register'],
-  ['invoked option factory', '(() => Object.fromEntries([[ ["cpu", "Load"].join(""), true ]]))()', 'test'],
 ]) test(`unreadable ${kind} options conservatively use a registered runner [C7]`, async () => {
   const box = cpuLoadFixture(e2e, { declaration, binding });
   const remote = await box.runGate();

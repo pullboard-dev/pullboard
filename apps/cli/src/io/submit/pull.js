@@ -36,6 +36,8 @@ import { tapCaseErrors } from '../../logic/runner/output.js';
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 /** Budget: the most failing cases a red phase names in its receipt, so a receipt stays under the queue's size cap. */
 const PHASE_CASES = 100;
+/** Budget: a phase's output is held up to 256 MiB in the gate job; a phase that prints more is killed, as the serial spawn did. */
+const PHASE_BUFFER_BYTES = 256 * 1024 ** 2;
 /** The capabilities a runner needs to take a gate job, or a pulled test job, which runs through the same bootstrap. */
 export const GATE_NEEDS = ['node22'];
 /** The variable runner serve names its kept-output folder for this job in; the gate entry writes each phase's full output there. */
@@ -51,7 +53,8 @@ const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
  * candidate checkout, then, when every part passed, the frozen check and the selected proof, and prints one receipt.
  * Why one process tree: every part of the gate is one runner job on one lease, so the submitting host holds nothing.
  */
-const GATE_JOB_ENTRY = `import { spawnSync } from 'node:child_process';
+const GATE_JOB_ENTRY = `import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -137,12 +140,22 @@ const changedRunner = command => {
 const ledger = (shard ? shard.ledger : input.ledger) ?? null;
 let hitsFile = null;
 if (ledger && Array.isArray(ledger.files)) { hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify(ledger), { mode: 0o600 }); }
-const runPhase = (role, command, PATH) => {
+const runPhase = async (role, command, PATH) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
   // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
-  const ran = timed(role, () => spawnSync('(' + command + '\\n) 2>&1', { shell: true, cwd: root, maxBuffer: 256 * 1024 ** 2,
-    env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) }, stdio: ['ignore', 'pipe', 'pipe'] }));
+  const started = performance.now();
+  const ran = await new Promise(resolve => {
+    const child = spawn('(' + command + '\\n) 2>&1', { shell: true, cwd: root,
+      env: { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = [], err = [];
+    let held = 0;
+    const keep = into => chunk => { held += chunk.length; if (held > ${PHASE_BUFFER_BYTES}) child.kill('SIGKILL'); else into.push(chunk); };
+    child.stdout.on('data', keep(out)); child.stderr.on('data', keep(err));
+    child.on('error', () => resolve({ status: null, signal: null, stdout: Buffer.concat(out), stderr: Buffer.concat(err) }));
+    child.on('close', (status, signal) => resolve({ status, signal, stdout: Buffer.concat(out), stderr: Buffer.concat(err) }));
+  });
+  receipt.steps[role] = Math.round(performance.now() - started);
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
   const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
@@ -157,10 +170,10 @@ const runPhase = (role, command, PATH) => {
   const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
-  receipt.phases.push({ role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}) });
+  return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text),
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}) };
 };
-if (shard) runPhase('proof', shard.command, cliPath());
+if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath()));
 else {
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
 writeFileSync(entry, input.analysisEntry, { flag: 'wx', mode: 0o600 });
@@ -192,11 +205,13 @@ else {
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
     const plan = analysis.plan ?? {}, cores = availableParallelism();
     const shardable = input.shards === true && !plan.selection?.full && typeof plan.testRunner === 'string' && plan.testRunner.trim() && Array.isArray(plan.proofFiles) && plan.proofFiles.length > cores;
-    for (const [role, command] of [['check', input.check], ['proof', plan.proofCommand]]) {
-      if (!command) continue;
-      if (role === 'proof' && shardable && receipt.phases.every(phase => phase.status === 0)) { receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores }; continue; }
-      runPhase(role, command, PATH);
-    }
+    // The check and the proof are independent commands: they start together and their phases keep the check-then-proof order [C7].
+    // A shardable proof waits for the check, since the board takes it as shard jobs only when the check passed.
+    if (shardable) {
+      if (input.check) receipt.phases.push(await runPhase('check', input.check, PATH));
+      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores };
+      else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH));
+    } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH))));
   }
 }
 }

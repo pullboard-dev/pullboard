@@ -51,7 +51,9 @@ console.log('ready'); setTimeout(() => { lease.release(); process.exit(0); }, ${
   assert.equal(checked.code, 0, checked.out + checked.err);
   const receipt = JSON.parse(checked.out).result?.receipt ?? JSON.parse(checked.out).receipt;
   assert.ok(receipt, checked.out);
-  assert.ok(receipt.waitMs >= HOLD_MS - 1000, `the wait covers the stand-in's hold: ${JSON.stringify(receipt)}`);
+  // budget: the check CLI boots (up to ~3 s on a loaded runner) before its wait starts, so the wait covers the hold less that boot.
+  const BOOT_SLACK_MS = 3000;
+  assert.ok(receipt.waitMs >= HOLD_MS - BOOT_SLACK_MS, `the wait covers the stand-in's hold: ${JSON.stringify(receipt)}`);
   assert.ok(receipt.runMs >= 150 && receipt.runMs < HOLD_MS - 1000, `the run time covers only the test: ${JSON.stringify(receipt)}`);
   for (const field of ['admissionMs', 'setupMs', 'evidenceMs']) assert.ok(Number.isFinite(receipt[field]) && receipt[field] >= 0, field);
   assert.deepEqual(receipt.slot, { kind: 'ordinary', reason: 'it launches no browser' }, 'the slot kind and why');
