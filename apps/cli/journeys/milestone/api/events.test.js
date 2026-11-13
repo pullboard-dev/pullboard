@@ -83,6 +83,8 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
 
 test('[A2] SSE delivers a live move and resumes after Last-Event-ID without replay', async (t) => {
   const box = project();
+  // The two near-identical item titles are fixture data, not a duplicate filing the board should refuse.
+  box.env.PULLBOARD_FIXTURE_ADD_DISTINCT = '1';
   const api = await startLocalHandler(t, box);
   const boards = await (await apiFetch(api, '/api/v1/boards')).json();
   const board = boards.boards.find((candidate) => candidate.root === box.repo);
