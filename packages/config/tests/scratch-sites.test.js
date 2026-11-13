@@ -20,12 +20,6 @@ const HOME = ['packages/config/src/logic/scratch.js', 'packages/config/src/logic
  * Seats registration.js only lists temp paths and sentinels already use scratchRoot, so neither matches; the rest wait on the scratch slices.
  */
 const ALLOWLIST = [
-  'apps/cli/src/io/commands/shadow-batch.js',
-  'apps/cli/src/io/hook/composed.js',
-  'apps/cli/src/io/submit/gate.js',
-  'apps/cli/src/io/submit/remote.js',
-  'apps/cli/src/io/tour.js',
-  'apps/runner/src/io/private/privacy.js',
   'docs/tools/guarded-docs-refresh.js',
   'packages/codemap/src/io/cell/parser.js',
   'packages/codemap/src/io/cell/uses.js',

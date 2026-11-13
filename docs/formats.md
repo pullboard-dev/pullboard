@@ -828,6 +828,10 @@ The activity-delivery engine, numbered at landing, adds recipient-owned `recordA
 The machine resource database adds `waiter.runner_only` and `holder.runner_execution`, both integer booleans defaulting to zero. A runner-only gate ticket cannot consume local or short capacity while a runner is registered. The trusted SSH worker sets `runner_execution` on its own actual private gate holder; inherited admission reads that holder rather than accepting an environment-only claim of remote execution. These are local, additive scheduling metadata, not board move or relay formats.
 The CPU-sentinel engine, numbered at landing, names an agent-worktree process after more than twenty CPU minutes, once per host, PID and start time. Current `health-scan` receipts carry `pendingCpu`, the findings whose coordinator notice was held by the existing ten-notice cap. Later scans drain that durable queue without inventing another health-failure episode. An older engine refuses while this queue is pending, preserving its history; older receipts retain their original fields. Observation never signals a process.
 
+## Machine-local runner rate card
+
+A runner's rate card is part of the machine's `settings.json`, as `runnerRates`: a map from a runner host to `{price, months, watts, kwhPrice}` (purchase price, whole months to pay it off, load watts and power price per kWh, each a number of 0 or more and months 1 or more). Set one with `pullboard settings runnerRates <runner> <price> <months> <watts> <kwhPrice>`; a missing or invalid field refuses with `BAD_RUNNER_RATES` and stores nothing.
+
 ## Machine-local relay canary
 
 The canary setting is part of the machine's `settings.json`, not project `pullboard.json` or the native board. Its optional `relay.canary` object is `{enabled, root, agentId, deadlineMs}`. `root` is an absolute checkout path, `agentId` is an ordinary registered non-coordinator seat, and `deadlineMs` defaults to 5000 and may be 100 through 25000. `pullboard relay canary off` sets an existing object to `enabled: false` (or leaves an absent setting unset); it creates no board event or relay credential.
