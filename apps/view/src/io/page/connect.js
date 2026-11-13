@@ -269,7 +269,8 @@ function theme(pick) {
   const now = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   document.documentElement.dataset.scheme = now;
   // The open-board screens carry the same toggle in their own header (#764), as the sidebar is hidden there.
-  for (const button of [$('theme'), $('ob-theme')]) {
+  for (const label of document.querySelectorAll('[data-theme-label]')) label.textContent = pick === 'light' ? 'Light' : pick === 'dark' ? 'Dark' : 'System';
+  for (const button of [$('ob-theme')]) {
     button.title = now === 'dark' ? 'Dark theme: switch to light' : 'Light theme: switch to dark';
     button.setAttribute('aria-label', button.title);
   }
