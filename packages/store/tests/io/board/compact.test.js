@@ -19,8 +19,9 @@ const NOW = Date.parse('2026-11-13T12:00:00Z');
 
 /** A board on a real file with the job tables a writable open installs. */
 function boardOf(t) {
-  const board = cellBoard(t, cellProject(t).boardFile);
-  return { board, db: board.db, file: cellProject(t).boardFile };
+  const { boardFile } = cellProject(t);
+  const board = cellBoard(t, boardFile);
+  return { board, db: board.db, file: boardFile };
 }
 
 /** Run `work` with the board file's machine guards dropped, then put back exactly the SQL they had; the fixture files items no move reached. */

@@ -41,7 +41,8 @@ function oldLanded() {
 function counts(file) {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    return Object.fromEntries(['item', 'event', 'job_step'].map(table => [table, db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n]));
+    return Object.fromEntries([...['item', 'event'].map(table => [table, db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n]),
+      ['old_steps', db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_step_job = 'gate:old'").get().n]]);
   } finally { db.close(); }
 }
 
@@ -68,5 +69,5 @@ test('clause 1: compact moves an old landed item\'s steps to a gzip beside the b
   const after = counts(file);
   assert.equal(after.item, before.item);
   assert.equal(after.event, before.event, 'no event is archived');
-  assert.equal(after.job_step, 1, 'the job keeps its last step');
+  assert.equal(after.old_steps, 1, 'the job keeps its last step');
 });
