@@ -109,7 +109,7 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', async 
   const fresh = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   writeFileSync(join(fresh.repo, 'notes.txt'), 'an unrelated new file\n');
   const setup = (await resume(fresh));
-  const initFiles = ['.githooks/commit-msg', '.githooks/pre-commit', '.githooks/pre-merge-commit', '.githooks/pre-push', 'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json'];
+  const initFiles = ['.githooks/commit-msg', '.githooks/post-commit', '.githooks/pre-commit', '.githooks/pre-merge-commit', '.githooks/pre-push', 'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json'];
   assert.ok(setup.lines.includes(`${PERSON_LINE}${add(fresh, initFiles)}`), setup.lines.join('\n'));
   assert.equal(setup.lines.some((line) => line.startsWith(ROW_LINE)), false, `the coordinator commits nothing:\n${setup.lines.join('\n')}`);
   assert.deepEqual(setup.card.commits, { coordinator: null, person: { files: initFiles, command: add(fresh, initFiles) } });
