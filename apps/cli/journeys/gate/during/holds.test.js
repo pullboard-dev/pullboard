@@ -1,7 +1,6 @@
 /** A claim whose queued gate is running is active: neither the lapsed-lease sweep nor the idle release takes it [B4,C7,H16]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,7 +12,8 @@ import { loadConfig } from '../../../../../packages/config/index.js';
 import { maintainStaleState } from '../../../../../packages/store/index.js';
 import { staleStateLimits } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
-import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
+import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
@@ -26,12 +26,6 @@ function document(result) {
   return JSON.parse(result.out);
 }
 
-/** The item's pulled gate job as `show --json` prints it ({ id, step, gate }), or null before one is offered. */
-function gateJob(box, id) {
-  const shown = box.run(box.repo, 'show', String(id), '--json', '--no-next');
-  return shown.code === 0 ? JSON.parse(shown.out).gateJob ?? null : null;
-}
-
 /** The tail of the fixture machine's local runner log, so a gate that never starts shows what the runner saw. */
 function runnerLog(box) {
   const log = join(box.env.PULLBOARD_MACHINE_HOME ?? '', 'local-runner', 'runner.log');
@@ -42,7 +36,7 @@ function runnerLog(box) {
 function read(box, id, clock) {
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(box.boardFile, clock);
-  try { return { item: getItem(board, id), job: gateJob(box, id) }; }
+  try { return { item: getItem(board, id), job: jobsOf(board.db, { kind: 'gate', item: id }).at(-1) ?? null }; }
   finally { board.db.close(); }
 }
 
@@ -90,7 +84,7 @@ function fixture(t) {
   const gated = add('web', 'Build whose gate is running', gate.command), idle = add('api', 'Build with no gate');
   t.after(async () => {
     writeFileSync(gate.release, 'release\n');
-    if (gateJob(box, gated)) await settledGateJob(box, gated, { deadlineMs: 120_000 }); // budget: hang ceiling for the local runner to finish the released gate; no elapsed-time assertion.
+    if (read(box, gated).job) await settledGateJob(box, gated, { deadlineMs: 120_000 }); // budget: hang ceiling for the local runner to finish the released gate; no elapsed-time assertion.
     if (box.runnerPid) try { process.kill(box.runnerPid, 'SIGKILL'); } catch { /* already gone */ }
     helpers.cleanup();
   });
@@ -115,10 +109,10 @@ test('a claim with a running queued gate survives the idle release and the lapse
   const folder = document((await box.runLocal(box.web, 'claim', String(box.gated), '--json'))).itemFolder;
   assert.equal(box.helpers.commitFile(box, folder, 'web/built.js', 'export const built = true;\n', 'feat(web): build it [G1]').status, 0);
   writeFileSync(box.gate.mode, 'hold\n');
-  // Spawned directly: the fixture's own submit call waits for the queue to settle, and this gate is held open.
-  const submit = await runFixtureChildAsync(process.execPath, [fileURLToPath(new URL('../../../pullboard.js', import.meta.url)), 'submit', String(box.gated), '--no-next', '--json'], { cwd: folder, env: box.env, encoding: 'utf8' });
+  // In process without the kit's settle: the kit's submit waits for the queue to settle, and this gate is held open.
+  const submit = await runCliInProcess(['submit', String(box.gated), '--no-next', '--json'], { cwd: folder, env: box.env });
   const queued = JSON.parse(submit.stdout);
-  assert.equal(queued.queued, true, submit.context);
+  assert.equal(queued.queued, true, submit.stderr + submit.stdout);
   box.runnerPid = queued.localRunner?.pid;
   // A runner holding the job leaves it at its claimed step, or a progress step once it reports one.
   const held = job => ['claimed', 'progress'].includes(job?.step);
