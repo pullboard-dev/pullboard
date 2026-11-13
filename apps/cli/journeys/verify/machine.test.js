@@ -66,9 +66,10 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA_BEHIND BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE SHIM_IMPORT_PARSER UNKNOWN_SPEC'.split(' ');
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
@@ -1155,7 +1156,7 @@ test('a reserved review refuses every other verdict while its lease lives, and o
   ]);
 });
 
-test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', () => {
+test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
   const dir = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-reserve-')));
   try {
     // A fixture seat never inherits the running agent's session: it joins with its own declared model.
@@ -1170,9 +1171,6 @@ test('next --verify reserves the review for the reviewLease and says until when;
       PULLBOARD_HOME: join(dir, 'home'),
       PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     };
-    // This journey submits through a real machine home and holds the gate in the submitting process, so it pins controller dispatch (#6182-#6185).
-    fs.mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
     const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
     // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
     // Each worktree is its own native session, so a peer's review is never skipped as the builder's own session.
@@ -1202,8 +1200,15 @@ test('next --verify reserves the review for the reviewLease and says until when;
     git(builder, 'add', '-A');
     git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
     const commit = git(builder, 'rev-parse', 'HEAD');
-    const submitted = run(builder, 'submit', '1');
+    const submitted = run(builder, 'submit', '1', '--json');
     assert.equal(submitted.status, 0, submitted.stderr);
+    // The submit queues its gate for the local runner; the review waits for that pulled gate to finish [P7].
+    const showInProcess = async (cwd, ...args) => {
+      const shown = await runCliInProcess(args, { cwd, env });
+      return { code: shown.status, out: shown.stdout, err: shown.stderr };
+    };
+    const settled = await settleSubmit(t, { repo, env, run: showInProcess }, JSON.parse(submitted.stdout));
+    assert.equal(settled.gate?.green ?? settled.gate?.ok, true, `the pulled gate is green: ${JSON.stringify(settled.gateJob)}`);
     const commonDir = git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
     assert.equal(git(holder, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonDir,
       'the verifier worktree reads the builder repo common dir');
