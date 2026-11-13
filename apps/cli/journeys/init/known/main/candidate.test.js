@@ -26,7 +26,7 @@ function notice(value, box, { owner, only = false } = {}) {
   assert.equal(value.status, only ? 'candidate-only' : 'also-main');
 }
 
-test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', async t => {
+test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = fixture(t, { main: 1, candidate: 2 });
   const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
@@ -36,13 +36,16 @@ test('candidate-only failures stay red, are first in text, and remain structured
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], /^fails only with your change:/u);
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  // The pulled gate's receipt carries the verdict; the main-failure notice on a refusal is the inline gate's (#6832).
-  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
-  assert.equal(JSON.parse(submitted.stdout).gate.green, false, 'the candidate-only failure keeps the gate red');
+  assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
+  const refusal = JSON.parse(submitted.stdout);
+  assert.equal(refusal.error.code, 'GATE_RED');
+  assert.match(refusal.error.message, /^fails only with your change:/u);
+  assert.equal(refusal.mainFailures.length, 1);
+  notice(refusal.mainFailures[0], box, { only: true });
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
-test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', async t => {
+test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   // Name the affected file in the frozen bar: own cases require an exact main failure signature.
   const box = fixture(t, { main: 2, candidate: 3, criterion: 'test/affected.test.js retains its behavior.' });
   const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
@@ -56,8 +59,10 @@ test('a case red on both sources with different diagnostics is not described as 
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], /^fails differently with your change:/u);
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  // The pulled gate's receipt carries the verdict; the main-failure notice on a refusal is the inline gate's (#6832).
-  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
-  assert.equal(JSON.parse(submitted.stdout).gate.green, false, 'the different failure keeps the gate red');
+  assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
+  const refusal = JSON.parse(submitted.stdout);
+  assert.equal(refusal.error.code, 'GATE_RED');
+  assert.equal(refusal.mainFailures[0].status, 'different-on-main');
+  assert.match(refusal.error.message, /^fails differently with your change:/u);
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
