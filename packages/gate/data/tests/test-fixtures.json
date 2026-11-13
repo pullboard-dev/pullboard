@@ -1960,7 +1960,7 @@
     "tempdir": 1,
     "raw-cli": 3
   },
-  "apps/cli/journeys/gate/kernel.test.js": {
+  "apps/cli/tests/fixtures/submit/kernel.js": {
     "raw-board": 1
   },
   "apps/cli/tests/fixtures/affected.js": {
