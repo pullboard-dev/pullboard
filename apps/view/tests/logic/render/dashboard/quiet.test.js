@@ -12,7 +12,7 @@ const css = readFileSync(new URL('../../../../src/io/dashboard.css', import.meta
 const render = (mutate = project => project) => { const { project, events } = board(); return dashboardHtml(dashboardModel(mutate(project), events, { now, complete: true })); };
 const section = (html, name) => { const start = html.indexOf(`aria-label="${name}"`); assert.notEqual(start, -1, name); return html.slice(start, html.indexOf('</section>', start)); };
 
-test('clause 1 [#7309]: an empty gate, review or landing list is one quiet line, with no card and no placeholder box [N26]', () => {
+test('clause 1: an empty gate, review or landing list is one quiet line, with no card and no placeholder box [N26,#7309]', () => {
   const empty = dashboardHtml(dashboardModel({ ...board().project, items: [] }, [], { now, complete: true }));
   for (const name of ['In the gate', 'In review', 'Landing']) {
     const one = section(empty, name);
@@ -24,7 +24,7 @@ test('clause 1 [#7309]: an empty gate, review or landing list is one quiet line,
   assert.match(css, /\.dash-qquiet/u);
 });
 
-test('clause 2 [#7309]: the ETA tile has a border and no shadow at any width [N26]', () => {
+test('clause 2: the ETA tile has a border and no shadow at any width [N26,#7309]', () => {
   const rules = css.split('\n').filter(line => /dash-stat\.eta/u.test(line)).join('\n');
   assert.match(rules, /border: var\(--border\)/u);
   assert.doesNotMatch(rules, /shadow|inset-line/u, 'no shadow on the ETA tile');
@@ -32,7 +32,7 @@ test('clause 2 [#7309]: the ETA tile has a border and no shadow at any width [N2
   assert.doesNotMatch(widths.split('\n').filter(line => /dash-stat/u.test(line)).join('\n'), /shadow/u, 'no width brings one back');
 });
 
-test('clause 3 [#7309]: a test run with no item names its files where the item id goes, never a dash [N26]', () => {
+test('clause 3: a test run with no item names its files where the item id goes, never a dash [N26,#7309]', () => {
   const html = render(project => ({ ...project, dashboardRunners: { runners: [{ runner: 1, busy: true, cpu: 40, ram: 50, jobs: [{ kind: 'test run', item: null, selected: 1, done: 0 }] }],
     runs: [{ kind: 'test run', item: null, items: [], runners: [1], selected: 3, done: 1 }] } }));
   const runners = section(html, 'Runners');
