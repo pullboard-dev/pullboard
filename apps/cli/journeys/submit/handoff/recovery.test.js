@@ -69,11 +69,22 @@ function freshRunner(t, box) {
   return child.pid;
 }
 
+/** Wait for a condition; a miss names the gate job and the runner log, so a stalled step says where it stopped. */
+async function until(box, check, label, ms) {
+  try { await box.helpers.waitFor(check, label, ms); }
+  catch (error) {
+    const log = join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log');
+    const view = gateJob(box);
+    throw new Error(`${error.message}\njob: ${JSON.stringify(view && { step: view.step, attempt: view.attempt, leaseOwner: view.leaseOwner, steps: view.steps.map(step => step.name) })}`
+      + `\nitem: ${state(box, box.id).item.item_status}\nrunner log:\n${existsSync(log) ? readFileSync(log, 'utf8').slice(-2000) : '(none)'}`);
+  }
+}
+
 /** Submit the captured item and wait until its runner has the gate job and the captured check is running. */
 async function runningGate(box) {
   const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
-  await box.helpers.waitFor(() => existsSync(box.started) && checkPids(box).length > 0, 'the captured check is running', 120000); // budget: observed gate start ceiling, not a timing assertion.
+  await until(box, () => existsSync(box.started) && checkPids(box).length > 0, 'the captured check is running', 60000); // budget: observed gate start ceiling, not a timing assertion.
   const job = gateJob(box);
   assert.equal(job.step, 'claimed', 'a runner holds the gate job');
   return job;
@@ -81,7 +92,7 @@ async function runningGate(box) {
 
 /** Wait until the board records the gate job's receipt and the item is submitted for review. */
 async function submitted(box) {
-  await box.helpers.waitFor(() => state(box, box.id).item.item_status === 'submitted', 'the resumed gate job submits the item', 180000); // budget: pulled gate settle ceiling, not a timing assertion.
+  await until(box, () => state(box, box.id).item.item_status === 'submitted', 'the resumed gate job submits the item', 50000); // budget: pulled gate settle ceiling, not a timing assertion.
 }
 
 test('clause 1: a runner stopped mid-check stops its check and hands back the gate job lease, and a fresh runner finishes the same job with one terminal result [V4,H16,E18,C7]', async t => {
@@ -89,8 +100,8 @@ test('clause 1: a runner stopped mid-check stops its check and hands back the ga
   const job = await runningGate(box);
   const pid = runnerPid(box);
   process.kill(pid, 'SIGTERM');
-  await box.helpers.waitFor(() => gone(pid), 'the stopped runner exits', 120000); // budget: runner stop ceiling, not a timing assertion.
-  await box.helpers.waitFor(() => checkPids(box).length === 0, 'the stopped runner stops its check child', 120000); // budget: owned child stop ceiling, not a timing assertion.
+  await until(box, () => gone(pid), 'the stopped runner exits', 20000); // budget: runner stop ceiling, not a timing assertion.
+  await until(box, () => checkPids(box).length === 0, 'the stopped runner stops its check child', 20000); // budget: owned child stop ceiling, not a timing assertion.
   const stopped = gateJob(box);
   assert.equal(stopped.id, job.id, 'the stopped job is not replaced');
   assert.equal(stopped.step, 'claimed', 'a stopped runner ends nothing: its job stays resumable');
@@ -116,7 +127,7 @@ test('clause 1: a runner killed mid-check keeps the gate job lease until it laps
   // The machine dies: the runner and its detached check group go at once, with no chance to hand anything back.
   process.kill(pid, 'SIGKILL');
   for (const check of checks) { try { process.kill(-check, 'SIGKILL'); } catch { try { process.kill(check, 'SIGKILL'); } catch { /* already gone */ } } }
-  await box.helpers.waitFor(() => gone(pid) && checkPids(box).length === 0, 'the killed runner and its check are gone', 120000); // budget: kill ceiling, not a timing assertion.
+  await until(box, () => gone(pid) && checkPids(box).length === 0, 'the killed runner and its check are gone', 20000); // budget: kill ceiling, not a timing assertion.
   const killed = gateJob(box);
   assert.equal(killed.step, 'claimed', 'the killed runner ended nothing');
   assert.equal(killed.leaseOwner, holder, 'a killed runner keeps its lease until it lapses');
