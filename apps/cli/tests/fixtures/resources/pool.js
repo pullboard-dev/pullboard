@@ -9,6 +9,7 @@ import { once } from 'node:events';
 import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { fixtureMachineSettings } from '../testkit.js';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { watch } from 'node:fs';
@@ -49,6 +50,9 @@ function fixture() {
     const result = runFixtureChild('git', ['init', '-q', repo], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.failure);
   }
+  // The setup baseline of an add --wait settles in the command's own process; no pull runner serves this box (#6249).
+  mkdirSync(home, { recursive: true });
+  fixtureMachineSettings(home, { gate: { runnerDispatch: 'controller' } });
   return { dir, home, first, second, env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home } };
 }
 
@@ -206,7 +210,7 @@ function setBrowserFreeChecks(box, value) {
   const file = join(box.home, 'settings.json');
   if (value === undefined) { rmSync(file, { force: true }); return; }
   mkdirSync(box.home, { recursive: true });
-  writeFileSync(file, `${JSON.stringify({ gate: { browserFreeChecks: value } }, null, 2)}\n`);
+  fixtureMachineSettings(box.home, { gate: { browserFreeChecks: value, runnerDispatch: 'controller' } });
 }
 
 /** Write a fixture's machine queue-order settings (gate.queue); undefined removes the settings file. */
