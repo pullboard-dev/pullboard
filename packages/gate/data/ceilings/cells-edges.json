@@ -6193,9 +6193,6 @@
     "packages/runners/tests/fixtures/fleet.js": [
       "apps/cli"
     ],
-    "packages/sentinels/src/io/serve.js": [
-      "apps/cli"
-    ],
     "packages/state/tests/fixtures/api.js": [
       "apps/cli",
       "apps/lib",

@@ -71,6 +71,18 @@ function fileAge(file, now) {
 }
 
 /**
+ * Whether a waiter is queued behind busy runners: the queue explained its wait and every runner it named is busy. That is
+ * a queue wait, and the busy runner's own holders carry the budget, so a full runner fleet is not a gate pool hold (#6857).
+ */
+function queuedForBusyRunner(row) {
+  if (row.name !== 'gate' || !row.reasons) return false;
+  try {
+    const runners = JSON.parse(row.reasons);
+    return Array.isArray(runners) && runners.length > 0 && runners.every(runner => String(runner.reason).startsWith('busy'));
+  } catch { return false; }
+}
+
+/**
  * Resource pool holders and waiters, one row per pool with a holder or a waiter. A checkout-session pool is the
  * checkout's write lease. A holder whose pid is gone is dead, and the queue's own prune reclaims it.
  */
@@ -79,7 +91,8 @@ export function readPools(file, scope, now, census) {
   if (!db) return { rows: [], unavailable: [] };
   try {
     const holders = db.prepare('SELECT name, pid, agent, since, item, kind FROM holder ORDER BY since').all();
-    const waiters = db.prepare('SELECT name, pid, agent, since, item, kind FROM waiter ORDER BY ticket').all();
+    const hasReasons = db.prepare("SELECT 1 FROM pragma_table_info('waiter') WHERE name = 'runner_wait_reasons'").get();
+    const waiters = db.prepare(`SELECT name, pid, agent, since, item, kind${hasReasons ? ", runner_wait_reasons AS reasons" : ''} FROM waiter ORDER BY ticket`).all().filter(row => !queuedForBusyRunner(row));
     const unavailable = scope === 'machine' && db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runner_unavailable'").get()
       ? db.prepare('SELECT host, since, detail FROM runner_unavailable').all() : [];
     const names = [...new Set([...holders, ...waiters].map(row => row.name))].sort();

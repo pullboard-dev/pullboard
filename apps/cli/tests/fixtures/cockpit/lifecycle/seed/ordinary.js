@@ -13,7 +13,7 @@ export async function seedNativeOrdinary(box, demo, { includeForward = false, ke
   const json = async (root, ...args) => JSON.parse(await box.inProcess(root, ...args, '--json'));
   /** Add one real item whose check runs through the ordinary CLI baseline. */
   const add = async title => (await json(demo.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong',
-    '--criterion', 'The original return criterion', '--check', 'true', '--accept-green', 'the fixture item needs a baseline that always passes', '--wait')).item.item_id;
+    '--criterion', 'The original return criterion', '--check', 'true', '--accept-green', 'the fixture item needs a baseline that always passes')).item.item_id;
   const release = await add('Return by release');
   await box.inProcess(demo.web, 'claim', String(release));
   await box.inProcess(demo.web, 'release', String(release), '--reason', 'OTHER', '--note', 'Another builder can take this item.', '--no-next');
