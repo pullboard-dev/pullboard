@@ -225,13 +225,14 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
   const ended = [];
+  const repeated = [];
   const claimed = atomically(db, () => {
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)) });
@@ -245,13 +246,30 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
       writeStep(db, row.job_id, 'claimed', { runner, capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
+      noteRepeatClaims(db, row, { now, repeated });
       return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
     }
     return null;
   });
   // The shout is a board write of its own, so it follows the claim's transaction.
   for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
+  for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
   return claimed;
+}
+
+/** The window in which this many claims of one job make the sentinel shout, and the claim count that trips it (#7445). */
+const REPEAT_CLAIM_WINDOW_MS = 60_000;
+const REPEAT_CLAIM_COUNT = 3;
+
+/**
+ * Queue one sentinel report when this claim is the third of the job within 60 s, naming its runners. Why only the third:
+ * a runaway re-claimer would otherwise shout on every claim; the count passing 3 adds nothing, so the coordinator hears once [C7,P7].
+ */
+function noteRepeatClaims(db, row, { now, repeated }) {
+  const recent = db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'claimed' AND job_step_at > ?").all(row.job_id, now - REPEAT_CLAIM_WINDOW_MS);
+  if (recent.length !== REPEAT_CLAIM_COUNT) return;
+  const runners = [...new Set(recent.map(step => { try { return JSON.parse(step.payload).runner; } catch { return null; } }).filter(Boolean))];
+  repeated.push({ job: row.job_id, kind: row.job_kind, claims: recent.length, runners });
 }
 
 /** End a job claimed past its cap: a `runaway` step, then done, queued on `ended` for `onRunaway` so the coordinator hears once. */
@@ -387,11 +405,11 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
