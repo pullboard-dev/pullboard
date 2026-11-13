@@ -87,6 +87,8 @@ async function project(t, { predates = false } = {}) {
     if (!statSync(destination).isDirectory()) return;
     for (const name of readdirSync(join(SOURCE, relative))) linkRemaining(join(relative, name));
   }
+  // A real folder chain down to the baselines lets every sibling link while the layout baseline stays absent.
+  mkdirSync(join(root, 'packages/codemap/data/baselines'), { recursive: true });
   for (const folder of ['src', 'packages', 'apps', 'bin/checks']) linkRemaining(folder);
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'PULLBOARD_OWN_CLI'));
   Object.assign(env, { PULLBOARD_RESIDENT: '0', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
