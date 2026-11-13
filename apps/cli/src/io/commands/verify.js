@@ -295,6 +295,15 @@ export async function verifyHere(ctx, id, { second, values }) {
     const earlier = earlierHolderProblem(board, item, me.id);
     if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
+    // The builder is always refused on its own forced landing, whatever the commit authors say: the claim history names it [V1,H16].
+    if (item.item_status === 'withdrawn' && item.item_merged_commit &&
+        (item.item_built_by === me.id || store.events(board, { itemId: id }).some(event => event.event_kind === 'claim' && event.event_by === me.id))) {
+      throw new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
+    }
+    // A forced-landed item takes one verdict: a second one, by any seat, is refused before the move [V1,H16].
+    if (item.item_status === 'withdrawn' && item.item_merged_commit && item.item_verdict) {
+      throw new Refused('NOT_LANDED', `item #${id} already has a ${item.item_verdict} verdict by ${item.item_verified_by ?? 'another seat'}; a forced-landed item takes one verdict`);
+    }
     // A forced merge landed this item around the gate; a verdict is recorded on the board and the landing stays (V1).
     if (decision === 'ACCEPT' && item.item_status === 'withdrawn' && item.item_merged_commit) {
       landedVerdict = true;
@@ -579,7 +588,9 @@ function packetAcceptance(ctx, board, item, decision, reReview, read) {
     return null;
   }
   const reading = readUncovered.length ? ` and the reviewer read clause${readUncovered.length > 1 ? 's' : ''} ${readUncovered.join(', ')} that no run covers` : '';
-  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; no checkout, test run or main merge`;
+  const named = [...readClauses].filter(Number.isInteger).sort((x, y) => x - y);
+  const reviewed = named.length ? `clause${named.length > 1 ? 's' : ''} ${named.join(', ')}` : 'the review packet';
+  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; accepted on the gate's green receipts and your reading of ${reviewed}`;
 }
 
 /** Run `pullboard verify` and return its exit code. */

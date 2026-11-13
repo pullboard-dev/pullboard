@@ -14,6 +14,7 @@ import { apiFetch } from '../../tests/fixtures/api.js';
 import { rebuildProofCounters } from '../../../../packages/verify/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { settleCapacity } from '../../../../packages/stats/index.js';
 
 const HOUR = 3_600_000;
 
@@ -146,4 +147,36 @@ test('waiting items, file-less items and failed landings still yield a number fr
   assert.match(text.out, /Max useful agents now: \d+ /u);
   assert.match(text.out, /Binding: (?!unknown)[a-zA-Z]+\./u);
   assert.match(text.out, /Live seats: \d+ from presence heartbeats\./u);
+});
+
+/** Feed readings `[hours, minutes, value]` after a fixed start and return the applied value at each. */
+function settleRun(readings, start = Date.UTC(2026, 10, 13, 0, 10)) {
+  let state = null;
+  return readings.map(([hours, minutes, value]) => {
+    const out = settleCapacity(state, value, start + hours * HOUR + minutes * 60_000 - 10 * 60_000);
+    state = out.state;
+    return out.applied;
+  });
+}
+
+test('a computed capacity moves only on a banded change in two consecutive hourly windows [C7]', () => {
+  // Under 25% apart never moves, however long it lasts.
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 12], [2, 10, 12], [3, 10, 12]]), [10, 10, 10, 10]);
+  // A one-window spike, or two windows with a gap between them, never moves.
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 20], [2, 10, 10], [3, 10, 10]]), [10, 10, 10, 10]);
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 20], [3, 10, 20], [4, 10, 10]]), [10, 10, 10, 10]);
+  // Opposite directions are not one sustained change.
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 20], [2, 10, 5]]), [10, 10, 10]);
+  // Two consecutive hours at least 25% away apply on the second.
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 13], [2, 10, 13]]), [10, 10, 13]);
+  assert.deepEqual(settleRun([[0, 10, 8], [1, 10, 6], [2, 10, 6]]), [8, 8, 6]);
+  // Reading twice in one hour is one window.
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 13], [1, 40, 13]]), [10, 10, 10]);
+});
+
+test('a changed capacity is held at least two hours before it may change again [C7]', () => {
+  // Changed at 02:10; both 03:10 and 04:05 readings want 30, but the hold runs to 04:10.
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 13], [2, 10, 13], [3, 10, 30], [4, 5, 30]]), [10, 10, 13, 13, 13]);
+  // The next consecutive window after the hold applies it.
+  assert.deepEqual(settleRun([[0, 10, 10], [1, 10, 13], [2, 10, 13], [3, 10, 30], [4, 5, 30], [5, 10, 30]]), [10, 10, 13, 13, 13, 30]);
 });

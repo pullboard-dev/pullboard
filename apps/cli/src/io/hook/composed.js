@@ -8,16 +8,15 @@
 import { spawnSync } from 'node:child_process';
 import {
   copyFileSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import {
   join,
   resolve,
 } from 'node:path';
+import { scratchFolder } from '../../../../../packages/config/index.js';
 import { TEST_FILE } from '../../../../../packages/codemap/light.js';
 import { gitSpawnSync } from '../../../../../packages/git/light.js';
 
@@ -134,7 +133,7 @@ export async function runComposedHook(entry, args, { cwd, env }) {
     if (patches.length === 0 && checkoutMatchesIndex(root, { ...env, GIT_INDEX_FILE: indexFile })) {
       return { index: indexFile, tree: root + '/', companionPaths: [] };
     }
-    const directory = mkdtempSync(join(tmpdir(), 'pullboard-hook-'));
+    const directory = scratchFolder('pullboard-hook-');
     directories.push(directory);
     return composeHookTree(root, { indexFile, patches, env, directory });
   };

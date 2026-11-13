@@ -114,7 +114,7 @@ test('pull-dispatch leases on the board number one runner once per runner, shard
   const { repo, common, resources } = liveFixture(t);
   const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
   const at = Date.now() - 2 * MINUTE;
-  for (const [id, kind, runner] of [['gate:7:aa:s1', 'gate-shard', 'auxiliary-51-mill-2cbb55'], ['gate:7:aa:s2', 'gate-shard', 'auxiliary-51-mill-2d74dc'], ['main:1', 'main-test', 'auxiliary-52-lathe-045338']]) {
+  for (const [id, kind, runner] of [['gate:7:aa:s1', 'gate-shard', 'pool-51-mill-2cbb55'], ['gate:7:aa:s2', 'gate-shard', 'pool-51-mill-2d74dc'], ['main:1', 'main-test', 'pool-52-lathe-045338']]) {
     offerJob(board.db, { id, kind, needs: ['node22'], item: kind === 'gate-shard' ? 7 : null, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
     claimJob(board.db, { runner, capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
   }

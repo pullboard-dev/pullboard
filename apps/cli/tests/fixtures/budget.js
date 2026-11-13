@@ -27,7 +27,8 @@ import { submitFixture } from './board/submit.js';
 function fixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-cli-startup-budget-')));
   let db;
-  t.after(() => { db?.close(); rmSync(root, { recursive: true, force: true }); });
+  // A detached writer can still be flushing when teardown starts, so the removal retries ENOTEMPTY and EBUSY like verdict-check.js.
+  t.after(() => { db?.close(); rmSync(root, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }); });
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Performance fixture', GIT_AUTHOR_EMAIL: 'perf@example.invalid',
     GIT_COMMITTER_NAME: 'Performance fixture', GIT_COMMITTER_EMAIL: 'perf@example.invalid' };

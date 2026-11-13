@@ -19,8 +19,8 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const sandboxes = [];
@@ -49,7 +49,7 @@ function fixture() {
     PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   delete env.PULLBOARD_RELAY_TOKEN;
-  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
   // The fixture is a shell with no agent session: an inherited session id would make the builder's session judge its own work.
   for (const name of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[name];
   const repo = join(dir, 'repo');
@@ -127,6 +127,8 @@ async function submitFile(box, cwd, id, row, path, text, subject) {
   const head = commit(box.git, cwd, `feat(web): ${subject} [${row}]`);
   const submitted = await box.inProcess(cwd, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  // A pull submit returns queued; the local runner's gate receipt must land before the journey verifies it.
+  await settledGateJob(box, id);
   return head;
 }
 

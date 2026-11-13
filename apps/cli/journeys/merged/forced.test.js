@@ -12,7 +12,7 @@ import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 /** A real project with open item 1 and main's tip as the hand landing. */
 function handLanded() {
   const box = machine(), alpha = project(box, 'merged-forced');
-  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'A hand-landed fixture item', check: 'test -f pullboard.json', args: ['--specs', 'G1'], wait: true,
+  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'A hand-landed fixture item', check: 'true', args: ['--specs', 'G1'], wait: true,
     run: (root, ...args) => ({ code: 0, out: box.run(root, ...args), err: '' }) });
   const head = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: alpha.repo, env: box.env, encoding: 'utf8' });

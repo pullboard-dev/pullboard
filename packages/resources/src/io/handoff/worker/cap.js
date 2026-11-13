@@ -855,10 +855,11 @@ export const HANDOFF_DISPATCHER_OWNER_ENV = 'PULLBOARD_DISPATCHER_OWNER';
  *
  * @param {string} tools - A captured tooling snapshot that contains this module.
  * @param {string} cwd - Directory for the dispatcher process.
- * @param {{ startOf?: (pid: number) => string, owner?: string }} [options]
+ * @param {{ startOf?: (pid: number) => string, owner?: string, entry: string }} options - `entry`: the dispatcher file inside `tools`, relative to it; the caller names it because this cell never reaches an app [CD12].
  * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine or another launcher holds the launch lock, which this call never waits for.
  */
-export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', owner } = {}) {
+export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', owner, entry: entryFile } = {}) {
+  if (!entryFile) throw new Refused('HANDOFF_ENTRY_MISSING', 'the caller must name the dispatcher file inside the tools; pass { entry } from the app that owns it');
   if (dispatcherHeld()) return false;
   // Another launcher already holds the lock and is starting the dispatcher this call would start, so this call never queues
   // behind it. Why: on 8 Nov ~77 board commands waited on this lock with no deadline, each poll a turn in the single-writer
@@ -876,7 +877,7 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', 
     const queue = handoffQueueDirectory();
     mkdirSync(queue, { recursive: true, mode: 0o700 });
     const receipt = join(queue, 'dispatcher.json');
-    const entry = join(realpathSync(tools), 'apps/lib/src/io/handoff/dispatcher.js');
+    const entry = join(realpathSync(tools), entryFile);
     const detachedLauncher = join(realpathSync(tools), 'packages/resources/src/io/handoff/worker/detach.js');
     const env = handoffDispatcherEnvironment(process.env);
     if (owner) env[HANDOFF_DISPATCHER_OWNER_ENV] = owner;

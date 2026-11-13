@@ -1,4 +1,3 @@
-import { renderAgentsBlock } from '../../../config/index.js';
 /** @pullboard-test-input packages/doctrine/src/io/standard.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
 import { existsSync } from 'node:fs';
@@ -8,7 +7,7 @@ import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
   doctrineFile,
-} from '../../../config/index.js';
+} from '../../../config/light.js';
 import { parseSpec } from '../../../spec/light.js';
 
 export const STANDARD_VERSION = 1;
@@ -120,9 +119,4 @@ export function doctrineText(doctrine) {
     const origin = row.origin === 'standard' ? 'standard ' + row.version : row.origin;
     return '- ' + row.id + ' (' + origin + ') [' + state + '] ' + row.text + reason;
   }).join('\n');
-}
-
-/** Render managed agent guidance with this owner’s actual standard and doctrine formatter. */
-export function agentsBlock(doctrine = standardDoctrine()) {
-  return renderAgentsBlock(doctrine, doctrineText(doctrine));
 }
