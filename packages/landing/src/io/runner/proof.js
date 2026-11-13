@@ -112,7 +112,8 @@ function shellWord(word) {
  * @param {{ runner: string, files: string[], ledger?: { contexts: string[], files: Array<[string, string, number]>, mainRed?: Array<[string, string, number]> } | null }} proof
  * A red whose every failure a live person waiver covers is ok and names them as `waived`: the landing goes ahead, waived, not green [#655].
  * @param {{ env?: NodeJS.ProcessEnv, waivers?: { id: string, kind: string, test: string, until: string }[], now?: () => number }} [options] - waivers: the job's payload waivers.
- * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, waived?: { file: string, name: string, waiver: string }[], proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
+ * failures: a red's failing tests by file, when its TAP accounts for every one (accountedRed), else absent.
+ * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, waived?: { file: string, name: string, waiver: string }[], failures?: { file: string, name: string }[], proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
  */
 export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now } = {}) {
   return ({ root }) => new Promise(resolve => {
@@ -148,10 +149,10 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       for (const line of lines) cause(line);
       tail = (tail + chunk.toString('utf8')).slice(-2000);
     });
-    const finish = (ok, detail, waived = null) => {
+    const finish = (ok, detail, waived = null, failures = null) => {
       if (REUSED.test(pending)) reused++;
       if (MAIN_RED.test(pending)) mainRed++;
-      resolve({ ok, detail, ...(waived ? { waived } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
+      resolve({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
     };
     child.on('error', error => finish(false, String(error.message).slice(0, 300)));
     // After stdio closes, so the last refusal or failing line is read before the receipt is written.
@@ -167,7 +168,9 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       const first = (refusal ?? failure?.join('\n') ?? '').trim().slice(0, CAUSE_CHARS);
       const red = refusal ? { files: [], cases: [] } : redSummary(all, root);
       const named = red.files.length ? `red in ${red.files.slice(0, 5).join(', ')}${red.files.length > 5 ? ` (+${red.files.length - 5} more)` : ''}; ` : '';
-      finish(false, `landing proof exited ${code ?? signal}: ${named}${first ? `${first}\n… ` : ''}${tail.slice(-300)}${red.cases.length ? `\nfailing cases:\n${red.cases.join('\n').slice(0, 4000)}` : ''}`);
+      // Every failure named with its file, or none: what a land job's contracts compare with the base [C7,#7458].
+      const failures = code === 1 && !refusal ? accountedRed(all, root) : null;
+      finish(false, `landing proof exited ${code ?? signal}: ${named}${first ? `${first}\n… ` : ''}${tail.slice(-300)}${red.cases.length ? `\nfailing cases:\n${red.cases.join('\n').slice(0, 4000)}` : ''}`, null, failures);
     });
   });
 }
