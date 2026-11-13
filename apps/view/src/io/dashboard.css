@@ -37,13 +37,47 @@
 .dash-item .item-stage { max-width: 100%; }
 .dash-item .item-stage > span, .dash-item .item-stage small { flex: none; color: var(--ink-muted); font-family: var(--sans); font-size: var(--text-2xs); }
 .dash-card .link { display: inline-block; margin-top: var(--space-4); font-size: var(--text-xs); }
-.dash-stats { margin-top: var(--space-5); border-top: 1px solid var(--line); padding-top: var(--space-4); }
-.dash-stats > div { padding: var(--space-4); border-radius: var(--radius-lg); background: var(--surface-2); color: var(--ink-muted); font-size: var(--text-xs); }
-.dash-stats > div:last-child { background: var(--accent-soft); color: var(--accent-strong); }
-.dash-stats b { display: block; color: var(--ink); margin: var(--space-1) 0; font-size: var(--text-xl); }
-.dash-stats small { display: block; font-size: var(--text-2xs); font-weight: 400; }
-.dash-stats b > small { display: inline; }
-.dash-stats b > small:last-child { display: block; margin-top: var(--space-1); }
+/* Shipping now (mockup): eyebrow, release name in the body face, N to go, one stage bar and its legend, In flight, three pace tiles. */
+.dash-release-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-5); align-items: end; margin-bottom: var(--space-4); }
+.dash-release-head h2 { margin: 0; }
+.dash-release-name { margin: 6px 0 0; font: 600 17px/1.3 var(--sans); color: var(--ink); text-transform: none; letter-spacing: 0; }
+.dash-release-version { color: var(--ink-faint); margin-right: 8px; }
+.dash-release-left { margin: 0; text-align: right; }
+.dash-release-left b { display: block; font-size: 17px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.dash-release-left span { font: var(--text-2xs) var(--mono); color: var(--ink-muted); }
+.dash-release-bar { display: block; width: 100%; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-2); }
+.dash-release-keys { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; color: var(--ink-muted); }
+.dash-release-keys span { display: inline-flex; align-items: center; gap: 7px; }
+.dash-release-keys i { width: 10px; height: 10px; border-radius: 3px; }
+.dash-release-keys b { color: var(--ink); font-variant-numeric: tabular-nums; }
+rect.dash-release-landed { fill: var(--stage-merged); } i.dash-release-landed { background: var(--stage-merged); }
+rect.dash-release-landing { fill: color-mix(in oklab, var(--stage-merged) 55%, var(--surface)); } i.dash-release-landing { background: var(--stage-stripe); }
+rect.dash-release-review { fill: var(--stage-review); } i.dash-release-review { background: var(--stage-review); }
+rect.dash-release-building { fill: var(--stage-building); } i.dash-release-building { background: var(--stage-building); }
+rect.dash-release-waiting { fill: var(--stage-ready); } i.dash-release-waiting { background: var(--stage-ready); }
+rect.dash-release-held { fill: var(--stage-gated); } i.dash-release-held { background: var(--stage-gated); }
+.dash-inflight, .dash-tiles { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft, var(--line)); }
+.dash-inflight > h3 { margin: 0 0 6px; font: 600 var(--text-2xs) var(--mono); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--ink-faint); }
+.dash-inflight h3 > span { font-weight: 400; }
+.dash-inflight-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; }
+.dash-flight h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+.dash-flight h3 > span { font: 12px var(--mono); color: var(--ink-faint); font-weight: 400; }
+.dash-flight.building h3 { color: var(--stage-building); } .dash-flight.review h3 { color: var(--stage-review); }
+.dash-flight-row { display: grid; gap: 1px; width: 100%; min-width: 0; padding: 5px 0; text-align: left; border: 0; background: none; cursor: pointer; color: inherit; }
+.dash-flight-title { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.dash-flight-title > span { flex: none; font: 12px var(--mono); color: var(--ink-faint); }
+.dash-flight-title > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.dash-flight-row:hover b { color: var(--accent-strong); text-decoration: underline; }
+.dash-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dash-tile { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.dash-tile-key { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); }
+.dash-tile-value { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+.dash-tile-value b { font-size: 17px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.dash-tile-value span { font-size: 12.5px; color: var(--ink-muted); }
+.dash-tile small { display: block; font-size: 11.5px; color: var(--ink-faint); }
+.dash-tile.eta { background: var(--accent-soft); }
+.dash-tile.eta .dash-tile-key, .dash-tile.eta b { color: var(--accent-strong); }
+@media (max-width: 700px) { .dash-release-head { grid-template-columns: minmax(0, 1fr); } .dash-release-left { text-align: left; } .dash-inflight-cols, .dash-tiles { grid-template-columns: minmax(0, 1fr); } }
 .dash-chart > svg, .dash-card > svg { display: block; width: 100%; height: 136px; overflow: visible; fill: var(--accent); }
 .dash-pace-line { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 6 4; }
 .dash-axis { display: flex; justify-content: space-between; color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
