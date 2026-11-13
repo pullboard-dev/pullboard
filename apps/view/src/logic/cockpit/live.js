@@ -84,22 +84,18 @@ async function refresh(fresh = null, attempt = 1) {
   const text = boardText(next);
   const changed = text !== seen;
   if (text !== seen) {
-    // Reading the board, reading its counts and drawing it run as three tasks, so a live update never blocks the page for
-    // them all at once (#6851). The next task comes from a message, never a timer, so the page's timers stay its own.
-    const tasks = typeof MessageChannel === 'function';
-    const nextTask = () => new Promise((later) => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); later(); }; channel.port2.postMessage(null); });
-    if (tasks) {
-      await nextTask();
-      if (root !== view.root || generation < refreshDrawn.generation) return;
-    }
     seen = text;
     data = store.set(next, true);
     syncBoardMode(view.root);
     itemSearches.clear();
-    // The chrome's counts and the person's rulings are read first; the draw that follows finds them read.
-    if (tasks && data.project) {
-      writeChrome();
-      personalNeedsOf(data.project);
+    // Reading the board, reading its counts and drawing it run as three tasks, so a live update never blocks the page for
+    // them all at once (#6851). The board is held before the first wait, so a read answered meanwhile builds on it, and
+    // the draw shows whatever the page holds by then. The next task comes from a message, never the page's timers.
+    if (typeof MessageChannel === 'function' && data.project) {
+      const nextTask = () => new Promise((later) => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); later(); }; channel.port2.postMessage(null); });
+      await nextTask();
+      // The chrome's counts and the person's rulings are read first; the draw that follows finds them read.
+      if (data.project) { writeChrome(); personalNeedsOf(data.project); }
       await nextTask();
     }
     const reading = detailRead;
