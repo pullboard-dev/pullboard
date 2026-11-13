@@ -183,7 +183,6 @@ export function submit(board, id, options) {
         hasCommit: null,
         withinLane: null,
         trunkMergeClean: null,
-        sourcePlaced: null, // The CLI checks exact committed placement before any proof or ordered submit.
         trunkInCandidate: null,
         noUnverifiedStack: null,
         infraExplained: null, // The CLI checks the claimed Git diff before this transition.
@@ -191,7 +190,6 @@ export function submit(board, id, options) {
         gateConfigured: null, queuedItemLease: null,
         gateGreen: null,
         proofRecorded: null, // The CLI records and validates native receipts before sealing submit; replay needs no origin files.
-        treeStillDuringGate: null,
         ...(carry ? {
           mergeOnlyRecorded: carriedProblem,
           atSubmittedCommit: null, // The same post-gate HEAD check binds both submission paths.

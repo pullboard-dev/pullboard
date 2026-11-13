@@ -11,6 +11,6 @@ after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-test('the landing merge assigns engine numbers in landing order, the reverse order, and the board replays [B3,R3,H16]', () => {
-  for (const order of [[1, 0]]) landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order);
+test('the landing merge assigns engine numbers in landing order, the reverse order, and the board replays [B3,R3,H16]', async () => {
+  for (const order of [[1, 0]]) await landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order);
 });

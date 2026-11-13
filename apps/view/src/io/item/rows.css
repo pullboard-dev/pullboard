@@ -9,6 +9,8 @@
 .row.item-row .meta { line-height: 1.4; gap: var(--space-2); }
 .row.item-row .meta > .specs { font-family: var(--mono); color: var(--ink-faint); }
 .row.item-row .item-reason { color: var(--reject); font-weight: 600; }
+/* The reason may shrink, so a narrow row ends it in an ellipsis instead of cutting it mid-word. */
+.row.item-row .meta > .item-reason { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.item-row .dot svg, .row.item-row .item-seat svg { width: 13px; height: 13px; }
 .row.item-row .dot.building { background: color-mix(in oklab, var(--stage-building) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-building) 60%, var(--ink)); box-shadow: none; }
 .row.item-row .dot.back { background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); box-shadow: none; }
