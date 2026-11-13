@@ -71,7 +71,7 @@ async function confirmBaseline(view, repo) {
   assert.equal(reply.status, 200, 'the real private view confirms the baseline G1/G2 approvals');
 }
 
-test('every Needs-you surface follows the shared builder [N26,A9]', async () => {
+test('every Rulings surface follows the shared builder [N26,A9]', async () => {
   const box = machine();
   const alpha = project(box, 'builder substitution', `${SPEC}- G3 [pending] Raw board question. | gate: review\n- G4 [draft, aim] Raw board draft. | gate: review\n`);
   await box.inProcess(alpha.repo, 'shout', 'person', 'Raw board decision?', '--decision');
@@ -111,7 +111,7 @@ test('every Needs-you surface follows the shared builder [N26,A9]', async () => 
     await page.run('builderCalls = []; refresh();');
     assert.deepEqual(JSON.parse(page.run('JSON.stringify(projectNeeds(data.project))')), []);
     assert.deepEqual(needEntries(page.show('needs')), [], 'the panel clears when the shared builder returns no calls');
-    assert.match(page.show('needs'), /<li class="needs-quiet">[^]*<b>Nothing needs you\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span>/u, '#6608: the top of Items is one quiet line');
+    assert.match(page.show('needs'), /<li class="needs-quiet">[^]*<b>Nothing to rule on\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span>/u, '#6608: the top of Items is one quiet line');
     assert.equal(page.element('needs').hidden, false);
     assert.deepEqual(JSON.parse(page.run('JSON.stringify((({decisions,pending,holds,drafts}) => ({decisions,pending,holds,drafts}))(boardSummary({},data.project)))')),
       { decisions: 0, pending: 0, holds: 0, drafts: 0 });
@@ -122,9 +122,9 @@ test('every Needs-you surface follows the shared builder [N26,A9]', async () => 
   }
 });
 
-test('a local relay-health Needs-you entry is an inspection with no release or hold action [N26]', { timeout: 180_000 }, async (t) => { // budget: private board/API startup and one real Chrome rendering pass; no throughput claim.
+test('a local relay-health Rulings entry is an inspection with no release or hold action [N26]', { timeout: 180_000 }, async (t) => { // budget: private board/API startup and one real Chrome rendering pass; no throughput claim.
   const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required for the relay-health Needs-you inspection check.');
+  assert.ok(executable, 'Chrome is required for the relay-health Rulings inspection check.');
   const box = machine();
   project(box, 'relay health inspection');
   const view = await startView(box);
@@ -172,7 +172,7 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
       dashboardTarget: null,
       dashboardAction: 'Inspect',
     }, 'Dashboard and Items show an age-stamped inspection step and do not turn the health alert into a shouts/hold link');
-    assert.deepEqual(chrome.exceptions, [], 'the actual page renders the new Needs-you kind without exceptions');
+    assert.deepEqual(chrome.exceptions, [], 'the actual page renders the new Rulings kind without exceptions');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
@@ -180,7 +180,7 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
   }
 });
 
-test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_000 }, async (t) => { // budget: hang ceiling for private board/API setup and the two real browser modes, not a throughput claim.
+test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_000 }, async (t) => { // budget: hang ceiling for private board/API setup and the two real browser modes, not a throughput claim.
   const box = machine();
   const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`);
   await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision');
@@ -220,7 +220,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
     const executable = chromeExecutable();
     if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for exported and relay page parity.');
     snapshotHost = await serveFolder(output, '/snapshot/');
-    // This transport reads the real isolated API; no board state or Needs-you result is mocked.
+    // This transport reads the real isolated API; no board state or Rulings result is mocked.
     const transport = `export async function createTransport() { return { async request(path) { const reply = await fetch('/upstream' + path); if (!reply.ok) throw new Error('private board read failed'); return reply.json(); } }; }`;
     relayServer = createServer(async (request, response) => {
       const url = new URL(request.url, 'http://127.0.0.1');
@@ -265,7 +265,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
   }
 });
 
-test('a person-only block shows in Needs you with its one step [N26]', async () => {
+test('a person-only block shows in Rulings with its one step [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'person block');
   box.env.CLAUDECODE = '1';
@@ -327,7 +327,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run(`Date.now = () => ${askedAt + 61_000}; render();`);
     // The question as the page escapes it, written as a pattern.
     const question = 'Greet in &lt;b&gt;French&lt;/b&gt; first\\?';
-    // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
+    // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Rulings.
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
@@ -389,7 +389,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
     assert.equal(page.element('shout-text').value, '');
     page.run("openTab('items'); render();");
-    assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Needs-you');
+    assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Rulings');
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'and the banner');
 
@@ -500,9 +500,9 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
   }
 });
 
-test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, async (t) => {
+test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, async (t) => {
   const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Needs you and Shouts checks.');
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Rulings and Shouts checks.');
   const box = machine();
   const spec = `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n- G5 [draft, aim] The header stays put. | gate: web test\n`;
   const alpha = project(box, 'asks', spec);
@@ -530,7 +530,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     const card = document.querySelector('.shouts-card');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-      needsShown: shown(needs), inList: needs.parentElement === document.querySelector('#chain').parentElement, separateCard: !!document.querySelector('section.needs-you#needs'),
+      needsShown: shown(needs), inList: needs.parentElement === document.querySelector('#chain').parentElement, separateCard: !!document.querySelector('section.rulings-box#needs'),
       needs: [...needs.querySelectorAll('.needs-call')].map((row) => ({ go: row.querySelector('[data-go]')?.dataset.go ?? null, words: row.querySelector('.needs-copy b').textContent, title: [...row.querySelector('.needs-copy b').childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join(''), ref: row.querySelector('.needs-id')?.textContent ?? null,
         kind: row.querySelector('.needs-copy small').textContent, label: row.classList.contains('needs-drafts') ? !!row.querySelector('.needs-kind-draft') && row.querySelector('.needs-action').textContent === 'Review' : getComputedStyle(row.querySelector('.needs-kind')).color === warn && getComputedStyle(row.querySelector('.needs-action')).color === warn, chip: row.querySelector('.needs-action').textContent, age: !!row.querySelector('.needs-age time') })),
       card: card ? [...card.children].map((e) => e.id || e.className) : null,
@@ -561,7 +561,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         let r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Items`);
         // The full Needs panel keeps every call, oldest first, in its shared two-line summary.
-        assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Needs you is the head of the Items list, not a card of its own`);
+        assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Rulings is the head of the Items list, not a card of its own`);
         assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
           ['spec', 'G3', 'G3Should the greeting name the visitor?', 'pullboard spec answer G3 "<choice>"', 'Review'],
           ['decide', '#2', 'Which colour…', 'Asked by coordinator', 'Your decision'],
@@ -629,10 +629,10 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     assert.match(await chrome.stable("document.querySelector('#feed .feed-bar').textContent"), /^\d+ unread\s*show all$/, 'narrowed to the unread shouts, the feed carries its bar with show all');
     await click('#feed [data-unread]');
     assert.equal((await read()).feedBar, false, 'show all brings back every shout and clears the bar');
-    // Under Verified, or a lane, the list is narrowed and Needs you steps aside.
+    // Under Verified, or a lane, the list is narrowed and Rulings steps aside.
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:verified');
-    assert.equal((await read()).needsShown, false, 'under Verified, Needs you steps aside');
+    assert.equal((await read()).needsShown, false, 'under Verified, Rulings steps aside');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:active');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
@@ -644,7 +644,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
 });
 
 
-test('an agent-approved row shows in Needs you with its agent and commit and a confirm and decline move [S1,B26,P6,N26]', { timeout: 120_000 }, async () => { // budget: isolated real Git/API setup and two owned browser profiles, not a performance claim.
+test('an agent-approved row shows in Rulings with its agent and commit and a confirm and decline move [S1,B26,P6,N26]', { timeout: 120_000 }, async () => { // budget: isolated real Git/API setup and two owned browser profiles, not a performance claim.
   const box = machine();
   box.env.GIT_AUTHOR_NAME = 'Agent & \"unconfirmed\" seat';
   const alpha = project(box, 'agent approval', undefined, {}, { agentApproved: true });
@@ -657,7 +657,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     const page = await openPage(view);
     page.run("openTab('items'); render();");
     for (const row of flagged) {
-      assert.ok(page.show('needs').includes(`data-agent-approved="${row.id}"`), 'agent-approved calls have their own Needs-you row');
+      assert.ok(page.show('needs').includes(`data-agent-approved="${row.id}"`), 'agent-approved calls have their own Rulings row');
       assert.equal(row.agent, 'Agent & \"unconfirmed\" seat');
       assert.ok(page.show('needs').includes('Agent &amp; &quot;unconfirmed&quot; seat'), 'author text is escaped rather than promoted into markup');
       assert.ok(page.show('needs').includes(row.commit));
@@ -733,7 +733,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
       await chrome.click(`document.querySelector('#needs [data-agent-approved="G2"] [data-row-decision="approve"]')`);
       await chrome.waitFor('document.querySelector(\'#needs [data-agent-approved="G2"] .spec-feedback.no\') !== null');
       const refusal = await chrome.stable('document.querySelector(\'#needs [data-agent-approved="G2"] .spec-feedback.no\').textContent');
-      assert.match(refusal, /G2/u, 'the actual backend refusal is visible beside the initiating Needs-you row');
+      assert.match(refusal, /G2/u, 'the actual backend refusal is visible beside the initiating Rulings row');
       assert.ok(reads.heldCount() > 0, 'real state responses remain held until refusal is observed and SPEC is restored');
     } finally { writeFileSync(specFile, specText); await reads.release(); }
     await chrome.stable('refresh()');
@@ -760,7 +760,7 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
   }
 });
 
-test('a sentinel draft in Needs you is approved and declined from the view [N26,B26]', { timeout: 120_000 }, async () => { // budget: isolated real Git/API setup and one owned browser profile, not a performance claim.
+test('a sentinel draft in Rulings is approved and declined from the view [N26,B26]', { timeout: 120_000 }, async () => { // budget: isolated real Git/API setup and one owned browser profile, not a performance claim.
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required to prove real person approval and decline controls');
   const box = machine();
