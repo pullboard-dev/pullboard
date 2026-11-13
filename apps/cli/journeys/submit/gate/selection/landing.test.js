@@ -51,7 +51,8 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
     commitAll(box, 'chore(core): prepare landing-gate fixture');
     box = builderRepo(box, ['apps/cli/src/io/run/tests.js']);
     const check = `node -e "require('node:fs').appendFileSync(process.env.FIXTURE_ITEM_CHECK_MARKER, 'check\\n')"`;
-    assert.equal((await coordinatorLocal(box, 'add', 'build', 'Landing gate fixture', '--check', check)).code, 0);
+    // --wait: the check's baseline job appends to the same marker, so it must have run before the marker is cleared [#7530].
+    assert.equal((await coordinatorLocal(box, 'add', 'build', 'Landing gate fixture', '--check', check, '--wait')).code, 0);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     rmSync(fullMarker, { force: true });
     rmSync(checkMarker, { force: true });

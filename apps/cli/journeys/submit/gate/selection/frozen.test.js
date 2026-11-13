@@ -128,8 +128,11 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   ].join('\n'));
   commitAll(box);
   box = builderRepo(box);
-  const added = await coordinatorLocal(box, 'add', 'build', 'Source change', '--check', checkCommand);
+  // --wait holds add until the check's baseline job has run at main: that job appends to the same marker, and one still
+  // queued when the marker is cleared below ran after it, so the marker read 'checkcheck' though the gate ran its check once [#7530].
+  const added = await coordinatorLocal(box, 'add', 'build', 'Source change', '--check', checkCommand, '--wait');
   assert.equal(added.code, 0, added.err);
+  assert.notEqual(JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out).item_check_baseline?.result, 'pending', 'the baseline settled before the marker is cleared');
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
 
   put(box.root, 'src/a.js', 'export const value = 2;\n');
