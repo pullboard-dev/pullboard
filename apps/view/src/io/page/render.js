@@ -225,7 +225,6 @@ function render({ tab: switching = false } = {}) {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
     for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
-    $('status-board').innerHTML = '';
     // The tabs and the screen's empty cards stand while its board state is on its way, never a blank page (#6589).
     if (data.projects.some((entry) => entry.ok)) drawFrame();
     else $('live').textContent = 'Loading project…';
