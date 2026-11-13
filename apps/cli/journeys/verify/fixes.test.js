@@ -155,6 +155,8 @@ test('the floor\'s numbers, Now column and queue cards follow the approved fixes
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    // The notch steps aside under 900 px (nav.css), so the ways-in clause is read at a desktop width.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#dashboard .dash-floor-link') && !!document.querySelector('.notch [data-status=agents]')`);
     // Clause 4: three more ways in, each beside the existing "Open the agent floor" link.
     const ways = [
