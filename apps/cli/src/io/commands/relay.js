@@ -41,6 +41,7 @@ import {
   relayOn,
   relayMachineContext,
   relayRecover,
+  relayRecoverParked,
   relayRevoke,
   relayStatus,
   relayTokens,
@@ -79,7 +80,15 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'recover') {
-    if (second || rest.length || !values.skip || values.url || values.all) throw new Refused('USAGE', 'pullboard relay recover --skip <exact blocked next sequence>');
+    if (second || rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay recover, or pullboard relay recover --skip <exact blocked next sequence>');
+    if (!values.skip) {
+      // One command, no choices: it resolves every move the relay refused for good, in place, under the same board id (#6693).
+      requirePersonChannel('terminal', process.env, { command: 'pullboard relay recover' });
+      const resolved = await relayRecoverParked(context(io).info.root, io);
+      io.result?.(resolved);
+      io.say(`relay recovery published a checkpoint at sequence ${resolved.sequence} under board ${resolved.board}; ${resolved.recovered.length} parked ${resolved.recovered.length === 1 ? 'move is' : 'moves are'} resolved, with no rejoin and no lost history`);
+      return 0;
+    }
     requirePersonChannel('terminal');
     const result = await relayRecover(context(io).info.root, Number(values.skip), io);
     io.result?.(result);

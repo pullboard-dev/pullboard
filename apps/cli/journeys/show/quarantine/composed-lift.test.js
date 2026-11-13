@@ -7,7 +7,7 @@ import { fixture } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 
-test('clause 1: twenty clean runs lift the quarantine two composed Submit pairs filed [C7,H16]', t => {
+test('clause 1: twenty clean runs lift the quarantine two composed Submit pairs filed [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const box = fixture(t, false, true);
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
