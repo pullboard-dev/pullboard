@@ -184,7 +184,8 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
         assert.ok(workSubjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native work sentence retains its actual item subject');
       }
       const text = await chrome.stable('document.querySelector("[data-pane=' + name + ']").innerText');
-      assert.doesNotMatch(text, forbidden, name + ': visible scanner finds no raw machine words');
+      // The redesigned Activity page quotes a shout's own words exactly, as the Shouts pane does; the scanner covers everything outside those quotes.
+      assert.doesNotMatch(name === 'activity' ? text.replace(/“[^”]*”/gu, '') : text, forbidden, name + ': visible scanner finds no raw machine words');
       if (name === 'shouts') assert.match(text, /Keep \[MY_CODE\] and these words\./u, 'free user words remain exact');
     }
     await tab(chrome, 'items');
