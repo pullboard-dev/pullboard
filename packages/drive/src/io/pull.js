@@ -37,6 +37,7 @@ import { watchProgress } from './progress.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
+import { storeName } from './store-names.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -712,7 +713,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
     if (isLost()) { say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
     const started = Date.now();
-    // Claim-to-command, in phases the receipt carries: the board's request, the commit fetch (waiting its turn included),
+    // Claim-to-command, in phases the receipt carries: the board's request, the commit download (waiting its turn included),
     // the checkout, and whether the slot's warm folder was reused.
     const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
       reused: checkout.reused, totalMs: started - claimedAt };
@@ -721,7 +722,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
     const kept = keepFolder(cache, claim.job, claim.attempt);
     // The run's test reporter appends each file's state to this file; it is posted as the job's progress step, lease-checked like the receipt (#5823).
-    const progressFile = join(cache, 'progress', `${name}.jsonl`);
+    const progressFile = join(cache, 'progress', `${storeName(name, '.jsonl')}`);
     mkdirSync(join(cache, 'progress'), { recursive: true }); rmSync(progressFile, { force: true });
     const progress = watchProgress({ file: progressFile, selected: named, everyMs: timing.progressMs,
       post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });

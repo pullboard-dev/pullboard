@@ -20,11 +20,12 @@ function onBoard(box, work) {
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
+// A plain `land` now offers a runner land job; `--max 1` keeps these journeys on the lease path they prove [E25].
 test('an idle empty land takes no lease and writes no event [E25,E26,B3]', async () => {
   const box = helpers.project('true');
   const before = onBoard(box, board => ({ events: store.events(board), lease: store.landingLeaseState(board) }));
   const head = box.git(box.repo, 'rev-parse', 'HEAD');
-  const result = await box.runLocal(box.repo, 'land', '--json');
+  const result = await box.runLocal(box.repo, 'land', '--max', '1', '--json');
   assert.equal(result.code, 0, result.err);
   assert.deepEqual(JSON.parse(result.out).landed, []);
   assert.deepEqual(onBoard(box, board => ({ events: store.events(board), lease: store.landingLeaseState(board) })), before,
@@ -43,7 +44,7 @@ test('an empty land still queues behind a live landing owner [E25,B3]', async t 
     { agentId: 'coordinator', action: 'request', token, branch: 'main', pid: process.pid }));
   const release = () => onBoard(box, board => store.landingLeaseMove(board,
     { agentId: 'coordinator', action: 'release', token, generation: held.generation }));
-  const child = startFixtureChild(process.execPath, [helpers.BIN, 'land'],
+  const child = startFixtureChild(process.execPath, [helpers.BIN, 'land', '--max', '1'],
     { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = '';
   child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
