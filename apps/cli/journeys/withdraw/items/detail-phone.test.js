@@ -60,8 +60,8 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
   try {
     const apiState = await boardOf(view, alpha.repo);
     const expected = apiState.items.find((item) => item.id === 1).thread;
-    // A claim's automatic 'policy re-frozen' note is the board's own, not one this fixture appends.
-    assert.deepEqual(expected.filter((entry) => entry.type === 'fact' && !/^policy re-frozen automatically:/u.test(entry.text)).map((entry) => entry.kind),
+    // The board's own notes (the claim's policy re-freeze, add's duplicate-check ruling) are not facts this fixture appends.
+    assert.deepEqual(expected.filter((entry) => entry.type === 'fact' && !/^(policy re-frozen automatically:|Not a duplicate of #)/u.test(entry.text)).map((entry) => entry.kind),
       ['note', 'capture', 'measurement', 'diff', 'decision', 'rejection', 'supersession', 'root-cause'],
       'the API provides every fact in append order');
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -215,7 +215,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
           const chip = document.querySelector('#detail .item-panel-status .item-stage'), listed = document.querySelector('#chain .row[data-item="${row.id}"] .row-side .item-stage');
           const word = chip.querySelector('.stage-word'), listedWord = listed.querySelector('.stage-word'), seat = listed.querySelector('.item-seat');
           const paint = (node) => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color, getComputedStyle(node).outlineStyle];
-          return { chip: chip.getAttribute('aria-label'), samePaint: listedWord ? JSON.stringify(paint(word)) === JSON.stringify(paint(listedWord)) : null, seat: seat?.textContent.trim(), seatStage: seat?.getAttribute('aria-label'), seatVisible: seat ? seat.getClientRects().length > 0 : false };
+          return { chip: chip.getAttribute('aria-label'), samePaint: listedWord ? JSON.stringify(paint(word)) === JSON.stringify(paint(listedWord)) : null, paints: [paint(word), listedWord ? paint(listedWord) : null], seat: seat?.textContent.trim(), seatStage: seat?.getAttribute('aria-label'), seatVisible: seat ? seat.getClientRects().length > 0 : false };
         })())`));
         if (detail.seat) {
           assert.ok(detail.seatVisible && detail.seatStage.startsWith(row.stage + ': '), `${width}: ruling 49037 keeps the visible seat and accessible stage: ${JSON.stringify(detail)}`);
