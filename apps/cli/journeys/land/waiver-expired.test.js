@@ -36,7 +36,8 @@ async () => {
   // The land job lands on the trunk remote, so it carries main's flaky test; the push's own hook sees it suppressed.
   box.env.LAND_SUPPRESS_RED = '1';
   box.git(box.repo, 'push', '-q', 'origin', 'main');
-  delete box.env.LAND_SUPPRESS_RED;
+  // An explicit off, never a delete: the local runner may have started under the suppression and kept it in its environment.
+  box.env.LAND_SUPPRESS_RED = '0';
   const past = { now: () => new Date('2000-01-01T00:00:00Z') };
   onBoard(box, (board) => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'expired-example', test: FILES[0], until: '2000-01-02', reason: 'expired fixture approval' }), past);
   const main = box.git(box.repo, 'rev-parse', 'main');
