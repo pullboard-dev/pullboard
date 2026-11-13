@@ -1471,6 +1471,11 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .needs-card .home-needs { margin: 0; padding: 0; border: 0; }
 .needs-card .needs-call summary { padding-block: var(--space-3); min-height: var(--tap); }
 .needs-card .needs-call:last-child { border-bottom: 0; margin-bottom: 0; }
+.needs-quiet { display: flex; align-items: center; gap: 10px; padding: 10px var(--space-4); list-style: none; }
+.needs-card.needs-quiet { padding: 10px var(--space-5); }
+.needs-quiet-badge { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--accent-strong); }
+.needs-quiet p { margin: 0; font-size: var(--text-sm); }
+.needs-quiet-note { color: var(--ink-muted); }
 .spec-fact .spec-citing { border: 0; background: none; padding: 0; }
 
 /* Settings: a header card, then one card per group of one-height rows (N26). */
