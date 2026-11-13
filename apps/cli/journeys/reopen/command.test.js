@@ -14,7 +14,6 @@ import {
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
 
 const e2e = createE2eHelpers();
@@ -44,12 +43,12 @@ function fixtureCommand(box, cwd, ...args) {
   if (args[0] === 'verify') args.push('--no-next');
   if (args[0] === 'join' && !args.includes('--model')) args.push('--model', BUILDER_MODEL);
   if (args[0] === 'join' && !args.includes('--route')) args.push('--route', 'strong');
-  return runCliInProcess(args, { cwd, env: box.env });
+  return box.inProcess(cwd, ...args);
 }
 
 /** Run repeated reopen probes through awaited production parsing and native board dispatch. */
 function reopenCommand(box, cwd, ...args) {
-  return runCliInProcess(['reopen', ...args], { cwd, env: box.env });
+  return box.inProcess(cwd, 'reopen', ...args);
 }
 
 /** Open the real board SQLite file created by the CLI fixture and close it with the test. */
@@ -282,7 +281,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
 test('clause 3: retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
   const box = project();
   /** Await real production commands; fixture moves do not start an unrelated next-work search. */
-  const command = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
+  const command = (cwd, ...args) => box.inProcess(cwd, ...args);
   const added = await command(box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--route', 'strong', '--wait');
   assert.equal(added.code, 0, added.err);
   const claimedFirst = await command(box.web, 'claim', '1');
