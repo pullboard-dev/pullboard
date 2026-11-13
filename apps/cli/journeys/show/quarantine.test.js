@@ -7,16 +7,22 @@ import { snapshot } from '../../tests/fixtures/cases/quarantine-submit.js';
 import { submit } from '../../tests/fixtures/cases/quarantine-submit.js';
 import { submitFlakePairs } from '../../../../packages/flakes/index.js';
 
-test('clause 1: a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', t => {
+/** Each real submit is its own subtest, so the runner sees output between the two slow children and never reads the pause as a hang. */
+test('clause 1: a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', async t => {
   const box = fixture(t, true);
-  const first = submit(box);
-  assert.ok([0, 1].includes(first.code), JSON.stringify(first.document));
-  assert.ok(box.readData(box.counter, 'utf8').trim().split('\n').length >= 2, 'the actual deterministic original and paired bodies executed: ' + JSON.stringify(first.document));
-  assert.deepEqual(snapshot(box).quarantines, []);
-  if (first.code === 1) {
-    const second = submit(box);
-    assert.ok([0, 1].includes(second.code), JSON.stringify(second.document));
+  let first;
+  await t.test('original submit and its paired body', () => {
+    first = submit(box);
+    assert.ok([0, 1].includes(first.code), JSON.stringify(first.document));
+    assert.ok(box.readData(box.counter, 'utf8').trim().split('\n').length >= 2, 'the actual deterministic original and paired bodies executed: ' + JSON.stringify(first.document));
     assert.deepEqual(snapshot(box).quarantines, []);
+  });
+  if (first.code === 1) {
+    await t.test('rerun submit', () => {
+      const second = submit(box);
+      assert.ok([0, 1].includes(second.code), JSON.stringify(second.document));
+      assert.deepEqual(snapshot(box).quarantines, []);
+    });
   }
 });
 
