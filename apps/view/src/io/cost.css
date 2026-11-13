@@ -50,22 +50,13 @@
 .cost-card { min-width: 0; border: var(--border); border-radius: var(--radius-card); background: var(--surface); }
 .cost-private { display: inline-flex; align-items: center; gap: 6px; }
 .cost-private svg { width: 13px; height: 13px; }
-.cost-prices { display: flex; align-items: center; gap: 10px; padding: 9px 9px 9px 14px; color: var(--ink-muted); font-size: 13px; }
-.cost-prices b { color: var(--ink); }
-.cost-copy { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 3px 3px 3px 12px; border: var(--border); border-radius: var(--radius-card); background: var(--surface-2); color: var(--ink); white-space: nowrap; }
-.cost-copy code { font: 12.5px var(--mono); }
-.cost-copy { max-width: 100%; flex-wrap: wrap; white-space: normal; }
-.cost-copy code { min-width: 0; overflow-wrap: anywhere; }
 .cost-model-table-wrap { min-width: 0; max-width: 100%; }
-.cost-copy button { padding: 3px 10px; border: 0; border-radius: var(--radius-xs); background: var(--accent); color: var(--on-accent); font: 600 12px var(--sans); cursor: pointer; }
-.cost-overview { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; }
-.cost-summary { display: grid; gap: 16px; align-content: start; align-self: start; padding: 16px 18px; }
+.cost-overview { display: grid; grid-template-columns: 330px minmax(0, 1fr); align-items: stretch; }
+.cost-summary { display: grid; gap: 16px; align-content: start; padding: 14px 18px; border-right: var(--border-row); }
 .cost-waiting { padding: 16px 18px; color: var(--ink-muted); }
 .cost-private-row { margin: 0; }
 .cost-col, .cost-sect { display: flex; flex-direction: column; min-width: 0; }
 .cost-col > .cost-card { flex: 1; }
-/* The Agent time card ends with its content, so no blank area sits under the Sent back bar. */
-.cost-col > .cost-summary { flex: none; }
 .cost-summary > div + div { padding-top: 14px; border-top: var(--border-row); }
 .cost-big { margin: 6px 0 0; font-size: 30px; line-height: 1.1; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .cost-big small { margin-left: 4px; color: var(--ink-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; }
@@ -80,10 +71,12 @@
 .cost-keys span { display: inline-flex; align-items: center; gap: 6px; }
 .cost-keys i, .cost-chart-legend i { width: 8px; height: 8px; border-radius: var(--radius-dot); background: var(--accent); }
 .cost-keys i.back, .cost-chart-legend i.back { background: var(--mark-back); }
-.cost-chart { display: flex; flex-direction: column; padding: 16px 18px 12px; }
+.cost-chart { display: flex; flex-direction: column; min-width: 0; padding: 14px 18px 12px; }
+.cost-chart-head { display: flex; align-items: baseline; gap: 14px; }
+.cost-chart-head .hd2 { margin: 0; }
 .cost-chart-legend { display: flex; gap: 14px; margin-left: auto; color: var(--ink-muted); font-size: 12px; }
 .cost-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.cost-chart-plot { display: block; width: 100%; height: auto; margin-top: 14px; overflow: visible; font-family: var(--sans); }
+.cost-chart-plot { display: block; width: 100%; height: auto; margin-top: 10px; overflow: visible; font-family: var(--sans); }
 .cost-chart-plot .y, .cost-chart-plot .n { fill: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
 .cost-chart-plot .x, .cost-chart-plot .v { fill: var(--ink-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .cost-chart-plot .unrecorded { fill: var(--ink-faint); font-size: 10.5px; opacity: .75; }
@@ -155,5 +148,5 @@ i.anthropic { background: var(--anthropic); } i.openai { background: var(--opena
 .cost-path .x { color: var(--reject); } .cost-path .ok { color: var(--accent-strong); }
 .cost-path a { margin-left: auto; color: var(--accent-strong); font-weight: 600; text-decoration: none; }
 .cost-all { display: block; width: 100%; padding: 10px 18px; border: 0; border-top: var(--border-row); background: none; color: var(--accent-strong); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
-@media (max-width: 1150px) { .cost-overview { grid-template-columns: minmax(0, 1fr); } .cost-model-calls { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 700px) { .cost-prices { flex-wrap: wrap; } .cost-copy { margin-left: 0; } .cost-row { grid-template-columns: minmax(0, 1fr) auto; } .cost-row .cost-time { grid-column: 1 / -1; } .cost-session { grid-template-columns: minmax(0, 1fr) auto; } .cost-session .cost-time { grid-column: 1 / -1; } }
+@media (max-width: 1150px) { .cost-overview { grid-template-columns: minmax(0, 1fr); } .cost-summary { border-right: 0; border-bottom: var(--border-row); } .cost-model-calls { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) { .cost-row { grid-template-columns: minmax(0, 1fr) auto; } .cost-row .cost-time { grid-column: 1 / -1; } .cost-session { grid-template-columns: minmax(0, 1fr) auto; } .cost-session .cost-time { grid-column: 1 / -1; } }
