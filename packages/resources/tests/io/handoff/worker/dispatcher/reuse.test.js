@@ -27,6 +27,9 @@ import {
 } from '../../../../../index.js';
 import { waitForCondition } from '../../../../../../../apps/cli/tests/fixtures/runner/holders.js';
 
+/** The dispatcher file inside the captured tools, as an app would name it. */
+const DISPATCHER = 'apps/lib/src/io/handoff/dispatcher.js';
+
 /** A real worker records when it started and exits at once. */
 const WORKER = `import { appendFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
@@ -103,14 +106,14 @@ test('clause 2: ensureHandoffDispatcher replaces a receipt with an empty start t
     const receipt = join(handoffQueueDirectory(), 'dispatcher.json');
     // This test process is alive, so the receipt's pid passes a liveness probe either way.
     writeFileSync(receipt, JSON.stringify({ pid: process.pid, started: '' }) + '\n');
-    await ensureHandoffDispatcher(box.tools, box.dir, { startOf: () => 'now' });
+    await ensureHandoffDispatcher(box.tools, box.dir, { startOf: () => 'now', entry: DISPATCHER });
     await waitForCondition(() => dispatcherSpawns(box).length === 1, 'an empty started time spawns a dispatcher', { signal: t.signal });
     writeFileSync(receipt, JSON.stringify({ pid: process.pid, started: 'now' }) + '\n');
-    await ensureHandoffDispatcher(box.tools, box.dir, { startOf: () => 'now' });
+    await ensureHandoffDispatcher(box.tools, box.dir, { startOf: () => 'now', entry: DISPATCHER });
     await waitForCondition(() => dispatcherSpawns(box).length === 2, 'a live, matching pid without the lock spawns a dispatcher', { signal: t.signal });
     assert.ok(existsSync(handoffDispatcherLog()), 'the dispatcher writes its output to the dispatcher log');
     const lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'live-dispatcher' });
-    try { await ensureHandoffDispatcher(box.tools, box.dir, { startOf: () => 'now' }); }
+    try { await ensureHandoffDispatcher(box.tools, box.dir, { startOf: () => 'now', entry: DISPATCHER }); }
     finally { lock.release(); }
     assert.equal(dispatcherSpawns(box).length, 2, 'a held dispatcher lock spawns nothing');
   } finally { box.cleanup(); }
