@@ -18,13 +18,13 @@ export const policyFixtures = createE2eHelpers();
  */
 export async function assertWaitsOnOwner(box, id, submitted, owner, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  const waiting = JSON.parse(submitted.out).waitingOwner;
-  assert.deepEqual(waiting.owners, [owner], label);
-  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
   const item = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
+  // The pulled gate settles inside the command; the routing's verdict is the hold, which names the owner and the paths.
+  assert.equal(item.item_hold_reason.includes(owner), true, `${label} ${owner}: ${item.item_hold_reason}`);
+  for (const path of paths) assert.equal(item.item_hold_reason.includes(path), true, `${label} ${path}: ${item.item_hold_reason}`);
 }
 
 /** Claim a real item before the coordinator moves one API path into its web lane. */
