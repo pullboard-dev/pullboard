@@ -62,10 +62,21 @@ export function fetchItem(root, remote, entry) {
   return commit === entry.commit ? { moved: null } : { moved: `${entry.ref} is at ${commit.slice(0, 12)}, not the accepted ${entry.commit.slice(0, 12)}` };
 }
 
-/** The spec ids an item's own subject cites, so the landing merge cites them too, as today's lander does. */
+/** The spec ids an item's own subject cites: the merge's fallback for a job offered without a landing message. */
 export function citedIds(root, commit) {
   const subject = tryGit(root, ['log', '-1', '--format=%s', commit]).stdout;
   return /\[([A-Z][0-9A-Za-z.,\s]*)\]\s*$/u.exec(subject)?.[1] ?? 'P7';
+}
+
+/**
+ * The git merge arguments that land one item with its message: the offered header and Pullboard trailers as the body,
+ * with merge.log off so no shortlog joins them. Why: the board builds the message from the item's frozen rows, as the
+ * Mac landing engine does, and spec coverage reads those trailers; a runner has no board to build it [B3,R3,C7].
+ */
+export function landingMergeArgs(root, entry) {
+  const message = typeof entry.header === 'string' && typeof entry.trailers === 'string'
+    ? ['-m', entry.header, '-m', entry.trailers] : ['-m', `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`];
+  return [...IDENTITY, '-c', 'merge.log=false', 'merge', '--no-ff', '--no-edit', '--no-log', '-q', ...message, entry.commit];
 }
 
 /**
@@ -134,7 +145,7 @@ async function landingCheck(payload, env) {
 
 /** Merge one item onto HEAD with --no-ff; null when it merged, else why not, with the merge aborted. */
 function mergeItem(root, entry, base) {
-  const merged = tryGit(root, [...IDENTITY, 'merge', '--no-ff', '--no-edit', '-q', '-m', `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`, entry.commit]);
+  const merged = tryGit(root, landingMergeArgs(root, entry));
   if (merged.status === 0) return null;
   tryGit(root, ['merge', '--abort']);
   return `#${entry.id} does not merge on ${base.slice(0, 12)}: ${(merged.stdout || merged.stderr).slice(0, 240)}`;
@@ -185,7 +196,7 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
  * exactly that tip. A push that finds trunk moved starts again on the new tip, so a landing never publishes a tree it
  * did not check, never lands on a stale base, and never overwrites a rival's landing.
  *
- * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, publish?: string, proof?: object }} payload - checks: each item's own check by id; checkout:
+ * @param {{ remote: string, trunk: string, expect: string, items: { id: number, commit: string, ref?: string, header?: string, trailers?: string }[], check?: string[], checks?: Record<string, string>, checkout?: boolean, publish?: string, proof?: object }} payload - checks: each item's own check by id; checkout:
  *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
