@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli apps/lib flakes git gate */
 import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { writeTarget } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
