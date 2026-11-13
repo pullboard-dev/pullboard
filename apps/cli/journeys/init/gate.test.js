@@ -223,7 +223,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/chosen', configuredWorktree, 'main');
   // 1388ce262a: an item frozen under the empty gate refuses its claim once the gate policy changes, so the chosen gate gets a fresh item.
   const refiled = fixtureAdd(box.run, root, 'app', 'Chosen-gate newcomer change',
-    '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--json');
+    '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--not-duplicate-of', `${id} refiled under the chosen gate`, '--json');
   assert.equal(refiled.code, 0, refiled.err || refiled.out);
   const configuredId = String(JSON.parse(refiled.out).item.item_id);
   const configuredJoin = fixtureJoin(box.run, configuredWorktree, 'app', '--route', 'strong');
