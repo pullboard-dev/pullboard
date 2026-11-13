@@ -1,6 +1,5 @@
 /** The board API restarts onto new code without refusing a request: the new process listens on the old one's socket first [C7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { Agent } from 'node:http';
 import { createServer } from 'node:http';
@@ -13,6 +12,7 @@ import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
 import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { startServedNode } from '../fixtures/served.js';
 
 /**
  * The served board API as `pullboard serve` wires its restart: it listens on a handed socket when it has one, says so,
@@ -80,7 +80,7 @@ test('clause 1: continuous requests across a code-change restart are every one a
   const url = (path) => new URL(path, import.meta.url).href;
   const modules = { api: url('../../index.js'), drive: url('../../../drive/index.js'), store: url('../../../store/index.js'), cell: url('../../../store/tests/fixtures/cell.js') };
   const reports = await startReports(t);
-  const first = spawn(process.execPath, [join(code.root, 'server.mjs'), JSON.stringify([modules, project.repo, reports.url])], { cwd: code.root, stdio: ['ignore', 'inherit', 'inherit'] });
+  const first = startServedNode(join(code.root, 'server.mjs'), JSON.stringify([modules, project.repo, reports.url]), code.root);
   const pids = new Set([first.pid]);
   t.after(() => { for (const pid of pids) { try { process.kill(pid); } catch { /* It already exited. */ } } });
   const firstExit = once(first, 'exit');

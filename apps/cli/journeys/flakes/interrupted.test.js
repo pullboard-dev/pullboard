@@ -18,7 +18,7 @@ import { checkAtCommit } from '../../../runner/index.js';
 import { landingPorts } from '../../tests/fixtures/landing/ports.js';
 
 /** Interrupt the dependency at its final blocked write after real diagnostics were durably recorded, then use normal CLI adoption. */
-test('an interrupted landing consumes its saved diagnostic without inventing another measurement [C7,H16]', async t => {
+test('an interrupted landing consumes its saved diagnostic without inventing another measurement [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
   const box = await readyLanding(t, true);
   // The direct public API call cannot inherit cliAt's private identity environment; set only this synthetic repo's identity.
   box.git('config', '--local', 'user.name', 'Fixture Agent');
