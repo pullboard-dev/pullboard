@@ -3,15 +3,15 @@ import { renderVerificationComparison } from '../../../../../packages/verify/ind
 import { machineVerification } from '../../../../../packages/verify/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
-import { submitHandoff } from '../../../../../packages/store/index.js';
+import { submitHandoff } from '../../../../../packages/store/light.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
-import { trunkRef } from '../../../../../packages/sandbox/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
+import { trunkRef } from '../../../../../packages/git/light.js';
+import { verifiedPasskeyRowDecision } from '../../../../../packages/person/light.js';
 import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
@@ -25,12 +25,12 @@ import {
 /** The pullboard show command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
-} from '../../../../../packages/seats/index.js';
+} from '../../../../../packages/seats/browser.js';
 import {
   barCorrectionLine,
   barCorrections,
 } from '../../../../../packages/verify/index.js';
-import * as store from '../../../../../packages/store/index.js';
+import * as store from '../../../../../packages/store/light.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
@@ -40,11 +40,11 @@ import {
 import {
   mainMergeFor,
   mainMergeLines,
-} from '../../../../../packages/merge/index.js';
+} from '../../../../../packages/merge/light.js';
 import {
   staleVerdictRefusal,
   verdictProjector,
-} from '../../../../../packages/verify/index.js';
+} from '../../../../../packages/verify/read.js';
 import {
   agentDisplayName,
   context,
@@ -54,9 +54,10 @@ import {
   itemLine,
   sayBrief,
 } from '../read.js';
-import { relayStateExists } from '../../../../../packages/store/index.js';
-import { itemCost } from '../../../../../packages/stats/index.js';
-import { publicUsage } from '../../../../../packages/stats/index.js';
+import { relayStateExists } from '../../../../../packages/store/light.js';
+import { readableRigorText } from '../../../../../packages/store/browser.js';
+import { itemCost } from '../../../../../packages/stats/light.js';
+import { publicUsage } from '../../../../../packages/stats/light.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 
@@ -81,7 +82,7 @@ export async function run(io, { first, values }) {
   const ctx = context(io);
   const id = idArg(first);
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
-  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, store)), { json: values.json });
+  if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
   const prices = loadMachineSettings().costPrices;
   const { item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
@@ -203,7 +204,7 @@ export async function run(io, { first, values }) {
   }
   if (frozen) {
     io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${store.readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
+    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
   }
   if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
   if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);

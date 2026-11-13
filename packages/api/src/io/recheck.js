@@ -26,6 +26,8 @@ const OFFER_ROWS = 50;
 const SCAN_COMMITS = 2000;
 // Budget: the most failing case names one receipt line carries, each clipped, so the line fits the runner's 4 KiB tail.
 const CASES = 20;
+/** The most UTF-16 units of one case name a main-test receipt keeps; the gate compares a longer case by this prefix. */
+export const MAIN_CASE_NAME_UNITS = 120;
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
 
@@ -74,7 +76,7 @@ if (ran.status !== 0) {
       try { signed = caseSignatures(rows.map(row => ({ name: String(row.name) })), tapFailureDiagnostics(text, process.cwd(), value => createHash('sha256').update(value).digest('hex'))); } catch { signed = []; }
       const named = new Map();
       rows.forEach((row, index) => {
-        const name = String(row.name).slice(0, 120), signature = signed[index] ?? null;
+        const name = String(row.name).slice(0, ${MAIN_CASE_NAME_UNITS}), signature = signed[index] ?? null;
         named.set(name, named.has(name) && named.get(name) !== signature ? null : signature);
       });
       failing = [...named.keys()];

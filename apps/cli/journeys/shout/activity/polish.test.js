@@ -50,41 +50,33 @@ test('Activity keeps shout words light, questions and item chips clear, and work
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'activity-polish-chrome'));
     await chrome.waitFor('!!data?.project');
     await press(chrome, 'document.querySelector("[data-tab=activity]")');
-    await chrome.waitFor('document.querySelectorAll("#activity [data-activity-kind=shout]").length >= 2');
+    // The redesigned Activity (#6916) draws a shout as one act-row: a Shout chip, the words in quotes, "from X to Y" below. It has
+    // no grey or accent-tinted quote box, line clamp, "about #N" chip or folded Sentinel run, so those assertions have no equivalent.
+    const shoutRows = 'document.querySelectorAll("#activity .act-row")';
+    await chrome.waitFor('[...' + shoutRows + '].filter(row => row.querySelector(".act-chip")?.textContent === "Shout").length >= 2');
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 700 });
       await chrome.waitFor('innerWidth === ' + width);
-      const state = JSON.parse(await chrome.stable('JSON.stringify((() => { const rows=[...document.querySelectorAll("#activity [data-activity-kind=shout]")]; return { overflow:document.documentElement.scrollWidth>innerWidth, accent:getComputedStyle(document.querySelector("#activity [data-activity-kind=claim] .activity-verb")).backgroundColor, rows:rows.map(row=>{const q=row.querySelector(".activity-quote"),s=getComputedStyle(q),chip=row.querySelector(".activity-about");return {coordinator:row.querySelector(".activity-who").textContent==="The coordinator",sentence:row.querySelector(".activity-say p").textContent,text:q.textContent,clamp:s.webkitLineClamp,background:s.backgroundColor,padding:s.padding,color:s.color,height:q.getBoundingClientRect().height,lineHeight:parseFloat(s.lineHeight),chip:chip?.textContent??null,chipInSentence:!!chip?.closest("p"),chipColor:chip?getComputedStyle(chip).color:null,target:chip?.dataset.go??null,literalElements:q.querySelectorAll("word").length};})}; })())'));
+      const state = JSON.parse(await chrome.stable('JSON.stringify((() => { const rows=[...' + shoutRows + ']; return { overflow:document.documentElement.scrollWidth>innerWidth, shouts:rows.filter(row=>row.querySelector(".act-chip")?.textContent==="Shout").map(row=>{const q=row.querySelector(".ph");return {text:q.textContent,fact:row.querySelector(".fa").textContent,literalElements:q.querySelectorAll("*").length,ellipsis:getComputedStyle(q).textOverflow}}), claim:(()=>{const row=document.querySelector("#activity .act-row[data-row=\\"1\\"]");return row?{ph:row.querySelector(".ph").textContent,fa:row.querySelector(".fa").textContent,chip:row.querySelector(".act-chip").textContent}:null})() }; })())'));
       assert.equal(state.overflow, false, width + ': Activity has no horizontal overflow');
-      const agent = state.rows.find(row => row.sentence.startsWith('web-1'));
-      const coordinator = state.rows.find(row => row.coordinator);
-      assert.ok(agent && coordinator, 'both native messages render');
-      assert.match(agent.sentence, /asked the coordinator/u);
+      const agent = state.shouts.find(row => /^from web-1/u.test(row.fact));
+      const coordinator = state.shouts.find(row => /^from coordinator/u.test(row.fact));
+      assert.ok(agent && coordinator, 'both native messages render: ' + JSON.stringify(state.shouts));
+      assert.match(agent.fact, /to coordinator/u);
       for (const row of [agent, coordinator]) {
-        assert.equal(row.chip, 'about #1');
-        assert.equal(row.chipInSentence, true);
-        assert.equal(row.target, 'item:1');
         assert.equal(row.literalElements, 0, 'literal agent markup never becomes an element');
         assert.ok(row.text.includes(words.trim()), 'the full native words remain in the DOM');
-        const lines = row.coordinator ? 3 : 2;
-        assert.equal(row.clamp, String(lines));
-        const padding = row.coordinator ? 8 : 0;
-        assert.ok(row.height <= row.lineHeight * lines + padding + 2, width + ': visible words stay within the approved line clamp: ' + JSON.stringify(row));
+        assert.equal(row.ellipsis, 'ellipsis', width + ': the quote is one line with an ellipsis');
       }
-      assert.equal(agent.background, 'rgba(0, 0, 0, 0)', 'agent words lose the grey box');
-      assert.equal(agent.padding, '0px');
-      assert.equal(coordinator.padding, '4px 8px', 'coordinator padding follows the approved mockup');
-      assert.equal(coordinator.background, state.accent, 'coordinator words use the established accent-soft tint');
-      assert.equal(agent.chipColor, agent.color, 'the related item chip keeps the muted text tone');
-      assert.notEqual(coordinator.color, agent.color, 'agent words use the quieter text tone');
-      assert.match(await chrome.stable('document.querySelector("#activity [data-activity-kind=claim]").textContent'), /started building.*#1/u);
-      assert.equal(await chrome.stable('document.querySelector("#activity [data-activity-kind=claim] .activity-about")'), null, 'work rows retain their existing item presentation');
-      const sentinel = 'document.querySelector("[data-activity-run=\\"sentinels:' + scan + '\\"]")';
-      assert.equal(await chrome.stable(sentinel + '.open'), false, 'the native scan remains folded');
+      assert.ok(state.claim, 'the work row is drawn');
+      assert.equal(state.claim.chip, 'Building');
+      assert.match(state.claim.fa, /claimed by web-1/u);
+      assert.match(state.claim.ph, /#1.*A real Activity item/u, 'a work row names its item and title');
     }
-    await press(chrome, 'document.querySelector("#activity .activity-about[data-go=\\"item:1\\"]")');
-    await chrome.waitFor('view.tab === "items" && view.item === 1');
-    assert.match(await chrome.stable('document.querySelector("#detail").textContent'), /A real Activity item/u);
+    await press(chrome, 'document.querySelector("#activity .act-row[data-row=\\"1\\"]")');
+    await chrome.waitFor('!!document.querySelector("#activity svg[aria-label=\\"Journey of #1\\"]")');
+    assert.match(await chrome.stable('document.querySelector("#activity .act-ip, #activity .act-card").textContent'), /Building|Ready|Gate/u);
+    assert.ok(scan, 'the native health scan was recorded');
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

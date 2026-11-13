@@ -174,6 +174,7 @@ export { HANDOFF_ENGINE } from './src/logic/engines/handoff-engine.js';
 export { RULING_OWNER_ENGINE } from './src/logic/engines/ruling-owner-engine.js';
 export { DECISION_QUEUE_ENGINE } from './src/logic/engines/decision-queue-engine.js';
 export { KNOWN_MAIN_RUNNING_FILE_ENGINE } from './src/logic/engines/known-main-running-file-engine.js';
+export { KNOWN_MAIN_RECEIPT_ENGINE } from './src/logic/engines/known-main-receipt-engine.js';
 
 export { CLAIM_PROGRESS_ENGINE } from './src/logic/engines/claim-progress-engine.js';
 
