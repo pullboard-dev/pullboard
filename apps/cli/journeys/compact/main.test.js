@@ -23,9 +23,12 @@ function oldLanded() {
   try {
     const old = new Date(Date.now() - 40 * DAY).toISOString();
     db.exec(JOB_SCHEMA_SQL);
-    db.prepare("UPDATE event SET event_at = ? WHERE item_id = ?").run(old, item);
+    // The fixture ages an item no move reached: drop the machine guards, write, and restore their exact SQL.
+    const guards = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all();
+    db.exec(db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all().map(row => `DROP TRIGGER "${row.name}";`).join(' '));
     db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(old, 'coordinator', 'merged', item, '{}');
-    db.prepare('UPDATE item SET item_updated_at = ? WHERE item_id = ?').run(old, item);
+    db.prepare("UPDATE item SET item_status = 'verified', item_updated_at = ? WHERE item_id = ?").run(old, item);
+    for (const { sql } of guards) db.exec(sql);
     db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_created, job_updated) VALUES (?, ?, ?, ?, ?)').run('gate:old', 'gate', item, Date.now() - 40 * DAY, Date.now() - 40 * DAY);
     const step = db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)');
     for (let n = 0; n < 12; n += 1) step.run('gate:old', n === 11 ? 'done' : 'phase', n, JSON.stringify({ n, text: 'x'.repeat(8000) }), Date.now() - 40 * DAY + n);

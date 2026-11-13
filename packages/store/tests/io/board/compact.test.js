@@ -23,6 +23,13 @@ function boardOf(t) {
   return { board, db: board.db, file: cellProject(t).boardFile };
 }
 
+/** Run `work` with the board file's machine guards dropped, then put back exactly the SQL they had; the fixture files items no move reached. */
+function unguarded(db, work) {
+  const guards = db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all();
+  for (const { name } of guards) db.exec(`DROP TRIGGER "${name}"`);
+  try { work(); } finally { for (const { sql } of guards) db.exec(sql); }
+}
+
 /** File an item in the given state, finished `age` days before NOW; landed ones get a merged event, withdrawn ones a withdraw event. */
 function itemOf(db, id, status, age) {
   const at = new Date(NOW - age * DAY).toISOString();
@@ -55,10 +62,12 @@ function rowsOf(db, table) {
 /** A board with old landed and withdrawn items, a recent landed one and an open one, each with a gate job. */
 function seeded(t) {
   const { db, file } = boardOf(t);
-  itemOf(db, 101, 'landed', 45);
-  itemOf(db, 102, 'withdrawn', 31);
-  itemOf(db, 103, 'landed', 5);
-  itemOf(db, 104, 'open', 90);
+  unguarded(db, () => {
+    itemOf(db, 101, 'landed', 45);
+    itemOf(db, 102, 'withdrawn', 31);
+    itemOf(db, 103, 'landed', 5);
+    itemOf(db, 104, 'open', 90);
+  });
   const jobs = Object.fromEntries([101, 102, 103, 104].map(item => [item, jobOf(db, item)]));
   return { db, file, jobs };
 }
