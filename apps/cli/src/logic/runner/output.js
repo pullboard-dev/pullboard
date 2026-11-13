@@ -100,6 +100,8 @@ export function fitReceipt(receipt, limit) {
   const size = () => Buffer.byteLength(JSON.stringify(receipt));
   const phases = Array.isArray(receipt.phases) ? receipt.phases : [];
   for (const phase of phases) if (Array.isArray(phase.errors)) phase.errorCount ??= phase.errors.length;
+  // Per-case outcomes are all or nothing: a partial list would read as cases the phase never ran, so a receipt over its cap drops them first.
+  for (const phase of phases) if (size() > limit && phase.testOutcomes) delete phase.testOutcomes;
   for (let keep = 2000; size() > limit && keep >= 50; keep = Math.floor(keep / 2)) {
     for (const phase of phases) for (const key of ['tail', 'exit']) if (typeof phase[key] === 'string' && phase[key].length > keep) phase[key] = phase[key].slice(-keep);
   }
