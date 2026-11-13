@@ -44,7 +44,7 @@ test('a red baseline with two real failing cases prints both first error lines i
   assert.match(shown.out, /second broken case: second diagnostic/u);
 });
 
-test('a derived main-red repair keeps the actual first error line and show prints it [C7,V4]', t => {
+test('a derived main-red repair keeps the actual first error line and show prints it [C7,V4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const box = fixture(t, { autoFileMainReds: true });
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 0, result.stdout + result.stderr);

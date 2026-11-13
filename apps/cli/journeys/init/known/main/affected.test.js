@@ -6,7 +6,7 @@ import { cli } from '../../../../tests/fixtures/affected.js';
 import { rows } from '../../../../tests/fixtures/affected.js';
 import { fileMainRed } from '../../../../tests/fixtures/affected.js';
 
-test('an affected case red identically on main with no owner submits, names it, records a fact and shouts [V4,B3]', t => {
+test('an affected case red identically on main with no owner submits, names it, records a fact and shouts [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const box = fixture(t);
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -22,7 +22,7 @@ test('an affected case red identically on main with no owner submits, names it, 
   assert.equal(asked.length, 1, 'exactly one decision shout reaches the coordinator');
 });
 
-test('an open Main red repair naming the affected file is linked [V4,B3]', t => {
+test('an open Main red repair naming the affected file is linked [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const box = fixture(t);
   const repair = fileMainRed(box);
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');

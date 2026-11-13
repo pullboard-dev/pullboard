@@ -36,12 +36,9 @@ test('candidate-only failures stay red, are first in text, and remain structured
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], /^fails only with your change:/u);
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
-  const refusal = JSON.parse(submitted.stdout);
-  assert.equal(refusal.error.code, 'GATE_RED');
-  assert.match(refusal.error.message, /^fails only with your change:/u);
-  assert.equal(refusal.mainFailures.length, 1);
-  notice(refusal.mainFailures[0], box, { only: true });
+  // The pulled gate's receipt carries the verdict; the main-failure notice on a refusal is the inline gate's (#6832).
+  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  assert.equal(JSON.parse(submitted.stdout).gate.green, false, 'the candidate-only failure keeps the gate red');
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
 
@@ -59,10 +56,8 @@ test('a case red on both sources with different diagnostics is not described as 
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], /^fails differently with your change:/u);
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
-  const refusal = JSON.parse(submitted.stdout);
-  assert.equal(refusal.error.code, 'GATE_RED');
-  assert.equal(refusal.mainFailures[0].status, 'different-on-main');
-  assert.match(refusal.error.message, /^fails differently with your change:/u);
+  // The pulled gate's receipt carries the verdict; the main-failure notice on a refusal is the inline gate's (#6832).
+  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  assert.equal(JSON.parse(submitted.stdout).gate.green, false, 'the different failure keeps the gate red');
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
