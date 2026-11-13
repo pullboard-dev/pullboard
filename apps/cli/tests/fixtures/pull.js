@@ -87,7 +87,7 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const ids = [];
   for (let n = 1; n <= count; n++) {
-    const added = fixtureAdd(box.run, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--wait', '--json');
+    const added = fixtureAdd(box.run, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json');
     assert.equal(added.code, 0, added.err);
     ids.push(JSON.parse(added.out).item.item_id);
   }
