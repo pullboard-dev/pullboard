@@ -77,6 +77,8 @@ const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
  */
 async function submitSettled(t, box, move, id, agent) {
   if (!box.localRunnerStarted) {
+    // The runner also pulls the board's automatic land job; a person lands by hand here, so accepted items stay accepted.
+    await box.cliLocal(box.root, 'settings', 'landing.manualOverride', 'on');
     startFixtureLocalRunner(box.env, box.root);
     box.localRunnerStarted = true;
     t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
@@ -525,7 +527,6 @@ test('[A2, N26] local milestone item status refreshes after an item event', asyn
 
   const before = await box.call(box.path + '/state');
   assert.equal(builds, 1);
-  assert.ok(before.document.state.milestones[0].items[0].progress, JSON.stringify(before.document.state.milestones[0]).slice(0, 1500));
   const { progress: beforeProgress, ...beforeItem } = before.document.state.milestones[0].items[0];
   assert.equal(beforeProgress.stage, 'open');
   assert.deepEqual(beforeItem, {
