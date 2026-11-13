@@ -14,7 +14,8 @@ import {
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -43,12 +44,12 @@ function fixtureCommand(box, cwd, ...args) {
   if (args[0] === 'verify') args.push('--no-next');
   if (args[0] === 'join' && !args.includes('--model')) args.push('--model', BUILDER_MODEL);
   if (args[0] === 'join' && !args.includes('--route')) args.push('--route', 'strong');
-  return runCliInProcess(args, { cwd, env: box.env });
+  return box.inProcess(cwd, ...args);
 }
 
 /** Run repeated reopen probes through awaited production parsing and native board dispatch. */
 function reopenCommand(box, cwd, ...args) {
-  return runCliInProcess(['reopen', ...args], { cwd, env: box.env });
+  return box.inProcess(cwd, 'reopen', ...args);
 }
 
 /** Open the real board SQLite file created by the CLI fixture and close it with the test. */
@@ -96,11 +97,8 @@ function landingProject() {
     "test('keeps the landed behavior', () => assert.match(readFileSync(new URL('./feature.js', import.meta.url), 'utf8'), /export const status/u));",
     '',
   ].join('\n'));
-  const configPath = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  config.affectedTests = 'node --test --test-reporter=tap';
-  writeFileSync(configPath, JSON.stringify(config, null, 2));
-  box.git(box.repo, 'add', 'web/landing.test.js', 'web/feature.js', 'pullboard.json');
+  // No affectedTests runner: a pulled land job then runs the project's full gate, which is the landing test, on the merged tree.
+  box.git(box.repo, 'add', 'web/landing.test.js', 'web/feature.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test(web): add landing behavior check');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const remote = join(box.dir, 'origin.git');
@@ -136,6 +134,7 @@ async function submitLandingFixture(box, number, contents, cwd = box.web) {
   const commit = box.git(cwd, 'rev-parse', 'HEAD');
   const submitted = (await fixtureCommand(box, cwd, 'submit', String(id)));
   assert.equal(submitted.code, 0, submitted.err);
+  await settledGateJob(box, id);
   return { id, cwd, commit };
 }
 
@@ -191,25 +190,28 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const nonCoordinator = await reopenCommand(box, item.cwd, String(item.id), '--note', 'coordinator only', '--json');
   assert.equal(JSON.parse(nonCoordinator.out).error.code, 'COORDINATOR_ONLY');
 
-  const landing = (await fixtureCommand(box, box.repo, 'land', '--max', '1', '--json'));
-  // land exits 1 when nothing lands and every candidate is a culprit (d8505b797a).
-  assert.equal(landing.code, 1, `${landing.err}\n${landing.out}`);
-  const landingResult = JSON.parse(landing.out);
-  assert.deepEqual(landingResult.culprits.map((culprit) => culprit.id), [item.id], JSON.stringify(landingResult));
-  assert.equal(landingResult.culprits[0].mergeCommit, landingResult.batch.tip);
-  assert.equal(landingResult.culprits[0].tests[0].file, 'web/landing.test.js');
+  const landing = (await fixtureCommand(box, box.repo, 'land', '--json'));
+  assert.equal(landing.code, 0, `${landing.err}\n${landing.out}`);
+  const landingResult = await settleLand(box, JSON.parse(landing.out));
+  assert.equal(landingResult.batch.state, 'blocked', JSON.stringify(landingResult.landJob));
+  assert.deepEqual(landingResult.landed, []);
+  assert.deepEqual(landingResult.returned.map((culprit) => culprit.id), [item.id], JSON.stringify(landingResult.landJob));
+  assert.match(landingResult.returned[0].detail ?? '', /landing\.test\.js|keeps the landed behavior/u, 'the returned red names its failing test');
   const returned = readItem(box, item.id);
   assert.equal(returned.item_status, 'open', 'land reopens its named culprit automatically');
   const automaticReopen = returned.thread.find((event) => event.type === 'move' && event.kind === 'reopen');
   assert.ok(automaticReopen);
   assert.equal(automaticReopen.detail.supersedes, originalAccept.eventId);
-  assert.equal(automaticReopen.detail.landingFailure.mergeCommit, landingResult.batch.tip);
-  assert.deepEqual(automaticReopen.detail.landingFailure.tests, landingResult.culprits[0].tests);
+  assert.ok(automaticReopen.detail.note, 'the automatic reopen carries the landing note');
   assert.ok(returned.thread.some((event) => event.type === 'move' && event.eventId === originalAccept.eventId && event.kind === 'accept'),
     'the original accept remains in append-only item history');
-  assert.deepEqual(returned.thread.find((event) => event.eventId === originalAccept.eventId), originalAccept,
-    'returning the item does not rewrite its earlier accept event');
-  assert.deepEqual(returned.verdicts, initial.verdicts, 'the prior verdict receipt stays byte-for-byte unchanged');
+  // The pulled land job marks the accept withdrawn on the read projection; the recorded event itself stays as it was.
+  const { withdrawal, withdrawn, ...acceptNow } = returned.thread.find((event) => event.eventId === originalAccept.eventId);
+  assert.equal(withdrawn, true, 'the returned accept reads as withdrawn');
+  assert.equal(withdrawal.acceptEventId, originalAccept.eventId);
+  assert.deepEqual(acceptNow, originalAccept, 'returning the item does not rewrite its earlier accept event');
+  // The same projection marks the receipt withdrawn; its recorded fields stay byte-for-byte.
+  assert.deepEqual(returned.verdicts.map(({ withdrawal, withdrawn, ...recorded }) => recorded), initial.verdicts, 'the prior verdict receipt stays byte-for-byte unchanged');
   const landingNote = automaticReopen.detail.note;
 
   const firstClaim = (await fixtureCommand(box, item.cwd, 'claim', String(item.id)));
@@ -218,10 +220,15 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   const stillRed = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "RED"; // unchanged behavior\n', 'fix(web): retry without fixing the landing behavior [G1]');
   assert.equal(stillRed.status, 0, stillRed.stderr);
   const unchangedLandingHead = (await fixtureCommand(box, item.cwd, 'submit', String(item.id), '--json'));
-  assert.equal(unchangedLandingHead.code, 1);
+  await settledGateJob(box, item.id);
   const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
-  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, reclaimedHead === item.commit ? 'HEAD_NOT_NEW' : 'GATE_RED',
-    'the original head is refused before proof; a claim that merged main still fails the unchanged red behavior');
+  if (reclaimedHead === item.commit) {
+    assert.equal(unchangedLandingHead.code, 1, unchangedLandingHead.out);
+    assert.equal(JSON.parse(unchangedLandingHead.out).error.code, 'HEAD_NOT_NEW', 'the original head is refused before proof');
+  } else {
+    // A claim that merged main still fails the unchanged red behavior: the pulled gate settles red on the item's thread, never submitted.
+    assert.match(JSON.stringify(readItem(box, item.id).thread), /Gate job \S+ red at /u, `the unchanged red behavior fails its gate: ${unchangedLandingHead.out}${unchangedLandingHead.err}`);
+  }
   assert.equal(readItem(box, item.id).item_status, 'claimed', 'neither refusal records another submission');
   assert.equal(box.tryGit(item.cwd, 'merge-base', '--is-ancestor', item.commit, 'HEAD').status, 0,
     'the builder reclaims on top of the accepted commit');
@@ -230,12 +237,13 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   item.commit = box.git(item.cwd, 'rev-parse', 'HEAD');
   const firstSubmit = (await fixtureCommand(box, item.cwd, 'submit', String(item.id)));
   assert.equal(firstSubmit.code, 0, firstSubmit.err);
+  await settledGateJob(box, item.id);
   const awaitingFreshAccept = readItem(box, item.id);
-  assert.equal(awaitingFreshAccept.item_status, 'submitted');
+  assert.equal(awaitingFreshAccept.item_status, 'submitted', `${firstSubmit.out}${firstSubmit.err} ${JSON.stringify(awaitingFreshAccept.thread.slice(-4)).slice(-1500)}`);
   assert.equal(awaitingFreshAccept.item_verified_by, null, 'the older accept does not verify the resubmission');
-  const firstDryLand = (await fixtureCommand(box, box.repo, 'land', '--dry-run', '--json'));
-  assert.equal(firstDryLand.code, 0, firstDryLand.err);
-  assert.ok(!JSON.parse(firstDryLand.out).items.includes(item.id), 'the earlier accept cannot make the resubmission eligible to land');
+  const firstOffer = (await fixtureCommand(box, box.repo, 'land', '--json'));
+  assert.equal(firstOffer.code, 0, firstOffer.err);
+  assert.ok(!(JSON.parse(firstOffer.out).items ?? []).includes(item.id), 'the earlier accept cannot make the resubmission eligible to land');
   await acceptLandingFixture(box, item);
   const firstResubmission = readItem(box, item.id);
   const firstFreshAccept = firstResubmission.thread.filter((event) => event.type === 'move' && event.kind === 'accept').at(-1);
@@ -256,21 +264,22 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
   item.commit = box.git(item.cwd, 'rev-parse', 'HEAD');
   const secondSubmit = (await fixtureCommand(box, item.cwd, 'submit', String(item.id)));
   assert.equal(secondSubmit.code, 0, secondSubmit.err);
+  await settledGateJob(box, item.id);
   const secondAwaitingAccept = readItem(box, item.id);
   assert.equal(secondAwaitingAccept.item_status, 'submitted');
   assert.equal(secondAwaitingAccept.item_verified_by, null, 'the prior accepts do not verify the second resubmission');
-  const secondDryLand = (await fixtureCommand(box, box.repo, 'land', '--dry-run', '--json'));
-  assert.equal(secondDryLand.code, 0, secondDryLand.err);
-  assert.ok(!JSON.parse(secondDryLand.out).items.includes(item.id), 'the earlier accepts cannot make the second resubmission eligible to land');
+  const secondOffer = (await fixtureCommand(box, box.repo, 'land', '--json'));
+  assert.equal(secondOffer.code, 0, secondOffer.err);
+  assert.ok(!(JSON.parse(secondOffer.out).items ?? []).includes(item.id), 'the earlier accepts cannot make the second resubmission eligible to land');
   await acceptLandingFixture(box, item);
   const readyToLand = readItem(box, item.id);
   assert.equal(readyToLand.thread.filter((event) => event.type === 'move' && event.kind === 'accept').length, 3,
     'the resubmitted work has a fresh accept');
   assert.equal(JSON.parse((await fixtureCommand(box, item.cwd, 'reopen', String(item.id), '--note', landingNote, '--json')).out).error.code, 'COORDINATOR_ONLY');
 
-  const greenLanding = (await fixtureCommand(box, box.repo, 'land', '--max', '1', '--json'));
+  const greenLanding = (await fixtureCommand(box, box.repo, 'land', '--json'));
   assert.equal(greenLanding.code, 0, greenLanding.err);
-  assert.deepEqual(JSON.parse(greenLanding.out).landed, [item.id]);
+  assert.deepEqual((await settleLand(box, JSON.parse(greenLanding.out))).landed, [item.id]);
   const merged = readItem(box, item.id);
   assert.equal(merged.item_status, 'verified');
   assert.ok(merged.item_merged_commit);
@@ -282,7 +291,7 @@ test('clause 2: a red landing gate returns a verified item to its builder [B3,V4
 test('clause 3: retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
   const box = project();
   /** Await real production commands; fixture moves do not start an unrelated next-work search. */
-  const command = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
+  const command = (cwd, ...args) => box.inProcess(cwd, ...args);
   const added = await command(box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--route', 'strong', '--wait');
   assert.equal(added.code, 0, added.err);
   const claimedFirst = await command(box.web, 'claim', '1');
