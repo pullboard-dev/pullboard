@@ -1145,11 +1145,11 @@ async function readRoadmap(chrome) {
           empty: card.querySelector('.milestone-empty')?.innerText ?? null,
           note: card.querySelector('.milestone-note')?.innerText ?? null,
           rows: [...card.querySelectorAll('.milestone-item')].map((row) => {
-            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = chip.getBoundingClientRect();
+            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = word.getBoundingClientRect();
             return {
               id: row.querySelector('.id').innerText, label: word.innerText.trim(), tone: chip.dataset.stage || [...chip.classList].filter((name) => ['ok', 'no', 'warn', 'busy', 'free'].includes(name)).join(' '),
               marks: [...chip.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()), detail: chip.querySelector('.stage-detail')?.textContent || '',
-              seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
+              seen: box.width > 0 && box.height > 0 && getComputedStyle(word).visibility === 'visible',
               chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
               button: row.matches('button,[role="button"]'), tip: row.title, title: [...(title.querySelector('.milestone-title') ?? title).childNodes].slice(1).map((node) => node.textContent).join(''), // the id and title share .milestone-title (10d605f572)
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
@@ -1168,7 +1168,7 @@ async function readRoadmap(chrome) {
  * and the bar's edges. The tab picked now is picked again afterwards.
  */
 async function tabBar(chrome) {
-  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].map(tab => tab.dataset.tab)");
+  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length).map(tab => tab.dataset.tab)");
   const picked = await chrome.stable("document.querySelector('#tabs .tab.on')?.dataset.tab");
   const layouts = [];
   try {
@@ -1176,12 +1176,12 @@ async function tabBar(chrome) {
       await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(on)}))`);
       layouts.push(await chrome.stable(`(() => {
         const bar = document.querySelector('#tabs');
-        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].map(tab => {
+        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].filter(tab => tab.getClientRects().length).map(tab => {
           const range = document.createRange(); range.selectNodeContents(tab.firstChild);
           const box = tab.getBoundingClientRect(), label = range.getBoundingClientRect();
           return { tab: tab.dataset.tab, top: box.top, bottom: box.bottom, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
         }) };
-      })()`, "document.querySelectorAll('#tabs, #tabs .tab')"));
+      })()`, "[document.querySelector('#tabs'), ...[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length)]"));
     }
   } finally {
     await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(picked)}))`);
