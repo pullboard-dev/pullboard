@@ -95,12 +95,12 @@ function fixture(path, base, left, right, extra = {}) {
 }
 
 /** Pin the actual checkout/index before all read-only conflict entry points. */
-function inspect(box, expected) {
+function inspect(box, expected, recorded = expected) {
   const status = box.git('status', '--porcelain=v1', '-z');
   const index = readFileSync(join(box.root, '.git', 'index'));
   assert.deepEqual(conflictFiles(box.root, box.trunk, box.head), expected);
   assert.deepEqual(trunkMerge(box.root, box.head).files, expected.length ? expected : null);
-  assert.deepEqual(recordedTrunkMerge(join(box.root, '.git'), box.head, box.trunk), expected.length ? expected : null);
+  assert.deepEqual(recordedTrunkMerge(join(box.root, '.git'), box.head, box.trunk), recorded.length ? recorded : null);
   assert.equal(box.git('status', '--porcelain=v1', '-z'), status);
   assert.deepEqual(readFileSync(join(box.root, '.git', 'index')), index);
   assert.equal(box.git('rev-parse', 'HEAD'), box.trunk);
@@ -154,7 +154,8 @@ test('a generated doc is classified without executing item code and regenerated 
     'package.json': '{"type":"module"}\n',
     'docs/tools/update-docs.js': "import {writeFileSync} from 'node:fs'; writeFileSync('executed', 'yes'); process.stdout.write('regenerated\\n');\n",
   });
-  inspect(box, []);
+  // A version-two receipt keeps its recorded meaning, which predates generated-doc resolution.
+  inspect(box, [], ['docs/api.md']);
   assert.equal(box.git('status', '--porcelain'), '', 'inspection never runs the candidate generator');
   land(box, 'regenerated\n');
   assert.equal(readFileSync(join(box.root, 'executed'), 'utf8'), 'yes');
