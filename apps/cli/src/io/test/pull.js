@@ -207,6 +207,8 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
   const ran = await runJobFor(ctx, { item, commit, main, command, files: paths }, { agent, say });
   const summary = retainTestOutput(root, ran.output);
+  // A runner's TAP names a case's file by the runner's own work folder; a failure is shown by the repo path the seat named [C7].
+  for (const row of summary.failures) row.file = paths.find(path => row.file === path || row.file?.endsWith(`/${path}`)) ?? row.file;
   const result = { green: ran.green, output: renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
     files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [], runFailures: ran.failures };
   if (ran.green) return result;
