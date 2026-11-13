@@ -51,7 +51,7 @@
 :root[data-nav] .acct { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: var(--ink); color: var(--surface); font: 600 var(--text-xs) var(--sans); cursor: pointer; }
 :root[data-nav] .signin { height: 26px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink); font: 600 var(--text-sm) var(--sans); white-space: nowrap; cursor: pointer; }
 :root[data-nav] .signin:hover { background: var(--surface-2); }
-:root[data-nav] .acct-menu { position: absolute; top: 34px; right: -2px; z-index: 28; width: 240px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 14px 36px rgba(0, 0, 0, .12); font-size: var(--text-sm); }
+:root[data-nav] .acct-menu { position: absolute; top: 34px; right: -2px; z-index: 28; width: 240px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-float); background: var(--surface); box-shadow: var(--shadow-float); font-size: var(--text-sm); }
 :root[data-nav] .acct-menu[hidden] { display: none; }
 :root[data-nav] .acct-menu .who { margin-bottom: var(--space-1); padding: var(--space-3) var(--space-4) var(--space-4); border-bottom: 1px solid var(--line); }
 :root[data-nav] .acct-menu .who b { display: block; color: var(--ink); }
@@ -69,9 +69,11 @@
 :root[data-nav="top"] .tab-group-btn .chev { color: var(--ink-faint); font-size: var(--text-2xs); }
 :root[data-nav="top"] .tab-sep { align-self: center; width: 1px; height: 14px; margin: 0 calc(var(--space-1) * -1); background: var(--line); }
 :root[data-nav="top"] .tab-group { position: relative; display: flex; }
-:root[data-nav="top"] .tab-menu { position: absolute; top: 26px; left: 0; z-index: 25; display: grid; width: 230px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); box-shadow: 0 8px 24px rgba(0, 0, 0, .09); }
+:root[data-nav="top"] .tab-menu { position: absolute; top: 26px; left: 0; z-index: 25; display: grid; width: 230px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-float); background: var(--surface); box-shadow: var(--shadow-float); }
 :root[data-nav="top"] .tab-menu .tab { display: flex; align-items: baseline; gap: var(--space-4); width: 100%; padding: var(--space-3) var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink); font: inherit; text-align: left; white-space: normal; cursor: pointer; }
-:root[data-nav="top"] .tab-menu .tab:hover, :root[data-nav="top"] .tab-menu .tab.on { background: var(--surface-2); }
+:root[data-nav="top"] .tab-menu .tab:hover { background: var(--surface-2); }
+/* The entry you are on takes no fill, only the ink and the green dot (design sheet). */
+:root[data-nav="top"] .tab-menu .tab.on { background: none; }
 :root[data-nav="top"] .tab-name { display: block; flex: 1; min-width: 0; }
 :root[data-nav="top"] .tab-name b { display: block; font-weight: 600; }
 :root[data-nav="top"] .tab-name small { color: var(--ink-faint); font-size: var(--text-xs); }
@@ -97,7 +99,7 @@
 /* The project switcher's list drops from it, the project tools above the boards. */
 :root[data-nav][data-side="collapsed"] .side { position: fixed; top: 44px; left: 12px; z-index: 30; width: 0; height: 0; padding: 0; border: 0; background: none; overflow: visible; }
 :root[data-nav][data-side="collapsed"] .side .side-body, :root[data-nav][data-side="collapsed"] .side .side-footer { display: none; }
-:root[data-nav][data-side="collapsed"] .side.open { display: flex; flex-direction: column; width: 300px; height: auto; max-height: calc(100vh - 60px); overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); box-shadow: 0 8px 24px rgba(0, 0, 0, .09); }
+:root[data-nav][data-side="collapsed"] .side.open { display: flex; flex-direction: column; width: 300px; height: auto; max-height: calc(100vh - 60px); overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-float); background: var(--surface); box-shadow: var(--shadow-float); }
 :root[data-nav][data-side="collapsed"] .side.open .side-footer { order: -1; position: static; display: flex; width: auto; margin: 0; padding: var(--space-2); border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
 :root[data-nav][data-side="collapsed"] .side.open .side-body { position: static; display: grid; width: auto; max-height: none; padding: var(--space-2); border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 /* The status bar: the system's own state, along the foot. */

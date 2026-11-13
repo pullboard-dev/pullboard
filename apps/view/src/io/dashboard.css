@@ -35,7 +35,7 @@
   --accent: var(--stage-merged); --idle: light-dark(#ececec, #232e29); --waiting: light-dark(#d6d6d6, #34423b);
   --building-ink: var(--stage-building); --building-soft: light-dark(#e8eef7, #142231); --review-ink: light-dark(#8a6400, #e4b25a);
   --review-soft: light-dark(#faf2dc, #241d10); --merged-soft: light-dark(#e6f4ec, #10231c);
-  --dash-card: var(--radius-md); --dash-chip: var(--radius-sm);
+  --dash-card: var(--radius-card); --dash-chip: var(--radius-chip);
   /* Sheet v1.1: numbers are the sans with tabular figures; monospace only for ids, seats, commits and code. */
   --code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; --mono: var(--sans);
   display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); min-width: 0; color: var(--ink); font-size: var(--text-md); line-height: 1.45; font-variant-numeric: tabular-nums;
