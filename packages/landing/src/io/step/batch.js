@@ -203,7 +203,7 @@ export async function land(options) {
       return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true, stallDescription: description };
     };
     // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
-    if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
+    if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its batch runner: pass { runBatch }');
     return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
   } catch (error) {
     failed = true;

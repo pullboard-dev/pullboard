@@ -428,8 +428,6 @@ async function runGateGroup(state, label, options) {
   const item = store.getItem(state.board, state.batch.items[0].id);
   const proofContext = { item: item.item_id, frozenDigest: item.item_frozen_digest, seat: 'coordinator', kind: 'land' };
   state.say(`gate ${label}: ${subset || config[VALUE_GATE] === true ? `${files.length} files` : 'the full plan'} selected; running`);
-  // The line above opens a running gate and the "run finished" line below closes it; the batch's no-progress stop
-  // counts the time between as progress (landingProgress), since a runner returns nothing until its run ends [C7].
   const gate = await (subset
     ? runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
