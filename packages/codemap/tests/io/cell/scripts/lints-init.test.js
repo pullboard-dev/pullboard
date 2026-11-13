@@ -9,7 +9,7 @@ import { git } from '../../../../../landing/tests/fixtures/plan.js';
 
 const BIN = fileURLToPath(new URL('../../../../src/io/cell/scripts/lints.js', import.meta.url));
 
-test('lints.js --init stages the baseline directory so a fresh baseline verifies without CELL_BASELINE [C7,CD64]', t => {
+test('lints.js --init stages the baseline directory so a fresh baseline verifies without CELL_BASELINE, clause 1 [C7,CD64]', t => {
   const { root } = fixture(t);
   const initial = runFixtureChild(process.execPath, [BIN, '--init', root], { encoding: 'utf8', maxBuffer: 256 * 1024 ** 2 });
   assert.equal(initial.status, 0, initial.stderr);
