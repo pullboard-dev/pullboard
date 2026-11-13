@@ -62,13 +62,14 @@ function fixture(t, { red = false, flaky = 0, brokenMain = false, cellsPlan = fa
   put('packages/items/index.js', `import { record } from '../../bin/record.js';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-export function requireSubmitComposition(root) {
-  record(root, 'composition', import.meta.url);
-  const seen = join(root, '.git', 'composition-reads');
+export function requirePlannedSource(root) {
+  record(root, 'placement', import.meta.url);
+  const seen = join(root, '.git', 'placement-reads');
   const reads = existsSync(seen) ? Number(readFileSync(seen, 'utf8')) : 0;
   writeFileSync(seen, String(reads + 1));
-  if (reads < ${flaky}) throw Object.assign(new Error('the accepted tree could not be read from Git'), { name: 'GitReadInfrastructureError', code: 'GIT_READ_INFRASTRUCTURE', retryable: true });
+  if (reads < ${flaky}) throw Object.assign(new Error('the accepted cells-plan presence could not be read from Git'), { name: 'GitReadInfrastructureError', code: 'GIT_READ_INFRASTRUCTURE', retryable: true });
 }
+export function requireSubmitComposition(root) { record(root, 'composition', import.meta.url); }
 `);
   put('packages/gate/index.js', `import { record } from '../../bin/record.js';
 export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
@@ -168,18 +169,18 @@ function request(box, readCutItems = () => [{ item_id: 7 }]) {
     browserFreeChecks: true, readCutItems };
 }
 
-test('a queued submit runs static, composition, cells and selection on the runner with main tooling; the controller runs only git [V4,C7]', async t => {
+test('a queued submit runs placement, static, composition, cells and selection on the runner with main tooling; the controller runs only git [V4,C7]', async t => {
   const box = fixture(t);
   const artifacts = join(box.dir, 'artifacts');
   const { value, seen } = await controllerSpawns(() => remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), artifacts));
   assert.deepEqual(value.cells.cells, ['trusted-main']);
   assert.deepEqual(value.plan.proofFiles, ['test/a.test.js']);
   assert.deepEqual(value.admission, { browser: false, gui: false });
-  assert.deepEqual(Object.keys(value.steps), ['static', 'composition', 'cells', 'selection', 'admission']);
+  assert.deepEqual(Object.keys(value.steps), ['placement', 'static', 'composition', 'cells', 'selection', 'admission']);
   assert.equal(value.runner, 'runner-1');
   // Every analysis step ran in the runner's checkout of the candidate, from main's archive, never from candidate files.
   const steps = readFileSync(join(box.runner, '.git', 'trusted-steps.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.deepEqual(steps.map(row => row.step), ['static', 'composition', 'cells', 'selection', 'admission']);
+  assert.deepEqual(steps.map(row => row.step), ['placement', 'static', 'composition', 'cells', 'selection', 'admission']);
   for (const row of steps) {
     assert.equal(realpathSync(row.root), realpathSync(box.runner)); // a step's own cwd is the real path of a symlinked temp folder
     assert.match(row.url, /pullboard-trusted-main-/u);
@@ -208,8 +209,8 @@ test('a red remote step returns its refusal to the queued submit, and altered ou
 test('a trunk Git read failure on the runner repeats the analysis and never refuses the builder [C7]', async t => {
   const flaky = fixture(t, { flaky: 1 });
   const { value } = await controllerSpawns(() => remoteSubmitAnalysis(flaky.controller, request(flaky), fakeRunner(flaky), join(flaky.dir, 'artifacts')));
-  assert.deepEqual(value.cells.cells, ['trusted-main'], 'the second attempt passes composition');
-  assert.equal(readFileSync(join(flaky.runner, '.git', 'composition-reads'), 'utf8'), '2');
+  assert.deepEqual(value.cells.cells, ['trusted-main'], 'the second attempt passes placement');
+  assert.equal(readFileSync(join(flaky.runner, '.git', 'placement-reads'), 'utf8'), '2');
   const down = fixture(t, { flaky: 99 });
   await assert.rejects(remoteSubmitAnalysis(down.controller, request(down), fakeRunner(down), join(down.dir, 'artifacts')),
     error => error.name !== 'Refused' && error.code === 'GIT_READ_INFRASTRUCTURE' && error.retryable === true);
@@ -225,7 +226,7 @@ test('independent trusted analysis parts run only their named work [C7]', async 
   const box = fixture(t), artifacts = join(box.dir, 'parts');
   const select = async part => remoteSubmitAnalysis(box.controller, { ...request(box), parts: [part] }, fakeRunner(box), artifacts);
   const preflight = await select('preflight');
-  assert.deepEqual(Object.keys(preflight.steps), ['composition']);
+  assert.deepEqual(Object.keys(preflight.steps), ['placement', 'composition']);
   const cells = await select('cells');
   assert.deepEqual(Object.keys(cells.steps), ['cells']);
   assert.deepEqual(cells.cells.cells, ['trusted-main']);
@@ -251,7 +252,7 @@ test('clause 1: analysis loads main\'s own tooling, never an installed copy that
   assert.deepEqual(observation.toolingSource, { kind: 'pinned-main', commit: box.main });
 });
 
-test('clause 3: a real import failure in pinned main\'s own tooling still refuses RUNNER_TOOLING_CRASH [C7]', async t => {
+test('clause 3: a real import failure in pinned main\'s own tooling refuses RUNNER_TOOLING_CRASH, never retried as infrastructure [C7]', async t => {
   const box = fixture(t, { brokenMain: true });
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')), { code: 'RUNNER_TOOLING_CRASH' });
 });
@@ -261,7 +262,7 @@ test('clause 1: a cold accepted inventory is produced on the runner with main as
   const { value, seen } = await controllerSpawns(() => remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')));
   // The runner's cell analysis read the inventory it produced itself, bound to the controller's pinned main.
   assert.deepEqual(value.cells.cells, ['trusted-main', `inventory trunk ${box.main}`]);
-  assert.deepEqual(Object.keys(value.steps), ['static', 'composition', 'inventory', 'cells', 'selection', 'admission']);
+  assert.deepEqual(Object.keys(value.steps), ['placement', 'static', 'composition', 'inventory', 'cells', 'selection', 'admission']);
   assert.ok(value.notes.includes(`submit cells inventory: produced on the runner for ${box.main.slice(0, 12)}`));
   const steps = readFileSync(join(box.runner, '.git', 'trusted-steps.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
   const inventory = steps.find(row => row.step === 'inventory');
