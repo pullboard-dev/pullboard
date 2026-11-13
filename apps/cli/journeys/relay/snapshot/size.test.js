@@ -190,9 +190,9 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
     throw error;
   }
   try {
-    await chrome.click(`document.querySelector('[data-tab="items"]')`);
+    await chrome.click(`document.querySelector('.tab[data-tab="items"]')`);
     await chrome.waitFor( // budget: the same bounded 15 s page-state ceiling as the board read above.
-      `document.querySelector('[data-tab="items"]')?.classList.contains('on')`, SIGNED_IN_BOARD_RENDER_WAIT_MS,
+      `document.querySelector('.tab[data-tab="items"]')?.classList.contains('on')`, SIGNED_IN_BOARD_RENDER_WAIT_MS,
       'the browser shows the Items tab before checking its chain');
   } catch (error) {
     t.diagnostic('items tab click: ' + JSON.stringify(await chrome.stable(`(() => ({
