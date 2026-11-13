@@ -17,7 +17,7 @@ import {
 import { test } from 'node:test';
 import { coordinatorLocal } from '../local.js';
 import { runLocal } from '../local.js';
-import { submitSettled } from '../local.js';
+import { submitWithEnv } from '../local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
@@ -69,7 +69,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   put(optedIn.box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 2;\n');
   commitAll(optedIn.box, 'feat(core): change global source [G1]');
 
-  const deferred = await submitSettled(t, optedIn.box, (...args) => runLocal(optedIn.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const deferred = await submitWithEnv(t, optedIn.box, (...args) => runLocal(optedIn.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(deferred.code, 0, deferred.err);
   const receipt = deferred.receipt;
   assert.equal(receipt.gate.full, true, 'the selector still reports that it fell back to the whole suite');
@@ -96,7 +96,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   put(candidateOnly.box.root, 'pullboard.json', JSON.stringify(candidateConfig));
   put(candidateOnly.box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 2;\n');
   commitAll(candidateOnly.box, 'feat(core): try candidate-only deferral [G1]');
-  const ordinary = await submitSettled(t, candidateOnly.box, (...args) => runLocal(candidateOnly.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const ordinary = await submitWithEnv(t, candidateOnly.box, (...args) => runLocal(candidateOnly.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(ordinary.code, 0, ordinary.err);
   const ordinaryReceipt = ordinary.receipt;
   assert.equal(ordinaryReceipt.gate.deferred, false, 'a candidate-only setting is not trusted');
@@ -107,7 +107,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   const named = await project('landing');
   put(named.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(named.box, 'feat(core): change one selected source [G1]');
-  const selected = await submitSettled(t, named.box, (...args) => runLocal(named.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const selected = await submitWithEnv(t, named.box, (...args) => runLocal(named.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(selected.code, 0, selected.err);
   const selectedReceipt = selected.receipt;
   assert.equal(selectedReceipt.gate.full, false);

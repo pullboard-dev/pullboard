@@ -75,3 +75,12 @@ export async function submitSettled(t, box, run, extra = []) {
   const settled = await settleSubmit(t, { repo: box.root, env: box.env, run: (_cwd, ...args) => run(...args) }, JSON.parse(submitted.out));
   return { code: settled.gate?.green === true ? 0 : 1, out: submitted.out, err: `${settled.gate?.green === true ? '' : failingParts({ status: 1, gate: settled.gate }).join('\n')}\n${JSON.stringify(settled.gateJob)}`, gateJob: settled.gateJob, receipt: settled };
 }
+
+/**
+ * submitSettled for a journey that sets environment variables its gate reads after the fixture was built.
+ * Why: a local runner keeps the environment it started with, so the submit's runner is stopped first and starts again with this one [C7,V10,#7530].
+ */
+export function submitWithEnv(t, box, run, extra = []) {
+  stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
+  return submitSettled(t, box, run, extra);
+}

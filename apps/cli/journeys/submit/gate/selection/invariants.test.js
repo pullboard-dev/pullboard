@@ -17,7 +17,7 @@ import {
 import { test } from 'node:test';
 import { coordinatorLocal } from '../local.js';
 import { runLocal } from '../local.js';
-import { submitSettled } from '../local.js';
+import { submitWithEnv } from '../local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
@@ -63,14 +63,14 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
 
   const empty = await project();
   change(empty.box);
-  const unchanged = await submitSettled(t, empty.box, (...args) => runLocal(empty.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const unchanged = await submitWithEnv(t, empty.box, (...args) => runLocal(empty.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(unchanged.code, 0, unchanged.err);
   assert.equal(existsSync(empty.marker), false, 'the empty default adds no tests');
   unstamped(empty.box);
 
   const mandatory = await project(['test/invariant.test.js']);
   change(mandatory.box);
-  const guarded = await submitSettled(t, mandatory.box, (...args) => runLocal(mandatory.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const guarded = await submitWithEnv(t, mandatory.box, (...args) => runLocal(mandatory.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(guarded.code, 0, guarded.err);
   const guardedReceipt = guarded.receipt;
   assert.equal(guardedReceipt.gate.full, true, 'the selector still reports an uncertain full fallback');
@@ -82,7 +82,7 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
 
   const red = await project(['test/invariant.test.js'], true);
   change(red.box);
-  const refused = await submitSettled(t, red.box, (...args) => runLocal(red.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const refused = await submitWithEnv(t, red.box, (...args) => runLocal(red.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.notEqual(refused.code, 0, 'a failing configured invariant must refuse the submit');
   assert.match(refused.err + refused.out, /GATE_RED/u);
   assert.ok(existsSync(red.marker), 'the listed invariant actually ran');
@@ -100,7 +100,7 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
   candidate.submitInvariants = ['test/c.test.js'];
   put(trusted.box.root, 'pullboard.json', JSON.stringify(candidate));
   change(trusted.box);
-  const ignored = await submitSettled(t, trusted.box, (...args) => runLocal(trusted.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const ignored = await submitWithEnv(t, trusted.box, (...args) => runLocal(trusted.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.notEqual(ignored.code, 0, 'accepted main policy overrides both the claim-time list and candidate edit');
   assert.match(ignored.err + ignored.out, /GATE_RED/u);
   assert.ok(existsSync(trusted.marker), 'the accepted-main invariant still ran');
@@ -110,14 +110,14 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
   const missing = await project(['test/invariant.test.js']);
   rmSync(join(missing.box.root, 'test/invariant.test.js'));
   change(missing.box);
-  const absent = await submitSettled(t, missing.box, (...args) => runLocal(missing.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const absent = await submitWithEnv(t, missing.box, (...args) => runLocal(missing.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.notEqual(absent.code, 0, 'deleting a mandatory file cannot make the guard disappear');
   assert.match(absent.err + absent.out, /submitInvariants file test\/invariant\.test\.js is missing or unreadable/u);
   unstamped(missing.box);
 
   const named = await project(['test/invariant.test.js', 'test/invariant.test.js']);
   change(named.box, false);
-  const selected = await submitSettled(t, named.box, (...args) => runLocal(named.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
+  const selected = await submitWithEnv(t, named.box, (...args) => runLocal(named.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(selected.code, 0, selected.err);
   const receipt = selected.receipt;
   assert.equal(receipt.gate.full, false);
