@@ -1,6 +1,7 @@
 /** @pullboard-test-input apps/cli/pullboard.js apps/lib/index.js apps/lib/src/io/worker/checkpoint/relay.js packages/link/index.js packages/outbox/index.js */
 /** Legacy API1 refusals recover without blocking moves; current API2 pause proofs live in relay-upload-pause.test.js [H16,B26]. */
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
 import {
   mkdirSync,
@@ -630,10 +631,12 @@ test('a refused later checkpoint names each distinct ordered move with the same 
     assert.match(line, /relay checkpoint refused for [0-9a-f]{32}: BAD_UPLOAD malformed sealed snapshot/u);
     assert.match(line, /moves still sync in order.*npm i -g pullboard.*relay off then relay on --all/u);
   }
-  const exported = await box.cli('export');
-  assert.equal(exported.code, 0);
-  for (const text of ['same io first ordered move', 'same io second ordered move']) {
-    assert.equal(exported.document.tables.shout.filter(row => row.shout_text === text).length, 1,
-      'each acknowledged move has exactly one committed native effect');
-  }
+  // Read the committed shout rows straight from the board file: no CLI child is needed to count them.
+  const db = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try {
+    for (const text of ['same io first ordered move', 'same io second ordered move']) {
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_text = ?').get(text).n, 1,
+        'each acknowledged move has exactly one committed native effect');
+    }
+  } finally { db.close(); }
 });

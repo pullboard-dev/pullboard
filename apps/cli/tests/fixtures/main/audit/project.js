@@ -56,7 +56,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||file==='packages/gate/tests/fixtures/budgets.js'||/^(?:src|bin|packages|apps)\//u.test(file)&&!/^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/(?:tests|journeys)\/)/u.test(file));
   for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
   assert.equal(existsSync(join(installed,'.git')),false);
-  const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
+  const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
     GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
   // The runner's launch guard names this checkout's copy; the installed worker knows only its own copy, so point the guard there.
   const outerGuard=new URL('../../../../../../packages/gate/src/io/browser/guard.js',import.meta.url).href,installedGuard=pathToFileURL(join(installed,'packages/gate/src/io/browser/guard.js')).href;
