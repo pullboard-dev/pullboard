@@ -387,8 +387,8 @@ test('clause 2: the 147 s, 155 s and 279 s runner-unavailable episodes read from
 });
 
 test('a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {
-  const key = waitKey({ surface: 'board-write', key: '/Users/dev/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
+  const key = waitKey({ surface: 'board-write', key: '/Users/user/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
   assert.equal(key, 'board-write:.git/pullboard/board.sqlite:edit');
-  assert.doesNotMatch(key, /Open Source|\/Users/u, 'no absolute path or space survives');
+  assert.doesNotMatch(key, /Open Source|\/Users\b/u, 'no absolute path or space survives');
   assert.equal(waitKey({ surface: 'gate', key: 'gate:#7:gate' }), 'gate:gate:#7:gate', 'a key without a path is unchanged');
 });
