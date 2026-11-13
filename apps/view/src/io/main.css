@@ -12,6 +12,7 @@
   --stage-merged: light-dark(#067a50, #30ad79); --stage-review: light-dark(#d4a020, #b38529); --stage-building: light-dark(#285c99, #3a6ab0);
   --stage-ready: light-dark(#a383e6, #9d80e0); --stage-gated: light-dark(#8a968f, #5d6b64); --mark-back: light-dark(#c4473a, #d26059);
   --mark-held: light-dark(#6f7d75, #8a978f);
+  --stage-gate: light-dark(#1f2933, #d6dbe0); --stage-gate-soft: light-dark(#eceef0, #1c2226); --stage-blocked-soft: light-dark(#eef0ef, #1b2420); --stage-blocked-ink: light-dark(#5f6b64, #9caba3); --mark-back-soft: light-dark(#fbe9e7, #2a1714);
   --stage-stripe: repeating-linear-gradient(135deg, var(--stage-merged) 0 2px, color-mix(in oklab, var(--stage-merged) 35%, var(--surface)) 2px 4px);
   --icon-you: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='8' cy='5.5' r='2.5'/%3E%3Cpath d='M3 13.5c.8-2.4 2.7-3.5 5-3.5s4.2 1.1 5 3.5'/%3E%3C/svg%3E");
   --blue: light-dark(#3f6f9e, #6ba7d6); --blue-soft: light-dark(#e1eaf3, #142231); --violet: light-dark(#6b4fc8, #ab9cf2); --violet-soft: light-dark(#ebe6fa, #1e1934);

@@ -64,7 +64,7 @@
 .dash-live .dash-icon { width: 13px; height: 13px; }
 .dash-live .dash-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ink-faint); }
 .dash-dot.building { background: var(--stage-building); } .dash-dot.review { background: var(--stage-review); } .dash-dot.merged { background: var(--stage-merged); }
-.dash-dot.ready { background: var(--stage-ready); } .dash-dot.gated, .dash-dot.waiting { background: var(--stage-gated); } .dash-dot.back { background: var(--mark-back); }
+.dash-dot.ready { background: var(--stage-ready); } .dash-dot.gated, .dash-dot.waiting { background: var(--stage-gated); } .dash-dot.gate { background: var(--stage-gate); } .dash-dot.back { background: var(--mark-back); }
 .dash-dot.held { background: none; border: 1.5px dashed var(--mark-held); width: 8px; height: 8px; }
 .dash-dot.landing { background: var(--stage-stripe); }
 
