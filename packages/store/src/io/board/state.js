@@ -19,7 +19,7 @@ import { loadConfig } from "../../../../config/index.js";
 import { repoInfo } from "../../../../git/index.js";
 import { listApiProjects } from "../../../../seats/index.js";
 import { nativeStateClockWindow } from "../../logic/clock.js";
-import { stageLimits } from "../../logic/stage-limits.js";
+import { stageLimits } from "../../logic/clock.js";
 import { workProgress } from '../../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../../roadmap/index.js";
 import { proofStats } from "../../../../stats/light.js";
