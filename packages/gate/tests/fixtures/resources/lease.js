@@ -24,7 +24,6 @@ import { registerProject } from '../../../../seats/index.js';
 import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { fixtureJoinRoute } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
 export { resourceWorkerSources, resourceNames, oldSchema, staleIdentity, expireHeartbeat } from '../../../../../apps/cli/tests/fixtures/resources/lease.js';
 
@@ -83,8 +82,6 @@ function leaseCommand({ helpers, children }, box, cwd, ...args) {
 /** Create genuine submitted/claimed items and independent reviewers before advancing any clock. */
 function itemLeaseFixture(t, helpers) {
   const box = helpers.project('true');
-  // These submits hold their live queue lease inside the command, and no pull runner serves a clocked child (#6249).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   // This scenario observes the synchronous submit's live queue lease; asynchronous handoffs return before that wait.
