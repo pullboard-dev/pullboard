@@ -283,6 +283,9 @@ function element(id) {
     // The palette's search box hint is added beside its box.
     parentNode: { appendChild() {} },
     querySelectorAll: () => [],
+    querySelector: () => null,
+    prepend() {},
+    replaceWith() {},
   };
 }
 
@@ -1106,14 +1109,13 @@ async function travel(chrome, step) {
 }
 
 /**
- * Choose a Show or Lane option from the Items toolbar's Filter menu as a person does: open the menu, press the
- * option, and wait for the menu to close (#429). A choice is "state:<state>" or "lane:<lane>".
+ * Choose a Show or Lane option from the strip's Items controls as a person does: press the Show button, or pick the
+ * lane in the Lane select. A choice is "state:<state>" or "lane:<lane>".
  */
 async function chooseFilter(chrome, choice) {
-  await press(chrome, "document.querySelector('#filter-toggle')");
-  await chrome.waitFor("!document.querySelector('#filter-menu').hidden");
-  await press(chrome, `document.querySelector('#filter-menu [data-filter-choice="${choice}"]')`);
-  await chrome.waitFor("document.querySelector('#filter-menu').hidden");
+  const [kind, value] = [choice.slice(0, choice.indexOf(':')), choice.slice(choice.indexOf(':') + 1)];
+  if (kind === 'state') await press(chrome, `document.querySelector('#page-controls [data-page-ctl="state"][data-value="${value}"]')`);
+  else await chrome.stable(`(() => { const select = document.querySelector('#page-controls select[data-page-ctl="lane"]'); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 }
 
 /** Wait for a condition after a press; if it never arrives, say what the page shows and where the press landed. */

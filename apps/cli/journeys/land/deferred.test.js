@@ -11,38 +11,12 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
 import { calls } from '../../tests/fixtures/land/board.js';
 import { json } from '../../tests/fixtures/land/board.js';
-import { landingTimeoutFixture } from '../../../../packages/store/tests/fixtures/timeout.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 /** Exercise deferred and affected landings against real private Git worktrees [B3,R3,C7,V4]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { FILES, landProject, itemWorktree, submitItem, acceptItem, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
-
-test('an uncertain affected batch passes its full gate before local adoption [B3,R3,C7,V4]', () => {
-  const box = landProject();
-  const path = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: land on the local trunk first');
-  const entries = verifiedFour(box);
-  const remoteBefore = box.git(box.remote, 'rev-parse', 'main');
-  const start = calls(box).length;
-  const result = json(box, box.repo, 'land', '--max', '4');
-  assert.deepEqual(result.landed.sort((a, b) => a - b), entries.map((entry) => entry.item).sort((a, b) => a - b));
-  assert.equal(result.batch.state, 'landed');
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip, 'the local trunk holds the landed batch');
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), remoteBefore, 'tier 1 pushes nothing');
-  assert.equal(calls(box).length - start, 1, 'an unsupported fixture graph requires one full gate before adoption');
-  const merges = box.git(box.repo, 'rev-list', '--first-parent', `${result.batch.base}..${result.batch.tip}`).split('\n');
-  for (const entry of entries) assert.ok(merges.includes(json(box, box.repo, 'show', String(entry.item)).item_merged_commit), `#${entry.item} has its merged receipt on the local trunk`);
-  // Tier 2 then runs the whole suite once on that exact head and pushes it.
-  const published = json(box, box.repo, 'publish');
-  assert.equal(published.published, true);
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
-  assert.equal(calls(box).length - start, 2, 'publish also proves its exact trunk head before pushing');
-});
+const { FILES, landProject } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('a publish gate run is recorded and a red and green pair it sees files the flake [C7,D1]', () => {
   const box = landProject();
@@ -93,4 +67,5 @@ test('a publish gate run is recorded and a red and green pair it sees files the 
   assert.equal(calls(box).length - before, 3, 'each receipt represents one actual full publish gate');
 });
 
-test('a landing gate past its timeout stops cleanly [E27,E29]', () => landingTimeoutFixture({ landProject, itemWorktree, submitItem, acceptItem, onBoard, json }));
+// The landing-gate timeout case went with the host landing batch: a runner land job runs no host landing gate, and L6e
+// deletes that engine (#6119), so it is no longer journeyed here [P7,#6577].

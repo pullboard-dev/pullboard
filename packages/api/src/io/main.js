@@ -114,7 +114,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
-import { registeredBoard } from './registered.js';
+import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -353,7 +353,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   let externalNextExpiry = null;
   let externalReferences = null;
   let registryMarker = null;
-  let notifications;
+  let notifications, revisionMs = 0; // what the last revision cost: the file waiter spaces its wakes by it (#6768)
   const listeners = new Set();
   let expiryTimer;
   /** Rebind named inputs and schedule only the earliest real lease/proof-window expiry. */
@@ -374,7 +374,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   try {
-    notifications = fileChangeWaiter([dbPath, dbPath + '-wal']);
+    notifications = fileChangeWaiter([dbPath, dbPath + '-wal'], { weight: () => revisionMs });
     dbMarker = fileMarkerForPath(dbPath);
     fileMarkers = files.map(fileMarker);
     fileContent = files.map(fileRevision);
@@ -473,7 +473,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   }
 
   return {
-    revision,
+    revision() { const began = Date.now(); try { return revision(); } finally { revisionMs = Date.now() - began; } },
     subscribe(listener) {
       listeners.add(listener);
       const unsubscribe = notifications.subscribe(listener);
@@ -755,14 +755,14 @@ export function apiBoards(projects = listApiProjects, isMain, boardOpeners) {
  * @param {() => { root: string, name: string, project: string, added: string }[]} projects
  * @returns {{ boards: object[], warnings: object[] }}
  */
-export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument, boardOpeners) {
+export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument, boardOpeners, summaries = false) {
   requireBoardOpeners(boardOpeners);
   if (typeof refusalDocument !== 'function') throw new TypeError('apiBoardListing needs the caller\'s refusalDocument renderer');
   const boards = [];
   const warnings = [];
   for (const project of projects()) {
     try {
-      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }), isMain, boardOpeners));
+      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board), ...(summaries ? { summaryVersion: 1 } : {}) }), isMain, boardOpeners));
     } catch (cause) {
       const error = ['EVENT_LOG_VERSION', 'UNMERGED_SCHEMA', 'BOARD_UNAVAILABLE'].includes(cause.code) ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
       warnings.push({ ...project, error: refusalDocument(error) });
@@ -954,7 +954,7 @@ function isLiteralIPv4(host) {
  */
 export function createStateSnapshots({ projects = listApiProjects, scope, isMain, onStateBuild, onItemBuild, now = () => Date.now(), boardOpeners, viewPorts } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
-  const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
+  const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createStateSnapshots needs view projection ports');
   const projectScope = apiProjectScope(projects, scope);
   const apiProjects = projectScope.projects;
@@ -1076,7 +1076,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
         cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, reportValidator,
         summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
         open: variant(open, entry.openFields ??= prepareStateJson(open), '\0items:compact-open-v1'), finished: finishedText(entry, compactItemSummaries),
-        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas,
+        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
         search: entry.searchTexts ??= entry.state.items.map((item) => [item.id, searchText(item)]),
         shouts: Float64Array.from(withBoard(board.root, (current) => current.db.prepare('SELECT shout_id FROM shout ORDER BY shout_id').all().map((row) => row.shout_id), codeIsMain, boardOpeners)),
       };
@@ -1099,7 +1099,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     const { commonDir } = repoInfo(board.root);
     return { cacheId: commonDir + '\0' + board.id, folder: join(commonDir, 'pullboard', 'state-cache') };
   }
-  return { withSnapshot, materialize, carry, restore, snapshotPlace, formats: `${store.SCHEMA_VERSION}:${store.EVENT_LOG_VERSION}`, stateCache, codeIsMain };
+  return { withSnapshot, materialize, summaryText: typeof projectSummary === 'function' ? (entry) => summaryTextOf(entry, projectSummary) : null, carry, restore, snapshotPlace, formats: `${store.SCHEMA_VERSION}:${store.EVENT_LOG_VERSION}`, stateCache, codeIsMain };
 }
 
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
@@ -1334,7 +1334,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
-    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
+    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners, typeof viewPorts?.projectSummary === 'function')); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
@@ -1349,7 +1349,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return watched;
     },
     finished: (board) => materialized(() => materializer.finishedJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => finishedText(entry, compactItemSummaries))))),
-    delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
+    summary: snapshots.summaryText && ((board) => materialized(() => materializer.summaryJson(board), () => projectRead(board, () => withGitReadFacts(() => snapshots.withSnapshot(board, (entry) => snapshots.summaryText(entry)))))), delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
       catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
