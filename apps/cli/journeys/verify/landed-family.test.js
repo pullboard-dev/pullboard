@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 
 /** A seat in its own worktree and session, so no seat inherits another's declared family. */
@@ -19,9 +19,7 @@ async function seat(box, name, args) {
 
 /** An item claimed by a seat that declared no family but named its model, then landed by hand around the gate under verify.family require. */
 async function fixture(t, model) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  const box = crossLaneFixture(t);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, verify: { ...config.verify, family: 'require' } }, null, 2));
