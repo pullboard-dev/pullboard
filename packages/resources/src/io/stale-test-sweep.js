@@ -7,6 +7,15 @@ export const STALE_TEST_AFTER_MS = 600_000 + 300_000;
 /** A runner job's processes are owned by the runner daemon, so a parent of launchd/init is normal for them. */
 const RUNNER_JOB = /\.pullboard-runner\/jobs\//u;
 
+/**
+ * A `pullboard test --test-run` driver is spawned detached by design, so a parent of launchd/init is normal for it;
+ * its lease lapses and the queue ends it as lost if it dies, so the sweep never needs to call it orphaned.
+ */
+const TEST_RUN_DRIVER = /pullboard\.js\s+test\s+--test-run\s/u;
+
+/** Only node processes are swept: a shell whose command line merely mentions a test command is an agent's shell. */
+const NODE_PROCESS = /^(?:\S*\/)?node(?:\s|$)/u;
+
 /** The census of processes Pullboard launches to run tests: the test command, the runner and a test-file child. */
 const TEST_COMMAND = /(?:pullboard\.js\s+test\b|run-tests\.js|\bnode\b\s+(?:\S+\s+)*--test\b)/u;
 
@@ -44,7 +53,7 @@ export function readProcesses() {
 /**
  * Stop every test process whose launching process is gone (reparented to launchd or init) or that has run past its
  * budget plus a margin. A run whose owner is alive and within budget is never touched, nor is this process or any
- * ancestor of it. The caller records one event per stop (liveness.js owns the event table).
+ * ancestor of it, a detached `--test-run` driver, or a non-node process such as an agent's shell. The caller records one event per stop (liveness.js owns the event table).
  *
  * @param {{ processes: Array<object>, stop?: (pid: number) => void, afterMs?: number, own?: number, only?: (row: object) => boolean }} options
  *   processes is the census and stop the signal; only narrows the census (a test's private marker).
@@ -56,8 +65,9 @@ export function sweepStaleTests({ processes, stop = pid => process.kill(pid, 'SI
   for (let pid = own; pid && byPid.has(pid) && !protectedPids.has(pid); pid = byPid.get(pid).ppid) protectedPids.add(pid);
   const stopped = [];
   for (const row of processes) {
-    if (!TEST_COMMAND.test(row.command) || protectedPids.has(row.pid) || !only(row)) continue;
-    const reason = row.ppid === 1 && !RUNNER_JOB.test(row.command) ? 'its launching process is gone (parent is launchd/init)'
+    if (!NODE_PROCESS.test(row.command) || !TEST_COMMAND.test(row.command) || protectedPids.has(row.pid) || !only(row)) continue;
+    const orphan = row.ppid === 1 && !RUNNER_JOB.test(row.command) && !TEST_RUN_DRIVER.test(row.command);
+    const reason = orphan ? 'its launching process is gone (parent is launchd/init)'
       : row.ageMs > afterMs ? `it ran ${Math.round(row.ageMs / 1000)} s, past its ${Math.round(afterMs / 1000)} s file budget plus margin` : null;
     if (!reason) continue;
     try { stop(row.pid); } catch (error) { if (error.code !== 'ESRCH') continue; }
@@ -84,4 +94,36 @@ export function sweepAllowed(env = process.env) {
  */
 export async function scanStaleTests() {
   try { return sweepStaleTests({ processes: await readProcesses() }); } catch { return []; /* A census failure never blocks the queue. */ }
+}
+
+/**
+ * Record one event per stopped test process, naming its pid, command and reason.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
+ * @param {Array<{ pid: number, command: string, reason: string }>} stops - The processes the sweep stopped.
+ * @param {(db: object, kind: string, row: object, detail: string) => void} record - The liveness event writer.
+ */
+export function recordStaleStops(db, stops, record) {
+  for (const stop of stops) record(db, 'stale-test-stopped', { name: 'test-process', pid: stop.pid }, `${stop.command.slice(0, 300)}; ${stop.reason}`);
+}
+
+/** The machine sweep runs at most this often, on the cadence of lease expiry. */
+const SWEEP_EVERY_MS = 60_000;
+
+/**
+ * A sweeper for one process: each lease pass records the stops its previous scan finished, then starts the next scan when due.
+ * Why two steps: the census is read asynchronously, so its stops are written by the next pass inside a transaction.
+ * A process inside a test run never scans, because it shares the machine with other test files' live processes.
+ *
+ * @returns {{ pass: (db: object, record: Function, now?: number) => void }} The per-pass entry.
+ */
+export function staleTestSweeper() {
+  let last = 0;
+  const stopped = [];
+  return { pass(db, record, now = Date.now()) {
+    recordStaleStops(db, stopped.splice(0), record);
+    if (!sweepAllowed() || now - last < SWEEP_EVERY_MS) return;
+    last = now;
+    scanStaleTests().then(stops => { stopped.push(...stops); });
+  } };
 }

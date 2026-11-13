@@ -26,6 +26,7 @@ import {
   setGateRunnersOnly,
   setGateRunnerWaitMs,
   setBoardRemote,
+  setRunnerRate,
   setLandingPool,
   parseWorkerBudget,
   setWorkerBudget,
@@ -105,6 +106,15 @@ export function settingsCommand(io, { first, second, rest, values }) {
     if (clauses || values.detail === true) sayDescribed(io, `inspection.clauses: ${clauses} (legacy machine value; submit uses verify.inspectClauses from accepted main)`, values.detail === true);
     const budget = workerBudget();
     sayDescribed(io, `workers.budget: ${budget?.spend ? `${budget.spend}/${budget.window} (spend pullboard run --scale may use across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
+    return 0;
+  }
+  if (first === 'runnerRates') {
+    const fields = ['price', 'months', 'watts', 'kwhPrice'];
+    if (!second || rest.length !== fields.length) throw new Refused('USAGE', 'pullboard settings runnerRates <runner> <price> <months> <watts> <kwhPrice>');
+    const card = Object.fromEntries(fields.map((name, index) => [name, /^\s*$/u.test(rest[index]) ? NaN : Number(rest[index])]));
+    const settings = setRunnerRate(second, card);
+    io.result?.({ settings, runnerRate: { runner: second, ...settings.runnerRates[second] } });
+    io.say(`runnerRates for ${second} set to price ${card.price}, ${card.months} months, ${card.watts} W, ${card.kwhPrice} per kWh`);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
