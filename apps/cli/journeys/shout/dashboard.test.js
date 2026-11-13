@@ -115,7 +115,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
         const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
       })`), true, 'every retained tab is accessible inside the viewport');
       const title = await chrome.stable(`(() => {
-        const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-item b');
+        const element = document.querySelector('#dashboard [aria-label="Shipping now"] .dash-flight .dash-flight-row b');
         const rect = element.getBoundingClientRect(); return { text: element.textContent.trim(), width: rect.width };
       })()`);
       assert.equal(title.text, 'A task in flight', 'the building row retains the actual task title');
