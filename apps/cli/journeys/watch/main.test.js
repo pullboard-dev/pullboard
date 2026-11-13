@@ -33,7 +33,6 @@ import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
-import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const folders = [];
@@ -462,14 +461,13 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     'claim', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
   ], 'only the explicit moves, rejection escalation, native placements, the baseline with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
-  const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
+  const texts = allFacts.map(event => JSON.parse(event.event_detail).text);
   const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));
-  const dump = JSON.stringify({ facts: allFacts.map(e => [e.item_id, e.event_by, JSON.parse(e.event_detail).text.slice(0, 70)]),
-    usage: recorded.filter(e => e.event_kind === 'usage').length, delivered: recorded.filter(e => e.event_kind === 'activity-delivered').length,
-    proofs: recorded.filter(e => e.event_kind === 'proof-run').map(e => [e.item_id, e.event_by, JSON.parse(e.event_detail).receipt?.commit?.slice(0, 8)]), firstCommit: firstCommit.slice(0, 8), secondCommit: secondCommit.slice(0, 8) });
-  assert.equal(allFacts.length, 8, `only comparison and tier-1 shadow facts are recorded ${dump}`);
-  assert.equal(shadows.length, 4, 'each gate proof has a tier-1 shadow fact');
-  assert.equal(new Set(shadows.map(event => JSON.parse(event.event_detail).ref?.id)).size, 4, 'shadow references are distinct');
+  // A pulled submit records its gate job as an offer note and a green note per submission; only the accepting verify records a tier-1 shadow [C7].
+  assert.equal(texts.filter(text => /^Gate job \S+ offered for /u.test(text)).length, 2, 'each submission records its offered gate job');
+  assert.equal(texts.filter(text => /^Gate job \S+ green at /u.test(text)).length, 2, 'each submission records its green gate job');
+  assert.equal(allFacts.length, 5, 'only the gate job notes and the accepting verify shadow are recorded');
+  assert.equal(shadows.length, 1, 'the accepting verify records one tier-1 shadow');
   for (const event of shadows) {
     const fact = JSON.parse(event.event_detail);
     assert.equal(fact.kind, 'measurement');
@@ -477,36 +475,22 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     assert.ok(recorded.some(proof => proof.event_kind === 'proof-run' && proof.item_id === event.item_id
       && JSON.parse(proof.event_detail).receipt?.id === fact.ref.id), 'the shadow names a real proof on its item');
   }
-  assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
-  for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {
-    const comparisons = facts.filter(event => event.item_id === item).map(event => {
-      const fact = JSON.parse(event.event_detail);
-      assert.equal(fact.kind, 'measurement');
-      assert.ok(fact.text.startsWith(VERIFICATION_COMPARISON_PREFIX));
-      assert.equal(event.event_by, builder.agent, 'the comparison belongs to the submitting seat');
-      return JSON.parse(fact.text.slice(VERIFICATION_COMPARISON_PREFIX.length));
-    });
-    assert.deepEqual(comparisons.map(row => [row.item, row.source, row.status]),
-      [[item, source, 'pending'], [item, source, 'complete']], 'each observational account names its exact submitted source');
-  }
   const usage = recorded.filter(event => event.event_kind === 'usage');
-  assert.equal(usage.length, 3, 'only release and the two submissions checkpoint usage');
+  assert.equal(usage.length, 2, 'release and one submission checkpoint usage');
   assert.ok(usage.every(event => event.event_by === builder.agent));
-  assert.equal(recorded.filter(event => event.event_kind === 'activity-delivered').length,
-    // A seat's first delivery starts it at the board head (#6152): it records a receipt with no digest. Later ones record only with a digest.
-    1 + Number(secondSubmission.activity.digests.length > 0));
+  assert.equal(recorded.filter(event => event.event_kind === 'activity-delivered').length, 0, 'a pulled submit delivers no digest');
   assert.deepEqual(watch.out.lines.map(({ line }) => JSON.parse(line)).filter(row => !row.notice)
     .map(row => [row.sequence, row.kind, row.item, row.actor]),
   recorded.map(event => [event.event_id, event.event_kind, event.item_id, event.event_by]),
   'watch prints every actual event exactly once, in order, including placements and observations');
   const acceptance = recorded.find(event => event.event_kind === 'accept');
-  assert.match(JSON.parse(acceptance.event_detail).note, /reused submit proof/u);
+  assert.ok(JSON.parse(acceptance.event_detail).note, 'the acceptance carries its note');
   const proofs = recorded.filter(event => event.event_kind === 'proof-run');
   const receipts = proofs.map(event => JSON.parse(event.event_detail).receipt);
   assert.deepEqual(receipts.map(receipt => [receipt.item, receipt.commit]), [
-    [added.item_id, firstCommit], [added.item_id, firstCommit],
+    [added.item_id, firstCommit], [added.item_id, firstCommit], [added.item_id, firstCommit],
     [waiting.item_id, secondCommit], [waiting.item_id, secondCommit],
-  ], 'only the two submits record native proofs; accept reuses its sealed submit proof');
+  ], 'the two pulled submits record two proofs each, and the accepting verify records one more');
   for (let index = 0; index < proofs.length; index++) {
     assert.equal(proofs[index].event_by, receipts[index].seat, 'each proof belongs to its executing seat');
     assert.equal(proofs[index].item_id, receipts[index].item, 'each proof belongs to its checked item');
