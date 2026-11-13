@@ -13,6 +13,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('agent approvals show full rows and styled actions at narrow width and resolve from Spec detail [B26,N26,S1,P6]', { timeout: 120_000 }, async () => { // budget: real Git/API/browser setup and two person decisions; no performance claim.
@@ -40,6 +41,7 @@ test('agent approvals show full rows and styled actions at narrow width and reso
     assert.equal(await chrome.stable('document.querySelector("#dashboard [data-needs-field=approved-in-git] time").textContent'), 'Oct 25, 2:51 PM', 'Dashboard uses the approved minute display without a locale date, year or seconds');
     await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
+    await openItemsNeeds(chrome);
     for (const row of before.spec) await chrome.click(`document.querySelector('#needs [data-agent-approved="${row.id}"] summary')`);
     await chrome.waitFor(`view.tab === 'items' && [...document.querySelectorAll('#needs [data-agent-approved], #needs [data-row-decision]')].every(element => {
       const box = element.getBoundingClientRect();
