@@ -117,10 +117,18 @@ function extraEnvironment(env) {
   return extra.length ? { extra } : {};
 }
 
-/** The variables a test names in its header (`/** @pullboard-test-env NAME NAME *\/`) with their values; none when it names none [#4380]. */
-function declaredEnvironment(source, env) {
-  const names = [...new Set([...source.matchAll(/^\/\*\* @pullboard-test-env ([A-Za-z_][\w ]*) \*\/$/gmu)].flatMap(row => row[1].split(' ').filter(Boolean)))].sort();
-  return names.length ? { declared: names.map(name => [name, env[name] ?? null]) } : {};
+/** The variable names a test declares in its header (`/** @pullboard-test-env NAME NAME *\/`) [#4380]. */
+function declaredEnvironmentNames(source) {
+  return [...new Set([...source.matchAll(/^\/\*\* @pullboard-test-env ([A-Za-z_][\w ]*) \*\/$/gmu)].flatMap(row => row[1].split(' ').filter(Boolean)))].sort();
+}
+
+/** The memoized keys with each declaring test's current values joined to its context and key; the memo holds only the names, never values [#4380]. */
+function withDeclaredValues(keys, env) {
+  return new Map([...keys].map(([test, row]) => {
+    if (!row.envNames?.length) return [test, row];
+    const context = { ...row.context, declared: row.envNames.map(name => [name, env[name] ?? null]) };
+    return [test, { ...row, context, key: digest({ inputKey: row.inputKey, context }) }];
+  }));
 }
 
 /** Run git in the checkout with a private environment, returning trimmed stdout or throwing its error. */
@@ -294,7 +302,7 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const store = testResultStore(root, gitEnv);
   // Store upkeep reads every key memo and result record; a runner dispatch never pays it (maintain: false) [C7].
   if (maintain) maintainPartsStore(store, env);
-  return memoizedActionKeys(store, identity, files, async () => {
+  return withDeclaredValues(await memoizedActionKeys(store, identity, files, async () => {
   const { testClosures, codeMapGraph } = await import('../../affected/tests.js');
   const { closures, modules, blobs, reach } = testClosures(root, commit, priorGraph(root, env, codeMapGraph));
   const index = treeIndex(blobs);
@@ -315,13 +323,13 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
       tracked: reads.listing ? digest(index.sorted) : null });
     recordInputParts(store, inputKey, { test, files: closureBlobs(closure.files, blobs), runner, inputs: reads.inputs.map(path => [path, blobs.get(path)]),
       tracked: reads.listing ? digest(index.sorted) : null, options: shared.options });
-    const own = { ...context, ...declaredEnvironment(modules.get(test) ?? '', env) };
-    keys.set(test, { inputKey, context: own, key: digest({ inputKey, context: own }), reason: '' });
+    const envNames = declaredEnvironmentNames(modules.get(test) ?? '');
+    keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '', ...envNames.length && { envNames } });
   }
   // Parts and lists were just written: the size cap holds now, not at the next ten-minute upkeep [C7].
   enforcePartsCap(store, env);
   return keys;
-  }, { prune: maintain });
+  }, { prune: maintain }), env);
 }
 
 /** The variable naming the base commit a run's candidate forked from: a pulled test job sets it to the job's main. */
