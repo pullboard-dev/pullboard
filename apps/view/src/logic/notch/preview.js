@@ -43,7 +43,7 @@ export function notchPreviewHtml(data, which) {
       offset += width; return rect;
     }).join('') + '</svg>';
     const key = '<div class="np-key">' + parts.map(p => '<span class="np-k-' + p[0] + '">' + p[1] + ' <b>' + share(p[2] || 0, total) + '%</b></span>').join('') + '</div>';
-    return head('Agents · ' + a.total + ' · agent time, last 4 h') + '<div class="np-viz">' + bar + key + '</div>' + a.rows.map(row).join('') + go(a.goLabel || 'Open Progress', a.go || 'tab:dashboard');
+    return head('Agents · ' + a.total + (a.measured === false ? ' · at work now' : ' · agent time, last 4 h')) + '<div class="np-viz">' + bar + key + '</div>' + a.rows.map(row).join('') + go(a.goLabel || 'Open Progress', a.go || 'tab:dashboard');
   }
 
   if (which === 'perHour' && h) {
@@ -84,9 +84,10 @@ export function notchPreviewHtml(data, which) {
 export function notchPreviewData({ floor, rulings = [], oldest = '' }) {
   const n = floor.numbers, bins = floor.bins.map(bin => bin.count);
   const rate = hours => { const last = bins.slice(-hours); return last.length ? Math.round(last.reduce((s, c) => s + c, 0) / last.length) : 0; };
-  const six = rate(6), two = rate(2);
+  // The board's own pace (what the notch shows) wins over bars rebuilt from a partial history.
+  const pace = n.pace, six = pace ? Math.round(pace.last6h / 6) : rate(6), two = pace ? Math.round(pace.last2h / 2) : rate(2);
   return {
-    agents: { total: n.live, time: floor.time, go: 'tab:dashboard', goLabel: 'Open Progress', rows: [
+    agents: { total: n.live, measured: floor.complete !== false, time: floor.complete === false ? { build: n.building, review: n.reviewing, idle: n.between } : floor.time, go: 'tab:dashboard', goLabel: 'Open Progress', rows: [
       { kind: 'build', title: 'Building items', label: 'Builders', note: 'at work now', value: n.building },
       { kind: 'review', title: 'Reviewing submissions', label: 'Reviewers', note: 'checking another agent\'s work', value: n.reviewing },
       { kind: 'idle', title: 'Between items', label: 'Idle', note: 'picking the next', value: n.between },
@@ -94,7 +95,7 @@ export function notchPreviewData({ floor, rulings = [], oldest = '' }) {
     perHour: { rate: six + '/h', bins, go: 'tab:dashboard', goLabel: 'Open Dashboard', rows: [
       { kind: 'pace', title: 'Last 6 hours', label: 'Pace', note: 'today\'s rate', value: six + '/h', tone: 'g' },
       { kind: 'pace', title: 'Last 2 hours', label: 'Pace', note: two < six ? 'slowing' : 'holding', value: two + '/h', tone: two < six ? 'a' : 'g' },
-      { kind: 'land', title: 'Landed in 24 hours', label: 'Landed', note: 'on main', value: n.landed ?? '—' },
+      { kind: 'land', title: 'Landed in 24 hours', label: 'Landed', note: 'on main', value: pace ? pace.last24h : n.landed ?? '—' },
       { kind: 'back', title: 'Sent back in 4 hours', label: 'Rework', note: 'to their builders', value: n.sentBack ?? '—', tone: 'r' },
     ] },
     rulings: { items: rulings, oldest },
@@ -107,13 +108,17 @@ export function notchPreviewData({ floor, rulings = [], oldest = '' }) {
  *
  * @param {object} state - What dashboardModel returned.
  * @param {number} live - The notch's own agents number, so the preview's header agrees with it.
+ * @param {object|null} pace - The board's last2h, last6h and last24h landed counts, so the pace agrees with the notch.
  * @returns {{ numbers: object, time: object, bins: object[] }} The shape notchPreviewData reads.
  */
-export function notchFloor(state, live) {
+export function notchFloor(state, live, pace = null) {
+  const window = state.now - state.start, work = state.agents.filter(agent => agent.group !== 'quiet');
   const count = key => state.agents.filter(agent => agent.group === key).length;
-  const sum = key => state.agents.reduce((total, agent) => total + (agent[key] || 0), 0);
-  return { numbers: { live, building: count('building'), reviewing: count('reviewing'), between: count('between items'), landed: state.totals.day, sentBack: state.totals.sentBack },
-    time: { build: sum('build'), review: sum('review'), idle: sum('idle') }, bins: state.bins };
+  const sum = key => work.reduce((total, agent) => total + Math.min(window, agent[key] || 0), 0);
+  // Idle is each working agent's share of the window that was neither building nor reviewing, never the model's open-ended idle.
+  const idle = work.reduce((total, agent) => total + Math.max(0, window - Math.min(window, agent.build || 0) - Math.min(window, agent.review || 0)), 0);
+  return { complete: state.complete, numbers: { live, building: count('building'), reviewing: count('reviewing'), between: count('between items'), landed: state.totals.day, sentBack: state.totals.sentBack, pace },
+    time: { build: sum('build'), review: sum('review'), idle }, bins: state.bins };
 }
 
 /**
@@ -199,7 +204,7 @@ export function notchPreview(notch, read, { html = notchPreviewHtml, delay = 160
   const onClick = event => {
     const el = widget(event.target);
     if (el && notch.contains(el)) {
-      if (el.getAttribute('data-notch') === 'rulings') { clearTimer(timer); show(el, 'list'); } else close();
+      if (el.getAttribute('data-notch') === 'rulings') { event.stopPropagation(); clearTimer(timer); show(el, 'list'); } else close();
     }
   };
   const onPanelClick = event => {

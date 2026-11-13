@@ -155,10 +155,12 @@ test('notchRulings: the page\'s calls become list rows with the button the Needs
 });
 
 test('notchFloor: the notch\'s numbers from a Dashboard model, with the notch\'s own agents total [N26,#6651]', () => {
-  const state = { agents: [{ group: 'building', build: 5, review: 0, idle: 1 }, { group: 'reviewing', build: 0, review: 4, idle: 2 }, { group: 'between items', build: 1, review: 1, idle: 3 }, { group: 'quiet', build: 0, review: 0, idle: 9 }],
+  const state = { now: 100, start: 0, complete: true, agents: [{ group: 'building', build: 50, review: 0 }, { group: 'reviewing', build: 0, review: 40 }, { group: 'between items', build: 10, review: 10 }, { group: 'quiet', build: 0, review: 0 }],
     totals: { day: 636, sentBack: 6 }, bins: [{ count: 2 }] };
   const out = notchFloor(state, 3);
-  assert.deepEqual(out.numbers, { live: 3, building: 1, reviewing: 1, between: 1, landed: 636, sentBack: 6 });
-  assert.deepEqual(out.time, { build: 6, review: 5, idle: 15 });
+  assert.deepEqual(out.numbers, { live: 3, building: 1, reviewing: 1, between: 1, landed: 636, sentBack: 6, pace: null });
+  assert.deepEqual(out.time, { build: 60, review: 50, idle: 190 }, 'a quiet agent adds nothing and idle stays inside the window');
+  const partial = notchPreviewHtml(notchPreviewData({ floor: { ...out, complete: false, numbers: { ...out.numbers, pace: { last2h: 4, last6h: 18, last24h: 70 } } } }), 'agents');
+  assert.match(partial, /at work now/u, 'without full history the split shows who is working now, never a guessed time');
   assert.equal(out.bins.length, 1);
 });

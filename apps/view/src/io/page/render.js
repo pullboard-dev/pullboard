@@ -144,7 +144,7 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0 } = 
     const board = notchBoard, kept = dashboardView.held(board.root);
     const state = kept ? kept.state : dashboardModel(board, board.events || [], { now: Date.now(), complete: false });
     const { items, oldest } = notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago);
-    return notchPreviewData({ floor: notchFloor(state, notchAgents), rulings: items, oldest });
+    return notchPreviewData({ floor: notchFloor(state, notchAgents, board.dashboardPace || null), rulings: items, oldest });
   });
   text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
   text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
