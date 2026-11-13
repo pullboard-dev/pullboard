@@ -405,10 +405,10 @@ function mainOwnership(board, id, compared, main) {
   // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure.
   const failures = [...new Map(compared.cases.map(({ file, name, signature }) => [`${file}\0${name}`, { file, name, signature }])).values()];
   const items = store.listItems(board, { all: true });
-  const { clear } = store.splitAmbiguousMainReds({ main, failures }, items, id);
+  const { clear, ambiguous } = store.splitAmbiguousMainReds({ main, failures }, items, id);
   const unowned = store.unownedMainReds(clear, items, id) ?? [];
   const owned = clear.failures.filter(row => !unowned.some(red => red.file === row.file));
-  return { checkOnly: compared.cases.every(row => row.phase === 'check'), failures, unowned,
+  return { checkOnly: compared.cases.every(row => row.phase === 'check'), failures, unowned, ambiguous,
     known: owned.length ? store.linkKnownMainReworks({ main, failures: owned }, items, id) : null };
 }
 
@@ -538,11 +538,12 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         ...(deferred && typeof receipt.gate.deferNote === 'string' ? { note: receipt.gate.deferNote.replace(/[\r\n\u2028\u2029]/gu, ' ') } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files } } : {}),
         submissionProof: { version: 1, files, full: false, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
-          ...(owners?.known ? { knownMainFailures: owners.known } : {}) } });
+          ...(owners?.known ? { knownMainFailures: owners.known } : {}), ...(owners?.ambiguous.length ? { knownMainAmbiguous: owners.ambiguous } : {}) } });
       if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
       if (mainOnly) {
         const owner = row => owners.known?.failures.find(one => one.file === row.file && one.name === row.name)?.item;
-        const lines = owners.failures.map(row => `${owners.checkOnly ? 'main-owned' : 'main red'} ${row.file} (${row.name}): ${owner(row) ? `open repair #${owner(row)}` : owners.unowned.some(red => red.file === row.file) ? 'no open Main red item; the coordinator is asked to own it' : 'several candidate repairs'}`);
+        const candidates = row => owners.ambiguous.find(one => one.file === row.file && one.name === row.name)?.candidates.map(item => `#${item}`).join(', ') ?? '';
+        const lines = owners.failures.map(row => `${owners.checkOnly ? 'main-owned' : 'main red'} ${row.file} (${row.name}): ${owner(row) ? `open repair #${owner(row)}` : owners.unowned.some(red => red.file === row.file) ? 'no open Main red item; the coordinator is asked to own it' : `several candidate repairs ${candidates(row)}`.trim()}`);
         store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${caseLines(compared).join('\n')}\n${lines.join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
       }
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : gateGreen ? 'green over main-owned frozen check cases' : mainOnly ? 'red only on main\'s own cases' : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
@@ -554,7 +555,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       if (green) startPulledComparison(board, id, submit.agentId);
-      return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.checkOnly ? owners.failures : [], knownMainReworks: owners.known?.failures ?? [] } : {}) };
+      return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.checkOnly ? owners.failures : [], knownMainReworks: owners.known?.failures ?? [], knownMainAmbiguous: owners.ambiguous } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
       if (!error?.code) throw error;
