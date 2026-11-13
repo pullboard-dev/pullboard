@@ -141,6 +141,14 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
       for (let index = 0; index < chunks; index++) console.log('# dashboard-image ' + JSON.stringify({ scheme, width, index, chunks, data: capture.data.slice(index * chunkSize, (index + 1) * chunkSize) }));
     }
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents]").textContent.includes("web-1")'), true, 'the live summary holder appears in Agents');
+    // Where the work is: each of the five step cards opens Items filtered to its own step (#6645).
+    for (const [step, state] of [['ready', 'ready'], ['building', 'building'], ['review', 'verify'], ['passed', 'passed'], ['landed', 'landed']]) {
+      await press(chrome, `document.querySelector('#dashboard [data-dashboard-step="${step}"]')`);
+      await chrome.waitFor(`view.tab === "items" && view.state === ${JSON.stringify(state)}`);
+      if (step === 'building') assert.match(await chrome.stable('document.querySelector("#chain").textContent'), /A task in flight/u, 'the Building card lists the item being built');
+      await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+      await chrome.waitFor('view.tab === "dashboard"');
+    }
     await press(chrome, 'document.querySelector("#dashboard [data-dashboard-list=review]")');
     await chrome.waitFor('view.tab === "items" && view.state === "verify"');
     await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
