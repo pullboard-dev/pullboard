@@ -1,7 +1,7 @@
 /** Native item-patch history read from rows already loaded, with no node: built-in, so move declarations stay process-free [C7,V4,H16]. */
 import { ENGINE_VERSION } from "../../../../state/light.js";
 import { ITEM_PATCH_ENGINE } from "../../../../state/light.js";
-import { Refused } from "../../../../kernel/light.js";
+import { Refused } from "../../../../kernel/browser.js";
 const PREFIX = 'item_patches:';
 
 /** Read immutable native history without importing board opening or write orchestration. */
