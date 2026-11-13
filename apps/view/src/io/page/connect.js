@@ -275,8 +275,28 @@ function theme(pick) {
 }
 theme(keep('pb.theme'));
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => theme(keep('pb.theme')));
-/** The navigation sits at the top (#6614): the project list is always the switcher's dropdown, never a docked sidebar. */
+/** The project list is always the switcher's dropdown, never a docked sidebar. */
 document.documentElement.dataset.side = 'collapsed';
+/** The navigation sits at the top or in the sidebar, as the pin last chose on this device; a phone always gets the top. */
+const widePage = matchMedia('(min-width: 901px)');
+function placeNav() {
+  const layout = navLayout({ stored: keep('pb.nav'), wide: widePage.matches });
+  document.documentElement.dataset.nav = layout;
+  const pin = document.getElementById('nav-pin');
+  if (!pin) return;
+  const words = layout === 'side' ? 'Move the navigation to the top' : 'Move the navigation to the sidebar';
+  pin.setAttribute('aria-pressed', String(layout === 'side'));
+  pin.setAttribute('aria-label', words);
+  pin.title = words + ' (\\\\)';
+  pin.querySelector('.pg')?.classList.toggle('up', layout === 'side');
+}
+/** The pin flips the layout and this device remembers it. */
+function flipNav() {
+  keep('pb.nav', document.documentElement.dataset.nav === 'side' ? 'top' : 'side');
+  placeNav();
+}
+placeNav();
+widePage.addEventListener?.('change', placeNav);
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.

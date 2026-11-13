@@ -49,6 +49,35 @@ export function navStripHtml({ tab = null, cost = false, open = null, facts = {}
 }
 
 /**
+ * Which layout the navigation takes: the sidebar only when this device chose it with the pin and the screen is wide
+ * enough; a phone, and anything the device never chose, gets the top tabs [N26].
+ *
+ * @param {{ stored?: string|null, wide?: boolean }} [state]
+ * @returns {'top'|'side'}
+ */
+export function navLayout({ stored = null, wide = true } = {}) {
+  return stored === 'side' && wide ? 'side' : 'top';
+}
+
+/**
+ * The sidebar layout's page list: the same pages as the strip, under quiet group labels, each a 28 px row with its
+ * one fact at the right (amber when it needs the person, muted otherwise). Every row is a `[data-tab]` button, so the
+ * strip's click handler and active mark serve it too; the board fills each `[data-nav-fact]` in place.
+ *
+ * @param {{ tab?: string|null, cost?: boolean, facts?: Record<string, string|number|null>, amber?: string[] }} [state]
+ * @returns {string}
+ */
+export function navSideHtml({ tab = null, cost = false, facts = {}, amber = [] } = {}) {
+  const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const pages = navPages({ cost });
+  const fact = (id) => facts[id] === null || facts[id] === undefined || facts[id] === '' ? '' : String(facts[id]);
+  return ['work', 'rules', 'insights'].map(groupId => {
+    const members = pages.filter(page => page.groupId === groupId);
+    return '<div class="side-h">' + members[0].group + '</div>' + members.map(page => '<button class="side-row' + (page.id === tab ? ' on' : '') + '" data-tab="' + page.id + '" type="button"' + (page.id === tab ? ' aria-current="page"' : '') + '><span class="side-name">' + page.name + '</span><span class="f' + (amber.includes(page.id) ? ' a' : '') + '" data-nav-fact="' + page.id + '">' + esc(fact(page.id)) + '</span></button>').join('');
+  }).join('');
+}
+
+/**
  * The notch's three numbers, in the rules' order (activity, pace, attention): agents at work, landed per hour and
  * rulings. One number and at most two words each; colour carries meaning (green pace, amber rulings). Each item
  * carries data-peek, the hook a hover preview attaches to, and opens its page on click.

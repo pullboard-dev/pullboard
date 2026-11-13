@@ -130,7 +130,8 @@ function showNav() {
     const menu = $('nav-menu-' + group);
     if (menu) menu.hidden = !open;
   });
-  document.querySelectorAll?.('.tab[data-tab]').forEach((button) => {
+  document.querySelectorAll?.('.tab[data-tab], .side-row[data-tab]').forEach((button) => {
+    button.classList.toggle('on', button.dataset.tab === view.tab);
     if (button.dataset.tab === view.tab) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
   });
 }
@@ -233,6 +234,7 @@ function countUnseen() {
   const unread = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || 0;
   const slot = $('status-unread');
   if (slot) { slot.innerHTML = '<b>' + unread + '</b> unread'; slot.hidden = !unread; }
+  document.querySelectorAll?.('[data-nav-fact="shouts"]').forEach((node) => { node.textContent = unread ? String(unread) : ''; });
 }
 
 /** A quiet line that opens what it counts: what it says, everything it holds on hover, and show or hide. */
@@ -953,6 +955,7 @@ document.addEventListener('click', (event) => {
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-window],[data-cost-copy],[data-cost-all],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side, #proj-switch')) fold(false);
+  if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const navGroup = event.target.closest('[data-nav-group]');
   if (navGroup) { openNavMenu(navGroup.dataset.navGroup); return; }
   if (view.navOpen) openNavMenu(null);
@@ -1224,6 +1227,10 @@ document.addEventListener('keydown', (event) => {
       choices[next].focus({ preventScroll: true });
     }
   }
+});
+// A backslash flips the navigation between the top and the sidebar, as the pin does.
+document.addEventListener('keydown', (event) => {
+  if (event.key === '\\\\' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.target.closest('input, textarea, select, [contenteditable]')) { event.preventDefault(); flipNav(); }
 });
 // Cmd+K or Ctrl+K goes to the search from anywhere; Esc closes an open navigation menu.
 document.addEventListener('keydown', (event) => {

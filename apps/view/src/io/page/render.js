@@ -15,6 +15,7 @@ import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
 import { progressHtml } from "../../logic/nav.js";
+import { navLayout } from "../../logic/nav.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -35,6 +36,7 @@ ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
 ${progressHtml.toString()}
+${navLayout.toString()}
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -123,7 +125,7 @@ function itemStageMarks(item, project) {
  * The navigation's board numbers: the notch's three (agents at work, landed per hour, rulings), the switcher's amber
  * rulings count, each menu page's fact, and the Progress page while it shows. Text only, so the shell never redraws.
  */
-function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0 } = {}) {
+function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, active = 0 } = {}) {
   const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
   const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
   const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
@@ -134,8 +136,11 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0 } = 
   ruled?.classList?.toggle('a', rulings > 0);
   $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the agent floor.' : 'No agent at work. Open the agent floor.');
   text($('proj-rulings'), rulings ? String(rulings) : '');
-  const facts = { spec: (p.spec || []).length, doctrine: (p.practice || []).length };
-  for (const [page, value] of Object.entries(facts)) text(document.querySelector?.('[data-nav-fact="' + page + '"]'), value ? String(value) : '');
+  // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
+  const release = nextMilestone(p);
+  const facts = { progress: pace === null ? '' : Math.round(pace) + '/h', items: active || '',
+    roadmap: release && release.total > release.done ? release.total - release.done + ' to go' : '', spec: (p.spec || []).length, doctrine: (p.practice || []).length };
+  for (const [page, value] of Object.entries(facts)) document.querySelectorAll?.('[data-nav-fact="' + page + '"]').forEach((node) => text(node, value ? String(value) : ''));
   if (view.tab === 'progress') {
     const html = progressHtml({ agents, perHour: pace, landedDay: p.dashboardPace?.last24h ?? null, rulings, building, review });
     if ($('progress').innerHTML !== html) $('progress').innerHTML = html;
@@ -651,7 +656,7 @@ function render() {
     + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
     + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(agentName(last.event_by)) + ' ' + esc(eventWords(last.event_kind)) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
-  drawNav(p, { agents: footerBusy.length, agentNames: footerBusy.map((a) => agentName(a.agent_id)), building: active.filter((i) => stateOf(i) === 'building').length, review: active.filter((i) => stateOf(i) === 'verify').length });
+  drawNav(p, { agents: footerBusy.length, agentNames: footerBusy.map((a) => agentName(a.agent_id)), active: active.length, building: active.filter((i) => stateOf(i) === 'building').length, review: active.filter((i) => stateOf(i) === 'verify').length });
   if (view.tab === 'spec') $('spec-fit').innerHTML = (p.fit || []).length ? '<h3>Blueprint fit: ' + p.fit.length + ' unverified ' + (p.fit.length === 1 ? 'proposal' : 'proposals') + ' waiting for you</h3>' + p.fit.map(fitRow).join('') : '';
   for (const kind of ['spec', 'doctrine'].filter(kind => kind === view.tab)) {
     const rows = kind === 'spec' ? p.spec : p.practice;

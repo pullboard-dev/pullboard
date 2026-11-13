@@ -7,6 +7,10 @@ import { composeViewStyles } from '../../src/io/styles.js';
 import { navPages } from '../../src/logic/nav.js';
 import { navStripHtml } from '../../src/logic/nav.js';
 import { notchHtml } from '../../src/logic/nav.js';
+import { navLayout } from '../../src/logic/nav.js';
+import { navSideHtml } from '../../src/logic/nav.js';
+import { pageScriptPart2 } from '../../index.js';
+import { runInNewContext } from 'node:vm';
 import { placeQuery } from '../../src/logic/nav.js';
 import { readPlaceQuery } from '../../src/logic/nav.js';
 import { withPlaceQuery } from '../../src/logic/nav.js';
@@ -87,13 +91,13 @@ test('clause 1: the strip is plain text: active ink, bold and a green dot; hover
   assert.deepEqual(on.split(';').map(part => part.trim()).filter(Boolean).sort(), ['background: none', 'color: var(--ink)', 'font-weight: 600'], 'active is ink and bold, with no fill');
   const dot = rule(`${strip}.on::before, :root[data-nav="top"] .tab-group-btn.on::before`);
   for (const part of ['width: 5px', 'height: 5px', 'border-radius: 50%', 'background: var(--accent)']) assert.ok(dot.includes(part), `the active mark is a small green dot: ${part}`);
-  const navRules = css.slice(css.indexOf(':root[data-nav="top"] {'));
+  const navRules = css.slice(css.indexOf(':root[data-nav] {'));
   assert.doesNotMatch(navRules.match(/:root\[data-nav="top"\] \.tabs > \.tab[^{]*\{[^}]*\}/gu).join('\n'), /underline|border-bottom|box-shadow|radius-pill/u, 'no underline, inset block or pill on a tab');
   // The prototype's neutral ground, the notch's grey and the two tiers' heights.
   assert.match(navRules, /--ground: light-dark\(#f2f2f2, #0c110f\); --surface: light-dark\(#ffffff, #121815\)/u);
-  assert.match(rule(':root[data-nav="top"] .top-tier'), /height: 40px/u);
+  assert.match(rule(':root[data-nav] .top-tier'), /height: 40px/u);
   assert.match(rule(':root[data-nav="top"] .strip'), /height: 34px/u);
-  assert.match(rule(':root[data-nav="top"] .status'), /height: 26px/u);
+  assert.match(rule(':root[data-nav] .status'), /height: 26px/u);
 });
 
 test('clause 1: the notch holds agents, per hour and rulings, in that order, with steady figures and click hooks [N26]', () => {
@@ -135,4 +139,74 @@ test('clause 2: every filter and search has its own address, a default leaves no
     const read = readPlaceQuery(at(place));
     assert.deepEqual(placeQuery({ ...place, ...Object.fromEntries(Object.entries(read).filter(([, value]) => value !== null)) }), placeQuery(place), `${JSON.stringify(place)} reads back as itself`);
   }
+});
+
+test('clause 1: the sidebar lists the same pages in 28 px rows, each with its one fact, under quiet group labels, below the project switcher at the top left [N26]', () => {
+  const html = navSideHtml({ tab: 'items', cost: true, facts: { progress: '34/h', items: 653, shouts: 4, roadmap: '60 to go', spec: 314, doctrine: 46 }, amber: ['shouts'] });
+  assert.deepEqual([...html.matchAll(/<div class="side-h">([A-Za-z]+)<\/div>/gu)].map(match => match[1]), ['Work', 'Rules', 'Insights'], 'quiet group labels, as in the strip');
+  const rows = [...html.matchAll(/<button class="side-row( on)?" data-tab="([a-z]+)" type="button"[^>]*><span class="side-name">([A-Za-z]+)<\/span><span class="f( a)?" data-nav-fact="([a-z]+)">([^<]*)<\/span><\/button>/gu)];
+  assert.deepEqual(rows.map(match => match[2]), navPages({ cost: true }).map(page => page.id), 'the same pages in the same order as the strip');
+  assert.deepEqual(rows.map(match => [match[2], match[6]]), [['progress', '34/h'], ['items', '653'], ['shouts', '4'], ['roadmap', '60 to go'], ['spec', '314'], ['doctrine', '46'], ['dashboard', ''], ['activity', ''], ['cost', '']], 'one fact a row, left empty until the board gives it');
+  assert.deepEqual(rows.filter(match => match[4]).map(match => match[2]), ['shouts'], 'amber only where it needs the person; the rest are muted');
+  assert.deepEqual(rows.filter(match => match[1]).map(match => match[2]), ['items'], 'one active row');
+  assert.match(html, /data-tab="items" type="button" aria-current="page"/u);
+  assert.equal(navSideHtml({ tab: 'x' }).includes('data-tab="cost"'), false, 'Cost shows only where the view keeps private cost');
+
+  const css = composeViewStyles();
+  const rule = (selector) => { const at = css.indexOf(selector + ' {'); assert.ok(at >= 0, `the stylesheet has ${selector}`); return css.slice(at + selector.length + 2, css.indexOf('}', at)); };
+  assert.match(rule(':root[data-nav="side"] .side-row'), /height: 28px/u, '28 px rows');
+  assert.match(rule(':root[data-nav="side"] .side-row.on'), /color: var\(--ink\); font-weight: 600/u, 'active is ink and bold');
+  assert.match(rule(':root[data-nav="side"] .side-row.on::before'), /width: 5px; height: 5px; border-radius: 50%; background: var\(--accent\)/u, 'with the small green dot');
+  assert.doesNotMatch(rule(':root[data-nav="side"] .side-row') + rule(':root[data-nav="side"] .side-row:hover') + rule(':root[data-nav="side"] .side-row.on'), /underline|box-shadow|radius-pill|background: var\(--(?!accent)/u, 'no fill, underline or pill on a row');
+  assert.match(rule(':root[data-nav="side"] .side-row .f.a'), /color: var\(--warn\)/u, 'amber when it needs the person');
+  assert.match(rule(':root[data-nav="side"] .side-row .f'), /color: var\(--ink-faint\)/u, 'muted otherwise');
+  assert.match(rule(':root[data-nav="side"] .sidenav'), /position: sticky/u);
+  assert.match(rule(':root[data-nav="side"] .strip'), /display: none/u, 'the strip gives way to the sidebar');
+  assert.match(rule(':root[data-nav="top"] .sidenav'), /display: none/u, 'the sidebar gives way to the strip');
+  assert.match(rule(':root[data-nav="side"] header.top'), /grid-column: 1 \/ -1/u, 'the top tier, with the switcher, spans the page above the sidebar');
+
+  const served = shell(false);
+  assert.match(served, /<nav class="sidenav" id="sidenav" aria-label="Pages"><div class="side-h">Work<\/div>/u, 'the shell carries the sidebar list');
+  assert.match(served, /data-nav-fact="shouts"/u);
+  assert.ok(served.indexOf('id="proj-switch"') < served.indexOf('class="notch"') && served.indexOf('id="proj-rulings"') < served.indexOf('class="pin"'), 'the switcher with its decisions badge is the top left');
+  assert.ok(served.indexOf('id="sidenav"') > served.indexOf('</aside>') && served.indexOf('id="sidenav"') < served.indexOf('<div class="body">'), 'the sidebar sits beside the page, outside the top tier');
+});
+
+test('clause 2: the pin flips the navigation between the top tabs and the sidebar, this device remembers it, and a phone always gets the top [N26]', () => {
+  assert.equal(navLayout({ stored: 'side', wide: true }), 'side');
+  assert.equal(navLayout({ stored: 'side', wide: false }), 'top', 'a phone always gets the top tabs');
+  assert.equal(navLayout({ stored: 'top', wide: true }), 'top');
+  assert.equal(navLayout({ stored: null, wide: true }), 'top', 'the top until the pin says otherwise');
+  assert.equal(navLayout({ stored: 'sideways', wide: true }), 'top');
+  assert.match(shell(false), /<button class="pin" id="nav-pin" type="button" aria-pressed="false" aria-label="Move the navigation to the sidebar" title="Move the navigation to the sidebar \(\\\)"><span class="pg">⇤<\/span><\/button>/u, 'the pin is a button, not a decoration');
+
+  // The page's own script: run the pin's code against a fake page, as the browser would.
+  const script = pageScriptPart2(new Proxy({}, { get: () => function stub() { return {}; } }));
+  const start = script.indexOf('const widePage'), end = script.indexOf("widePage.addEventListener?.('change', placeNav);");
+  assert.ok(start >= 0 && end > start, 'the page script carries the pin');
+  const run = ({ stored, wide }) => {
+    const kept = new Map(stored ? [['pb.nav', stored]] : []), attributes = {}, classes = new Set();
+    const pin = { setAttribute: (name, value) => { attributes[name] = value; }, title: '', querySelector: () => ({ classList: { toggle: (name, on) => { if (on) classes.add(name); else classes.delete(name); } } }) };
+    const listeners = [];
+    const root = { dataset: {} };
+    const context = { navLayout, keep: (key, value) => value === undefined ? kept.get(key) ?? null : kept.set(key, value),
+      matchMedia: () => ({ matches: wide, addEventListener: (type, listener) => listeners.push(listener) }),
+      document: { documentElement: root, getElementById: () => pin } };
+    runInNewContext(script.slice(start, end) + '; placeNav; flipNav; this.flip = flipNav;', context);
+    return { root, kept, attributes, classes, pin, flip: context.flip };
+  };
+  const side = run({ stored: 'side', wide: true });
+  assert.equal(side.root.dataset.nav, 'side', 'a device that chose the sidebar gets it');
+  assert.equal(side.attributes['aria-pressed'], 'true');
+  assert.ok(side.classes.has('up'), 'the glyph turns a quarter');
+  assert.match(side.pin.title, /Move the navigation to the top \(\\\)/u);
+  side.flip();
+  assert.equal(side.kept.get('pb.nav'), 'top', 'a press flips it and the device keeps it');
+  assert.equal(side.root.dataset.nav, 'top');
+  const top = run({ stored: null, wide: true });
+  assert.equal(top.root.dataset.nav, 'top');
+  top.flip();
+  assert.equal(top.kept.get('pb.nav'), 'side');
+  assert.equal(top.root.dataset.nav, 'side');
+  assert.equal(run({ stored: 'side', wide: false }).root.dataset.nav, 'top', 'a phone keeps the top tabs whatever the device chose');
 });
