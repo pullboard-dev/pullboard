@@ -49,7 +49,7 @@ test('the actual discovered command loader reaches command run and its literal h
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    ['src/discovery.js', 'packages/kernel/index.js'].includes(file)
+    ['src/discovery.js', 'packages/kernel/index.js', 'packages/kernel/light.js'].includes(file)
       || file.startsWith('packages/kernel/src/')) });
   box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
   box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
