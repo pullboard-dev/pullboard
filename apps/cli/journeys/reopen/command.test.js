@@ -134,6 +134,7 @@ async function submitLandingFixture(box, number, contents, cwd = box.web) {
   const commit = box.git(cwd, 'rev-parse', 'HEAD');
   const submitted = (await fixtureCommand(box, cwd, 'submit', String(id)));
   assert.equal(submitted.code, 0, submitted.err);
+  await settledGateJob(box, id);
   return { id, cwd, commit };
 }
 
