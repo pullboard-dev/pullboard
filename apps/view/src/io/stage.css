@@ -34,7 +34,7 @@
 /* A shared chip track keeps every Items row the same height, with or without marks. */
 #chain .item-stage { height: var(--space-6); justify-content: center; }
 /* Marks precede the compact chip so the seat and its age retain their shared right edge. */
-#chain .row-side .item-stage { grid-area: auto; align-items: flex-end; }
+#chain .row-side .item-stage { grid-area: auto; align-items: flex-end; max-width: none; overflow: visible; }
 #chain .row-side .stage-line { flex-direction: row-reverse; justify-content: flex-start; }
 .claim-overlap { display: block; color: var(--warn); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); }
 
