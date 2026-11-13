@@ -60,6 +60,8 @@ export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
 export function checkCellLints(root, parsers, emit, { code = [], build = () => cellLintReport(root, parsers) } = {}) {
   const main = mainCommit(root);
   return cachedCellsRun(root, ['cell-lints', '--check', main ?? 'no-main'], () => {
+    // A committed baseline must stay hash-bound to its shards: an edit without a rebind refuses here, not only in --report [C7].
+    if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) { try { readCellLintBaseline(root); } catch (error) { emit(error.message); return 1; } }
     const current = build(), base = mainCellLintReport(root, parsers, main);
     if (!base) { emit('no main branch to compare with; nothing can rise'); return 0; }
     // Advisory transition authority comes only from main, as in the submit check.

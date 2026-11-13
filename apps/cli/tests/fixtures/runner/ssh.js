@@ -136,11 +136,13 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ho
   process.stdin.resume();
 } else` : ''} {
   const env = { PATH: process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
-    PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
+    PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', PULLBOARD_AGENT_CORES: '4096', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
     ...((registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
-  const child = spawn('/bin/sh', ['-c', skipAgent ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env,
+  // A real ssh -T remote has no controlling terminal; detached gives the shell its own session, or the runner's tty makes BSD nohup refuse to start the agent (#6734).
+  // PULLBOARD_AGENT_CORES: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job.
+  const child = spawn('/bin/sh', ['-c', skipAgent ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env, detached: true,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   // READY and ordinary results stream; only a held-return fault withholds its receipt.
@@ -184,7 +186,7 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
   }
   child.once('error', error => { record({ spawnError: error.code ?? error.name, stdinBytes }); process.exitCode = 255; });
   child.once('close', (code, signal) => {
-${invalidSpec ? '    process.stdin.destroy(); child.stdin.destroy();' : ''}
+    process.stdin.destroy(); child.stdin.destroy(); // a real ssh ends when its remote command does, even if the controller's pipe stays open
     appendFileSync(phases, 'returned\\n');
     if (hold === 'return') setInterval(() => {}, 60_000);
     cancelDropWait();

@@ -49,10 +49,10 @@ import {
 } from '../../../../../merge/index.js';
 import {
   sourceAdvancePlan,
-} from '../../../../../codemap/index.js';
+} from '../../../../../codemap/light.js';
 import {
   sourceAdvanceHash,
-} from '../../../../../codemap/index.js';
+} from '../../../../../codemap/light.js';
 import {
   sourceAdvanceEpisode,
 } from '../../../../../verify/index.js';

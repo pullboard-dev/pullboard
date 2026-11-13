@@ -231,8 +231,11 @@ function normalizeMilestoneLimit(limit) {
 }
 
 /** Enforce the receiver's cap on new moves, leaving older recorded moves unchanged [H16,N26]. */
-function enforceMilestoneLimit(board, milestone, items, itemById) {
+function enforceMilestoneLimit(board, milestone, items, itemById, plainAdd = false) {
   if (engineOf(board) < MILESTONE_LIMIT_ENGINE || milestone.limit == null || items.length <= milestone.limit) return;
+  if (plainAdd && engineOf(board) >= MILESTONE_PERSON_LIMIT_ENGINE) {
+    throw new Refused('MILESTONE_LIMIT', `${milestone.name} is at its limit of ${milestone.limit}; an agent or the coordinator cannot grow it. Swap an unstarted item out with --add <id> --swap <id>, or ask the person to raise it: pullboard milestone edit ${JSON.stringify(milestone.name)} --limit <n>|none --as person in the main checkout`);
+  }
   const unstarted = milestone.items.filter(id => typeof id === 'number' && itemById(board, id)?.item_status === 'open');
   const candidates = unstarted.length ? unstarted.map(id => `#${id}`).join(', ') : 'none';
   throw new Refused('MILESTONE_LIMIT', `${milestone.name} would have ${items.length} items, above limit ${milestone.limit}; unstarted items that could move out: ${candidates}; use pullboard milestone items ${JSON.stringify(milestone.name)} --add <id> --swap <id>, remove items, or raise --limit`);
@@ -267,7 +270,7 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     const nextItems = swaps.length
       ? current.items.map(id => id === swaps[0] ? additions[0] : id)
       : [...current.items.filter(id => !removed.includes(id)), ...additions];
-    if (additions.length) enforceMilestoneLimit(board, current, nextItems, itemById);
+    if (additions.length) enforceMilestoneLimit(board, current, nextItems, itemById, swaps.length === 0);
     entries[index] = { ...current, items: nextItems,
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= MILESTONE_RANK_ENGINE && current.order
         ? { order: current.order.map(id => swaps.includes(id) ? additions[0] : id).filter(id => nextItems.includes(id)) } : {}) };

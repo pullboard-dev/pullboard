@@ -17,8 +17,10 @@ import { CELL_METRICS } from '../lints.js';
 import { validateCellLintBaseline } from './ratchet.js';
 import { Refused } from '../../../../../kernel/index.js';
 
-export const CELL_BASELINE_DIRECTORY = 'packages/codemap/data/baselines/lints';
-export const CELL_BASELINE_DESCRIPTOR = CELL_BASELINE_DIRECTORY + '/index.json';
+import { CELL_BASELINE_DESCRIPTOR } from '../../../logic/path/map.js';
+import { CELL_BASELINE_DIRECTORY } from '../../../logic/path/map.js';
+export { CELL_BASELINE_DESCRIPTOR };
+export { CELL_BASELINE_DIRECTORY };
 const DIRECTORY = CELL_BASELINE_DIRECTORY, DESCRIPTOR = CELL_BASELINE_DESCRIPTOR;
 /** Hash the exact persisted UTF-8 bytes, including the final newline. */
 function digest(bytes) { return createHash('sha256').update(bytes).digest('hex'); }

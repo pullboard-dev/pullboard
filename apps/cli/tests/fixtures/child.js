@@ -9,6 +9,7 @@ export {
   cleanupFixtureChildren,
   fixtureChildMessage,
   runFixtureGit,
+  runFixtureSetupGit,
   runFixtureExecFile,
   runFixtureExec,
   startFixtureChild,

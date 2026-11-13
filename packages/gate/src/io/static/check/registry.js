@@ -25,6 +25,7 @@ import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
 import { layoutProblems } from '../layout.js';
+import { inlineStyleProblems } from '../inline-style.js';
 
 /**
  * Per-file checks that judge a file against the same file on accepted main, so only newly added problems fail.
@@ -113,6 +114,8 @@ export const STATIC_CHECKS = Object.freeze([
   } },
   { name: 'empty-catch', run: growthCheck(emptyCatchProblems) },
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
+  // No new style= attribute or element .style write in apps/view; each file keeps main's count and never gains one (packages/gate/src/io/static/inline-style.js).
+  { name: 'inline-style', run: growthCheck(inlineStyleProblems) },
   { name: 'test-inputs', run: growthCheck(testInputProblems) },
   { name: 'load-bearing', run: loadBearingCheck },
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
@@ -127,7 +130,8 @@ export const STATIC_CHECKS = Object.freeze([
     return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
-    const baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8'));
+    let baseline;
+    try { baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')); } catch { return []; } // a plain project keeps no wait baseline to judge [#6544]
     return files.filter(isTestSource).flatMap(file => testWaitGrowth(testWaitSites(read(file).source, file), baseline).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
 ]);

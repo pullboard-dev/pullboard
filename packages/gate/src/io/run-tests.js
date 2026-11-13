@@ -67,6 +67,7 @@ import { formatTestOutcomes } from './test/outcomes.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
 // The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
 import { testRunPhaseClock } from './test/run/phases.js';
+import { storeName } from './store-names.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */
@@ -303,10 +304,11 @@ function parseLandingProcessTable(output) {
 }
 
 /** Snapshot process identities on POSIX hosts, where the runner can verify process ancestry. */
-function landingProcessTable() {
+function landingProcessTable(pids = null) {
   if (process.platform === 'win32') return [];
-  const output = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,stat=,lstart=,command='], { encoding: 'utf8', timeout: 2000, maxBuffer: 64 << 20 });
-  return parseLandingProcessTable(output);
+  const format = 'pid=,ppid=,pgid=,stat=,lstart=,command='; // Naming pids asks ps for those rows, not the whole machine's table (#6400).
+  try { return parseLandingProcessTable(execFileSync('ps', pids ? ['-o', format, '-p', pids.join(',')] : ['-axo', format], { encoding: 'utf8', timeout: 2000, maxBuffer: 64 << 20 })); }
+  catch (error) { if (pids && error?.status === 1 && typeof error.stdout === 'string') return parseLandingProcessTable(error.stdout); throw error; } // A named pid already gone leaves exit 1 with the live rows.
 }
 
 /** Mark a worker identity retry interrupted by the runner's explicit SIGTERM cancellation. */
@@ -462,7 +464,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
       if (!Number.isInteger(child.pid)) return;
       recording = true;
       try {
-        const byPid = new Map(landingProcessTable().map(processInfo => [processInfo.pid, processInfo]));
+        const byPid = new Map(landingProcessTable([process.pid, child.pid]).map(processInfo => [processInfo.pid, processInfo]));
         const parent = byPid.get(process.pid);
         const spawned = byPid.get(child.pid);
         if (parent && spawned && spawned.pgid !== parent.pgid) {
@@ -536,7 +538,7 @@ function watchLandingChildCustody(startsPath, attempt) {
     if (!child || typeof child.once !== 'function') return;
     child.once('spawn', () => {
       if (!Number.isInteger(child.pid)) return;
-      const recordPath = join(directory, `${prefix}${sequence++}.${randomUUID()}.json`);
+      const recordPath = join(directory, storeName(`${prefix}${sequence++}.${randomUUID()}`));
       const record = { type: 'child-pending', attempt, file: process.env.PULLBOARD_TEST_FILE,
         parentPid: process.pid, pid: child.pid, spawnFile: child.spawnfile,
         spawnArgs: Array.isArray(child.spawnargs) ? child.spawnargs : [] };

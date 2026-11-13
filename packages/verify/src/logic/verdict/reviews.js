@@ -1,9 +1,9 @@
 import { advancedVerdict } from '../advance.js';
 /** Sealed review validation and immutable acceptance projections [E8,H16]. */
 import { verdictWithdrawals } from '../../io/verdict/withdrawal.js';
-import { Refused } from '../../../../kernel/index.js';
-import { verdictRows } from '../../../../seats/index.js';
-import { itemPatchDigest } from '../../../../items/index.js';
+import { Refused } from '../../../../kernel/light.js';
+import { verdictRows } from '../../../../seats/light.js';
+import { itemPatchDigest } from '../../../../items/light.js';
 
 /** Validate a sealed review without consulting Git or changing either replica [E8,H16]. */
 export function verdictReviewProblem(review, commit, { checked } = {}) {
