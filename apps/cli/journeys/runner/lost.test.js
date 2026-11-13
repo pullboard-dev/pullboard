@@ -55,7 +55,12 @@ function queue(t) {
   return db;
 }
 
-test('a failed SSH call preserves its command exit and stderr through the synchronous bridge [C7]', t => {
+// PULLBOARD_LOST_CASES ('ssh', 'held', 'held:yield' or 'held:retry') picks one group of cases, so the pull-mode journeys
+// can run in separate files inside the file budget [#6734,#6917]; 'held' takes both held cases; unset runs all.
+const only = process.env.PULLBOARD_LOST_CASES;
+const caseTest = (group, ...args) => (!only || only === group || group.startsWith(`${only}:`) ? test(...args) : undefined);
+
+caseTest('ssh', 'a failed SSH call preserves its command exit and stderr through the synchronous bridge [C7]', t => {
   const box = fixture(t);
   const url = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const result = child(box, `import {runOnRunner} from ${JSON.stringify(url)};
@@ -73,9 +78,11 @@ test('a failed SSH call preserves its command exit and stderr through the synchr
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
 // the SSH stand-in's own Node process boots and no start is recorded (3 of 12 concurrent runs red on 28 Oct, 4/4 green
 // alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.
-const STAND_IN_BOOT_BUDGET_MS = 8_000;
+// Pull dispatch boots the stand-in for each enqueue and agent script, so under runner load it needs 30 s: past 8 s the
+// lease is admitted late with a 90 s startup budget and the 90 s child timeout fires first (lost.pull, #6734).
+const STAND_IN_BOOT_BUDGET_MS = process.env.PULLBOARD_FIXTURE_DISPATCH === 'pull' ? 30_000 : 8_000;
 
-test('a worker missing READY yields to a free runner in the next admission cycle [C7,Q1,Q2]', t => {
+caseTest('held:yield', 'a worker missing READY yields to a free runner in the next admission cycle [C7,Q1,Q2]', t => {
   const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');
   const before = readFileSync(ssh, 'utf8');
@@ -112,7 +119,7 @@ ${executionServicesSource(gate)}
   assert.deepEqual(result.held, [], 'a runner that answers SSH and Node stays in service rather than held (#3738)');
 });
 
-test('an SSH-healthy host whose worker misses READY once stays in service and its job retries there (#3738) [C7]', t => {
+caseTest('held:retry', 'an SSH-healthy host whose worker misses READY once stays in service and its job retries there (#3738) [C7]', t => {
   const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');
   const before = readFileSync(ssh, 'utf8');

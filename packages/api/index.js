@@ -6,6 +6,6 @@ export { codeAt } from "./src/io/code.js";
 export { offerJob, openJob, claimJob, jobRequest, renewJob, releaseJob, postReceipt, jobQueueCall, queueDraining, boardQueueMode } from "./src/io/jobs.js";
 export { LANDING_JOB_KIND, offerLandingJob, openLandingJob } from "./src/io/landing.js";
 export { withLandingPermit } from "./src/io/permit.js";
-export { applyGateReceipt, applyJobReceipt, applyLandingReceipt, applyShardReceipt, boardJobQueueCall, compareGateWithMain, failingParts, gateLedgerHits, provideMainComparison, SHARD_JOB_KIND } from "./src/io/gate.js";
+export { applyGateReceipt, applyJobReceipt, applyLandingReceipt, applyShardReceipt, boardJobQueueCall, compareGateWithMain, failingParts, gateLedgerHits, provideMainComparison, provideRefusalTrials, pulledGateReds, SHARD_JOB_KIND } from "./src/io/gate.js";
 export { CHECK_BASELINE_KIND, offerCheckBaseline, provideBaselineRecorder } from "./src/io/baseline.js";
 export { provideMainTestRecorder } from "./src/io/recheck.js";

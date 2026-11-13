@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell sentinels gate */
 /** @pullboard-world-pin: clause 1 reads the sentinel serve source and the committed ceiling to prove no apps/ path remains. */
 /** The view's sentinel runs the CLI entry its caller names and its package names no apps/ path, so its package-to-app ceiling row is gone [C7]. */
 import assert from 'node:assert/strict';

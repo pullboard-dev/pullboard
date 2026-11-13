@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 
@@ -19,7 +20,7 @@ test('#6390 clauses 1-2: after 8 failed calls the waits double from 1 s and stop
     return { status: 200, json: async () => ({ trunk: 'unused', claim: null }) };
   };
   const sleep = async ms => { events.push(`wait:${ms}`); };
-  const served = await serveRunner({ board: BOARD, runner: 'r-reconnect', capabilities: [], cache: '/nonexistent/pullboard-reconnect', jobs: 1, cores: 2, signal: stop.signal, fetchImpl, sleep, timing: { idleMs: 1 }, trunkPack: async () => {} });
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-reconnect', capabilities: [], cache: '/nonexistent/pullboard-reconnect', jobs: 1, cores: 2, signal: stop.signal, fetchImpl, sleep, timing: { idleMs: 1 }, trunkPack: async () => {} });
   assert.deepEqual(served.waits.slice(0, 8), [1000, 2000, 4000, 4000, 4000, 4000, 4000, 4000]);
   assert.ok(served.waits.every(ms => ms <= 4000), `a wait passed 4 s: ${served.waits}`);
   assert.equal(events[0], 'wait:1000');

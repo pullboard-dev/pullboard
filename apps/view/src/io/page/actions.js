@@ -149,7 +149,7 @@ function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
   const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && !readOnly });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && (!readOnly || requests) });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
   if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
@@ -359,8 +359,8 @@ function statusGo(to) {
     view.shoutFilter = 'all';
     openTab('shouts');
   }
-  // The agents it counts are the floor's, so it opens the agent floor.
-  else if (to === 'agents') openTab('dashboard', 'floor');
+  // The agents it counts are the Dashboard's Agents table, so it opens the Dashboard there (#6847).
+  else if (to === 'agents') openTab('dashboard', 'agents');
   // The release it counts is one milestone, so the Roadmap opens on that one alone.
   else if (to === 'release') { view.roadmapOnly = nextMilestone(data.project)?.name ?? null; openTab('roadmap'); }
   else openTab(to);
@@ -989,10 +989,11 @@ document.addEventListener('click', (event) => {
   if (activityFilter) { view.activityFilter = activityFilter.dataset.activityFilter; address(); render(); return; }
   const dashboardList = event.target.closest('[data-dashboard-list]');
   if (dashboardList) {
-    // Review and Next keep their own order; the step cards open Building, Passed and Landed by name.
+    // Every Dashboard count opens Items narrowed to what it counts (#6847): its stage, and its lane when it names one.
+    // Review and Next keep their own order; the gate and review share In review, waiting and held share Gated.
     view.dashboardList = dashboardList.dataset.dashboardList;
-    view.state = { review: 'verify', next: 'ready', building: 'building', passed: 'passed', landed: 'landed' }[view.dashboardList] ?? 'ready';
-    view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
+    view.state = { review: 'verify', gate: 'verify', next: 'ready', building: 'building', passed: 'passed', landed: 'landed', gated: 'gated', held: 'gated', 'sent-back': 'sent-back', active: 'active' }[view.dashboardList] ?? 'ready';
+    view.lane = dashboardList.dataset.dashboardLane || null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
   }
   const timelineMore = event.target.closest('[data-timeline-more]');
   if (timelineMore) {

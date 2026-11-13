@@ -147,7 +147,7 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
   const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
   text(ruled, String(rulings));
   ruled?.classList?.toggle('a', rulings > 0);
-  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the agent floor.' : 'No agent at work. Open the agent floor.');
+  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the Agents table.' : 'No agent at work. Open the Agents table.');
   text($('proj-rulings'), rulings ? String(rulings) : '');
   // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
   const release = nextMilestone(p);
@@ -258,7 +258,10 @@ function render({ tab: switching = false } = {}) {
   $('products').hidden = !p || !p.products.length;
   renderReleaseNotes(group ? null : p);
   renderHostedReleaseNote(p);
-  renderPersonRequests(p);
+  const grew = renderPersonRequests(p);
+  // The page scroll is put back at the end of this draw; a panel that grew above the view moves that mark with it.
+  const page = scrolled.find(([element]) => element === document.scrollingElement);
+  if (page && grew) page[1] += grew;
   renderCredentials();
   // A board's Settings pane still refreshes the shared status counts; machine-only Settings has no board to render.
   if (view.tab === 'settings' && !p) { $('group-view').hidden = true; showTab(); return; }

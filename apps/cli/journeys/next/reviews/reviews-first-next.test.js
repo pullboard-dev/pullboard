@@ -33,7 +33,11 @@ test('native next reserves the oldest eligible first review before any new build
   assert.equal(again.code, 0, again.out + again.err);
   assert.equal(again.document.item.item_id, old, 'ongoing review stays with its caller');
   const explicit = await cli(box, box.seats.outside.path, ['next', '--build']);
-  assert.equal(explicit.document.error.code, 'NOTHING_FREE', 'explicit build intent never reserves a review');
+  assert.equal(explicit.code, 0, explicit.out + explicit.err);
+  assert.notEqual(explicit.document.review, true, 'explicit build intent never reserves a review: ' + explicit.out + explicit.err);
+  assert.equal(explicit.document.item.item_id, build, 'explicit build intent hands the open build');
+  const released = await cli(box, box.seats.outside.path, ['release', String(build), '--reason', 'ROUTED_ELSEWHERE', '--no-next']);
+  assert.equal(released.code, 0, released.out + released.err);
   assert.equal(store.getItem(box.board, newer).item_review_by, null);
   const plain = await cli(box, box.seats.outside.path, ['next']);
   assert.equal(plain.code, 0, plain.out + plain.err);

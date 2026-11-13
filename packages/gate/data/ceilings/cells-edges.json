@@ -812,10 +812,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/generated/handoff.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/http.js": {
       "cells": 1,
       "deep": 0
@@ -2972,10 +2968,6 @@
       "cells": 3,
       "deep": 4
     },
-    "packages/moves/tests/fixtures/next.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/outbox/src/io/relay.js": {
       "cells": 5,
       "deep": 1
@@ -3718,10 +3710,6 @@
     },
     "packages/state/src/logic/submission/size.js": {
       "cells": 1,
-      "deep": 0
-    },
-    "packages/state/tests/fixtures/api.js": {
-      "cells": 6,
       "deep": 0
     },
     "packages/stats/light.js": {
@@ -6087,15 +6075,6 @@
     }
   },
   "packageApps": {
-    "packages/flakes/src/io/native.js": [
-      "apps/cli"
-    ],
-    "packages/gate/src/io/check/baseline/worker.js": [
-      "apps/lib"
-    ],
-    "packages/gate/src/io/inventory.js": [
-      "apps/cli"
-    ],
     "packages/gate/src/io/main/audit/worker.js": [
       "apps/cli"
     ],
@@ -6166,21 +6145,6 @@
     "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
     ],
-    "packages/landing/tests/fixtures/plan.js": [
-      "apps/cli"
-    ],
-    "packages/landing/tests/fixtures/relay/parity/advance.js": [
-      "apps/cli"
-    ],
-    "packages/landing/tests/fixtures/relay/parity/train.js": [
-      "apps/cli"
-    ],
-    "packages/moves/tests/fixtures/next.js": [
-      "apps/cli"
-    ],
-    "packages/resources/src/io/handoff/worker/cap.js": [
-      "apps/lib"
-    ],
     "packages/runners/src/io/dispatch.js": [
       "apps/runner"
     ],
@@ -6192,11 +6156,6 @@
     ],
     "packages/runners/tests/fixtures/fleet.js": [
       "apps/cli"
-    ],
-    "packages/state/tests/fixtures/api.js": [
-      "apps/cli",
-      "apps/lib",
-      "apps/view"
     ],
     "packages/store/tests/fixtures/cell.js": [
       "apps/cli"

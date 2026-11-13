@@ -14,7 +14,7 @@ import {
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const FIXTURE_KEYS = ['PULLBOARD_CLAIM_BEATER', 'PULLBOARD_HOME', 'PULLBOARD_INFRA_RETRY_BACKOFF_MS', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL', 'PULLBOARD_USAGE_CHECKPOINT'];
+const FIXTURE_KEYS = ['PULLBOARD_CLAIM_BEATER', 'PULLBOARD_FIXTURE_ADD_DISTINCT', 'PULLBOARD_HOME', 'PULLBOARD_INFRA_RETRY_BACKOFF_MS', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL', 'PULLBOARD_USAGE_CHECKPOINT'];
 
 test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fixture model [C7]', () => {
   const saved = { ...process.env };
@@ -23,7 +23,7 @@ test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fix
   process.env.PULLBOARD_JUNK = 'junk';
   try {
     const box = e2e.sandbox();
-    const pullboardKeys = Object.keys(box.env).filter(key => key.startsWith('PULLBOARD_')).sort();
+    const pullboardKeys = Object.keys(box.env).filter(key => key.startsWith('PULLBOARD_') && key !== 'PULLBOARD_TEST_RUNNER_PID').sort();
     assert.deepEqual(pullboardKeys, FIXTURE_KEYS);
     assert.equal(box.env.PULLBOARD_MODEL, FIXTURE_MODEL);
     assert.equal(box.env.PULLBOARD_INFRA_RETRY_BACKOFF_MS, '0');

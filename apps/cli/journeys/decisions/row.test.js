@@ -8,6 +8,7 @@ import {
   runFixtureGit,
 } from "../../tests/fixtures/child.js";
 import { performance } from 'node:perf_hooks';
+import { pathToFileURL } from 'node:url';
 import {
   chmodSync,
   existsSync,
@@ -318,7 +319,7 @@ test('[B26] failed view request names its cause', async (t) => {
     'await new Promise((resolveWait) => setTimeout(resolveWait, 25));',
     'process.stderr.write("line\\n");',
   ].join('\n'));
-  const request = await startView(t, box, { NODE_OPTIONS: `--import=file://${preload}` });
+  const request = await startView(t, box, { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` });
   await request.stopView('SIGKILL');
   let failure;
   try {

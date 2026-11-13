@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
@@ -67,7 +68,7 @@ function runnerCache(t) {
 test('#6546 clause 1: a job whose handler throws is released with its reason, not re-claimed within 30 s, and backs off longer on each repeat [C7]', async t => {
   const board = boardBehindFetch(t, { id: 'land:5888', kind: 'land' });
   const handlers = { land: async () => { throw new Error('git fetch failed: no such ref'); } };
-  const served = await serveRunner({ board: BOARD, runner: 'r-throw', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {} });
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-throw', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {} });
   assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome]), [['land:5888', 'released']]);
   const view = jobView(board.db, 'land:5888');
   const released = view.steps.find(step => step.name === 'released');
@@ -106,7 +107,7 @@ async t => {
   const board = boardBehindFetch(t, { id: 'gate:long', kind: 'gate', candidate: commit, run }, { trunk, answered, down: call => call.action === 'renew' && outage !== null && outage.until > Date.now() });
   const renewalsBefore = () => board.calls.filter(action => action === 'renew').length;
   const said = [];
-  const running = serveRunner({ board: BOARD, runner: 'r-long', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, trunkPack: async () => {},
+  const running = serveRunner({ git: pullGit, board: BOARD, runner: 'r-long', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, trunkPack: async () => {},
     say: line => { said.push(line); },
     timing: { renewMs: 100, renewRetryMs: 50, leaseMs: 300 } });
   assert.equal((await back).renewed, true, 'the board renewed the lapsed lease no runner had claimed');

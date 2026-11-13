@@ -24,6 +24,7 @@ import { wording } from '../../logic/frozen.js';
 import { criterionClauses } from '../../../../state/index.js';
 import { earlierHeadFacts } from '../../../../state/index.js';
 import { linkEarlierFacts } from '../../../../state/index.js';
+import { storeName } from '../store-names.js';
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -63,7 +64,7 @@ function readBlobs(root, specs) {
 /** Where the board keeps the packet for one item head. */
 function reviewPacketPath(commonDir, id, head) {
   if (!Number.isSafeInteger(Number(id)) || !SHA.test(head ?? '')) return null;
-  return join(commonDir, 'pullboard', 'review-packets', String(id), `${head}.json`);
+  return join(commonDir, 'pullboard', 'review-packets', String(id), `${storeName(head)}`);
 }
 
 /** The stored packet for this head, or null when none was built. */
@@ -128,7 +129,7 @@ function mainReceiptFor(commonDir, ids, main, failure) {
   for (const id of new Set(ids)) {
     if (!commonDir || !/^[a-f0-9-]{36}$/u.test(id ?? '')) continue;
     try {
-      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${id}.json`), 'utf8'));
+      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(id)}`), 'utf8'));
       if (stored.id === id && stored.kind === 'main-red' && stored.head === main
         && (stored.failures ?? []).some(row => row.file === failure.file && row.name === failure.name)) return id;
     } catch { /* A missing or unreadable receipt names nothing; the next candidate may. */ }
@@ -161,7 +162,7 @@ function words(text) {
 function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   if (!commonDir || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) return [];
   try {
-    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${receipt.id}.json`), 'utf8'));
+    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(receipt.id)}`), 'utf8'));
     if (stored.id !== receipt.id || stored.head !== head) return [];
     return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => declared || !row.skipped);
   } catch { return []; }
