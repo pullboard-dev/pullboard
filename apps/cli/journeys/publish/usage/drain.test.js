@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../../../../../packages/store/index.js';
-import { fixtureOpenBoard } from '../../../tests/fixtures/testkit.js';
+import { openKitBoard } from '../../../tests/fixtures/testkit.js';
 import { seedPendingUsage } from '../../../tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
@@ -21,9 +21,10 @@ function fixture(t) {
   const who = box.run(box.web, 'whoami', '--json');
   assert.equal(who.code, 0, who.err);
   const agent = JSON.parse(who.out).id;
-  const board = fixtureOpenBoard(box);
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const board = openKitBoard(file, undefined, { gitRoot: box.web });
   const ids = seedPendingUsage(store, board, { agent, lane: 'web', main: box.git(box.repo, 'rev-parse', 'HEAD'), count: COUNT });
-  return { box, helpers, board, agent, ids, file: box.boardFile };
+  return { box, helpers, board, agent, ids, file };
 }
 
 test('the usage drain publishes in bounded batches, each its own short write, and another write is admitted between them [C7,N2]', t => {

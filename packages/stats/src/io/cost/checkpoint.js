@@ -66,7 +66,7 @@ export async function publishUsage(ctx, board, { agent, item, operation }, { ord
   const publish = [...pendingItems.map(change => ({ item: change })), ...changes.sharedSessions.map(change => ({ shared: change }))];
   // The detached worker drains everything in short writes; a command's own checkpoint stays one batch [C7].
   const limit = drain ? publish.length : Math.min(publish.length, USAGE_BATCH_LIMIT);
-  let size = Math.min(USAGE_WRITE_START, USAGE_BATCH_LIMIT), published = 0;
+  let size = drain ? USAGE_WRITE_START : limit, published = 0;
   while (published < limit) {
     const slice = publish.slice(published, published + Math.min(size, limit - published));
     const items = slice.filter(entry => entry.item).map(({ item: change }) => ({ ...change, records: publicUsage(change.records) }));
