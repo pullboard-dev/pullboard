@@ -9,12 +9,10 @@ import { Readable } from 'node:stream';
 import {
   chmodSync,
   mkdirSync,
-  mkdtempSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import { tmpdir } from 'node:os';
 import {
   basename,
   join,
@@ -22,6 +20,7 @@ import {
 import { fileURLToPath } from 'node:url';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
 import { displayAgentName } from '../../../../packages/seats/index.js';
+import { scratchFolder } from '../../../../packages/config/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
@@ -121,7 +120,7 @@ function pause(ms) {
 export async function tour(io) {
   const color = colorEnabled(io);
   const pace = io.stdout.isTTY ? 1 : 0;
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-tour-')));
+  const dir = realpathSync(scratchFolder('pullboard-tour-'));
   const shims = join(dir, '.bin');
   mkdirSync(shims);
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);

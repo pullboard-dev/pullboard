@@ -229,7 +229,7 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
         .filter(link=>new URL(link.href).pathname !== '/demo/').map(link=>link.href))`));
       assert.deepEqual(outside, [], `${hash} keeps every item address under the exported sub-path`);
     };
-    await press(chrome, `document.querySelector('[data-items-view="pipeline"]')`);
+    await press(chrome, `document.querySelector('[data-page-ctl="view"][data-value="pipeline"]')`);
     await checkPlace('#items/pipeline', "view.tab === 'items' && view.itemsView === 'pipeline' && !document.querySelector('[data-pane=items]').hidden");
     const oldest = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const link = document.querySelector('#pipeline .pipeline-oldest a.ref[data-go]');
@@ -318,12 +318,12 @@ test('back, forward and reload keep the place [N38,N26]', { timeout: 180_000 }, 
     await openAddress(chrome, server, '/items');
     const journey = [{ address: '/items', pane: 'items', root: alpha.repo }];
     const steps = [
-      ['#chain .row[data-item="1"]', '/items/1', 'items'], ['[data-items-view="pipeline"]', '/items/pipeline', 'items'],
+      ['#chain .row[data-item="1"]', '/items/1', 'items'], ['[data-page-ctl="view"][data-value="pipeline"]', '/items/pipeline', 'items'],
       ['[data-tab="shouts"]', '/shouts', 'shouts'], [`#feed #shout-${shout.shout_id} .text`, `/shouts/${shout.shout_id}`, 'shouts'],
       ['[data-tab="spec"]', '/spec', 'spec'], ['[data-row="spec:G2"]', '/spec/G2', 'spec'],
       ['[data-tab="doctrine"]', '/doctrine', 'doctrine'], ['[data-row="doctrine:PB1"]', '/doctrine/PB1', 'doctrine'],
       ['[data-tab="activity"]', '/activity', 'activity'], ['[data-tab="roadmap"]', '/roadmap', 'roadmap'],
-      ['[data-tab="items"]', '/items/pipeline', 'items'], ['[data-items-view="list"]', '/items', 'items'],
+      ['[data-tab="items"]', '/items/pipeline', 'items'], ['[data-page-ctl="view"][data-value="list"]', '/items', 'items'],
       ['#chain .row[data-item="2"]', '/items/2', 'items'],
     ];
     for (const [selector, address, pane] of steps) {
