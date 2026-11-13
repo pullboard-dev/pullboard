@@ -11,6 +11,7 @@ import { atomically } from "../../../../jobs/index.js";
 import { createJob } from "../../../../jobs/index.js";
 import { jobView } from "../../../../jobs/index.js";
 import { writeStep } from "../../../../jobs/index.js";
+import { markApplied } from "../../../../jobs/index.js";
 
 /** The step a job holds after intend and before confirm: written, never claimable. */
 export const PENDING_STEP = 'pending';
@@ -54,16 +55,15 @@ export function runsPort(runs) {
         return { written: true };
       });
     },
-    /** Receipts written after `cursor` (a step id) that the board has not acknowledged, oldest first. */
+    /** Receipts of jobs the board has not marked applied, written after `cursor` (a step id), oldest first. */
     receiptsSince(cursor = 0, { limit = 100 } = {}) {
-      return runs.db.prepare(`SELECT r.job_step_id AS cursor, r.job_step_job AS job, r.job_step_seq AS attempt FROM job_step r
-        WHERE r.job_step_name = 'receipt' AND r.job_step_id > ? AND NOT EXISTS (SELECT 1 FROM job_step a WHERE a.job_step_job = r.job_step_job
-        AND a.job_step_name = 'applied' AND a.job_step_seq = r.job_step_seq) ORDER BY r.job_step_id LIMIT ?`).all(cursor, limit)
+      return runs.db.prepare(`SELECT r.job_step_id AS cursor, r.job_step_job AS job, r.job_step_seq AS attempt FROM job_step r JOIN job ON job.job_id = r.job_step_job
+        WHERE r.job_step_name = 'receipt' AND r.job_step_id > ? AND job.job_applied IS NULL ORDER BY r.job_step_id LIMIT ?`).all(cursor, limit)
         .map(row => ({ cursor: row.cursor, job: row.job, attempt: row.attempt }));
     },
-    /** Mark one attempt's receipt as applied by the board, with the board's answer; a repeat writes nothing. The inbox item adds the job_applied mark beside this step. */
-    ack(id, attempt, { answer = {}, now = Date.now() } = {}) {
-      return { written: writeStep(runs.db, id, 'applied', answer, { seq: attempt, now }).written };
+    /** Set the job's inbox mark once the board has applied its receipt; a repeat writes nothing. */
+    ack(id, attempt, { now = Date.now() } = {}) {
+      return { written: markApplied(runs.db, id, { now }) };
     },
   });
 }

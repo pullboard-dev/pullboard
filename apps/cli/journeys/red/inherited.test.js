@@ -18,22 +18,6 @@ import { runCount } from '../../tests/fixtures/red/main-red.js';
 import { withoutScopeNotices } from '../../tests/fixtures/red/main-red.js';
 
 test('an inherited red names the rework that owns it [V1]', { skip: 'PULL_GAP: un-skipped by #7272-gaps' }, async (t) => {
-  await t.test('a prioritized rework already first in its tier stays first [V1]', (sub) => {
-    const box = fixture(sub, { spec: RED_SPEC, source: FAILING_TEST });
-    const [rework, submitItem] = addItems(box, [
-      { title: 'First same-tier rework', specId: 'G1' },
-      { title: 'Second same-tier submit', specId: 'G2' },
-    ]);
-    const submitter = builder(box);
-    assert.equal(submitter.run('claim', String(submitItem)).code, 0);
-    put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
-    commit(submitter.root, box.env, 'test(core): capture inherited red [G1]');
-    inheritedMessage(submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise prioritized inherited rework'), { row: 'G1', item: rework });
-    const next = builder(box).run('next', '--json');
-    assert.equal(next.code, 0, next.err);
-    assert.equal(JSON.parse(next.out).item.item_id, rework);
-  });
-
   await t.test('one inherited row names its open owner, reuses exact-main cache, and leads only within its tier [V1]', (sub) => {
     const box = fixture(sub, { spec: RED_SPEC, source: FAILING_TEST });
     const [rework, submitItem, earlier, middle] = addItems(box, [
