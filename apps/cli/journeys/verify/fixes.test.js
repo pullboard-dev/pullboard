@@ -43,11 +43,13 @@ async function boardInput(view, root) {
 
 // One real board for every case: two landed, one accepted, two in review, one sent back, three ready, one building.
 before(async () => {
-  try { await seed(); } catch (error) { console.log('SEED-FAIL', error?.stack ?? error); throw error; }
+  try { await seed(); } catch (error) { seeded.failure = error; }
 }, { timeout: 120_000 });
 async function seed() {
   const T0 = Date.now(); const lap = label => console.log('LAP', label, Date.now() - T0);
   const box = machine();
+  const real = box.inProcess;
+  box.inProcess = (cwd, ...args) => Promise.race([real(cwd, ...args), new Promise((_, no) => setTimeout(() => no(new Error(`seed step hung: ${args.slice(0, 3).join(' ')} after ${Date.now() - T0} ms`)), 25_000).unref())]);
   const alpha = project(box, 'agent-floor', undefined, {
     lease: '2h', reviewLease: '3h',
     lanes: { web: { owns: ['web/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] }, quiet: { owns: [], specs: ['G'] } },
@@ -145,6 +147,7 @@ const MEASURE = `(() => {
 })()`;
 
 test('the floor\'s numbers, Now column and queue cards follow the approved fixes at desktop, 1100px and phone widths [N26,N38]', { timeout: 90_000 }, async () => {
+  assert.ifError(seeded.failure);
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the agent floor fixes.');
   const { view, alpha } = seeded;
