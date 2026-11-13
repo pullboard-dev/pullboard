@@ -1534,9 +1534,12 @@
   "packages/doctrine/tests/io/main/baseline.test.js": {
     "tempdir": 3
   },
-  "apps/cli/journeys/doctrine/name.test.js": {
+  "apps/cli/tests/fixtures/doctrine-name.js": {
     "tempdir": 1,
-    "hand-policy": 3
+    "hand-policy": 2
+  },
+  "apps/cli/journeys/doctrine/name.verify.test.js": {
+    "hand-policy": 1
   },
   "apps/cli/journeys/doctrine/rulings.test.js": {
     "model": 1

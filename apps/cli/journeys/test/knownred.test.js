@@ -86,7 +86,7 @@ test('a candidate cannot invent a main-red alias with its own path map [C7]', as
   assert.equal(known('test/red.test.js'), null, 'only the accepted main map can establish a moved identity');
 });
 
-test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000, skip: 'PULL_GAP: un-skipped by #7104' }, async () => { // budget: candidate and main runner runs on the pulled runner.
+test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000 }, async () => { // budget: candidate and main runner runs on the pulled runner.
   const box = await redProject();
   const main = String(box.git(box.repo, 'rev-parse', 'HEAD')).trim();
   const folder = join(box.repo, '.git/pullboard');

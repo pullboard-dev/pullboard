@@ -132,7 +132,8 @@ const failingCases = (status, text, run) => {
   } catch { rows = null; }
   if (!Array.isArray(rows) || !rows.length || rows.length > ${PHASE_CASES} || rows.some(row => !row?.file || !row.name)) return null;
   // A file Node killed (a timeout) is named by its path in this job's own checkout; the project path names it on any runner.
-  return rows.map(({ file, name }) => ({ file, name: (String(name).startsWith(root + '/') ? String(name).slice(root.length + 1) : String(name)).slice(0, 500) }));
+  // Names stay whole here: each case is signed by its TAP name, and the receipt clips them after (#7495).
+  return rows.map(({ file, name }) => ({ file, name: String(name).startsWith(root + '/') ? String(name).slice(root.length + 1) : String(name) }));
 };
 /**
  * PATH for the check and the proof: main's trusted CLI first as \`pullboard\`, then this Node. Why: an item check calls
@@ -260,12 +261,14 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { testRuntimes = capture?.finish() ?? null; } catch { testRuntimes = null; }
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
-  const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  const cases = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  const failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 500) })) : null;
   // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
   const failedFiles = ran.status !== 0 && !failures ? specFailureFiles(text, root, { files: ${PHASE_CASES} }) : [];
   // Each named case's diagnostic signature, as the controller signs it, so the board tells two failures of one case apart [V4,B3].
   let failureSignatures = null;
-  try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
+  // Signed by the whole names: a case clipped on the receipt matches no diagnostic by name, so it would read unsigned (#7495).
+  try { failureSignatures = cases ? caseSignatures(cases, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }

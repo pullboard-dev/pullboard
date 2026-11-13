@@ -502,7 +502,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `land:<items>:<key>`. Created by `offerLandingJob` in `packages/api/src/io/landing.js`.
 - **Serves:** the landing's accepted items at the trunk sha they were accepted against; the runner re-checks each and the board applies the receipt.
-- **States:** `request`, `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **States:** `request`, `offered`, `claimed`, `receipt`, `runaway`, `done`. Terminal: `done`.
 - **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
 - **Ends when its item moves on:** held, at `offerLandingJob` in `packages/api/src/io/landing.js`: the runner re-checks each item before it pushes and the board checks the permit on every renewal
 - **Harness:** `apps/cli/journeys/runner/landing/guard.test.js`.
@@ -515,12 +515,14 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `receipt` | the holding runner posts its receipt | `postReceipt` in `packages/api/src/io/jobs.js` |
 | `receipt` | `done` | the receipt is recorded and the lease released | `postReceipt` in `packages/api/src/io/jobs.js` |
+| `claimed` | `runaway` | the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once | `endRunaway` in `packages/api/src/io/jobs.js` |
+| `runaway` | `done` | the ended job is finished so no runner takes it again | `endRunaway` in `packages/api/src/io/jobs.js` |
 
 #### `gate-shard`: pulled gate proof shard
 
 - **Id:** `<gate job>:shard:<n>`. Created by `offerProofShards` in `packages/api/src/io/gate.js`.
 - **Serves:** item submitted at the candidate, one slice of its proof files; the gate result applies when the last shard posts.
-- **States:** `request`, `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **States:** `request`, `offered`, `claimed`, `receipt`, `runaway`, `done`. Terminal: `done`.
 - **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
 - **Ends when its item moves on:** n/a, at `offerProofShards` in `packages/api/src/io/gate.js`: a shard serves its gate job; the gate result applies once and a moved item refuses it
 - **Harness:** NONE.
@@ -533,12 +535,14 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `receipt` | the holding runner posts its receipt | `postReceipt` in `packages/api/src/io/jobs.js` |
 | `receipt` | `done` | the receipt is recorded and the lease released | `postReceipt` in `packages/api/src/io/jobs.js` |
+| `claimed` | `runaway` | the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once | `endRunaway` in `packages/api/src/io/jobs.js` |
+| `runaway` | `done` | the ended job is finished so no runner takes it again | `endRunaway` in `packages/api/src/io/jobs.js` |
 
 #### `test`: pulled test run
 
 - **Id:** `test:<commit>:<tag>`. Created by `offerTestJob` in `apps/cli/src/io/test/pull.js`.
 - **Serves:** no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing.
-- **States:** `request`, `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **States:** `request`, `pending`, `offered`, `claimed`, `receipt`, `runaway`, `done`. Terminal: `done`.
 - **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
 - **Ends when its item moves on:** n/a, at `offerTestJob` in `apps/cli/src/io/test/pull.js`: serves the pulling runner's work; no driver ends it on an item move
 - **Harness:** `apps/cli/journeys/runner/check.pull.test.js`.
@@ -546,17 +550,21 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | From | To | Trigger | Where |
 |---|---|---|---|
 | (none) | `request` | the offer carries a request, recorded before it is offered | `offerJob` in `packages/api/src/io/jobs.js` |
+| (none) | `pending` | the board writes the job with its whole request, unclaimable until its run row commits | `intend` in `packages/store/src/io/board/runs.js` |
+| `pending` | `offered` | the run row has committed, so the job is offered | `confirm` in `packages/store/src/io/board/runs.js` |
 | (none) | `offered` | the job is offered with the capabilities a runner needs | `offerTestJob` in `apps/cli/src/io/test/pull.js` |
 | `offered` | `claimed` | a runner with every capability takes the lease | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `receipt` | the holding runner posts its receipt | `postReceipt` in `packages/api/src/io/jobs.js` |
 | `receipt` | `done` | the receipt is recorded and the lease released | `postReceipt` in `packages/api/src/io/jobs.js` |
+| `claimed` | `runaway` | the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once | `endRunaway` in `packages/api/src/io/jobs.js` |
+| `runaway` | `done` | the ended job is finished so no runner takes it again | `endRunaway` in `packages/api/src/io/jobs.js` |
 
 #### `check-baseline`: pulled check baseline
 
 - **Id:** `baseline:<item>:<request>`. Created by `offerCheckBaseline` in `packages/api/src/io/baseline.js`.
 - **Serves:** item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline.
-- **States:** `offered`, `claimed`, `receipt`, `done`. Terminal: `done`.
+- **States:** `offered`, `claimed`, `receipt`, `runaway`, `done`. Terminal: `done`.
 - **Lease:** LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper.
 - **Ends when its item moves on:** n/a, at `applyCheckBaselineReceipt` in `packages/api/src/io/baseline.js`: a moved request refuses the result (stale); no driver ends the job on an item move
 - **Harness:** `apps/cli/journeys/check-baseline/main.test.js`.
@@ -568,6 +576,8 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `claimed` | `claimed` | a lapsed lease is taken by another runner, as the next attempt | `claimJob` in `packages/api/src/io/jobs.js` |
 | `claimed` | `receipt` | the holding runner posts its receipt | `postReceipt` in `packages/api/src/io/jobs.js` |
 | `receipt` | `done` | the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released | `applyCheckBaselineReceipt` in `packages/api/src/io/baseline.js` |
+| `claimed` | `runaway` | the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once | `endRunaway` in `packages/api/src/io/jobs.js` |
+| `runaway` | `done` | the ended job is finished so no runner takes it again | `endRunaway` in `packages/api/src/io/jobs.js` |
 
 #### Processes that are not job rows
 
