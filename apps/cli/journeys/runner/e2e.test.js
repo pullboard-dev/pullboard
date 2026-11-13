@@ -140,7 +140,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.match(second, /reverted your changes outside the brief's files: api\/stray.js/);
   assert.match(second, /### web\/page.js\n```\nexport const title = 'Hello';/);
   assert.equal(existsSync(join(light, 'api', 'stray.js')), false);
-  assert.equal(box.git(light, 'log', '-1', '--format=%s', 'refs/pullboard/items/1/' + box.git(light, 'rev-parse', '--short=12', 'HEAD')), 'feat(web): greet on the page [G1]');
+  // A pull submit pins the commit it offered the gate at refs/pullboard/gate/<id>; the item pin comes with the verdict [C7].
+  assert.equal(box.git(light, 'log', '-1', '--format=%s', 'refs/pullboard/gate/1'), 'feat(web): greet on the page [G1]');
   assert.equal(box.git(light, 'status', '--porcelain'), '');
   const pinned = box.git(light, 'for-each-ref', '--format=%(refname)', 'refs/pullboard/attempts/2/');
   assert.match(box.git(light, 'show', `${pinned}:web/footer.js`), /nope'; \/\/ grep -q bye web\/footer.js light/);
@@ -171,7 +172,7 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   const apiRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'mid')).out.match(/^made (\S+) /)[1];
   const ran = await box.runLocal(apiRunner, 'run', '--agent-light', weak, '--agent-mid', strong, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
-  assert.match(ran.out, /#2 attempt 1\/2: running the light agent[\s\S]*#2 escalated light -> mid[\s\S]*#2 attempt 1\/2: running the mid agent\n#2 attempt 1: green[\s\S]*submitted #2/);
+  assert.match(ran.out, /#2 attempt 1\/2: running the light agent[\s\S]*#2 escalated light -> mid[\s\S]*#2 attempt 1\/2: running the mid agent\n#2 attempt 1: green[\s\S]*#2 is in the gate as job /);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
   assert.equal(box.tryGit(apiRunner, 'merge-base', '--is-ancestor', commit, 'HEAD').status, 0);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', apiRunner.split('/').at(-1), 'pullboard', 'packs');
