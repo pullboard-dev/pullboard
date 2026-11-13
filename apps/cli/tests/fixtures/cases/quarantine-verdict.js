@@ -185,6 +185,7 @@ withBoard(ctx,board=>{
 });
 }
 if(P('land')){ran.push('land');
+process.env.PULLBOARD_QUARANTINE_CASE_MODE='red';// the native phase leaves red set; later phases start from it too
 const land=await runGate(root,config,{trustStamp:false,landing:true,agent:agentId,quarantines,onFailure:observer,executionServices});
 assert.equal(land.isGreen,true,JSON.stringify({output:land.output,stages:land.stages,profile:land.profile,receiptId:land.receiptId}));assert.equal(land.exitCode,1);
 const landReceipt=readGateReceipt(receiptStore(root),land.receiptId);
@@ -224,6 +225,7 @@ const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'nod
 assert.equal(deferred.isGreen,true);assert.equal(deferred.exitCode,1);assert.ok(deferred.proofReceiptId);
 }
 if(P('private')){ran.push('private');
+process.env.PULLBOARD_QUARANTINE_CASE_MODE='red';// the native phase leaves red set; later phases start from it too
 checkedItem=await withBoard(ctx,async board=>{
  const id=store.addItem(board,{by:agentId,lane:'web',title:'Quarantined actual private criterion',
   criterion:'The real committed test still executes while its active native quarantine changes only blocking authority.',check:config.gate});
