@@ -236,7 +236,9 @@ function render({ tab: switching = false } = {}) {
   const agentApprovals = personalNeeds.filter(row => row.kind === 'agent-approved');
   if (needsTab) {
   const person = !snapshot && (!readOnly || requests);
-  const expandedNeeds = [...document.querySelectorAll('details[data-needs-key][open]')].filter(entry => !entry.closest('[hidden]')).map(entry => entry.dataset.needsKey);
+  // The rows the person opened on this board, per screen; every other row stays closed through live redraws.
+  const openNeeds = place => [...(view.needsOpen?.get(JSON.stringify([view.root, place])) ?? [])];
+  const expandedNeeds = openNeeds('items');
   /** Actions retain the existing person/request handlers and advertised row identities. */
   const needsControls = row => needsActionsHtml(row, { person,
     approvalHtml: row.kind === 'agent-approved' ? agentApprovalActions(row) : '',
@@ -247,7 +249,7 @@ function render({ tab: switching = false } = {}) {
     const date = new Date(value), hour = date.getHours();
     return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()] + ' ' + date.getDate() + ', ' + (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
   };
-  const needsModel = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds });
+  const needsModel = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, quiet: true });
   // Browser-dependent presentation is prepared from the same descriptors the pure renderer consumes.
   const needsPresentation = new Map([...needsModel.questions,...needsModel.approvals].map(row => {
     const approvedAt = row.fields.find(([label]) => label === 'Approved in Git')?.[3]?.date;
@@ -259,7 +261,7 @@ function render({ tab: switching = false } = {}) {
   }));
   const needsPanel = ${needsPanelHtml.toString()};
   if (view.tab === 'dashboard') {
-    const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, compact: true });
+    const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: openNeeds('dashboard'), compact: true });
     const behind = dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
       needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
       rules: homeRules(p.spec),
@@ -270,12 +272,13 @@ function render({ tab: switching = false } = {}) {
     if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
+    // With nothing for the person, the top of Items holds the one quiet Needs-you line.
     const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
-    $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
+    $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
     $('needs').tabIndex = -1;
     store.paint($('needs'), itemsNeedsHtml(itemsNeeds, { open,
       questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation),
-      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }));
+      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }) || needsPanel(needsModel, needsPresentation));
   }
   }
 
