@@ -42,15 +42,16 @@ function quarantining(board, main) {
  * @param {any} board
  * @param {Record<string, any>} receipt
  * @param {string} main - The accepted main the gate job was offered against, whose policy says whether quarantine is on.
+ * @param {number | null} [before] - Only quarantines filed before this event excuse; null takes every active one.
  * @returns {{ file: string, name: string, item: number }[] | null}
  */
-export function quarantinedReds(board, receipt, main) {
+export function quarantinedReds(board, receipt, main, before = null) {
   const gate = receipt?.gate ?? {};
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
   if (!quarantining(board, main) || gate.green === true || gate.error || gate.proofPlan || gate.analysis?.infra || gate.analysis?.refusals?.length || !red.length
     || red.some(phase => !Array.isArray(phase.failures) || !phase.failures.length)) return null;
   let active;
-  try { active = board.enginePorts.store.flakeQuarantines(board).filter(row => row.status === 'quarantined'); } catch { return null; }
+  try { active = board.enginePorts.store.flakeQuarantines(board).filter(row => row.status === 'quarantined' && (before === null || row.eventId < before)); } catch { return null; }
   const cases = red.flatMap(phase => phase.failures.map(row => ({ row, held: active.find(entry => entry.file === row.file && entry.name === row.name) })));
   return cases.every(entry => entry.held) ? cases.map(({ row, held }) => ({ file: row.file, name: row.name, item: held.item })) : null;
 }
@@ -136,4 +137,26 @@ export function recordPulledPairs(board, { job, receipt, item, candidate, main, 
   }
   store.appendFact(board, item, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} paired its red: ${done.observations} flake observation(s), ${done.runs} native run(s) recorded; the red stands; see pullboard flakes.${problems.length ? `\nNot recorded: ${problems.join('; ')}` : ''}`.slice(0, 2000) });
   return done;
+}
+
+/**
+ * Judge a pulled gate receipt's flakes once: the quarantines in force before its pairs were first recorded excuse its
+ * reds, and its pairs are recorded only on the first application. Why: a red waiting on main's receipts is applied
+ * again when they record (settleWaitingGates), and its own pairs' quarantine must never excuse it then [C7,H16].
+ *
+ * @param {any} board
+ * @param {Parameters<typeof recordPulledPairs>[1]} gateJob
+ * @returns {ReturnType<typeof quarantinedReds>}
+ */
+export function judgePulledFlakes(board, gateJob) {
+  const { job, item, receipt, main } = gateJob;
+  const paired = board.db.prepare("SELECT MIN(event_id) AS id FROM event WHERE item_id = ? AND event_kind = 'fact' AND json_extract(event_detail, '$.text') LIKE ?")
+    .get(item, `Gate job ${job} pairs its red:%`)?.id ?? null;
+  const excused = quarantinedReds(board, receipt, main, paired);
+  if (paired === null && Array.isArray(receipt?.gate?.pairs) && receipt.gate.pairs.length) {
+    // The marker comes first, so every quarantine the pairs file sits after it.
+    store.appendFact(board, item, { agentId: gateJob.submit.agentId, kind: 'note', text: `Gate job ${job} pairs its red: ${receipt.gate.pairs.map(pair => pair?.file).join(', ')}`.slice(0, 2000) });
+    recordPulledPairs(board, gateJob);
+  }
+  return excused;
 }

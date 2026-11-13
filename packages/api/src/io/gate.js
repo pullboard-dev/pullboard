@@ -19,8 +19,7 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
-import { quarantinedReds } from './flakes.js';
-import { recordPulledPairs } from './flakes.js';
+import { judgePulledFlakes } from './flakes.js';
 import { ownershipOnly } from './owner.js';
 import { routePulledOwnership } from './owner.js';
 
@@ -384,9 +383,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     const sharded = offerProofShards(board, { job, receipt, offered });
     if (sharded) return sharded;
   }
-  // Quarantines filed before this receipt excuse its reds; its own paired reruns are recorded after that judgement [C7,H16].
-  const excused = quarantinedReds(board, receipt, main);
-  recordPulledPairs(board, { job, receipt, item: id, candidate, main, submit });
+  // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
+  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
