@@ -20,7 +20,7 @@ import { INFRASTRUCTURE_RETRY_LIMIT } from '../../../../../packages/store/index.
 
 /** The submit fixture on the controller dispatch: a worker that dies is a controller's detached gate process, which pull dispatch has none of (#6249, gate.runnerDispatch controller until 2026-12-31). */
 function controllerFixture(t) {
-  const box = controllerFixture(t);
+  const box = fixture(t);
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   return box;
 }
