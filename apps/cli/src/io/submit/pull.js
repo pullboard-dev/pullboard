@@ -21,6 +21,7 @@ import { landedCutItemRows } from '../cells-submit-checks.js';
 import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
 import { DOCTRINE_ENTRY } from './gate.js';
@@ -313,6 +314,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
   withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
+  // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
+  git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
   const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
@@ -320,7 +323,9 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
   if (ctx.json) ctx.io.result({ item: id, commit, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null });
-  else ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
+  // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued (#7076).
+  else await deliverSubmitActivity(ctx, id);
+  if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
   return 0;
 }
