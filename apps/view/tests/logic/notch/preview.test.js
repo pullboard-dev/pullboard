@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { notchPreview } from '../../../src/logic/notch/preview.js';
 import { notchPreviewData } from '../../../src/logic/notch/preview.js';
 import { notchPreviewHtml } from '../../../src/logic/notch/preview.js';
+import { notchRulings } from '../../../src/logic/notch/preview.js';
 
 const floor = { numbers: { live: 62, building: 43, reviewing: 6, between: 11, landed: 636, sentBack: 6 },
   time: { build: 65, review: 14, idle: 21 }, bins: Array.from({ length: 24 }, (_, i) => ({ count: i === 23 ? 5 : i + 1 })) };
@@ -142,4 +143,12 @@ test('destroy removes the panel and its listeners [N26]', () => {
   const s = stage(); s.ctl.destroy();
   assert.ok(s.panel.removed && s.veil.removed);
   assert.equal(s.notch.on.mouseover.length, 0); assert.equal((s.doc.on.keydown || []).length, 0);
+});
+
+test('notchRulings: the page\'s calls become list rows with the button the Needs panel gives, and the oldest waiting [N26,#6651]', () => {
+  const calls = [{ kind: 'decision', id: 12, ref: 'agent-3', text: 'Split the board?\nmore', at: '2026-11-12T10:00:00.000Z' }, { kind: 'pending', id: 'S1.2', ref: 'S1.2', text: 'Pick one' }, { kind: 'draft', count: 4 }];
+  const out = notchRulings(calls, row => row, iso => iso.slice(11, 13) + ' h');
+  assert.equal(out.items.length, 2, 'the draft count is not a ruling');
+  assert.deepEqual([out.items[0].title, out.items[0].action, out.items[0].go, out.items[1].go], ['Split the board?', 'Decide', 'decide:12', 'spec:S1.2']);
+  assert.equal(out.oldest, '10 h');
 });

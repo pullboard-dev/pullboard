@@ -15,6 +15,11 @@ import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
 import { progressHtml } from "../../logic/nav.js";
+import { notchPreview } from "../../logic/notch/preview.js";
+import { notchPreviewData } from "../../logic/notch/preview.js";
+import { notchPreviewHtml } from "../../logic/notch/preview.js";
+import { notchRulings } from "../../logic/notch/preview.js";
+import { agentFloorModel } from "../../logic/agent/floor/model.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -35,6 +40,12 @@ ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
 ${progressHtml.toString()}
+${notchPreviewHtml.toString()}
+${notchPreviewData.toString()}
+${notchPreview.toString()}
+${notchRulings.toString()}
+const notchFloorModel = (${agentFloorModel.toString()});
+let notchHover = null, notchBoard = null;
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -127,6 +138,13 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0 } = 
   const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
   const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
   const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
+  // The preview reads what this page holds when the pointer arrives, never the board: the project, its recent events and its calls [#6651].
+  notchBoard = p;
+  if (!notchHover && $('notch')) notchHover = notchPreview($('notch'), () => {
+    const board = notchBoard, events = board.events || [];
+    const floor = notchFloorModel(dashboardModel(board, events, { now: Date.now(), complete: false }), events);
+    return notchPreviewData({ floor, ...notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago) });
+  });
   text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
   text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
   const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');

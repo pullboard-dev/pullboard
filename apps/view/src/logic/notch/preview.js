@@ -102,6 +102,29 @@ export function notchPreviewData({ floor, rulings = [], oldest = '' }) {
 }
 
 /**
+ * The person's calls (the page's personNeeds rows) as the rulings list the notch previews: a plain title, its kind, what it
+ * is about, the button's words and where the button goes. Reading it never touches the board.
+ *
+ * @param {object[]} calls - personNeeds rows.
+ * @param {(row: object) => object} words - The page's plainNeedWords, which keeps codes and commands out of the words.
+ * @param {(iso: string) => string} age - The page's age words, for the oldest call.
+ * @returns {{ items: object[], oldest: string }}
+ */
+export function notchRulings(calls, words, age) {
+  const kinds = { decision: ['item', 'Decision'], pending: ['spec', 'Spec question'], 'spec-revision': ['spec', 'Spec change'], 'agent-approved': ['spec', 'Confirm a row'],
+    'focus-approval-batch': ['spec', 'Release rows'], hold: ['ship', 'Held lane'], 'rigor-draft': ['rigor', 'Rigor'], 'sentinel-draft': ['rigor', 'Sentinel'], block: ['data', 'Blocked'], 'relay-health': ['data', 'Relay'] };
+  const rows = calls.filter(row => row.kind !== 'draft').map(words);
+  const items = rows.map(row => {
+    const [kind, cls] = kinds[row.kind] || ['item', 'Ruling'];
+    const go = row.kind === 'decision' ? 'decide:' + row.id : row.kind === 'pending' ? 'spec:' + row.id : row.kind === 'hold' ? 'tab:shouts' : row.target || 'tab:items';
+    const title = String(row.text || row.ref || cls).split(/\n/u)[0].replace(/\s+/gu, ' ').trim();
+    return { kind, cls, title: title.length > 88 ? title.slice(0, 87) + '…' : title, thing: String(row.ref || row.id || ''), action: row.kind === 'decision' ? 'Decide' : row.kind === 'agent-approved' ? 'Confirm' : 'Review', go, at: Date.parse(row.at || row.approvedAt) || null };
+  });
+  const first = items.filter(item => item.at).sort((a, b) => a.at - b.at)[0];
+  return { items, oldest: first ? age(new Date(first.at).toISOString()) : '' };
+}
+
+/**
  * Wire a notch to its panel. Hovering a widget (a descendant carrying data-notch="agents|perHour|rulings") opens
  * the panel after `delay` ms, sliding down over a blurred page; leaving closes it `grace` ms later; moving between
  * widgets switches at once. Clicking rulings, or the preview's "Open all", opens the full list in the same panel,
@@ -121,7 +144,10 @@ export function notchPreview(notch, read, { html = notchPreviewHtml, delay = 160
   panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Notch preview');
   root.append(veil, panel);
   let open = null, mode = null, timer = null, trigger = null;
-  const widget = target => target && target.closest ? target.closest('[data-notch]') : null;
+  const widget = target => {
+    const button = target && target.closest ? target.closest('[data-peek]') : null;
+    return (button && button.querySelector('[data-notch]')) || (target && target.closest ? target.closest('[data-notch]') : null);
+  };
   const inside = target => Boolean(target && (panel.contains(target) || (notch.contains(target) && widget(target))));
   const place = () => {
     const box = notch.getBoundingClientRect && notch.getBoundingClientRect();
