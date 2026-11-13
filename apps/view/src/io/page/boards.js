@@ -304,6 +304,12 @@ async function boardState(root, mark, fresh = null, shown = null) {
     // A listed board draws the frame now; its state fills the frame in as it arrives (#6589).
     if (projects.some((entry) => entry.ok)) drawFrame();
   }
+  // A page whose remembered board is not listed has no board to read yet: hand the listed boards back at once, and the
+  // refresh picks the first of them, instead of reading every board's state before choosing one (#6715).
+  if (!fresh && listed.boards.length && !listed.boards.some((board) => board.root === root) && !projectGroups(listed.boards).some((entry) => entry.key === root)) {
+    const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
+    return { projects, groups: projectGroups(projects), project: null, group: null };
+  }
   const states = new Map();
   const cursor = mark !== null && mark !== undefined && /^\\d+$/.test(String(mark)) && Number.isSafeInteger(Number(mark)) ? Number(mark) : null;
   /** Read one listed board: its state when the page shows its items, else only its summary (U94). */
@@ -384,7 +390,7 @@ async function boardRead(board, seen) {
 // U94's sidebar summary, embedded as its own source so the page and a server that serves it count alike.
 const projectSummary = (${projectSummary.toString()});
 /**
- * Read a listed board that is not opened as its summary: counts, needs-you and last change, under 2 KB (U94). A local
+ * Read a listed board that is not opened as its summary: counts, rulings and last change, under 2 KB (U94). A local
  * board whose listing row offers summaryVersion 1 serves it at /summary; a relay board, a snapshot, or an API that
  * offers none gives its state, which the page reduces to the same summary. Asking only when offered keeps an older
  * API from answering a 404 the browser would log.
