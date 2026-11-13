@@ -94,8 +94,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     } });
     const progressById = workProgress(board);
     const healthById = claimHealthSnapshot(board, config, new Date(observedAt));
-    state.items = state.items.map(item => ({ ...item, progress: progressById.get(item.id),
-      claimHealth: healthById.get(item.id) ?? null }));
+    state.items = state.items.map(item => ({ ...item, progress: withoutClockReading(progressById.get(item.id)),
+      claimHealth: claimHealthWithoutClock(healthById.get(item.id)) }));
     const allAgents = state.agents;
     state.agents = activeViewAgents(state.agents, observedAt).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
     state.board = boardId;
@@ -117,7 +117,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     state.requests = projectData.requests;
     state.personRequests = projectData.personRequests;
     Object.assign(state, personSigningPresentation(root, board, config));
-    state.milestones = projectData.milestones;
+    state.milestones = projectData.milestones.map(milestoneWithoutClock);
     state.blocks = personBlockWords(repoInfo(root).commonDir, board.clock.now(), localCapacity ? machineBudgetState(board, observedAt) : undefined); // Needs you below is recomputed with them [C6].
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
@@ -208,4 +208,26 @@ export function fileRevision(file) {
 function machineBudgetState(board, now) {
   const settings = loadMachineSettings();
   return settings.budget ? budgetState(board, settings.costPrices, settings.budget, now) : undefined;
+}
+
+/** An item's progress as the page holds it: lastActivity says when, and the page derives the idle minutes, so no build carries a clock reading [C7]. */
+function withoutClockReading(progress) {
+  if (!progress) return progress;
+  const { idleMinutes: _minutes, ...kept } = progress;
+  return kept;
+}
+
+/** A claim's health as a build holds it: its state and waits, never the minutes it has been idle. */
+function claimHealthWithoutClock(health) {
+  if (!health) return null;
+  const { idleMinutes: _minutes, ...kept } = health;
+  return kept;
+}
+
+/** A milestone as a build holds it: its own progress names the latest activity, and its entries carry no per-item progress, which each item already holds, so a delta resends a milestone at a fraction of its size. */
+function milestoneWithoutClock(milestone) {
+  const items = milestone.items.map(({ progress: _held, ...entry }) => entry);
+  const { idleMinutes: _minutes, ...progress } = milestone.progress;
+  const latest = milestone.items.map(entry => entry.progress?.lastActivity).filter(Boolean).sort().at(-1) ?? null;
+  return { ...milestone, items, progress: { ...progress, idleSince: latest } };
 }
