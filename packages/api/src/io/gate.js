@@ -130,13 +130,16 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
     const command = phase.role === 'check' ? check : gate.analysis?.proofCommand;
     // The runner's own per-case outcomes; the receipt body refuses malformed ones, and then the phase records none and maps no clause to a run.
     const testOutcomes = Array.isArray(phase.testOutcomes) ? phase.testOutcomes : null;
+    // The runner's own child runtimes, as the controller gate's capture records them; the receipt body refuses malformed ones [C7].
+    const testRuntimes = Array.isArray(phase.testRuntimes) && phase.testRuntimes.length ? phase.testRuntimes : null;
     const run = { version: 2, id: phaseReceiptId(job, phase.role), kind: 'submit', tree: submit.companion?.tree ?? submit.tree, head: candidate, main,
       command: createHash('sha256').update(String(command ?? phase.role)).digest('hex'), green: true, failures: [], load: null, at: new Date().toISOString(), ...(testOutcomes ? { testOutcomes } : {}),
       proof: { item: id, frozenDigest: submit.digest ?? null, seat: submit.agentId, runner: runnerName, exitCode: phase.status,
         durationMs: Number.isSafeInteger(gate.steps?.[phase.role]) && gate.steps[phase.role] >= 0 ? gate.steps[phase.role] : 0,
-        sourceClean: true, environment, counts: tailCounts(phase.tail), submitPhase, ...reuse } };
+        sourceClean: true, environment, counts: tailCounts(phase.tail), submitPhase, ...(testRuntimes ? { testRuntimes } : {}), ...reuse } };
     let body = receiptBody(run);
     if (!body && testOutcomes) { delete run.testOutcomes; body = receiptBody(run); }
+    if (!body && testRuntimes) { delete run.proof.testRuntimes; body = receiptBody(run); }
     if (!body) continue;
     mkdirSync(folder, { recursive: true, mode: 0o700 });
     writeFileSync(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
