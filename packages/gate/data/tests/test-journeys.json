@@ -3627,6 +3627,34 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
+    "apps/cli/journeys/doctrine/name.verifier.test.js": {
+      "cells": [
+        "app:cli",
+        "app:lib",
+        "app:runner",
+        "doctrine"
+      ],
+      "reasons": [
+        "imports past app:cli front door (apps/cli/src/io/view.js)",
+        "imports past doctrine front door (packages/doctrine/src/io/main.js)",
+        "runs the CLI (apps/cli/journeys/doctrine/name.verifier.test.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
+    "apps/cli/journeys/doctrine/name.verify.test.js": {
+      "cells": [
+        "app:cli",
+        "app:lib",
+        "app:runner",
+        "doctrine"
+      ],
+      "reasons": [
+        "imports past app:cli front door (apps/cli/src/io/view.js)",
+        "imports past doctrine front door (packages/doctrine/src/io/main.js)",
+        "runs the CLI (apps/cli/journeys/doctrine/name.verify.test.js)",
+        "spawns a child process (apps/cli/tests/fixtures/child.js)"
+      ]
+    },
     "test/durable-no-daemons-25.test.js": {
       "cells": [
         "app:lib",
@@ -4377,35 +4405,6 @@
       "reasons": [
         "imports past app:cli front door (apps/cli/src/io/cli-main/recovery.js)",
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
-      ]
-    },
-    "apps/cli/journeys/handoff/dispatcher/relaunch.test.js": {
-      "cells": [
-        "app:lib",
-        "gate",
-        "kernel",
-        "outbox",
-        "person",
-        "resources",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
-    "packages/resources/tests/io/handoff/worker/dispatcher/launcher.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person"
-      ],
-      "reasons": [
-        "spawns a child process (test/handoff-dispatcher-survives-launcher.test.js)"
       ]
     },
     "apps/cli/journeys/handoff/orphan.test.js": {

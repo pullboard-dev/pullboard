@@ -126,11 +126,10 @@
       "lease": "LEASE_MS 120 s; renewed every 5 s per pass; released when the queue empties; never done",
       "transitions": [
         { "from": "(lapsed)", "to": "dispatcher.spawned", "trigger": "submit, next or claim ensures it; takes the row only where the lease lapsed", "at": "packages/drive/src/io/dispatcher.js:ensureDispatcher" },
-        { "from": "dispatcher.spawned", "to": "dispatcher.spawned", "trigger": "each pass renews, or retakes a lapsed row", "at": "packages/drive/src/io/dispatcher.js:renewDispatcher" },
-        { "from": "dispatcher.spawned", "to": "(released)", "trigger": "queue empty or failure", "at": "packages/drive/src/io/gate/admission.js:gateDispatcherRow" }
+        { "from": "dispatcher.spawned", "to": "dispatcher.spawned", "trigger": "each pass renews, or retakes a lapsed row", "at": "packages/drive/src/io/dispatcher.js:renewDispatcher" }
       ],
-      "servingCheck": { "status": "violated", "gap": "SM1", "at": "packages/resources/src/io/handoff/worker/cap.js:startWorker", "note": "launches every waiting ticket with no read of its item" },
-      "harness": "apps/cli/journeys/handoff/dispatcher/relaunch.test.js"
+      "servingCheck": { "status": "held", "at": "packages/drive/src/io/dispatcher.js:ensureDispatcher", "note": "the row launches nothing since #6579 deleted the hand-off dispatcher; it holds only its own lease" },
+      "harness": "apps/lib/tests/durable/drive.test.js"
     },
     {
       "kind": "review",
@@ -284,6 +283,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -320,6 +320,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -340,6 +352,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -376,6 +389,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -393,9 +418,11 @@
       "serves": "no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing",
       "states": [
         "request",
+        "pending",
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -403,6 +430,18 @@
       ],
       "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
       "transitions": [
+        {
+          "from": "(none)",
+          "to": "pending",
+          "trigger": "the board writes the job with its whole request, unclaimable until its run row commits",
+          "at": "packages/store/src/io/board/runs.js:intend"
+        },
+        {
+          "from": "pending",
+          "to": "offered",
+          "trigger": "the run row has committed, so the job is offered",
+          "at": "packages/store/src/io/board/runs.js:confirm"
+        },
         {
           "from": "(none)",
           "to": "offered",
@@ -432,6 +471,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -451,6 +502,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -487,6 +539,18 @@
           "to": "done",
           "trigger": "the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released",
           "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -545,10 +609,8 @@
     { "case": "gate driver killed", "current": "the gate is requeued on the same candidate within seconds, with no builder red", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/requeue.js" },
     { "case": "live driver mistaken for dead", "current": "a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/driver.js" },
     { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/worker.js" },
-    { "case": "dispatcher down with queued gates", "current": "next and claim recover a dead dispatcher; status, show and whoami never do", "intended": "same", "harness": "apps/cli/journeys/handoff/dispatcher/relaunch.test.js" },
     { "case": "dispatcher on stale tools", "current": "it stops launching and hands over to one on current tooling within 45 s", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/dispatcher.js" },
     { "case": "seat runs a stale CLI", "current": "a worktree runs the main checkout's current CLI", "intended": "same", "harness": "apps/cli/journeys/worktree/current.test.js" },
-    { "case": "another machine's dispatcher sweeps this home", "current": "it never recovers this home's gates", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/sweep.js" },
     { "case": "landing crash", "current": "killing the lander at any stage lets the next accept land both items without manual recovery", "intended": "same", "harness": "apps/cli/journeys/verify/landing/drill.test.js" },
     { "case": "two landers", "current": "the board landing lease admits one; a stalled relay cannot block the holder's heartbeat", "intended": "same", "harness": "apps/lib/tests/landing/lease.test.js" },
     { "case": "a reject or reopen during landing", "current": "every landing step re-checks verified at the commit, so the item drops out of the batch", "intended": "same, proven between select and merge", "harness": "packages/gate/tests/fixtures/pipeline/a-reject-or-reopen-during-landing.js" },

@@ -8,6 +8,6 @@ import { cleanupToolingSnapshots } from '../../../../../tests/fixtures/runner/to
 after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
 
-test('paired rerun 3 of 5 [C7]', { timeout: 120_000, cpuLoad: true, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => { // budget: one real paired attempt on a half-core busy stand-in.
+test('paired rerun 3 of 5 [C7]', { timeout: 120_000, cpuLoad: true, skip: 'CONTROLLER_ONLY: deleted with #7526' }, async t => { // budget: one real paired attempt on a half-core busy stand-in.
   await assertLoadedPairedRerun(t, 3);
 });

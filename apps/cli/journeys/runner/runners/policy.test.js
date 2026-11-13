@@ -11,11 +11,11 @@ import { browserRefusalRetriesRunner } from '../../../tests/fixtures/runner/brow
 import { testsNeedBrowser } from '../../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';
 
-test('clause 1: a browser-free check on a runner with no browser slots passes [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => browserFreeRunnerCheck(t, { cli, git })); // budget: two runner round trips and two local runs.
-test('an authenticated browser refusal retries on a remote browser lease [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => browserRefusalRetriesRunner(t, { cli, git })); // budget: two remote runner round trips.
+test('clause 1: a browser-free check on a runner with no browser slots passes [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, t => browserFreeRunnerCheck(t, { cli, git })); // budget: two runner round trips and two local runs.
+test('an authenticated browser refusal retries on a remote browser lease [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, t => browserRefusalRetriesRunner(t, { cli, git })); // budget: two remote runner round trips.
 test('a fixture-child test without the browser declaration needs no browser [C7]', async () => {
   const files = ['apps/cli/journeys/gate/receipts.test.js'];
   assert.equal(await testsNeedBrowser(process.cwd(), files), false);
 });
 
-test('clause 2: a test that prints the browser refusal text on a runner stays red and is not rerun, within its time limit [C7]', { timeout: 120_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => browserRefusalTextStaysRed(t, { cli, git })); // budget: one runner round trip.
+test('clause 2: a test that prints the browser refusal text on a runner stays red and is not rerun, within its time limit [C7]', { timeout: 120_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, t => browserRefusalTextStaysRed(t, { cli, git })); // budget: one runner round trip.

@@ -22,9 +22,10 @@
  * @param {Function} deps.onFilter - Put a filter in the address (and the strip): onFilter(value).
  * @param {Function} deps.after - Called when the page's own state changed what the strip shows.
  * @param {Function} deps.remember - remember(root) reads the last look; remember(root, ms) keeps one.
+ * @param {Function} [deps.drawn] - Called after the page's markup is replaced, so a line the page appended to it (the older-history note) is drawn again.
  * @returns {{ draw: Function, reset: Function }}
  */
-export function activityRuntime({ flow, html, tip, step, start, api, boardPath, current, view, project: held_project, active, working, controls, onFilter, after, remember }) {
+export function activityRuntime({ flow, html, tip, step, start, api, boardPath, current, view, project: held_project, active, working, controls, onFilter, after, remember, drawn }) {
   const boards = new Map();
   const HOUR = 3_600_000, PAD = 3 * HOUR;
   let node = null, tipNode = null, watcher = null, resizing = null, wired = false;
@@ -94,6 +95,7 @@ export function activityRuntime({ flow, html, tip, step, start, api, boardPath, 
     if (force || markup !== state.painted || node.dataset.boardRoot !== project.root) {
       node.dataset.boardRoot = project.root;
       node.innerHTML = markup; state.painted = markup;
+      drawn?.();
     }
   }
 

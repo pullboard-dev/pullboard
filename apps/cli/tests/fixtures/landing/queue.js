@@ -308,8 +308,8 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   // Freshness survives under pull: the land offer rechecks each verdict against the main it lands onto [B3,C7].
   if (staleAfterFirst) return pulledFreshnessCase(helpers);
   if (policyAfterFirst) return pulledPolicyCase(helpers);
-  // Every variant is the controller's landing lease: a named waiting lander, its held batch, parent and guardian death. A pulled landing is a runner job with none of these; #6579 deletes the cases with the lease.
-  t.skip('CONTROLLER_ONLY: deleted with #6579');
+  // Every variant is the controller's landing lease: a named waiting lander, its held batch, parent and guardian death. A pulled landing is a runner job with none of these; #6807 deletes the cases with the lease.
+  t.skip('CONTROLLER_ONLY: deleted with #6807');
   return;
   const sandbox = helpers.sandbox({ declareFamilies: policyAfterFirst });
   const arm = join(sandbox.dir, 'landing-armed');
