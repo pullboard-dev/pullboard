@@ -130,13 +130,16 @@ function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit,
     const command = phase.role === 'check' ? check : gate.analysis?.proofCommand;
     // The runner's own per-case outcomes; the receipt body refuses malformed ones, and then the phase records none and maps no clause to a run.
     const testOutcomes = Array.isArray(phase.testOutcomes) ? phase.testOutcomes : null;
+    // The runner's own child runtimes, as the controller gate's capture records them; the receipt body refuses malformed ones [C7].
+    const testRuntimes = Array.isArray(phase.testRuntimes) && phase.testRuntimes.length ? phase.testRuntimes : null;
     const run = { version: 2, id: phaseReceiptId(job, phase.role), kind: 'submit', tree: submit.companion?.tree ?? submit.tree, head: candidate, main,
       command: createHash('sha256').update(String(command ?? phase.role)).digest('hex'), green: true, failures: [], load: null, at: new Date().toISOString(), ...(testOutcomes ? { testOutcomes } : {}),
       proof: { item: id, frozenDigest: submit.digest ?? null, seat: submit.agentId, runner: runnerName, exitCode: phase.status,
         durationMs: Number.isSafeInteger(gate.steps?.[phase.role]) && gate.steps[phase.role] >= 0 ? gate.steps[phase.role] : 0,
-        sourceClean: true, environment, counts: tailCounts(phase.tail), submitPhase, ...reuse } };
+        sourceClean: true, environment, counts: tailCounts(phase.tail), submitPhase, ...(testRuntimes ? { testRuntimes } : {}), ...reuse } };
     let body = receiptBody(run);
     if (!body && testOutcomes) { delete run.testOutcomes; body = receiptBody(run); }
+    if (!body && testRuntimes) { delete run.proof.testRuntimes; body = receiptBody(run); }
     if (!body) continue;
     mkdirSync(folder, { recursive: true, mode: 0o700 });
     writeFileSync(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
@@ -480,6 +483,29 @@ function waiverLines(cases) {
 }
 
 /**
+ * Accepted main's verify.inspectClauses, as the inline submit sealed it: main's normalized policy, else its committed
+ * config file (on unless set false); false when neither reads. Why main's: the setting is accepted policy [C7,V4].
+ */
+function inspectsClauses(board, main) {
+  if (!board.gitRoot || !SHA.test(String(main))) return false;
+  try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.verify.inspectClauses === true; } catch { /* the committed file below */ }
+  try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.inspectClauses !== false; } catch { return false; }
+}
+
+/**
+ * Record a settled pulled submission's clause checklist, as the inline submit did: a green gate's tick notes for each
+ * [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary for the reviewer [C7,V4].
+ * The files are only those the gate's own phases ran, its proof files and every file an outcome names, so no clause is
+ * ticked by a file the gate did not run.
+ */
+function recordClauseInspection(board, { id, receipt, head, agentId, green }) {
+  const outcomes = (receipt?.gate?.phases ?? []).filter(phase => phase.status === 0).flatMap(phase => Array.isArray(phase.testOutcomes) ? phase.testOutcomes : [])
+    .filter(row => row && typeof row.file === 'string' && typeof row.name === 'string');
+  const gateFiles = new Set([...pulledProofFiles(receipt), ...outcomes.map(row => row.file)].filter(file => PROJECT_FILE.test(file)));
+  store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
+}
+
+/**
  * Apply one newly recorded gate-job receipt to its item. The receipt counts only while it is for the item's current
  * candidate: the newest gate job offered for the item, its source, still claimed by the seat that submitted it at the
  * same frozen bar. Anything else is stale: the receipt stays recorded on the job and the item is left as it is.
@@ -582,6 +608,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${[...caseLines(compared), ...lines, ...caseReworkLines(board, main, compared, { accepted: true })].join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
       }
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : owners ? `green over main-owned ${owners.checkOnly ? 'frozen check' : 'test'} cases` : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
+      if (inspectsClauses(board, main)) recordClauseInspection(board, { id, receipt, head: submit.companion?.source ?? candidate, agentId: submit.agentId, green: gateGreen });
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
         store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });
@@ -798,7 +825,8 @@ function returnLandedReds(board, job, named, receipt, separate) {
     if (item.item_status !== 'verified' || item.item_hold_at) continue;
     const why = `land job ${job} ${row.reason === 'conflict' ? 'could not merge it' : 'checked the merged tree red'}: ${first}`.slice(0, 400);
     try {
-      if (separate) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });
+      // A static guard red is the item's own source, not a held landing: it goes back to its builder as the inline lander did [#7492].
+      if (separate && !row.guard) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });
       else {
         store.reopen(board, row.id, { agentId: 'coordinator', withdrawVerdict: true, note: `${why}; merge current main, fix it, commit and resubmit` });
         if (item.item_built_by) store.persistShout(board, { from: 'coordinator', to: item.item_built_by, text: `#${row.id} is back with you: ${why}`.slice(0, 600) });
@@ -892,10 +920,15 @@ export function applyLandingReceipt(board, { job, receipt }) {
     if (!named.has(id)) continue;
     const item = store.getItem(board, id);
     if (item?.item_status !== 'verified' || item.item_merged_commit) continue;
-    store.merged(board, id, { agentId: 'coordinator', commit: receipt.trunk, note: `landed by runner job ${job}` });
+    // Each item lands at its own first-containing merge when the receipt names one; trunk already held the rest [B3,R3,#7506].
+    const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
+    store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
     merged.push(id);
     // A landing proof red only in waived tests is recorded on each item it landed, as the controller's waived landing gate was [#655].
     if (waived.length) store.appendFact(board, id, { agentId: 'coordinator', kind: 'measurement', text: `Land job ${job} landing gate waived, not green, at ${receipt.trunk.slice(0, 12)}:\n${waived.join('\n')}`.slice(0, 2000) });
   }
+  // A landing that moved trunk writes one main-moved receipt, so seats get the main-moved notice [B3,R3,#7506].
+  const moved = merged.filter(id => (receipt.landed ?? []).includes(id));
+  if (moved.length) store.logEvent(board, 'coordinator', 'main-moved', null, { sha: receipt.trunk, job, items: moved });
   return { applied: merged.length > 0 || returned.length > 0, outcome: 'landed', merged, returned };
 }

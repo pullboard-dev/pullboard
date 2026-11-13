@@ -133,6 +133,9 @@
     }
   ],
   "spec": "SPEC.md",
+  "specBoards": {
+    "upgrades": "../pullboard-upgrades"
+  },
   "verify": {
     "policy": "any",
     "unrelatedTrunkMoves": true,

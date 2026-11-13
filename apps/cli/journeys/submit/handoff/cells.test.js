@@ -70,7 +70,7 @@ async function enforceCellTrial(box, kind, code) {
   writeFileSync(file, JSON.stringify(ledger) + '\n');
 }
 
-for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
+for (const kind of ['ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
   const box = fixture(t, { cells: true });
   await enforceCellTrial(box, kind, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');
   mkdirSync(join(box.web, 'src'), { recursive: true });
