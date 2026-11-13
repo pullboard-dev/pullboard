@@ -109,7 +109,7 @@ import { test } from 'node:test';
 /** Record real executions; the fixture controls whether the assertion is passing or intermittent. */
 test(${JSON.stringify(TITLE)}, () => {
   const marker = ${JSON.stringify(counter)};
-  appendFileSync(marker, 'run\\n');
+  appendFileSync(marker, 'run ' + process.cwd() + ' ' + Date.now() + '\\n');
   ${mutate ? (mutate === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " : '') + 'appendFileSync(new URL(import.meta.url), ' + JSON.stringify('\n// fixture source changed\n') + ');' : ''}
   ${alwaysPass === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " + assertion : alwaysPass ? 'assert.ok(true);' : assertion}
 });\n`);
