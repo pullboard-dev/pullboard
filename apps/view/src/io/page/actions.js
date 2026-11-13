@@ -47,7 +47,7 @@ function placePairs(tab = view.tab) {
     rows: kind ? view.rows[kind] : null, rowsDefault: kind === 'spec' ? 'decide' : kind === 'doctrine' ? 'all' : null,
     shouts: view.shoutFilter, activity: view.activityFilter || 'all',
     shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, win: view.activityWin || 24, window: view.pipelineWindow || '1h', ids: view.itemIds || [],
-    release: view.roadmapPage?.release ?? null, page: view.roadmapPage?.page ?? 1 });
+    release: view.roadmapPage?.release ?? null, page: view.roadmapPage?.page ?? 1, per: view.roadmapPage?.per ?? 25 });
 }
 
 /** Name each repo even beneath a group; one repo needs no prefix. */
@@ -129,7 +129,7 @@ function applyPlace(place, kept = null) {
   if (view.tab === 'roadmap') {
     view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), query.shipped === '1');
     // The release a person opened and the page of its landed items come back with the address, so a reload keeps them.
-    view.roadmapPage = query.release ? { release: query.release, page: query.page } : null;
+    view.roadmapPage = query.release ? { release: query.release, page: query.page, per: query.per } : null;
     if (query.release) view.roadmapOpen.set(JSON.stringify([view.root, 'm:' + query.release]), true);
   }
   if ($('q') && $('q').value !== (query.q || '')) { $('q').value = query.q || ''; hideFound('address'); }
@@ -1054,7 +1054,7 @@ document.addEventListener('click', (event) => {
     itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
     return;
   }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-roadmap-per],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side, #proj-switch, #proj-menu')) fold(false);
   if (event.target.closest('#nav-pin')) { flipNav(); return; }
   const control = event.target.closest('button[data-page-ctl]');
@@ -1108,7 +1108,7 @@ document.addEventListener('click', (event) => {
     // Opening a release puts it in the address, at the page of landed items it was on; closing it takes it out.
     if (key.startsWith('m:')) {
       const name = key.slice(2), paged = view.roadmapPage?.release === name;
-      if (open) view.roadmapPage = { release: name, page: paged ? view.roadmapPage.page : 1 };
+      if (open) view.roadmapPage = { release: name, page: paged ? view.roadmapPage.page : 1, per: paged ? view.roadmapPage.per : 25 };
       else if (paged) view.roadmapPage = null;
       address(false);
     }
@@ -1120,7 +1120,9 @@ document.addEventListener('click', (event) => {
     }));
     return;
   }
-  if ('roadmapPage' in t.dataset) { view.roadmapPage = { release: t.dataset.roadmapPage, page: Number(t.dataset.page) || 1 }; address(); render(); return; }
+  if ('roadmapPage' in t.dataset) { view.roadmapPage = { release: t.dataset.roadmapPage, page: Number(t.dataset.page) || 1, per: view.roadmapPage?.per ?? 25 }; address(); render(); return; }
+  // A new page size keeps the first landed item in view: it lands on the page that holds it.
+  if ('roadmapPer' in t.dataset) { const was = view.roadmapPage?.per ?? 25, per = Number(t.dataset.roadmapPer), first = ((view.roadmapPage?.page ?? 1) - 1) * was; view.roadmapPage = { release: t.dataset.release, page: Math.floor(first / per) + 1, per }; address(); render(); return; }
   if ('roadmapAll' in t.dataset) { view.roadmapOnly = null; render(); return; }
   if ('roadmapHeld' in t.dataset) { view.roadmapHeld = view.roadmapHeld === t.dataset.roadmapHeld ? null : t.dataset.roadmapHeld; render(); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');

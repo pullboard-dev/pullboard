@@ -79,3 +79,6 @@
 .milestone-item .roadmap-afters .roadmap-after svg { display: inline-block; vertical-align: -2px; margin-right: var(--space-1); }
 .roadmap-summary-needs { display: grid; gap: var(--space-1); }
 .roadmap-summary-needs .roadmap-need { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roadmap-page-sizes { display: inline-flex; flex: none; gap: var(--space-1); }
+.roadmap-page-size { padding: 0 var(--space-2); border: var(--border); border-radius: var(--radius-chip); background: var(--surface); color: var(--ink-muted); font: 500 var(--text-xs)/22px var(--sans); cursor: pointer; }
+.roadmap-page-size[aria-pressed="true"] { color: var(--ink); background: var(--surface-2); font-weight: 600; }

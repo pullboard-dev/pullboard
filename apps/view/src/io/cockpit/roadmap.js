@@ -116,7 +116,7 @@ function jumpToRoadmap(key) {
   } else if (key.startsWith('m:')) {
     // Picking a release opens it and folds every other one to its line, so only the chosen release lists items (#7303).
     for (const button of document.querySelectorAll('#roadmap-panel [data-roadmap-jump^="m:"]')) view.roadmapOpen.set(JSON.stringify([view.root, button.dataset.roadmapJump]), button.dataset.roadmapJump === key);
-    view.roadmapPage = { release: key.slice(2), page: view.roadmapPage?.release === key.slice(2) ? view.roadmapPage.page : 1 };
+    view.roadmapPage = { release: key.slice(2), page: view.roadmapPage?.release === key.slice(2) ? view.roadmapPage.page : 1, per: view.roadmapPage?.release === key.slice(2) ? view.roadmapPage.per ?? 25 : 25 };
     address(false);
     render();
   }
