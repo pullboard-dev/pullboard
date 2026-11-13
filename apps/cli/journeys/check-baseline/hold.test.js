@@ -83,7 +83,7 @@ function commitIn(box, cwd, content, message) {
   box.git(cwd, 'commit', '-q', '-m', message);
 }
 
-test('[V2,V4,B26,P6] a check green on main holds the item until the person accepts it', () => {
+test('[V2,V4,B26,P6] a check green on main holds the item until the person accepts it', async () => {
   const box = project({ content: 'green', worktrees: true, hold: true });
   const env = personEnv(box.env);
   const file = join(box.repo, BOARD_FILE);
@@ -122,11 +122,15 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
     assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'check_accept'").get().n, 0, 'no refused path recorded an acceptance');
   });
   assert.equal(refusal(box.run(box.web, ['claim', id, '--json']), 'claim after refusals').code, 'CRITERION_PROVES_NOTHING');
-  for (const route of [['next'], ['next', '--build']]) {
-    const routed = refusal(box.run(box.web, [...route, '--json']), route.join(' '));
-    assert.equal(routed.code, 'CRITERION_PROVES_NOTHING', `${route.join(' ')} is refused like claim`);
-    assert.ok(routed.message.includes(green), `${route.join(' ')} names the check: ${routed.message}`);
-  }
+  // Since 4657576b18 a plain next ends the turn (exit 0, nothing for this seat) and names the hold in its reasons instead of refusing.
+  const plainHeld = box.run(box.web, ['next', '--json']);
+  assert.equal(plainHeld.status, 0, `plain next finishes without a refusal: ${plainHeld.stdout}${plainHeld.stderr}`);
+  const plainAnswer = JSON.parse(plainHeld.stdout);
+  assert.equal(plainAnswer.item, null, 'plain next hands out nothing while the check is held');
+  assert.equal(plainAnswer.next, 'nothing for this seat: end your turn');
+  assert.ok(plainAnswer.reasons.some(reason => reason.includes('check passes on main')), `plain next names the hold: ${plainHeld.stdout}`);
+  const routed = refusal(box.run(box.web, ['next', '--build', '--json']), 'next --build');
+  assert.equal(routed.code, 'NOTHING_FREE', 'next --build finds nothing free while the item is held, and claims nothing');
   const claims = () => withBoard(file, (board) => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'claim' AND item_id = ?").get(item.item_id).n);
   assert.equal(claims(), 0, 'no refused route recorded a claim');
   assert.equal(showItem(box, id).item.item_status, 'open');
@@ -169,15 +173,25 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const submitted = box.run(box.web, ['submit', id, '--json']);
   assert.equal(submitted.status, 0, `a red new baseline lifts the hold: ${submitted.stdout}${submitted.stderr}`);
 
-  const second = addChecked(box, 'Second held green check', fileCheck('green', 'second-check-marker.txt')).item;
-  const nextHeld = refusal(box.run(box.web, ['next', '--json']), 'next on a second held item');
-  assert.equal(nextHeld.code, 'CRITERION_PROVES_NOTHING', 'next refuses the second held item');
+  const secondAdd = box.run(box.repo, ['add', 'web', 'Render the quarterly ledger export', '--specs', 'G1', '--criterion', 'the ledger export renders', '--check', fileCheck('green', 'second-check-marker.txt'), '--not-duplicate-of', `${id} a second, unrelated item`, '--wait', '--json']);
+  assert.equal(secondAdd.status, 0, `${secondAdd.stdout}${secondAdd.stderr}`);
+  const second = JSON.parse(secondAdd.stdout).item;
+  const nextHeld = box.run(box.web, ['next', '--json']);
+  assert.equal(nextHeld.status, 0, `plain next ends the turn on the second held item: ${nextHeld.stdout}${nextHeld.stderr}`);
+  assert.equal(JSON.parse(nextHeld.stdout).item, null, 'next hands out nothing for the second held item');
   const reset = box.run(box.repo, ['edit', String(second.item_id), '--check', fileCheck('done', 'second-red-marker.txt'), '--wait', '--json'], undefined, { env });
   assert.equal(reset.status, 0, `${reset.stdout}${reset.stderr}`);
   assert.equal(JSON.parse(reset.stdout).item.item_check_baseline.result, 'red');
-  const nextClaimed = box.run(box.web, ['next', '--json']);
-  assert.equal(nextClaimed.status, 0, `a changed check with a red baseline lifts the hold for next: ${nextClaimed.stdout}${nextClaimed.stderr}`);
-  assert.equal(showItem(box, second.item_id).item.item_status, 'claimed', 'next claimed the item once its check was red on main');
+  // The red baseline itself lifts the proves-nothing hold, so next and claim both hand the item out (P7, #6187).
+  assert.equal(showItem(box, second.item_id).item.item_hold_reason ?? null, null, 'a red baseline on main lifts the check hold');
+  const nextClaimed = await box.runLocal(box.web, ['next', '--json']);
+  assert.equal(nextClaimed.status, 0, `a red baseline lifts the hold for next: ${nextClaimed.stdout}${nextClaimed.stderr}`);
+  assert.equal(JSON.parse(nextClaimed.stdout).item?.item_id, second.item_id, `next hands out the item once its check is red on main: ${nextClaimed.stdout}`);
+  const released = await box.runLocal(box.web, ['release', String(second.item_id), '--reason', 'OTHER', '--note', 'the fixture claims it again', '--json']);
+  assert.equal(released.status, 0, `${released.stdout}${released.stderr}`);
+  const claimedAgain = await box.runLocal(box.web, ['claim', String(second.item_id), '--json']);
+  assert.equal(claimedAgain.status, 0, `a red baseline lifts the hold for claim, with no ITEM_HELD: ${claimedAgain.stdout}${claimedAgain.stderr}`);
+  assert.equal(showItem(box, second.item_id).item.item_status, 'claimed', 'claim took the item once its check was red on main');
 
   const plain = project({ content: 'green', worktrees: true });
   const { result: warned, item: open } = addChecked(plain, 'Unheld green check', fileCheck('green', 'plain-check-marker.txt'));

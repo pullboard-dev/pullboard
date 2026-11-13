@@ -22,7 +22,7 @@ test('clause 1: the release header reads title, rate line, one full-width bar, t
 test('clause 2: a Roadmap row names only its stage, with Landed for Merged, and no route or holder text [N26]', () => {
   const source = pageRenderScript();
   assert.match(source, /roadmap && stage\.stage === 'Merged' \? 'Landed' : stage\.stage/u, 'Merged reads Landed on the Roadmap');
-  assert.match(source, /\(roadmap \? '' : '<small class="stage-detail"/u, 'a Roadmap row carries no stage detail text');
+  assert.match(source, /\(roadmap \|\| brief \? '' : '<small class="stage-detail"/u, 'a Roadmap row carries no stage detail text');
 });
 
 test('clause 3: no stylesheet is over 1500 lines; the new rules live in stage.css, composed through its marker, and main.css is not grown [N26]', () => {
