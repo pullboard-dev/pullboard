@@ -8,6 +8,7 @@ import { reportFixtureChildFailure } from '../child.js';
 import { safeFixtureDiagnostic } from '../child.js';
 import { performance } from 'node:perf_hooks';
 import { appendFileSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -127,6 +128,29 @@ export function settledProject() {
   const box = project();
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
   return box;
+}
+
+/**
+ * Resolve once the board's runner job queue holds no unfinished job, read again on every change in the machine's local runner folder.
+ * Why: under pull dispatch the loopback runner lands and gates after a move returns, so a journey that counts what a later
+ * move recomputes waits for that work to finish first; the runner's folder changes with each claim, receipt and 5 s heartbeat [P7].
+ */
+export function jobQueueEmpty(box, { deadlineMs = 120_000 } = {}) {
+  const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const runnerDir = join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner');
+  return new Promise((resolveEmpty, rejectEmpty) => {
+    let watcher = null;
+    let open = -1;
+    const stop = () => { watcher?.close(); clearTimeout(timer); };
+    const probe = () => {
+      const db = new DatabaseSync(boardFile, { readOnly: true });
+      try { open = db.prepare("SELECT COUNT(*) AS open FROM job WHERE job_step <> 'done'").get().open; } catch { return; } finally { db.close(); }
+      if (open === 0) { stop(); resolveEmpty(); }
+    };
+    const timer = setTimeout(() => { stop(); rejectEmpty(new Error(`the runner queue still holds ${open} unfinished job(s) after ${deadlineMs} ms`)); }, deadlineMs);
+    try { watcher = watch(runnerDir, probe); } catch (error) { stop(); rejectEmpty(error); return; }
+    probe();
+  });
 }
 
 /** Serve the local API adapter directly so tests can exercise its optional origin allowlist. */

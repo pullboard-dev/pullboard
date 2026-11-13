@@ -4177,14 +4177,12 @@
     "model": 2
   },
   "apps/cli/journeys/milestone/api/schema.test.js": {
-    "hand-policy": 2,
-    "model": 1,
     "raw-board": 1
   },
   "apps/cli/journeys/milestone/api/serve.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/milestone/api/state.test.js": {
+  "apps/cli/journeys/milestone/api/state-shouts.test.js": {
     "raw-board": 1
   }
 }

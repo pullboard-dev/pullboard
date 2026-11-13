@@ -23,6 +23,7 @@ import { SPEC } from '../../../tests/fixtures/api/project.js';
 import { runLocal } from '../../../tests/fixtures/api/milestone.js';
 import { settledProject } from '../../../tests/fixtures/api/milestone.js';
 import { startLocalHandler } from '../../../tests/fixtures/api/milestone.js';
+import { jobQueueEmpty } from '../../../tests/fixtures/api/milestone.js';
 
 test('one move recomputes only the items it touched [A2,N26]', async (t) => {
   const box = settledProject();
@@ -168,6 +169,9 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     }
     await assertFreshFullState('release the extra claims');
 
+    // The loopback runner may still be landing or gating the verified item; let its queue empty so only the shout can move the board [P7].
+    await jobQueueEmpty(box);
+    await assertFreshFullState('runner queue settled');
     builds.length = 0;
     await move('shout', undefined, { to: 'all', text: 'Board-only change for incremental projection' });
     const shouted = await assertFreshFullState('board-only shout');
