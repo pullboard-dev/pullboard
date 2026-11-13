@@ -43,6 +43,7 @@ import {
 } from '../../../../packages/seats/index.js';
 import {
   detectGate,
+  detectTestGlobs,
   settingCommand,
 } from '../../../../packages/gate/index.js';
 export { detectGate } from '../../../../packages/gate/index.js';
@@ -64,6 +65,7 @@ import {
   claudeLoopRules,
   codexLoopRules,
   configTemplate,
+  defaults,
   plainGateWords,
   practiceTemplate,
   specTemplate,
@@ -815,6 +817,9 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
   const gate = detectGate(root);
   const configured = configuredGate(root);
   const config = JSON.parse(configTemplate(gate, detectFixers(root)));
+  // A repo's own test files are protected as bar files for every detected language, not only Node's [#3707].
+  const testGlobs = detectTestGlobs(root);
+  if (testGlobs.length) config.claim = { barTestFiles: [...defaults().claim.barTestFiles, ...testGlobs] };
   if (!tryGit(root, ['remote']).stdout) config.landing = { publish: 'separate' };
   const written = [];
   /** Record only paths setup actually writes; unrelated files never enter its staging command. */
