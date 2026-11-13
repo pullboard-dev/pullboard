@@ -11,6 +11,7 @@ import { apiHttpBox } from '../../tests/fixtures/api.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { mainRedLookup } from '../../../../packages/drive/index.js';
 import { serveRunner } from '../../../../packages/drive/index.js';
+import { pullGit } from '../../src/io/runner/git.js';
 import { returnedMainReceipts } from '../../../../packages/gate/src/io/main/verdict.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
 import { jobView } from '../../../../packages/jobs/index.js';
@@ -65,7 +66,7 @@ async (t) => {
   assert.equal(green.status, 'missing');
 
   for (const runner of ['r-main-1', 'r-main-2']) {
-    const served = await serveRunner({ board, runner, capabilities: ['node22'], cache: join(cache, runner), once: true, timing: { idleMs: 10 } });
+    const served = await serveRunner({ git: pullGit, board, runner, capabilities: ['node22'], cache: join(cache, runner), once: true, timing: { idleMs: 10 } });
     assert.equal(served.jobs.length, 1, JSON.stringify(served));
     assert.equal(served.jobs[0].outcome, 'posted', JSON.stringify(served.jobs[0]));
     assert.equal(served.jobs[0].receipt.commit, main, 'the job ran at the main commit holding the queued tree');
@@ -94,7 +95,7 @@ async (t) => {
     if (body.action === 'receipt' && jobs.every(job => jobView(db, job).step === 'done')) stop.abort();
     return response;
   };
-  const served = await serveRunner({ board, runner: 'r-cycle', capabilities: ['node22'], cache, jobs: 2, cores: 4, signal: stop.signal, fetchImpl, timing: { idleMs: 50 } });
+  const served = await serveRunner({ git: pullGit, board, runner: 'r-cycle', capabilities: ['node22'], cache, jobs: 2, cores: 4, signal: stop.signal, fetchImpl, timing: { idleMs: 50 } });
   assert.deepEqual(served.jobs.map(entry => entry.outcome).sort(), ['posted', 'posted'], JSON.stringify(served.jobs));
   assert.deepEqual(claims.slice(0, 2).sort(), [...jobs].sort(), `the first two claims took both queued jobs, none answered empty first: ${JSON.stringify(claims)}`);
   assert.deepEqual(db.prepare("SELECT job_id FROM job WHERE job_kind = 'main-test' AND job_step = 'queued'").all(), [], 'no main-test job is left queued');
@@ -109,7 +110,7 @@ async (t) => {
   const [green, red] = files.map(file => mainRedLookup(db, [], { tree, file, command: COMMAND }));
   assert.deepEqual(mainReceipts(root, main, files).rows.size, 0, 'before the job the cache holds no receipt');
   for (const runner of ['r-cache-1', 'r-cache-2']) {
-    const served = await serveRunner({ board, runner, capabilities: ['node22'], cache: join(cache, runner), once: true, timing: { idleMs: 10 } });
+    const served = await serveRunner({ git: pullGit, board, runner, capabilities: ['node22'], cache: join(cache, runner), once: true, timing: { idleMs: 10 } });
     assert.equal(served.jobs[0]?.outcome, 'posted', JSON.stringify(served));
   }
   const cached = cachedMainComparison(root, main, files);
