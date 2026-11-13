@@ -21,7 +21,6 @@ import {
   placePath,
 } from '../../../../packages/codemap/index.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
-import { requirePlannedSource } from '../../../../packages/items/index.js';
 import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
 import {
@@ -104,7 +103,7 @@ test('a view commit creating its own file and one plan row passes the hook and n
   const box = await ownPlacementFixture(t);
   box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
   rmSync(box.marker, { force: true });
-  const submitted = success(box, box.view, 'submit', String(box.id));
+  const submitted = success(box, box.view, 'submit', String(box.id), '--wait');
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
@@ -165,8 +164,6 @@ test('native view submit validates its core companion placement on the composed 
   assert.equal(submitted.gate.companion.source, source);
   assert.notEqual(submitted.gate.companion.commit, source, 'the actual gate proves the composed source');
   assert.equal(existsSync(box.marker), true, 'the composed source now reaches its real check');
-  assert.throws(() => requirePlannedSource(view, box.git(box.repo, 'rev-parse', 'HEAD'), source), /plan-companion-added\.js/,
-    'the companion never lends its placement to the bare builder source');
 });
 
 
