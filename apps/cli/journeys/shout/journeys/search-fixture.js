@@ -1,9 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  fixtureProjectPolicy,
-  privateFixtureFiles,
-} from '../../../tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../../tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 
 /** Shared helpers for the cockpit search row-age tests, split out of search.test.js (#4001). */
 
