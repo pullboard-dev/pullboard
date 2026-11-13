@@ -58,7 +58,8 @@ export function source(expected) {
 /** A claimed item whose frozen check runs test/frozen.test.js, red on main or green on main per `main`. */
 export function fixture(t, { main = 2, candidate = 2, check = FROZEN } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-frozen-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  // The fixture's local runner may still be finishing a main-test job as the test ends, so removal retries as it settles.
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
@@ -125,15 +126,25 @@ export function fileMainRed(box, extra = []) {
   return JSON.parse(result.stdout).item.item_id;
 }
 
-/** Submit the claimed item and wait for its pulled gate job; a pull submit returns queued at once [P7,#6249]. */
-export async function settledSubmit(t, box) {
+/**
+ * Submit the claimed item and wait for its pulled gate job; a pull submit returns queued at once [P7,#6249]. With
+ * `submitted`, wait on until the item is submitted too: a red in main's own cases settles once main's receipts record.
+ * `submission` is the recorded submit's detail, or null while none is recorded.
+ */
+export async function settledSubmit(t, box, { submitted = false } = {}) {
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const run = (cwd, ...args) => {
     const shown = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' });
     return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
   };
-  return settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout));
+  let shown = null;
+  const until = document => { shown = document; return document?.item_status === 'submitted'; };
+  // budget: under the runner's 90 s silent-hang ceiling, so a red that never settles names its thread instead of hanging.
+  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), submitted ? { until, deadlineMs: 75_000 } : {})
+    .catch(error => { throw new Error(`${error.message.split('\n')[0]}; item ${shown?.item_status}; thread:\n${JSON.stringify((shown?.thread ?? []).slice(-6)).slice(0, 3000)}`); });
+  const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1", box.item)[0];
+  return { ...settled, submission: event ? JSON.parse(event.event_detail) : null };
 }
 
 /** Give an independent reviewer the exact submitted tree and reserve its review. */

@@ -304,7 +304,7 @@
         "apps/cli/journeys/shout/prose.test.js",
         "apps/cli/journeys/shout/references.test.js",
         "apps/cli/journeys/shout/rows.test.js",
-        "apps/cli/journeys/shout/search.test.js",
+        "apps/cli/journeys/shout/journeys/search-ages.test.js", "apps/cli/journeys/shout/journeys/search-capture.test.js", "apps/cli/journeys/shout/journeys/search-fixture.js",
         "apps/cli/journeys/shout/shouts.test.js",
         "apps/cli/journeys/shout/shouts/",
         "apps/cli/journeys/shout/shouts/redesign.test.js",
