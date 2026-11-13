@@ -20,7 +20,7 @@ test('a green submission records its background comparison without a reviewer co
     const shown = await box.runLocal(box.repo, 'show', String(box.id), '--json');
     assert.equal(shown.code, 0, shown.err);
     const item = JSON.parse(shown.out);
-    assert.equal(item.item_status, 'submitted');
+    assert.equal(item.item_status, 'submitted', result.stdout + result.stderr + JSON.stringify(item.thread?.slice(-4)));
     comparison = item.comparison; thread = item.thread;
     if (comparison?.status === 'unavailable') assert.fail(JSON.stringify(comparison));
     return comparison?.status === 'complete';
