@@ -113,6 +113,7 @@ import { claimFreezer } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { actOn } from '../entry.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
+import { topUpClaims } from '../next.js';
 import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { redsAreMains } from '../submit/reds.js';
 import { mainRedBaselinesToRetake } from '../../../../../packages/store/index.js';
@@ -580,7 +581,7 @@ export async function run(io, { first, values }) {
     ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
   }
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
-  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
+  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) });
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);
