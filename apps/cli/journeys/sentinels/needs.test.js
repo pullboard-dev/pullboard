@@ -407,6 +407,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.click({ root: beta.repo });
     assert.deepEqual(form(), plain, 'leaving the project leaves answer mode at once');
     page.run('globalThis.fetch = plain; resume();');
+    // A first read of a board takes the state the server keeps, from before its latest writes [A2,C7]; the live page's
+    // stream then catches up by a delta. This page has no stream, so let the switch's read land, then catch up as it does.
+    await page.release();
     await page.run('refresh()');
     await page.click({ go: 'decide:2' });
     assert.equal(form().question, 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too');
@@ -583,7 +586,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
         // An agent's row: its name and state in words, then what it holds at the full width.
         const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
-        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage and full holder detail: ${JSON.stringify(holder)}`);
+        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])Building$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage, which does not repeat the agent the row names: ${JSON.stringify(holder)}`);
       }
     }
 
