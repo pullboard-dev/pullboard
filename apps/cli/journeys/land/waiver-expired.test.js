@@ -35,16 +35,19 @@ async () => {
   delete box.env.LAND_SUPPRESS_RED;
   const past = { now: () => new Date('2000-01-01T00:00:00Z') };
   onBoard(box, (board) => store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'expired-example', test: FILES[0], until: '2000-01-02', reason: 'expired fixture approval' }), past);
+  // The land job lands on the trunk remote, so it carries main's flaky test.
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
   const main = box.git(box.repo, 'rev-parse', 'main');
   // The expired waiver excuses nothing: the land job runs the gate, the flaky test holds it red and nothing lands.
   const held = await settleLand(box, json(box, box.repo, 'land'));
   assert.equal(held.batch.state, 'blocked', JSON.stringify(held.landJob));
   assert.deepEqual(held.landed, []);
   assert.match(String(held.landJob.receipt.detail), /land-1\.test\.js/u, 'the red names the flaky test the expired waiver no longer covers');
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'main keeps its tree');
+  assert.equal(box.tryGit(box.repo, 'ls-remote', 'origin', 'main').stdout.split(/\s+/u)[0], main, 'the trunk keeps its tree');
   assert.equal(onBoard(box, (board) => store.getItem(board, entry.item).item_status), 'open', 'the red item returns to its builder');
   // Correcting the test on main releases the item: rebuilt and accepted again, it lands.
   assert.equal(commitFile(box, box.repo, FILES[0], 'PASS\n', 'chore: correct the flaky test').status, 0);
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
   assert.equal(box.run(entry.path, 'claim', String(entry.item)).code, 0);
   submitItem(box, entry, 'PASS again\n');
   acceptItem(box, entry);
