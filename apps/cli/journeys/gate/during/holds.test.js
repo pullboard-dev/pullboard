@@ -32,6 +32,12 @@ function gateJob(box, id) {
   return shown.code === 0 ? JSON.parse(shown.out).gateJob ?? null : null;
 }
 
+/** The tail of the fixture machine's local runner log, so a gate that never starts shows what the runner saw. */
+function runnerLog(box) {
+  const log = join(box.env.PULLBOARD_MACHINE_HOME ?? '', 'local-runner', 'runner.log');
+  return existsSync(log) ? readFileSync(log, 'utf8').slice(-2000) : '(no local runner log)';
+}
+
 /** Read the real board under an optional injected clock. */
 function read(box, id, clock) {
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
@@ -78,9 +84,10 @@ function fixture(t) {
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
   assert.equal(fixtureJoin(box.run, api, 'api', '--route', 'strong').code, 0);
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const add = (lane, title) => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
-    '--criterion', `${title} passes its gate.`, '--check', 'true', '--json')).item.item_id;
-  const gated = add('web', 'Build whose gate is running'), idle = add('api', 'Build with no gate');
+  const add = (lane, title, check = 'true') => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
+    '--criterion', `${title} passes its gate.`, '--check', check, '--json')).item.item_id;
+  // The held command is the item's frozen check: a pulled gate runs the check phase on the runner whatever its proof selects [P7].
+  const gated = add('web', 'Build whose gate is running', gate.command), idle = add('api', 'Build with no gate');
   t.after(async () => {
     writeFileSync(gate.release, 'release\n');
     if (gateJob(box, gated)) await settledGateJob(box, gated, { deadlineMs: 120_000 }); // budget: hang ceiling for the local runner to finish the released gate; no elapsed-time assertion.
@@ -114,7 +121,8 @@ test('a claim with a running queued gate survives the idle release and the lapse
   assert.equal(queued.queued, true, submit.context);
   box.runnerPid = queued.localRunner?.pid;
   const running = () => read(box, box.gated).job?.step === 'running' && existsSync(box.gate.started);
-  await box.helpers.waitFor(running, 'the queued gate is running', 60000); // budget: hang ceiling for the real detached worker to start its gate; no elapsed-time assertion.
+  try { await box.helpers.waitFor(running, 'the queued gate is running', 60000); } // budget: hang ceiling for the local runner to start its gate; no elapsed-time assertion.
+  catch (error) { throw new Error(`${error.message}: job ${JSON.stringify(read(box, box.gated).job)}, check started ${existsSync(box.gate.started)}\n${runnerLog(box)}`); }
   const claimed = read(box, box.gated).item, other = read(box, box.idle).item;
   const limit = staleStateLimits(loadConfig(box.repo)).claim;
 

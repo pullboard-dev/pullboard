@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -21,7 +20,7 @@ import * as store from '../../../../packages/store/index.js';
 
 /** A fixture whose actor seat holds a claimed item and has a second item open for it. */
 async function seatWithClaim(t, { heldGate = false } = {}) {
-  const box = await fixture(t);
+  const box = await fixture(t, heldGate ? { dispatch: 'pull' } : {});
   box.board.gitRoot = box.root;
   const seat = box.seats.actor;
   let gate;
@@ -31,15 +30,10 @@ async function seatWithClaim(t, { heldGate = false } = {}) {
     const script = join(directory, 'held-gate.cjs');
     gate = { entered: join(directory, 'gate-entered'), release: join(directory, 'gate-release') };
     writeFileSync(script, `const fs = require('node:fs'); fs.writeFileSync(${JSON.stringify(gate.entered)}, 'entered'); const end = Date.now() + 90000; while (!fs.existsSync(${JSON.stringify(gate.release)}) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); process.exit(1);\n`);
-    const configFile = join(box.root, 'pullboard.json');
-    const config = JSON.parse(readFileSync(configFile, 'utf8'));
-    config.gate = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
-    writeFileSync(configFile, JSON.stringify(config));
-    box.git(box.root, 'add', 'pullboard.json');
-    box.git(box.root, 'commit', '-q', '-m', 'chore: configure held gate [G1]');
-    box.git(seat.path, 'merge', '-q', '--ff-only', 'main');
+    gate.command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
   }
-  const first = box.add('Submitted and waiting on its gate', { brief: 'Files: web/first.js\nTest: submitted work stays the seat\'s own.' });
+  // The held command is the item's frozen check: a pulled gate runs the check phase on the runner whatever its proof selects [P7].
+  const first = box.add('Submitted and waiting on its gate', { brief: 'Files: web/first.js\nTest: submitted work stays the seat\'s own.', ...(gate ? { check: gate.command } : {}) });
   const second = box.add('New work offered while the first is checked', { brief: 'Files: web/second.js\nTest: the idle seat builds on.' });
   const claimed = await cli(box, seat.path, ['claim', String(first), '--no-next']);
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
