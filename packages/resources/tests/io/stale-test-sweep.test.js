@@ -5,11 +5,12 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { elapsedMs } from '../../index.js';
-import { readProcesses } from '../../index.js';
-import { sweepAllowed } from '../../index.js';
-import { sweepStaleTests } from '../../index.js';
-import { recordStaleStops } from '../../src/io/liveness.js';
+import { elapsedMs } from '../../src/io/stale-test-sweep.js';
+import { readProcesses } from '../../src/io/stale-test-sweep.js';
+import { sweepAllowed } from '../../src/io/stale-test-sweep.js';
+import { sweepStaleTests } from '../../src/io/stale-test-sweep.js';
+import { recordStaleStops } from '../../src/io/stale-test-sweep.js';
+import { recordLiveness } from '../../src/io/liveness.js';
 
 const SLEEP = 'setTimeout(() => {}, 120000)';
 
@@ -50,7 +51,7 @@ test('clause 1: a test run whose launching process is gone is stopped and record
   try {
     const stopped = sweepStaleTests({ processes: await readProcesses(), only: row => row.command.includes(marker) });
     assert.deepEqual(stopped.map(row => row.pid), [pid]);
-    recordStaleStops(db, stopped);
+    recordStaleStops(db, stopped, recordLiveness);
     await gone;
     const events = db.prepare('SELECT kind, pid, detail FROM liveness_event').all();
     assert.equal(events.length, 1, 'one event');
@@ -68,7 +69,7 @@ test('clause 1: a test run past its file budget plus margin is stopped and recor
   try {
     const stopped = sweepStaleTests({ processes: await readProcesses(), only: row => row.command.includes(marker), afterMs: -1 });
     assert.deepEqual(stopped.map(row => row.pid), [pid]);
-    recordStaleStops(db, stopped);
+    recordStaleStops(db, stopped, recordLiveness);
     await gone;
     assert.match(db.prepare('SELECT detail FROM liveness_event').get().detail, /past its \S+ s file budget plus margin/u);
   } finally { try { process.kill(pid, 'SIGKILL'); } catch { /* Already stopped by the sweep. */ } }
