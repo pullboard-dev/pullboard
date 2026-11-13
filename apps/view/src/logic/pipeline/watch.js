@@ -32,7 +32,7 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
     if (/BUDGET|over budget|too big|not light/i.test(t)) return 'Over budget for one session';
     if (/RUNNER_|TRANSPORT_LOST|GATE_INFRA|CLEANUP_UNVERIFIED|runner/i.test(t)) return 'Runner failure';
     if (/BOARD_BUSY|DATABASE_LOCKED|SLOT_DB_LOCKED|LOCK_BUSY|board changed while/i.test(t)) return 'Board or lock busy';
-    if (/STACKED_ON_UNVERIFIED|Waiting on #|waits on|needs accepted|companion|dependency/i.test(t)) return 'Waits on another item';
+    if (/STACKED_ON_UNVERIFIED|Waiting on #|waits on|needs accepted|companion|dependency/i.test(t)) return 'Blocked by another item';
     if (/MERGE_CONFLICT|conflicts in/i.test(t)) return 'Merge conflict';
     if (/NOT_JOINED|NOT_AT_COMMIT|NOT_YOUR|dirty|RUNNER_SOURCE|itemFolder|checkout/i.test(t)) return 'Wrong or dirty checkout';
     if (/INELIGIBLE|ROUTED_ELSEWHERE|route|family|reviewer seat/i.test(t)) return 'Routed to another seat';
@@ -287,7 +287,7 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
     'Runner failure': 'Runners are failing the gate. Check the runner machines and their slots.',
     'Merge conflict': 'Landings are held on merge conflicts. Rebase or split the items that conflict.',
     'Board or lock busy': 'The board is busy. Check what is holding it before adding more seats.',
-    'Waits on another item': 'Items wait on other items. Land the blockers first.',
+    'Blocked by another item': 'Items are blocked by other items. Land the blockers first.',
     'Wrong or dirty checkout': 'Seats are working in the wrong or a dirty checkout. Check their seats.',
     'Item or criterion defect': 'Items have defects in their bar. Sharpen the criteria.',
     'Submit handoff': 'Submits are not handing off. Check the gate workers.',
