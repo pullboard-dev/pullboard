@@ -170,7 +170,7 @@ test('the submit gate counts a red as main\'s own only when main\'s receipt name
 test('clause 1: the main-red lookup reads status from the keyed receipt [C7]', async () => {
   const helper = readFileSync(join(import.meta.dirname, '../../src/io/submit/receipt.js'), 'utf8');
   assert.match(helper, /import \{ classifyGateRed \} from '..\/..\/..\/..\/..\/packages\/drive\/index.js'/u, 'the lookup is the drive cell\'s classifyGateRed');
-  assert.deepEqual([...helper.matchAll(/^import \{ (\w+) \}/gmu)].map((match) => match[1]), ['classifyGateRed', 'mainReceipts'], 'the lookup imports no measuring or process code');
+  assert.deepEqual([...helper.matchAll(/^import \{ (\w+) \}/gmu)].map((match) => match[1]), ['classifyGateRed', 'mainReceipts', 'nearbyMainClass'], 'the lookup imports no measuring or process code');
 
   const box = mainRepo('submit-lookup', { [at.file]: { result: 'red', failures: [failing('case one')], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: 'mr-9' } });
   withBoard('submit-lookup', (db) => {

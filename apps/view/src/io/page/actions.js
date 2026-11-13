@@ -1356,8 +1356,7 @@ async function copyWords(text) {
   const field = document.createElement('textarea');
   field.value = text;
   field.setAttribute('readonly', '');
-  field.style.position = 'fixed';
-  field.style.opacity = '0';
+  field.className = 'copy-field';
   document.body.append(field);
   field.select();
   const copied = document.execCommand('copy');

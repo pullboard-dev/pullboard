@@ -18,10 +18,20 @@ function runnerLog(machineHome) {
   return machineHome && existsSync(log) ? readFileSync(log, 'utf8').slice(-3000) : '(no local runner log)';
 }
 
+/** True when the thread holds the fact applyGateReceipt writes for a gate job's result; the earlier "offered for" note is not one. */
+function resultFact(thread, jobId) {
+  const text = JSON.stringify(thread ?? []);
+  return Boolean(jobId) && (text.includes(`Gate job ${jobId} red at `) || text.includes(`Gate job ${jobId} passed but not submitted`));
+}
+
 /**
- * Wait until `show --json` names the item's newest gate job as done, read again on every change to the local runner's
- * folder (a log line per claim and receipt, a heartbeat every 5 s); refuses with the runner log after deadlineMs.
- * Why the runner's folder: the show read itself touches the board's folder and would wake the wait again.
+ * Wait until `show --json` names the item's newest gate job as done AND the board has applied its receipt, read again on
+ * every change to the local runner's folder (a log line per claim and receipt, a heartbeat every 5 s); refuses with the
+ * runner log after deadlineMs. Why the runner's folder: the show read itself touches the board's folder and would wake
+ * the wait again. Why the receipt too: the board marks the job row done before applyGateReceipt moves the item, so a
+ * test that acts on the job row alone (verify accept) races and fails NOT_SUBMITTED on a loaded runner [C7,#7283]. The
+ * receipt is applied once the item has left `claimed` (submitted, or stale) or the thread names the job's gate result
+ * fact; a job done but not yet applied is read again on the runner's next log line or 5 s heartbeat.
  *
  * @param {{ repo: string, env: object, run: Function }} box - The fixture project; run(cwd, ...args) returns, or resolves to,
  *   { code, out, err }.
@@ -39,14 +49,17 @@ export function settledGateJob(box, item, { deadlineMs = 180_000 } = {}) {
       if (settled) return;
       if (reading) { again = true; return; }
       reading = true;
-      let job = null;
+      let job = null, applied = false;
       try {
         const shown = await box.run(box.repo, 'show', String(item), '--json', '--no-next');
         last = shown.out || shown.err || '';
-        job = shown.code === 0 ? JSON.parse(shown.out).gateJob ?? null : null;
+        const doc = shown.code === 0 ? JSON.parse(shown.out) : null;
+        job = doc?.gateJob ?? null;
+        // A red gate leaves the item claimed and records its "Gate job <id> red|passed but not submitted" fact; a green or stale one moves it on.
+        applied = Boolean(doc) && (doc.item_status !== 'claimed' || resultFact(doc.thread, job?.id));
       } catch { /* a partial read; the next change reads again */ } finally { reading = false; }
       step = job?.step ?? 'none';
-      if (step === 'done' && !settled) { stop(); done(job); return; }
+      if (step === 'done' && applied && !settled) { stop(); done(job); return; }
       if (again) { again = false; await probe(); }
     };
     const timer = setTimeout(() => { stop(); fail(new Error(`gate for #${item} did not settle in ${deadlineMs} ms (last step ${step})\nlast show: ${last.slice(0, 600)}\nlocal runner log:\n${runnerLog(machineHome)}`)); }, deadlineMs);
