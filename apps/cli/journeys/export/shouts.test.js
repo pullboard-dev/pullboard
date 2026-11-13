@@ -274,14 +274,16 @@ test.skip('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120
 });
 
 /** Navigate with a watcher that prints outstanding requests and whether the server answers node directly. */
+const everPending = new Map();
 async function watched(chrome, server, address, log, events) {
-  const pending = new Map();
+  const pending = everPending;
   const onMessage = ({ data }) => {
     let message; try { message = JSON.parse(String(data)); } catch { return; }
     if (message.method) events.set(message.method, (events.get(message.method) || 0) + 1);
     if (message.method === 'Page.backForwardCacheNotUsed') log.push('bfcache-not-used ' + JSON.stringify(message.params.notRestoredExplanations?.map(e => e.reason)));
-    if (message.method === 'Network.requestWillBeSent') pending.set(message.params.requestId, new URL(message.params.request.url).pathname + ' ' + (message.params.request.headers?.accept || '').slice(0, 20));
-    else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') pending.delete(message.params.requestId);
+    if (message.method === 'Network.requestWillBeSent') pending.set(message.params.requestId, address + ' -> ' + new URL(message.params.request.url).pathname + new URL(message.params.request.url).search.slice(0, 40) + ' ' + (message.params.request.headers?.accept || '').slice(0, 20) + ' ' + (message.params.request.keepalive ? 'KEEPALIVE ' : '') + message.params.type + ' ' + (message.params.initiator?.type || ''));
+    else if (message.method === 'Network.loadingFinished') pending.delete(message.params.requestId);
+    else if (message.method === 'Network.loadingFailed') { log.push('failed ' + pending.get(message.params.requestId) + ' ' + message.params.errorText + (message.params.canceled ? ' canceled' : '')); pending.delete(message.params.requestId); }
   };
   chrome.socket.addEventListener('message', onMessage);
   const started = Date.now();
