@@ -79,7 +79,10 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     }
 
     const config = loadConfig(root);
-    const freshness = freshnessReader ?? verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state;
+    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+    const freshness = freshnessReader ?? projector.state;
+    // One cat-file answers every verified item's commit, rather than one Git process per item [C7].
+    projector?.prime(currentItems.filter(item => dirtyIds.has(item.item_id) || refreshVerdicts));
     const state = projectState(root, { seen: null, board, itemProjector: (item, context) => {
       if (dirtyIds.has(item.item_id)) {
         const projected = context.project();
