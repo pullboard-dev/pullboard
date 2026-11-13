@@ -131,9 +131,9 @@ export function notchFloor(state, live, pace = null) {
  * @returns {{ items: object[], oldest: string }}
  */
 export function notchRulings(calls, words, age) {
-  const kinds = { decision: ['item', 'Decision'], pending: ['spec', 'Spec question'], 'spec-revision': ['spec', 'Spec change'], 'agent-approved': ['spec', 'Confirm a row'],
+  const kinds = { draft: ['spec', 'Draft rows'], decision: ['item', 'Decision'], pending: ['spec', 'Spec question'], 'spec-revision': ['spec', 'Spec change'], 'agent-approved': ['spec', 'Confirm a row'],
     'focus-approval-batch': ['spec', 'Release rows'], hold: ['ship', 'Held lane'], 'rigor-draft': ['rigor', 'Rigor'], 'sentinel-draft': ['rigor', 'Sentinel'], block: ['data', 'Blocked'], 'relay-health': ['data', 'Relay'] };
-  const rows = calls.filter(row => row.kind !== 'draft').map(words);
+  const rows = calls.map(row => row.kind === 'draft' ? { kind: 'draft', id: 'drafts', ref: 'Spec', text: row.count + ' draft rows', target: 'tab:spec' } : words(row));
   const items = rows.map(row => {
     const [kind, cls] = kinds[row.kind] || ['item', 'Ruling'];
     const go = row.kind === 'decision' ? 'decide:' + row.id : row.kind === 'pending' ? 'spec:' + row.id : row.kind === 'hold' ? 'tab:shouts' : row.target || 'tab:items';
