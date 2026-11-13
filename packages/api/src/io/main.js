@@ -21,6 +21,7 @@ import { isProofAgent } from '../../../stats/index.js';
 import { buildLocalBoardState } from '../../../store/index.js';
 import { stateFileInputs } from '../../../store/index.js';
 import { fileRevision } from '../../../store/index.js';
+import { boardFilePath } from '../../../store/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../logic/fields.js';
 import { milestonePace } from '../logic/milestone-pace.js';
 import { milestoneWithoutPace } from '../logic/milestone-pace.js';
@@ -289,7 +290,7 @@ function openRoadmapInputs(root, milestones, localDb, { scopeCommonDir = null } 
       if (candidates.length !== 1) return { reference, visibleReference: scopeCommonDir === null ? reference : `external-${index + 1}`, unavailable: true };
       try {
         const info = repoInfo(candidates[0].root);
-        const path = join(info.commonDir, 'pullboard', 'board.sqlite');
+        const path = boardFilePath(info.commonDir);
         watchPath(path);
         const db = resolve(candidates[0].root) === resolve(root) ? localDb : (opened.get(path) ?? store.openBoardReadOnly(path));
         if (db !== localDb) opened.set(path, db);
@@ -338,7 +339,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   const readTrunk = trunkRevisionReader(info);
   const config = loadConfig(info.root);
   let files = stateFileInputs(info.root, config, { fitFile });
-  const dbPath = join(info.commonDir, 'pullboard', 'board.sqlite');
+  const dbPath = boardFilePath(info.commonDir);
   let db = store.openBoardReadOnly(dbPath);
   let closed = false;
   let dbMarker;
@@ -700,7 +701,7 @@ function readProjectBoard(root, read, isMain, boardOpeners) {
   const { openBoard, openBoardForRead } = requireBoardOpeners(boardOpeners);
   const info = repoInfo(root);
   loadConfig(info.root);
-  const file = join(info.commonDir, 'pullboard', 'board.sqlite');
+  const file = boardFilePath(info.commonDir);
   // A read takes no write lock and never migrates (#1047): main code reads an older board as it is,
   // branch code keeps the schema guard, and a read that writes after all runs again on a write open.
   const opened = openBoardForRead(file);
@@ -728,7 +729,7 @@ function readProjectBoardOnly(root, read, isMain, boardOpeners) {
   let db = null;
   let current = false;
   try {
-    db = store.openBoardReadOnly(join(info.commonDir, 'pullboard', 'board.sqlite'));
+    db = store.openBoardReadOnly(boardFilePath(info.commonDir));
     current = db.prepare('PRAGMA user_version').get().user_version === store.SCHEMA_VERSION && store.readEventLogVersion(db) === store.EVENT_LOG_VERSION;
   } catch {
     current = false; // A missing, older or newer board: withBoard creates, upgrades or refuses it by name.
@@ -1401,7 +1402,7 @@ export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocu
     for (const { root } of projects) {
       try {
         withProjectGitTimeout(root, () => { // A write open: the record is a write, which a read-only connection cannot carry.
-          const current = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: isMain !== false && codeIsFromMain() });
+          const current = openBoard(boardFilePath(repoInfo(root).commonDir), undefined, { isMain: isMain !== false && codeIsFromMain() });
           try { if (board === null || store.boardId(current) === board) { store.logEvent(current, by, 'api_stall', null, { route: String(route).slice(0, 200), lagMs: Math.round(lagMs) }); recorded++; } } finally { store.closeBoard(current); }
         });
       } catch (error) { failed.push(`${root}: ${error?.message ?? error}`); } // An unreadable board misses this record; the others still get it.
