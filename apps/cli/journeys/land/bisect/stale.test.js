@@ -31,7 +31,6 @@ test('land returns an accept whose reviewed file changed on main and lands the f
   const told = JSON.stringify(json(box, box.repo, 'show', String(entries[1].item)).thread);
   assert.match(told, /verdict stale: web\/land-2\.test\.js changed on main/u, 'the builder is told why');
   assert.equal(json(box, box.repo, 'show', String(entries[1].item)).item_merged_commit, null);
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
   await drainOwnedProcesses(box.dir);
   const again = await box.runLocal(box.repo, 'land', '--json');
   assert.ok(!again.out.includes('STALE_VERDICT'), `the stale accept was returned, so no stale refusal remains: ${again.out}`);

@@ -7,6 +7,7 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { json } from '../../../tests/fixtures/land/board.js';
 import { makeMergeBoard } from '../../../tests/fixtures/land/merge-board.js';
 import { settleLand } from '../../../tests/fixtures/land/settle.js';
+import { whenRunnerSettles } from '../../../tests/fixtures/runner/local-start.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -24,5 +25,5 @@ test('public land returns a same-line edit that really conflicts to its builder 
   assert.deepEqual(returned.returned.map(entry => [entry.id, entry.reason]), [[conflict, 'conflict']]);
   const item = json(box, box.repo, 'show', String(conflict));
   assert.equal(item.item_status, 'open', 'a real conflicting accepted submission returns to its builder');
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), box.git(box.repo, 'rev-parse', 'main'));
+  await whenRunnerSettles(box.env, () => box.git(box.remote, 'rev-parse', 'main') === returned.batch.tip, { deadlineMs: 30_000, what: 'origin to take the landed tip' });
 });

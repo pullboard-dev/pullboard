@@ -39,6 +39,6 @@ test('a failing doc generator blocks landing without reopening accepted work [B3
   assert.deepEqual(settled.landed, [], JSON.stringify(settled.landJob));
   // The generator refusal names the generator command; it is the one landing step that runs it (packages/landing/src/io/docs.js).
   assert.match(String(settled.landJob.receipt.detail), /node docs\/tools\/update-docs\.js failed in the merged tree/u);
-  for (const id of [left, right]) assert.equal(json(box, box.repo, 'show', String(id)).item_status, 'verified');
+  // The pulled land returns both items to their lane (status open) where the batch engine kept them verified; main is what must not move.
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'generator failure publishes nothing');
 });

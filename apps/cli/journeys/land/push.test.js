@@ -8,6 +8,7 @@ import { json } from '../../tests/fixtures/land/board.js';
 import { mergeSubjects } from '../../tests/fixtures/land/board.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 /** Exercise landing pushes and diagnostics against real private Git worktrees [B3,R3,C7]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -30,7 +31,7 @@ test('land pushes one exact batch in verdict order and records each first-contai
   assert.deepEqual(mergeSubjects(box, base, result.batch.tip), [3, 1, 2].map((n) => `feat(merge): land fixture ${n} [G1]`), 'each merge takes its item\'s type from the item\'s feat commit');
   assert.equal(result.batch.state, 'landed');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip);
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip, 'real pre-push accepted the gated tip');
+  await whenRunnerSettles(box.env, () => box.git(box.remote, 'rev-parse', 'main') === result.batch.tip, { deadlineMs: 30_000, what: 'origin to take the gated tip' }); // real pre-push accepted the gated tip
   assert.deepEqual(calls(box).slice(start), [[]], 'one full batch gate; pre-push reads its exact green tree stamp');
   const merges = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..${result.batch.tip}`).split('\n');
   for (const [index, id] of order.entries()) assert.equal(json(box, box.repo, 'show', String(id)).item_merged_commit, merges[index]);
