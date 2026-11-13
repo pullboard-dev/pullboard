@@ -52,7 +52,7 @@ process.stdin.on('data', part => { stdinBytes += part.length; stdinHash.update(p
 const record = extra => appendFileSync(requests, JSON.stringify({ call, host, ...(registrationGuiProbe ? { registrationGuiProbe: true } : {}),
   options: divider < 0 ? [] : argv.slice(0, divider), remoteHasSecret: remoteCommand.includes(secret),
   framed: divider >= 0 && argv[divider] === '--', remoteCommandPresent: Boolean(remoteCommand),
-  remoteStartsWithConfiguredNode: remoteCommand.startsWith(configuredNode), ...(pullEnqueue ? { pullEnqueue: true } : {}),
+  remoteStartsWithConfiguredNode: remoteCommand.startsWith(configuredNode), ...(pullEnqueue ? { pullEnqueue: true, hasAgent: remoteCommand.includes('pullboard-runner-agent'), skipAgent, at: Date.now() } : {}),
   remoteHasLocalPath: remoteCommand.includes(${JSON.stringify(worker)}),
   remoteHasSourceHome: remoteCommand.includes(${JSON.stringify(home)}),
   remoteHasSourceMachineHome: remoteCommand.includes(${JSON.stringify(machineHome)}), ...extra }) + '\\n');
