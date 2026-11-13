@@ -11,6 +11,8 @@ import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { checkLandingMessages } from '../../../../../packages/landing/index.js';
+import { landingContext } from '../../../../../packages/landing/index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
@@ -50,7 +52,14 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const all = listItems(board, { all: true });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
     const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at);
-    const items = all.filter(wanted).map(item => ({ id: item.item_id, commit: item.item_status === 'verified' ? checkedLandingCommit(board, item) : item.item_commit, ref: landingItemRef(item.item_id) }));
+    const chosen = all.filter(wanted);
+    const commitOf = item => item.item_status === 'verified' ? checkedLandingCommit(board, item) : item.item_commit;
+    // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
+    const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
+    const items = chosen.map(item => {
+      const message = messages.get(item.item_id);
+      return { id: item.item_id, commit: commitOf(item), ref: landingItemRef(item.item_id), header: message.header, trailers: message.trailers };
+    });
     if (ids && items.length !== ids.length) throw new Refused('LAND_NOT_ACCEPTED', `${ids.filter(id => !items.some(entry => entry.id === id)).map(id => `#${id}`).join(' ')} is not accepted`, 'land it after its verify, or go around the gate with --forced "<why>"');
     if (!items.length) return { offered: null, items: [], waiting: false };
     for (const entry of items) {
