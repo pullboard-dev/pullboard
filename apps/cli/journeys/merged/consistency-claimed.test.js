@@ -11,6 +11,6 @@ import { withCountSweep } from '../../tests/fixtures/count-sweep.js';
 test('clause 1: every tab count describes its real list or named native set across a claim refresh [N26]', { timeout: 240_000 }, async () => {
   await withCountSweep(async ({ box, demo, chrome }) => {
     await pane(chrome, 'dashboard', 'before claim');
-    await liveMove(chrome, () => box.run(demo.web, 'claim', '3'), 'document.querySelector("#dashboard [aria-label=Now] [data-dashboard-list=building] b")?.textContent === "1" && !!document.querySelector("#dashboard .dash-flow .dash-stage")', 'claimed');
+    await liveMove(chrome, () => box.runLocal(demo.web, 'claim', '3'), 'document.querySelector("#dashboard [aria-label=Now] [data-dashboard-list=building] b")?.textContent === "1" && !!document.querySelector("#dashboard .dash-flow .dash-stage")', 'claimed');
   });
 });
