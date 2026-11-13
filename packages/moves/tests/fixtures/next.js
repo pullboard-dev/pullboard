@@ -81,7 +81,6 @@ export function fixture(t, { reviewers = false, family, policy, route = 'strong'
     MainSpecMerged: class MainSpecMerged extends Error {},
     checkMainVerifier() {},
     dirtyFiles: () => [],
-    recoverOwnSubmitHandoffs: async () => {},
     openItemFolder: async () => undefined,
     liveFolderRefusal: async () => null,
     mainLaneWork: () => null,

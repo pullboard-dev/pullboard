@@ -593,7 +593,6 @@ Branches run in this order. P runs once per command; B is plain `next`, `--build
 | B2 | builder | an ownership wait in this lane | #N waits on your ownership of ... | none | nothing | fresh | `nextWithProgress` in `apps/cli/src/io/commands/next.js` |
 | B3 | builder | open main-red items main already passes | nothing | withdraws them as coordinator | nothing | fresh | `closePassingMainReds` in `packages/sandbox/src/io/take.js` |
 | B4 | builder | a routable main-red repair with no mandatory review | switches to the next --take path | none | nothing | fresh | `mainRedBuildOffer` in `packages/sandbox/src/io/take.js` |
-| B5 | builder | this seat's dead queued or running hand-offs | nothing | retires them | nothing | fresh | `recoverOwnSubmitHandoffs` in `apps/cli/src/io/submit/handoff.js` |
 | B6 | builder | a mandatory review (plain next) and no own claim | next to verify: #N; reserved for you until ... | reserves a review | `submitted` | guarded | `reserveWithin` in `packages/store/src/io/board/reserve/review.js` |
 | B7 | builder | this seat's own claim | you hold #N | parks it on unmet deps; opens the item folder; never renews the lease | `claimed` | stale (gap SM6) | `nextOnce` in `apps/cli/src/io/next.js` |
 | B8 | builder | a review worth offering beside a build | review offered: #N; build available: ... | none (advisory) | `submitted`, `open` | advisory | `sayReviewOffer` in `apps/cli/src/io/next/say.js` |
