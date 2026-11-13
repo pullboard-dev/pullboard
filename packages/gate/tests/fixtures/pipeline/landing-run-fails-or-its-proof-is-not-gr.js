@@ -21,7 +21,7 @@ const LATER = 24 * 60 * 60_000;
 /** Assert a run's row is over: failed, nobody holds it, and no scan lists it live or lapsed. */
 function assertEnded(db, id, code) {
   const view = jobView(db, id);
-  assert.equal(view.step, 'done', 'a failed run ends done (#6469), so nothing lists it as live');
+  assert.equal(view.step, 'done', 'a failed run ends done (#4058), so nothing lists it as live');
   assert.ok(view.steps.some(step => step.name === 'failed'), 'the run records its failed step');
   assert.equal(view.steps.find(step => step.name === 'failed').payload.code, code);
   assert.equal(view.leaseOwner, null, 'its lease is freed');
