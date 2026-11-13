@@ -335,6 +335,11 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     t.diagnostic(JSON.stringify({ host: hostname(), node: process.version, loadSamples: samples }));
   });
   const box = await project();
+  const builder = await box.local(box.root, 'worktree', 'app', '--model', 'watch-builder');
+  const waiting = (await box.local(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+    '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait')).item;
+  await box.local(box.root, 'check', 'accept', String(waiting.item_id)); // #728 holds a check already green on main until the person accepts it.
+  // The first add starts the machine's local runner, which keeps serving this board after a runner registers, so the submits below still settle [P7,C7].
   // The baseline worker needs a registered runner in this isolated machine home.
   const runnerBin = join(box.dir, 'runner-bin'), worker = join(box.dir, 'runner-worker');
   const runnerHome = join(box.dir, 'runner-home'), runnerMachine = join(runnerHome, '.pullboard');
@@ -346,10 +351,6 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const runnerAdd = ['runner', 'add', HOST, '--slots', '1', '--browser', '0'];
   const registered = await runCliInProcess(runnerAdd, { cwd: box.root, env: box.env });
   assert.equal(registered.status, 0, `runner add: ${registered.stderr}${registered.stdout}`);
-  const builder = await box.local(box.root, 'worktree', 'app', '--model', 'watch-builder');
-  const waiting = (await box.local(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
-    '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait')).item;
-  await box.local(box.root, 'check', 'accept', String(waiting.item_id)); // #728 holds a check already green on main until the person accepts it.
   const before = events(box).length;
   const watch = startWatch(box, ['--json', '--work', 'app', '--review-wait', '0.02']);
   t.after(() => watch.stop('SIGKILL'));
