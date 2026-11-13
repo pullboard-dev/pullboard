@@ -105,7 +105,17 @@ test('a view commit creating its own file and one plan row passes the hook and n
   box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
   rmSync(box.marker, { force: true });
   const submitted = await settleSubmit(t, box, success(box, box.view, 'submit', String(box.id), '--wait'));
-  assert.equal(submitted.gate?.green, true, JSON.stringify(submitted));
+  if (submitted.gate?.green !== true) {
+    const { ownsNewFile } = await import('../../../../packages/sandbox/src/io/trusted/policy.js');
+    const main = submitted.gate?.main, head = submitted.commit;
+    const probe = {
+      head, main, viewHead: box.git(box.view, 'rev-parse', 'HEAD'),
+      owns: (() => { try { return ownsNewFile(box.repo, { item_id: box.id }, head, main, box.file); } catch (error) { return String(error); } })(),
+      adds: (() => { try { return box.git(box.repo, 'log', '--format=%H %P%n%B', '--diff-filter=A', head, '--not', main, '--', box.file); } catch (error) { return String(error); } })(),
+      graph: (() => { try { return box.git(box.repo, 'log', '--format=%H %P %s', '-8', head); } catch (error) { return String(error); } })(),
+    };
+    assert.fail(JSON.stringify(probe) + '\n' + JSON.stringify(submitted.gate?.analysis ?? submitted).slice(0, 3000));
+  }
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
 });
