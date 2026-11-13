@@ -14,18 +14,12 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
+import { json as run } from '../../../tests/fixtures/land/board.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const HOOK_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../src/io/hook/composed.js')).href;
 const REAL_CLI = pathToFileURL(resolve(import.meta.dirname, '../../../pullboard.js')).href;
-
-/** Capture a real successful CLI command. */
-function run(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
-  assert.equal(result.code, 0, result.err + result.out);
-  return JSON.parse(result.out);
-}
 
 /** Write fixture files under a checkout. */
 function write(root, files) {

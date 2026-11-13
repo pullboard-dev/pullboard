@@ -2308,7 +2308,6 @@
   },
   "apps/cli/journeys/land/merge.test.js": {
     "tempdir": 1,
-    "hand-policy": 2,
     "raw-board": 1
   },
   "apps/cli/journeys/move/merge.test.js": {
@@ -3715,9 +3714,6 @@
   "packages/resources/tests/io/handoff/worker/cap/exit.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/submit/handoff/worker/gone.test.js": {
-    "raw-board": 4
-  },
   "apps/cli/journeys/submit/handoff.test.js": {
     "raw-board": 3
   },
@@ -3772,9 +3768,6 @@
   "apps/cli/journeys/submit/retry.test.js": {
     "repo-read": 1,
     "raw-board": 1
-  },
-  "apps/cli/journeys/submit/wait/exit.test.js": {
-    "raw-board": 2
   },
   "apps/cli/journeys/submit/wait.test.js": {
     "raw-board": 1

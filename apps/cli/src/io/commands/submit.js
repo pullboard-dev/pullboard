@@ -83,7 +83,6 @@ import {
 } from '../../../../../packages/link/index.js';
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
 import { submitPreflight } from '../../../../../packages/items/index.js';
-import { requirePlannedSource } from '../../../../../packages/items/index.js';
 import {
   refuseUnreviewable,
 } from '../../../../../packages/verify/index.js';
@@ -278,7 +277,6 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       if (recordedRecovery(board, recovered)) return { me, recorded: true };
       const item = store.getItem(board, id);
       const trunk = requireTrunkMerge(root, recovered.args[1].commit);
-      requirePlannedSource(root, trunk.commit, recovered.args[1].commit);
       requireKernelApproval(board, { root, base: trunk.commit, commit: recovered.args[1].commit, item: id });
       if (barReadySetting(board).enabled && (recovered.args[1].policyCommit !== trunk.commit || !contains(root, trunk.commit, recovered.args[1].commit))) {
         throw new Refused('MAIN_NOT_COMPOSED', 'the unrecorded recovered submission has no proof for current main; run pullboard inbox to synchronize its original receipt, or ask the coordinator to resolve the pending move before a fresh submit; the original request is retained');
@@ -419,8 +417,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
     withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
-    // Placement and lane are cheap reads too; a full submit defers both until after the gate, so only the precheck raises them here.
-    requirePlannedSource(root, trunk.commit, commit, { deferUnplaced: true });
+    // The lane read is cheap too; a full submit defers it until after the gate, so only the precheck raises it here.
     if (ownershipRefusal) throw ownershipRefusal;
     if (ctx.json) ctx.io.result({ precheck: true, item: id, commit });
     else ctx.io.say(`precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
