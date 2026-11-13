@@ -420,7 +420,10 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `job_kind_item` | `job` | `job_kind`, `job_item` | no |
+| `job_lease_live` | `job` | `job_lease_until` | no |
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
+| `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
+| `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
