@@ -341,7 +341,7 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   const script = page.slice(page.indexOf('<script>')).replace(/\nasync function copyWords\([^]*?\n}\n/, '\n')
     .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''")
     // The command palette's search box (pal-q) lives in its own overlay, opened and closed by the person, never in a refreshed part.
-    .replace(/overlay\.innerHTML = '<div class="pal-veil"[^\n]*/u, '');
+    .replace(/overlay\.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box"[^\n]*/u, '');
   assert.doesNotMatch(script, /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
 });
 
