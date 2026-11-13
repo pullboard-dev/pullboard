@@ -36,7 +36,8 @@ const {
 async function assertWaitsOnOwner(t, box, id, submitted, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
   // The pulled gate settles green first; its receipt is applied a moment later, so settle on the hold itself [P7].
-  assert.equal((await settleSubmit(t, box, JSON.parse(submitted.out))).gate.green, true, label);
+  const settled = await settleSubmit(t, box, JSON.parse(submitted.out));
+  assert.equal(settled.gate.analysis.ownership?.code, 'OUTSIDE_LANE', `${label}: the pulled gate analysis names the ownership refusal`);
   const item = await whenRunnerSettles(box.env, async () => {
     const row = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json')).out);
     return row.item_hold_reason ? row : null;
