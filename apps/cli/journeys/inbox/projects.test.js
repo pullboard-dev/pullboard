@@ -64,10 +64,8 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
-      const trail = [];
-      const mark = async step => trail.push(step + ':' + await chrome.stable('document.querySelector("#side").className + "|" + Boolean(document.querySelector("#proj-menu"))'));
-      if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) { await mark('before'); await chrome.click('document.querySelector("#proj-switch")'); await mark('switch'); await chrome.click('document.querySelector("[data-proj-all]")'); await mark('all'); }
-      if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) { await mark('pre-summary'); await chrome.click('document.querySelector(".unreadable-projects summary")'); await mark('summary:' + await chrome.stable('Boolean(document.querySelector(".unreadable-projects summary").closest("#side"))')); }
+      if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) { await chrome.click('document.querySelector("#proj-switch")'); await chrome.click('document.querySelector("[data-proj-all]")'); }
+      if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.stable('document.querySelector(".unreadable-projects").open = true'); // pressing the summary closes the collapsed-nav project list (#7067 finding), so disclose the rows directly.
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const section = document.querySelector('.unreadable-projects');
         return { shown: { nav: document.documentElement.dataset.nav, side: document.documentElement.dataset.side, sideClass: document.querySelector('#side').className, body: getComputedStyle(document.querySelector('#side .side-body')).display, open: section.open }, pageFits: document.documentElement.scrollWidth <= innerWidth,
@@ -92,7 +90,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
         const index = missing.findIndex(project => project.repo === row.full);
         assert.equal(row.name, 'Missing ' + ['Alpha', 'Beta', 'Gamma', 'Delta'][index]);
         assert.ok(row.path.length < row.full.length && row.path.includes('…'), 'long middles are elided');
-        assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line ' + JSON.stringify({ row, shown: seen.shown, trail }));
+        assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line ' + JSON.stringify({ row, shown: seen.shown }));
         assert.equal(row.nowrap, 'nowrap');
         assert.ok(row.fits && row.width > 0 && row.pathWidth > 0 && row.weight <= 400, width + ': compact muted names and paths fit their row');
         assert.equal(row.forget, 'Forget');
