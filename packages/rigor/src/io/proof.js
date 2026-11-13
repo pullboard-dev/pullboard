@@ -1,6 +1,5 @@
+/** @pullboard-module-loads packages/runners/index.js packages/landing/index.js packages/gate/index.js packages/codemap/index.js */
 /** Commit-bound, observed proof for a noticed failure cause; uncertain execution proves no rule [D1,D3,S1]. */
-import { runnerExecutionServices } from '../../../runners/index.js';
-import { landingExecutionServices } from '../../../landing/index.js';
 import {
   spawn,
   spawnSync,
@@ -18,23 +17,25 @@ import {
   posix,
 } from 'node:path';
 import {
-  literalShellWords,
-  resolveExecutable,
-} from '../../../gate/index.js';
-import {
   cleanGitEnvironment,
   resolveCommit,
   tryGit,
 } from '../../../git/index.js';
-import { withGateSlot } from '../../../gate/index.js';
 import { gateSlotEnvironment } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
-import {
-  historyPathMap,
-  mappedCheck,
-  mappedPath,
-  pathAtCommit,
-} from '../../../codemap/index.js';
+import { createRequire } from 'node:module';
+
+const requireModule = createRequire(import.meta.url);
+let proofPackagesLoaded = null;
+/** The runner, landing, gate and history-map packages a proof run needs, loaded at its first use: a board that only counts rigor never pays for them [C7]. */
+function proofPackages() {
+  return proofPackagesLoaded ??= {
+    runners: requireModule('../../../runners/index.js'),
+    landing: requireModule('../../../landing/index.js'),
+    gate: requireModule('../../../gate/index.js'),
+    codemap: requireModule('../../../codemap/index.js'),
+  };
+}
 
 const CHECK_TIMEOUT_MS = 10 * 60_000;
 const OUTPUT_LIMIT = 64 * 1024 * 1024;
@@ -60,10 +61,10 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
   let runner = null;
   if (match) {
     const [, file, title] = match;
-    const pathMap = historyPathMap(root);
+    const pathMap = proofPackages().codemap.historyPathMap(root);
     if (isAbsolute(file) || posix.normalize(file) !== file || file.startsWith('../') || file.includes('\\') || /[\0*?\[\]{}]/u.test(file)) refuse('the failing test must name a repository-relative regular file');
-    const words = literalShellWords(check);
-    const executable = words && resolveExecutable(words[0]);
+    const words = proofPackages().gate.literalShellWords(check);
+    const executable = words && proofPackages().gate.resolveExecutable(words[0]);
     let exactNode = false;
     try { exactNode = Boolean(executable) && realpathSync(executable) === realpathSync(process.execPath); } catch { /* No verified executable. */ }
     if (!exactNode || words[1] !== '--test') refuse(`the check for ${file}::${title} must be a literal Node test command: node --test ${quote(file)}; other runners cannot yet provide bound named-test proof`);
@@ -82,7 +83,7 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
       } else if (arg.startsWith('-')) refuse(`the proof does not accept the test option ${arg}; use the exact failing file and optional --test-name-pattern`);
       else { files.push(arg); fileIndex = index + 2; }
     }
-    if (files.length !== 1 || mappedPath(pathMap, files[0]) !== mappedPath(pathMap, file)) refuse(`the check must execute exactly the noticed test file ${file}`);
+    if (files.length !== 1 || proofPackages().codemap.mappedPath(pathMap, files[0]) !== proofPackages().codemap.mappedPath(pathMap, file)) refuse(`the check must execute exactly the noticed test file ${file}`);
     if (pattern !== null) {
       let selected = false;
       try { selected = new RegExp(pattern).test(title); } catch { /* Invalid selectors cannot prove execution. */ }
@@ -90,7 +91,7 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
     }
     const filesAt = {};
     for (const commit of commits) {
-      try { filesAt[commit] = pathAtCommit(root, pathMap, file, commit); }
+      try { filesAt[commit] = proofPackages().codemap.pathAtCommit(root, pathMap, file, commit); }
       catch { refuse(`${file} is not an unambiguous regular committed test at ${commit}`); }
     }
     // Force the real runner's machine-readable report; the caller cannot substitute a shell echo.
@@ -211,7 +212,7 @@ export async function runCheckAt(root, commit, check, runner = null, { timeoutMs
     if (added.status !== 0) throw unproven(`cannot check out ${commit}`, 'unknown');
     const selectedRunner = runner?.filesAt?.[commit] ? { ...runner,
       args: runner.args.map((arg, index) => index === runner.fileIndex ? runner.filesAt[commit] : arg) } : runner;
-    const run = await runOwnedCheck(tree, runner ? check : mappedCheck(tree, check), selectedRunner, timeoutMs, gateEnvironment, tree, parseProcessCensus);
+    const run = await runOwnedCheck(tree, runner ? check : proofPackages().codemap.mappedCheck(tree, check), selectedRunner, timeoutMs, gateEnvironment, tree, parseProcessCensus);
     drained = true;
     return { commit, ...run, problems: run.stdout.split(/\r?\n/u).filter(line => line.trim()).length };
   } catch (error) {
@@ -253,8 +254,8 @@ function observedTest(run, title, expected) {
 export async function proveCauseCheck(root, cause, request, { agent, parseProcessCensus } = {}) {
   const prepared = await prepareCauseProof(root, cause, request);
   if (typeof parseProcessCensus !== 'function') throw new Refused('RIGOR_UNPROVEN', 'supply the process census parser from the proof command owner before acquiring its machine lease');
-  return await withGateSlot(root, lease => provePreparedCheck(root, cause, prepared, gateSlotEnvironment(lease), parseProcessCensus),
-    { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser: true, remote: false, agent, kind: 'rigor-proof' });
+  return await proofPackages().gate.withGateSlot(root, lease => provePreparedCheck(root, cause, prepared, gateSlotEnvironment(lease), parseProcessCensus),
+    { executionServices: { runners: proofPackages().runners.runnerExecutionServices(), landing: proofPackages().landing.landingExecutionServices() }, browser: true, remote: false, agent, kind: 'rigor-proof' });
 }
 
 /** Run only an already validated cause proof while its real machine lease remains held. */

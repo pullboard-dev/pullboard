@@ -68,9 +68,10 @@ import {
   defaults,
   plainGateWords,
   practiceTemplate,
+  renderAgentsBlock,
   specTemplate,
 } from '../../../../packages/config/index.js';
-import { agentsBlock } from '../../../../packages/doctrine/index.js';
+import { doctrineText } from '../../../../packages/doctrine/index.js';
 
 /** Resolve a directory through symlinks, retaining a missing suffix for a not-yet-created private home. */
 function canonicalDirectoryPath(candidate) {
@@ -379,7 +380,8 @@ function ignoreAgentWorktrees(root, onWrite) {
 function writeAgentDocs(root, onWrite) {
   const notes = [];
   const agents = join(root, 'AGENTS.md');
-  const block = agentsBlock(loadDoctrine(root, loadConfig(root)));
+  const doctrine = loadDoctrine(root, loadConfig(root));
+  const block = renderAgentsBlock(doctrine, doctrineText(doctrine));
   if (!existsSync(agents)) {
     writeFileSync(agents, `# AGENTS.md\n\n${block}`);
     onWrite('AGENTS.md');

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/seats/src/logic/tiers.json packages/config/src/io/main.js */
 /** @pullboard-world-pin reads the committed seats tier table to prove it agrees with the config route table. */
 /** @pullboard-test-loads packages/config/src/io/main.js */
 /** The two model tier tables agree, and Sonnet seats get the strong route [C7]. */

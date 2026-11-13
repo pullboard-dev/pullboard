@@ -60,6 +60,7 @@ import {
 import {
   withSourceComposition,
 } from '../../../../../merge/index.js';
+import { storeName } from '../../store-names.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -176,7 +177,7 @@ function retainArtifacts(directory, job, gate, composition, { saveMainAudit }) {
 /** Execute one exact composition; any known returned child is cleaned before its terminal advisory state is written. */
 async function advance(root, directory, job, write, services) {
   const { readMainAudit, saveMainAudit, runSubmitGate } = services;
-  const file = join(directory, `${job.key}.json`);
+  const file = join(directory, `${storeName(job.key)}`);
   const old = readMainAudit(file);
   if (old) return; // Unknown/crashed or logically incomplete work is not a hot retry on every health wake.
   saveMainAudit(file, { version: 1, item: job.item.item_id, basis: job.basis, state: 'pending' });

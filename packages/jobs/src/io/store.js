@@ -140,6 +140,11 @@ export function upsertProgressStep(db, job, attempt, text, now) {
     ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`).run(job, attempt, text, now);
 }
 
+/** Delete step rows by id in one write; the archive pass calls it once the rows are durable elsewhere. */
+export function dropSteps(db, ids) {
+  atomically(db, () => { for (const id of ids) db.prepare('DELETE FROM job_step WHERE job_step_id = ?').run(id); });
+}
+
 /**
  * The job and its steps, with the current step being the last one written; null when the job does not exist.
  *

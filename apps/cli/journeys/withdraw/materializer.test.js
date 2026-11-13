@@ -209,14 +209,14 @@ test('[A2,C7] an open page hears one change notice per write, and none from its 
   await pump;
 });
 
-test('[A2,C7] a state worker that cannot start never fails a read: the server builds on the request thread', async (t) => {
+test('[A2,C7] a state worker that cannot start refuses a read by name, never a service error: the request thread builds nothing', async (t) => {
   const box = apiHttpFixture(t);
   const { api, read } = await materializedApi(t, box, [], 'data:text/javascript,throw new Error("no state ports here")');
-  const first = await read();
-  assert.equal(first.status, 200, JSON.stringify(first.document));
-  assert.ok(Number.isSafeInteger(first.document.state.sequence));
-  const second = await read();
-  assert.equal(second.status, 200, JSON.stringify(second.document));
+  for (const attempt of ['waiting on the worker as it fails', 'after the worker stopped']) {
+    const refused = await read();
+    assert.equal(refused.document.error?.code, 'STATE_WORKER_STOPPED', `${attempt}: ${JSON.stringify(refused.document)}`);
+    assert.notEqual(refused.status, 500, `${attempt}: a stopped worker is a named refusal, not a service error`);
+  }
   const headers = { 'x-pullboard-key': new URL(api.url).searchParams.get('k') };
   const listing = await (await fetch(new URL(api.url).origin + '/api/v1/boards', { headers })).json();
   assert.equal(listing.stateWorker, 'stopped', 'the board list tells the page the state worker stopped, so it says so');

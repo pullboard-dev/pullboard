@@ -70,6 +70,7 @@ import { gateRunnerAdmission } from '../../../../config/index.js';
 import { recentReceipts } from '../../../../gate/index.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
+import { storeName } from '../store-names.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
 // Version 2 drops results cached while comparisons ran in a checkout without accepted main (#2950).
@@ -246,7 +247,7 @@ function retainComparisonReceipt(root, checkout, id) {
   if (!receipt || receipt.kind !== 'main-red' || !store) return null;
   const body = receiptBody(receipt);
   mkdirSync(store, { recursive: true, mode: 0o700 });
-  const file = join(store, `${id}.json`);
+  const file = join(store, storeName(id));
   try { writeFileSync(file, body, { flag: 'wx', mode: 0o600 }); }
   catch (error) {
     if (error.code !== 'EEXIST' || readFileSync(file, 'utf8') !== body) return null;

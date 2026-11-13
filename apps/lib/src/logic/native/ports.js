@@ -1,15 +1,8 @@
 /** @pullboard-module-loads apps/view/index.js */
 import { createRequire } from 'node:module';
-import { sealOwnershipWait } from '../../io/seal.js';
-import { claimHealthSnapshot } from '../../../../../packages/health/index.js';
-import { conditionalHoldFloor } from '../../../../../packages/health/index.js';
 import { claimedItemRoot } from '../../../../../packages/items/index.js';
 import { recordFamilyDeclareActivation } from '../../../../../packages/items/light.js';
 import { withDerivedFamily } from '../../../../../packages/items/light.js';
-import {
-  submitGateConfig,
-  submitGatePlan,
-} from '../../../../../packages/gate/index.js';
 import {
   nativeProofBlockingGreen,
   receiptBlockingGreen,
@@ -23,13 +16,6 @@ import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { warmFamilyProjection } from '../../../../../packages/items/index.js';
 import { familyProjectionCurrent } from '../../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
-import { policyAt } from '../../../../../packages/sandbox/index.js';
-import { mainPolicy } from '../../../../../packages/sandbox/index.js';
-import {
-  frozenCheck,
-  itemPolicy,
-  requireTrunkMerge,
-} from '../../../../../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 import { PIPELINE_CAUSE_ENGINE } from '../../../../../packages/state/light.js';
 import { SUBMIT_HANDOFF_ENGINE } from '../../../../../packages/state/light.js';
@@ -46,28 +32,6 @@ import { reserveReview as reserveReviewLease } from '../../../../../packages/job
 import { renewReview } from '../../../../../packages/jobs/index.js';
 import { reclaimLapsedReviews } from '../../../../../packages/jobs/index.js';
 import { releaseReview } from '../../../../../packages/jobs/index.js';
-import { submitHandoffBoardRoot } from '../../../../../packages/sandbox/index.js';
-import { sealSubmitHandoffQueue } from '../../../../../packages/sandbox/index.js';
-import {
-  validateQuarantineProofIds,
-  quarantineVerdictSnapshot,
-  validateQuarantineGate,
-  validateQuarantineLandingProof,
-  validateQuarantineVerdict,
-  recordSealedGateRun,
-  sealQuarantineVerdict,
-  flakeQuarantines,
-  gateRuns,
-  recordGateRun,
-  requireBound,
-} from '../../../../../packages/flakes/index.js';
-import {
-  sealKnownMainAutofile,
-  receiptFields,
-  boardReceiptStore,
-  readGateReceipt,
-  receiptBody,
-} from '../../../../../packages/gate/index.js';
 import {
   MOVE_REGISTRY,
   MOVE_OPERATIONS,
@@ -75,81 +39,11 @@ import {
   declaredMoveActor,
   withMoveNextSteps,
 } from '../../../../../packages/moves/light.js';
-import { personSigningPresentation } from '../../../../../packages/person/index.js';
-import {
-  personRequestStatuses,
-  requestMoveProblem,
-  recordRequestMove,
-  relayPerson,
-  requestPerson,
-} from '../../../../../packages/link/index.js';
-import {
-  projectFit,
-  pendingFit,
-  fitFile,
-} from '../../../../../packages/blueprints/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
-import {
-  advanceItemSource,
-  sourceAdvanceCASProblem,
-} from '../../../../../packages/sandbox/index.js';
-import {
-  proposeSentinel,
-  decideSentinel,
-  beginSentinelRun,
-  finishSentinelRun,
-} from '../../../../../packages/sentinels/index.js';
-import {
-  flakeLedger,
-  recordFlakeObservation,
-} from '../../../../../packages/flakes/index.js';
-import {
-  personProposals,
-  personSigning,
-  proposePersonMove,
-  setPersonSigning,
-  signedMoveProblem,
-  exportedMeta,
-  guardRestore,
-} from '../../../../../packages/person/index.js';
-import { recordPublishFinding } from '../../../../../packages/github/index.js';
-import {
-  landingWaivers,
-  landingWaiverFor,
-  waivedLandingProof,
-} from '../../../../../packages/landing/index.js';
-import {
-  prepareTrainLanding,
-  prepareNativeTrainLanding,
-} from '../../../../../packages/landing/index.js';
 import {
   sealItemPatchSubmit,
   sealItemPatchFollow,
 } from '../../../../../packages/items/index.js';
-import {
-  sealSourceAdvance,
-  sealSourceAdvanceReturn,
-} from '../../../../../packages/sandbox/index.js';
-import { computedReturnArgs } from '../../../../../packages/landing/index.js';
-import {
-  requirePreparedComputedConflict,
-  preflightComputedConflict,
-  conflictValue,
-} from '../../../../../packages/landing/index.js';
-import { validPresence } from '../../../../../packages/person/index.js';
-import { recordTrainLanding } from '../../../../../packages/landing/index.js';
-import {
-  newRigorNotices,
-  rigorNoticeText,
-} from '../../../../../packages/rigor/index.js';
 import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/index.js';
-import * as landingEnvironment from '../../../../../packages/landing/index.js';
-import {
-  deriveRigorCause,
-  recordAutomaticRigorDrafts,
-} from '../../../../../packages/rigor/index.js';
-import { normalizedDispatch } from '../../../../../packages/sentinels/index.js';
-import { rejectedWorkReturns } from '../../../../../packages/sentinels/index.js';
 import { guardLandingWrite } from '../../../../../packages/store/index.js';
 
 import { recordRowVerification as applyRowVerification } from '../../../../../packages/spec/index.js';
@@ -167,7 +61,6 @@ import {
   roadmap,
   shipMilestone,
 } from '../../../../../packages/store/index.js';
-import { beginCommandPhase } from '../../../../../packages/link/index.js';
 
 import { boardEnginePorts } from '../../../../../packages/store/index.js';
 import {
@@ -228,10 +121,6 @@ import {
   boardId,
 } from '../../../../../packages/store/index.js';
 import {
-  appendRigorCounter,
-  ensureRigorCounters,
-} from '../../../../../packages/rigor/index.js';
-import {
   committedItemAuthors,
   twoTierReviews,
   strictReviewProblem,
@@ -251,9 +140,6 @@ import {
   verdictWithdrawalTarget,
 } from '../../../../../packages/verify/index.js';
 import {
-  computedConflictProblem,
-} from '../../../../../packages/landing/index.js';
-import {
   firstRefusal,
 } from '../../../../../packages/store/index.js';
 import {
@@ -263,6 +149,41 @@ import {
 import { normalizeReviewDefaults } from '../../../../../packages/verify/index.js';
 
 const requireModule = createRequire(import.meta.url);
+
+/** One provider package, loaded on the first call that needs it and kept for the process. */
+function onDemand(load) { let loaded = null; return () => loaded ??= load(); }
+
+/** Named functions that load their package at their first call: a write that never calls one never pays for its modules [C7]. */
+function deferred(load, names) { return Object.fromEntries(names.map(name => [name, { [name](...args) { return load()[name](...args); } }[name]])); }
+
+const seal = onDemand(() => requireModule('../../io/seal.js'));
+const healthPackage = onDemand(() => requireModule('../../../../../packages/health/index.js'));
+const gatePackage = onDemand(() => requireModule('../../../../../packages/gate/index.js'));
+const sandboxPackage = onDemand(() => requireModule('../../../../../packages/sandbox/index.js'));
+const flakesPackage = onDemand(() => requireModule('../../../../../packages/flakes/index.js'));
+const personPackage = onDemand(() => requireModule('../../../../../packages/person/index.js'));
+const linkPackage = onDemand(() => requireModule('../../../../../packages/link/index.js'));
+const blueprintsPackage = onDemand(() => requireModule('../../../../../packages/blueprints/index.js'));
+const sentinelsPackage = onDemand(() => requireModule('../../../../../packages/sentinels/index.js'));
+const githubPackage = onDemand(() => requireModule('../../../../../packages/github/index.js'));
+const landingPackage = onDemand(() => requireModule('../../../../../packages/landing/index.js'));
+const rigorPackage = onDemand(() => requireModule('../../../../../packages/rigor/index.js'));
+
+const { sealOwnershipWait } = deferred(seal, ['sealOwnershipWait']);
+const { claimHealthSnapshot, conditionalHoldFloor } = deferred(healthPackage, ['claimHealthSnapshot', 'conditionalHoldFloor']);
+const { submitGateConfig, submitGatePlan, sealKnownMainAutofile, receiptFields, boardReceiptStore, readGateReceipt, receiptBody } = deferred(gatePackage, ['submitGateConfig', 'submitGatePlan', 'sealKnownMainAutofile', 'receiptFields', 'boardReceiptStore', 'readGateReceipt', 'receiptBody']);
+const { policyAt, mainPolicy, frozenCheck, itemPolicy, requireTrunkMerge, submitHandoffBoardRoot, sealSubmitHandoffQueue, advanceItemSource, sourceAdvanceCASProblem, sealSourceAdvance, sealSourceAdvanceReturn } = deferred(sandboxPackage, ['policyAt', 'mainPolicy', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge', 'submitHandoffBoardRoot', 'sealSubmitHandoffQueue', 'advanceItemSource', 'sourceAdvanceCASProblem', 'sealSourceAdvance', 'sealSourceAdvanceReturn']);
+const { validateQuarantineProofIds, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, flakeQuarantines, gateRuns, recordGateRun, requireBound, flakeLedger, recordFlakeObservation } = deferred(flakesPackage, ['validateQuarantineProofIds', 'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'validateQuarantineVerdict', 'recordSealedGateRun', 'sealQuarantineVerdict', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'requireBound', 'flakeLedger', 'recordFlakeObservation']);
+const { personSigningPresentation, verifiedPasskeyRowDecision, personProposals, personSigning, proposePersonMove, setPersonSigning, signedMoveProblem, exportedMeta, guardRestore, validPresence } = deferred(personPackage, ['personSigningPresentation', 'verifiedPasskeyRowDecision', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'signedMoveProblem', 'exportedMeta', 'guardRestore', 'validPresence']);
+const { personRequestStatuses, requestMoveProblem, recordRequestMove, relayPerson, requestPerson, beginCommandPhase } = deferred(linkPackage, ['personRequestStatuses', 'requestMoveProblem', 'recordRequestMove', 'relayPerson', 'requestPerson', 'beginCommandPhase']);
+const { projectFit, pendingFit, fitFile } = deferred(blueprintsPackage, ['projectFit', 'pendingFit', 'fitFile']);
+const { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, normalizedDispatch, rejectedWorkReturns } = deferred(sentinelsPackage, ['proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'normalizedDispatch', 'rejectedWorkReturns']);
+const { recordPublishFinding } = deferred(githubPackage, ['recordPublishFinding']);
+const { landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding, prepareNativeTrainLanding, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, conflictValue, recordTrainLanding, computedConflictProblem } = deferred(landingPackage, ['landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'prepareTrainLanding', 'prepareNativeTrainLanding', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'conflictValue', 'recordTrainLanding', 'computedConflictProblem']);
+const { newRigorNotices, rigorNoticeText, deriveRigorCause, recordAutomaticRigorDrafts, appendRigorCounter, ensureRigorCounters } = deferred(rigorPackage, ['newRigorNotices', 'rigorNoticeText', 'deriveRigorCause', 'recordAutomaticRigorDrafts', 'appendRigorCounter', 'ensureRigorCounters']);
+/** The landing checks the native board calls through nativePorts.landingEnvironment, loading landing at the first one. */
+const landingEnvironment = Object.freeze(deferred(landingPackage, ['requireVerdict', 'requireBatch', 'requireRevision', 'requireTrunk', 'requireStoredBatch']));
+
 let viewModule = null;
 /** The view app, loaded on the first projection call: next and other board moves never pay for its modules [C7]. */
 function view() { return viewModule ??= requireModule('../../../../view/index.js'); }
