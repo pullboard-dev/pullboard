@@ -19,7 +19,7 @@ test('clause 1: a submit copies no tooling and composes nothing; the runner job 
   const box = await pullProject(t, 1);
   const [id] = box.ids;
   const before = hostProcesses(box.dir);
-  const { folder, commit } = submitOne(box, id);
+  const { folder, commit } = submitOne(box, id, undefined, { compose: true });
   assert.equal(hostProcesses(box.dir), before, 'the submit left no process on the submitting machine');
   for (const place of [folder, box.web, box.repo]) assert.equal(existsSync(join(place, '.git', 'gate-steps.jsonl')), false, `no gate step ran in ${place}`);
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => jobQueueCall(current.db, body, { mode: 'pull', trunk: () => box.repo }) });
@@ -29,7 +29,7 @@ test('clause 1: a submit copies no tooling and composes nothing; the runner job 
   assert.equal(served.code, 0, served.output);
   const steps = readFileSync(join(box.runnerHome, 'runner-a-steps.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
   const names = new Set(steps.map(step => step.step));
-  for (const part of ['authorization', 'placement', 'cells', 'selection', 'proof']) assert.ok(names.has(part), `${part} ran in the runner job`);
+  for (const part of ['authorization', 'composition', 'cells', 'selection', 'proof']) assert.ok(names.has(part), `${part} ran in the runner job`);
   assert.ok(steps.every(step => step.pid !== process.pid), 'none of it ran on the submitting machine');
   assert.equal(jobsOf(board.db, { kind: 'gate', item: id })[0].step, 'done');
 });

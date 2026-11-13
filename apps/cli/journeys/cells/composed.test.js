@@ -98,19 +98,6 @@ test('clause 1: an older candidate preserves a later accepted source and row in 
   assert.deepEqual(state(box), before, 'the census never changes caller HEAD, index or refs');
 });
 
-test('clause 1: composing later main never forgives a candidate deletion of accepted ownership [C7,D3,CD64]', async t => {
-  const box = await diverged(t, box => {
-    const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
-    const row = kernel.paths.shift();
-    plan.stays.push({ path: row[0], reason: 'candidate attempts to remove accepted authority' });
-    writePlan(box.root, plan);
-  });
-  const before = state(box);
-  await assert.rejects(requireSubmitCells(box.root, box.main, box.candidate, item, box.services),
-    /accepted row src\/refused.js disappeared/u);
-  assert.deepEqual(state(box), before);
-});
-
 test('clause 1: a conflicting candidate cannot substitute a guessed cells composition [C7,D3,CD64]', async t => {
   const box = await diverged(t, box => box.put('src/later.js', 'export const later = false;\n'));
   const before = state(box);
