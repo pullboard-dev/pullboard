@@ -11,6 +11,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 import {
   events,
@@ -64,11 +65,11 @@ function refuseEveryCommit(box) {
   box.git(box.repo, 'config', 'core.hooksPath', hooks);
 }
 
-/** Run one plain land and return its JSON result; `code` is 1 when nothing landed and a culprit came back [C7,#4265]. */
-async function land(box, code = 0) {
+/** Offer one plain land and return its settled result: the offer exits 0, the outcome is the land job's receipt [C7,#4265]. */
+async function land(box) {
   const result = await box.runLocal(box.repo, 'land', '--json');
-  assert.equal(result.code, code, result.out + result.err);
-  return JSON.parse(result.out);
+  assert.equal(result.code, 0, result.out + result.err);
+  return settleLand(box, JSON.parse(result.out));
 }
 
 test('clause 1: one landing batch lands all three verified items that merge cleanly, hooks off, each recorded merged [C7,#2901,#5815]', { timeout: 300_000 }, // budget: three real submits, accepts and one landing; hang ceiling only.
@@ -109,7 +110,7 @@ async () => {
 
   const one = await land(box);
   assert.deepEqual(one.landed, [green.item], 'the green item lands in the same run');
-  assert.deepEqual(one.culprits.map(entry => entry.id), [red.item], 'the bisection names the red item');
+  assert.deepEqual(one.returned.map(entry => entry.id), [red.item], 'the bisection names the red item');
   const tip = box.git(box.repo, 'rev-parse', 'main');
   assert.notEqual(tip, start);
   assert.ok(json(box, box.repo, 'show', String(green.item)).item_merged_commit, 'the green item is recorded merged');
@@ -127,7 +128,7 @@ async () => {
   acceptItem(box, red);
   moveMainPastSubmit(box);
 
-  await land(box, 1);
+  await land(box);
   const recorded = events(box);
   const reopens = rows => rows.filter(row => row.item_id === red.item && row.event_kind === 'reopen').length;
   assert.equal(reopens(recorded), 1, 'the stop is recorded once');
