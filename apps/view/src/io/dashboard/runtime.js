@@ -68,7 +68,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
    * Draw the Dashboard. With quick, as on a tab switch (#6613), a board that moved since the last model draws from that
    * model at once and returns true: the caller draws again after the frame, when the model is brought up to date.
    */
-  function draw(project, needs, { rules = '', capacity = '', needsHeader = '', quick = false } = {}) {
+  function draw(project, needs, { needsHeader = '', quick = false } = {}) {
     if (needs !== undefined) lastNeeds = { root: project.root, html: needs, header: needsHeader };
     else { needs = lastNeeds.root === project.root ? lastNeeds.html : ''; needsHeader = lastNeeds.root === project.root ? lastNeeds.header : ''; }
     const region = document.getElementById('dashboard');
@@ -98,7 +98,7 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, seen(held, prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
-    const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
+    const usual = () => html(state, { needs, needsHeader, progress, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
       : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
     if (showFirstRun) startTour();
