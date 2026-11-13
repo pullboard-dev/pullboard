@@ -47,7 +47,7 @@ test('the Settings page lists every setting by scope from the settings API and e
     const inventory = await reply.json();
     const before = box.run(alpha.repo, 'export', '--json');
     const config = readFileSync(join(alpha.repo, 'pullboard.json'), 'utf8');
-    assert.match(page.html, /data-tab="settings"[^>]*>Settings</u, 'Settings is reachable from the board navigation');
+    assert.match(page.html, /row\('data-tab="settings"', 'Settings'/u, 'Settings is reachable from the account menu');
     await page.click({ root: alpha.repo });
     await page.click({ tab: 'settings' });
     for (const scope of ['machine', 'repo', 'board']) {
@@ -108,6 +108,9 @@ test('Settings has a bottom sidebar address and isolates a bad row at desktop an
         top: Boolean(document.querySelector('.side-body [data-tab="settings"]')) };
     })()`);
     assert.deepEqual(footer, { menu: true, github: true, top: false });
+    // The open account menu covers the scope controls, so close it before pressing them.
+    await press(chrome, 'document.querySelector("#account")');
+    await chrome.waitFor('document.querySelector("#account-menu").hidden');
     await press(chrome, 'document.querySelector("[data-settings-scope=board]")');
     await press(chrome, 'document.querySelector("#settings-pane [data-settings-open]")');
     await press(chrome, 'document.querySelector("[data-settings-scope=repo]")');
