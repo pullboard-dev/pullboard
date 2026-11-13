@@ -142,7 +142,7 @@ const connected = () => Boolean(stream) && stream.status !== 'down';
 
 /** Say nothing while the page's stream is up, and why the page is not live while it is down. */
 function liveLine() {
-  if (!stream || stream.status !== 'down') return '';
+  if (!stream || stream.status !== 'down') return stateWorkerStopped ? 'the state worker stopped: serving from the request thread' : '';
   if (stream.offline) return 'offline: is pullboard view still running?';
   return (canStream() ? 'reconnecting' : 'no live stream in this browser') + ': refreshing every ' + FALLBACK_MS / 1000 + 's';
 }
