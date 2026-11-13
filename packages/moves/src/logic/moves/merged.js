@@ -3,7 +3,7 @@ import { FLAKE_RATCHET_ENGINE } from '../../../../state/light.js';
 /** Routing metadata owned by merged, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/light.js";
-import { outsideSource } from "../../../../items/light.js";
+import { outsideSource } from "../../../../items/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

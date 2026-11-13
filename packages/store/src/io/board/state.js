@@ -1,7 +1,7 @@
 import { currentProofCounters } from "../../../../verify/index.js";
 import { proofCounter } from "../../../../verify/index.js";
 import { workQueue } from "../../../../items/index.js";
-import { pipelineStats } from "../../../../stats/index.js";
+import { pipelineStats } from "../../../../stats/light.js";
 /** @pullboard-test-input packages/doctrine/src/io/standard.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { counterProofStats } from "../../../../verify/index.js";
@@ -21,9 +21,9 @@ import { listApiProjects } from "../../../../seats/index.js";
 import { nativeStateClockWindow } from "../../logic/clock.js";
 import { workProgress } from '../../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../../roadmap/index.js";
-import { proofStats } from "../../../../stats/index.js";
-import { readCapacity } from "../../../../stats/index.js";
-import { budgetState } from "../../../../stats/index.js";
+import { proofStats } from "../../../../stats/light.js";
+import { readCapacity } from "../../../../stats/light.js";
+import { budgetState } from "../../../../stats/light.js";
 import { loadMachineSettings } from "../../../../config/index.js";
 import { ruleProofCounts } from "../../../../verify/index.js";
 import { milestoneNamesByItem } from "../../../../items/index.js";
@@ -79,7 +79,10 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     }
 
     const config = loadConfig(root);
-    const freshness = freshnessReader ?? verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state;
+    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() ?? undefined }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+    const freshness = freshnessReader ?? projector.state;
+    // One cat-file answers every verified item's commit, rather than one Git process per item [C7].
+    projector?.prime(currentItems.filter(item => dirtyIds.has(item.item_id) || refreshVerdicts));
     const state = projectState(root, { seen: null, board, itemProjector: (item, context) => {
       if (dirtyIds.has(item.item_id)) {
         const projected = context.project();
@@ -94,8 +97,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     } });
     const progressById = workProgress(board);
     const healthById = claimHealthSnapshot(board, config, new Date(observedAt));
-    state.items = state.items.map(item => ({ ...item, progress: progressById.get(item.id),
-      claimHealth: healthById.get(item.id) ?? null }));
+    state.items = state.items.map(item => ({ ...item, progress: withoutClockReading(progressById.get(item.id)),
+      claimHealth: claimHealthWithoutClock(healthById.get(item.id)) }));
     const allAgents = state.agents;
     state.agents = activeViewAgents(state.agents, observedAt).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
     state.board = boardId;
@@ -117,7 +120,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     state.requests = projectData.requests;
     state.personRequests = projectData.personRequests;
     Object.assign(state, personSigningPresentation(root, board, config));
-    state.milestones = projectData.milestones;
+    state.milestones = milestoneItemIds(projectData.milestones.map(milestoneWithoutClock));
     state.blocks = personBlockWords(repoInfo(root).commonDir, board.clock.now(), localCapacity ? machineBudgetState(board, observedAt) : undefined); // Needs you below is recomputed with them [C6].
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
@@ -208,4 +211,39 @@ export function fileRevision(file) {
 function machineBudgetState(board, now) {
   const settings = loadMachineSettings();
   return settings.budget ? budgetState(board, settings.costPrices, settings.budget, now) : undefined;
+}
+
+/** An item's progress as the page holds it: lastActivity says when, and the page derives the idle minutes, so no build carries a clock reading [C7]. */
+function withoutClockReading(progress) {
+  if (!progress) return progress;
+  const { idleMinutes: _minutes, ...kept } = progress;
+  return kept;
+}
+
+/** A claim's health as a build holds it: its state and waits, never the minutes it has been idle. */
+function claimHealthWithoutClock(health) {
+  if (!health) return null;
+  const { idleMinutes: _minutes, ...kept } = health;
+  return kept;
+}
+
+/** A milestone as a build holds it: its own progress names the latest activity, and its entries carry no per-item progress, which each item already holds, so a delta resends a milestone at a fraction of its size. */
+function milestoneWithoutClock(milestone) {
+  const items = milestone.items.map(({ progress: _held, ...entry }) => entry);
+  const { idleMinutes: _minutes, ...progress } = milestone.progress;
+  const latest = milestone.items.map(entry => entry.progress?.lastActivity).filter(Boolean).sort().at(-1) ?? null;
+  return { ...milestone, items, progress: { ...progress, idleSince: latest } };
+}
+
+/**
+ * Each milestone with its local items as ids: the page already holds every local item, so a row keeps only its id,
+ * its roadmap state and its queue position, and the title, status and progress come from the state's items (#6666).
+ * Items on other boards keep their whole row, since this state does not hold them.
+ *
+ * @param {any[]} milestones
+ * @returns {any[]}
+ */
+export function milestoneItemIds(milestones) {
+  return milestones.map(milestone => ({ ...milestone, items: milestone.items.map(entry => typeof entry.id !== "number" ? entry
+    : { id: entry.id, state: entry.state, ...(entry.position === undefined ? {} : { position: entry.position }) }) }));
 }

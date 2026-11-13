@@ -172,7 +172,8 @@ function fixture(t, count, slots = 2) {
   ].join('\n') + '\n');
   box.main = commit(box, root);
   assert.equal(cli(box, root, 'settings', 'gateSlots', String(slots)).status, 0);
-  // These submits hold their gate and its main comparisons in the submitting process, so the fixture pins controller dispatch [P7].
+  // Audited exception (#6830): these cases read the main comparison a controller submit starts; under pull none runs
+  // yet, so the fixture keeps controller dispatch until #6635 (0.9.5) moves it to the pulled gate [P7].
   const machine = JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
   fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { ...machine, gate: { ...machine.gate, runnerDispatch: 'controller' } });
   const added = cli(box, root, 'add', 'core', 'Retain the native red verdict', '--specs', 'G1', '--route', 'mid',

@@ -95,14 +95,22 @@ test("Pullboard's doctrine carries its four checks [D1,D3]", () => {
   const box = e2e.project();
   const checkout = join(box.dir, 'doctrine-checkout');
   box.git(box.dir, 'clone', '--shared', ROOT, checkout);
+  // A runner's checkout is a detached HEAD, which the collision baseline refuses; the clone stands on a branch as a person's does.
+  box.git(checkout, 'checkout', '-q', '-B', 'main');
   writeFileSync(join(checkout, 'DOCTRINE.md'), readFileSync(join(ROOT, 'DOCTRINE.md'), 'utf8'));
   box.git(checkout, 'add', 'DOCTRINE.md');
   const staged = box.tryGit(checkout, 'diff', '--cached', '--quiet');
   assert.ok(staged.status === 0 || staged.status === 1, staged.stderr);
   if (staged.status === 1) box.git(checkout, 'commit', '-q', '-m', 'docs: exercise doctrine checks [D1,D3]');
 
-  const spec = box.run(checkout, 'spec', 'check');
-  assert.equal(spec.code, 0, spec.out + spec.err);
+  // --json carries every finding; default text withholds lines past its byte budget, which hid the errors behind the warnings.
+  const spec = box.run(checkout, 'spec', 'check', '--json');
+  let findings = spec.out;
+  try { const document = JSON.parse(spec.out); findings = (document.error?.message ?? (document.messages ?? []).join('\n')).split('\n').filter((line) => !/ warning: /u.test(line)).join('\n'); } catch { /* the raw output is the message */ }
+  // This case judges DOCTRINE.md. A SPEC.md id cited by history but held only as a board row draft (U94) reads as an error here, because the clone has no board.
+  const doctrineErrors = findings.split('\n').filter((line) => /^DOCTRINE\.md\b.* error/u.test(line) && !/, 0 errors,/u.test(line));
+  assert.deepEqual(doctrineErrors, [], `${findings}\n${spec.err}`);
+  assert.ok(spec.code === 0 || /^DOCTRINE\.md: \d+ rows, 0 errors/mu.test(findings), `spec check ran to its DOCTRINE.md summary: ${findings}\n${spec.err}`);
   const report = box.run(checkout, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
   const lines = report.out.trim().split(/\r?\n/u);

@@ -1,13 +1,13 @@
 /** Render a private costAnalytics/1 projection; arithmetic and attribution remain server-owned [N26]. */
-export function costOverviewHtml(data = {}, opened = null, { hasPrices = false } = {}) {
+export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, vendorClasses = [], waiting = '', updating = false } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const duration = ms => ms == null ? '' : ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min' : ms < 36000000 ? (ms / 3600000).toFixed(1) + ' h' : Math.round(ms / 3600000) + ' h';
   const percent = value => value == null ? '' : Math.round(value * 100) + '%';
   const bold = value => '<b>' + esc(value) + '</b>';
   const landed = value => { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date) : ''; };
   const tokens = count => count >= 1e6 ? Math.round(count / 1e6) + 'M' : count >= 1e3 ? Math.round(count / 1e3) + 'K' : String(count);
-  /** A model's vendor colour class, from the vendor the server names or, for a session line, the model's name. */
-  const vendorClass = value => /anthropic|claude|opus|sonnet|haiku/i.test(value ?? '') ? 'anthropic' : /openai|gpt|codex|^o\d/i.test(value ?? '') ? 'openai' : 'other';
+  /** A model's vendor colour class: the first `vendorClasses` rule (from model-names.json) whose pattern matches the vendor or model name [P5]. */
+  const vendorClass = value => vendorClasses.find(rule => new RegExp(rule.match, 'iu').test(value ?? ''))?.class ?? 'other';
   const dot = (label, vendor) => '<span class="cost-model-dot"><i class="' + vendorClass(vendor ?? label) + '" aria-hidden="true"></i>' + esc(label) + '</span>';
   const totals = data.totals ?? {}, back = totals.sentBack ?? {};
   const pill = value => ({ clear: ['clear', 'Clear'], leaning: ['lean', 'Leaning'], 'nothing-to-compare': ['more', 'Nothing to compare'] })[value];
@@ -68,7 +68,9 @@ export function costOverviewHtml(data = {}, opened = null, { hasPrices = false }
   }).join('');
   const share = back.agentMsShare, firstMs = totals.agentMs != null && back.agentMs != null ? totals.agentMs - back.agentMs : null;
   const lock = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M5.5 7V5.2a2.5 2.5 0 015 0V7" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>';
-  return '<section class="cost-page" aria-label="Cost"><header class="cost-heading"><h1>Cost</h1><nav class="cost-periods" aria-label="Time period">' + [['today', 'Today'], ['7d', '7 days'], ['30d', '30 days']].map(([id, label]) => '<button data-cost-window="' + id + '" aria-pressed="' + (data.window === id) + '">' + label + '</button>').join('') + '</nav><span class="cost-private">' + lock + 'Only you see this</span></header>'
+  const heading = '<section class="cost-page" aria-label="Cost"><header class="cost-heading"><h1>Cost</h1><nav class="cost-periods" aria-label="Time period">' + [['today', 'Today'], ['7d', '7 days'], ['30d', '30 days']].map(([id, label]) => '<button data-cost-window="' + id + '" aria-pressed="' + (data.window === id) + '">' + label + '</button>').join('') + '</nav><span class="cost-private">' + lock + 'Only you see this</span>' + (updating ? '<span class="cost-updating" role="status">Updating…</span>' : '') + '</header>';
+  if (waiting) return heading + '<section class="cost-card cost-waiting" role="status">' + esc(waiting) + '</section></section>';
+  return heading
     + (hasPrices ? '' : '<section class="cost-card cost-prices"><span>Showing agent time. <b>Want dollars?</b> Tell your coordinator agent:</span><span class="cost-copy"><code>Add model prices to Pullboard</code><button data-cost-copy type="button">Copy</button></span></section>')
     + '<div class="cost-overview"><article class="cost-card cost-summary"><div><p class="cost-kicker">Agent time</p><p class="cost-big">' + (totals.agentMs == null ? 'Not recorded' : esc(Math.round(totals.agentMs / 3600000)) + '<small>hours</small>') + '</p><p class="cost-note">for ' + bold(totals.itemCount) + ' landed items · ' + bold(duration(totals.medianItemMs) || '—') + ' for a typical item</p></div><div><p class="cost-kicker">Sent back</p><p class="cost-say"><b class="bad">' + esc(percent(back.itemShare)) + '</b> of items were sent back.' + (share == null ? '' : ' They took <b class="bad">' + esc(percent(share)) + '</b> of the time.') + '</p>'
     + (share == null ? '' : '<svg class="cost-split" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Agent time split"><rect class="right" width="' + Math.max(0, 100 * (1 - share) - 0.5) + '" height="10"></rect><rect class="back" x="' + (100 * (1 - share) + 0.5) + '" width="' + Math.max(0, 100 * share - 0.5) + '" height="10"></rect></svg><div class="cost-keys"><span><i class="right"></i>Right first time ' + bold(duration(firstMs)) + '</span><span><i class="back"></i>Sent back ' + bold(duration(back.agentMs)) + '</span></div>') + '</div></article>'
@@ -87,7 +89,7 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
       const result = await readWindow(window);
       if (selected !== window) return;
       model = result;
-      element.innerHTML = costOverviewHtml(model, opened, { hasPrices });
+      element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses });
       element.querySelector('[data-cost-window="' + window + '"]')?.focus();
     } catch (error) {
       if (selected !== window) return;
@@ -101,7 +103,7 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
     if (target.dataset.costCopy !== undefined) { void copyText('Add model prices to Pullboard'); return; }
     if (target.dataset.costAll !== undefined) { showAll(); return; }
     if (target.dataset.go?.startsWith('item:')) { event.preventDefault(); openItem(Number(target.dataset.go.slice(5))); return; }
-    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { hasPrices }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
+    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
   });
   return load(selected);
 }

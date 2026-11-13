@@ -51,7 +51,7 @@ export function validateServe(serve, file) {
   }
   const octets = typeof serve.address === 'string' ? serve.address.split('.') : [];
   if (serve.address !== undefined && (octets.length !== 4 || octets.some(part => !/^(?:0|[1-9]\d{0,2})$/u.test(part) || Number(part) > 255) || serve.address === '0.0.0.0')) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `serve.address in ${file} must be one interface's literal IPv4 address, such as 192.168.1.98; remove it to serve on loopback`);
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.address in ${file} must be one interface's literal IPv4 address, such as 192.168.7.21; remove it to serve on loopback`);
   }
   if (serve.port !== undefined && (!Number.isSafeInteger(serve.port) || serve.port < 0 || serve.port > 65535)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.port in ${file} must be a port from 0 to 65535; 0 chooses a free one`);
@@ -117,6 +117,11 @@ export function loadMachineSettings() {
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
   if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
+  }
+  const reserve = value.gate?.jobReserve;
+  if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
+    || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.jobReserve in ${file} must be { "interactive", "gate", "landing", "background": a share of 0 through 1 }, adding up to at most 1; remove it to keep the plain claim order`);
   }
   const pilot = value.gate?.pullPilot;
   if (pilot !== undefined && (!pilot || typeof pilot !== 'object' || Array.isArray(pilot) || Object.keys(pilot).some(key => !['items', 'share'].includes(key))

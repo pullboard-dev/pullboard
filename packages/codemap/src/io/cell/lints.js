@@ -15,6 +15,7 @@ import { testFile } from './lint/inventory.js';
 import { lex } from '../../../../kernel/index.js';
 import { rootAllowed } from '../../logic/allowlist.js';
 import { strayNextStep } from '../../logic/allowlist.js';
+import { storeName } from '../store-names.js';
 
 export const CELL_METRICS = Object.freeze(['boundaries', 'cycles', 'shims', 'legacySource', 'fileSize', 'strays', 'documents', 'unreachable', 'unreachablePackages', 'unreachableExports', 'unknown']);
 const TRANSITION_FILE = 'packages/codemap/data/plan/transition.json';
@@ -26,7 +27,7 @@ function declaredPureEntries(files) {
     const index = JSON.parse(files.get('packages/codemap/data/plan/cells.json')?.toString('utf8') ?? 'null');
     for (const row of index?.cells ?? []) {
       if (!Number.isSafeInteger(row.order) || typeof row.name !== 'string'
-        || row.file !== `packages/codemap/data/plan/${String(row.order).padStart(2, '0')}-${row.name.replace(':', '-')}.json`) continue;
+        || row.file !== `packages/codemap/data/plan/${String(row.order).padStart(2, '0')}-${storeName(row.name.replace(':', '-'))}`) continue;
       const cell = JSON.parse(files.get(row.file)?.toString('utf8') ?? 'null');
       // An app cell may declare only a light door; a pure front door stays a package's.
       if (cell?.name === row.name && cell.order === row.order && (/^packages\/[a-z][a-z0-9-]*$/u.test(cell.root)

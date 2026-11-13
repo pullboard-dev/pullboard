@@ -7,3 +7,7 @@ export { landingTestDefects } from './src/logic/board/landing/test/history.js';
 export { hasPendingCpuNotices, hasPendingDispatchNotices } from './src/logic/board/receipts.js';
 export { pendingSubmitHandoff } from './src/io/submit/handoff/records.js';
 export { syncMayAct, baselineReceiptsPending } from './src/io/home.js';
+export { openBoardForRead, closeBoard } from './src/io/board/read/snapshot.js';
+export { schemaMissing, writeRefused } from './src/io/board/migrate.js';
+export { events, listAgents, agentById, ensureCoordinator, ReadNeedsWrite, acceptedVerdict, verdictReviewProblem } from './src/io/board/query.js';
+export { allItemsNeedingRescope } from './src/io/cooldown.js';

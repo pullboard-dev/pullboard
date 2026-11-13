@@ -4,9 +4,9 @@ import { decodedProofEvent } from '../../../../kernel/index.js';
 import { proofCounter } from './counters.js';
 import { currentProofCounters } from './counters.js';
 import { proofCounterRows } from './counters.js';
-import { barStats } from '../../../../stats/index.js';
-import { projectFlowStats } from '../../../../stats/index.js';
-import { proofAgentIds } from '../../../../stats/index.js';
+import { barStats } from '../../../../stats/light.js';
+import { projectFlowStats } from '../../../../stats/light.js';
+import { proofAgentIds } from '../../../../stats/light.js';
 
 /** Assemble selected-window counters from timestamped contributions, not decoded native events. */
 function windowCounts(facts, boundary) {
@@ -69,4 +69,4 @@ export function counterProofStats(board, boundary, now) {
     bars: barStats([...creators, ...corrections], verdicts, boundary), caught: counterCaught(board, boundary),
     flow: projectFlowStats(flow, boundary, now, counts) };
 }
-import { FLOW_REPORT_VERSION } from '../../../../stats/index.js';
+import { FLOW_REPORT_VERSION } from '../../../../stats/light.js';

@@ -17,9 +17,11 @@ import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
 import { trunkProblems } from '../logic/trunk.js';
 
-export const CONFIG_FILE = 'pullboard.json';
+import { CONFIG_FILE } from '../../../kernel/browser.js';
+export { CONFIG_FILE };
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
+import { labelDeclarationProblems } from '../../../queue/light.js';
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
@@ -66,6 +68,7 @@ export function defaults() {
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
+    labels: {},
     // The route table is data, not code: packages/config/data/ceilings/model-tiers.json (a fresh copy per call) [P5].
     modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
@@ -180,6 +183,9 @@ function merge(base, raw) {
 const isStringList = (value) =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 
+/** Whether a setting is anything but a plain object: one home for the shape check every block below repeats. */
+const notPlain = value => !value || typeof value !== 'object' || Array.isArray(value);
+
 /**
  * Problems in one lane's declaration.
  *
@@ -224,7 +230,7 @@ export function configProblems(config) {
     problems.push('"toolBuild" has enabled and autoGate true|false and positive integer refreshMs (default hourly)');
   }
   const costs = config.testEconomics;
-  if (!costs || typeof costs !== 'object' || Array.isArray(costs)
+  if (notPlain(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))
     || !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].every(key => Number.isFinite(costs[key]) && costs[key] >= 0)) {
     problems.push('"testEconomics" has nonnegative finite costOfEscape, costOfWaiting and costOfFalseRed numbers (seconds of equivalent waiting); it controls reported value and published submit/landing placement');
@@ -234,7 +240,7 @@ export function configProblems(config) {
     || typeof config.pushReceiptCheck.smoke !== 'string' || !config.pushReceiptCheck.smoke.trim())) {
     problems.push('"pushReceiptCheck" has only an explicit nonempty "smoke" command; this config does not activate the replacement hook');
   }
-  if (config.publish !== undefined && (!config.publish || typeof config.publish !== 'object' || Array.isArray(config.publish)
+  if (config.publish !== undefined && (notPlain(config.publish)
     || Object.keys(config.publish).some(key => key !== 'pullRequest') || ![undefined, false, 'release', 'item'].includes(config.publish.pullRequest))) {
     problems.push('"publish.pullRequest" is false (default), "release" for one PR per release, or "item" for one PR per item');
   }
@@ -251,24 +257,24 @@ export function configProblems(config) {
   if (config.specAgentApproval !== undefined && !['flag', 'allow', 'refuse'].includes(config.specAgentApproval)) problems.push('"spec.agentApproval" is flag, allow or refuse');
   if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names the doctrine file');
   if (typeof config.gate !== 'string') problems.push('"gate" is a shell command, like "npm test"');
-  if (config.flakes !== undefined && (!config.flakes || typeof config.flakes !== 'object' || Array.isArray(config.flakes)
+  if (config.flakes !== undefined && (notPlain(config.flakes)
       || ['rerun', 'quarantine'].some(key => config.flakes[key] !== undefined && typeof config.flakes[key] !== 'boolean')
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
-  if (config.cells !== undefined && (!config.cells || typeof config.cells !== 'object' || Array.isArray(config.cells)
+  if (config.cells !== undefined && (notPlain(config.cells)
       || typeof config.cells.cache !== 'boolean' || !Number.isSafeInteger(config.cells.shimMaxAgeDays) || config.cells.shimMaxAgeDays < 0
       || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
-  if (config.rigor !== undefined && (!config.rigor || typeof config.rigor !== 'object' || Array.isArray(config.rigor)
+  if (config.rigor !== undefined && (notPlain(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
       || config.rigor.autoDraft !== undefined && typeof config.rigor.autoDraft !== 'boolean'
       || Object.keys(config.rigor).some(key => !['budget', 'autoDraft'].includes(key)))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add (400 by default), and the optional boolean "autoDraft", on by default; false stops unproved Rigor auto-drafts');
-  if (config.relay !== undefined && (!config.relay || typeof config.relay !== 'object' || Array.isArray(config.relay)
+  if (config.relay !== undefined && (notPlain(config.relay)
       || config.relay.outbox !== undefined && typeof config.relay.outbox !== 'boolean'
       || config.relay.board !== undefined && (typeof config.relay.board !== 'string' || !/^[0-9a-f]{32}$/u.test(config.relay.board))
       || Object.keys(config.relay).some(key => !['outbox', 'board'].includes(key)))) problems.push('"relay" has only the optional boolean "outbox", on by default with false as the opt-out, and "board", the linked board id relay on writes');
   if (config.approvers !== undefined && (!Array.isArray(config.approvers) || config.approvers.length > 50 || new Set(config.approvers).size !== config.approvers.length
       || config.approvers.some((login) => typeof login !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u.test(login)))) problems.push('"approvers" lists the GitHub logins who act as the person on a linked board, at most fifty; leave it out for today\'s behaviour');
   if (!['inside', 'beside'].includes(config.worktrees)) problems.push('"worktrees" is "inside" or "beside"');
-  if (!config.inbox || typeof config.inbox !== 'object' || Array.isArray(config.inbox)
+  if (notPlain(config.inbox)
     || Object.keys(config.inbox).some(key => key !== 'tokenBudget')
     || !Number.isSafeInteger(config.inbox.tokenBudget) || config.inbox.tokenBudget < 1024) {
     problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
@@ -288,8 +294,9 @@ export function configProblems(config) {
   if (config.landingShards !== undefined && (!Number.isSafeInteger(config.landingShards) || config.landingShards < 1 || config.landingShards > 64)) {
     problems.push('"landingShards" is a whole number from 1 to 64: how many shards the landing gate splits its test files into');
   }
+  problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
-  if (config.landing !== undefined && (typeof config.landing !== 'object' || config.landing === null || Array.isArray(config.landing)
+  if (config.landing !== undefined && (notPlain(config.landing)
     || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
@@ -348,7 +355,7 @@ export function configProblems(config) {
   if (typeof config.verify?.inspectClauses !== 'boolean') {
     problems.push('"verify.inspectClauses" is true or false');
   }
-  if (!config.families || typeof config.families !== 'object' || Array.isArray(config.families)
+  if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
       || !Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 80))) {
     problems.push('"families" maps each canonical vendor family to a list of declared alias names');
@@ -363,29 +370,33 @@ export function configProblems(config) {
       }
     }
   }
-  if (typeof config.check !== 'object' || config.check === null || Array.isArray(config.check)) {
+  if (notPlain(config.check)) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
-  if (!config.submit || typeof config.submit !== 'object' || Array.isArray(config.submit)
+  if (notPlain(config.submit)
       || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
   }
   if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
-    problems.push('"submit.handoff" is a boolean; false keeps synchronous submit');
+    problems.push('"submit.handoff" is a boolean; deprecated, no effect');
   }
   // Absent, a check already green on main is only a warning, as on boards made before the setting.
-  if (config.checks !== undefined && (typeof config.checks !== 'object' || config.checks === null || Array.isArray(config.checks)
+  if (config.checks !== undefined && (notPlain(config.checks)
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
-  if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
+  if (config.withdraw !== undefined && (notPlain(config.withdraw)
+    || Object.keys(config.withdraw).some(key => key !== 'review') || typeof config.withdraw.review !== 'boolean')) {
+    problems.push('"withdraw" is { "review": true or false }: true makes a withdrawal wait for another seat to confirm it');
+  }
+  if (notPlain(config.claims)
     || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
   if (config.claims?.perSeat != null && (!Number.isSafeInteger(config.claims.perSeat) || config.claims.perSeat < 1)) problems.push('claims.perSeat is a whole number of live build claims, 1 or more; blank lets the board size it');
-  if (!config.claim || typeof config.claim !== 'object' || Array.isArray(config.claim)
+  if (notPlain(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
     || config.claim.reopenFirstRefusalMinutes > Math.floor(8_640_000_000_000_000 / 60_000)) {
     problems.push('"claim.reopenFirstRefusalMinutes" is a non-negative whole number of minutes within the supported date range; 0 disables it');
@@ -404,7 +415,7 @@ export function configProblems(config) {
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
   }
-  if (!config.review || typeof config.review !== 'object' || Array.isArray(config.review)
+  if (notPlain(config.review)
     || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
     problems.push('"review.starveMinutes" is a positive number of minutes');
@@ -418,7 +429,7 @@ export function configProblems(config) {
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');
   }
-  if (typeof config.agents !== 'object' || config.agents === null || Array.isArray(config.agents)) {
+  if (notPlain(config.agents)) {
     problems.push('"agents" is an object with a names option');
   } else if (!['suffix', 'prefix'].includes(config.agents.names)) {
     problems.push('"agents.names" is "suffix" or "prefix"');
@@ -428,13 +439,13 @@ export function configProblems(config) {
   if (!Array.isArray(config.fix) || !config.fix.every(isFixer)) {
     problems.push('"fix" is a list of { "run": "<command that fixes the files it is given>", "files": ["*.ts"] }');
   }
-  if (typeof config.lanes !== 'object' || config.lanes === null || Array.isArray(config.lanes)) {
+  if (notPlain(config.lanes)) {
     problems.push('"lanes" maps lane names to { owns, specs, starts }');
   } else {
     for (const [name, lane] of Object.entries(config.lanes)) problems.push(...laneProblems(name, lane));
   }
   const products = config.products;
-  if (typeof products !== 'object' || products === null || Array.isArray(products)) {
+  if (notPlain(products)) {
     problems.push('"products" maps product names to lists of spec ids or section letters, like { "CLI": ["B", "N26"] }');
   } else {
     for (const [name, entries] of Object.entries(products)) {
@@ -486,7 +497,7 @@ export function configFromSource(source) {
   let raw;
   try { raw = JSON.parse(source); }
   catch { throw new Refused('BAD_CONFIG', 'pullboard.json is not valid JSON; restore the coordinator configuration'); }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
+  if (notPlain(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
   const base = defaults();
   const config = merge(base, knownConfigKeys(raw, base));
   const problems = configProblems(config);
@@ -503,7 +514,7 @@ export function configFromSource(source) {
 
 /** Validate bounded identity without substituting this host for an unknown old receipt. */
 export function environmentProblem(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)
+  if (notPlain(value)
     || Object.keys(value).length !== 3 || !['platform', 'arch', 'node'].every(key => Object.hasOwn(value, key))) return 'needs platform, arch and node';
   if (!['platform', 'arch'].every(key => typeof value[key] === 'string' && /^[a-z0-9_]{1,32}$/u.test(value[key]))) return 'platform and arch are bounded system identifiers';
   if (typeof value.node !== 'string' || value.node.length > 80 || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(value.node)) return 'node names one exact Node version';

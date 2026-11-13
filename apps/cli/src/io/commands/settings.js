@@ -39,6 +39,8 @@ import {
   withBoardRead,
 } from '../entry.js';
 import { boardId } from '../../../../../packages/store/index.js';
+import { atomic } from '../../../../../packages/store/index.js';
+import { logEvent } from '../../../../../packages/store/index.js';
 import { describeSetting } from '../../../../../packages/config/index.js';
 import { recordLimitChange } from './stats/limits.js';
 
@@ -146,7 +148,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
   if (first === 'workers.budget') {
     const before = loadMachineSettings().workers?.budget ?? null;
     const settings = setWorkerBudget(parseWorkerBudget(second));
-    recordLimitChange(work => withBoard(context(io), work), 'workers.budget', before, settings.workers.budget);
+    recordLimitChange(work => withBoard(context(io), work), 'workers.budget', before, settings.workers.budget, { atomic, logEvent });
     io.result?.({ settings });
     io.say(`workers.budget set to ${settings.workers.budget.spend} spend per ${settings.workers.budget.window}`);
     return 0;
@@ -173,7 +175,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
   }
   const before = loadMachineSettings().gateSlots;
   const settings = first === 'browserSlots' ? setBrowserSlots(Number(second)) : setGateSlots(Number(second));
-  if (first === 'gateSlots') recordLimitChange(work => withBoard(context(io), work), 'gateSlots', before, settings.gateSlots);
+  if (first === 'gateSlots') recordLimitChange(work => withBoard(context(io), work), 'gateSlots', before, settings.gateSlots, { atomic, logEvent });
   io.result?.({ settings });
   io.say(`${first} set to ${settings[first]}`);
   return 0;

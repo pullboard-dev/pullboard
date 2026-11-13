@@ -20,10 +20,13 @@ import { readPulledCapacity } from '../../../../../packages/runners/index.js';
 import { lastRecordedLimit } from './stats/limits.js';
 import { recordLimitChange } from './stats/limits.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
+import { atomic } from '../../../../../packages/store/index.js';
+import { logEvent } from '../../../../../packages/store/index.js';
 import { context } from '../read.js';
 import { withBoard } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { pullGit } from '../runner/git.js';
 import { installRunnerService } from '../../../../../packages/runners/index.js';
 import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
@@ -84,11 +87,11 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     }
     // A serve started with a different --jobs than the last one recorded on this machine's board is a change to the limits in effect (#6139).
     const open = work => withBoard(context(io), work);
-    if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs));
+    if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs), { atomic, logEvent });
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;

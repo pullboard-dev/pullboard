@@ -17,7 +17,7 @@ import { fileRevision } from "../../../../store/index.js";
 import { resolveCommit } from "../../../../git/index.js";
 import { trunkRevisionReader } from "../../../../git/index.js";
 import { cachedVerdictStates } from "../../../../verify/index.js";
-import { compareFlowWindows } from "../../../../stats/index.js";
+import { compareFlowWindows } from "../../../../stats/light.js";
 import { recordedClaimWorktrees } from "../../../../activity/index.js";
 import { claimOverlaps } from "../../../../items/index.js";
 
@@ -51,7 +51,7 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
     const config = loadConfig(root);
     const projects = () => [{ root: info.root, name: config.name, project: config.project }];
     // Staged caller boards retain fresh reads; only ordinary owned reads reuse committed verdict state.
-    const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
+    const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId, trunkRevisionReader });
     const items = store.listItems(board);
     const overlaps = claimOverlaps(items, recordedClaimWorktrees(items, store.listAgents(board), board));
     const overlapState = Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
