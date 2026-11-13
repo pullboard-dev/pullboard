@@ -1,5 +1,6 @@
 /** Real Git histories, an SSH stand-in worker and the public comparison command for the verify --compare journeys [V4,C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -99,7 +100,8 @@ export function submit(box) {
 export async function compare(box) {
   const result = await runFixtureChildAsync(process.execPath,
     [box.helpers.BIN, 'verify', String(box.id), '--compare', '--json'], { cwd: box.web, env: box.env, timeout: 120000 }); // budget: real private comparison subprocess ceiling.
-  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const log = join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log');
+  assert.equal(result.status, 0, result.stdout + result.stderr + '\nlocal runner log:\n' + (existsSync(log) ? readFileSync(log, 'utf8').slice(-3000) : '(none)'));
   const compared = JSON.parse(result.stdout);
   for (const [side, run] of Object.entries({ head: compared.head, base: compared.base })) {
     if (!run.files.length) { assert.equal(run.id, null); continue; }
