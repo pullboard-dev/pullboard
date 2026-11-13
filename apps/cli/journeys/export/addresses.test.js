@@ -39,7 +39,7 @@ import {
   assertHeading,
   history,
   onePlace,
-  addressBoard,
+  addressBoardLocal,
   withBrowser,
   assertShout,
 } from '../../tests/fixtures/cockpit/addresses.js';
@@ -272,7 +272,7 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
   }
 });
 test('every place in the view has its own address [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for the complete direct-address matrix.
-  const box = machine(), alpha = addressBoard(box, 'alpha');
+  const box = machine(), alpha = await addressBoardLocal(box, 'alpha');
   box.run(alpha.repo, 'shout', 'person', 'Address target shout.');
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'Address target shout.');
@@ -314,8 +314,8 @@ test('every place in the view has its own address [N38,N26]', { timeout: 180_000
 });
 
 test('back, forward and reload keep the place [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for real clicks, stack traversal and fresh-document reloads.
-  const box = machine(), alpha = addressBoard(box, 'history-alpha');
-  box.run(alpha.repo, 'shout', 'person', 'History journey shout.');
+  const box = machine(), alpha = await addressBoardLocal(box, 'history-alpha');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'History journey shout.');
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'History journey shout.');
     await openAddress(chrome, server, '/items');
