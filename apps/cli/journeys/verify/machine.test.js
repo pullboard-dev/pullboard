@@ -78,7 +78,8 @@ const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_UNAVAI
 const ENTRY_POINTS = [
   { verbs: ['claim'], at: ['../packages/store/src/io/board.js#claim'] },
   { verbs: ['release'], at: ['../packages/store/src/io/board.js#release'] },
-  { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere'] },
+  // submitHere loads the pulled gate offer lazily, which the walk does not follow, so the offer is its own submit entry [#6807].
+  { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere', '../apps/cli/src/io/submit/pull.js#offerSubmitGate'] },
   { verbs: ['reserve'], at: ['../packages/store/src/io/board.js#reserveReview', '../packages/store/src/io/board.js#reserveNextReview'] },
   { verbs: ['accept', 'reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['../packages/store/src/logic/board/escalate.js#escalate'] },
@@ -90,6 +91,8 @@ const ENTRY_POINTS = [
 /** Runner refusals reach lifecycle checks through these package and worker entry points. */
 const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
   '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
+// The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
+const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js'];
 const NON_MOVE_ENTRY_POINTS = [
   '../apps/lib/src/logic/native.js#openBoard', // Physical storage is composed before any item move.
   '../packages/store/index.js#recordSpecApprovalBaseline', // A distinct bootstrap operation precedes the requested move.
@@ -256,7 +259,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];

@@ -26,7 +26,7 @@ export { declaredProseCommands } from "./src/logic/prose.js";
 export { parseProblems, sweepItems } from "./src/logic/sweep.js";
 export { MainSpecMerged as cliClaim$MainSpecMerged, claimFreezer as cliClaim$claimFreezer, claimOrdered as cliClaim$claimOrdered, currentReworkRoutingPolicy as cliClaim$currentReworkRoutingPolicy, freezer as cliClaim$freezer, ordered as cliClaim$ordered, relayOutboxSetting as cliClaim$relayOutboxSetting, wrongLaneGuidance as cliClaim$wrongLaneGuidance } from "./src/io/claim.js";
 export { PULLBOARD_COMMANDS, cockpitPage as cliCockpitRenderer$cockpitPage } from "./src/io/cockpit/renderer.js";
-export { LANDING_COALESCE_MS, executeBoardLanding, landAfterAcceptance, run as commandsLand$run } from "./src/io/commands/land.js";
+export { LANDING_COALESCE_MS, landAfterAcceptance, run as commandsLand$run } from "./src/io/commands/land.js";
 export { boundedMainRedShout, doctrineExecutionPhases, run as commandsSubmit$run, submitHere } from "./src/io/commands/submit.js";
 export { generatedDocDrift, generatedDocs, writeGeneratedDocs } from "./src/io/generated/docs.js";
 export { context as context } from "./src/io/entry.js";
