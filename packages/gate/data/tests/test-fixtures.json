@@ -544,9 +544,17 @@
   },
   "apps/cli/journeys/shout/http.test.js": {
     "tempdir": 4,
-    "hand-policy": 5,
-    "model": 8,
-    "raw-board": 6
+    "hand-policy": 3,
+    "raw-board": 3
+  },
+  "apps/cli/journeys/shout/http/delta.test.js": {
+    "hand-policy": 1,
+    "model": 5
+  },
+  "apps/cli/journeys/shout/http/state.test.js": {
+    "hand-policy": 1,
+    "model": 3,
+    "raw-board": 3
   },
   "apps/cli/journeys/request/requests/api.test.js": {
     "tempdir": 1,
@@ -1926,8 +1934,11 @@
   "apps/cli/journeys/patch/item/diff.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/fact/item/presubmit.test.js": {
-    "raw-board": 2
+  "apps/cli/journeys/fact/item/presubmit/seal.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/companion/presubmit.js": {
+    "raw-board": 1
   },
   "apps/cli/journeys/patch/item/patches.test.js": {
     "raw-board": 12
@@ -2300,7 +2311,6 @@
   },
   "apps/cli/journeys/land/merge.test.js": {
     "tempdir": 1,
-    "hand-policy": 2,
     "raw-board": 1
   },
   "apps/cli/journeys/move/merge.test.js": {
@@ -3707,9 +3717,6 @@
   "packages/resources/tests/io/handoff/worker/cap/exit.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/submit/handoff/worker/gone.test.js": {
-    "raw-board": 4
-  },
   "apps/cli/journeys/submit/handoff.test.js": {
     "raw-board": 3
   },
@@ -3764,9 +3771,6 @@
   "apps/cli/journeys/submit/retry.test.js": {
     "repo-read": 1,
     "raw-board": 1
-  },
-  "apps/cli/journeys/submit/wait/exit.test.js": {
-    "raw-board": 2
   },
   "apps/cli/journeys/submit/wait.test.js": {
     "raw-board": 1

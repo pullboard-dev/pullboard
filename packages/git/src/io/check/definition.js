@@ -76,6 +76,8 @@ function scanImports(source, strict) {
     const call = /\b(?:require|import)\s*\(\s*$/u.test(prefix);
     if (!call && !/\b(?:from|import)\s*$/u.test(prefix)) continue;
     if (call) { calls++; if (/\brequire\s*\(\s*$/u.test(prefix)) requires++; }
+    // A literal that is only the head of a concatenated specifier names no file; a runner closure leaves that load out, a strict scan cannot vouch for it.
+    if (call && /^\s*\+/u.test(code.slice(value.end))) { if (strict) return null; continue; }
     if (value.text.includes('\\') || value.text.includes('${')) return null;
     if (isBuiltin(value.text)) {
       if (strict && /^(?:node:)?(?:module|vm|child_process)$/u.test(value.text)) return null;

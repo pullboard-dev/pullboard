@@ -12,6 +12,8 @@ import { receiptFields } from '../../../../verify/index.js';
 import { MACHINE_VERDICT_ENGINE } from '../../../../state/light.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../state/light.js';
 import { clauseInspectionProblem } from '../../../../state/index.js';
+import { clauseInspectionSummary } from '../../../../state/index.js';
+import { gateClauseTickNotes } from '../../../../state/index.js';
 import { itemThread } from './query.js';
 import { proofReceipts } from './query.js';
 import { reviewPatchAuthors } from "../../../../verify/index.js";
@@ -183,7 +185,6 @@ export function submit(board, id, options) {
         hasCommit: null,
         withinLane: null,
         trunkMergeClean: null,
-        sourcePlaced: null, // The CLI checks exact committed placement before any proof or ordered submit.
         trunkInCandidate: null,
         noUnverifiedStack: null,
         infraExplained: null, // The CLI checks the claimed Git diff before this transition.
@@ -191,7 +192,6 @@ export function submit(board, id, options) {
         gateConfigured: null, queuedItemLease: null,
         gateGreen: null,
         proofRecorded: null, // The CLI records and validates native receipts before sealing submit; replay needs no origin files.
-        treeStillDuringGate: null,
         ...(carry ? {
           mergeOnlyRecorded: carriedProblem,
           atSubmittedCommit: null, // The same post-gate HEAD check binds both submission paths.
@@ -245,4 +245,20 @@ export function submit(board, id, options) {
 function greenProofFiles(board, id, commit) {
   return new Set(proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
     .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
+}
+
+/**
+ * The clause checklist notes a settled submission earns, as the inline submit appended them: a green gate's tick note
+ * for each [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary. Why here: the
+ * pulled settle runs on the board host and reaches the clause readers only through this cell [C7,V4].
+ *
+ * @param {object} board - The open board.
+ * @param {number} id - The submitted item.
+ * @param {{ gateFiles: Set<string>, outcomes: object[], head: string, green: boolean }} run - Files the gate ran, their per-case outcomes, the head proved and whether the gate was green.
+ * @param {(text: string) => void} append - Appends one note, so each tick is on the thread before the summary reads it.
+ */
+export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, append) {
+  if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head })) append(text);
+  const summary = clauseInspectionSummary(getItem(board, id), itemThread(board, id), { gateFiles, head });
+  if (summary) append(summary);
 }

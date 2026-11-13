@@ -44,9 +44,13 @@ async t => {
   const box = await pullProject(t, 1);
   const [id] = box.ids;
   const { commit } = submitOne(box, id);
-  const queue = await pullQueue(t, box);
-  // The request's run is replaced by one that reads its stdin and prints it, without a receipt line.
-  queue.board.db.prepare("UPDATE job_step SET job_step_payload = json_set(job_step_payload, '$.request.run', json('[\"node\", \"-e\", \"process.stdin.pipe(process.stdout)\"]')) WHERE job_step_name = 'offered'").run();
+  // The board's request answer gets a run that reads its stdin and prints it, without a receipt line. Why at the answer:
+  // a request over 60 KB keeps its whole self in the job's request step, so an edit to the offered row never reaches the runner.
+  const queue = await pullQueue(t, box, { queue: (current, body) => {
+    const answer = jobQueueCall(current.db, body, { mode: 'pull', trunk: () => box.repo });
+    if (body.action === 'request') answer.request.run = ['node', '-e', 'process.stdin.pipe(process.stdout)'];
+    return answer;
+  } });
   const served = await serveOnce(box, queue.url, 'r-silent');
   assert.equal(served.code, 0, served.output);
   const [row] = jobsOf(queue.board.db, { kind: 'gate', item: id });

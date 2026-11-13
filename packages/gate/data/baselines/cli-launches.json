@@ -35,9 +35,6 @@
   "apps/cli/journeys/inbox/feed.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/red/fifo.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/shout/rows.test.js": {
     "launch": 1
   },
@@ -635,9 +632,6 @@
   "apps/cli/journeys/spec/person.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/test/selection/landing.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/relay/agent.test.js": {
     "launch": 2
   },
@@ -902,9 +896,6 @@
   "apps/cli/journeys/milestone/text.test.js": {
     "launch": 2
   },
-  "packages/api/tests/io/handoff.test.js": {
-    "launch": 1
-  },
   "apps/cli/tests/io/verify.test.js": {
     "launch": 1
   },
@@ -1134,7 +1125,7 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "launch": 4
+    "launch": 3
   },
   "packages/gate/tests/runner/pid.test.js": {
     "launch": 1
@@ -1234,9 +1225,6 @@
   },
   "apps/cli/journeys/shout/activity/journey.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/show/quarantine/composed-lift.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
@@ -1532,9 +1520,6 @@
   "packages/gate/tests/io/scripts/release.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/handoff/worker/gone.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/submit/landing/accept.test.js": {
     "launch": 1
   },
@@ -1677,6 +1662,12 @@
     "launch": 1
   },
   "packages/gate/tests/app-edges-run.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/test/selection/hidden.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/shout/http/state.test.js": {
     "launch": 1
   }
 }

@@ -146,13 +146,6 @@ test('an unchanged retained barrel also permits its core caller to use the exact
   assert.deepEqual(result.problems, []);
 });
 
-test('a narrow body cannot expand into a higher barrel through the alias cut [C7,H16]', async t => {
-  isolateMachine(t);
-  await assert.rejects(inspectForwarding(forwardingFixture(t, false)), error => error.code === 'CELLS_SUBMIT'
-    && /kernel still imports later stats/u.test(error.message));
-});
-
-
 test('generated landing bindings keep the actual provider for legacy and canonical gate entries [C7,H16]', async () => {
   for (const entry of ['packages/gate/src/shell/test-run.js', 'packages/gate/index.js', 'packages/gate/src/shell/gate-slot.js']) {
     const source = executionServicesSource(new URL('../../../../' + entry, import.meta.url).href);

@@ -511,6 +511,11 @@
       "kind": "json",
       "owner": "apps/cli/src/logic/help.js"
     },
+    "board.runs.sqlite": {
+      "kind": "sqlite",
+      "disk": "board database",
+      "owner": "packages/store/src/io/board/sqlite.js"
+    },
     "board.sqlite": {
       "kind": "sqlite",
       "disk": "board database",
@@ -565,6 +570,10 @@
     "ci-result.json": {
       "kind": "json",
       "owner": "packages/github/src/io/flakes.js"
+    },
+    "citations.jsonl": {
+      "kind": "repo-data",
+      "owner": "packages/spec/src/io/boards.js"
     },
     "cla-signatures.json": {
       "kind": "json",
@@ -883,10 +892,6 @@
       "kind": "json",
       "owner": "packages/flakes/src/io/native.js"
     },
-    "recovery.guard.sqlite": {
-      "kind": "sqlite",
-      "owner": "apps/cli/src/io/submit/handoff.js"
-    },
     "recovery.json": {
       "kind": "json",
       "owner": "packages/config/src/io/git/sync.js"
@@ -897,7 +902,7 @@
     },
     "refusal.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/submit/handoff.js"
+      "owner": "apps/cli/src/io/submit/handoff/worker.js"
     },
     "refusals.json": {
       "kind": "json",
@@ -937,7 +942,7 @@
     },
     "request.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/submit/handoff.js"
+      "owner": "packages/items/src/io/submit/recovery.js"
     },
     "resources.sqlite": {
       "kind": "sqlite",
@@ -1315,6 +1320,10 @@
       "kind": "table",
       "owner": "packages/codemap/src/io/parsed.js"
     },
+    "table:run": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/run.js"
+    },
     "table:runner_draining": {
       "kind": "table",
       "owner": "packages/resources/src/io/main.js"
@@ -1354,6 +1363,10 @@
     "table:runner_unavailable": {
       "kind": "table",
       "owner": "packages/resources/src/io/recovery.js"
+    },
+    "table:runs_meta": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/sqlite.js"
     },
     "table:shout": {
       "kind": "table",

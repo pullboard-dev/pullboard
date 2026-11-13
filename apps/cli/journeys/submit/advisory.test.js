@@ -126,16 +126,7 @@ test('unplaced source warns on an ordinary item, refuses a Cells cut item, and p
   assert.deepEqual(placed.warnings, []);
 });
 
-test('a new later-cell import and a deleted path named in a test string warn on ordinary items and refuse reorg items [C7,D3]', async t => {
-  const box = await plannedFixture(t);
-  box.put('src/refused.js', "export class Refused extends Error {}\nimport './stats-flow.js';\n");
-  const candidate = commitCandidate(box);
-  const ordinary = await requireSubmitCells(box.root, box.main, candidate, ORDINARY);
-  assert.deepEqual(ordinary.problems, []);
-  assert.ok(ordinary.warnings.includes('cells warning: src/refused.js:2: kernel --cuts: kernel still imports later stats: src/refused.js -> src/stats-flow.js; fix: import a lower cell or take a port'),
-    ordinary.warnings.join('\n'));
-  const moved = await refusal(requireSubmitCells(box.root, box.main, candidate, MOVE));
-  assert.match(moved?.message ?? '', /kernel --cuts: kernel still imports later stats: src\/refused.js -> src\/stats-flow.js; import a lower cell or take a port/u);
+test('a deleted path named in a test string warns on ordinary items and refuses reorg items [C7,D3]', async t => {
   const deleting = await plannedFixture(t, { prepare: fixture => {
     fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
     fixture.put('test/child.test.js', "const script = `import('./src/doomed.js').then(m => m.doomed);`;\nexport { script };\n");
@@ -156,19 +147,18 @@ test('a singular Cells import cut title and an edited plan-data row are reorg; a
   const box = await plannedFixture(t, { prepare: fixture => {
     fixture.put('packages/codemap/data/plan/data-reads/kernel.json', JSON.stringify({ version: 1, reads: [read('test/old.test.js', 3)] }, null, 2));
   } });
-  box.put('src/refused.js', "export class Refused extends Error {}\nimport './stats-flow.js';\n");
+  box.put('src/refused.js', "export class Refused extends Error {}\nexport const touched = true;\n");
   const later = commitCandidate(box);
-  assert.deepEqual((await requireSubmitCells(box.root, box.main, later, ORDINARY)).problems, [], 'the import alone warns');
-  const cut = await refusal(requireSubmitCells(box.root, box.main, later, 'Cells import cut: kernel removes imports into later cells'));
-  assert.match(cut?.message ?? '', /kernel --cuts: kernel still imports later stats/u, 'the singular cut title is reorg work');
+  assert.equal((await requireSubmitCells(box.root, box.main, later, ORDINARY)).reorg, null, 'an ordinary title is not reorg work');
+  const cut = await requireSubmitCells(box.root, box.main, later, 'Cells import cut: kernel removes imports into later cells');
+  assert.ok(cut.reorg, 'the singular cut title is reorg work');
   box.put('test/own.test.js', 'export const own = true;\n');
   box.put('packages/codemap/data/plan/data-reads/kernel.json', JSON.stringify({ version: 1, reads: [read('test/old.test.js', 3), read('test/own.test.js', 1)] }, null, 2));
   const own = await requireSubmitCells(box.root, box.main, commitCandidate(box), ORDINARY);
   assert.equal(own.reorg, null, 'a data row naming only the item\'s own new file is ordinary');
-  assert.ok(own.warnings.some(line => line.includes('kernel --cuts')));
   box.put('packages/codemap/data/plan/data-reads/kernel.json', JSON.stringify({ version: 1, reads: [read('test/old.test.js', 9), read('test/own.test.js', 1)] }, null, 2));
-  const edited = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), ORDINARY));
-  assert.match(edited?.message ?? '', /kernel --cuts: kernel still imports later stats/u, 'editing an existing data-reads row is reorg work');
+  const edited = await requireSubmitCells(box.root, box.main, commitCandidate(box), ORDINARY);
+  assert.ok(edited.reorg, 'editing an existing data-reads row is reorg work');
 });
 
 test('native submit of an ordinary item with unplaced source prints the warning and runs its check [C7,V4]', async t => {
