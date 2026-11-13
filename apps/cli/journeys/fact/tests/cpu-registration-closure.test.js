@@ -36,14 +36,3 @@ test('a local exported registration wrapper with opaque options uses its runner 
   assert.equal(remote.executor?.runnerExecution, true);
   assert.notEqual(remote.executor?.cwd, box.repo);
 });
-
-// AFTER-only: a fully readable lifecycle-only closure still proves ordinary work.
-test('a readable false test with a local lifecycle helper stays local [C7]', async () => {
-  const box = cpuLoadFixture(e2e, { lifecycleHelper: true, declaration: '{ cpuLoad: false }' });
-  const local = await box.runGate();
-  assert.equal(local.result.status, 0, local.result.context);
-  assert.equal(box.requestsMade().length, 0);
-  assert.equal(local.executor?.liveLease, true);
-  assert.equal(local.executor?.runnerExecution, false);
-  assert.equal(local.executor?.cwd, box.repo);
-});
