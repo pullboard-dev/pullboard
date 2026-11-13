@@ -62,6 +62,7 @@ import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -90,6 +91,16 @@ let light = null, gate = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: red phases carry no cases */ }
 // Main's gate door also lifts the run's own timing frame out of the TAP account, as the controller gate does before it reads a red proof.
 try { gate = await import(pathToFileURL(join(tools, 'packages', 'gate', 'index.js')).href); } catch { /* an older main: the plain TAP reader alone */ }
+// Main's flakes door pairs a red's failing cases, as the controller's diagnostics did; an older main has none and pairs nothing [C7].
+let flakes = null;
+try { flakes = await import(pathToFileURL(join(tools, 'packages', 'flakes', 'index.js')).href); } catch { /* an older main: a red stays unpaired */ }
+/** Main's tree, extracted from this checkout's own objects into a throwaway folder for the pair's main run; null when unreadable. */
+const mainTree = main => {
+  const archive = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(main)) ? spawnSync('git', ['--no-replace-objects', 'archive', '--format=tar', main], { cwd: root, maxBuffer: 1024 ** 3 }) : null;
+  if (archive?.status !== 0) return null;
+  const folder = mkdtempSync(join(tools, '.pullboard-pair-main-'));
+  return spawnSync('tar', ['-xf', '-', '-C', folder], { input: archive.stdout }).status === 0 ? folder : null;
+};
 const accounting = typeof gate?.accountedFailures === 'function' && typeof gate.timingAccountingStages === 'function' && typeof gate.timingSource === 'function';
 /** A red phase's failing cases by file and name, or null when its output does not account for every failure; run: the phase's timing id and source. */
 const failingCases = (status, text, run) => {
@@ -157,7 +168,18 @@ const changedRunner = command => {
 const ledger = (shard ? shard.ledger : input.ledger) ?? null;
 let hitsFile = null;
 if (ledger && Array.isArray(ledger.files)) { hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify(ledger), { mode: 0o600 }); }
-const runPhase = async (role, command, PATH) => {
+/**
+ * The reason a green proof does not prove its selected files: main's own account check, as the controller gate applies it
+ * (TEST_SELECTION_UNVERIFIED), read from the phase's outcome frames or its TAP cases; null when every file reported.
+ * Why: a runner that ran none of the selected units exits 0 with an empty account, which is no proof [C7].
+ */
+const unaccounted = (files, outcomes, text) => {
+  if (typeof gate?.requireTestTierAccount !== 'function') return null;
+  try { gate.requireTestTierAccount({ green: true, testOutcomes: outcomes, profile: { tests: typeof gate.tapTests === 'function' ? gate.tapTests(text, root) : [] } }, files); return null; }
+  catch (error) { return String(error?.message ?? error).replace(/^\\[\\w+\\] /u, ''); }
+};
+/** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
+const runPhase = async (role, command, PATH, selected = null) => {
   // As on the controller: one timing id per run, the source it ran on, and stderr in line with stdout, so TAP's summary ends the account.
   // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
@@ -184,14 +206,15 @@ const runPhase = async (role, command, PATH) => {
   try { blocked = ran.status !== 0 && typeof gate?.sandboxBlockedOperation === 'function' ? gate.sandboxBlockedOperation(root, text) : null; outcomes = typeof gate?.readTestOutcomes === 'function' ? gate.readTestOutcomes(text, run.id) : null; } catch { outcomes = null; }
   // Every failing case is kept whole on the runner, so a receipt fitted to its cap still leads to each one [#5828].
   const errors = ran.status !== 0 ? tapCaseErrors(text, root, { errorBytes: 4000 }) : [];
+  const unreported = ran.status === 0 && selected?.length ? unaccounted(selected, outcomes, text) : null;
   const errorsKept = errors.length ? keepOutput(role + '.errors.json', Buffer.from(JSON.stringify(errors))) : null;
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   const counts = totals(text);
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}) };
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
-if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath()));
+if (shard) receipt.phases.push(await runPhase('proof', shard.command, cliPath(), shard.account ? shard.files : null));
 else {
 const entry = join(tools, 'pullboard-trusted-analysis.mjs');
 writeFileSync(entry, input.analysisEntry, { flag: 'wx', mode: 0o600 });
@@ -224,20 +247,33 @@ else {
     const PATH = cliPath();
     // A named-file proof over more files than this runner has cores is left to the board, which offers it as shard jobs any runner pulls [P7].
     const plan = analysis.plan ?? {}, cores = availableParallelism();
+    // Test tiers make the controller demand an account for every selected file; the pulled proof demands the same [C7].
+    const selected = plan.testTiers && Array.isArray(plan.proofFiles) ? plan.proofFiles : null;
     const shardable = input.shards === true && !receipt.analysis.ownership && !plan.selection?.full && typeof plan.testRunner === 'string' && plan.testRunner.trim() && Array.isArray(plan.proofFiles) && plan.proofFiles.length > cores;
     // The check and the proof are independent commands: they start together and their phases keep the check-then-proof order [C7].
     // A shardable proof waits for the check, since the board takes it as shard jobs only when the check passed.
     if (shardable) {
       if (input.check) receipt.phases.push(await runPhase('check', input.check, PATH));
-      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores };
-      else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH));
-    } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH))));
+      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores, ...(selected ? { account: true } : {}) };
+      else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH, selected));
+    } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
+    // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
+    for (const phase of receipt.phases) if (phase.unreported) refusals.push({ part: phase.role, code: 'TEST_SELECTION_UNVERIFIED', message: phase.unreported });
   }
 }
 }
 // A gate whose proof waits on its shards is not green yet: a board that cannot shard reads it as red, never as a passed proof.
-receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0
+if (shard && receipt.phases[0]?.unreported) receipt.error = 'TEST_SELECTION_UNVERIFIED: ' + receipt.phases[0].unreported;
+receipt.green = shard ? receipt.phases.length === 1 && receipt.phases[0].status === 0 && !receipt.phases[0].unreported
   : Boolean(receipt.analysis) && !receipt.analysis.refusals.length && !receipt.analysis.ownership && !receipt.analysis.infra && !receipt.proofPlan && receipt.phases.every(phase => phase.status === 0);
+// A red's named cases get one paired rerun at the candidate and one run at main when the board's flakes.rerun is on; the red stands [C7,H16].
+if (!shard && !receipt.green && !receipt.proofPlan && input.flakes?.rerun === true && typeof flakes?.pairReds === 'function') {
+  try {
+    const pairs = await flakes.pairReds({ root, phases: receipt.phases, flakes: input.flakes, mainRoot: () => mainTree(input.analysis.main), readOutcomes: gate?.readTestOutcomes, timingEnv: gate?.TIMING_RUN_ID_ENV,
+      env: { ...process.env, PATH: cliPath(), ${JSON.stringify(PULLED_JOB_ENV)}: '1' } });
+    if (pairs) receipt.pairs = pairs;
+  } catch { /* a pair that cannot run leaves the red unclassified, never changed */ }
+}
 // Ledger rows give way first when the receipt nears its cap; each phase counts what it left out. Then the rest is fitted.
 for (let phase; Buffer.byteLength(JSON.stringify(receipt)) > ${RECEIPT_FIT_BYTES} && (phase = receipt.phases.findLast(row => row.ledger?.files.length));) {
   const drop = Math.ceil(phase.ledger.files.length / 4);
@@ -316,6 +352,23 @@ export function offerGateJob(db, { item, main, source, request, now = Date.now()
 }
 
 /**
+ * What a red gate job pairs when accepted main turns flakes.rerun on: the structured runner prefix of each phase's
+ * command, the frozen check's and the proof's, so the job reruns only exact failing cases; null when reruns are off.
+ * Why from main: the controller's diagnostics read the same accepted policy, so a candidate cannot turn pairing off [C7,H16].
+ *
+ * @param {string} root
+ * @param {{ main: { commit: string, config: object }, config: object, source: string, check: string | null }} pinned
+ * @param {(root: string, command: string | null, config: object, pin: { head: string, main: string }) => string | null} pairPrefix - The flakes cell's runner-prefix reader.
+ * @returns {{ rerun: true, prefixes: { check: string | null, proof: string | null } } | null}
+ */
+export function pairRequest(root, { main, config, source, check }, pairPrefix) {
+  if (main.config.flakes?.rerun !== true) return null;
+  const pin = { head: source, main: main.commit };
+  const proof = typeof config.affectedTests === 'string' && config.affectedTests.trim() ? config.affectedTests : config.gate;
+  return { rerun: true, prefixes: { check: pairPrefix(root, check, config, pin), proof: pairPrefix(root, proof, config, pin) } };
+}
+
+/**
  * Write the submit's gate job row and return at once. The candidate is pinned under refs/pullboard/gate so a runner can
  * fetch it from the trunk remote; everything else this does is reads and one board write. A companion submit's gate
  * judges its composed source, and its submit record carries the composition, so the board binds the receipts to it [P7].
@@ -326,10 +379,11 @@ export function offerGateJob(db, { item, main, source, request, now = Date.now()
  *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null }} submission - files: what the
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
  *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
- * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function }} ports - The sandbox and store reads the submit command already holds.
+ * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function, pairPrefix?: Function }} ports - The sandbox and store reads the submit command
+ *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix }) {
   const { root } = ctx.info;
   const id = held.item_id;
   // The gate judges what would land: the builder head, or the companions composed onto it.
@@ -350,6 +404,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(),
     authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
+  const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check: frozenCheck(held) }, pairPrefix) : null;
+  if (pairing) request.input.data.flakes = pairing;
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
   // root: the builder checkout the board seals an owner wait from when the runner finds only lane ownership [B3,L1].
   request.submit = { agentId: me.id, digest: held.item_frozen_digest ?? null, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim(), files, root,

@@ -1,6 +1,8 @@
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { installSshStandIn } from '../../../tests/fixtures/runner/ssh.js';
 import { HOST } from '../../../tests/fixtures/runner/ssh.js';
+import { startFixtureLocalRunner } from '../../../tests/fixtures/runner/local-start.js';
+import { stopFixtureLocalRunner } from '../../../tests/fixtures/runner/local-stop.js';
 /** A review comparison hands commit ids to the runner and makes no checkout, clone or worktree on the coordinator [V4,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -61,6 +63,9 @@ async function fixture(t, { missingRunner = false } = {}) {
   installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
   const registered = await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(registered.code, 0, registered.out + registered.err);
+  // The registered host only makes the pool non-empty; a real local runner pulls the comparison's test jobs [P7,#7270].
+  startFixtureLocalRunner(box.env, box.repo);
+  t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   fixtureProjectPolicy(box.repo, { config: { ...helpers.CONFIG, gate: 'true', affectedTests: 'node web/runner.js' } });
@@ -111,6 +116,8 @@ test('clause 1: verify --compare sends both commit ids to the runner and makes n
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:false,fixed:true,known:false,skip:true};\n');
   const head = submit(box);
   const spy = gitSpy(box);
+  const requests = join(box.dir, 'requests');
+  const before = existsSync(requests) ? readFileSync(requests, 'utf8') : '';
   const result = await runFixtureChildAsync(process.execPath,
     [box.helpers.BIN, 'verify', String(box.id), '--compare', '--json'], { cwd: box.web, env: spy.env, timeout: 120000 }); // budget: real private comparison subprocess ceiling.
   assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -119,16 +126,16 @@ test('clause 1: verify --compare sends both commit ids to the runner and makes n
   assert.equal(compared.baseCommit, box.base);
   assert.deepEqual(compared.files, ['web/a space.test.js']);
   assert.deepEqual(compared.newRed.map(row => row.name), ['new red case [V4,C7]']);
-  // Each side ran on the runner at the exact commit it was handed, read from the object store.
+  // Each side ran as a pulled test job at the exact commit it was handed, read from the object store [P7,#7270].
   for (const [side, commit] of [['head', head], ['base', box.base]]) {
     const recorded = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/check-output', `compare-${compared[side].id}.json`), 'utf8'));
     assert.equal(recorded.commit, commit);
     const profile = JSON.parse(readFileSync(recorded.profileFile, 'utf8'));
-    assert.equal(profile.executionRunner, HOST);
-    assert.equal(profile.executionSource?.commit, commit);
+    assert.equal(profile.id, compared[side].id);
+    assert.match(profile.job, new RegExp(`^test:${commit.slice(0, 12)}:`, 'u'));
+    assert.equal(typeof profile.runner, 'string');
   }
-  const calls = readFileSync(join(box.dir, 'requests'), 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
-  assert.ok(calls.length > 0 && calls.every(call => call.host === HOST), 'every request went to the registered runner');
+  assert.equal(existsSync(requests) ? readFileSync(requests, 'utf8') : '', before, 'nothing went over the SSH controller transport');
   assert.ok(existsSync(spy.log), 'the spy saw the comparison run its git commands');
   const commands = readFileSync(spy.log, 'utf8').split('\n').filter(Boolean);
   assert.ok(commands.some(line => /\brev-parse\b/u.test(line.split('\t')[1])), 'the spy records real calls');
