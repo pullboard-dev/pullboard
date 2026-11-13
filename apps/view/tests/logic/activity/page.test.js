@@ -79,7 +79,7 @@ test('clause 2: one slot per page holds an Events tab, then after a bar click an
   assert.equal(ui.item, null, 'a second click on the open bar closes it');
 });
 
-test('clause 1 [#7308]: at 390 the Runners cell holds its jobs text inside its own value, draws a load bar not a dash chart, and the legend ends in an ellipsis [N26]', () => {
+test('clause 1: at 390 the Runners cell holds its jobs text inside its own value, draws a load bar not a dash chart, and the legend ends in an ellipsis [N26,#7308]', () => {
   const { html } = draw(4);
   const cell = html.slice(html.indexOf('data-act-res="1"'), html.indexOf('data-act-res="2"'));
   assert.match(cell, /<span class="rv"><svg class="load"[^]*<span>2 jobs<\/span><\/span><\/button>/u, 'the jobs text sits inside the cell value, next to the load bar');
@@ -87,7 +87,7 @@ test('clause 1 [#7308]: at 390 the Runners cell holds its jobs text inside its o
   assert.match(cell, /class="lo" x="0" width="50"/u, 'the bar is the mean load: 50 percent');
 });
 
-test('clause 2 [#7308]: the you-left marker is drawn only with the Since you left line, and the now label never shares a row with a tick [N26]', () => {
+test('clause 2: the you-left marker is drawn only with the Since you left line, and the now label never shares a row with a tick [N26,#7308]', () => {
   const { flow } = draw(4);
   const withLeft = activityPageHtml(flow, activityStart(flow), { width: 740, leftKnown: true });
   const without = activityPageHtml(flow, activityStart(flow), { width: 740, leftKnown: false });
