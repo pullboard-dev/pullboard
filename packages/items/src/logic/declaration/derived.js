@@ -172,7 +172,8 @@ export function familyDeclareFloor(board, who, sha256) {
 }
 
 /**
- * The family inputs of exactly these seats: their rows and their join and family events, by index.
+ * The family inputs of exactly these seats: their rows and their join and family events, by index. The event read
+ * searches by seat (`+` keeps it off the kind index, which lists every join on the board for each call).
  * Why: a seat's family read must not list every seat on the board, which every inbox and claim pays for (#2421).
  */
 export function sessionSnapshot(board, ids) {
@@ -180,7 +181,7 @@ export function sessionSnapshot(board, ids) {
   for (let offset = 0; offset < ids.length; offset += 500) {
     const chunk = ids.slice(offset, offset + 500), marks = chunk.map(() => '?').join(',');
     for (const row of prepared(board.db, `SELECT agent_id, agent_path, agent_family FROM agent WHERE agent_id IN (${marks})`).all(...chunk)) seats.set(row.agent_id, row);
-    for (const row of prepared(board.db, `SELECT event_id, event_by, event_kind, event_detail FROM event WHERE event_kind IN ('join','family') AND event_by IN (${marks}) ORDER BY event_id`).all(...chunk)) {
+    for (const row of prepared(board.db, `SELECT event_id, event_by, event_kind, event_detail FROM event WHERE +event_kind IN ('join','family') AND event_by IN (${marks}) ORDER BY event_id`).all(...chunk)) {
       if (row.event_kind === 'join') { if (!joins.has(row.event_by) || joins.get(row.event_by).event_id > row.event_id) joins.set(row.event_by, row); }
       else {
         if (!families.has(row.event_by)) families.set(row.event_by, []);
