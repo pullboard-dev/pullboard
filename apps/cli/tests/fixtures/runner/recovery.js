@@ -18,7 +18,6 @@ import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { HOST } from './ssh.js';
 import { installSshStandIn } from './ssh.js';
-import { fixtureMachineSettings } from '../testkit.js';
 import { initializeRunnerRecovery } from '../../../../../packages/resources/index.js';
 import { recordRunnerFailure } from '../../../../../packages/resources/index.js';
 import {
@@ -37,16 +36,6 @@ function queue(t) {
   return db;
 }
 
-/** Pin the dispatch mode a case runs under: the journey's own (pull when its pull file set it), so both modes stay covered [C7,#5537]. */
-function pinDispatch(box, mode = process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller') {
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: mode } });
-}
-
-/** These cases exercise the controller's own worker launch and its delayed installer, so they keep controller dispatch whatever the default becomes [C7,#5535]. */
-function pinControllerDispatch(box) {
-  pinDispatch(box, 'controller');
-}
-
 /** A synthetic identity exercises queue concurrency only, never authorizes an actual worker reply. */
 function identity(request = randomUUID()) {
   return { version: 1, launchFence: 1, request, nonce: randomUUID(), tooling: 'a'.repeat(64) };
@@ -61,7 +50,6 @@ export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
       const bin = join(box.dir, 'health-bin'), worker = join(box.dir, 'worker');
       const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard');
       for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
-      pinControllerDispatch(box); // the pinned SSH worker is the controller's own launch; pull dispatch hangs its probe child for 90 s
       const requests = join(box.dir, 'requests.jsonl');
       installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: failures });
       const runner = { host: HOST, node: process.execPath, slots: 1, browser: 0 };
@@ -132,13 +120,14 @@ export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true],
     assert.equal(existsSync(join(root, 'recovery-launches', legacy.request)), false, 'an old request cannot be guessed never-started');
   });
   for (const workerFirst of workerFirstCases) {
-    test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, t => {
+    // Both installer cases drive runOnRunnerAsync over the SSH stand-in, a launch only the controller path has; #6579 deletes it with the dispatcher.
+    const skip = 'CONTROLLER_ONLY: deleted with #6579';
+    test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, { skip }, t => {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
       const bin = join(box.dir, 'launch-bin'), worker = join(box.dir, 'worker'), home = join(box.dir, 'remote-home');
       const machineHome = join(home, '.pullboard'), deferred = join(box.dir, 'deferred-command'), frame = join(box.dir, 'deferred-frame');
       for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
-      pinControllerDispatch(box);
       installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath, deferFirstWorker: deferred, deferredFrame: frame });
       const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
       const url = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;

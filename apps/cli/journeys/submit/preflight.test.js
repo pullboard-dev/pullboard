@@ -74,7 +74,7 @@ function preflightProject(t) {
 
 test('clause 1: submit --preflight runs every registered check in parallel and one run reports three different static failures [C7]', { timeout: 120_000 }, async (t) => {
   const { runPreflight, reportPreflight } = await import('../../src/io/submit/preflight.js');
-  const { STATIC_CHECKS } = await import('../../../../packages/gate/index.js');
+  const { STATIC_CHECKS } = await import('../../../../packages/gate/heavy.js');
   const box = preflightProject(t);
   // Three different classes: an empty catch, a multi-binding import and a fixed wait in a test.
   writeFileSync(join(box.repo, 'packages/x/src/a.js'), "import { b, c } from './b.js';\nexport function a() { try { b(); } catch {}\n}\n");

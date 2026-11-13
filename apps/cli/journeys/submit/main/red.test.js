@@ -26,7 +26,7 @@ import { cli } from '../../../tests/fixtures/submit/red.js';
 import { submittedProof } from '../../../tests/fixtures/submit/red.js';
 import { source } from '../../../tests/fixtures/submit/red.js';
 
-test('submit accepts a test that fails the same way on main and refuses one red only with the item [V4,B3,C7] clause 1', t => {
+test('submit accepts a test that fails the same way on main and refuses one red only with the item [V4,B3,C7] clause 1', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const known = fixture(t);
   const cache = join(known.root, '.git/pullboard/main-red.json');
   writeFileSync(cache, JSON.stringify({ version: 1, entries: { [known.main]: { 'test/inherited.test.js': { result: 'red' } } } }), { mode: 0o600 });
@@ -147,7 +147,7 @@ test('ordered submit refuses a closed repair and an old-engine linked envelope w
 });
 
 // #1986 accepts exact unowned main reds while retaining their durable accounting.
-test('an exact unowned main red submits with its receipt, fact and decision shout [V4,B3]', t => {
+test('an exact unowned main red submits with its receipt, fact and decision shout [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const box = fixture(t, { mainRed: false });
   const accepted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
@@ -173,7 +173,7 @@ test('an exact unowned main red submits with its receipt, fact and decision shou
   } finally { db.close(); }
 });
 
-test('a long infra note submits with one bounded automatic shout [V4,B3]', t => {
+test('a long infra note submits with one bounded automatic shout [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const box = fixture(t, { mainRed: false });
   const note = 'a'.repeat(2000);
   const result = cli(box, box.builder, 'submit', String(box.item), '--infra', note, '--no-next');
@@ -195,7 +195,7 @@ test('an oversized main red decision preserves the show pointer [V4,B3]', async 
   assert.match(text, /pullboard show 7/);
 });
 
-test('an exact main red with an open repair retains its reviewer repair link [V4,B3]', t => {
+test('an exact main red with an open repair retains its reviewer repair link [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   const box = fixture(t);
   const accepted = cli(box, box.builder, 'submit', String(box.item));
   assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
@@ -208,7 +208,7 @@ test('an exact main red with an open repair retains its reviewer repair link [V4
     && entry.text.includes(`#${box.rework}`)), 'the durable review thread links the exact known main red to its open repair');
 });
 
-test('submit refuses changed failure details, an unaccounted stage, and a frozen check red differently from main [V4,B3]', t => {
+test('submit refuses changed failure details, an unaccounted stage, and a frozen check red differently from main [V4,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, t => {
   for (const options of [
     // The check names the case's file, so it is the item's own and keeps the exact signature (neighbouring cases pass by name).
     { candidate: source('shared failure [G1]', 3), mainRed: false, check: 'node test/runner.js test/inherited.test.js' },
