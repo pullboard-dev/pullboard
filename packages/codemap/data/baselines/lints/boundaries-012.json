@@ -99,6 +99,8 @@
     "apps/cli/journeys/init/origin.test.js->CHANGELOG.md": 1,
     "apps/cli/journeys/init/origin.test.js->packages/kernel/src/logic/refused.js": 1,
     "apps/cli/journeys/init/origin.test.js->src/help.js": 1,
+    "apps/cli/journeys/init/perf/actions.test.js->apps/cli/tests/fixtures/cockpit/perf/generate.mjs": 1,
+    "apps/cli/journeys/init/perf/actions.test.js->apps/cli/tests/fixtures/cockpit/perf/run.mjs": 1,
     "apps/cli/journeys/init/perf/projects.test.js->apps/cli/tests/fixtures/child.js": 1,
     "apps/cli/journeys/init/perf/projects.test.js->apps/cli/tests/fixtures/cockpit/perf/generate.mjs": 1,
     "apps/cli/journeys/init/perf.test.js->apps/cli/tests/fixtures/child.js": 1,
