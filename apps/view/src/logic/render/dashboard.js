@@ -64,7 +64,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     tile('back', s.sentBack, 'sent back', 'sent-back', 'With their builders'), tile('held', s.held, 'held', 'held', 'Paused on purpose'),
   ].join('<span class="dash-x" aria-hidden="true"></span>')+open(num(s.active)+' open · Items ›', 'active', { cls: 'dash-tright' })+'</div>');
 
-  // 3. Shipping now: the release card, its stage bar and legend, In flight, then three pace tiles.
+  // 3. Release: the release card, its stage bar and legend, In flight, then three pace tiles.
   const shipping = (() => {
     const release = m.milestone, summary = release?.summary;
     const counted = key => Number.isInteger(summary?.[key]) && summary[key] >= 0;
