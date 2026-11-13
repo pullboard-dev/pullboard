@@ -109,7 +109,7 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
 
 test('submit runs the frozen check and affected test only; landing and explicit gate remain full [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
-  const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.FIXTURE_ITEM_CHECK_MARKER, \'check\')"';
+  const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.FIXTURE_ITEM_CHECK_MARKER, \'check@\'+process.cwd()+\' \'+process.env.PULLBOARD_GATE_JOB+\'\\\\n\')"';
   const checkMarker = join(box.dir, 'item-check.log');
   box.env.FIXTURE_ITEM_CHECK_MARKER = checkMarker;
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test', spec: 'SPEC.md', verify: 'any', lease: '2h' }, null, 2));

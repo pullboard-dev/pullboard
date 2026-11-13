@@ -180,7 +180,7 @@ const deferralOf = (plan, config) => {
   const note = files ? (typeof gate?.deferredSelectionNote === 'function' ? gate.deferredSelectionNote(files) : files.length + ' affected test files deferred to the landing gate') : '';
   const report = files ? invariants + note + ' (over submitDeferAbove ' + config?.submitDeferAbove + '): ' + files.join(', ')
     : plan.deferFullFallback ? invariants + 'full suite deferred to the landing gate'
-    : plan.selection?.full ? 'full gate' : 'affected tests: ' + (proof.join(', ') || 'none');
+    : plan.selection?.full ? 'full gate' : 'affected tests: ' + (proof.join(', ') || 'none') + (plan.deferred ? '; full suite deferred to the landing gate' : '');
   return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}), ...(plan.deferred ? { deferNote: note || 'full suite deferred to the landing gate' } : {}),
     ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report };
 };

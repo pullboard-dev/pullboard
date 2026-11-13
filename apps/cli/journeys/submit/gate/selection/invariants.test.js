@@ -113,7 +113,8 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", async 
   change(missing.box);
   const absent = await submitWithEnv(t, missing.box, (...args) => runLocal(missing.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.notEqual(absent.code, 0, 'deleting a mandatory file cannot make the guard disappear');
-  assert.match(absent.err + absent.out, /submitInvariants file test\/invariant\.test\.js is missing or unreadable/u);
+  // The pulled proof names the missing file in the runner's own error rather than the inline gate's wording.
+  assert.match(absent.err, /Could not find '\.\/test\/invariant\.test\.js'/u);
   unstamped(missing.box);
 
   const named = await project(['test/invariant.test.js', 'test/invariant.test.js']);
