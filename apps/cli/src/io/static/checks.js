@@ -18,6 +18,18 @@ export function crashLine(stderr) {
   return at ? `${error} (${at})` : error;
 }
 
+/**
+ * The CLI and relay paths the gate's tree registry reads, owned here so the gate names no app path [C7].
+ * Why: the registry runs as its own process in the tree under test, so these paths travel to it as JSON.
+ */
+export const STATIC_APPS = Object.freeze({
+  cliCell: 'apps/cli',
+  cliIndex: 'apps/cli/index.js',
+  cliHelp: 'apps/cli/src/logic/help.js',
+  relayDeploy: 'apps/relay/src/io/deploy',
+  specCheck: Object.freeze(['apps/cli/pullboard.js', 'spec', 'check']),
+});
+
 // Only the executable composes higher CLI services; importing this module does not run the preflight.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 const root = process.cwd();
@@ -30,8 +42,8 @@ if (process.argv[2] === '--changed-files') {
 // Gate's tree registry runs as its own process, so this preflight imports nothing past gate's front doors [C7].
 const registry = fileURLToPath(new URL('../../../../../packages/gate/src/io/static/registry.js', import.meta.url));
 // A gate that found no whole-repo input in the change hands over the changed paths; the registry then judges only those [5814].
-const program = `const { runStaticTreeRegistry } = await import(${JSON.stringify(pathToFileURL(registry).href)});\nprocess.stdout.write(JSON.stringify(runStaticTreeRegistry(process.argv[1], { changed: JSON.parse(process.argv[2]) })));`;
-const tree = spawnSync(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv())], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+const program = `const { runStaticTreeRegistry } = await import(${JSON.stringify(pathToFileURL(registry).href)});\nprocess.stdout.write(JSON.stringify(runStaticTreeRegistry(process.argv[1], { changed: JSON.parse(process.argv[2]), apps: JSON.parse(process.argv[3]) })));`;
+const tree = spawnSync(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv()), JSON.stringify(STATIC_APPS)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const failures = [...(tree.status === 0 ? JSON.parse(tree.stdout) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(tree.stderr)}`]), ...viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`)];
 for (const row of failures) console.error(row);
 const failed = failures.length > 0;
