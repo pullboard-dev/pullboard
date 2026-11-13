@@ -544,9 +544,13 @@
   },
   "apps/cli/journeys/shout/http.test.js": {
     "tempdir": 4,
-    "hand-policy": 5,
+    "hand-policy": 3,
+    "raw-board": 3
+  },
+  "apps/cli/journeys/shout/http/state.test.js": {
+    "hand-policy": 2,
     "model": 8,
-    "raw-board": 6
+    "raw-board": 3
   },
   "apps/cli/journeys/request/requests/api.test.js": {
     "tempdir": 1,
