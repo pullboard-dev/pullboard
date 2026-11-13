@@ -15,7 +15,7 @@ import {
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { fileFixtureItem } from '../../../tests/fixtures/testkit.js';
-import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 import { MACHINE_MODEL } from '../../../tests/fixtures/cockpit/machine.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
 
