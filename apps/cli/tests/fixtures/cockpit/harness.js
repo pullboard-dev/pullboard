@@ -1061,6 +1061,7 @@ async function shoutsAt(chrome, width, scheme) {
 async function pickProject(chrome, find) {
   if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
     await chrome.click("document.querySelector('#proj-switch')");
+    await chrome.click('document.querySelector("[data-proj-all]")');
   }
   await chrome.click(find);
   await chrome.waitFor("!document.body.classList.contains('switching') && data?.root === view.root");
