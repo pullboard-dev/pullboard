@@ -3,6 +3,9 @@ import { selectAffectedTests } from '../../../../gate/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { ledgerProofCheck } from './proof.js';
 
+// The selection's reason when a change reaches every test file: it names them all, so they are selected, not unknown.
+const REACHES_EVERY = 'the change reaches every test file';
+
 /**
  * The test files the gate's selection reaches from the merged change, less the files the items' submits already
  * proved (the ledger proof's and the deferred files). Empty when the selection falls back to the full suite: an
@@ -20,7 +23,9 @@ export function contractFiles(root, base, { proved, derived }) {
   const changed = diff.stdout.split('\0').filter(file => file && !derived.has(file));
   if (!changed.length) return { files: [], full: null };
   const selected = selectAffectedTests(root, { base, commit: 'HEAD', changed });
-  return selected.full ? { files: [], full: selected.reason } : { files: selected.files.filter(file => !proved.has(file)), full: null };
+  // A change that reaches every test file still names them; only an unselectable change falls back [C7].
+  if (selected.full && selected.reason !== REACHES_EVERY) return { files: [], full: selected.reason };
+  return { files: selected.files.filter(file => !proved.has(file)), full: null };
 }
 
 /**
