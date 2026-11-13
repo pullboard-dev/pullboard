@@ -381,14 +381,7 @@ function fact(key, read) {
   return value;
 }
 
-/**
- * Reuse one Git-derived observation for the rest of this command, as the built-in facts are reused. A Git write through
- * git() or tryGit() clears it, and outside a command scope it is computed every time.
- *
- * @param {string} key
- * @param {() => any} read
- * @returns {any}
- */
+/** Reuse one Git-derived observation for the rest of this command; a git()/tryGit() write clears it, and outside a command scope it is recomputed. */
 export function commandFact(key, read) {
   return fact(`command:${key}`, read);
 }
@@ -882,14 +875,7 @@ export function gitShowText(cwd, revision, file) {
 /** The files a commit hook reads at HEAD and in the index, fetched together with the first one asked for. */
 const HOOK_SHOWN_FILES = ['SPEC.md', 'DOCTRINE.md', 'PRACTICE.md'];
 
-/**
- * One `git cat-file --batch` answer for the hook's usual `HEAD:` and index file reads, kept in the hook's memory.
- * Why: eight `git show` children for four files cost more than the checks that read them [C7].
- *
- * @param {string} cwd
- * @param {string} spec the `revision:file` the caller asked for
- * @returns {string | null | undefined} undefined when the batch cannot answer; null when the file is absent.
- */
+/** One `git cat-file --batch` answer for a hook's `HEAD:` or index file read, kept in the hook's memory; eight `git show` children cost more than the checks [C7]. Undefined when the batch cannot answer; null when the file is absent. */
 function prefetchedShow(cwd, spec) {
   if (!/^(?:HEAD)?:[^:\0\n]+$/u.test(spec)) return undefined;
   const file = spec.slice(spec.indexOf(':') + 1);
