@@ -103,7 +103,7 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
       for (const layout of bar.layouts) {
         const place = `${width} with ${layout.on} picked`;
         assert.ok(layout.tabs.length >= 3, `${place}: the grouped nav keeps its top-level tabs on screen: ${layout.tabs.length}`);
-        for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2, `${place}: ${tab.tab}'s label sits inside its highlight: ${JSON.stringify(tab)}`);
+        for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left - 0.5 && tab.labelRight <= tab.right + 0.5, `${place}: ${tab.tab}'s label sits inside its tab, which the top nav draws without a pill: ${JSON.stringify(tab)}`);
         assert.ok(new Set(layout.tabs.map(tab => Math.round(tab.top))).size <= (width < 480 ? 2 : 1), `${place}: phone tabs use at most two rows, desktop one`);
         layout.tabs.forEach((tab, n) => { if (n) assert.ok(tab.top >= layout.tabs[n - 1].bottom - 0.5 || tab.left >= layout.tabs[n - 1].right - 0.5, `${place}: ${tab.tab} starts after the tab before it ends or on the next row`); });
         assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5 && layout.bar[1] <= bar.client, `${place}: the tab bar fits on screen: ${JSON.stringify(layout)}`);
