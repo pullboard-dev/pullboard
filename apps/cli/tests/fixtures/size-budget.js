@@ -69,7 +69,7 @@ export function measureNext(box) {
     assert.equal(taken.code, 0, `next --take: ${taken.err}${taken.out}`);
     console.error('IDS', JSON.stringify(ids), JSON.stringify(taken.out.slice(0,80)));
     const held = ids.find(id => new RegExp(`#${id}\\b`).test(taken.out));
-    assert.ok(held, `next --take names the item it claimed: ${taken.out}`);
+    assert.ok(held, `next --take names one of the filed items ${ids.join(', ')}: ${taken.out}`);
     samples['next --verify'].push(timed(box, dir, 'next', '--verify').ms);
     assert.equal(box.run(dir, 'release', String(held), '--reason', 'OTHER', '--note', 'round done', '--no-next').code, 0);
   }
