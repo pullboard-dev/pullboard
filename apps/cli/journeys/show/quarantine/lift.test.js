@@ -11,7 +11,9 @@ test('clause 1: twenty clean runs lift the quarantine two Submit pairs filed [C7
   const box = fixture(t, false, false);
   // Each Submit is a pulled gate job: its red pairs on the runner, and the board files the quarantine from that pair [P7,C7].
   assert.equal((await settledSubmit(box)).code, 1);
-  assert.equal((await settledSubmit(box)).code, 0); // the active quarantine lets the computed verdict through
+  const second = await settledSubmit(box);
+  // The active quarantine lets the computed verdict through; a failure names the thread and the quarantines it saw.
+  assert.equal(second.code, 0, JSON.stringify({ thread: second.document.thread?.slice(-4), quarantines: snapshot(box).quarantines }));
   const cleanIds = new Set();
   for (let index = 0; index < 20; index += 1) {
     writeFileSync(box.counter, 'run\n'); // The real next controlled body passes.
