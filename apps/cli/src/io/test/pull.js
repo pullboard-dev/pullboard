@@ -196,19 +196,63 @@ export async function runPulledComparison(ctx, { item, commit, main, command, fi
 }
 
 /**
- * Compare a red run's failing cases with main's, by one more test job at main: each case either also fails on main or
- * fails only with the change. Null cases mean the run's output did not account for its failures, so no case is named.
+ * The named files a TAP run reports red, each mapped to whether one of its cases timed out or was cancelled, read from
+ * the location (or the file-level name) of every failing row, whichever checkout the runner ran in. Why: a pulled run
+ * whose cases name no file (a file Node stopped at its timeout) still says which files failed, so each gets a main
+ * verdict per file [C7].
+ *
+ * @param {string} text - The run's output.
+ * @param {string[]} paths - The repo paths the run named.
+ * @returns {Map<string, boolean>}
+ */
+function redFilesIn(text, paths) {
+  const red = new Map();
+  const fileOf = value => {
+    const seen = String(value ?? '').trim().replace(/^(['"])(.*)\1$/u, '$2').replace(/:\d+(?::\d+)?$/u, '').replace(/^\.\//u, '');
+    return paths.find(path => seen === path || seen.endsWith(`/${path}`)) ?? null;
+  };
+  const note = active => { if (active?.file) red.set(active.file, Boolean(red.get(active.file) || active.stopped)); };
+  let active = null;
+  for (const line of String(text).split('\n')) {
+    const row = /^(\s*)(not ok|ok)\s+\d+\s+-\s+(.*)$/u.exec(line);
+    if (row) {
+      active = row[2] === 'not ok' && !/#\s*(?:SKIP|TODO)\b/iu.test(row[3]) ? { indent: row[1].length, file: fileOf(row[3].replace(/\s+#.*$/u, '')), stopped: false } : null;
+      note(active);
+      continue;
+    }
+    const field = active && /^(\s*)(location|failureType):\s*(.*?)\s*$/u.exec(line);
+    if (!field || field[1].length !== active.indent + 2) continue;
+    if (field[2] === 'location') active.file = fileOf(field[3]) ?? active.file;
+    else active.stopped ||= /testTimeoutFailure|cancelledByParent/u.test(field[3]);
+    note(active);
+  }
+  return red;
+}
+
+/**
+ * Compare a red run with main's, by one more test job at main over its red files: each red file gets main's verdict
+ * (red, green, or absent at main), and each named case either also fails on main or fails only with the change. A
+ * case that timed out or was cancelled is judged by its file alone, since a timeout names no identical failure [C7].
  */
 async function compareWithMain(ctx, run, { main, config, paths, agent, say }) {
-  if (!run.failures) return { notices: [], unavailable: 'the run\'s output does not name every failing case' };
-  const files = [...new Set(run.failures.map(row => row.file))].filter(file => paths.includes(file));
-  if (!files.length) return { notices: [], unavailable: 'the failing cases are in files the run did not name' };
-  const command = `${config.affectedTests.trimEnd()} ${files.map(file => shellWord('./' + file)).join(' ')}`;
+  const candidate = redFilesIn(run.output, paths);
+  for (const row of run.failures ?? []) if (paths.includes(row.file) && !candidate.has(row.file)) candidate.set(row.file, false);
+  const files = [...candidate.keys()];
+  if (!files.length) return { notices: [], known: [], unavailable: run.failures ? 'the failing cases are in files the run did not name' : 'the run\'s output does not name every failing case' };
+  const absent = files.filter(file => { try { git(ctx.info.root, ['cat-file', '-e', `${main}:${file}`]); return false; } catch { return true; } });
+  const present = files.filter(file => !absent.includes(file));
   say?.('pullboard test: waiting on the main comparison (--compare-main)');
-  const onMain = await runJobFor(ctx, { item: undefined, commit: main, main, command, files }, { agent, say });
-  if (!onMain.green && !onMain.failures) return { notices: [], unavailable: `main's run of ${files.join(', ')} names no failing cases` };
+  const onMain = present.length ? await runJobFor(ctx, { item: undefined, commit: main, main,
+    command: `${config.affectedTests.trimEnd()} ${present.map(file => shellWord('./' + file)).join(' ')}`, files: present }, { agent, say }) : { green: true, failures: [], job: null };
+  const mainRed = redFilesIn(onMain.output ?? '', present);
+  for (const row of onMain.failures ?? []) if (present.includes(row.file)) mainRed.set(row.file, false);
+  // Main's verdict per file is known when its run passed or names which files failed; otherwise no file is judged.
+  const known = onMain.green || mainRed.size ? files.map(file => ({ file, result: absent.includes(file) ? 'absent' : mainRed.has(file) ? 'red' : 'green' })) : [];
+  if (!run.failures || !onMain.green && !onMain.failures) {
+    return { notices: [], known, ...(known.length ? {} : { unavailable: !run.failures ? 'the run\'s output does not name every failing case' : `main's run of ${present.join(', ')} names no failing cases` }) };
+  }
   const mainCases = new Set((onMain.failures ?? []).map(row => `${row.file}\0${row.name}`));
-  return { notices: run.failures.map(row => {
+  return { known, notices: run.failures.filter(row => paths.includes(row.file) && !candidate.get(row.file)).map(row => {
     const also = mainCases.has(`${row.file}\0${row.name}`);
     return { status: also ? 'also-main' : 'candidate-only', main, file: row.file, name: row.name,
       message: also ? `also fails on main at ${main}: ${row.file} :: ${row.name} (not yours; test job ${onMain.job})` : `fails only with your change: ${row.file} :: ${row.name} (main test job ${onMain.job})` };
@@ -255,6 +299,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const compared = await compareWithMain(ctx, ran, { main, config, paths, agent, say });
   result.main = main;
   result.pulledNotices = compared.notices;
+  result.known = compared.known ?? [];
   if (compared.unavailable) result.mainUnavailable = compared.unavailable;
   return result;
 }
