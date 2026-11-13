@@ -95,6 +95,8 @@ test("Pullboard's doctrine carries its four checks [D1,D3]", () => {
   const box = e2e.project();
   const checkout = join(box.dir, 'doctrine-checkout');
   box.git(box.dir, 'clone', '--shared', ROOT, checkout);
+  // A runner's checkout is a detached HEAD, which the collision baseline refuses; the clone stands on a branch as a person's does.
+  box.git(checkout, 'checkout', '-q', '-B', 'main');
   writeFileSync(join(checkout, 'DOCTRINE.md'), readFileSync(join(ROOT, 'DOCTRINE.md'), 'utf8'));
   box.git(checkout, 'add', 'DOCTRINE.md');
   const staged = box.tryGit(checkout, 'diff', '--cached', '--quiet');
