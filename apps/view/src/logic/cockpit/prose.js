@@ -64,7 +64,7 @@ ${pageRenderScript(pageScope.privateCost)}
  * it, so it stays closed across reloads, and across restarts of the view, which serves from the
  * same address again, until they open it. While hidden it is not drawn.
  */
-${settingsPageScript()}${agentApprovalScript()}${pageScriptPart4(pageScope)}${historyLoadingScript()}${paletteScript()}${accountScript()}</script>
+${settingsPageScript()}${agentApprovalScript()}${pageScriptPart4(pageScope)}${historyLoadingScript()}${accountScript()}${paletteScript()}</script>
 </body>
 </html>`;
 }
