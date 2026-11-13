@@ -8,6 +8,8 @@ import {
 import * as store from "../../../../../packages/store/src/io/board.js";
 import { openCellBoard as openBoard } from "../../../../../packages/store/tests/fixtures/cell.js";
 import { createE2eHelpers } from "../../../tests/fixtures/e2e.js";
+import { landJobs } from "../../../tests/fixtures/land/board.js";
+import { settleLand } from "../../../tests/fixtures/land/settle.js";
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -25,7 +27,8 @@ test('an idle empty land takes no lease and writes no event [E25,E26,B3]', async
   const head = box.git(box.repo, 'rev-parse', 'HEAD');
   const result = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(result.code, 0, result.err);
-  assert.deepEqual(JSON.parse(result.out).landed, []);
+  assert.deepEqual((await settleLand(box, JSON.parse(result.out))).landed ?? [], []);
+  assert.deepEqual(landJobs(box), [], 'an idle land offers no land job');
   assert.deepEqual(onBoard(box, board => ({ events: store.events(board), lease: store.landingLeaseState(board) })), before,
     'neither an admission generation nor any board event changes');
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), head);
