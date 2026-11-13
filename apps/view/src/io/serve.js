@@ -9,6 +9,7 @@ import { NO_LINK_STYLESHEET } from "./no-link.js";
 import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
+import { dashboardRecent } from "./dashboard/recent.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
 /**
@@ -46,6 +47,11 @@ import { isMainThread } from 'node:worker_threads';
 import { parentPort } from 'node:worker_threads';
 import { workerData } from 'node:worker_threads';
 import { createServer } from 'node:http';
+import {
+  brotliCompressSync,
+  constants as zlibConstants,
+  gzipSync,
+} from 'node:zlib';
 import {
   basename,
   dirname,
@@ -523,6 +529,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       dashboardNext: fields.dashboardNext,
       // Pace windows end on exact milliseconds, so they are read at this clock and never kept with the minute-marked fields.
       dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
+      // The hero's four-hour counts, so a board whose full history the browser never finishes reading still shows numbers.
+      dashboardRecent: dashboardRecent(board, new Map(all.map(item => [item.item_id, item])), now),
       dashboardLanded: fields.dashboardLanded,
       landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
@@ -736,6 +744,32 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     });
     res.end(body);
   };
+  /** Compressed bytes by encoding and content hash, so a page or stylesheet is compressed once per build, not once per load. */
+  const compressed = new Map();
+  /**
+   * Answer a page or stylesheet compressed (brotli, else gzip, when the request accepts it) with a content-hash ETag, and 304
+   * when the request's If-None-Match names those bytes. It stays revalidated (no-cache) rather than cached for a time, so a
+   * reload after an upgrade can never show the old build, and costs a 304 with no body when nothing changed.
+   */
+  const asset = (req, res, type, text) => {
+    const accepted = String(req.headers['accept-encoding'] ?? '');
+    const encoding = /(?:^|[\s,])br\s*(?:;\s*q=(?!0(?:\.0*)?\s*(?:,|$))[\d.]+)?\s*(?:,|$)/iu.test(accepted) ? 'br'
+      : /(?:^|[\s,])gzip\s*(?:;\s*q=(?!0(?:\.0*)?\s*(?:,|$))[\d.]+)?\s*(?:,|$)/iu.test(accepted) ? 'gzip' : '';
+    const hash = createHash('sha256').update(text).digest('base64url').slice(0, 22);
+    const etag = `"${hash}${encoding ? '-' + encoding : ''}"`;
+    const headers = { 'cache-control': 'no-cache', etag, vary: 'accept-encoding' };
+    if (String(req.headers['if-none-match'] ?? '').split(',').some(tag => tag.trim().replace(/^W\//u, '') === etag)) return reply(res, 304, type, '', headers);
+    if (!encoding) return reply(res, 200, type, text, headers);
+    const key = etag;
+    if (!compressed.has(key)) {
+      if (compressed.size > 16) compressed.clear();
+      const raw = Buffer.from(text);
+      compressed.set(key, encoding === 'br'
+        ? brotliCompressSync(raw, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5, [zlibConstants.BROTLI_PARAM_SIZE_HINT]: raw.length } })
+        : gzipSync(raw, { level: 9 }));
+    }
+    return reply(res, 200, type, compressed.get(key), { ...headers, 'content-encoding': encoding });
+  };
   const json = (res, code, value) => reply(res, code, 'application/json; charset=utf-8', JSON.stringify(value));
   // A page that only sends the browser on, and only when it is the top page: framed, it never runs and never shows.
   const onward = (res, destination) => {
@@ -935,8 +969,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return reply(res, 200, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
-      if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
+      if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
       return json(res, 500, { error: error.message });
