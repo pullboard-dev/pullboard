@@ -25,7 +25,7 @@ export function installSshStandIn({ bin, worker, home, machineHome, requests, st
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 const argv = process.argv.slice(2);
 const divider = argv.indexOf('--');
@@ -184,13 +184,15 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
     }, error => { record({ setupMarkerError: error.message }); child.kill('SIGKILL'); });
   }
   child.once('error', error => { record({ spawnError: error.code ?? error.name, stdinBytes }); process.exitCode = 255; });
-  child.once('close', (code, signal) => {
+  child.once('close', async (code, signal) => {
+    if (pullEnqueue && !skipAgent) execFileSync('sleep', ['4']);
+    const agents = pullEnqueue && !skipAgent ? execFileSync('/bin/sh', ['-c', 'ps -axo pid,ppid,pgid,etime,command | grep pullboard-runner-agent | grep -v grep | cut -c1-120; ls -la ' + home + ' ' + home + '/.pullboard-runner | head -30']).toString() : '';
     process.stdin.destroy(); child.stdin.destroy(); // a real ssh ends when its remote command does, even if the controller's pipe stays open
     appendFileSync(phases, 'returned\\n');
     if (hold === 'return') setInterval(() => {}, 60_000);
     cancelDropWait();
     record({ workerStarted: true, code, signal, stdinBytes, stdinSha256: stdinHash.digest('hex'),
-      agentOut: pullEnqueue && existsSync(home + '/agent.out') ? readFileSync(home + '/agent.out', 'utf8').slice(-1200) : null, agentLoad: existsSync(home + '/.pullboard-runner/load'),
+      agentOut: pullEnqueue && existsSync(home + '/agent.out') ? readFileSync(home + '/agent.out', 'utf8').slice(-1200) : null, agentLoad: existsSync(home + '/.pullboard-runner/load'), agents,
       droppedAfterSetup,
       secretInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_RUNNER_FIXTURE_SECRET'),
       localPoolMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_POOL'),
