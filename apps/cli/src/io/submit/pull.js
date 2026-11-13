@@ -6,6 +6,7 @@
 import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
+import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
@@ -206,6 +207,16 @@ fitReceipt(receipt, ${RECEIPT_FIT_BYTES});
 process.stdout.write(${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt) + '\\n');
 process.exitCode = receipt.green ? 0 : 1;
 `;
+
+/**
+ * The item's pulled gates that came back red on a failing test phase, read through the board API.
+ * Why here: the submit command loads this module only when it needs it, and its red-loop stop counts these reds [C7].
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board
+ * @param {number} id
+ */
+export function itemPulledReds(board, id) {
+  return pulledGateReds(board, id);
+}
 
 /**
  * True when this item's submit offers its gate as a row instead of driving it: under gate.runnerDispatch pull, or when

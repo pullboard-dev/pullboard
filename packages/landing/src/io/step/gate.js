@@ -1,3 +1,4 @@
+import { affectedCommand as affectedTestsCommand } from '../../../../gate/index.js';
 import { requireTestTierAccount } from '../../../../gate/index.js';
 import { hasTestTiers } from '../../../../gate/index.js';
 import { selectTestTiers } from '../../../../gate/index.js';
@@ -133,7 +134,7 @@ function fullGatePlan(state, owed = []) {
   // Files a submit deferred to landing, and the submit invariants, are owed whatever the plan: a configured gate such
   // as `true` runs none of them, so an unselectable merged change (a badge file) landed with no deferred test run [C7].
   const files = [...new Set(owed)].sort();
-  const command = `(\n${config.gate}\n) && ${runner} ${files.map(file => quote('./' + file)).join(' ')}`;
+  const command = `(\n${config.gate}\n) && ${affectedTestsCommand({ affectedTests: runner }, files)}`;
   return { config: { ...config, gate: command, [VALUE_GATE]: true }, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
 
@@ -195,7 +196,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   // final green set still runs its whole plan before landing (#landOnTrunk). Why: a four-item bisect cost 15 minutes.
   if (focus?.length && state.config.affectedTests?.trim() && !hasTestTiers(state.batch.root)) {
     const files = [...new Set(focus)].sort();
-    const command = `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}`;
+    const command = affectedTestsCommand(state.config, files);
     return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, focused: true,
       affectedGate: createHash('sha256').update(`focus:${command}`).digest('hex') };
   }
@@ -221,7 +222,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   }
   const { files, left } = auditOnlySplit(state.config, [...new Set([...selection.files, ...deferred])]);
   if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
-  const affectedCommand = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
+  const affectedCommand = files.length ? affectedTestsCommand(state.config, files) : 'true';
   // An opaque configured gate (one the stage reader cannot split) still runs, ahead of the affected phase, and no stage
   // of it is guessed: a waiver names only the affected phase's accounted failures [C7,V4].
   const command = !gateStages(state.config.gate) && files.length ? `(\n${state.config.gate}\n) && ${affectedCommand}` : affectedCommand;
@@ -404,7 +405,7 @@ async function runGateGroup(state, label, options) {
     // The proof answers for the rest of the plan; only the files main's commits reach since the submit run again [C7].
     state.say(`gate ${label}: reused ${receipts}; rerunning ${reuse.rerun.length} file(s) whose import closure changed since the submit: ${reuse.rerun.join(', ')}`);
     files = reuse.rerun;
-    config = { ...state.config, gate: `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}`, [VALUE_GATE]: true };
+    config = { ...state.config, gate: affectedTestsCommand(state.config, files), [VALUE_GATE]: true };
   } else if (reuse.reuse) {
     state.say(`gate ${label}: reused ${receipts} for tree ${tree.slice(0, 12)}; no test run started`);
     // A verdict recorded green by the main-owned rule keeps its cases owned by main, never charged to the item [C7,#3534,#3685].
@@ -506,7 +507,7 @@ function earlyStaticChecks(state) {
 export function landingGateShard(state, files) {
   const runner = state.config.affectedTests?.trimEnd();
   if (!runner || !Array.isArray(files) || files.length < 2) return null;
-  return { files: [...files], filesCommand: batch => `${runner} ${batch.map(file => quote('./' + file)).join(' ')}`, say: line => state.say?.(line) };
+  return { files: [...files], filesCommand: batch => affectedTestsCommand({ affectedTests: runner }, batch), say: line => state.say?.(line) };
 }
 
 /**
