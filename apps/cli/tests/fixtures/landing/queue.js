@@ -78,9 +78,7 @@ function withBaselineRunner(box, action) {
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  // A box that pinned its dispatch keeps it: a pull baseline has no puller on a box whose runner is this SSH stand-in.
-  const pinned = previous === null ? null : JSON.parse(String(previous)).gate?.runnerDispatch;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH, ...(pinned ? { runnerDispatch: pinned } : {}) },
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   try { return action(); }
   finally {
@@ -247,8 +245,6 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     "console.log('TAP version 13\\nok 1 - landed queue files keep their behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gateFile)}`, sandbox);
-  // The landings and their gates settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   if (policyAfterFirst) {
     const file = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -282,7 +278,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     }
   });
   // The stopped holder keeps its gate slot until its own lease runs out, so the adopting landing needs a second slot of its own.
-  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2, gate: { runnerDispatch: 'controller' } });
+  if (suspendParent) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 2, browserSlots: 2 });
   writeFileSync(arm, 'armed');
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
@@ -435,8 +431,6 @@ export async function sourceAdvancePolicyCase(t, helpers) {
     "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
-  // The landing and its source gate settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.lanes.web.owns.push('pullboard.json');
