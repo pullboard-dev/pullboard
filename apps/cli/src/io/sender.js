@@ -4,7 +4,10 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runRelaySender } from '../../../../packages/outbox/index.js';
-import { outboxWaiting } from '../../../../packages/outbox/index.js';
+import {
+  outboxParkedOnly,
+  outboxWaiting,
+} from '../../../../packages/outbox/index.js';
 import {
   flushOutbox,
   queueMove,
@@ -72,7 +75,8 @@ async function serve(root, file, io) {
     const { nativePersonRequestPorts } = await import('./context.js');
     await executePersonRequests(root, boardIo, runCommand, nativePersonRequestPorts(boardIo));
   } catch (error) { io.err(`person requests not run: ${error.message}`); }
-  return !outboxWaiting(file);
+  // A parked move waits for pullboard relay recover, not for the sender, so it never keeps the sender busy (#6693).
+  return !outboxWaiting(file) || outboxParkedOnly(file);
 }
 
 /**

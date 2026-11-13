@@ -15,6 +15,6 @@ import { runnerDrainRotation } from '../../../tests/fixtures/runner/drain.js';
 
 test('runner remove deletes one runner and keeps the rest [C7]', (t) => runnerRemoveKeepsSettings(t, e2e));
 
-test('removing a busy runner drains it [C7]', (t) => removingBusyRunnerDrains(t, { cli, git, observe, startQueueController, gateResult }));
+test('removing a busy runner drains it [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, (t) => removingBusyRunnerDrains(t, { cli, git, observe, startQueueController, gateResult }));
 
 test('runner drain takes a runner out of rotation, runner list shows it and undrain returns it [C7]', (t) => runnerDrainRotation(t, e2e));
