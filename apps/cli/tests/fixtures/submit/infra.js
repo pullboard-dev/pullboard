@@ -137,3 +137,27 @@ export async function infraBox(t, { edit, existing = true, requireInfraNote = tr
   commitAll(box, 'feat(core): change the item [G1]');
   return box;
 }
+
+/**
+ * One gate named by a path or shell separator, whose script the change then edits, must receive a drafted infra note.
+ * Why here: the four gate spellings are split across two journey files under the per-file budget [C7,V4].
+ */
+export async function draftedNoteCase(t, gate, file) {
+  let box = await privateRepo(t);
+  put(box.root, 'pullboard.json', JSON.stringify({ gate, spec: 'SPEC.md' }));
+  put(box.root, file, 'process.exit(0);\n');
+  commitAll(box);
+  box = await builderRepo(box, { extraOwns: ['gate.js'] });
+  const added = await box.coordinator('add', 'build', 'Gate named by a path', '--criterion', 'the submit handles the changed gate path',
+    '--check', 'true', '--route', 'strong', '--brief', `Files:\n- ${file}\nChange: exercise infrastructure-note handling for the gate path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
+  assert.equal(added.code, 0, `${added.out}\n${added.err}`);
+  assert.equal((await box.run('claim', '1')).code, 0);
+  put(box.root, file, 'process.exit(0); // edited after the claim\n');
+  commitAll(box, 'feat(core): change the gate script [G1]');
+  const submitted = await submitSettled(t, box);
+  assert.equal(submitted.code, 0, `${gate}: ${submitted.out}\n${submitted.err}`);
+  const shown = await box.run('show', '1');
+  assert.match(shown.out, /infra note:/u);
+  assert.ok(shown.out.includes(file), `${gate}: the note names ${file}`);
+  await drainComparisons(box, t);
+}
