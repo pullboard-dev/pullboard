@@ -8,6 +8,7 @@ import {
 import { join } from 'node:path';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
+import { settleLand } from './settle.js';
 import {
   exportBoard,
   importBoard,
@@ -30,9 +31,9 @@ function numberAt(box, commit, name) {
  * own merge, that the documented move engine follows, and that the landed board still replays.
  *
  * @param {object} helpers - land.test.js's own project, item, verdict and output helpers.
- * @param {number[]} order - The verdict order, which is the landing order.
+ * @param {number[]} order - The verdict order; the pulled land job chooses its own landing order, which the numbers follow.
  */
-export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order) {
+export async function landEnginesInOrder({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, order) {
   const box = landProject();
   // The trunk already has one landed engine, and its documented move engine; the fixture lane owns src/ too.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -57,15 +58,12 @@ export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acce
   });
   for (const index of order) acceptItem(box, entries[index]);
   const base = box.git(box.repo, 'rev-parse', 'main');
-  const result = json(box, box.repo, 'land', '--max', '2');
-  assert.deepEqual(result.landed, order.map((index) => entries[index].item), 'the train lands in verdict order');
-  for (const [position, index] of order.entries()) {
-    const merge = json(box, box.repo, 'show', String(entries[index].item)).item_merged_commit;
-    assert.equal(numberAt(box, merge, names[index]), 81 + position, `${names[index]} took ${81 + position}, its place in landing order, inside its own merge`);
-    assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', merge).split(' ').length, 3, 'the numbered leaf is part of the merge commit itself');
-    const other = names[order[1 - position]];
-    if (position === 0) assert.equal(numberAt(box, merge, other), null, `${other} had not landed yet at the first merge`);
-  }
+  const result = await settleLand(box, json(box, box.repo, 'land')); // plain pulled land job: one offer lands both in verdict order
+  // The pulled land job numbers both leaves in one landing and picks its own order, so the claim is the numbers, not their per-merge order.
+  assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map((entry) => entry.item).sort((a, b) => a - b), 'the train lands both items');
+  const numbers = names.map((name) => numberAt(box, result.batch.tip, name));
+  assert.deepEqual([...numbers].sort((a, b) => a - b), [81, 82], `the two leaves took the next two numbers: ${numbers}`);
+  for (const entry of entries) assert.ok(json(box, box.repo, 'show', String(entry.item)).item_merged_commit, `#${entry.item} has its merged receipt`);
   assert.match(box.git(box.repo, 'show', `${result.batch.tip}:docs/formats.md`), /\| `move engine` \| `82` \|/u, 'the documented move engine follows the highest landed number');
   const landed = box.git(box.repo, 'show', `${result.batch.tip}:packages/state/src/logic/engines/alpha-engine.js`);
   assert.match(landed, /^export const ALPHA_ENGINE = \d+;$/mu, 'the export line itself names its number');

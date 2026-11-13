@@ -150,7 +150,8 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
 
   // 6. The four lists: In the gate, In review, Accepted landing, Landed in 4 h.
   const late = 30 * 60_000;
-  const list = (name, n, listKey, note, rows, foot = '', empty = 'Nothing '+name.toLowerCase()+'.') => section(name, 'dash-qsec', label(esc(name), pill(n, listKey)),
+  // An empty gate, review or landing list is one quiet line under its header, not a card with a placeholder inside.
+  const list = (name, n, listKey, note, rows, foot = '', empty = 'Nothing '+name.toLowerCase()+'.') => !rows.length && listKey !== 'landed' ? section(name, 'dash-qsec dash-qquiet', label(esc(name), pill(n, listKey)), '', { cap: esc(empty) }) : section(name, 'dash-qsec', label(esc(name), pill(n, listKey)),
     '<div class="dash-card dash-q">'+(rows.length ? rows.slice(0, 10).join('') : '<p class="dash-empty">'+esc(empty)+'</p>')+'</div>', { cap: note, link: foot ? open(foot, listKey, { cls: 'dash-lk' }) : '' });
   const L = m.lists;
   const reviewed = L.review.filter(reserved).length;
@@ -182,7 +183,8 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const slots = n => '<span class="dash-slots">'+Array.from({ length: Math.min(n, 8) }, () => '<i></i>').join('')+'<em>'+n+'</em></span>';
     const table = '<table class="dash-tbl"><thead><tr><th>Runner</th><th class="loadh">Load</th><th class="r">CPU</th><th class="r hide">RAM</th><th>Jobs</th></tr></thead><tbody>'
       + list.map(runner => '<tr class="'+(runner === pick ? 'sel' : '')+'"><td class="mono">Runner '+runner.runner+'</td><td>'+load(runner.cpu)+'</td><td class="dash-num ink'+(runner.cpu >= 90 ? ' back' : '')+'">'+pct(runner.cpu)+'</td><td class="dash-num hide">'+pct(runner.ram)+'</td><td>'+slots(runner.jobs.length)+'</td></tr>').join('')+'</tbody></table>';
-    const job = entry => '<div class="dash-j"><span class="dash-id">'+(entry.item ? '#'+entry.item : '—')+'</span><span class="dash-t">'+esc(entry.kind ?? 'job')+(entry.selected ? ' <small>· '+(entry.done ?? 0)+' of '+entry.selected+' files</small>' : '')+'</span><span class="dash-age'+(entry.failing ? ' late' : '')+'">'+(entry.failing ? entry.failing+' red' : entry.minutesLeft !== null && entry.minutesLeft !== undefined ? entry.minutesLeft+'m left' : '')+'</span></div>';
+    // A run with no item says what it tests (its files) where the item id goes, never a dash.
+    const job = entry => '<div class="dash-j"><span class="dash-id">'+(entry.item ? '#'+entry.item : entry.selected ? entry.selected+(entry.selected === 1 ? ' file' : ' files') : esc(entry.kind ?? 'job'))+'</span><span class="dash-t">'+esc(entry.kind ?? 'job')+(entry.selected ? ' <small>· '+(entry.done ?? 0)+(entry.item ? ' of '+entry.selected+' files' : ' done')+'</small>' : '')+'</span><span class="dash-age'+(entry.failing ? ' late' : '')+'">'+(entry.failing ? entry.failing+' red' : entry.minutesLeft !== null && entry.minutesLeft !== undefined ? entry.minutesLeft+'m left' : '')+'</span></div>';
     const runs = Array.isArray(live.runs) ? live.runs : [];
     const kinds = kind => runs.filter(run => run.kind === kind).length;
     return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static">'+list.length+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
