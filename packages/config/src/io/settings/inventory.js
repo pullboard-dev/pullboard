@@ -13,8 +13,9 @@ import {
 } from '../main.js';
 import { repoInfo } from '../../../../git/index.js';
 import {
-  machineHome,
+  machineResourceFile,
   machineSettingsFile,
+  repoResourceFile,
 } from '../../../../resources/index.js';
 import {
   LINE_SETTING_DEFINITIONS,
@@ -206,7 +207,7 @@ function machineSettings(rows, { defaultViewPort, DEFAULT_VIEW_PORT }) {
   add(rows, relayContext, 'relay.owner.account', null, { value: relay.owner?.account ?? relay.session?.account, origin: relay.owner?.account !== undefined || relay.session?.account !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.owner.url', null, { value: relay.owner?.url ?? relay.session?.url, origin: relay.owner?.url !== undefined || relay.session?.url !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.session.token', 'not set', { secret: true });
-  resourceSettings(rows, { scope: 'machine' }, join(machineHome(), 'resources.sqlite'));
+  resourceSettings(rows, { scope: 'machine' }, machineResourceFile());
 }
 
 /** Project every supported repository setting plus its board's relay connection configuration. */
@@ -224,7 +225,7 @@ function repositorySettings(rows, board, { performanceCores }) {
     add(rows, context, key, fallback, { value, origin: key === invalidKey ? 'configured' : origin,
       ...(key === invalidKey ? { error: settingError(key) } : {}) });
   }
-  resourceSettings(rows, context, join(info.commonDir, 'pullboard', 'resources.sqlite'));
+  resourceSettings(rows, context, repoResourceFile(info.commonDir));
   const relayFile = join(info.commonDir, 'pullboard', 'relay.json');
   const relay = readObject(relayFile);
   const deletedFile = join(info.commonDir, 'pullboard', 'relay-deleted.json');

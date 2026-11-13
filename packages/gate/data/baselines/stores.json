@@ -8,6 +8,9 @@
     "tsconfig.json",
     "jsconfig.json"
   ],
+  "pinned": {
+    "resources.sqlite": "packages/resources/src/io/main.js"
+  },
   "stores": {
     ".journal.sqlite": {
       "kind": "sqlite",
@@ -507,7 +510,7 @@
     },
     "resources.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/config/src/io/settings/inventory.js"
+      "owner": "packages/resources/src/io/main.js"
     },
     "result.json": {
       "kind": "json",
