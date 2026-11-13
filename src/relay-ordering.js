@@ -10,7 +10,8 @@ import {
   appliedSequence,
   engineReceipt,
 } from './engine.js';
-import { restoreRelaySnapshot } from './exchange.js';
+import { exportBoard, importBoard, restoreRelaySnapshot } from './exchange.js';
+import { ENGINE_VERSION } from './machine.js';
 import {
   codeIsFromMain,
   repoInfo,
@@ -39,7 +40,7 @@ import {
  *
  * @param {{ request: Function, localRecords: Function, decoded: Function, replayRelayRecord: Function,
  *   reportRecoveredReply: Function, saveLink: Function, sealedRecord: Function, flush: Function }} relay
- * @returns {{ applyRecords: Function, fetchCheckpoint: Function, catchUp: Function, postPending: Function, sendPending: Function }}
+ * @returns {{ applyRecords: Function, advanceCheckpoint: Function, fetchCheckpoint: Function, catchUp: Function, postPending: Function, sendPending: Function }}
  */
 export function relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, flush }) {
   /** Apply authenticated relay records in order, each in its own board transaction with a durable receipt. */
@@ -50,6 +51,35 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
       try { outcomes.push(await replayRelayRecord(board, key, state, record)); } finally { store.closeBoard(board); }
     }
     return outcomes;
+  }
+
+  /** Reconstruct a covering checkpoint in isolation; never roll the live board back or send a move. */
+  async function advanceCheckpoint(key, state, checkpoint, records, minimum) {
+    const meta = new Map((checkpoint.native?.tables?.board_meta ?? []).map(row => [row.meta_key, row.meta_value]));
+    if (meta.get('board_id') !== state.board || !Number.isSafeInteger(checkpoint.sequence)
+        || checkpoint.sequence < 0 || String(checkpoint.sequence) !== meta.get('relay_applied_sequence')) {
+      throw new Refused('RELAY_SNAPSHOT', 'the checkpoint does not identify this board and prefix; keep the local board and fetch a consistent checkpoint');
+    }
+    const engine = Number(meta.get('relay_engine_version'));
+    if (!Number.isSafeInteger(engine) || engine < 1 || engine > ENGINE_VERSION) {
+      throw new Refused('ENGINE_VERSION', 'the checkpoint needs another supported engine; keep the local board and use that engine before recovery');
+    }
+    if (!Number.isSafeInteger(minimum) || minimum < checkpoint.sequence || !Array.isArray(records)
+        || records.some((record, index) => record?.event_id !== checkpoint.sequence + index + 1)
+        || (records.at(-1)?.event_id ?? checkpoint.sequence) < minimum) {
+      throw new Refused('RELAY_OUTBOX', 'the authenticated checkpoint history does not cover the current prefix; keep the local board and obtain its missing ordered records');
+    }
+    const board = store.openBoard(':memory:');
+    try {
+      importBoard(board, checkpoint.native);
+      for (const record of records) {
+        await replayRelayRecord(board, key, state, record);
+        if (appliedSequence(board) !== record.event_id) {
+          throw new Refused('RELAY_RESPONSE', 'checkpoint replay did not advance to its ordered record; keep the local board and inspect that record');
+        }
+      }
+      return { native: exportBoard(board), sequence: appliedSequence(board), reconstructed: true };
+    } finally { store.closeBoard(board); }
   }
 
   /** Read and authenticate the relay's checkpoint without touching the board; the caller restores it. */
@@ -191,5 +221,5 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
     if (state.pending) throw new Refused('RELAY_BUSY', 'the relay order stayed busy; retry this command after other clients finish');
   }
 
-  return { applyRecords, fetchCheckpoint, catchUp, postPending, sendPending };
+  return { applyRecords, advanceCheckpoint, fetchCheckpoint, catchUp, postPending, sendPending };
 }

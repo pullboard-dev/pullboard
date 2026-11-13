@@ -972,7 +972,7 @@ function reportRecoveredReply(record, io) {
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
 const ordering = relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord,
   flush: (root, file, state, io) => flushOutbox(outboxLink(root, file, state, io)) });
-const { applyRecords, fetchCheckpoint, catchUp, postPending, sendPending } = ordering;
+const { applyRecords, advanceCheckpoint, fetchCheckpoint, catchUp, postPending, sendPending } = ordering;
 
 /** Set up this machine's coordinator token inside a paired join's own person sign-in (#579). */
 export async function relayPersonCoordinator(root, session, io) {
@@ -1017,7 +1017,8 @@ function keepMoveForLaterBaseline(file, state, error, io) {
 /** The relay transport the ordered outbox queues and replays through (#922). */
 function outboxLink(root, file, state, io) {
   return { root, file, state, io, request, sealedRecord, localRecords, saveLink, safePauseCode, safePauseMessage,
-    applyRecords, fetchCheckpoint: (key) => fetchCheckpoint(state, io, key), postPending };
+    applyRecords, advanceCheckpoint: (key, checkpoint, records, minimum) => advanceCheckpoint(key, state, checkpoint, records, minimum),
+    fetchCheckpoint: (key) => fetchCheckpoint(state, io, key), postPending };
 }
 
 /**

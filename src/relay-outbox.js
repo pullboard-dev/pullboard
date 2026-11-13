@@ -530,10 +530,21 @@ async function pullSinceBase(link, key, { fromCheckpoint = false } = {}) {
     return remote.events;
   };
   if (fromCheckpoint) {
-    const checkpoint = await link.fetchCheckpoint(key);
-    // A checkpoint older than the moves' base cannot stand in for it: the board would go back past what it shows.
-    if (checkpoint.sequence < outbox.baseSequence) throw new Refused('RELAY_OUTBOX', `this machine cannot take its queued moves back, and the relay checkpoint (sequence ${checkpoint.sequence}) is older than the board they sit on (sequence ${outbox.baseSequence}); keep the board as it is and ask the person to publish a newer checkpoint from another machine`);
-    return { baseSequence: outbox.baseSequence, checkpoint, events: await events(checkpoint.sequence) };
+    let checkpoint = await link.fetchCheckpoint(key);
+    const minimum = Math.max(outbox.baseSequence, link.localRecords(link.root, appliedSequence));
+    const prefix = await events(checkpoint.sequence);
+    if (checkpoint.sequence < minimum) {
+      // An interrupted rebuild can leave durable ordered receipts but the previous sealed outbox. Never install
+      // an older checkpoint into that live board: first reconstruct a covering prefix in a disposable replica.
+      while ((prefix.at(-1)?.event_id ?? checkpoint.sequence) < minimum) {
+        const more = await events(prefix.at(-1)?.event_id ?? checkpoint.sequence);
+        if (!more.length) throw new Refused('RELAY_OUTBOX', 'the relay checkpoint history ends before this board\'s current prefix; keep the board and queued moves until the missing records or a newer checkpoint are available');
+        prefix.push(...more);
+      }
+      checkpoint = await link.advanceCheckpoint(key, checkpoint, prefix, minimum);
+      return { baseSequence: outbox.baseSequence, checkpoint, events: [] };
+    }
+    return { baseSequence: outbox.baseSequence, checkpoint, events: prefix };
   }
   try { return { baseSequence: outbox.baseSequence, events: await events(outbox.baseSequence) }; }
   catch (error) {
@@ -545,9 +556,16 @@ async function pullSinceBase(link, key, { fromCheckpoint = false } = {}) {
 }
 
 /** Put the board back to an image the relay ordered, keeping each seat's newer shout-read position. */
-function restoreBase(link, image, sequence) {
+function restoreBase(link, image, sequence, reconstructed = false) {
   link.localRecords(link.root, (board) => {
     const cursors = board.db.prepare('SELECT agent_id, agent_last_shout_id FROM agent').all();
+    if (reconstructed) {
+      const receipts = new Map(image.tables.board_meta.map(row => [row.meta_key, row.meta_value]));
+      const existing = board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB 'relay_receipt_*' OR meta_key GLOB 'relay_refusal_*'").all();
+      if (existing.some(row => receipts.get(row.meta_key) !== row.meta_value)) {
+        throw new Refused('RELAY_RECOVERY_MISMATCH', 'the reconstructed prefix differs from a retained native receipt; keep the local board and queue and inspect the disagreement');
+      }
+    }
     restoreRelaySnapshot(board, image, sequence);
     // Reading shouts is this machine's own progress; the restore keeps the newer read position.
     keepNewerCursors(board, cursors);
@@ -610,7 +628,7 @@ async function rebuild(link, key, pulled) {
   // Nothing new from the relay: the board already shows the base and every queued move on top.
   if (!pulled.checkpoint && !pulled.events.length && outbox.restored !== true) return true;
   // Back to the relay's order: the relay's checkpoint, an older outbox's image, or the queued moves taken back.
-  if (pulled.checkpoint) restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence);
+  if (pulled.checkpoint) restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence, pulled.checkpoint.reconstructed === true);
   else if (outbox.base) restoreBase(link, outbox.base, outbox.baseSequence);
   else if (!takeBack(link, outbox)) return 'checkpoint';
   await link.applyRecords(root, key, state, pulled.events);
