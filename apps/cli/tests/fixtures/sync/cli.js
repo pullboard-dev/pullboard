@@ -3,14 +3,18 @@ import { MessageChannel } from 'node:worker_threads';
 import { Worker } from 'node:worker_threads';
 import { receiveMessageOnPort } from 'node:worker_threads';
 
-const WAIT_MS = 300_000;
+const WAIT_MS = 45_000;
+/** Signal slots: 0 answered, 1 worker started, 2 call received, 3 CLI loaded; a timeout names the last stage reached. */
+const STAGES = ['started', 'received the call', 'loaded the CLI'];
 let warm = null;
 
 /** Start the worker once; it stays unreferenced, so the test file exits whenever its tests finish. */
 function start() {
-  const signal = new Int32Array(new SharedArrayBuffer(4));
+  const signal = new Int32Array(new SharedArrayBuffer(16));
   const { port1, port2 } = new MessageChannel();
-  const worker = new Worker(new URL('./worker.js', import.meta.url), { workerData: { port: port2, signal }, transferList: [port2] });
+  const worker = new Worker(new URL('./worker.js', import.meta.url), {
+    // No inherited test-runner flags or loaders: the worker only runs the CLI.
+    execArgv: [], workerData: { port: port2, signal }, transferList: [port2] });
   worker.unref();
   port1.unref();
   const state = { worker, port: port1, signal, exited: null };
@@ -34,7 +38,10 @@ export function runCliSync(argv, { cwd, env }) {
   warm.worker.postMessage({ argv: [...argv], cwd, env: { ...env } });
   const deadline = Date.now() + WAIT_MS;
   while (Atomics.load(warm.signal, 0) === 0) {
-    if (Date.now() >= deadline) throw new Error(`fixture CLI worker gave no answer in ${WAIT_MS} ms: pullboard ${argv.join(' ')}`);
+    if (Date.now() >= deadline) {
+      const reached = STAGES.filter((_, index) => Atomics.load(warm.signal, index + 1) === 1);
+      throw new Error(`fixture CLI worker gave no answer in ${WAIT_MS} ms (reached: ${reached.join(', ') || 'nothing'}): pullboard ${argv.join(' ')}`);
+    }
     Atomics.wait(warm.signal, 0, 0, 1_000);
   }
   const reply = receiveMessageOnPort(warm.port)?.message;
