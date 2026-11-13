@@ -48,7 +48,7 @@ import {
   unseal,
 } from './seal.js';
 import { captureBoardChanges } from './board-capture.js';
-import { undoQueued } from './relay-outbox-undo.js';
+import { capturedInserts, undoQueued } from './relay-outbox-undo.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
 import { Refused } from './refused.js';
 import {
@@ -465,6 +465,38 @@ function encodeChanges(changes) {
   return changes.map((change) => Buffer.from(change).toString('base64'));
 }
 
+/**
+ * Keep identities already returned by a successful local operation. Ordered engine replay derives different
+ * identities from the move; using those for local reconstruction breaks corrections still in this outbox.
+ * Read only the move's own native capture, never mint an alias or change the original sealed move payload.
+ */
+function localExecutableArgs(board, entry, move) {
+  const args = executableArgs(move, board);
+  if (!['appendFact', 'verify', 'answerDecision'].includes(move.operation) || !entry.changes?.length) return args;
+  const facts = capturedInserts(board, entry.changes, 'event').filter(row => row.event_kind === 'fact')
+    .map(row => ({ item: row.item_id, detail: JSON.parse(row.event_detail) }));
+  if (move.operation === 'appendFact') {
+    const originals = facts.filter(row => row.item === entry.move.args[0] && !row.detail.decision);
+    if (originals.length !== 1 || originals[0].detail.kind !== args[1].kind || originals[0].detail.text !== args[1].text) {
+      throw new Refused('RELAY_OUTBOX', 'a queued fact has no unambiguous original identity in its native capture; keep the outbox for recovery');
+    }
+    args[1].factId = originals[0].detail.id;
+  } else if (facts.length) {
+    const seeds = facts.map(({ item, detail }) => {
+      const suffix = `-${detail.supersededBy ? 's' : 'i'}${item}`;
+      if (!detail.decision || typeof detail.id !== 'string' || !detail.id.endsWith(suffix)) {
+        throw new Refused('RELAY_OUTBOX', 'a queued decision has an unreadable implied-fact identity; keep the outbox for recovery');
+      }
+      return detail.id.slice(0, -suffix.length);
+    });
+    if (new Set(seeds).size !== 1 || !/^[A-Za-z0-9_-]{1,72}$/u.test(seeds[0])) {
+      throw new Refused('RELAY_OUTBOX', 'a queued decision has conflicting implied-fact identities; keep the outbox for recovery');
+    }
+    args[1].impliesId = seeds[0];
+  }
+  return args;
+}
+
 /** Make one queued move on this board again, recording its rows; null when the board now refuses it. */
 async function reapply(link, outbox, entry) {
   const { root, localRecords } = link;
@@ -473,9 +505,10 @@ async function reapply(link, outbox, entry) {
   const applied = await captureBoardChanges(() => localRecords(root, (board) => {
     // Reconstitute the local history, not a new execution now: renewing old leases here strands later claims.
     // This never sets a relay receipt or changes the timestamp used by the authoritative ordered engine.
+    const args = localExecutableArgs(board, entry, move);
     const clock = board.clock;
     board.clock = { now: () => new Date(entry.queuedAt) };
-    try { return store.atomic(board, () => store[move.operation](board, ...executableArgs(move, board))); }
+    try { return store.atomic(board, () => store[move.operation](board, ...args)); }
     catch (error) { if (!(error instanceof Refused)) throw error; return null; }
     finally { board.clock = clock; }
   }));

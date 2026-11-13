@@ -184,3 +184,78 @@ test('missing queued clock refuses before changing a board or its sealed outbox 
   assert.deepEqual(readFileSync(file), queued);
   assert.deepEqual(f.posts, []);
 });
+
+// Retained baseline RED: the correction disappeared after its original random fact id was replaced by move.id.
+test('pending fact corrections retain their genuine original identity during rebuild [H21,B29,B30,B31]', async t => {
+  const f = await fixture(t, {
+    setup(board) { return { item: store.addItem(board, { by: 'coordinator', lane: 'coordinator', title: 'fact identity', criterion: 'preserve corrections' }) }; },
+    async pending({ board, link, extra }) {
+      for (const index of [0, 1]) {
+        const args = [extra.item, { agentId: 'coordinator', kind: 'note', text: index ? 'correction' : 'original',
+          ...(index ? { supersedes: extra.originalId } : {}) }];
+        const move = prepareEngineMove(board, 'appendFact', args, { id: `fact-move-${index}`, actor: 'coordinator' });
+        await queueMove(link, { operation: 'appendFact', args, move, quiet: true, applyLocally: () => store.appendFact(board, ...args) });
+        if (!index) extra.originalId = JSON.parse(board.db.prepare("SELECT event_detail FROM event WHERE event_kind='fact' ORDER BY event_id DESC LIMIT 1").get().event_detail).id;
+      }
+      extra.originalFacts = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='fact' ORDER BY event_id").all().map(row => JSON.parse(row.event_detail));
+      assert.equal(extra.originalFacts.length, 2, 'both original operations really succeeded');
+    },
+  });
+  f.link.postPending = async () => { throw Object.assign(new Error('stop before send'), { code: 'NO_SEND' }); };
+  await assert.rejects(flushOutbox(f.link), error => error.code === 'NO_SEND');
+  const facts = f.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='fact' ORDER BY event_id").all().map(row => JSON.parse(row.event_detail));
+  assert.deepEqual(facts.map(row => ({ id: row.id, supersedes: row.supersedes })), f.extra.originalFacts.map(row => ({ id: row.id, supersedes: row.supersedes })));
+});
+
+/** The meaningful identity/reference fields, not differences in provisional versus relay timestamps. */
+function referenceProjection(board) {
+  return {
+    events: board.db.prepare('SELECT event_id,event_by,event_kind,item_id,event_detail FROM event ORDER BY event_id').all(),
+    shouts: board.db.prepare('SELECT shout_id,shout_from,shout_to,shout_text,shout_decision,shout_answers FROM shout ORDER BY shout_id').all(),
+    activity: store.activityDeliveryState(board, 'web-1'),
+  };
+}
+
+test('fact and implied-fact identities preserve later decisions, supersession and activity event references on repeated rebuild [H21,B29,B31,N26]', async t => {
+  const f = await fixture(t, {
+    setup(board, directory) {
+      store.register(board, { lane: 'web', path: join(directory, 'web-1') });
+      return { items: [1, 2].map(n => store.addItem(board, { by: 'coordinator', lane: 'coordinator', title: `references-${n}`, criterion: 'retain exact references' })) };
+    },
+    async pending({ board, link, key, id, extra }) {
+      let serial = 0;
+      /** Use the normal queued local operation, including its original generated ids. */
+      const queued = async (operation, args, actor = 'coordinator') => {
+        const move = prepareEngineMove(board, operation, args, { id: `reference-move-${++serial}`, actor });
+        return queueMove(link, { operation, args, move, quiet: true, applyLocally: () => store[operation](board, ...args) });
+      };
+      const [one, two] = extra.items;
+      const fact = await queued('appendFact', [one, { agentId: 'coordinator', kind: 'note', text: 'initial evidence', implies: [two] }]);
+      extra.originalFactId = fact.id;
+      await queued('appendFact', [one, { agentId: 'coordinator', kind: 'note', text: 'corrected evidence', supersedes: fact.id, implies: [two] }]);
+      let answer;
+      for (const index of [0, 1]) {
+        const ask = await queued('shout', [{ from: 'web-1', to: 'coordinator', text: `choose-${index}`, decision: true, lanes: ['web'] }], 'web-1');
+        answer = await queued('answerDecision', [ask, { agentId: 'coordinator', text: `answer-${index}`, lanes: ['web'], implies: [two], ...(index ? { supersedes: answer } : {}) }]);
+      }
+      const answerEvent = store.events(board).findLast(row => row.event_kind === 'answer');
+      const implied = JSON.parse(board.db.prepare("SELECT event_detail FROM event WHERE event_kind='fact' AND json_extract(event_detail,'$.decision.source')='answer' ORDER BY event_id LIMIT 1").get().event_detail);
+      await queued('appendFact', [two, { agentId: 'coordinator', kind: 'note', text: 'qualify implication', supersedes: implied.id }]);
+      const through = store.events(board).at(-1).event_id;
+      const interrupt = { id: `event:${answerEvent.event_id}`, eventId: answerEvent.event_id, reason: 'answered' };
+      await queued('recordActivityDelivery', [{ agentId: 'web-1', through, observedThrough: through, digestThrough: through, interrupts: [interrupt] }], 'web-1');
+      await queued('actOnActivity', [{ agentId: 'web-1', ids: [interrupt.id] }], 'web-1');
+      extra.original = referenceProjection(board);
+      extra.originalMoves = (await readOutbox(outboxFile(link.file), key, id)).moves.slice(2).map(entry => entry.move);
+    },
+  });
+  f.link.postPending = async () => { throw Object.assign(new Error('stop before send'), { code: 'NO_SEND' }); };
+  for (const round of [1, 2]) {
+    await assert.rejects(flushOutbox(f.link), error => error.code === 'NO_SEND');
+    assert.deepEqual(referenceProjection(f.board), f.extra.original, `all original references retain their meaning after rebuild ${round}`);
+    const queued = await readOutbox(outboxFile(f.link.file), f.key, f.id);
+    assert.deepEqual(queued.moves.slice(1).map(entry => entry.move), f.extra.originalMoves, 'no queued payload is rewritten');
+    assert.deepEqual(f.posts, [], 'no real relay attempt is made by this regression');
+  }
+  assert.throws(() => store.appendFact(f.board, f.extra.items[0], { agentId: 'web-1', kind: 'note', text: 'unauthorized correction', supersedes: f.extra.originalFactId }), error => error.code === 'FACT_JUDGEMENT');
+});

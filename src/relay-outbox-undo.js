@@ -133,6 +133,44 @@ function keyValue(encoded) {
 function identifier(name) { return `"${name.replaceAll('"', '""')}"`; }
 
 /**
+ * Read the original inserted rows from a queued move's own changesets without applying them.
+ * Local reconstruction needs the identities already returned to callers, not newly generated fact ids.
+ * Schema checks use the same connection as reconstruction; malformed captures fail rather than guessing.
+ */
+export function capturedInserts(board, changes, wanted) {
+  const rows = [];
+  for (const change of changes ?? []) {
+    const bytes = Buffer.from(change, 'base64');
+    let columns = 0, table = null, schema = null;
+    for (let at = 0; at < bytes.length;) {
+      const marker = bytes[at];
+      if (marker === 0x54) {
+        const count = varint(bytes, at + 1);
+        columns = count.value;
+        const end = bytes.indexOf(0, count.next + columns);
+        if (!Number.isSafeInteger(columns) || columns < 1 || end < 0) throw new Error('incomplete captured table');
+        table = bytes.subarray(count.next + columns, end).toString('utf8');
+        schema = table === wanted ? board.db.prepare(`PRAGMA table_info(${identifier(table)})`).all() : null;
+        if (schema && (schema.length !== columns || schema.some((column, index) => Boolean(column.pk) !== Boolean(bytes[count.next + index])))) {
+          throw new Error(`captured schema differs for ${table}`);
+        }
+        at = end + 1;
+        continue;
+      }
+      if (!table || ![INSERT, UPDATE, DELETE].includes(marker)) throw new Error('invalid captured operation');
+      const before = record(bytes, at + 2, columns);
+      if (marker === INSERT && schema) rows.push(Object.fromEntries(schema.map((column, index) => {
+        const decoded = keyValue(before.values[index]);
+        return [column.name, typeof decoded === 'bigint' && decoded <= BigInt(Number.MAX_SAFE_INTEGER) && decoded >= BigInt(Number.MIN_SAFE_INTEGER) ? Number(decoded) : decoded];
+      })));
+      at = marker === UPDATE ? record(bytes, before.next, columns).next : before.next;
+      if (at > bytes.length) throw new Error('incomplete captured row');
+    }
+  }
+  return rows;
+}
+
+/**
  * Numeric REPLACE also replaces a conflicting INSERT, which undo must refuse. Check row existence first,
  * inside the same write transaction, so only changed UPDATE/DELETE values can reach that resolution.
  * Check each changeset just before applying it: an earlier inverse may have restored or removed its keys.
