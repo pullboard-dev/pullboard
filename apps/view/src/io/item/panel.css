@@ -35,8 +35,8 @@
 .item-panel-check > div { display: grid; min-width: 0; gap: var(--space-2); }
 .item-panel-check p { margin: 0; overflow-wrap: anywhere; }
 /* The file in the sentence keeps its flask at text size, never the browser's default drawing box (#6769). */
-.item-panel-check .file { display: inline-flex; align-items: center; gap: var(--space-1); font: var(--text-xs) var(--mono); }
-.item-panel-check .file svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.item-panel-check .file { font: var(--text-xs) var(--mono); }
+.item-panel-check .file svg { width: 13px; height: 13px; margin-right: var(--space-1); vertical-align: -2px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .item-panel-baseline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--ink-muted); font-size: var(--text-xs); }
 .item-panel-command { min-width: 0; }
 .item-panel-command pre { max-height: 15rem; overflow: auto; }

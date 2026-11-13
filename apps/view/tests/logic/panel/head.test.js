@@ -30,7 +30,7 @@ test('clause 1: the opened item draws one header of chips, the same while it loa
 test('clause 2: the preview panel has no black block under Check and no clipped row chip [N26]', () => {
   // The flask in "Passes when <file>" is an inline svg: without its own size it fills a default box and draws solid black.
   assert.match(rules('.item-panel-check .file svg'), /width: 13px; height: 13px;[^}]*fill: none; stroke: currentColor;/u, 'the check sentence\'s icon has a size and an outline');
-  assert.match(rules('.item-panel-check .file'), /display: inline-flex/u);
+  assert.doesNotMatch(rules('.item-panel-check .file'), /display: (?:inline-)?(?:flex|grid|block)/u, 'the file stays inline, so the sentence reads on one line');
   // A row's marks and stage chip may be wider than the stage cell's old 10rem cap; nothing is cut at its left edge.
   assert.match(rules('#chain .row-side .item-stage'), /max-width: none; overflow: visible;/u, 'the stage cell of an Items row does not clip a mark beside the chip');
 });
