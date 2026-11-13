@@ -103,7 +103,7 @@ function fixture(t) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('apps/cli/src/io/memo.js', readFileSync(fileURLToPath(new URL('../../src/io/memo.js', import.meta.url)), 'utf8'));
-  put('packages/items/index.js', 'export function requirePlannedSource() {}\nexport function requireSubmitComposition() {}\n');
+  put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { return { proofFiles: ['test/a.test.js'], check: options.check }; }
