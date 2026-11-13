@@ -131,10 +131,14 @@ function requestNotice(request) {
   return label + ' · ' + requestLabel(request) + (error ? '\\n' + (error.code ? '[' + error.code + '] ' : '') + (error.message || '') + (error.next ? '\\n' + error.next : '') : '');
 }
 
-/** Show the public request receipts on every board tab and update the latest action's status. */
+/** Show the public request receipts on every board tab and update the latest action's status; returns how far the panel grew above the viewport. */
 function renderPersonRequests(project) {
   const entries = project?.personRequests || [];
   const panel = $('person-requests');
+  // A panel above the viewport (hidden counts: it opens at the page top) is measured before and after, so render can
+  // move its page-scroll mark by the growth and a new receipt never shoves what the person reads [H12,H5].
+  const above = window.scrollY > 0 && (panel.hidden || panel.getBoundingClientRect().bottom <= 0);
+  const heightBefore = above && !panel.hidden ? panel.getBoundingClientRect().height : 0;
   panel.hidden = !entries.length;
   panel.innerHTML = entries.length ? '<h2>Your requests</h2><ul class="request-list">' + [...entries].sort((a, b) => b.sequence - a.sequence).map((request) => {
     const status = { waiting: 'Waiting', done: 'Done', refused: 'Refused' }[request.status] || 'Unknown status';
@@ -142,6 +146,7 @@ function renderPersonRequests(project) {
     const reason = error ? '<p class="request-error">' + (error.code ? '<b>' + esc(error.code) + '</b> ' : '') + esc(error.message || '') + '</p>' + (error.next ? '<p class="request-next">' + esc(error.next) + '</p>' : '') : '';
     return '<li data-person-request="' + esc(request.id) + '"><span class="request-label">' + esc(requestLabel(request)) + '</span><span class="chip request-status ' + (request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : 'warn') + '">' + status + '</span>' + reason + '</li>';
   }).join('') + '</ul>' : '';
+  const grew = above ? (entries.length ? panel.getBoundingClientRect().height : 0) - heightBefore : 0;
   const active = view.request;
   const current = active && active.root === view.root && active.run === view.acting && entries.find((request) => request.id === active.id);
   if (current && !$('console').hidden) {
@@ -155,6 +160,7 @@ function renderPersonRequests(project) {
     feedback.tone = rowRequest.status === 'done' ? 'ok' : rowRequest.status === 'refused' ? 'no' : '';
     feedback.text = requestNotice(rowRequest);
   }
+  return grew;
 }
 
 /**
