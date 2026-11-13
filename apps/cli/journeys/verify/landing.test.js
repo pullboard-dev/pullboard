@@ -6,8 +6,6 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
@@ -118,48 +116,4 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
   assert.equal(reopens.length, 1, 'one red landing returns the item once');
   assert.match(reopens[0].event_detail, /automatic static guard is red/u);
   assert.match(reopens[0].event_detail, /LAND_STATIC_RED: the static guard staticChecks .* static\.cjs:1: automatic static guard is red/u, 'the returned item names the failing guard row');
-});
-
-
-// The cadence wake is the batch engine's own timer; a pulled landing is a runner job with no wake, so #6807 deletes this case with it.
-test('a second clean acceptance inside cadence lands at once with no wake queued [B35,B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
-  const { box, config, id, reviewer } = await fixture(t, false, false, '10m');
-  await json(box, reviewer, 'verify', String(id), 'accept', '--note', 'First clean result frozen check passed.');
-  assert.ok((await json(box, box.repo, 'show', String(id))).item_merged_commit);
-  config.landing.manualOverride = true;
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
-  commit(box, box.repo, 'chore: hold automatic trigger for the captured clock fixture');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const second = (await json(box, box.repo, 'add', 'web', 'Second clean result', '--specs', 'G1', '--criterion', 'second file exists', '--check', 'test -f web/second.txt')).item.item_id;
-  await json(box, box.web, 'claim', String(second));
-  writeFileSync(join(box.web, 'web/second.txt'), 'second\n');
-  const head = commit(box, box.web, 'feat(web): second clean result [G1]');
-  await json(box, box.web, 'submit', String(second), '--wait', '--no-next');
-  await settledGateJob(box, second);
-  box.git(reviewer, 'checkout', '-q', '--detach', head);
-  await json(box, reviewer, 'verify', String(second), 'accept', '--note', 'Second clean result frozen check passed.');
-  config.landing.manualOverride = false;
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
-  commit(box, box.repo, 'chore: restore ordinary automatic landing policy');
-  const result = await runFixtureChildAsync(process.execPath,
-    [fileURLToPath(new URL('../../tests/fixtures/cadence.js', import.meta.url)), box.repo, String(second)],
-    { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
-  assert.equal(result.status, 0, result.stdout + result.stderr + result.context);
-  // The child proves the second acceptance lands at once without queueing a wake.
-});
-
-
-// The detached wake is the batch engine's own worker; a pulled landing is a runner job, so #6807 deletes this case with it.
-test('a real detached wake lands accepted work after the accepting CLI exits [B35,B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
-  const { box, config, id, reviewer } = await fixture(t, true);
-  await json(box, reviewer, 'verify', String(id), 'accept', '--note', 'The actual frozen file check passed.');
-  assert.equal((await json(box, box.repo, 'show', String(id))).item_merged_commit, null);
-  config.landing.manualOverride = false;
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
-  commit(box, box.repo, 'chore: allow the captured automatic wake');
-  const result = await runFixtureChildAsync(process.execPath,
-    [fileURLToPath(new URL('../../tests/fixtures/cadence.js', import.meta.url)), box.repo, String(id), 'real'],
-    { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
-  assert.equal(result.status, 0, result.stdout + result.stderr + result.context);
-  assert.ok((await json(box, box.repo, 'show', String(id))).item_merged_commit);
 });

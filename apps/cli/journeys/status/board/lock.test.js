@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/hook/work.js apps/cli/src/io/submit/handoff/worker.js */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/hook/work.js */
 /** @pullboard-test-loads apps/cli/src/io/entry.js packages/store/src/io/board.js packages/store/src/io/board/indexes.js src/board-migrate.js apps/cli/src/io/context.js apps/cli/src/io/commands/status.js apps/cli/src/io/commands/show.js apps/cli/src/io/commands/list.js apps/cli/src/io/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
@@ -86,7 +86,7 @@ async function timed(box, cwd, ...argv) {
   const startedAt = performance.now();
   try {
     const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'apps', 'cli', 'index.js')).href),
-      hookWorker: join(box.release, 'apps/cli/src/io/hook/work.js'), submitHandoffWorker: join(box.release, 'apps/cli/src/io/submit/handoff/worker.js'),
+      hookWorker: join(box.release, 'apps/cli/src/io/hook/work.js'),
       /** Launch only the released sender actually requested by this command. */
       launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'apps', 'lib', 'index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
     return { code, out, err, ms: performance.now() - startedAt };

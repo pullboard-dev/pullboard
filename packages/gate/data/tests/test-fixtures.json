@@ -1687,9 +1687,6 @@
   "apps/cli/journeys/merged/ratchet.test.js": {
     "raw-board": 5
   },
-  "apps/cli/journeys/flakes/interrupted.test.js": {
-    "raw-board": 1
-  },
   "apps/cli/journeys/flakes/main.test.js": {
     "tempdir": 1
   },
@@ -1802,24 +1799,9 @@
     "hand-policy": 2,
     "raw-board": 1
   },
-  "packages/resources/tests/io/handoff/worker/cap/slots.test.js": {
-    "tempdir": 1
-  },
-  "packages/runners/tests/io/handoff/capacity/line.test.js": {
-    "hand-policy": 1
-  },
-  "apps/cli/journeys/handoff/orphan.test.js": {
-    "tempdir": 1,
-    "model": 1,
-    "raw-board": 1
-  },
   "packages/resources/tests/io/handoff/prune.test.js": {
     "tempdir": 1,
     "repo-read": 1
-  },
-  "packages/runners/tests/io/handoff/capacity/cap.test.js": {
-    "tempdir": 1,
-    "hand-policy": 1
   },
   "packages/resources/tests/io/handoff/worker/cap.test.js": {
     "tempdir": 1

@@ -8,7 +8,6 @@ import { boardJobQueueCall } from '../../../../../packages/api/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { landingBatches } from '../../../../../packages/store/index.js';
-import { verify } from '../../../../../packages/store/index.js';
 import { holdItem } from '../../../../../packages/store/index.js';
 import { releaseItemHold } from '../../../../../packages/store/index.js';
 import { context } from '../../../index.js';
@@ -17,10 +16,17 @@ import { wakeIo } from '../../../src/io/landing/automatic.js';
 import { captureCommandInProcess } from '../../../tests/fixtures/process.js';
 import { runCliInProcess } from '../../../tests/fixtures/process.js';
 import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
+import { acceptGated } from '../../../tests/fixtures/pull.js';
 import { pullProject } from '../../../tests/fixtures/pull.js';
 import { pullQueue } from '../../../tests/fixtures/pull.js';
 import { serveOnce } from '../../../tests/fixtures/pull.js';
 import { submitOne } from '../../../tests/fixtures/pull.js';
+
+/** The offered items without their landing message, after checking each carries its own item trailer [B3,R3,C7,#7268]. */
+function landedItems(items) {
+  for (const entry of items) assert.match(`${entry.header}\n${entry.trailers}`, new RegExp(`\\S\\nPullboard-Item: #${entry.id}(?:\\n|$)`, 'u'), 'each item carries its landing message');
+  return items.map(({ header, trailers, ...rest }) => rest);
+}
 
 /** Run the automatic lander's own entry in this process at the main checkout; return its answer and the ms it took. */
 async function landAfterAccept(box) {
@@ -48,7 +54,7 @@ async t => {
   const { commit } = submitOne(box, id);
   const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
   assert.equal((await serveOnce(box, queue.url, 'r-gate')).code, 0);
-  verify(queue.board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: commit, digest: getItem(queue.board, id).item_frozen_digest, policy: 'any' });
+  acceptGated(queue.board, box.repo, id, commit);
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   const main = box.git(box.repo, 'rev-parse', 'main'), before = box.git(box.dir, '--git-dir', trunk, 'rev-parse', 'refs/heads/main');
   const { result, ms } = await landAfterAccept(box);
@@ -56,7 +62,7 @@ async t => {
   assert.equal(jobs.length, 1, `accept offered one land job; the lander answered ${JSON.stringify(result)}`);
   assert.equal(result.offered, jobs[0].id);
   assert.ok(ms < 1000, `the offer took ${Math.round(ms)} ms`);
-  assert.deepEqual(jobs[0].steps.find(step => step.name === 'offered').payload.payload.items, [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
+  assert.deepEqual(landedItems(jobs[0].steps.find(step => step.name === 'offered').payload.payload.items), [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
   assert.equal(landingBatches(queue.board).length, 0, 'no landing batch ran on the board host');
   assert.deepEqual([box.git(box.repo, 'rev-parse', 'main'), box.git(box.dir, '--git-dir', trunk, 'rev-parse', 'refs/heads/main')], [main, before], 'nothing on the host merged or pushed');
   const forced = await runCliInProcess(['land', String(id), '--forced', 'the person escalated #1', '--json'], { cwd: box.repo, env: { ...box.env } });
@@ -67,7 +73,7 @@ async t => {
   const { payload } = offered.steps.find(step => step.name === 'offered').payload;
   assert.equal(offered.kind, 'land');
   assert.equal(payload.forced, 'the person escalated #1', 'the job carries its forced reason');
-  assert.deepEqual(payload.items, [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
+  assert.deepEqual(landedItems(payload.items), [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
   assert.equal(landingBatches(queue.board).length, 0, 'the forced landing ran nothing on the host either');
 });
 
@@ -84,7 +90,7 @@ async t => {
   const { commit } = submitOne(box, id);
   const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
   assert.equal((await serveOnce(box, queue.url, 'r-gate')).code, 0);
-  verify(queue.board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head: commit, digest: getItem(queue.board, id).item_frozen_digest, policy: 'any' });
+  acceptGated(queue.board, box.repo, id, commit);
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   holdItem(queue.board, id, { agentId: 'coordinator', reason: 'the person reviews the copy first' });
   const held = await landAfterAccept(box);
@@ -95,5 +101,5 @@ async t => {
   const { result } = await landAfterAccept(box);
   const jobs = jobsOf(queue.board.db, { kind: 'land' });
   assert.equal(jobs.length, 1, `hold --off offers its land job; the lander answered ${JSON.stringify(result)}`);
-  assert.deepEqual(jobs[0].steps.find(step => step.name === 'offered').payload.payload.items, [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
+  assert.deepEqual(landedItems(jobs[0].steps.find(step => step.name === 'offered').payload.payload.items), [{ id, commit, ref: `refs/pullboard/land/${id}` }]);
 });

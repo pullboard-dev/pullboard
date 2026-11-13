@@ -15,6 +15,3 @@ test('landing diagnostics retain unknown failures and merge subjects obey typed 
   assert.equal(subject, 'chore(merge): a very long title a very long title a very long [B3,R3]');
   assert.ok(subject.length <= 72);
 });
-
-// CONTROLLER_ONLY: adopting a killed batch's bisection (completed gates, isolated diagnostics, original candidates) is the batch engine's recovery; a pulled land job runs once and returns its items [B3,R3].
-test('land bisect adoption retains completed gates, isolated diagnostics and original candidates [B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});

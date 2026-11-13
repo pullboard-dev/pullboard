@@ -1,4 +1,4 @@
-/** The scheduled wake's own io lands an accepted item through landAfterAcceptance [B35,B3]. */
+/** The scheduled wake's own io lands an accepted item through landAfterAcceptance, by the local runner's land job under pull [B35,B3,P7]. */
 import assert from 'node:assert/strict';
 import {
   readFileSync,
@@ -11,9 +11,12 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settlePulledJobs } from '../../tests/fixtures/e2e.js';
+import { onBoard } from '../../tests/fixtures/land/board.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { wakeIo } from '../../src/io/landing/automatic.js';
+import { getItem } from '../../../../packages/store/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -30,7 +33,7 @@ function landingPolicy(box, landing, message) {
   assert.equal(committed.status, 0, committed.stdout + committed.stderr);
 }
 
-test('the scheduled wake io lands one accepted item through landAfterAcceptance [B35,B3]', () => {
+test('the scheduled wake io lands one accepted item through landAfterAcceptance [B35,B3,P7]', () => {
   const box = landProject();
   // The project holds landing while the item is accepted, so it waits accepted and unmerged for the wake, as a deferred landing does.
   assert.equal(JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).landing?.manualOverride, true);
@@ -49,14 +52,17 @@ test('the scheduled wake io lands one accepted item through landAfterAcceptance 
     'let error = null;',
     'try { await landAfterAcceptance(context(wakeIo(root))); } catch (failure) { error = String(failure?.stack ?? failure); }',
     'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
-    'try { console.log("RESULT " + JSON.stringify({ error, merged: store.getItem(board, Number(itemId)).item_merged_commit })); } finally { store.closeBoard(board); }',
+    'try { console.log("RESULT " + JSON.stringify({ error, status: store.getItem(board, Number(itemId)).item_status })); } finally { store.closeBoard(board); }',
   ].join('\n');
   const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(entry.item)], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
   const result = JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice('RESULT '.length));
   assert.equal(result.error, null, result.error);
   assert.doesNotMatch(`${run.stdout}\n${run.stderr}`, /io\.nativeBoardPorts is not a function/u);
-  assert.ok(result.merged, `the accepted item lands: ${run.stdout}\n${run.stderr}`);
+  // Under pull the wake offers a land job that the fixture's local runner lands into this checkout and publishes [P7,#7398].
+  settlePulledJobs(box.repo, ['land'], box.env);
+  const merged = onBoard(box, board => getItem(board, entry.item).item_merged_commit);
+  assert.ok(merged, `the accepted item lands (it was ${result.status} after the wake): ${run.stdout}\n${run.stderr}`);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), box.git(box.remote, 'rev-parse', 'main'), 'the landed main is published');
 });
 
