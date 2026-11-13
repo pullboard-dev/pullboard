@@ -5,17 +5,17 @@
 /** Cockpit sidebar progress, tab title and decision counts [N26, N28, B21, B26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SPEC } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { machine } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { project } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { build } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { sendBack } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { startView } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { openPage } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { projectRows } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { productEntries } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { accept } from '../../../cli/tests/fixtures/cockpit/harness.js';
-import { boardOf } from '../../../cli/tests/fixtures/cockpit/harness.js';
+import { SPEC } from '../../tests/fixtures/cockpit/harness.js';
+import { machine } from '../../tests/fixtures/cockpit/harness.js';
+import { project } from '../../tests/fixtures/cockpit/harness.js';
+import { build } from '../../tests/fixtures/cockpit/harness.js';
+import { sendBack } from '../../tests/fixtures/cockpit/harness.js';
+import { startView } from '../../tests/fixtures/cockpit/harness.js';
+import { openPage } from '../../tests/fixtures/cockpit/harness.js';
+import { projectRows } from '../../tests/fixtures/cockpit/harness.js';
+import { productEntries } from '../../tests/fixtures/cockpit/harness.js';
+import { accept } from '../../tests/fixtures/cockpit/harness.js';
+import { boardOf } from '../../tests/fixtures/cockpit/harness.js';
 
 /**
  * Refresh once the board's latest change is built. The summary route answers at once from the last build and only
