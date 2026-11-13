@@ -12,7 +12,6 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { storeName } from '../store-names.js';
 
 /** How long a daily span file is kept; a new day's first span removes older ones. */
 const GATE_SPAN_KEEP_DAYS = 14;
@@ -44,7 +43,7 @@ function dayOf(ms) {
 export function appendGateSpan(folder, line) {
   const end = Date.parse(line.end);
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  const file = join(folder, `${storeName(dayOf(end), '.jsonl')}`);
+  const file = join(folder, dayOf(end) + '.jsonl');
   const fresh = !existsSync(file);
   appendFileSync(file, JSON.stringify(line) + '\n', { mode: 0o600 });
   if (!fresh) return;
