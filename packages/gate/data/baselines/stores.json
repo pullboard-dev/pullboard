@@ -571,6 +571,10 @@
       "kind": "json",
       "owner": "packages/github/src/io/flakes.js"
     },
+    "citations.jsonl": {
+      "kind": "repo-data",
+      "owner": "packages/spec/src/io/boards.js"
+    },
     "cla-signatures.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/check/cla.js"
