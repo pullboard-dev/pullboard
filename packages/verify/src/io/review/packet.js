@@ -101,7 +101,8 @@ function reviewPacketInputs(board, { getItem, events, eventsOfKinds, itemThread 
     .filter(receipt => receipt && receipt.item === Number(id) && receipt.commit === item.item_commit);
   const baseline = history.filter(event => event.event_kind === 'check-baseline').map(event => detailOf(event).checkBaseline).at(-1) ?? null;
   // The main comparison runs recorded at the known main, read only for a gate red in main's named cases (#3449).
-  const known = submit?.gateGreen === false ? submit.submissionProof?.knownMainFailures : null;
+  // The pulled gate records a red only in main's own cases as green, with the same fields in submissionProof, so both read them [C7,V4].
+  const known = submit?.submissionProof?.knownMainFailures ?? null;
   const mainRuns = known && typeof eventsOfKinds === 'function' ? eventsOfKinds(board, ['gate-run']).map(event => detailOf(event).run)
     .filter(run => run?.kind === 'main-red' && run.head === known.main).map(run => run.id) : [];
   // The item's clause facts, so a fact citing an earlier head is shown next to the exact-head receipt's outcome (#3752).
@@ -122,6 +123,16 @@ function excusedMainReds(submit, receipts) {
   if (red.some(receipt => !(receipt.failures ?? []).length)) return null;
   const named = (row, failure) => row.file === failure.file && row.name === failure.name;
   return red.flatMap(receipt => receipt.failures).every(failure => known.failures.some(row => named(row, failure))) ? known : null;
+}
+
+/**
+ * The known main failures of a pulled submit that recorded a gate green over main-owned cases, else null.
+ * Why: on pull the settle records gateGreen true with the main-owned cases only in submissionProof, so the packet must
+ * read them from there to keep them apart from the item's own reds [V4,C7].
+ */
+function pulledMainOwned(submit) {
+  const known = submit?.gateGreen === true ? submit.submissionProof?.knownMainFailures : null;
+  return SHA.test(known?.main ?? '') && Array.isArray(known.failures) && known.failures.length ? known : null;
 }
 
 /** The id of the main comparison receipt at `main` that records this case failing, from the gate's own receipt files. */
@@ -291,7 +302,7 @@ function cellsAt(root, commit) {
 function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [], thread = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
-  const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : null;
+  const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : pulledMainOwned(submit);
   if (!submit || (submit.gateGreen !== true && !excused) || !SHA.test(head ?? '')) return null;
   const main = SHA.test(submit.policyCommit ?? '') ? submit.policyCommit : null;
   const base = main ? gitRead(root, ['merge-base', main, head]).trim() : gitRead(root, ['rev-parse', `${head}^`]).trim();
@@ -378,7 +389,7 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
   // the main receipt that names each, and never read as this item's red, so the reviewer judges its own clauses (#3449).
   const failures = excused ? [] : atHead;
   const mainIds = [...mainReceiptIds, ...mainRuns];
-  const excusedMain = (excused ? atHead : []).map(failure => {
+  const excusedMain = (excused ? (submit.gateGreen === true ? excused.failures.map(({ file, name }) => ({ file, name })) : atHead) : []).map(failure => {
     const repair = excused.failures.find(row => row.file === failure.file && row.name === failure.name)?.item;
     return { ...failure, alsoRedOnMain: true, main: excused.main, mainReceipt: mainReceiptFor(commonDir, mainIds, excused.main, failure),
       ...(repair ? { repair } : {}) };
