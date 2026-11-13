@@ -69,6 +69,7 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/spec/src/io/signature.js#runTool': 'spec approval evidence runs a signing tool in a synchronous child process',
   'packages/store/src/io/board.js#claim': 'a claim retry after a busy board parks up to 5 ms on Atomics.wait; the pulled gate renews the submit admission through it',
   'packages/store/src/io/board/busy.js#beginImmediateQueued': 'a queued board write parks the thread on Atomics.wait between retries',
+  'packages/store/src/io/board/claim.js#jitter': 'a stale claim preparation parks a few random milliseconds on Atomics.wait before it re-reads its rows',
   'packages/store/src/io/board/write/lock.js#boardWriteHolderText': 'busy-board error text lists lock holders with a synchronous directory read',
   'packages/store/src/io/board/write/lock.js#identities': 'busy-board error text lists lock holders through a synchronous process lookup',
   'packages/verify/src/io/verdict/freshness.js#readGit': 'verdict freshness reads git synchronously while building relay state',
