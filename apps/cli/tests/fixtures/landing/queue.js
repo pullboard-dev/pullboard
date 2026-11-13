@@ -78,7 +78,9 @@ function withBaselineRunner(box, action) {
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH },
+  // A box that pinned its dispatch keeps it: a pull baseline has no puller on a box whose runner is this SSH stand-in.
+  const pinned = previous === null ? null : JSON.parse(String(previous)).gate?.runnerDispatch;
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH, ...(pinned ? { runnerDispatch: pinned } : {}) },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   try { return action(); }
   finally {
@@ -102,7 +104,7 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(withBaselineRunner(box, () => run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
       '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--brief',
-      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json')));
+      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--not-duplicate-of', '0 a fixture item, not a real duplicate', '--json')));
     const id = added.item.item_id;
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
@@ -431,6 +433,8 @@ export async function sourceAdvancePolicyCase(t, helpers) {
     "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
+  // The landing and its source gate settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.lanes.web.owns.push('pullboard.json');
