@@ -137,7 +137,7 @@ test('[V17] accept refuses a historical candidate stacked on another item', asyn
  * records the unverified commit itself; a live single-checkout submit gets its own commit on trunk above it [V17,V1].
  */
 async function trunkStack(box, { historical = false } = {}) {
-  const stacked = (await add(box, 'coordinator', 'Single-checkout stack'));
+  const stacked = (await add(box, 'web', 'Single-checkout stack'));
   { const claimed = (await box.runLocal(box.web, 'claim', String(stacked))); assert.equal(claimed.code, 0, claimed.out + claimed.err); }
   const first = (await add(box, 'web', 'Unverified trunk commit'));
   assert.equal((await box.runLocal(box.web, 'claim', String(first))).code, 0);
