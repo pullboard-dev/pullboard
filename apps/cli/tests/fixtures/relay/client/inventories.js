@@ -51,6 +51,9 @@ export async function publishAcceptedInventories(fixture) {
   };
   const mainTree = () => String(fixture.gitAt(fixture.clones[0], fixture.envs[0], 'rev-parse', 'main^{tree}')).trim();
   for (let index = 0; index < fixture.clones.length; index += 1) fixture.envs[index].PULLBOARD_MACHINE_HOME = join(fixture.envs[index].HOME, 'machine');
+  // A seed without a cells plan has no inventory to publish, as on any project that never adopted cells: submit needs none [C7].
+  const main = String(fixture.gitAt(fixture.clones[0], fixture.envs[0], 'rev-parse', 'main')).trim();
+  if (!String(fixture.gitAt(fixture.clones[0], fixture.envs[0], 'ls-tree', '--name-only', main, '--', 'packages/codemap/data/plan/cells.json')).trim()) return async () => {};
   await publishFirst(mainTree());
   /**
    * Put the published inventory back in every replica's machine home; a CLI step can drop it before a later submit, and
