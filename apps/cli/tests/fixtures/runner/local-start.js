@@ -16,7 +16,7 @@ import { localRunnerState } from '../../../../../packages/drive/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 /** What a local runner keeps from its starting environment besides non-Pullboard variables (src/io/runner/local.js). */
-const KEPT = new Set(['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME', 'PULLBOARD_TEST_RUNNER_PID']);
+const KEPT = new Set(['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME', 'PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_FIXTURE_BOARD']);
 // Budget: how long a just-spawned local runner has to write its first heartbeat before a start counts as failed.
 const START_MS = 15_000;
 

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { localLoadStart } from '../../../../packages/gate/src/io/test/run.js';
+import { runnerEnv } from '../../src/io/runner/local.js';
 
 test('a fixture board starts at once while a real seat still waits under load [C7]', async () => {
   const fixture = await localLoadStart({ env: { PULLBOARD_FIXTURE_BOARD: '1' }, read: () => [15], cores: 10, wait: async () => assert.fail('a fixture board never waits for load') });
