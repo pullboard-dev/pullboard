@@ -3,7 +3,7 @@ export function roadmapSummary(milestone, context = {}) {
   /** Escape supplied milestone text before placing it in HTML or attributes. */
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
   const summary = milestone.summary;
-  const states = [['landed','landed'],['landing','accepted, landing'],['review','in review'],['building','building'],['waiting','waiting'],['held','held']];
+  const states = [['landed','landed'],['landing','accepted, landing'],['review','in review'],['building','building'],['waiting','blocked'],['held','held']];
   /** Accept only nonnegative integer counts from the backend contract. */
   const number = value => Number.isInteger(value) && value >= 0;
   if (!summary || !number(summary.total) || !number(summary.left) || states.some(([key]) => !number(summary[key]))) return null;

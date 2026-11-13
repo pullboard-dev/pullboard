@@ -8,7 +8,7 @@ export function ruleListModel(rows, { kind, filter, selectedId = null, addressed
   const undecided = row => (['pending', 'draft'].includes(row.status) && !row.decision || Boolean(row.staleDecision)
     || kind === 'spec' && approvals.has(row.id)) && !(kind === 'doctrine' && row.origin === 'standard');
   const undecidedIds = rows.filter(undecided).map(row => row.id);
-  const labels = { decide: 'Needs your decision', ...(defaults.length ? { defaults: 'To review' } : {}),
+  const labels = { decide: 'Rulings', ...(defaults.length ? { defaults: 'To review' } : {}),
     all: 'All rows', approved: 'Approved' };
   const counts = { decide: undecidedIds.length, defaults: defaults.length, all: rows.length,
     approved: rows.filter(row => row.status === 'approved').length };

@@ -109,7 +109,7 @@ function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks =
   const stage = stageOfItem(item, project, gated, gateDetail);
   // A Roadmap row names only the stage, with Landed for Merged; the route and holder stay in the title for hover and readers [N26].
   const word = roadmap && stage.stage === 'Merged' ? 'Landed' : stage.stage;
-  return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.detail) + '" aria-label="' + esc(stage.stage + ': ' + stage.detail) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(word) + '</b>' + (compact ? '</span>' : '')
+  return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.stage === 'Blocked' ? stageSentence(stage.stage, stage.detail) : stage.detail) + '" aria-label="' + esc(stageSentence(stage.stage, stage.detail)) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(word) + '</b>' + (compact ? '</span>' : '')
     + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap || brief ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
 }
 

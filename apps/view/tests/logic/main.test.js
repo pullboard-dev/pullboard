@@ -186,12 +186,12 @@ test('timeline HTML preserves supplied move and fact order, lapse rows, stays, r
 test('pipeline HTML keeps stage order, oldest arrival, selected item and escaped titles from seeded data [N26,N38,C7]', () => {
   const input = Object.freeze([
     Object.freeze({ id: 9, title: 'Later <ready>', stage: 'open', stageKey: 'ready', stageHtml: '<b>Ready</b>', since: '2026-10-28T12:00:00Z', href: '#item/9', ageHtml: '<time>1m</time>' }),
-    Object.freeze({ id: 3, title: 'Earlier & ready', stage: 'open', stageKey: 'gated', stageHtml: '<b>Gated</b>', since: '2026-10-28T11:00:00Z', href: '#item/3', ageHtml: '<time>1h</time>' }),
+    Object.freeze({ id: 3, title: 'Earlier & ready', stage: 'open', stageKey: 'blocked', stageHtml: '<b>Blocked</b>', since: '2026-10-28T11:00:00Z', href: '#item/3', ageHtml: '<time>1h</time>' }),
     ...[['claimed', 'building'], ['submitted', 'in-review'], ['accepted', 'verified'], ['merged', 'merged']].map(([stage, stageKey], index) => Object.freeze({ id: 20 + index, title: stage,
       stage, stageKey, stageHtml: '<b>' + stageKey + '</b>', since: '2026-10-28T12:00:00Z', href: '#item/' + (20 + index), ageHtml: '<time>1m</time>' })),
   ]);
   const html = pipelineHtml(input, { selectedId: 9 });
-  assert.deepEqual([...html.matchAll(/data-pipeline-stage="([^"]+)"/gu)].map(match => match[1]), ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
+  assert.deepEqual([...html.matchAll(/data-pipeline-stage="([^"]+)"/gu)].map(match => match[1]), ['blocked', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
   assert.deepEqual([...html.matchAll(/data-stage-count="[^"]+">(\d+)/gu)].map(match => Number(match[1])), [1, 1, 1, 1, 1, 0, 1]);
   assert.match(html, /Oldest <a class="ref" href="#item\/3" data-go="item:3">#3<\/a> · <time>1h<\/time>/u);
   assert.ok(html.indexOf('data-item="3"') < html.indexOf('data-item="9"'), 'arrival order determines the stage list');
@@ -275,7 +275,7 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   const model = needsPanelModel(calls, project, options), presentation = present(model);
   const html = needsPanelHtml(model, presentation);
   assert.match(html, /Questions and sentinels · 2/u);
-  assert.match(html, /Rows approved in Git, waiting for you · 4/u);
+  assert.match(html, /Rulings: rows approved in Git · 4/u);
   assert.match(html, /data-needs-confirm="G1 G2 G3 G4">Confirm all 4/u);
   assert.match(html, /data-needs-key="agent-approved:G1"[^>]* open/u);
   assert.match(html, /G1 &lt;full requirement&gt;/u);

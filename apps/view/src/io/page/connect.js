@@ -15,6 +15,7 @@ import { itemListFields } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 import { withdrawnFromStatus } from "../../logic/pipeline/model.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
+import { stageSentence } from "../../logic/pipeline/model.js";
 import { pipelineHtml } from "../../logic/pipeline/render.js";
 import { lifecycleDiagramHtml } from "../../logic/lifecycle/diagram.js";
 import { timelineHtml as renderTimelineHtml } from "../../logic/timeline/render.js";

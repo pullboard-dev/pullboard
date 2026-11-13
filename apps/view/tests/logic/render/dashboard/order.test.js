@@ -13,11 +13,11 @@ function section(html, name) {
   return html.slice(start, html.indexOf('</section>', start));
 }
 
-test('clause 1: How work moved, Now, Shipping now, the pace strip, Agents, the four lists, Your lanes and Runners, in order [N26]', () => {
+test('clause 1: How work moved, Now, Release, the pace strip, Agents, the four lists, Your lanes and Runners, in order [N26]', () => {
   const { project, events } = board();
   const html = dashboardHtml(dashboardModel(project, events, { now, complete: true }));
   const order = [...html.matchAll(/<section class="[^"]*" (?:id="[^"]*" )?aria-label="([^"]+)"/gu)].map(([, name]) => name);
-  assert.deepEqual(order, ['How work moved', 'Now', 'Shipping now', 'Pace and agent time', 'Agents', 'In the gate', 'In review', 'Landing', 'Landed · 4 h', 'Your lanes', 'Runners']);
+  assert.deepEqual(order, ['How work moved', 'Now', 'Release', 'Pace and agent time', 'Agents', 'In the gate', 'In review', 'Landing', 'Landed · 4 h', 'Your lanes', 'Runners']);
   assert.doesNotMatch(html, /dash-hero|aria-label="Rulings"|The last two hours|window-comparison/u, 'the old hero, Rulings card and comparison are gone');
 
   // How work moved: Build, Gate, Review, Land, each with its four-hour rate.
@@ -36,7 +36,7 @@ test('clause 1: How work moved, Now, Shipping now, the pace strip, Agents, the f
   const nowLine = [...section(html, 'Now').matchAll(/<b>(\d+)<\/b>([^<]+)<\/button>/gu)].map(([, n, word]) => word + ' ' + n);
   assert.deepEqual(nowLine, ['ready 3', 'waiting 1', 'building 1', 'in the gate 1', 'in review 1', 'to land 1', 'sent back 1', 'held 1']);
 
-  assert.match(section(html, 'Shipping now'), /<span class="dash-ver">0\.1\.0<\/span>First release/u);
+  assert.match(section(html, 'Release'), /<span class="dash-ver">0\.1\.0<\/span>First release/u);
   assert.match(section(html, 'Pace and agent time'), /Landed per hour[\s\S]*Agent time/u);
 
   // Agents: one line per agent, with its thin timeline, its stage chip and its numbers.

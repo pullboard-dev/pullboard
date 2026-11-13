@@ -55,7 +55,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
     await chrome.waitFor("typeof data !== 'undefined' && location.pathname === '/items/pipeline' && !document.querySelector('#pipeline').hidden");
     const expectedCounts = [0, status.open, status.claimed, status.submitted, 1, 0, 1];
     const read = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#pipeline [data-pipeline-stage]')].map(stage => ({ stage:stage.dataset.pipelineStage, label:stage.querySelector('h2').textContent, count:Number(stage.querySelector('[data-stage-count]').textContent), oldest:Number(stage.querySelector('.pipeline-oldest a[data-go]')?.dataset.go.slice('item:'.length) || 0), since:stage.querySelector('.pipeline-oldest time')?.dataset.ago || null, age:stage.querySelector('.pipeline-oldest time')?.textContent || '', ids:[...stage.querySelectorAll('.pipeline-item')].map(item => Number(item.dataset.item)) })))`));
-    assert.deepEqual(read.map(stage => stage.label), ['Gated', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
+    assert.deepEqual(read.map(stage => stage.label), ['Blocked', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
     assert.deepEqual(read.map(stage => stage.count), expectedCounts, 'the seven ordered stage columns preserve the native status counts');
     assert.equal(read[4].count + read[6].count, status.verified);
     assert.deepEqual(read.map(stage => stage.ids), [[], [5, 6], [4], [3], [2], [], [1]], 'an accept without a merge remains verified');

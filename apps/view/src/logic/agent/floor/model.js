@@ -39,7 +39,7 @@ export function agentFloorModel(model, history) {
   const agents = model.agents.map(agent => ({ ...agent, shoutTimes: shoutsBy.get(agent.id) ?? [],
     holding: agent.current.map(held => ({ ...held, ...heldSince(held) })) }))
     .sort((a, b) => order[a.group] - order[b.group] || b.current.length - a.current.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
-  const groups = [['building', 'Building'], ['reviewing', 'Reviewing'], ['between items', 'Between items'], ['quiet', 'Quiet for 20 min or more']]
+  const groups = [['building', 'Building'], ['reviewing', 'Reviewing'], ['between items', 'Idle'], ['quiet', 'Quiet for 20 min or more']]
     .map(([key, label]) => ({ key, label, agents: agents.filter(agent => agent.group === key) }));
   /** How many agents a group holds. */
   const count = key => groups.find(group => group.key === key).agents.length;
@@ -65,7 +65,7 @@ export function agentFloorModel(model, history) {
     landedMarks: landed.filter(entry => entry.at > start).map(entry => entry.at),
     queues: [
       { key: 'review', label: 'In review', rows: inReview, late: hour },
-      { key: 'landing', label: 'Accepted, waiting to land', rows: model.landing.map(item => ({ item, at: model.last(item, 'accept') })), late: hour },
+      { key: 'landing', label: 'Accepted, to land', rows: model.landing.map(item => ({ item, at: model.last(item, 'accept') })), late: hour },
       { key: 'ready', label: 'Ready, nobody building', rows: model.next.map(item => ({ item, at: readySince.get(item.id) ?? (Date.parse(item.updatedAt) || now) })), late: null },
       { key: 'landed', label: 'Landed · 24 h', rows: landed.map(entry => ({ item: entry.item, at: entry.at })), late: null },
     ],

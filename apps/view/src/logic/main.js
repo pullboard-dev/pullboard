@@ -185,7 +185,7 @@ ${summaryHtml(spec, by)}
 <input type="radio" name="tab" id="t-spec" checked><input type="radio" name="tab" id="t-questions"><input type="radio" name="tab" id="t-signoff"><input type="radio" name="tab" id="t-practice">
 <nav><label for="t-spec">Spec</label><label for="t-questions">Open questions (${pending.length})</label><label for="t-signoff">Sign-off</label><label for="t-practice">Doctrine</label></nav>
 <section class="panel" id="p-spec">${search}${sectionsHtml(spec, by, true)}</section>
-<section class="panel" id="p-questions">${pending.length ? tableHtml('Waiting on the person', pending, by, false) : '<p class="empty">No open questions.</p>'}</section>
+<section class="panel" id="p-questions">${pending.length ? tableHtml('Rulings', pending, by, false) : '<p class="empty">No open questions.</p>'}</section>
 <section class="panel" id="p-signoff">${search}${approved.length ? tableHtml('Approved rows, unsigned first', bySignoff, by, true) : '<p class="empty">No approved rows yet.</p>'}</section>
 <section class="panel" id="p-practice">${search}${practicePanel}</section>
 </div>

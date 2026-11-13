@@ -66,7 +66,7 @@ test('Spec keeps state, tier, gate evidence and person decisions distinct in rea
     assert.equal(anatomy.missingRed, true);
     assert.equal(anatomy.headingSize, '13.5px');
     assert.equal(anatomy.sections, 2);
-    assert.match(anatomy.choice, /Needs your decision3/u);
+    assert.match(anatomy.choice, /Rulings3/u);
     assert.equal(anatomy.title, '2 drafts · 1 approved in Git');
     assert.equal(anatomy.sideTitle, anatomy.title);
     assert.match(anatomy.sideCount, /3/u);
