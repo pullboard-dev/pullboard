@@ -20,6 +20,7 @@ import {
 import { pathToFileURL } from 'node:url';
 import { takeResource } from '../../../../../../packages/resources/index.js';
 import { runFixtureChildAsync } from '../../child.js';
+import { waitForState } from '../../check-baseline.js';
 
 /** Run one real paired-rerun case; the caller supplies the pinned tooling and round-trip harness. */
 export async function runPairedRerun(t, mode, { createE2eHelpers, cli, observe, startToolingCli,
@@ -91,8 +92,10 @@ test('remote flaky case [C7]', () => { const n = existsSync(${JSON.stringify(run
       const ceiling = Math.round(roundTripBudgetMs * loadScale) + 12_000; // existing held-phase setup/drain allowance across all phases.
       assert.ok(elapsedMs < ceiling, `the complete held round trip is stopped in ${elapsedMs} ms, under ${ceiling} ms`);
       t.diagnostic(`held result-return phase: ${failure.message}`);
-      assert.deepEqual(phaseCounts(requests + '.phases'), { dispatched: 1, returned: 1 },
-        'the worker completed and returned before the stand-in held the result receipt');
+      // A loaded controller may re-dispatch while the receipt is held; every dispatch it made still returned its result.
+      const heldCounts = phaseCounts(requests + '.phases');
+      assert.ok(heldCounts.dispatched >= 1 && heldCounts.returned === heldCounts.dispatched,
+        `the worker completed and returned before the stand-in held the result receipt: ${JSON.stringify(heldCounts)}`);
       assert.deepEqual(processesUnder(box.dir), [], 'nothing from the held result-return phase keeps running');
       return { held: true };
     }
@@ -102,6 +105,8 @@ test('remote flaky case [C7]', () => { const n = existsSync(${JSON.stringify(run
     const [observation] = readdirSync(evidence).map(id => JSON.parse(readFileSync(join(evidence, id, 'observation.json'), 'utf8')));
     t.diagnostic('paired runner observation: ' + JSON.stringify({ classification: observation.classification, reason: observation.reason, paired: observation.paired }));
     const pairedCalls = mode === 'no-load' ? 1 : 2;
+    // The stand-in appends its returned marker as it exits, which a loaded host can delay past the gate's own exit.
+    await waitForState(() => phaseCounts(requests + '.phases').returned >= pairedCalls, 'the stand-in appends its returned marker for every paired call');
     assert.deepEqual(phaseCounts(requests + '.phases'), { dispatched: pairedCalls, returned: pairedCalls },
       'the red check and required paired rerun each complete their runner round trip');
     assert.equal(observation.main, box.git(repo, 'rev-parse', 'HEAD'), 'the pinned main is recorded');
