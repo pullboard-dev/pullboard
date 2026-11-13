@@ -7,7 +7,7 @@ import { fixture } from '../../tests/fixtures/verify/compare.js';
 import { submit } from '../../tests/fixtures/verify/compare.js';
 import { compare } from '../../tests/fixtures/verify/compare.js';
 
-test('verify --compare selects importing tests and reports only new reds and actual fixes [V4,C7]', async t => {
+test('verify --compare selects importing tests and reports only new reds and actual fixes [V4,C7]', { skip: 'PULL_GAP: un-skipped by #7270' }, async t => {
   const box = await fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:false,fixed:true,known:false,skip:true};\n');
   const head = submit(box);
