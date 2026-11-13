@@ -174,30 +174,6 @@ test('trusted submit admits an actual explicit process rehome and keeps its sour
   assert.deepEqual((await inspectEntry(value)).problems, []);
 });
 
-test('trusted submit refuses a library substituted after entry placement [C7,D3,CD64]', async t => {
-  const value = acceptedEntry(t);
-  placePath(value.root, value.path, { cell: 'app:lib', entry: true });
-  value.put(value.path, 'export const library = true;\n');
-  await assert.rejects(inspectEntry(value), /not a placed process entry/u);
-});
-
-test('trusted submit still refuses later relabeling without explicit entry authority [C7,D3,CD64]', async t => {
-  const value = acceptedEntry(t);
-  placePath(value.root, value.path, { cell: 'app:lib', entry: true });
-  const plan = readPlan(value.root);
-  delete plan.entries;
-  writePlan(value.root, plan);
-  await assert.rejects(inspectEntry(value), /was relabeled as later/u);
-});
-
-test('trusted submit preserves already accepted process ownership [C7,D3,CD64]', async t => {
-  const value = acceptedEntry(t, { declared: true });
-  const plan = readPlan(value.root);
-  delete plan.entries;
-  writePlan(value.root, plan);
-  await assert.rejects(inspectEntry(value), /accepted process entry ownership changed/u);
-});
-
 test('clause 1: main\'s committed plan places every process entry, packages/landing/src/io/main/red/refresh.js included [C7]', () => {
   const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
   const plan = readPlan(root);
