@@ -149,7 +149,7 @@ function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
   const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all',
-    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && !readOnly });
+    shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], writable: !snapshot && (!readOnly || requests) });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
   if (focused) slot.querySelector('[data-page-ctl="' + focused + '"]')?.focus({ preventScroll: true });
