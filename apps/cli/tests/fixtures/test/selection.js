@@ -8,7 +8,6 @@ import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
 import { writeTestTiers } from '../../../../../packages/gate/index.js';
 import { joinFixtureSeat } from '../testkit.js';
-import { fixtureMachineSettings } from '../testkit.js';
 
 /** Demand a real successful private CLI document. */
 export function json(box, root, ...args) {
@@ -35,7 +34,6 @@ export function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node --test --test-reporter=tap');
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } }); // This journey reads a gate settled in the submit's own process (#6249).
   delete box.env.NODE_TEST_CONTEXT; // Each private Node test runner is independent of this parent test.
   const config = { ...helpers.CONFIG, gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap',
     submitGate: 'landing', submitInvariants: [], registryGuards: [], landing: { perItem: false, manualOverride: true, publish: 'separate', parallel: false },
