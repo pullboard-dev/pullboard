@@ -44,5 +44,6 @@ test('land stops again with an expired waiver, and a changed test on main releas
   assert.deepEqual(landed.landed, [entry.item]);
   assert.notEqual(landed.batch.id, held.batch.id);
   assert.equal(landed.batch.proof.failures.length, 0);
-  assert.deepEqual(calls(box).slice(regated), [[]], 'corrected test is gated afresh');
+  // landing.publish now defaults to the full suite, so the batch gate and the publish gate each run once [C7].
+  assert.deepEqual(calls(box).slice(regated), [[], []], 'corrected test is gated afresh by the batch gate and the publish gate');
 });
