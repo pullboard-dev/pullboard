@@ -6,7 +6,6 @@ import { assertReceipts } from '../../../../packages/git/tests/fixtures/flakes.j
 import { privateBuilder } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { commitCandidate } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
-import '../../tests/fixtures/cases/quarantine.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { commitFixtureFiles } from '../../tests/fixtures/copy.js';
 import assert from 'node:assert/strict';
