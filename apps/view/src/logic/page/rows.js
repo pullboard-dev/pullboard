@@ -14,6 +14,12 @@
  * @returns {{ nodes: Map<string, { html: string, node: object }>, drawn: { scope: string, html: string } }} What to pass next time.
  */
 export function patchKeyedRows({ host, doc, nodes, drawn, html, rows, scope }) {
+  // A document that cannot parse markup into nodes (a bare test page) draws the cards whole, rows in their slots.
+  if (!doc.createElement('template').content) {
+    const text = (value) => value.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    host.innerHTML = html.replace(/<li data-slot="([^"]*)"><\/li>/g, (slot, key) => rows.get(text(key)) ?? '');
+    return { nodes: new Map(), drawn: null };
+  }
   const same = drawn !== null && drawn.scope === scope;
   const known = same ? nodes : new Map();
   const fresh = [...rows].filter(([key, markup]) => known.get(key)?.html !== markup);
