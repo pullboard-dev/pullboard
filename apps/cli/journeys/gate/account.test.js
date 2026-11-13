@@ -13,6 +13,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { writeTestTiers } from '../../../../packages/gate/index.js';
 import { requireTestTierAccount } from '../../../../packages/gate/index.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 
 /** Commit real fixture source through its ordinary installed hooks. */
@@ -62,7 +63,7 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const builtInput = join(box.web, 'packages/alpha/index.js');
   writeFileSync(builtInput, readFileSync(builtInput, 'utf8').replace('value = 1', 'value = 2'));
   const head = commit(box, box.web, 'feat(web): satisfy both unit files [G1]');
-  const submitted = await json(box, box.web, 'submit', String(id), '--wait', '--no-next');
+  const submitted = await settleSubmit(t, box, await json(box, box.web, 'submit', String(id), '--no-next'));
   assert.equal(submitted.gate.green, true);
   assert.deepEqual(submitted.gate.files, files);
   const account = JSON.parse(readFileSync(submitted.gate.profilePath, 'utf8'));
