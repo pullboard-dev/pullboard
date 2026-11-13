@@ -44,7 +44,6 @@
     "apps/cli/journeys/check/accept.test.js": "drives the real CLI (init, add, claim, submit, verify accept) in a fresh repo and checks the guard-revert refusal, its exit code and output end to end",
     "apps/cli/journeys/resume/coordinator.test.js": "drives the real CLI (resume, diagnostics) against stale coordinator checkouts and checks its output, exit codes and board rows end to end",
     "apps/cli/journeys/handoff/checkout.test.js": "drives the real hand-off worker entry with the e2e helpers on a real checkout and checks the warm-checkout reuse and its board rows end to end",
-    "apps/cli/journeys/submit/handoff/worker.test.js": "drives the real submit hand-off worker and CLI with the e2e helpers and checks the gate it records, its refusals and exit codes end to end",
     "apps/cli/journeys/add/lanes.test.js": "drives the real CLI (init, add, show, list) in a fresh repo and checks which lanes take which items, its refusals and exit codes end to end",
     "apps/cli/journeys/agents/session.test.js": "drives the real CLI (claim, shout, takeover, whoami, agents) from several checkout sessions and checks session ownership, refusals and takeover end to end",
     "apps/cli/journeys/spec/changes.test.js": "drives the real CLI in signed repositories and checks approved-row edit refusals, staged receipts and exit codes end to end",

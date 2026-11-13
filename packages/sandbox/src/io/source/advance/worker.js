@@ -34,6 +34,9 @@ import {
   codeIsFromMain,
 } from '../../../../../git/index.js';
 import {
+  codeUsesRepository,
+} from '../../../../../git/index.js';
+import {
   gitChildEnv,
 } from '../../../../../git/index.js';
 import {
@@ -230,7 +233,8 @@ async function advance(root, directory, job, write, services) {
 /** Drain each wake generation once; no timer daemon, time stealing or parallel gate runs are introduced. */
 export async function runSourceAdvances(root, token, services) {
   const info = repoInfo(root);
-  if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  // The nudge's own rule: a worktree of this repository's own code is never main's code; a runner job's work folder belongs to another repository.
+  if (!info.isMain || !(codeIsFromMain() || !codeUsesRepository(info.commonDir)) || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
   if (typeof services?.openBoardForRead !== 'function') throw new TypeError('source advance requires its actual native read opener');
   if (typeof services?.selectors?.selectAffectedTests !== 'function' || typeof services?.selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance worker needs explicit test selector operations');
   const selectors = Object.freeze({ selectAffectedTests: services.selectors.selectAffectedTests, selectTestTreeGuards: services.selectors.selectTestTreeGuards });

@@ -76,10 +76,10 @@ export function flakeSource(root, { commit, main, privateCheck = false } = {}) {
 /** Use only a known structured Node runner; arbitrary shell, Jest and Vitest commands are never replaced. */
 function nodePrefix(command, config, root, pin) {
   const executable = '(?:node|/[^\\s\'";|&`$]+/node)';
-  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:packages/gate|apps/cli)/src/io/run/tests\\.js)(?:\\s|$)', 'u');
+  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:[A-Za-z0-9_-]+/)+src/io/run/tests\\.js)(?:\\s|$)', 'u');
   const builtin = new RegExp('^(' + executable + ')\\s+--test(?:\\s|$)', 'u');
   const match = own.exec(command);
-  if (match) return knownRunner(root, pin) ? match[1] + ' ' + match[2] : null;
+  if (match) return knownRunner(root, pin, match[2]) ? match[1] + ' ' + match[2] : null;
   const native = builtin.exec(command);
   if (native) {
     const rest = command.slice(native[0].length);
@@ -88,18 +88,23 @@ function nodePrefix(command, config, root, pin) {
   }
   if (new RegExp('^' + executable + '\\s', 'u').test(command)) return null;
   const configured = typeof config.affectedTests === 'string' ? own.exec(config.affectedTests) : null;
-  return configured && knownRunner(root, pin) && config.affectedTests.trim() === configured[1] + ' ' + configured[2]
+  return configured && knownRunner(root, pin, configured[2]) && config.affectedTests.trim() === configured[1] + ' ' + configured[2]
     ? config.affectedTests.trim() : null;
 }
 
-/** Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo. */
-function knownRunner(root, pin) {
+/**
+ * Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo: the command's
+ * own runner file, named relative to the repo, must match this tool's shipped copy of it at the candidate and at main.
+ * Why by command: the runner entry moves between packages and apps, so this package names none and keeps no list.
+ */
+function knownRunner(root, pin, runner) {
+  const file = runner.replace(/^\.\//u, '');
   try {
-    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../../apps/cli/src/io/run/tests.js", import.meta.url))]);
+    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL('../../../../' + file, import.meta.url))]);
     if (bundled.status !== 0) return false;
     return [...new Set([pin.head, pin.main].filter(Boolean))].every(commit => {
-      if (!committedTest(root, commit, 'apps/cli/src/io/run/tests.js')) return false;
-      const source = tryGit(root, ['rev-parse', '--verify', commit + ':apps/cli/src/io/run/tests.js']);
+      if (!committedTest(root, commit, file)) return false;
+      const source = tryGit(root, ['rev-parse', '--verify', commit + ':' + file]);
       return source.status === 0 && source.stdout === bundled.stdout;
     });
   } catch { return false; }
