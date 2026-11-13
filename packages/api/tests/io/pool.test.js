@@ -140,7 +140,8 @@ test('clause 3 [A2,C7]: a request-thread stall over 500 ms is recorded as an api
   stall = true;
   const answered = await call(api, `/api/v1/boards/${id}/events?limit=1`);
   await answered.arrayBuffer();
-  assert.equal((await stored).recorded, 1, 'the stall is recorded on the one board its route names');
+  const result = await stored;
+  assert.equal(result.recorded, 1, `the stall is recorded on the one board its route names: ${JSON.stringify(result)}`);
   const board = openBoardForRead(project.boardFile);
   let row;
   try { row = board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'api_stall' ORDER BY event_id DESC LIMIT 1").get(); } finally { closeCellBoard(board); }

@@ -24,6 +24,7 @@ export function poolHandlers(ports, { isMain }) {
      */
     stall({ projects, by, board = null, route, lagMs }) {
       let recorded = 0;
+      const failed = [];
       for (const project of projects) {
         try {
           withBoard(project.root, (current) => {
@@ -31,9 +32,9 @@ export function poolHandlers(ports, { isMain }) {
             store.logEvent(current, by, 'api_stall', null, { route: String(route).slice(0, ROUTE_CHARS), lagMs: Math.round(lagMs) });
             recorded++;
           }, isMain, boardOpeners);
-        } catch { /* An unreadable board misses this record; the others still get it. */ }
+        } catch (error) { failed.push(`${project.root}: ${error?.message ?? error}`); } // An unreadable board misses this record; the others still get it.
       }
-      return { recorded };
+      return { recorded, failed };
     },
   };
 }
