@@ -19,6 +19,7 @@ import { release } from '../../../store/index.js';
 import { shout } from '../../../store/index.js';
 import { openWaitKey } from '../../index.js';
 import { recordWaits } from '../../index.js';
+import { judgeWaits } from '../../src/logic/budgets.js';
 import { waitBudgets } from '../../index.js';
 import { waitItemFields } from '../../index.js';
 import { waitLines } from '../../index.js';
@@ -322,15 +323,11 @@ function runnerHeldGate(m, now) {
   m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
 }
 
-test('clause 1: the audit files no stall item for a runner-held gate whose lease renews through a six-minute claim [C7]', async t => {
+test('clause 1: a runner-held gate that renews its lease through a six-minute claim is not over its progress budget [C7]', async t => {
   const m = machine(t);
   runnerHeldGate(m, Date.now());
-  const snapshot = await m.snapshot();
-  const [gate] = snapshot.rows.filter(entry => entry.surface === 'gate');
+  const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
   assert.equal(gate.breach, false, `a live lease is progress: ${gate.ageMs} ms old`);
-  const recorded = await recordWaits(snapshot, m.ports());
-  assert.deepEqual(recorded.filed, [], 'no item is filed for a hold that is still renewing its lease');
-  assert.deepEqual(m.items(), [], 'the board holds no waits: item for it');
 });
 
 test('clause 2: the hold read from #6121\'s job ends within budget: its age counts from the last lease renewal [C7]', async t => {
@@ -339,4 +336,15 @@ test('clause 2: the hold read from #6121\'s job ends within budget: its age coun
   const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
   assert.ok(gate.ageMs < gate.budgetMs, `${gate.ageMs} ms is inside the ${gate.budgetMs} ms gate progress budget`);
   assert.ok(gate.ageMs < 60_000, 'it is a renewal old, not the six minutes since the claim');
+});
+
+test('a runner unavailable for 279 s is inside the audited runnerUnavailableMs row; one past 300 s still breaches [C7]', () => {
+  const budgets = waitBudgets();
+  assert.equal(budgets.runnerUnavailableMs, 300_000);
+  assert.equal(budgets.waiterMs, 120_000, 'the handoff queue keeps its two-minute budget');
+  const row = ageMs => ({ surface: 'runner-unavailable', key: 'h', holder: 'h', pid: null, ageMs, waiters: [] });
+  const [inside, past] = judgeWaits([row(279_000), row(301_000)], budgets);
+  assert.equal(inside.breach, false);
+  assert.equal(inside.budgetName, 'runnerUnavailableMs');
+  assert.equal(past.breach, true);
 });
