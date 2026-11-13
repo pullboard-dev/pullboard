@@ -9,13 +9,18 @@ import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { appendFileSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
 import { createWriteStream } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { availableParallelism } from 'node:os';
@@ -32,8 +37,6 @@ import { watchProgress } from './progress.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
-import { checkoutCandidate } from '../../../pin/index.js';
-export { checkoutCandidate };
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -52,6 +55,11 @@ const CEILING_MS = 3_600_000;
 const REAP_MS = 2_000;
 // Budget: one concurrent job per 3 cores, so a ten-core runner serves 3 jobs and leaves room for each job's own workers.
 const CORES_PER_JOB = 3;
+// Budget: 32 fetched-commit refs give a fetch recent haves; one ref file each.
+const FETCHED_REFS = 32;
+/** The release tags every store refresh fetches, which proofs that unpack an old release read. */
+const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
+const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 /** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 // Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
@@ -119,6 +127,69 @@ async function queueCall(endpoint, body, fetchImpl, timeoutMs = 15_000) {
 }
 
 /**
+ * The Git launches a pull serve is handed by its app: run starts one git command (input text or a stream) and fetchTrunk
+ * takes trunk refs into the object cache. Why injected: apps own the git I/O and the runner's one fetch home, so the
+ * drive cell imports no git [C7].
+ * @typedef {{ run: (cwd: string, args: string[], input?: string | import('node:stream').Readable | null) => Promise<{ status: number, stdout: string, stderr: string }>,
+ *   fetchTrunk: (store: string, trunk: string, refs: string[]) => Promise<{ status: number, stdout: string, stderr: string }> }} PullGit
+ */
+
+/** Open the runner's bare object cache, creating it on first use; null with git's words when it cannot. */
+async function objectStore(git, cache) {
+  const store = join(cache, 'git');
+  if (!existsSync(join(store, 'HEAD'))) {
+    mkdirSync(store, { recursive: true });
+    const init = await git.run(store, ['init', '-q', '--bare']);
+    if (init.status !== 0) return { store: null, reason: init.stderr };
+  }
+  return { store, reason: null };
+}
+
+/**
+ * Make one commit present in the runner's object cache, fetching it from the trunk remote when missing.
+ * Why a fetch by id first: protocol v2 serves any reachable commit, so a runner takes only what the job names; a
+ * remote that refuses that falls back to fetching its branches.
+ *
+ * @returns {Promise<string | null>} null once the commit is present, else why it is not.
+ */
+async function fetchCommit(git, store, trunk, commit, pack = null) {
+  if (!SHA.test(String(commit ?? ''))) return `the job names no commit (${commit})`;
+  if ((await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) return null;
+  if (typeof trunk !== 'string' || !trunk) return 'the board named no trunk remote';
+  // A cold store takes the trunk's shared cached pack first, so N runners on one commit cost one pack-objects (#5932);
+  // the fetch below then has the commit as a have and only adds release tags.
+  if (pack && (await git.run(store, ['for-each-ref', '--count=1', 'refs/pullboard/fetched/', 'refs/remotes/trunk/'])).stdout === '') await fromPack(git, store, commit, pack);
+  // The fetched commit keeps a ref, so the next fetch offers it as a have and takes only new objects. A store with no
+  // refs offered none, and every job pulled trunk's whole history, 200k objects and 4-5 minutes per claim (#5805).
+  // Release tags ride the same fetch, so a store refresh costs no extra round trip: proofs that unpack an old release
+  // (git archive v0.8.6) found no tag on a pull runner, since --no-tags fetched none.
+  const byId = await git.fetchTrunk(store, trunk, [`+${commit}:refs/pullboard/fetched/${commit}`, RELEASE_TAGS]);
+  if (byId.status !== 0) {
+    const heads = await git.fetchTrunk(store, trunk, ['+refs/heads/*:refs/remotes/trunk/*', RELEASE_TAGS]);
+    if (heads.status !== 0) return heads.stderr || byId.stderr;
+  }
+  await pruneFetched(git, store);
+  return (await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0 ? null : `trunk remote has no commit ${commit}`;
+}
+
+/**
+ * Index the cached trunk pack for one commit into the store and keep a ref to it. Any failure leaves the store as it
+ * was, and the caller's git fetch takes the commit instead.
+ * @param {string} store The runner's bare object cache.
+ * @param {string} commit The trunk commit.
+ * @param {(commit: string) => Promise<{ file: string } | null>} pack Where the pack comes from.
+ * @returns {Promise<boolean>} Whether the commit came from the pack.
+ */
+async function fromPack(git, store, commit, pack) {
+  try {
+    const got = await pack(commit);
+    if (!got?.file) return false;
+    if ((await git.run(store, ['index-pack', '--stdin', '-q'], createReadStream(got.file))).status !== 0) return false;
+    return (await git.run(store, ['update-ref', `refs/pullboard/fetched/${commit}`, commit])).status === 0;
+  } catch { return false; }
+}
+
+/**
  * The board's cached trunk pack for one commit, downloaded into dir; null when the board serves none.
  * Why the board: one cached pack per trunk commit is built once on the coordinator and served to every runner, where
  * a git fetch each ran its own pack-objects, 24 at once, load 190 (#5932).
@@ -139,6 +210,143 @@ export function boardTrunkPack(endpoint, fetchImpl, dir) {
     await pipeline(Readable.fromWeb(response.body), createWriteStream(file));
     return { file };
   };
+}
+
+/**
+ * Point the primary's release tags where the store's are, so a job's checkout resolves `v0.8.6` as a clone does.
+ * Why a copy: the primary borrows the store's objects through alternates, but refs are never shared that way.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function shareTags(git, store, primary) {
+  const listed = await git.run(store, ['for-each-ref', '--format=update %(refname) %(objectname)', 'refs/tags/v*']);
+  if (listed.status !== 0) return false;
+  if (!listed.stdout) return true;
+  return (await git.run(primary, ['update-ref', '--stdin'], `${listed.stdout}\n`)).status === 0;
+}
+
+/** Keep the newest fetched-commit refs only: enough haves to negotiate small fetches, without a ref per job ever run. */
+async function pruneFetched(git, store, keep = FETCHED_REFS) {
+  const listed = await git.run(store, ['for-each-ref', '--sort=-committerdate', '--format=%(refname)', 'refs/pullboard/fetched/']);
+  const old = listed.status === 0 ? listed.stdout.split('\n').filter(Boolean).slice(keep) : [];
+  for (const ref of old) await git.run(store, ['update-ref', '-d', ref]);
+}
+
+/**
+ * Fetch one commit from the trunk remote into the runner's cache and check it out in the named folder. Every commit in
+ * `also` is fetched into the same cache, so a job that reads another commit's objects (a gate archives accepted main
+ * from its checkout's own objects) finds them there.
+ * Why a primary: the folder is a linked worktree of a primary checkout whose main branch is the job's main, borrowing
+ * the cache's objects, as an item folder is of the coordinator checkout. A worktree of the bare cache had no main
+ * branch and a primary that is not a work tree, so every pulled proof refused NOT_A_REPO (#5781).
+ * Why reuse: a folder left by an earlier job under the same name is reset to the commit and cleaned of every untracked
+ * and ignored file instead of being rebuilt, since preparing a fresh one cost 14 s per job (#5812) [P7].
+ *
+ * @param {string} cache
+ * @param {string} trunk
+ * @param {string} commit
+ * @param {string} name
+ * @param {string[]} [also]
+ * @param {{ main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
+ *   commit the primary's main branch names; default none. pack: a shared trunk pack a cold store takes before fetching.
+ *   git: the Git launches the caller hands in, since drive launches no git of its own [C7].
+ * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
+ */
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null } = {}) {
+  if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
+  if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
+  if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
+  if (main !== null && !SHA.test(String(main))) return { ok: false, reason: `the job names no main commit (${main})` };
+  const phases = { fetchMs: 0, checkoutMs: 0 };
+  let mark = performance.now();
+  /** Charge the time since the last mark to one phase. */
+  const lap = phase => { const now = performance.now(); phases[phase] += Math.round(now - mark); mark = now; };
+  let store = join(cache, 'git');
+  if (!existsSync(join(store, 'HEAD'))) {
+    const made = await exclusive(() => objectStore(git, cache));
+    if (!made.store) return { ok: false, reason: made.reason };
+    store = made.store;
+  }
+  // Presence is a read, so every slot checks its commits at once; only a missing commit waits for the one fetch at a time.
+  const wanted = [...new Set([commit, ...also, ...(main ? [main] : [])])];
+  const present = await Promise.all(wanted.map(async one => SHA.test(String(one ?? '')) && (await git.run(store, ['cat-file', '-e', `${one}^{commit}`])).status === 0));
+  const absent = wanted.filter((_, index) => !present[index]);
+  if (absent.length) {
+    const missing = await exclusive(async () => {
+      for (const one of absent) { const reason = await fetchCommit(git, store, trunk, one, pack); if (reason) return reason; }
+      return null;
+    });
+    if (missing) return { ok: false, reason: missing };
+  }
+  lap('fetchMs');
+  const folder = join(cache, 'work', name), primary = join(cache, 'main', name);
+  if (await resetCheckout(git, { folder, primary }, commit, main)) {
+    const tagged = await shareTags(git, store, primary);
+    lap('checkoutMs');
+    return tagged ? { ok: true, folder, primary, reused: true, phases } : { ok: false, reason: 'could not copy release tags into the checkout' };
+  }
+  await dropCheckout(git, cache, { folder, primary }, exclusive);
+  mkdirSync(primary, { recursive: true });
+  for (const args of [['init', '-q'], ['symbolic-ref', 'HEAD', 'refs/heads/main'], ['config', 'gc.auto', '0']]) {
+    const step = await git.run(primary, args);
+    if (step.status !== 0) return { ok: false, reason: step.stderr };
+  }
+  writeFileSync(join(primary, '.git', 'objects', 'info', 'alternates'), `${join(store, 'objects')}\n`);
+  if (!(await pinMain(git, primary, main))) return { ok: false, reason: `could not point main at ${main}` };
+  if (!(await shareTags(git, store, primary))) return { ok: false, reason: 'could not copy release tags into the checkout' };
+  const added = await git.run(primary, ['worktree', 'add', '-q', '--detach', folder, commit]);
+  lap('checkoutMs');
+  return added.status === 0 ? { ok: true, folder, primary, reused: false, phases } : { ok: false, reason: added.stderr };
+}
+
+/**
+ * Point the primary's main branch at the job's main, or leave it unborn when the job names none, and name it the
+ * trunk in `pullboard.trunk` so a proof run in the folder finds its trunk whether the folder is fresh or reused.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function pinMain(git, primary, main) {
+  const pinned = main ? await git.run(primary, ['update-ref', 'refs/heads/main', main])
+    : await git.run(primary, ['update-ref', '-d', 'refs/heads/main']);
+  if (pinned.status !== 0) return false;
+  return (await git.run(primary, ['config', '--local', '--replace-all', 'pullboard.trunk', 'refs/heads/main'])).status === 0;
+}
+
+/**
+ * Reuse an earlier job's folder for this commit: detach it at the commit, overwrite every tracked change, and delete
+ * every untracked and ignored file and nested repository, so nothing the earlier job wrote survives. False when there
+ * is no earlier folder or any step fails, and the caller builds a fresh one.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function resetCheckout(git, { folder, primary }, commit, main) {
+  if (!existsSync(join(primary, '.git')) || !existsSync(join(folder, '.git'))) return false;
+  if (!(await pinMain(git, primary, main))) return false;
+  // One forced checkout moves the index and every tracked file to the commit (it rewrites only what differs), so no
+  // separate hard reset walks the tree again; the clean then removes what the last job left, and one read of each
+  // proves the folder is exactly the commit's tree.
+  for (const args of [['checkout', '-q', '-f', '--detach', commit], ['clean', '-q', '-ffdx']]) {
+    if ((await git.run(folder, args)).status !== 0) return false;
+  }
+  const [head, status] = await Promise.all([git.run(folder, ['rev-parse', 'HEAD']), git.run(folder, ['status', '--porcelain=v1', '--untracked-files=all'])]);
+  return head.status === 0 && head.stdout.trim() === commit && status.status === 0 && status.stdout === '';
+}
+
+/**
+ * Move a job's checkout and its primary out of the cache and delete them in the background; a cache from before
+ * primaries also prunes the store's worktrees.
+ * Why a move: a primary carries its test-action cache, tens of thousands of files, and a synchronous delete held the
+ * whole serve (every slot's lease renewal too) for the length of that walk.
+ */
+async function dropCheckout(git, cache, { folder, primary }, exclusive = work => work()) {
+  const trash = join(cache, 'trash');
+  for (const path of [folder, primary]) {
+    if (!path || !existsSync(path)) continue;
+    const gone = join(trash, `${randomBytes(6).toString('hex')}`);
+    try { mkdirSync(trash, { recursive: true }); renameSync(path, gone); rm(gone, { recursive: true, force: true, maxRetries: 3 }).catch(() => {}); }
+    catch { rmSync(path, { recursive: true, force: true }); }
+  }
+  await exclusive(() => git.run(join(cache, 'git'), ['worktree', 'prune']));
 }
 
 /** What a runner operator may hand every job beyond the runner-owned values: progress reporting and fixture markers. */
@@ -374,11 +582,12 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  *   slot's own folder, the serve's cache for slot 0.
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {PullGit} [options.git] - The Git launches checkouts use; without it every claimed job is released.
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
@@ -448,7 +657,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
    * Why a slot: concurrent jobs each own a checkout and, for handled kinds, a working folder, so no two share files.
    */
   const runClaim = async (claim, trunk, slot) => {
-    const held = { job: claim.job, runner: id, token: claim.token };
+    const held = { job: claim.job, runner: id, token: claim.token }, claimedAt = Date.now();
     say(`claimed ${claim.job} (attempt ${claim.attempt}) at ${claim.candidate} in slot ${slot}`);
     if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) };
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
@@ -469,13 +678,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     };
     timer = setTimeout(renewOnce, renewMs);
     const renewer = { stop: () => { ended = true; clearTimeout(timer); } };
-    try { return await runHeld(claim, trunk, slot, held, () => lost, stop => { onLost = stop; }); }
+    try { return await runHeld(claim, trunk, slot, held, () => lost, stop => { onLost = stop; }, claimedAt); }
     finally { renewer.stop(); }
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
-  const runHeld = async (claim, trunk, slot, held, isLost, whenLost) => {
+  const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now()) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
     let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null;
+    const requestStart = Date.now();
     if (!run.length) {
       let asked;
       try { asked = await reliably({ action: 'request', ...held }); }
@@ -488,11 +698,12 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
       }
     }
+    const requestMs = Date.now() - requestStart;
     // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
     const gate = input !== null;
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
-    // Each slot reuses its own folder: concurrent jobs never share one, and the shared object store fetches one at a time.
-    const checkout = await serially(() => checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack }));
+    // Each slot reuses its own folder: concurrent jobs never share one, and only the shared object store's writes take turns.
+    const checkout = await checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git });
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       const reason = checkout.ok ? 'the job names nothing to run' : checkout.reason; say(`releasing ${claim.job}: ${reason}`);
@@ -501,6 +712,10 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
     if (isLost()) { say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
     const started = Date.now();
+    // Claim-to-command, in phases the receipt carries: the board's request, the commit fetch (waiting its turn included),
+    // the checkout, and whether the slot's warm folder was reused.
+    const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
+      reused: checkout.reused, totalMs: started - claimedAt };
     liveEnvironments.add(name);
     const job = jobEnvironment(cache, name, claim.job), tag = randomBytes(8).toString('hex');
     // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
@@ -537,7 +752,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); return { job: claim.job, outcome: 'lost' }; }
     const receipt = { ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
-        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), ...(kept ? { output: { runner: id, folder: kept } } : {}) };
+        outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
       await reliably({ action: 'receipt', ...held, receipt });
       say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}`);

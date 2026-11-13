@@ -136,21 +136,3 @@ export async function listTreeObjects(repo, tree) {
 export function packObjects(repo, ids) {
   return gitIn(repo, ['pack-objects', '--stdout', '-q'], 'TREE_SOURCE_PACK_FAILED', `${ids.join('\n')}\n`);
 }
-
-/** Start a git process for the runner's object cache; the pin cell's one door to the git adapter for streams. */
-export const spawnGit = gitSpawn;
-
-/** Run a git command in a directory, without blocking the lease renewals; resolve its status and text. */
-export function runGit(cwd, args, input = null) {
-  return new Promise(resolve => {
-    const child = gitSpawn(args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['pipe', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.setEncoding('utf8').on('data', part => { stdout = (stdout + part).slice(-16 * 1024 * 1024); });
-    child.stderr.setEncoding('utf8').on('data', part => { stderr = (stderr + part).slice(-16 * 1024 * 1024); });
-    child.once('error', error => resolve({ status: 1, stdout: stdout.trim(), stderr: error.message }));
-    child.once('close', status => resolve({ status: status ?? 1, stdout: stdout.trim(), stderr: stderr.trim() }));
-    child.stdin.on('error', () => {});
-    child.stdin.end(input ?? undefined);
-  });
-}
