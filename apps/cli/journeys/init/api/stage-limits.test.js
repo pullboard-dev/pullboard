@@ -20,7 +20,7 @@ async function stateOf(t, box, api) {
   return JSON.parse(await response.text()).state;
 }
 
-test('[A2] GET /state carries stageLimits read from the board settings, and a stage with no setting is absent [#6940]', async (t) => {
+test('[A2] clause 1 and clause 2: GET /state carries stageLimits read from the board settings, and a stage with no setting is absent [#6940]', async (t) => {
   const box = apiHttpFixture(t);
   const file = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
