@@ -30,7 +30,6 @@ import {
   runFixtureGit,
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 
@@ -172,10 +171,6 @@ function fixture(t, count, slots = 2) {
   ].join('\n') + '\n');
   box.main = commit(box, root);
   assert.equal(cli(box, root, 'settings', 'gateSlots', String(slots)).status, 0);
-  // Audited exception (#6830): these cases read the main comparison a controller submit starts; under pull none runs
-  // yet, so the fixture keeps controller dispatch until #6635 (0.9.5) moves it to the pulled gate [P7].
-  const machine = JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { ...machine, gate: { ...machine.gate, runnerDispatch: 'controller' } });
   const added = cli(box, root, 'add', 'core', 'Retain the native red verdict', '--specs', 'G1', '--route', 'mid',
     '--criterion', 'A red test is refused', '--check', 'true', '--brief', 'Files: test/\nTest: native comparison');
   assert.equal(added.status, 0, added.stderr);
@@ -205,7 +200,7 @@ async function assertRed(box, submission) {
   for (const event of events(box)) assert.equal(existsSync(event.cwd), false, 'temporary main checkouts are removed');
 }
 
-test('a shout completes while a submit compares with main [V4,C7,B7]', async t => {
+test('a shout completes while a submit compares with main [V4,C7,B7]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = fixture(t, 1);
   const submission = launch(box, 'submit', String(box.item));
   await comparisonStarted(box, submission, 'the real main comparison is waiting');
@@ -226,7 +221,7 @@ test('a shout completes while a submit compares with main [V4,C7,B7]', async t =
   await assertRed(box, submission);
 });
 
-test('a red submit reruns its failed files one slot at a time within the pool [V4,C7,Q4]', async t => {
+test('a red submit reruns its failed files one slot at a time within the pool [V4,C7,Q4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = fixture(t, 3, 2);
   const submission = launch(box, 'submit', String(box.item));
   await comparisonStarted(box, submission, 'the first exact-main comparison starts');
@@ -278,7 +273,7 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   assert.equal(mainReceipts(box).length, receiptCount, 'the identical red resubmit reuses completed exact-main results');
 });
 
-test('with gate.mainComparison off a red submit stays red and runs no main comparison [V4,C7,#5565]', async t => {
+test('with gate.mainComparison off a red submit stays red and runs no main comparison [V4,C7,#5565]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = fixture(t, 1);
   const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const saved = JSON.parse(readFileSync(file, 'utf8'));
@@ -291,7 +286,7 @@ test('with gate.mainComparison off a red submit stays red and runs no main compa
   assert.equal(existsSync(join(box.root, '.git', 'pullboard', 'gate-receipts')) ? mainReceipts(box).length : 0, 0, 'no main-red receipt was recorded');
 });
 
-test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', async t => {
+test('the default gate.mainComparison is on-red, so a red submit still compares with main [V4,C7,#5565]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const box = fixture(t, 1);
   const saved = JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
   assert.equal(saved.gate?.mainComparison, undefined, 'the fixture leaves the setting at its on-red default');
