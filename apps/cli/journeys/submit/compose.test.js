@@ -120,11 +120,14 @@ test('a view commit creating its own file and one plan row passes the hook and n
   const submitted = await settleSubmit(t, box, success(box, box.view, 'submit', String(box.id), '--wait'));
   if (submitted.gate?.green !== true) {
     const { ownsNewFile } = await import('../../../../packages/sandbox/src/io/trusted/policy.js');
-    const main = submitted.gate?.main, head = submitted.commit;
+    const main = box.git(box.repo, 'rev-parse', 'main'), head = submitted.commit;
     const probe = {
       head, main, viewHead: box.git(box.view, 'rev-parse', 'HEAD'),
       owns: (() => { try { return ownsNewFile(box.repo, { item_id: box.id }, head, main, box.file); } catch (error) { return String(error); } })(),
       adds: (() => { try { return box.git(box.repo, 'log', '--format=%H %P%n%B', '--diff-filter=A', head, '--not', main, '--', box.file); } catch (error) { return String(error); } })(),
+      body: (() => { try { return box.git(box.repo, 'log', '-1', '--format=%B', head); } catch (error) { return String(error); } })(),
+      inMain: (() => { try { return box.git(box.repo, 'ls-tree', main, '--', box.file); } catch (error) { return String(error); } })(),
+      lanes: (() => { try { return readFileSync(join(box.repo, 'pullboard.json'), 'utf8').slice(0, 1500); } catch (error) { return String(error); } })(),
       graph: (() => { try { return box.git(box.repo, 'log', '--format=%H %P %s', '-8', head); } catch (error) { return String(error); } })(),
     };
     assert.fail(JSON.stringify(probe) + '\n' + JSON.stringify(submitted.gate?.analysis ?? submitted).slice(0, 3000));
