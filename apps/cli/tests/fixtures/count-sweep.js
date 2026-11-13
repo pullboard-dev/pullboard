@@ -336,6 +336,11 @@ export async function liveMove(chrome, move, witness, phase) {
 }
 
 
+/** File one open web item on the sweep board through the fixture kit, so the add is a real CLI add. */
+export function addCountItem(box, repo, title, criterion, args = []) {
+  return fileFixtureItem(box, repo, { lane: 'web', title, criterion, check: null, args: ['--specs', 'G1', ...args], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
+}
+
 /**
  * Run one count journey against the shared fixture: a real board with every kind of row, a real view and an isolated Chrome,
  * with the count sweep installed in the page. The journey gets the board box, its project and the page.
@@ -347,7 +352,7 @@ export async function withCountSweep(journey) {
   const demo = project(box, 'count-sweep', SPEC + '\n- G3 [draft, must] A proposed footer. | gate: browser\n- G4 [pending] Choose the heading. | gate: review\n', { practice: 'DOCTRINE.md' });
   writeFileSync(join(demo.repo, 'DOCTRINE.md'), '# Doctrine\n\n## Local\n- R1 [approved, must] Count actual work. | gate: browser\n- R2 [draft, must] A proposed rule. | gate: browser\n');
   for (const title of ['Ready to land', 'Waiting for review', 'Ready to claim', 'Another ready item', 'Gated item']) {
-    fileFixtureItem(box, demo.repo, { lane: 'web', title, criterion: 'The page counts this native item.', check: null, args: ['--specs', 'G1', ...(title === 'Gated item' ? ['--after', '3'] : [])] });
+    addCountItem(box, demo.repo, title, 'The page counts this native item.', title === 'Gated item' ? ['--after', '3'] : []);
   }
   build(box, demo, 1, 'land.txt'); accept(box, demo, 1);
   build(box, demo, 2, 'review.txt');
