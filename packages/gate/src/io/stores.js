@@ -90,6 +90,18 @@ export function storeHomeCounts(sites, registry) {
 }
 
 /**
+ * The files outside a folder that write a store, sorted: the registry lists them as known violations that only shrink.
+ *
+ * @param {{ path: string, store: string, creates?: boolean }[]} sites
+ * @param {string} store
+ * @param {string} folder - Repo-relative folder the store belongs to, with a trailing slash.
+ * @returns {string[]}
+ */
+export function storeOutsideWriters(sites, store, folder) {
+  return [...new Set(sites.filter(site => site.store === store && !site.creates && !site.path.startsWith(folder)).map(site => site.path))].sort();
+}
+
+/**
  * The sites a change may not add: a store the registry lacks, or a store named outside its owner past the file's
  * ceiling, unless a held exception covers that file and store. Each problem names the next step.
  *

@@ -9,7 +9,46 @@
     "jsconfig.json"
   ],
   "pinned": {
-    "board.sqlite": "packages/store/src/io/board/sqlite.js"
+    "board.sqlite": "packages/store/src/io/board/sqlite.js",
+    "table:board_meta": "packages/store/src/io/board/meta.js"
+  },
+  "outsideWriters": {
+    "table:board_meta": [
+      "packages/health/src/io/claim/sweep.js",
+      "packages/items/src/io/declaration.js",
+      "packages/items/src/io/offer.js",
+      "packages/items/src/io/patches.js",
+      "packages/items/src/io/rehome.js",
+      "packages/items/src/logic/check/timing.js",
+      "packages/items/src/logic/decision/queue.js",
+      "packages/items/src/logic/outside/source.js",
+      "packages/landing/src/io/worker.js",
+      "packages/link/src/io/relay/requests.js",
+      "packages/person/src/io/signing.js",
+      "packages/rigor/src/io/counters.js",
+      "packages/roadmap/src/logic/milestones.js",
+      "packages/sandbox/src/io/source/advance.js",
+      "packages/seats/src/io/hold.js",
+      "packages/seats/src/io/main.js",
+      "packages/seats/src/io/projects.js",
+      "packages/seats/src/logic/lane/lead/policy.js",
+      "packages/seats/src/logic/line/settings.js",
+      "packages/spec/src/io/revisions.js",
+      "packages/spec/src/io/verdicts.js",
+      "packages/spec/src/logic/row/draft.js",
+      "packages/state/src/io/engine.js",
+      "packages/state/src/logic/policy.js",
+      "packages/stats/src/io/cost.js",
+      "packages/stats/src/io/cost/shared.js",
+      "packages/sync/src/io/main.js",
+      "packages/verify/src/io/bar/readiness.js",
+      "packages/verify/src/io/machine.js",
+      "packages/verify/src/io/proof/counters.js",
+      "packages/verify/src/io/review/default.js",
+      "packages/verify/src/io/review/independence.js",
+      "packages/verify/src/logic/required.js",
+      "packages/verify/src/logic/verdict/assurance.js"
+    ]
   },
   "stores": {
     ".journal.sqlite": {
@@ -658,7 +697,7 @@
     },
     "table:board_meta": {
       "kind": "table",
-      "owner": "packages/store/src/logic/board/stale/apply.js"
+      "owner": "packages/store/src/io/board/meta.js"
     },
     "table:canary_schedule": {
       "kind": "table",
