@@ -29,7 +29,7 @@ test('search wrappers run when Node lives at a path with spaces [C7]', { timeout
   try {
     const node = nodeWithSpaces(root);
     const pattern = 'row ages read from one captured commit|spec rows keep newest-first order across a capture that moves';
-    const args = ['--test', '--test-reporter=tap', '--test-name-pattern', pattern, 'apps/cli/journeys/shout/search.test.js'];
+    const args = ['--test', '--test-reporter=tap', '--test-name-pattern', pattern, 'apps/cli/journeys/shout/journeys/search-ages.test.js', 'apps/cli/journeys/shout/journeys/search-capture.test.js'];
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT;
     // One spaced run: it re-runs the two cases above under the spaced Node, and each of them already runs its own wrapper
