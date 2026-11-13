@@ -1,5 +1,5 @@
 /** Local USD projections; rates and derived dollars never become recorded usage [N2]. */
-import { Refused } from '../../../kernel/browser.js';
+import { Refused } from '../../../kernel/light.js';
 
 const INPUTS = [['freshInputTokens', 'freshInput'], ['cacheReadInputTokens', 'cacheReadInput'], ['cacheWriteInputTokens', 'cacheWriteInput']];
 const RATES = [...INPUTS.map(([, rate]) => rate), 'output'];

@@ -431,7 +431,7 @@
     },
     "pullboard.json": {
       "kind": "json",
-      "owner": "packages/kernel/src/logic/config-file.js"
+      "owner": "packages/config/src/logic/config-file.js"
     },
     "pure-roots.json": {
       "kind": "json",
