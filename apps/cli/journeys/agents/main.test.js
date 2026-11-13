@@ -188,7 +188,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
         assert.match(row.state, /^(?:now|\d+[mhd])Building$/, `${at}: native age stays beside the stage, which does not repeat the agent the row names`);
         assert.deepEqual([row.lines, row.cut], [[1, 1], false], `${at}: the agent id and model each stay on one line, uncut`);
-        assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
+        assert.ok(row.itemTop < row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item shares the agent's one line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
         // Agents holding nothing are pills in the idle fold; one that has not moved in the last hour waits behind show all.

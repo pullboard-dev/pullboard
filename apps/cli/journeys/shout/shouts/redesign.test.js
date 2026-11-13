@@ -80,7 +80,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.equal(list.component, 'shouts', 'the one filter set lives in the strip');
       assert.equal(list.inPage, 0, 'no second filter set in the page');
       assert.ok(list.rowBox.height <= 32 && list.border === '0px', 'a thread is one line with no rule between rows');
-      assert.ok(list.agentBox <= 32, 'an agent is one dense line');
+      assert.ok(list.agentBox <= 48, 'an agent is one line, a 44px target');
       assert.equal(list.rows.filter(row => row.key === 'item:2').length, 1, 'one item has one conversation');
       assert.equal(list.rows.find(row => row.key === 'item:2').chip, '2');
       assert.ok(list.rows.find(row => row.key === 'item:2').preview.startsWith('coordinator: #2: Coordinator reply'));
