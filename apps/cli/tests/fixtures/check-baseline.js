@@ -51,7 +51,7 @@ export function sandbox() {
   Object.assign(env, {
     PATH: `${bin}:${process.env.PATH}`,
     HOME: join(dir, 'home'),
-    PULLBOARD_HOME: join(dir, 'pullboard-home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',

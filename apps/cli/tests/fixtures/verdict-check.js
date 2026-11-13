@@ -40,7 +40,7 @@ export function sandbox() {
     GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
     GIT_COMMITTER_NAME: 'Fixture agent',
     GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
-    PULLBOARD_HOME: join(dir, 'pullboard-home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MODEL: 'claude-opus-fixture', // join refuses a session that has not declared its model (MODEL_REQUIRED).
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     PULLBOARD_CLAIM_BEATER: '0', // no detached claim beater writes into the fixture while it is removed (#5726).

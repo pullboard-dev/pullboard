@@ -117,7 +117,7 @@ function settledSubmit(box) {
   return waitFor(settled, 'the queued regeneration gate to settle', 120_000); // budget: hang ceiling for the detached worker's real full gate.
 }
 
-for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, async t => {
+for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async t => {
   const { main, box, marker } = await project(t, command === 'remove-shims');
   let original = move(box, main.dir);
   if (command === 'remove-shims') {
