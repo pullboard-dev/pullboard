@@ -65,7 +65,7 @@ function childPythonTestSource() {
   const childProgram = [
     'console.error("Traceback (most recent call last):")',
     'console.error("  File " + JSON.stringify("child.py") + ", line 1, in <module>")',
-    'console.error("PermissionError: [Errno 13] Permission denied: " + JSON.stringify(process.env.CHILD_PERMISSION_PATH))',
+    'console.error("PermissionError: [Errno 13] Permission denied: " + JSON.stringify(process.env.FIXTURE_CHILD_PERMISSION_PATH))',
     'process.exit(1)',
   ].join('\n');
   return [
@@ -116,9 +116,9 @@ test('a child process listen denial reads as sandbox blocked [C7,B26]', async (t
   const box = await childFailureSubmitBox(t, original);
   const bareBox = await childFailureSubmitBox(t, original.replace(explanatory, '  assert.equal(child.status, 0, child.stderr);'));
   const pythonBox = await childFailureSubmitBox(t, pythonSource);
-  pythonBox.env.CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
+  pythonBox.env.FIXTURE_CHILD_PERMISSION_PATH = join(pythonBox.dir, 'outside-python-denial.txt');
   const barePythonBox = await childFailureSubmitBox(t, pythonSource.replace(pythonExplanation, '  assert.equal(child.status, 0, child.stderr);'));
-  barePythonBox.env.CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
+  barePythonBox.env.FIXTURE_CHILD_PERMISSION_PATH = join(barePythonBox.dir, 'outside-bare-python-denial.txt');
   // Each box has its own machine home and local runner, so the four pulled gates settle together, inside the file's time budget.
   const [result, bare, python, barePython] = await Promise.all([box, bareBox, pythonBox, barePythonBox].map(one => submitSettled(t, one, (...args) => one.run(...args))));
   const output = `${result.out}\n${result.err}`;
