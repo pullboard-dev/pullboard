@@ -17,7 +17,8 @@ import { navPages } from "../../logic/nav.js";
 import { placeQuery } from "../../logic/nav.js";
 import { readPlaceQuery } from "../../logic/nav.js";
 import { withPlaceQuery } from "../../logic/nav.js";
-import { progressHtml } from "../../logic/nav.js";
+import { accountHtml } from "../../logic/nav.js";
+import { accountMenuHtml } from "../../logic/nav.js";
 import { navLayout } from "../../logic/nav.js";
 import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
@@ -45,7 +46,8 @@ ${navPages.toString()}
 ${placeQuery.toString()}
 ${readPlaceQuery.toString()}
 ${withPlaceQuery.toString()}
-${progressHtml.toString()}
+${accountHtml.toString()}
+${accountMenuHtml.toString()}
 ${navLayout.toString()}
 ${pageControlsHtml.toString()}
 
@@ -103,12 +105,12 @@ function stageOfItem(item, project = {}, gated = false, gateDetail = '') {
 }
 
 /** Render the approved item stage, its plain detail and any explanatory marks. */
-function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false, roadmap = false) {
+function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false, roadmap = false, brief = false) {
   const stage = stageOfItem(item, project, gated, gateDetail);
   // A Roadmap row names only the stage, with Landed for Merged; the route and holder stay in the title for hover and readers [N26].
   const word = roadmap && stage.stage === 'Merged' ? 'Landed' : stage.stage;
   return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.detail) + '" aria-label="' + esc(stage.stage + ': ' + stage.detail) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(word) + '</b>' + (compact ? '</span>' : '')
-    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
+    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span>' + (roadmap || brief ? '' : '<small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small>') + '</span>';
 }
 
 /** Make a mark's reason available on hover and to assistive readers while the row remains tappable. */
@@ -134,7 +136,7 @@ function itemStageMarks(item, project) {
 
 /**
  * The navigation's board numbers: the notch's three (agents at work, landed per hour, rulings), the switcher's amber
- * rulings count, each menu page's fact, and the Progress page while it shows. Text only, so the shell never redraws.
+ * rulings count, and each menu page's fact. Text only, so the shell never redraws.
  */
 function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, active = 0 } = {}) {
   const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
@@ -149,15 +151,9 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
   text($('proj-rulings'), rulings ? String(rulings) : '');
   // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
   const release = nextMilestone(p);
-  const facts = { progress: pace === null ? '' : Math.round(pace) + '/h', items: active || '',
+  const facts = { items: active || '',
     roadmap: release && release.total > release.done ? release.total - release.done + ' to go' : '', spec: (p.spec || []).length, doctrine: (p.practice || []).length };
   for (const [page, value] of Object.entries(facts)) document.querySelectorAll?.('[data-nav-fact="' + page + '"]').forEach((node) => text(node, value ? String(value) : ''));
-  if (view.tab === 'progress') {
-    const day = view.range === '24h';
-    const landed = day ? p.dashboardPace?.last24h ?? null : p.dashboardPace?.last6h ?? null;
-    const html = progressHtml({ agents, perHour: day && Number.isFinite(landed) ? landed / 24 : pace, landed, range: day ? '24h' : '6h', rulings, building, review });
-    if ($('progress').innerHTML !== html) $('progress').innerHTML = html;
-  }
 }
 
 /**
@@ -709,7 +705,8 @@ function render({ tab: switching = false } = {}) {
     return { id: item.id, status: item.status, holder: holderOf(item), reviewer: reviewerOf(item), builtBy: item.builtBy,
       state, since: item.since, ageHtml: item.since ? '<time data-ago="' + esc(item.since) + '">' + ago(item.since) + '</time>' : '', stale: Boolean(stale), titleTextHtml: esc(item.title), titleHtml: rich(item.title, titles),
       stateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)),
-      briefStateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)) };
+      // The agent's row already names the agent, so its stage chip drops the "by <agent>" detail; hover still carries it.
+      briefStateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p), false, false, true) };
   });
   const agentRows = p.agents.map((agent) => {
     const isLead = lead(agent.agent_id);
