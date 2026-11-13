@@ -1474,6 +1474,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .set { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
 .set + .set { border-top: 1px solid var(--line); }
 .set .name { min-width: 0; }
+.set .name .set-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .set .name b { font-weight: 600; }
 .set .name .k { font: var(--text-xs) var(--mono); color: var(--ink-faint); margin-left: var(--space-3); }
 .setting-root { margin-left: var(--space-3); font-size: var(--text-xs); color: var(--ink-faint); }
