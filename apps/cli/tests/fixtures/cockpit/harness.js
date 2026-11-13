@@ -1136,11 +1136,11 @@ async function readRoadmap(chrome) {
           empty: card.querySelector('.milestone-empty')?.innerText ?? null,
           note: card.querySelector('.milestone-note')?.innerText ?? null,
           rows: [...card.querySelectorAll('.milestone-item')].map((row) => {
-            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = chip.getBoundingClientRect();
+            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = word.getBoundingClientRect();
             return {
               id: row.querySelector('.id').innerText, label: word.innerText.trim(), tone: chip.dataset.stage || [...chip.classList].filter((name) => ['ok', 'no', 'warn', 'busy', 'free'].includes(name)).join(' '),
               marks: [...chip.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()), detail: chip.querySelector('.stage-detail')?.textContent || '',
-              seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
+              seen: box.width > 0 && box.height > 0 && getComputedStyle(word).visibility === 'visible',
               chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
               button: row.matches('button,[role="button"]'), tip: row.title, title: [...(title.querySelector('.milestone-title') ?? title).childNodes].slice(1).map((node) => node.textContent).join(''), // the id and title share .milestone-title (10d605f572)
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),

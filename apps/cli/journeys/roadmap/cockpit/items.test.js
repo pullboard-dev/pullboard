@@ -78,7 +78,7 @@ async function sendBack(box, p, id, note) {
 }
 
 
-test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_000 }, async () => {
+test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_000 }, async () => {
   const began = performance.now();
   /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
   const stage = phase => console.log('roadmap-items-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));

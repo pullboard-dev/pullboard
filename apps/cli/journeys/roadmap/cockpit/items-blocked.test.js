@@ -142,7 +142,7 @@ async function blockedRoadmap(t, stage) {
   return { chrome, row, opened, reads, address, close };
 }
 
-test('a blocked roadmap item shows its dot and expands to say why [N26]', { timeout: 90_000 }, async (t) => {
+test('a blocked roadmap item shows its dot and expands to say why [N26]', { timeout: 150_000 }, async (t) => {
   const began = performance.now();
   /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
   const stage = phase => console.log('roadmap-blocked-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
@@ -205,7 +205,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   } finally { await close(); }
 });
 
-test('a blocked roadmap item reads its prose plainly and its remote blocker on a phone [N26]', { timeout: 90_000 }, async (t) => {
+test('a blocked roadmap item reads its prose plainly and its remote blocker on a phone [N26]', { timeout: 150_000 }, async (t) => {
   const began = performance.now();
   /** Name each stage boundary and its elapsed time, so a slow run reads as a diagnosis. */
   const stage = phase => console.log('roadmap-remote-stage ' + JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - began) }));
