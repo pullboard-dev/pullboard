@@ -76,6 +76,7 @@ test('clause 2: [H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, ref
     ...process.env,
     HOME: home,
     PULLBOARD_HOME: pullboardHome,
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
     PATH: privateBin,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
@@ -339,7 +340,7 @@ async function lostReplyFixture(t) {
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
   symlinkSync(realpathSync('/bin/sh'), join(privateBin, 'sh'));
   const env = {
-    ...process.env, HOME: home, PULLBOARD_HOME: pullboardHome, PATH: privateBin,
+    ...process.env, HOME: home, PULLBOARD_HOME: pullboardHome, PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PATH: privateBin,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Relay Test', GIT_AUTHOR_EMAIL: 'relay-test@example.com',
     GIT_COMMITTER_NAME: 'Relay Test', GIT_COMMITTER_EMAIL: 'relay-test@example.com',
