@@ -1,5 +1,5 @@
-import { ensureFactIdentityIndexes } from "../../../../spec/index.js";
-import { missingFactIdentityIndexes } from "../../../../spec/index.js";
+import { ensureFactIdentityIndexes } from "../../../../spec/light.js";
+import { missingFactIdentityIndexes } from "../../../../spec/light.js";
 import { ensureGrantActivationIndex } from "../../../../state/light.js";
 import { missingGrantActivationIndex } from "../../../../state/light.js";
 import { ensureJobTables } from "./jobs.js";
