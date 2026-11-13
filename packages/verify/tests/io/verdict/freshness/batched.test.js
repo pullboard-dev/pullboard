@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { temporaryRepository } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { temporaryRepository } from '../../../../../store/tests/fixtures/submit.js';
 import {
   realGitAdapter,
   withGitContractAdapter,
