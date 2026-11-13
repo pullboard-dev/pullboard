@@ -38,6 +38,23 @@ test('Settings loading, unavailable and empty states cannot display stale row va
   assert.match(settingsContentHtml({ rows: [] }, 'board'), /No settings in this scope/u);
 });
 
+test('clause 1: Settings shows a refused inventory as a plain-words problem that names the setting [N26,O5,O6,C7]', () => {
+  const raw = '[BAD_SETTINGS] setting gate.timingRunner has an unsupported type; restore its documented value';
+  const html = settingsContentHtml({ error: raw });
+  assert.match(html, /role="alert">gate\.timingRunner holds the wrong kind of value\. Set it back to its documented value, then choose Refresh\.<\/p>/u);
+  assert.doesNotMatch(html, /BAD_SETTINGS|unsupported type/u);
+  assert.match(html, /<h2>Settings<\/h2>/u);
+  assert.match(html, /data-settings-scope="board"/u);
+});
+
+test('clause 2: Settings draws every other setting beside the one with a problem [N26,O5,O6,C7]', () => {
+  const bad = { scope: 'machine', key: 'gate.runnersOnly', label: 'Runners only', value: null, default: false, source: 'file', description: 'x', error: { message: 'Runners only (gate.runnersOnly) holds the wrong kind of value.', fix: 'Set gate.runnersOnly back to false.' } };
+  const good = { scope: 'machine', key: 'gateSlots', label: 'Slots', value: 2, default: 2, source: 'file', description: 'y' };
+  const rows = settingsContentHtml({ rows: [bad, good] }, 'machine');
+  assert.match(rows, /data-setting-key="gate\.runnersOnly"[^]*?setting-error[^]*?holds the wrong kind of value/u);
+  assert.match(rows, /data-setting-key="gateSlots"/u);
+});
+
 test('the star line renders the supplied repository address without reading a manifest [N26,C7]', () => {
   const html = starHtml('https://example.invalid/repo?x="<&');
   assert.match(html, /id="star-line" hidden/u);
