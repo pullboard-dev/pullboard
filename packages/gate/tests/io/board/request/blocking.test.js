@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { styleSources } from '../../../../../codemap/index.js';
 import { apiRequestIoProblems } from '../../../../src/io/board/request.js';
+import { HTTP_SERVERS } from '../../../../src/io/board/request.js';
 import { KNOWN_REQUEST_BLOCKERS } from '../../../../src/io/board/request.js';
 
 const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
@@ -44,4 +45,17 @@ test('clause 1: an unlisted call fails when its owner is missing from the known 
   assert.ok(removed);
   const rows = apiRequestIoProblems(sources, { known: rest });
   assert.deepEqual(rows.map(row => row.owner), ['packages/landing/src/io/main/red/receipt.js#treeOf']);
+});
+
+test('clause 1: a blocker reached from the view, relay or transport pull server fails the check [C7]', () => {
+  const entries = { 'apps/view/src/io/serve.js': ['serveView', 'const server = createServer(async (req, res) => {'], 'apps/relay/src/io/service.js': ['createRelayHandler', null], 'packages/transport/src/io/pull/http.js': ['pullServer', null] };
+  for (const [file, [name, anchor]] of Object.entries(entries)) {
+    assert.ok(HTTP_SERVERS.includes(`${file}#${name}`), `${file}#${name} is an entry`);
+    const folder = file.slice(0, file.lastIndexOf('/')), row = sources.find(entry => entry.file === file);
+    const call = anchor ?? new RegExp(`export (?:async )?function ${name}\\([^)]*\\)\\s*\\{`, 'u').exec(row.source)[0];
+    const source = "import { helper } from './added.js';\n" + row.source.replace(call, `${call}\n  helper();`);
+    const injected = [...sources.filter(entry => entry.file !== file), { file, source },
+      { file: `${folder}/added.js`, source: "import { spawnSync } from 'node:child_process';\nexport function helper() { return spawnSync('ls'); }" }];
+    assert.deepEqual(apiRequestIoProblems(injected).map(found => found.owner), [`${folder}/added.js#helper`], file);
+  }
 });
