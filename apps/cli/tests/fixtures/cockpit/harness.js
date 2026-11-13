@@ -73,6 +73,29 @@ function build(box, p, id, file) {
 }
 
 /**
+ * The in-process twin of build: the same claim, commit and submit, with the CLI calls awaited in this process instead of launched.
+ * Why: a journey's before() seeds a whole board, and a launch per call ran it past the wall limit.
+ */
+async function buildLocal(box, p, id, file) {
+  const key = `${p.baseBranch}:${id}`;
+  let branch = p.itemBranches.get(key);
+  if (!branch) {
+    branch = `${p.baseBranch}-item-${id}`;
+    box.git(p.web, 'switch', '-q', '-c', branch, p.baseBranch);
+    p.itemBranches.set(key, branch);
+  } else {
+    box.git(p.web, 'switch', '-q', branch);
+  }
+  p.branch = branch;
+  await box.inProcess(p.web, 'claim', String(id));
+  mkdirSync(join(p.web, 'web'), { recursive: true });
+  writeFileSync(join(p.web, 'web', file), `${file}\n`);
+  box.git(p.web, 'add', '-A');
+  box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  await box.inProcess(p.web, 'submit', String(id), '--no-next');
+}
+
+/**
  * The coordinator sends an item back from a checkout of its submitted commit, as a verifier does.
  */
 function sendBack(box, p, id, note) {
@@ -542,6 +565,15 @@ const meet = (a, b, gap = 0) => a.left - gap < b.right && b.left - gap < a.right
 function accept(box, p, id) {
   box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
   box.run(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
+
+/**
+ * The in-process twin of accept: the coordinator's accept, awaited in this process instead of launched.
+ */
+async function acceptLocal(box, p, id) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  await box.inProcess(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
 
@@ -1274,4 +1306,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
