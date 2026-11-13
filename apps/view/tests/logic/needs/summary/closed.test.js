@@ -48,14 +48,10 @@ test('the top of Items is one quiet line when nothing needs the person, and rows
   assert.equal(opened(busy), 0);
 });
 
-test('the Dashboard Rulings is one quiet line when nothing needs the person [N26]', () => {
+test('the Dashboard draws no Rulings card; rulings live in the notch (#6847) [N26]', () => {
   const input = dashboardData({ populated: true });
   const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
-  const html = dashboardHtml(model);
-  const start = html.indexOf('aria-label="Rulings"'), card = html.slice(html.lastIndexOf('<section', start), html.indexOf('</section>', start) + 10);
-  assert.match(card, /^<section class="dash-card needs-card needs-quiet" aria-label="Rulings"><span class="needs-quiet-badge"><svg[^]*?<\/svg><\/span><p><b>Nothing to rule on\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span><\/p><\/section>$/u);
-  assert.doesNotMatch(card, /<h2>|<ol/u, 'no heading or list around the empty line');
-  const busy = dashboardHtml(model, { needs: '<li class="needs-call">row</li>' });
-  assert.doesNotMatch(busy, /Nothing to rule on/u);
-  assert.match(busy, /<section class="dash-card needs-card" aria-label="Rulings"><header class="needs-card-header"><h2>Rulings<\/h2><\/header><ol class="needs home-needs"><li class="needs-call">row<\/li><\/ol><\/section>/u);
+  for (const html of [dashboardHtml(model), dashboardHtml(model, { needs: '<li class="needs-call">row</li>' })]) {
+    assert.doesNotMatch(html, /aria-label="Rulings"|needs-card|Nothing to rule on|needs-call/u);
+  }
 });

@@ -6086,12 +6086,6 @@
     "packages/drive/src/io/queue.js": [
       "apps/cli"
     ],
-    "packages/gate/src/io/check/baseline/worker.js": [
-      "apps/lib"
-    ],
-    "packages/gate/src/io/inventory.js": [
-      "apps/cli"
-    ],
     "packages/gate/src/io/main/audit/worker.js": [
       "apps/cli"
     ],

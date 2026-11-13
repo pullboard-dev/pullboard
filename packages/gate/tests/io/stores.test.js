@@ -120,3 +120,21 @@ test('clause 2: the repository adds no unregistered store or second home past th
   assert.deepEqual(storeGrowth(storeReport(ROOT), registry, baseline, new Date().toISOString().slice(0, 10)), []);
   assert.ok(registry.stores['board.sqlite'] && registry.stores['table:item'], 'board files and tables are registered');
 });
+
+test('clause 1: board.sqlite is owned by the store module that opens it, and the static check refuses any other owner [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  assert.equal(registry.stores['board.sqlite'].owner, 'packages/store/src/io/board/sqlite.js');
+  assert.equal(registry.pinned['board.sqlite'], 'packages/store/src/io/board/sqlite.js');
+  assert.deepEqual(storeOwnerProblems(registry), []);
+  const moved = { ...registry, stores: { ...registry.stores, 'board.sqlite': { kind: 'sqlite', owner: 'packages/api/src/io/main.js' } } };
+  assert.match(storeOwnerProblems(moved)[0].text, /CD2_STORE_OWNER: board\.sqlite is pinned to packages\/store\/src\/io\/board\/sqlite\.js, not packages\/api\/src\/io\/main\.js/u);
+  assert.match(judge({ [OTHER]: 'export const x = 1;' }, { registry: moved })[0], /CD2_STORE_OWNER: board\.sqlite/u);
+});
+
+test('clause 2: the store-homes recount under --ratchet raises no per-file ceiling after board.sqlite changes owner [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  const recount = tightenStoreBaseline(storeReport(ROOT), registry, baseline);
+  assert.deepEqual(storeBaselineGrowth(recount, baseline), []);
+  assert.equal(recount['packages/api/src/io/main.js']?.['board.sqlite'], undefined, 'the API server asks the store for the path');
+});
