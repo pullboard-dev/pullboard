@@ -13,6 +13,13 @@ import { ruleListModel } from "../../logic/rules.js";
 import { selectItemsView } from "../../logic/selection.js";
 import { overlapHtml } from "../../logic/overlap.js";
 import { patchKeyedRows } from "../../logic/page/rows.js";
+import { navPages } from "../../logic/nav.js";
+import { placeQuery } from "../../logic/nav.js";
+import { readPlaceQuery } from "../../logic/nav.js";
+import { withPlaceQuery } from "../../logic/nav.js";
+import { progressHtml } from "../../logic/nav.js";
+import { navLayout } from "../../logic/nav.js";
+import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
@@ -33,6 +40,14 @@ const needsPanelModel = (${needsPanelModel.toString()});
 const itemsNeedsModel = (${itemsNeedsModel.toString()});
 const itemsNeedsHtml = (${itemsNeedsHtml.toString()});
 const needsActionsHtml = (${needsActionsHtml.toString()});
+// The navigation's page list and each place's address, as declarations so every part of the page may call them [N26,N38].
+${navPages.toString()}
+${placeQuery.toString()}
+${readPlaceQuery.toString()}
+${withPlaceQuery.toString()}
+${progressHtml.toString()}
+${navLayout.toString()}
+${pageControlsHtml.toString()}
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -118,6 +133,34 @@ function itemStageMarks(item, project) {
 }
 
 /**
+ * The navigation's board numbers: the notch's three (agents at work, landed per hour, rulings), the switcher's amber
+ * rulings count, each menu page's fact, and the Progress page while it shows. Text only, so the shell never redraws.
+ */
+function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, active = 0 } = {}) {
+  const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
+  const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
+  const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
+  text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
+  text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
+  const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
+  text(ruled, String(rulings));
+  ruled?.classList?.toggle('a', rulings > 0);
+  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the agent floor.' : 'No agent at work. Open the agent floor.');
+  text($('proj-rulings'), rulings ? String(rulings) : '');
+  // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
+  const release = nextMilestone(p);
+  const facts = { progress: pace === null ? '' : Math.round(pace) + '/h', items: active || '',
+    roadmap: release && release.total > release.done ? release.total - release.done + ' to go' : '', spec: (p.spec || []).length, doctrine: (p.practice || []).length };
+  for (const [page, value] of Object.entries(facts)) document.querySelectorAll?.('[data-nav-fact="' + page + '"]').forEach((node) => text(node, value ? String(value) : ''));
+  if (view.tab === 'progress') {
+    const day = view.range === '24h';
+    const landed = day ? p.dashboardPace?.last24h ?? null : p.dashboardPace?.last6h ?? null;
+    const html = progressHtml({ agents, perHour: day && Number.isFinite(landed) ? landed / 24 : pace, landed, range: day ? '24h' : '6h', rulings, building, review });
+    if ($('progress').innerHTML !== html) $('progress').innerHTML = html;
+  }
+}
+
+/**
  * Draw the page's frame while the shown board's state is on its way: the tabs, the current tab marked, and the
  * current screen's cards, empty. The board list has already answered, so a machine with no board never flashes it.
  * Its two-column screens keep their detail column, so the frame does not jump when the board fills it in (#6589).
@@ -126,7 +169,8 @@ function drawFrame() {
   const group = String(view.root || '').startsWith('group:');
   document.body.classList.remove('loading', 'boardless');
   $('tabs').hidden = group;
-  document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
+  if ($('sidenav')) $('sidenav').hidden = group;
+  document.querySelectorAll('.tab, .side-row').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
   const frame = $('board-frame');
   frame.dataset.screen = group ? 'group' : view.tab;
   frame.classList.toggle('two', !group && ['items', 'shouts', 'spec', 'doctrine'].includes(view.tab));
@@ -201,7 +245,6 @@ function render({ tab: switching = false } = {}) {
     // Keep the cached picker available, but never label the last board's counts as the new one.
     document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = true; });
     for (const id of ['products', 'group-view', 'proof-stats', 'upgrade-note', 'person-requests', 'credentials', 'find-results']) $(id).hidden = true;
-    $('status-board').innerHTML = '';
     // The tabs and the screen's empty cards stand while its board state is on its way, never a blank page (#6589).
     if (data.projects.some((entry) => entry.ok)) drawFrame();
     else $('live').textContent = 'Loading project…';
@@ -216,6 +259,7 @@ function render({ tab: switching = false } = {}) {
   document.body.classList.toggle('boardless', !p && !group);
   $('group-view').hidden = !group;
   $('tabs').hidden = Boolean(group);
+  if ($('sidenav')) $('sidenav').hidden = Boolean(group);
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = Boolean(group) || pane.dataset.pane !== view.tab; });
   $('products').hidden = !p || !p.products.length;
   renderReleaseNotes(group ? null : p);
@@ -315,7 +359,7 @@ function render({ tab: switching = false } = {}) {
     if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
-    // With nothing for the person, the top of Items holds the one quiet Needs-you line.
+    // With nothing for the person, the top of Items holds the one quiet Rulings line.
     const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
     $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
     $('needs').tabIndex = -1;
@@ -805,10 +849,13 @@ function render({ tab: switching = false } = {}) {
       findings: entry.findings?.map(prepareFinding), stillStuck: entry.stillStuck?.map(prepareFinding),
     };
   });
-  store.paint(activity, activityHtml({ ...activityModelData, rows: activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
+  // The strip's person filter lists whoever appears in the activity, and keeps its pick even before that person shows up.
+  view.activityPeople = [...new Set([...activityRows.map(entry => entry.by).filter(Boolean), ...(view.activityBy ? [view.activityBy] : [])])].sort();
+  store.paint(activity, activityHtml({ ...activityModelData, rows: view.activityBy ? activityRows.filter(entry => entry.by === view.activityBy) : activityRows }, { controls: false, filter: view.activityFilter || 'all', open: activityOpen }));
   }
   if (draw && !roadmapBehind) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
+  drawPageControls();
   revealPlace();
   revealSegmentedChoices(document);
   updateRoadmapPanel();

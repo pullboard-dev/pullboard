@@ -2,6 +2,7 @@
 export { personNeedsSummary, recentBlocks, resumeNeeds } from "./src/io/needs.js";
 export { freeWindowOffsets } from "./src/logic/offsets.js";
 export { activeViewAgents, compactItemSummaries, expandItemSummaries, viewFlowSummary, viewProofSummary } from "./src/logic/summary/state.js";
+export { projectSummary } from "./src/logic/summary/project.js";
 export { esc, renderSpecView } from "./src/logic/main.js";
 export { activityModel } from "./src/logic/activity/model.js";
 export { activityFilters, activityHtml } from "./src/logic/activity/render.js";
