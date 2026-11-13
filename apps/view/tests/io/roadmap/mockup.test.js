@@ -10,13 +10,13 @@ import { roadmapSummary } from '../../../src/logic/summary/roadmap.js';
 const IO = new URL('../../../src/io/', import.meta.url);
 const lines = file => readFileSync(new URL(file, IO), 'utf8').split('\n').length;
 
-test('clause 1: the release header reads title, rate line, one full-width bar, then one legend [N26]', () => {
+test('clause 1: the release header reads title and count, one full-width bar, then one legend [N26]', () => {
   const { header } = roadmapSummary({ name: 'M', summary: { total: 10, left: 6, landed: 4, landing: 2, review: 1, building: 1, waiting: 2, held: 0 } });
   const at = marker => header.indexOf(marker);
-  const order = ['release-name', 'roadmap-forecast', 'roadmap-summary-bar', 'roadmap-summary-legend'].map(at);
+  const order = ['release-name', 'roadmap-summary-bar', 'roadmap-summary-legend'].map(at);
   assert.ok(order.every(index => index >= 0), 'every header part renders');
-  assert.deepEqual([...order].sort((a, b) => a - b), order, 'title, rate line, bar, legend, in that order');
-  assert.equal(header.match(/class="roadmap-summary-legend"/gu).length, 1, 'one legend');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'title, bar, legend, in that order');
+  assert.equal(header.match(/class="roadmap-summary-legend dash-keys"/gu).length, 1, 'one legend');
 });
 
 test('clause 2: a Roadmap row names only its stage, with Landed for Merged, and no route or holder text [N26]', () => {

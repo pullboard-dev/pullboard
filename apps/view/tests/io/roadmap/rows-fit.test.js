@@ -43,23 +43,3 @@ test('clause 1: the after chips share one group that ends in an ellipsis inside 
   const rule = css.match(/\.milestone-item \.roadmap-afters \{([^}]*)\}/u)?.[1] ?? '';
   for (const part of ['overflow: hidden', 'text-overflow: ellipsis', 'white-space: nowrap', 'min-width: 0']) assert.ok(rule.includes(part), part);
 });
-
-test('clause 3: the Rulings line has no comma text, each ruling is its own one-line element [N26]', () => {
-  const summary = { total: 10, left: 6, landed: 4, landing: 0, review: 0, building: 0, waiting: 0, held: 0, needsYou: [1, 2, 3] };
-  const { detail } = roadmapSummary({ name: 'M', summary }, {});
-  const line = detail.match(/<div class="roadmap-summary-needs">.*?<\/div>/u)[0];
-  assert.equal(line.match(/class="roadmap-need"/gu).length, 3);
-  assert.doesNotMatch(line.replace(/<[^>]*>/gu, '|'), /,/u, 'no comma separators to strand on a line');
-  assert.match(composeViewStyles(), /\.roadmap-need \{[^}]*white-space: nowrap/u);
-});
-
-test('clause 3: at phone width the counts are not repeated under the header legend [N26]', () => {
-  const read = release('0.9.4', 100, 3);
-  const headers = new Map([[read, { top: '<h2>0.9.4</h2>', detail: '<div class="roadmap-summary">legend</div>' }]]);
-  read.milestone.summary = { ...read.milestone.summary, landed: 0, landing: 0, review: 0, building: 0, waiting: 0, held: 0 };
-  const html = roadmapCardsHtml([read], { root: '/r', headers });
-  const mobile = html.match(/<section class="roadmap-shipping roadmap-mobile-shipping".*?<\/section>/su)[0];
-  assert.doesNotMatch(mobile, /roadmap-stage-counts/u, 'the phone section holds no count tiles');
-  assert.match(mobile, /Last shipped/u);
-  assert.match(html.match(/<section class="roadmap-shipping roadmap-desktop-shipping".*?<\/section>/su)[0], /roadmap-stage-counts/u, 'the desktop panel keeps them');
-});

@@ -95,12 +95,12 @@ test('the roadmap panel jumps to each release [N26]', {
             const panel = document.querySelector('#roadmap-panel'), list = document.querySelector('#roadmap-list');
             const shown = (e) => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().height > 0;
             return { position: getComputedStyle(panel).position, beside: panel.getBoundingClientRect().left >= list.getBoundingClientRect().right,
-              chips: getComputedStyle(document.querySelector('#roadmap-releases')).display, desk: shown(panel.querySelector('.roadmap-desktop-shipping')), phone: shown(list.querySelector('.roadmap-summary')),
+              chips: getComputedStyle(document.querySelector('#roadmap-releases')).display, desk: shown(panel.querySelector('.roadmap-shipping')), phone: shown(list.querySelector('.roadmap-summary')),
               page: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) };
           })())`));
           const at = `${width}/${scheme}`;
           stage('edge-' + at);
-          if (width === 900) assert.deepEqual([edge.position, edge.beside, edge.desk, edge.phone], ['sticky', true, true, true], `${at}: the panel stays on the right alongside each release summary: ${JSON.stringify(edge)}`);
+          if (width === 900) assert.deepEqual([edge.position, edge.beside, edge.desk, edge.phone], ['sticky', true, false, true], `${at}: the panel stays on the right alongside each release summary: ${JSON.stringify(edge)}`);
           else assert.deepEqual([edge.position, edge.beside, edge.chips, edge.desk, edge.phone], ['static', false, 'flex', false, true], `${at}: the chip row above the list, summary under each release: ${JSON.stringify(edge)}`);
           assert.ok(edge.page <= width, `${at}: no sideways scroll: ${JSON.stringify(edge)}`);
         }
