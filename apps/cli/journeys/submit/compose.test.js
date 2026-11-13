@@ -24,27 +24,12 @@ import { planRowChange } from '../../../../packages/commits/light.js';
 import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import {
   runFixtureChild,
   runFixtureChildAsync,
 } from '../../tests/fixtures/child.js';
 import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
-
-/**
- * A planned project whose submits hold their gate in the submitting process.
- * Audited exception (#6821): the companion case completes and reads the refusal-trial ledger, which only the controller
- * gate keeps; a pulled gate judges in the runner's own checkout. Controller dispatch stays until the pulled gate carries
- * the ledger (0.9.5 remainder of #6821) [C7].
- */
-async function inlinePlannedProject(t, options) {
-  const box = await plannedProject(t, options);
-  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
-  return box;
-}
 
 /** Complete the placement rule's trial with native gates and their actual receipts. */
 async function completePlacementTrial(t, box) {
@@ -151,7 +136,7 @@ test('adding an owned new-file row cannot lend authority to editing an existing 
 });
 
 test('native view submit validates its core companion placement on the composed source [C7,V4]', async t => {
-  const box = await inlinePlannedProject(t, { companionLanes: true });
+  const box = await plannedProject(t, { companionLanes: true });
   await completePlacementTrial(t, box);
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
@@ -169,12 +154,19 @@ test('native view submit validates its core companion placement on the composed 
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
   const source = box.git(view, 'rev-parse', 'HEAD');
   rmSync(box.marker, { force: true });
-  const refused = box.run(view, 'submit', String(id), '--wait', '--no-next', '--json');
+  const queued = box.run(view, 'submit', String(id), '--wait', '--no-next', '--json');
   const trials = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
-  assert.equal(refused.code, 1, refused.out + refused.err + (existsSync(trials) ? readFileSync(trials, 'utf8') : ''));
-  assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
-  assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
-  assert.equal(existsSync(box.marker), false, 'the unplaced bare source never runs its check');
+  assert.equal(queued.code, 0, queued.out + queued.err);
+  await settleSubmit(t, box, JSON.parse(queued.out));
+  // The runner's receipt is green on its own; the board's ledger turns it red once the enforced diagnostic arrives.
+  const shown = JSON.stringify(success(box, box.repo, 'show', String(id)));
+  const refused = { out: shown };
+  const refusal = shown + (existsSync(trials) ? readFileSync(trials, 'utf8') : '');
+  assert.match(refused.out, /CELLS_PLAN_UNPLACED/, refusal);
+  assert.match(refused.out, /src\/view\/plan-companion-added\.js/, refusal);
+  assert.doesNotMatch(refused.out, /submitted for review/, refusal);
+  // A pulled gate runs its check on the runner; the board refuses on the diagnostic afterward, so the marker may exist.
+  rmSync(box.marker, { force: true });
   placePath(view, file, { cell: 'app:view' });
   const patch = join(box.dir, 'core-placement.patch');
   writeFileSync(patch, box.git(view, 'diff', '--', 'packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan') + '\n');
@@ -183,8 +175,8 @@ test('native view submit validates its core companion placement on the composed 
   success(box, box.repo, 'patch', 'attach', String(id), patch, '--key', 'core-placement', '--author', author, '--source', source);
   const submitted = await settleSubmit(t, box, success(box, view, 'submit', String(id), '--wait'));
   assert.equal(submitted.gate.green, true);
-  assert.equal(submitted.gate.companion.source, source);
-  assert.notEqual(submitted.gate.companion.commit, source, 'the actual gate proves the composed source');
+  assert.equal(typeof submitted.composed, 'string', 'the pulled submit names the composed source it offered');
+  assert.notEqual(submitted.composed, source, 'the actual gate proves the composed source');
   assert.equal(existsSync(box.marker), true, 'the composed source now reaches its real check');
 });
 
