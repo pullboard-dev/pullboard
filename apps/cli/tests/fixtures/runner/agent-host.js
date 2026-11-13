@@ -45,6 +45,12 @@ server.listen(0, '127.0.0.1', () => {
 `;
 
 let hosts = 0;
+const liveHosts = new Set();
+/**
+ * End every host once the test's work is done. Why: the gate's child drain waits at beforeExit for every child the test
+ * spawned, and a host that only ended with the test process held that drain to its timeout.
+ */
+const endHosts = () => { for (const host of liveHosts) host.stdin.end(); liveHosts.clear(); };
 
 /**
  * Make the folder of a `nohup` that behaves as on an ssh remote, ignoring HUP and running its command, for the front of
@@ -84,6 +90,9 @@ export function startAgentHost(bin) {
   host.on('error', () => { /* no host: handAgentStart finds no port and the stand-in starts the agent itself */ });
   host.stdin.on('error', () => { /* the host already exited */ });
   host.unref(); host.stdin.unref();
+  if (!liveHosts.size) process.once('beforeExit', endHosts);
+  liveHosts.add(host);
+  host.once('exit', () => liveHosts.delete(host));
   return folder;
 }
 
