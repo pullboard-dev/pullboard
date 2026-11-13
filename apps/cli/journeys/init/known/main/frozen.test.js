@@ -149,7 +149,8 @@ function reviewer(box) {
 
 test('verify accepts an identical owned main red and records its exact case [V4,B3]', async t => {
   const box = fixture(t), repair = fileMainRed(box);
-  await settledSubmit(t, box);
+  const settled = await settledSubmit(t, box);
+  assert.equal(settled.gate.green, true, 'the pulled gate ends green: ' + JSON.stringify(settled.gate));
   const { independent, review } = reviewer(box);
   const accepted = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'checked the frozen case');
   assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
@@ -177,7 +178,8 @@ test('verify refuses a frozen failure that is green on main [V4,B3]', t => {
 
 test('verify refuses an identical main failure without an open repair owner [V4,B3]', async t => {
   const box = fixture(t);
-  await settledSubmit(t, box);
+  const settled = await settledSubmit(t, box);
+  assert.equal(settled.gate.green, true, 'the pulled gate ends green: ' + JSON.stringify(settled.gate));
   const { independent, review } = reviewer(box);
   const refused = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'no repair owns the case');
   assert.equal(refused.status, 1, refused.stdout + refused.stderr);
@@ -188,7 +190,7 @@ test('a frozen case red identically on main with no owner records a green gate l
   const box = fixture(t);
   const report = await settledSubmit(t, box);
   // Since #3534 the gate records green over main's own reds and names them, instead of a builder fact.
-  assert.equal(report.gate.green, true, 'a red only in main\'s own case records green');
+  assert.equal(report.gate.green, true, 'a red only in main\'s own case records green: ' + JSON.stringify(report.gate));
   assert.deepEqual(report.gate.mainOwned.map(({ file, name }) => ({ file, name })), [{ file: 'test/frozen.test.js', name: 'frozen case [G1]' }], 'the gate names the main-owned file and case');
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0, 'submit files no item');
   const shown = JSON.parse(cli(box, box.root, 'show', String(box.item)).stdout);
