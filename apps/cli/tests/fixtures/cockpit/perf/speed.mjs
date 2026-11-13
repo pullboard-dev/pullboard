@@ -124,7 +124,11 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     await chrome.navigate(server.link.href);
     // First load of the 40000-shout state is setup, not a measured click: give a loaded runner a minute [N26].
-    await chrome.waitFor(LOADED, firstLoadMs());
+    try { await chrome.waitFor(LOADED, firstLoadMs()); }
+    catch (error) {
+      const seen = await chrome.stable("JSON.stringify({ text: document.body.innerText.slice(0, 600), cls: document.body.className, data: typeof data, root: typeof view === 'object' ? view.root : null, project: typeof data === 'object' && data ? Object.keys(data) : null, err: window.__err })").catch(e => e.message);
+      throw new Error(`DIAG ${seen} :: ${error.message.slice(0, 100)} :: ${server.stderr()}`);
+    }
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     const hangs = [], hung = new Set();
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
