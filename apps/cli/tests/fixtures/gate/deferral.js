@@ -33,7 +33,7 @@ export function makeDeferralFixtures(e2e, store) {
     const box = e2e.project('true');
     // Landing diagnostics require TAP completion evidence on both Node 22 and Node 24.
     box.boardFile = fixtureCommittedPolicy(box, { submitGate: 'landing', affectedTests: 'node --test --test-reporter=tap',
-      submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { perItem: false, manualOverride: true, publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) });
+      submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { perItem: false, manualOverride: true } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) });
     if (inline) {
       // An inline landing pushes its gated tip, so it needs a remote; its gate only checks for a red marker file.
       box.git(box.dir, 'init', '-q', '--bare', join(box.dir, 'origin.git'));
