@@ -29,6 +29,8 @@ import {
 } from '../entry.js';
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
 import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
+import { unclaimedGateJobs } from '../../../../../packages/jobs/index.js';
+import { anyRunnerLive } from '../runner/local.js';
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
 function runHosts(io) {
@@ -63,6 +65,10 @@ export async function run(io, { values = {} } = {}) {
   for (const family of cover.missingFamilies) problems.push({ code: 'REVIEW_FAMILY_COVER',
     message: `${family} has no registered reviewer wake from another declared family`,
     next: `enroll an independent reviewer from another family with pullboard join <lane> --family <vendor> --wake <executable>` });
+  // A gate job nobody has claimed for 2 minutes while no runner is live waits on a missing runner, not on a slow gate.
+  if (!problems.some(problem => incompatible.has(problem.code)) && !anyRunnerLive()) for (const job of withBoardRead(ctx, board => unclaimedGateJobs(board.db))) problems.push({ code: 'GATE_NO_RUNNER',
+    message: `gate job ${job.id} waited over 2 min with no runner`,
+    next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
   const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
   if (checkpointProblem) problems.push(checkpointProblem);
   const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);
