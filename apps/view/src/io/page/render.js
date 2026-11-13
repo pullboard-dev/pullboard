@@ -304,6 +304,8 @@ function render({ tab: switching = false } = {}) {
 
   }
 
+  // Settings carries the rules and useful-agents cards that used to sit on the Dashboard.
+  if (view.tab === 'settings') $('settings-reference').innerHTML = '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">' + homeRules(p.spec) + '</section><section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">' + homeCapacity(p.capacityForecast) + '</section>';
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
@@ -341,8 +343,6 @@ function render({ tab: switching = false } = {}) {
     const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: openNeeds('dashboard'), compact: true });
     const behind = dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
       needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
-      rules: homeRules(p.spec),
-      capacity: homeCapacity(p.capacityForecast),
       quick: switching,
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
@@ -351,11 +351,12 @@ function render({ tab: switching = false } = {}) {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
     const itemsNeeds = itemsNeedsModel(needsModel), open = Boolean($('needs').querySelector?.('details[data-items-needs]')?.open);
+    const nothing = !itemsNeeds.questions.length && !itemsNeeds.approvals.length && !itemsNeeds.drafts;
     $('needs').hidden = view.state !== 'active' || Boolean(view.lane);
     $('needs').tabIndex = -1;
-    store.paint($('needs'), itemsNeedsHtml(itemsNeeds, { open,
+    store.paint($('needs'), nothing ? needsPanel(needsModel, needsPresentation) : itemsNeedsHtml(itemsNeeds, { open,
       questionsHtml: needsPanel({ ...itemsNeeds, approvals: [], drafts: 0 }, needsPresentation),
-      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }) || needsPanel(needsModel, needsPresentation));
+      restHtml: needsPanel({ ...itemsNeeds, questions: [] }, needsPresentation) }));
   }
   }
 
@@ -429,18 +430,23 @@ function render({ tab: switching = false } = {}) {
   if (!selected) store.paint($('detail'), '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>');
   const opened = selected && !view.adding ? detailOf(p, selected, view.tab === 'items' && data.root === view.root) : null;
   /** An item's heading: its id, title, state, lane and route, all of which its summary holds. */
-  const head = (item, s = stateOf(item)) => '<div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p)) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>';
+  /** The opened item's header, drawn the same while its detail loads and once it has arrived: lane, size and milestone as chips, then its state and holder as chips (#6769). */
+  const panelHead = (item, more = '') => {
+    const holder = holderOf(item) || reviewerOf(item);
+    const holderChip = holder ? '<span class="chip holder" title="' + esc((stateOf(item) === 'verify' ? 'Reviewing: ' : 'Building: ') + agentName(holder)) + '">' + esc(agentName(holder)) + '</span>' : '';
+    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
+    return '<header class="item-panel-head"><div class="item-panel-where">' + where.map(part => '<span class="chip">' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">'
+      + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p), false, false, Boolean(holderChip)) + holderChip + more + '</div></header>';
+  };
   if (opened?.error) store.paint($('detail'), '<div class="stack"><p class="detail-wait muted" role="status">Could not load #' + selected.id + ': ' + esc(opened.error) + '</p></div>');
   // Until its omitted fields arrive, an opened item paints its heading from its summary and fills the rest in place (#1039).
-  else if (opened?.loading) store.paint($('detail'), '<div class="stack" aria-busy="true">' + head(selected) + '</div>');
+  else if (opened?.loading) store.paint($('detail'), '<div class="item-panel" aria-busy="true">' + panelHead(selected) + '</div>');
   const item = opened?.item;
   if (item) {
     const s = stateOf(item);
     const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
     const baseline = item.checkBaseline;
     const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
-    /** Render the item's lane, route and current milestone in the approved plain header. */
-    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
     /** Parse a single named test case only from the recorded check or its baseline evidence. */
     const namedCase = (() => {
       const pattern = /--test-name-pattern(?:=|\\s+)(?:"([^"]+)"|'([^']+)'|([^\\s;]+))/u.exec(item.check || '');
@@ -482,8 +488,7 @@ function render({ tab: switching = false } = {}) {
     const passedCount = verdicts.filter(verdict => verdict.decision === 'ACCEPT').length;
     const backCount = verdicts.length - passedCount;
     const panelChoice = view.itemPanel?.root === view.root && view.itemPanel.item === item.id ? view.itemPanel.tab : 'overview';
-    const statusChips = stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p))
-      + (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
+    const statusChips = (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
       + overlapHtml(data.claimOverlaps, item.id)
       + (item.builtBy ? '<span class="chip">Built by ' + esc(agentName(item.builtBy)) + '</span>' : '')
       + (item.commit ? '<span class="item-head-hash">at ' + hashButton(item.commit) + '</span>' : '');
@@ -533,7 +538,7 @@ function render({ tab: switching = false } = {}) {
     const moreHistory = historyCount > 5 ? '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + historyCount + '" aria-expanded="' + historyOpen + '">' + (historyOpen ? 'Show less' : 'Show all ' + historyCount) + '</button>' : '';
     /** Render one accessible tab with the selected tab's native count. */
     const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '<span class="seg-hit seg-hit-top" aria-hidden="true"></span><span class="seg-hit seg-hit-bottom" aria-hidden="true"></span></button>';
-    store.paint($('detail'), '<div class="item-panel"><header class="item-panel-head"><div class="item-panel-where">' + where.map((part, index) => (index ? '<span class="sep">·</span>' : '') + '<span>' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">' + statusChips + '</div></header>'
+    store.paint($('detail'), '<div class="item-panel">' + panelHead(item, statusChips)
       + '<div class="seg item-panel-tabs" role="tablist" aria-label="Item details">' + panelTab('overview', 'Overview', null) + panelTab('verdicts', 'Verdicts', verdicts.length) + panelTab('history', 'History', historyCount) + '</div>'
       + '<section class="item-panel-section" id="item-panel-panel-overview" role="tabpanel" aria-labelledby="item-panel-tab-overview"' + (panelChoice === 'overview' ? '' : ' hidden') + ' data-item-panel-panel="overview">'
       + '<div class="item-panel-section-head"><p class="label">Latest verdict</p><span class="item-panel-count">Passed ' + passedCount + ' ' + (passedCount === 1 ? 'time' : 'times') + ' · sent back ' + backCount + '</span></div>' + latest
@@ -791,6 +796,7 @@ function render({ tab: switching = false } = {}) {
   if (keep('pb.flow') === 'shown') store.paint($('flow'), lifecycleChart(p, p.moveCounts ? new Map(Object.entries(p.moveCounts)) : moveCounts(p.items), p.items.filter(item => stateOf(item) === 'back').length));
   store.paint($('activity-filters'), activityFilters(activityModel(p, { words: activityWords }), view.activityFilter || 'all'));
   const activity = $('activity');
+  { const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions(); $('activity-compare').innerHTML = comparisonHtml(p.statsComparison ?? null, { locale, timeZone }); }
   const activityOpen = activity.dataset.boardRoot === p.root ? [...activity.querySelectorAll('[data-activity-run][open]')].map(entry => entry.dataset.activityRun) : [];
   activity.dataset.boardRoot = p.root;
   const activityTime = value => new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
