@@ -75,7 +75,7 @@ function moduleHook(dir) {
 /** A real coordinator repo with one item on its board, a counting Git shim and a module-load hook. */
 function fixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-startup-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
   const repo = join(dir, 'repo');
   const shims = join(dir, 'shims');
   const home = join(dir, 'home');
