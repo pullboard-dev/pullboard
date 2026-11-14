@@ -37,6 +37,9 @@ export const START_BOUND_MS = LEASE_MS;
 /** The step that ends a run whose worker is gone: it frees the job's lease and reads as lost. */
 export const LOST = 'lost';
 
+/** The step a pulled run's worker writes once it offered its runner job: the job id and how long it may wait unclaimed. */
+export const PULLED = 'pulled';
+
 /** The step `pullboard test --cancel` writes: it ends a queued or running run and frees its slot. */
 export const CANCELLED = 'cancelled';
 
@@ -195,7 +198,7 @@ export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS, bea
  * @param {number} [now]
  * @returns {{ id: string, status: string, agent: string|null, files: string[], log: string|null, result: any, refusal: {code: string, message: string}|null, delivered: boolean } | null}
  */
-export function testRunState(view, now = Date.now(), { finalLine = null } = {}) {
+export function testRunState(view, now = Date.now(), { finalLine = null, pulled = null } = {}) {
   if (!view || view.kind !== TEST_RUN_KIND) return null;
   const step = name => view.steps.find(row => row.name === name)?.payload;
   const queued = step('queued') ?? {};
@@ -204,10 +207,13 @@ export function testRunState(view, now = Date.now(), { finalLine = null } = {}) 
   // A worker prints its verdict to the log before it records the result; when the record never lands the log still ends the run.
   if (!result && finalLine) result = { green: finalLine.green, runner: finalLine.runner, seconds: finalLine.seconds, counts: null,
     failures: [], logPath: queued.log ?? null, files: queued.files ?? [], notices: ['result read from the log: the worker did not record it on the board'] };
+  // A pulled run's runner receipt outlives its worker: it wins over a lost worker (#7574).
+  if (!result && pulled?.receipt) result = pulledResult(pulled, queued);
   let status;
   let refusal = null;
   if (view.steps.some(row => row.name === CANCELLED)) status = 'cancelled';
   else if (result) status = result.green ? 'green' : 'red';
+  else if (pulled?.pending) status = 'running';
   else if (view.steps.some(row => row.name === LOST)) status = 'lost';
   else if (view.leaseOwner) status = view.leaseUntil < now ? 'lost' : 'running';
   else if (view.created + START_BOUND_MS < now) {
@@ -216,6 +222,41 @@ export function testRunState(view, now = Date.now(), { finalLine = null } = {}) 
   } else status = 'queued';
   return { id: view.id, status, agent: queued.agent ?? null, item: view.item, files: queued.files ?? [],
     log: result?.logPath ?? queued.log ?? null, result, refusal, delivered };
+}
+
+/**
+ * The runner job a pulled run's worker offered, read from the board: its posted receipt, or pending while a runner
+ * holds it or it may still be claimed; null for a run with no pulled job, or one that ended with no receipt.
+ *
+ * Why: a worker that stops (its starting client's session ended) leaves the runner job running; the run is the
+ * runner's to settle, not lost (#7574).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view - The test run's job view.
+ * @param {number} [now]
+ * @returns {{ job: string, receipt?: object, runner?: string | null, pending?: true } | null}
+ */
+export function pulledJobState(db, view, now = Date.now()) {
+  const offered = view?.steps.findLast(row => row.name === PULLED)?.payload;
+  if (typeof offered?.job !== 'string') return null;
+  const job = jobView(db, offered.job);
+  if (!job) return null;
+  const posted = job.steps.findLast(row => row.name === 'receipt')?.payload;
+  if (posted) return { job: job.id, receipt: posted.receipt ?? {}, runner: posted.runner ?? null };
+  if (job.step === 'done') return null;
+  const held = Boolean(job.leaseOwner) && job.leaseUntil >= now;
+  return held || now < Number(offered.until ?? 0) ? { job: job.id, pending: true } : null;
+}
+
+/** A pulled job's receipt as a run result, read the way the worker reads it: green only when every layer says so. */
+function pulledResult(pulled, queued) {
+  const { receipt } = pulled;
+  const gate = receipt.gate ?? {};
+  const phase = gate.phases?.[0] ?? null;
+  return { green: receipt.status === 0 && gate.green === true && phase?.status === 0, runner: pulled.runner ?? 'a pulled runner',
+    seconds: Number.isFinite(receipt.durationMs) ? Math.round(receipt.durationMs / 1000) : null, counts: null,
+    failures: Array.isArray(phase?.failures) ? phase.failures : [], logPath: queued.log ?? null, files: queued.files ?? [],
+    notices: [`result read from the runner receipt of test job ${pulled.job}: the worker stopped before recording it`] };
 }
 
 /**
@@ -257,6 +298,14 @@ export function endLostTestRuns(db, { now = Date.now(), alive = pidAlive } = {})
     const pid = Number(/^test-run:(\d+)$/u.exec(job.leaseOwner)?.[1]);
     const known = Number.isSafeInteger(pid) && pid > 0 ? pid : null;
     if (known !== null && alive(known)) continue;
+    // A runner still holds or may claim the run's pulled job, or posted it: the receipt settles the run, never lost (#7574).
+    const pulled = pulledJobState(db, view, now);
+    if (pulled?.pending) continue;
+    if (pulled?.receipt) {
+      writeStep(db, job.id, 'result', pulledResult(pulled, view.steps.find(row => row.name === 'queued')?.payload ?? {}), { now });
+      finishJob(db, job.id, job.leaseOwner, { now });
+      continue;
+    }
     writeStep(db, job.id, LOST, { pid: known, lapsedMs: job.lapsedMs }, { now });
     finishJob(db, job.id, job.leaseOwner, { now });
     ended.push({ id: job.id, lapsedMs: job.lapsedMs, pid: known });
@@ -274,7 +323,7 @@ export function endLostTestRuns(db, { now = Date.now(), alive = pidAlive } = {})
 export function readTestRun(board, id) {
   const rows = board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_id LIKE ? LIMIT 2').all(TEST_RUN_KIND, `${String(id).replace(/[%_]/gu, '')}%`);
   if (rows.length !== 1) throw new Refused('NO_TEST_RUN', `${rows.length ? 'more than one' : 'no'} test run matches ${id}; pass the full run id that pullboard test printed`);
-  return viewState(jobView(board.db, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
+  return viewState(board.db, jobView(board.db, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
 }
 
 /**
@@ -301,11 +350,11 @@ export function cancelTestRun(board, id, agent, { kill = process.kill } = {}) {
   return readTestRun(board, run.id);
 }
 
-/** A job view as a run state, reading the worker's log only for a run that has no recorded result. */
-function viewState(view, now) {
+/** A job view as a run state, reading the worker's log and its pulled job only for a run that has no recorded result. */
+function viewState(db, view, now) {
   const unfinished = view?.kind === TEST_RUN_KIND && !view.steps.some(row => row.name === 'result');
   const log = unfinished ? view.steps.find(row => row.name === 'queued')?.payload?.log : null;
-  return testRunState(view, now, { finalLine: readFinalLine(log) });
+  return testRunState(view, now, { finalLine: readFinalLine(log), pulled: unfinished ? pulledJobState(db, view, now) : null });
 }
 
 /**
@@ -318,7 +367,7 @@ function viewState(view, now) {
  */
 export function ownTestRuns(board, agent, now = Date.now()) {
   return board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_step <> ? ORDER BY job_created, job_id').all(TEST_RUN_KIND, DELIVERED)
-    .map(row => viewState(jobView(board.db, row.job_id), now)).filter(run => run && run.agent === agent);
+    .map(row => viewState(board.db, jobView(board.db, row.job_id), now)).filter(run => run && run.agent === agent);
 }
 
 /** Mark a run handed back, so `next` tells its seat once. */
