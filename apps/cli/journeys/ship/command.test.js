@@ -54,14 +54,14 @@ async function fixture(t, check = 'true', acceptedFiles = {}) {
   const id = JSON.parse(added.out).item.item_id;
   const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
-  return { helpers, box, id, children };
+  return { helpers, box, id, children, folder: JSON.parse(claimed.out).itemFolder ?? null };
 }
 
 /** Stage exactly the requested fixture bytes; the product must perform the actual commit. */
-function stage(box, file, body) {
-  mkdirSync(join(box.web, file, '..'), { recursive: true });
-  writeFileSync(join(box.web, file), body);
-  box.git(box.web, 'add', file);
+function stage(box, file, body, dir = box.web) {
+  mkdirSync(join(dir, file, '..'), { recursive: true });
+  writeFileSync(join(dir, file), body);
+  box.git(dir, 'add', file);
 }
 
 test('ship review wait names its deadline without undoing the completed gate [V4,B3]', async t => {
@@ -89,10 +89,10 @@ test('ship review wait names its deadline without undoing the completed gate [V4
 const SHIP_WAIT_MS = 60_000;
 
 /** A fixture reviewer releases the actual --wait only after observing its durable submit. */
-async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
+async function shipAndAccept(t, f, note = 'The staged fixture shipped.', cwd = f.box.web) {
   const { box, helpers, id } = f;
   // Process-level case: ship blocks on the verdict while this test records it on the same board, so it stays a real child.
-  const pending = runFixtureChildAsync(process.execPath, [helpers.BIN, 'ship', '--note', note, '--json'], { cwd: box.web, env: box.env });
+  const pending = runFixtureChildAsync(process.execPath, [helpers.BIN, 'ship', '--note', note, '--json'], { cwd, env: box.env });
   const child = pending.child;
   f.children.push(pending);
   let observedOut = '', observedErr = '';
@@ -262,4 +262,12 @@ test('ship reclaims a lapsed lease only inside this builder first-refusal window
   await expireClaim(f);
   stage(f.box, 'web/reworked.txt', 'Actual changed rework.\n');
   await shipAndAccept(t, f);
+});
+
+test('ship run from the item folder claim named exits 0 and records its note after the verdict [C7,V4,#7752]', async t => {
+  const f = (await fixture(t));
+  assert.ok(f.folder, 'a claim names the item folder it builds in');
+  stage(f.box, 'web/folder-ship.txt', 'Staged in the item folder.\n', f.folder);
+  const result = await shipAndAccept(t, f, 'Shipped from the item folder.', f.folder);
+  assert.equal(result.id, f.id);
 });
