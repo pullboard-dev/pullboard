@@ -1,7 +1,7 @@
 /**
  * `pullboard tour` (N10): the method in thirty seconds, on a throwaway repo. A coordinator and two
  * scripted agents run real pullboard and git commands: a builder submits work that misses an edge,
- * a second agent finds it and rejects, and the rework is accepted. No model runs and nothing leaves
+ * a second agent finds it and rejects, and the rework is accepted and landed by the lander. No model runs and nothing leaves
  * the machine; the repo stays behind to look around in.
  */
 import { spawnSync } from 'node:child_process';
@@ -289,7 +289,7 @@ export async function tour(io) {
     run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # with the fix removed', show: /^# (pass|fail)/, fails: true, tone: 'red' });
     run('review-1', 'git', ['checkout', '--', 'src/greet.mjs']);
     if (color) run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # after restoring the fix', show: /^# (pass|fail)/, tone: 'green' });
-    await pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified|land job|not landed/, tone: 'green' });
+    await pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/, tone: 'green' });
 
     step(8, 'The lander lands it: a land job merges it onto main. The ledger is the receipt.');
     await landed('coordinator', '1');
