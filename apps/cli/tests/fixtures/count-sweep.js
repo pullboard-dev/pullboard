@@ -74,8 +74,7 @@ export function countPairs() {
     source('[data-home-count]');
   }
   if (view.tab === 'shouts') {
-    // The agent cards left the Shouts page for the Floor's Agents table: the footer is checked against that table's live rows there (#7795).
-    if (all('#agents .agent-card').length) add('Shouts/working agents footer', number(document.querySelector('[data-status="agents"] b')), all('#agents .agent-card').length);
+    add('Shouts/working agents footer', number(document.querySelector('[data-status="agents"] b')), all('#agents .agent-card').length);
     const pendingQuestions = new Set([...p.decisions, ...p.asked, ...(p.decisionQueue || [])].map(question => question.shout_id));
     add('Shouts/Questions segment', number(document.querySelector('[data-shout-filter=questions] b')), pendingQuestions.size);
     add('Shouts/replaced decisions wall', all('#decisions .shout').length, 0);
@@ -214,7 +213,6 @@ export function countPairs() {
       add('Floor/tile/' + key, Number.parseInt(numeral?.textContent.replaceAll(',', ''), 10), expected);
     }
     // The seen-agents note moved to the Agents group heading (2ad0017969).
-    add('Floor/footer working agents', number(document.querySelector('[data-status="agents"] b')), live);
     add('Floor/seen agents note', number(document.querySelector('[data-floor-group="agents"] h2 span')), agents.length);
     add('Floor/day landed note', number(document.querySelector('[data-floor-group="recent"] h2 span')), dayIds.size);
     // Tile sub-lines moved into each tile's hover title (2ad0017969).
