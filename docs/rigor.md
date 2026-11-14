@@ -33,6 +33,10 @@ Start by looking at what has repeated:
 
 Each line shows the cause, whether it reads as work, product or both, how often it failed, and which items it touched. A line that says "never again (the person)" is one the person has already decided on.
 
+The same report as one versioned document, for scripts:
+
+    pullboard rigor --json
+
 When a cause repeats, the board posts a notice to the coordinator with the next command. The coordinator then drafts the rule and proves it. The command takes a rule, a check, and two commits: one where the check fails, and one where it passes:
 
     pullboard rigor draft <key> "<rule>" --check "<command>" --red <commit> --green <commit> [--section <letter>]
