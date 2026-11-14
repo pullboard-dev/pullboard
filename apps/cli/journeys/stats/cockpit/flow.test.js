@@ -151,10 +151,10 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     }
     // The Shouts feed draws only on its own tab, so open it for the day names below and count redraws from there.
     await press(chrome, "document.querySelector('[data-tab=shouts]')");
-    await chrome.waitFor("!!document.querySelector('#feed .conversation-row')");
+    await chrome.waitFor("!!document.querySelector('#feed .sx-th')");
     await chrome.stable(`(() => {
       window.__redraws = 0;
-      window.__kept = [...document.querySelectorAll('#tabs .tab, #feed .conversation-row')];
+      window.__kept = [...document.querySelectorAll('#tabs .tab, #feed .sx-th')];
       window.__scroll = [scrollX, scrollY];
       return true;
     })()`);
@@ -162,9 +162,9 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     // place, the shouts gaining the rule above it they leave off for today: the page's clock moves a day on, alone.
     const days = `JSON.stringify({ headings: [...document.querySelectorAll('.feed .day')].map((node) => node.textContent),
       rules: [...document.querySelectorAll('#feed > .day-rule span')].map((node) => node.textContent),
-      untopped: (() => { const first = document.querySelector('#feed .shout, #feed .conversation-row'); return Boolean(first) && !first.previousElementSibling?.classList.contains('day-rule'); })() })`;
+      untopped: (() => { const first = document.querySelector('#feed .sx-th'); return Boolean(first) && !first.previousElementSibling?.classList.contains('day-rule'); })() })`;
     const today = JSON.parse(await chrome.stable(days));
-    // Today's run of shouts carries no label at its top (dayRules in connect.js), so it is the run that midnight must label.
+    // Shouts names no day above its threads; days older than today wait behind one Earlier row.
     assert.deepEqual([today.headings, today.rules, today.untopped], [[], [], true], `today's run of rows is unlabelled at the top of the feed: ${JSON.stringify(today)}`);
     await chrome.stable(`(() => {
       const Real = Date;
@@ -182,10 +182,7 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
     assert.deepEqual(midnight.scroll, midnight.start, 'a read past midnight keeps the scroll position');
     assert.deepEqual(renamed.headings.map((name, index) => today.headings[index] === 'Today' ? name === 'Yesterday' : name !== 'Today'),
       today.headings.map(() => true), `the day the page called Today is called Yesterday now, in place: ${JSON.stringify({ today, renamed })}`);
-    assert.ok(!renamed.rules.includes('Today'), 'no shout rule calls a day Today');
-    assert.deepEqual(renamed.rules, today.untopped ? ['Yesterday', ...today.rules.map((name) => name === 'Yesterday' ? renamed.rules[1] : name)] : renamed.rules,
-      'the shouts gain one rule, Yesterday, above what is no longer today');
-    assert.equal(renamed.untopped, false, 'no shout run is left without its day');
+    assert.deepEqual([renamed.headings, renamed.rules, renamed.untopped], [today.headings, [], true], 'Shouts draws no day rule above its threads: older days fold into one Earlier row');
     await chrome.stable('(() => { window.Date = Object.getPrototypeOf(window.Date); return true; })()');
     // Back on Items, where the control was written, count again from a quiet page.
     await press(chrome, "document.querySelector('[data-tab=items]')");

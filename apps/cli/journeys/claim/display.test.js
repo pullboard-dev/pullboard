@@ -97,8 +97,8 @@ test('private Items and Shouts share a model name without rewriting the native A
     assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').textContent.trim()"), 'web-1');
     assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').title.split(' · ')[0]"), 'GPT-6.1 Sol');
     await press(chrome, "document.querySelector('[data-tab=shouts]')");
-    await chrome.waitFor("document.querySelector('.agent-card .agent-model')");
-    assert.ok((await chrome.stable("document.querySelector('#agents').textContent")).includes('GPT-6.1 Sol'));
+    await chrome.waitFor("document.querySelector('#agents .sx-ag')");
+    assert.ok((await chrome.stable("document.querySelector('#agents .sx-ag').title")).includes('GPT-6.1 Sol'));
     assert.equal(await chrome.stable("data.project.agents.find(agent => agent.agent_id === 'web-1').model"), 'gpt-6.1-sol', 'presentation never rewrites the native observation');
     assert.deepEqual(chrome.exceptions, []);
   } finally { if (chrome) await closeSnapshotChrome(chrome); await server.stop(); }
