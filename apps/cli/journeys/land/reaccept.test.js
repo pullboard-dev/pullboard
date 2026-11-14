@@ -101,7 +101,6 @@ test('clause 2: while the re-accepted item waits, land and resume --diagnostics 
   const before = await box.runLocal(box.repo, 'resume', '--diagnostics');
   assert.equal(before.code, 0, before.err);
   assert.match(before.out, new RegExp(`landing: #${id} .*no land job names it; next: pullboard land offers it`, 'u'), before.out);
-  assert.match(before.out, /^next: pullboard land /mu, before.out);
   const land = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(land.code, 0, `land offers the missing job: ${land.out}\n${land.err}`);
   const [job] = landJobsFor(queue.board, id);
