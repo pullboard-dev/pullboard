@@ -62,11 +62,11 @@ test('actual CLI files, lists, delivers and batch-answers typed coordinator requ
   assert.notEqual(missing.code,0);assert.equal(JSON.parse(missing.out).error.code,'BAD_REQUEST_CAUSE');
   const a=(await cli(box,box.web,'request','hold',String(first),'--cause','routing-assignment','--note','Wait for the dependency')).id;
   const b=(await cli(box,box.web,'request','withdraw',String(second),'--cause','tool-defect')).id;
-  // The coordinator's own commands already deliver and mark queue activity, so the inbox read is empty by now; the queue itself is the proof.
-  assert.deepEqual((await cli(box,box.repo,'request','list')).requests.map(row=>row.id),[a,b],'coordinator receives typed queue activity');
   assert.equal((await cli(box,box.repo,'show',String(first))).item_hold_reason,null,'request alone never executes a hold');
   assert.equal((await cli(box,box.repo,'show',String(second))).item_status,'open','request alone never withdraws');
   assert.deepEqual((await cli(box,box.web,'request','list')).requests.map(row=>row.id),[a,b]);
+  const inbox=await cli(box,box.repo,'inbox');
+  assert.ok(inbox.activity.entries.some(row=>row.typedRequest&&row.eventId===a),'coordinator receives typed queue activity');
   const denied=await box.runLocal(box.web,'request','answer',`${a},${b}`,'declined','--note','Forged coordinator','--json');
   assert.notEqual(denied.code,0);assert.equal(JSON.parse(denied.out).error.code,'COORDINATOR_ONLY');
   await cli(box,box.repo,'hold',String(first),'--reason','Dependency holds it');
@@ -74,9 +74,9 @@ test('actual CLI files, lists, delivers and batch-answers typed coordinator requ
   const events=[eventFor(box,first,'hold_item'),eventFor(box,second,'withdraw')];
   const answered=await cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(','));
   assert.deepEqual(answered.requests.map(row=>row.status),['done','done']);
-  const reply=await cli(box,box.web,'inbox'); // First read: any other command by the requester delivers and marks its activity.
   assert.equal((await cli(box,box.repo,'request','list')).requests.length,0);
   assert.equal((await cli(box,box.web,'request','list','--all')).requests.length,2);
+  const reply=await cli(box,box.web,'inbox');
   assert.ok(reply.activity.entries.some(row=>row.typedRequest&&row.text.includes(`#${a} done`)),'requester receives actual answer activity');
   await cli(box,box.repo,'hold',String(first),'--off');
   assert.deepEqual((await cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(','))).requests,answered.requests,'exact retry retains original result after later legitimate state changes');
