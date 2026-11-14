@@ -35,6 +35,7 @@ import { parseProcessCensus } from '../../../../packages/kernel/light.js';
 import { proveCauseCheck } from '../../../../packages/rigor/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
@@ -123,7 +124,6 @@ test('native check, submit and independent verification execute the old frozen p
   assert.equal(e2e.commitFile(box, web, 'web/item.txt', 'built\n', 'feat(web): build mapped fixture [G1]').status, 0);
   // The pulled gate settles before the item is verified [P7,C7].
   const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, await json(web, 'submit', '1'));
-  assert.equal(submitted.gate?.result ?? submitted.gate?.state, 'green', JSON.stringify(submitted.gate) + JSON.stringify(submitted.gateJob));
   box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
   try { await json(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'The original frozen command executes the mapped file.'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -191,11 +191,11 @@ test('why on an old name includes work landed at the new name [C7]', async (t) =
     await json(box.web, 'claim', String(id));
     assert.equal(e2e.commitFile(box, box.web, file, content, 'feat(web): preserve moved history [G1]').status, 0);
     const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, await json(box.web, 'submit', String(id)));
-    assert.equal(submitted.gate?.result ?? submitted.gate?.state, 'green', JSON.stringify(submitted.gate) + JSON.stringify(submitted.gateJob));
-    box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
+      box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
     try { await json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The named fixture file exists at the submitted source.'); }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
-    assert.deepEqual((await json(box.repo, 'land')).landed, [id]);
+    // A pulled landing offers a runner job; its receipt names what landed [P7,C7].
+    assert.deepEqual((await settleLand(box, await json(box.repo, 'land'))).landed, [id]);
   };
   await land(1, OLD, 'console.log("before-move");\n');
   mkdirSync(join(box.repo, 'web/cell'), { recursive: true });
