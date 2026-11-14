@@ -4,9 +4,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  runFixtureChild,
-} from '../../../tests/fixtures/child.js';
+import { runChildTests } from '../../../../../packages/gate/tests/fixtures/child-tests.js';
 import { runSubmitGate } from '../../../../../packages/gate/index.js';
 import { loadConfig } from '../../../../../packages/config/index.js';
 import { executionServices } from '../../../tests/fixtures/gate/execution.js';
@@ -21,7 +19,7 @@ import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 test('hiding a real broken package from the supplied selection fails the run [C7,CS4,V4]', async t => {
   const box = fixture(t), entry = build(box, 'beta', 'broken');
-  const actual = runFixtureChild(process.execPath, ['--test', '--test-reporter=tap', 'test/beta.test.js'], { cwd: entry.root, env: box.env, encoding: 'utf8' });
+  const actual = runChildTests(['test/beta.test.js'], { cwd: entry.root, env: box.env });
   assert.equal(actual.status, 1, 'the hidden change really breaks its unit contract: ' + actual.stdout + actual.stderr);
   await assert.rejects(runSubmitGate(entry.root, loadConfig(entry.root), { executionServices, base: box.base, trunk: box.base,
     changed: [], check: 'node check.cjs beta', agent: 'web-1', item: String(entry.id) }),
