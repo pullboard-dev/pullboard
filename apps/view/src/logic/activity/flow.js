@@ -238,6 +238,8 @@ export function activityFlow(project, events, { now, windowHours = 24, left = nu
   const since = { at: sinceAt, landed: sinceRows.filter(entry => entry.kind === 'landed').length, sentBack: sinceRows.filter(entry => entry.kind === 'sentback').length, rulings: sinceRows.filter(entry => entry.kind === 'ruling').length };
 
   return { now, windowStart: W0, windowHours, hours, journeys: shown, journeyById, lanes: laneEnd.length, events: all, counts, people, bottlenecks, off, laneIds, since,
-    rail: { agents: { total: seats.length, building, reviewing, idle: Math.max(0, seats.length - building - reviewing) }, runners, queue, main },
+    // The rail's two counts are the state's shared ones, the same the top bar and the Dashboard show (#7310).
+    rail: { agents: { total: Number.isInteger(project.counts?.agents) ? project.counts.agents : seats.length, building, reviewing, idle: Math.max(0, (Number.isInteger(project.counts?.agents) ? project.counts.agents : seats.length) - building - reviewing) },
+      runners, runnerCount: Number.isInteger(project.counts?.runners) ? project.counts.runners : runners.length, queue, main },
     names: NAMES, limits: Object.fromEntries(Object.keys(MINUTES).map(key => [key, MINUTES[key]])) };
 }

@@ -78,7 +78,7 @@ export function activityRuntime({ flow, html, tip, step, start, api, boardPath, 
     else if (state.error !== null && Date.now() - (state.failedAt ?? 0) > 5000 && !state.pending) void read(project, state, hours);
     const now = Date.parse(project.observedAt) || Date.now();
     const known = state.left !== null, left = known ? state.left : now - HOUR;
-    const atWork = working(project), key = [project.root, project.sequence, project.observedAt, state.version, hours, by ?? '', left, (atWork ?? []).length].join('|');
+    const atWork = working(project), key = [project.root, project.sequence, project.observedAt, state.version, hours, by ?? '', left, (atWork ?? []).length, project.counts?.agents ?? '', project.counts?.runners ?? (project.dashboardRunners?.runners ?? []).length].join('|');
     if (!state.model || state.key !== key) { state.model = flow(project, state.events, { now, windowHours: hours, left, working: atWork, by }); state.key = key; }
     const model = state.model;
     state.shown = quiet(project, state);

@@ -187,7 +187,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const job = entry => '<div class="dash-j"><span class="dash-id">'+(entry.item ? '#'+entry.item : '')+'</span><span class="dash-t">'+esc(entry.kind ?? 'job')+(entry.selected ? ' <small>· '+(entry.done ?? 0)+' of '+entry.selected+(entry.selected === 1 ? ' file' : ' files')+'</small>' : '')+'</span><span class="dash-age'+(entry.failing ? ' late' : '')+'">'+(entry.failing ? entry.failing+' red' : entry.minutesLeft !== null && entry.minutesLeft !== undefined ? entry.minutesLeft+'m left' : '')+'</span></div>';
     const runs = Array.isArray(live.runs) ? live.runs : [];
     const kinds = kind => runs.filter(run => run.kind === kind).length;
-    return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static">'+list.length+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
+    return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static" data-count="runners">'+(m.totals?.runners ?? list.length)+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
       + '<p class="dash-sub"><b>'+jobs+'</b> jobs on <b>'+busy+'</b> of '+list.length+' runners</p>'+table+'</div>'
       + '<div class="dash-node"><h3>Runner '+pick.runner+'<small>busiest</small></h3><p class="dash-facts"><b>'+pct(pick.cpu)+'</b> CPU · <b>'+pct(pick.ram)+'</b> RAM · <b>'+pick.jobs.length+'</b> jobs</p>'
       + sub('Running here · '+pick.jobs.length)+(pick.jobs.length ? pick.jobs.map(job).join('') : '<p class="dash-empty">Nothing running.</p>')

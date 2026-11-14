@@ -30,5 +30,7 @@ export function ruleListModel(rows, { kind, filter, selectedId = null, addressed
       sectionReviewCounts.set(key, (sectionReviewCounts.get(key) || 0) + 1);
   }
   const decisionTitle = undecidedIds.length + ' drafts';
-  return { decisionTitle, labels, shorts, counts, shown, nextSelectedId, feedbackId, sectionCounts, sectionReviewCounts, sectionKey, undecidedIds };
+  // Each page names what its Rulings count is (#7310): the rows of this page still waiting for a decision, not the top bar's calls.
+  const decideTitle = undecidedIds.length + ' ' + (kind === 'doctrine' ? 'doctrine' : 'spec') + ' rows waiting for a ruling; the top bar counts the calls only you can make';
+  return { decisionTitle, decideTitle, labels, shorts, counts, shown, nextSelectedId, feedbackId, sectionCounts, sectionReviewCounts, sectionKey, undecidedIds };
 }

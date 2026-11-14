@@ -213,7 +213,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   // ---- Since you left, Bottlenecks ----
   const s = flow.since, minutesLeft = s.at === null ? null : Math.max(1, Math.round((now - s.at) / MIN));
   const sinceHtml = '<p class="act-since">' + (leftKnown && s.at !== null ? 'Since you left ' + dur(now - s.at) + ' ago: ' : 'In the last hour: ')
-    + '<a data-act-go="landed">' + s.landed + ' landed</a> · <a data-act-go="sentback">' + s.sentBack + ' sent back</a> · <a class="amb" data-act-go="ruling">' + s.rulings + (s.rulings === 1 ? ' ruling' : ' rulings') + '</a>'
+    + '<a data-act-go="landed">' + s.landed + ' landed</a> · <a data-act-go="sentback">' + s.sentBack + ' sent back</a> · <a class="amb" data-act-go="ruling" title="Rulings raised in this window, not the top bar count">' + s.rulings + (s.rulings === 1 ? ' ruling' : ' rulings') + '</a>'
     + (newer > 0 ? '<a class="newer" data-act-new>' + newer + ' new ↑</a>' : '') + '</p>';
   void minutesLeft;
   const bottlenecks = '<section class="act-sec act-first"><div class="act-shd"><p class="act-lbl">Bottlenecks · now</p><span class="act-cap">'
@@ -240,8 +240,8 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     '<div class="act-card rc main1"><span class="mdot' + (R.main.green ? '' : ' red') + '"></span><b class="' + (R.main.green ? '' : 'red') + '">' + (R.main.green ? 'Green' : 'Red') + '</b><span class="faint">' + (R.main.green ? (R.main.at ? 'for ' + dur(now - R.main.at) : '') : R.main.repairs + ' repair item' + (R.main.repairs === 1 ? '' : 's') + ' open') + '</span>' + (R.main.sha ? '<span class="commit">' + esc(R.main.sha.slice(0, 7)) + '</span>' : '') + '</div>',
   ];
   const rail = '<aside class="act-rail" aria-label="Resources">'
-    + sec('<div class="act-shd"><p class="act-lbl">Agents<span class="act-pill">' + A.total + '</span></p><button type="button" class="lk" data-tab="dashboard">Dashboard ›</button></div>', cards[0], false)
-    + sec('<div class="act-shd"><p class="act-lbl">Runners<span class="act-pill">' + R.runners.length + '</span></p><span class="act-cap">' + (hot ? '<b class="hotn">' + hot + '</b> hot · ' : '') + jobs + ' jobs</span></div>', cards[1])
+    + sec('<div class="act-shd"><p class="act-lbl">Agents<span class="act-pill" data-count="agents">' + A.total + '</span></p><button type="button" class="lk" data-tab="dashboard">Dashboard ›</button></div>', cards[0], false)
+    + sec('<div class="act-shd"><p class="act-lbl">Runners<span class="act-pill" data-count="runners">' + (R.runnerCount ?? R.runners.length) + '</span></p><span class="act-cap">' + (hot ? '<b class="hotn">' + hot + '</b> hot · ' : '') + jobs + ' jobs</span></div>', cards[1])
     + sec('<div class="act-shd"><p class="act-lbl">Queue</p></div>', cards[2])
     + sec('<div class="act-shd"><p class="act-lbl">Main</p></div>', cards[3])
     + '</aside>';
