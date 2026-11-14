@@ -57,6 +57,7 @@ import { engineReceipt } from '../../../state/index.js';
 import { prepareEngineMove } from '../../../state/index.js';
 import { refuseRelayMove } from '../../../state/index.js';
 import { requireSupportedEngine } from '../../../state/index.js';
+import { restoreRelayEpoch } from '../../../state/index.js';
 import { startRelayEpoch } from '../../../state/index.js';
 import { actorTransport } from './relay/seats.js';
 import { ensurePersonCoordinator } from './relay/seats.js';
@@ -329,18 +330,18 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
     let requestSignal;
     for (let attempt = 0; ; attempt += 1) {
       try {
-        requestSignal ??= signal ? AbortSignal.any([signal, AbortSignal.timeout(io?.relayTimeoutMs ?? 10000)]) : AbortSignal.timeout(io?.relayTimeoutMs ?? 10000); // budget: original per-request transport ceiling, shared by a replacement GET.
+        requestSignal ??= (ceiling => signal ? AbortSignal.any([signal, AbortSignal.timeout(ceiling)]) : AbortSignal.timeout(ceiling))(Math.max(1, Math.min(io?.relayTimeoutMs ?? 10000, (io?.relayDeadlineAt ?? Infinity) - Date.now()))); // budget: original per-request transport ceiling, shared by a replacement GET; a paused baseline cuts it to io.relayDeadlineAt.
         response = await relayFetch(origin + path, {
           method, redirect: 'error', signal: requestSignal,
           headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(initialBaseline ? { 'if-none-match': '*' } : {}) },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
-        break;
+        if (io) delete io.relayDeadlineAt; break; // An answer ends the short wait of a paused baseline.
       } catch (error) {
         if (signal?.aborted) throw new Refused('OAUTH_CANCELLED', 'GitHub device sign-in was cancelled; no board was linked');
         // A stale cached connection reports ECONNRESET or EPIPE across supported Node runtimes. Only a read may try once more.
         if (method === 'GET' && attempt === 0 && ['ECONNRESET', 'EPIPE'].includes(transportFailure(error)) && requestSignal && !requestSignal.aborted) continue;
-        const refusal = new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer (${transportFailure(error)} after ${Date.now() - startedAt} ms on ${method} ${path.split('?')[0]}); read the local board offline, then retry this move when the relay is reachable`);
+        const refusal = new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer (${transportFailure(error)} after ${Date.now() - startedAt} ms on ${method} ${path.split('?')[0]}); read the local board offline, then retry this move when the relay is reachable${state.baselinePause ? `; this board's baseline upload is paused (${state.baselinePause.code}), so it waits for the relay and commands do not` : ''}`);
         refusal.transportFailure = transportFailure(error);
         throw refusal;
       }
@@ -1309,24 +1310,26 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     if (reusableSession && reusableSession.url !== url) throw new Refused('RELAY_SESSION', 'Sign in again to this relay with pullboard relay on --all.');
     // Every clone finds its board in pullboard.json [E12], written before the snapshot so its presentation carries it.
     const restoreConfig = nameBoardInConfig(repoInfo(root).root, nextBoard, io);
-    if (!state) {
-      const snapshot = localRecords(io.openBoard, root, (board) => {
-        startRelayEpoch(board, nextBoard);
-        return { board: store.boardId(board) };
-      });
-      snapshot.document = relaySnapshot(root, {}, presentationPorts);
-      // Save the device key before creating any remote link; a locked keychain cannot strand it.
-      const keyStorage = storeBoardKey(snapshot.board, key);
-      state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,
-        keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
-        cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
-        baselineAccepted: false, linkPending: true };
-      state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
-      if (relink && replacement) { state.previousBoardNotice = relink.previous; state.replaces = replacement; }
+    let epoch; try {
+      if (!state) {
+        const snapshot = localRecords(io.openBoard, root, (board) => { epoch = startRelayEpoch(board, nextBoard); return { board: store.boardId(board) }; });
+        snapshot.document = relaySnapshot(root, {}, presentationPorts);
+        // Save the device key before creating any remote link; a locked keychain cannot strand it.
+        const keyStorage = storeBoardKey(snapshot.board, key);
+        state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,
+          keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
+          cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
+          baselineAccepted: false, linkPending: true };
+        state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
+        if (relink && replacement) { state.previousBoardNotice = relink.previous; state.replaces = replacement; }
+      }
+      // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
+      saveLink(file, state);
+    } catch (error) {
+      restoreConfig(() => { if (epoch) localRecords(io.openBoard, root, (board) => restoreRelayEpoch(board, epoch)); });
+      throw error;
     }
     const account = signed.account ?? signed.user?.id;
-    // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
-    saveLink(file, state);
     if (relink) finishRelink(root);
     if (state.linkPending) {
       if (signed.linkConfirmed && signed.linkedBoard !== state.board) throw new Refused('RELAY_RESPONSE', 'the relay confirmed a different board; sign in again');
