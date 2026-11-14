@@ -7,7 +7,7 @@ export * from './src/logic/registry.js';
 export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/logic/cause.js';
 export { decodedProofEvent, proofEventDetail } from './src/logic/detail.js';
 
-export { auditAdapterEnvironment } from './src/logic/adapter.js';
+export { auditAdapterEnvironment } from './src/logic/audit.js';
 export { parseProcessCensus } from './src/logic/census.js';
 export { machineHome, engineBindings } from './light.js';
 export { RUNNER_PRELOAD_ENV, declareKnownNodeOption, declareNodeOptionProofs, foreignNodeOptions } from './src/logic/node/options.js';
