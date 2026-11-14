@@ -35,11 +35,11 @@ async function project(t, { staticFails = false, staticLint = false, staticWaits
   const box = privateRepo(t);
   const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log'), doctrine: join(box.dir, 'doctrine.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
-    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules apps/cli/src/io/static/checks.js' : staticFails ? 'node test/static-problem.mjs' : staticWaitsForDoctrine ? `node test/wait-for.mjs ${markers.doctrine} ${join(box.dir, 'machine-home')}` : 'true'}`,
+    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules tools/style-check.js' : staticFails ? 'node test/static-problem.mjs' : staticWaitsForDoctrine ? `node test/wait-for.mjs ${markers.doctrine} ${join(box.dir, 'machine-home')}` : 'true'}`,
     shared: ['pullboard.json'] }));
   if (staticLint) {
     put(box.root, 'packages/gate/data/baselines/test-waits-baseline.json', '{}\n');
-    put(box.root, 'apps/cli/src/io/static/checks.js', `import { readFileSync } from 'node:fs';
+    put(box.root, 'tools/style-check.js', `import { readFileSync } from 'node:fs';
 import { importStyleViolations } from ${JSON.stringify(GATE_FRONT_DOOR)};
 const sources = ['test/style-bad.js'].map(file => ({ file, source: readFileSync(file, 'utf8') }));
 const failures = importStyleViolations(sources);
@@ -172,18 +172,17 @@ test('changed import style is refused while other stages may run [V4,C7]', async
   put(box.root, 'test/style-bad.js', "import { readFile, writeFile } from 'node:fs';\nexport { readFile, writeFile };\n");
   commitAll(box, 'feat(core): change source with bad import style [G1]');
   // Process-level: runs the static checker as its own node process, the way the submit static stage starts it.
-  const checked = runFixtureChild(process.execPath, ['--experimental-vm-modules', 'apps/cli/src/io/static/checks.js'],
+  const checked = runFixtureChild(process.execPath, ['--experimental-vm-modules', 'tools/style-check.js'],
     { cwd: box.root, env: box.env, encoding: 'utf8' });
   const checkerOutput = checked.failure ?? checked.stderr ?? '';
   assert.notEqual(checked.status, 0, checkerOutput);
   assert.match(checkerOutput, /test\/style-bad\.js:1: one import binding per line/u);
-  // A test-only change skips the submit's own preflight, so the runner's gate job runs the static stage and refuses.
-  const queued = box.run('submit', '1', '--json', '--no-next', '--infra', 'static preflight fixture');
-  assert.equal(queued.code, 0, JSON.stringify(queued));
-  const settled = await settleSubmit(t, { repo: box.root, env: box.env, run: (cwd, ...args) => inProcess(box, cwd, ...args) }, JSON.parse(queued.out));
-  assert.equal(existsSync(markers.staticCheck), true, 'the static stage actually ran');
-  assert.notEqual(settled.gate?.green, true, JSON.stringify(settled.gate));
-  assert.match(JSON.stringify(settled.gate), /test\/style-bad\.js:1: one import binding per line/u);
+  // Process-level: the static preflight refuses in the submitting process before any gate job is offered, so it stays a child.
+  // The checker is not named apps/cli/src/io/static/checks.js: submit runs that path as Pullboard's own checker, not as configured.
+  const result = box.run('submit', '1', '--json', '--no-next', '--infra', 'static preflight fixture');
+  assert.equal(existsSync(markers.staticCheck), true, `the submit static stage actually ran: ${JSON.stringify(result)}`);
+  assert.notEqual(result.code, 0, result.err + result.out);
+  assert.match(result.err + result.out, /test\/style-bad\.js:1: one import binding per line/u);
   // The independent stages start beside the static check, so whether they ran before the refusal is not part of the contract.
   assert.equal(JSON.parse((await inProcess(box, box.root, 'show', '1', '--json')).out).item_status, 'claimed', 'a static refusal leaves the item claimed');
 });
