@@ -37,6 +37,9 @@ test('real Chrome retains reduced motion and jumps both detail panes without ani
       const original = Element.prototype.scrollIntoView;
       /** Record the actual navigation scroll while retaining Chrome behavior. */
       Element.prototype.scrollIntoView = function(options) { window.__detailScrolls.push({id:this.id,behavior:options?.behavior}); return original.call(this, options); };
+      // The stacked Items detail is placed below the sticky nav with window.scrollTo since #7403 (b94d43bd4a), not scrollIntoView.
+      const scrollTo = window.scrollTo;
+      window.scrollTo = function(options) { window.__detailScrolls.push({id:'window',behavior:options?.behavior}); return scrollTo.apply(this, arguments); };
     })()`);
     assert.deepEqual(await chrome.stable(`(() => {const style=getComputedStyle(document.querySelector('#motion-proof'));return [style.transitionDuration,style.animationName,style.scrollBehavior];})()`), ['0s', 'none', 'auto'], 'reduced motion disables transitions, animations and CSS smooth scrolling');
     await press(chrome, "document.querySelector('[data-tab=items]')");
@@ -46,7 +49,7 @@ test('real Chrome retains reduced motion and jumps both detail panes without ani
     await press(chrome, `document.querySelector('#spec-chips [data-rows="spec:all"]')`);
     await press(chrome, `document.querySelector('#spec-list [data-row="spec:G2"]')`);
     const scrolls = await chrome.stable('window.__detailScrolls');
-    for (const id of ['detail', 'spec-detail']) assert.ok(scrolls.some(entry => entry.id === id && entry.behavior === 'instant'), `${id} jumps immediately: ${JSON.stringify(scrolls)}`);
+    for (const id of ['window', 'spec-detail']) assert.ok(scrolls.some(entry => entry.id === id && entry.behavior === 'instant'), `${id} jumps immediately: ${JSON.stringify(scrolls)}`);
     await chrome.stable(`(() => {
       const probe=document.createElement('div'); probe.id='zero-box-proof'; probe.style.cssText='position:fixed;width:0;height:0'; document.body.append(probe);
       let frame=0; const grow=()=>{frame++;probe.dataset.frames=String(frame);if(frame===20){probe.style.width='10px';probe.style.height='10px';}else requestAnimationFrame(grow);};requestAnimationFrame(grow);
