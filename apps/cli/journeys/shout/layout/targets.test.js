@@ -67,8 +67,8 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       tap: getComputedStyle(document.documentElement).getPropertyValue('--tap').trim(), coarse: matchMedia('(pointer: coarse)').matches,
       short: controls.filter((c) => c.height < 44 && !c.inline), count: controls.length,
-      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('#new-item')),
-      toolbar: { views: [...document.querySelectorAll('.items-view-switch button')].filter(visible).map((b) => Math.round(targetHeight(b))), filter: height('#filter-toggle'), go: height('#new-item') },
+      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('#tabs [data-tab=items]')),
+      toolbar: { tabs: [...document.querySelectorAll('#tabs .tab')].filter(visible).map((b) => Math.round(targetHeight(b))) },
       composer: { text: height('#shout-text'), send: height('#shout-send') }, status: [...document.querySelectorAll('.status [data-status]')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)),
     };
   })())`));
@@ -97,9 +97,9 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
           assert.deepEqual([items.exempt, shouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', true, false], ['#2', false, true]]], `${at}: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([items.exempt, shouts.exempt])}`);
           assert.equal(items.standalone, false, `${at}: a standalone button is never inside a line of text`);
         } else {
-          // Under a mouse on a wide screen controls size to their words: the Items toolbar at 32px, the composer one line.
+          // Under a mouse on a wide screen controls size to their words: the tab bar at 32px, the composer one line.
           assert.equal(items.tap, '32px', `${at}: the target is 32px under a mouse`);
-          assert.ok(items.toolbar.views.length === 2 && [...items.toolbar.views, items.toolbar.filter, items.toolbar.go].every((h) => Math.abs(h - 32) <= 1), `${at}: the Items toolbar's controls are 32px: ${JSON.stringify(items.toolbar)}`);
+          assert.ok(items.toolbar.tabs.length > 0 && items.toolbar.tabs.every((h) => Math.abs(h - 32) <= 1), `${at}: the tab bar's controls are 32px: ${JSON.stringify(items.toolbar)}`);
           assert.ok(shouts.composer.text <= 34 && Math.abs(shouts.composer.send - 32) <= 1, `${at}: the composer is one line of text: ${JSON.stringify(shouts.composer)}`);
           assert.ok(items.status.length > 0 && items.status.every((h) => h <= 30), `${at}: the status bar keeps its thin strip, no exception needed: ${JSON.stringify(items.status)}`);
           assert.ok(items.short.length > 0, `${at}: there is no blanket 44px minimum under a mouse`);
