@@ -242,7 +242,6 @@ test('an all-reused direct invocation preserves a receipt without inventing a fr
   assert.equal(first.status, 0, first.stderr + first.stdout);
   const second = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(second.status, 0, second.stderr + second.stdout);
-  t.diagnostic('DBG2 ' + JSON.stringify({ one: first.stdout.split('\n').filter(l => l.includes('CTX')), two: second.stdout.split('\n').filter(l => l.includes('CTX')) }));
   assert.match(second.stdout, /# reused/u, 'the native cache really reused the seeded file results');
   const runs = recorded(box);
   assert.equal(runs.length, 2);
