@@ -57,6 +57,28 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ### Fixed
 
+- Landing keeps moving: a batch blocked on infrastructure retries on the new main, a worker or lease holder that dies is replaced within 2 minutes, every refusal inside the lander is a recorded block, an item blocked twice by the same cause is parked so the line moves on, and a withdrawn dependency counts as satisfied (#2857, #2875, #2912, #3188, #3189, #3224, #3392, #5770, #5816, #7386).
+- A trunk test-defect hold closes itself when its tests pass at the trunk or its defect item closes, and `pullboard land --waive` lifts one while the board owns landing (#3675, #3694, #3719, #3761).
+- An accepted item that no longer merges is reopened with the conflict named, and a stale verdict goes back to its lane (#3466, #7269).
+- A gate stopped by infrastructure requeues itself, rotates to another runner with back-off, and never spends its retries on a busy board; a gate or job whose worker died is requeued from its captured candidate (#3074, #3086, #3101, #3365, #3714, #4040, #5518, #6546).
+- A runner whose health probe passes is never quarantined by a slow probe, a missed deadline, its own cleanup or a brief network blip, and runner SSH calls share one connection (#3313, #3432, #3655, #3658, #3698, #3738, #5683).
+- A claim stays alive while its test run, proof run or check is in flight, a stale claim returns to the queue only after 40 minutes with no board move or commit, and the sentinel never releases claims for a window in which the machine itself stalled (#3430, #3446, #3712, #5571, #5575, #5726, #6128).
+- A seat whose session ended counts as gone, not idle (#1982, #6329).
+- `next` stops repeating itself: it never offers an item whose folder belongs to another live session or whose worktree is gone, never keeps serving a claim whose new wait is unmet, skips an item frozen against an older lane policy or naming a missing path, and offers claimable work instead of "nothing is free" (#2716, #3203, #3681, #3688, #3691, #3723, #4990, #5700, #5786).
+- A release that says an item is blocked, routed elsewhere or ineligible stops `next` offering it to that seat or lane, and an exclusion from a temporary release expires (#2713, #3014, #3742).
+- Item folders that hold unlanded work are never cleaned up, and maintenance never removes a worktree with uncommitted changes or one joined to a live seat (#3222, #3539, #5969).
+- Submit refuses clearly and early: a head carrying another item's unverified commits, a folder problem before the board move, BOARD_BUSY that leaves the head and its evidence in place, and no refusal over its own lapsed-claim check (#3793, #4995, #5327, #5766, #6016, #6096).
+- A green proof survives a main merge that touches nothing its check reads, and re-claiming an item keeps its clause evidence when its commit and bar are unchanged (#5780, #5784).
+- A gate never reports green from a run that ran none of the selected tests, printed nothing, edited its own checkout or hid an early pipe failure, and a runner with no browser refuses browser-bound proof instead of skipping it (#7276, #7484, #7489, #7494, #7516).
+- A verify whose checkout or trunk moves during a fresh check cannot gain proof (#3024).
+- Relay moves never wait silently: a move over the size limit gets a refusal with its size and the limit, the hosted relay takes up to 10 MB, a move the relay permanently refuses is parked and `pullboard relay recover` resolves it, and every relay refusal has a next step (#1196, #1300, #6693, #6696, #6707).
+- The board protects itself: archives refuse when they would fill the disk, old code refuses to write a board whose schema is ahead of it, a board whose shape drifted repairs its tables and triggers, export and sync stream a large board, and a long write never blocks other writers for minutes (#2089, #4996, #5825, #5899, #7297).
+- Secrets: landing refuses a candidate whose added lines contain a secret, and the pre-commit scan skips binary files and checks only what a merge from main adds (#1316, #3762, #5968).
+- Paths with spaces work in test subprocesses and recorded wait keys (#1873, #6763).
+- Daemons started by a desktop app keep that app's macOS Local Network permission (#5699).
+- Command fixes: `status` and `resume --diagnostics` no longer throw on the shared read path, `spec draft` writes the row it prints, `doctor` names a missing spec gate file instead of hanging, `merged` records an item once, `add` and `edit` never drop a repeated `--criterion`, and `withdraw`'s hint names the right flag (#2835, #3267, #3350, #3743, #3992, #4988).
+- `pullboard view` exits promptly, `view --export` finishes on a large board, and the view keeps answering while the repository is busy (#6186, #6661, #6768).
+- View fixes: Settings shows a plain problem instead of a raw error, the no-link page tells the visitor what to do, Dashboard counts show numbers instead of dashes, and rows, menus, tabs and tables fit a phone without stray boxes or shadows (#6607, #6644, #6720, #6769, #6771, #6774, #6775, #6776, #6931, #7302, #7303, #7304, #7309, #7311, #7312, #7389, #7400, #7403).
 - On Linux, landing cleanup sees each process's working directory, so it removes only clean landed worktrees and never one in use (#1462).
 - `pullboard status` stays light when offline and reads runner use without writing (#1462).
 - Opening the decision queue no longer loads choices meant for other readers (#1462).
