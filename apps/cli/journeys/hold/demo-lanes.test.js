@@ -67,6 +67,8 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
         await new Promise(resolve => { window.__lateHold.finish = resolve; });
         window.__lateHold.completed = true;
       };
+      // A state read after a board change answers from the last build, and the stream announces the build that catches up (#6850), so the live updates must run again for the hold to draw.
+      window.__liveHold.held = false;
       document.querySelector('#hold-lane').value = 'web';
       document.querySelector('#hold-reason').value = 'Keep the next press steady';
       document.querySelector('#hold-form').requestSubmit();
