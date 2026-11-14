@@ -17,6 +17,7 @@
  * @param {Function} deps.view - Returns the page's view state: activityFilter, activityBy and activityWin come from the address; activityPeople and activityCounts go back for the strip.
  * @param {Function} deps.project - The snapshot the page holds now.
  * @param {Function} deps.active - Whether the Activity page is the one showing.
+ * @param {Function} [deps.itemHref] - The address of an item, so a cited #N in a quote links to it.
  * @param {Function} deps.working - The seats at work for a project.
  * @param {Function} deps.controls - The filter strip's markup, for a narrow screen.
  * @param {Function} deps.onFilter - Put a filter in the address (and the strip): onFilter(value).
@@ -25,7 +26,7 @@
  * @param {Function} [deps.drawn] - Called after the page's markup is replaced, so a line the page appended to it (the older-history note) is drawn again.
  * @returns {{ draw: Function, reset: Function }}
  */
-export function activityRuntime({ flow, html, tip, step, start, api, boardPath, current, view, project: held_project, active, working, controls, onFilter, after, remember, drawn }) {
+export function activityRuntime({ flow, html, tip, step, start, api, boardPath, current, view, project: held_project, active, working, itemHref, controls, onFilter, after, remember, drawn }) {
   const boards = new Map();
   const HOUR = 3_600_000, PAD = 3 * HOUR;
   let node = null, tipNode = null, watcher = null, resizing = null, wired = false;
@@ -91,7 +92,7 @@ export function activityRuntime({ flow, html, tip, step, start, api, boardPath, 
     const newer = state.baseline === null ? 0 : model.events.filter(entry => entry.event > state.baseline).length;
     const markup = (state.pending && !state.events.length ? '<p class="act-since">Reading the board’s last ' + hours + ' hours…</p>' : '')
       + (state.error ? '<p class="act-since">The board’s events could not be read: ' + String(state.error).replace(/[<>&]/g, '') + '</p>' : '')
-      + html(model, state.ui ?? ui, { width, narrow, leftKnown: known, newer, controls: controls() });
+      + html(model, state.ui ?? ui, { width, narrow, leftKnown: known, newer, controls: controls(), itemHref });
     if (force || markup !== state.painted || node.dataset.boardRoot !== project.root) {
       node.dataset.boardRoot = project.root;
       node.innerHTML = markup; state.painted = markup;
