@@ -151,7 +151,7 @@ test('a fresh board opens on the first-run page: three boxes, the loop, the chec
       for (const tile of m.tiles) {
         assert.equal(tile.bg, m.surface, `${tile.label}: white surface, not a grey fill`);
         assert.equal(tile.border, '1px');
-        assert.notEqual(tile.shadow, 'none', `${tile.label}: a light shadow`);
+        assert.equal(tile.shadow, 'none', `${tile.label}: flat card, no shadow (278325174b)`);
         assert.deepEqual([tile.icon.width, tile.icon.height], [32, 32], `${tile.label}: a 32px icon square`);
         assert.notEqual(tile.iconBg, 'rgba(0, 0, 0, 0)');
         assert.equal(tile.labelSize, '12px'); assert.equal(tile.valueSize, '15px');

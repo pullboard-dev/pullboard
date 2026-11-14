@@ -29,6 +29,7 @@ import vm from 'node:vm';
 import {
   stableChrome,
   press,
+  pressTab,
   tapTouch,
 } from './stable.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
@@ -1103,7 +1104,11 @@ async function shoutsAt(chrome, width, scheme) {
 
 /** Open the project picker when a phone hides it, then choose a rendered project or group. */
 async function pickProject(chrome, find) {
-  if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
+  // Under 900 px the switcher lives in the Menu drawer, whose project button opens the project list (dcf117ebc6).
+  if (await chrome.stable('innerWidth <= 900')) {
+    await chrome.click("document.querySelector('#menu-btn')");
+    await chrome.click("document.querySelector('#mdrawer-proj')");
+  } else if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
     await chrome.click("document.querySelector('#proj-switch')");
     await chrome.click('document.querySelector("[data-proj-all]")');
   }
@@ -1317,4 +1322,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive, pressTab };
