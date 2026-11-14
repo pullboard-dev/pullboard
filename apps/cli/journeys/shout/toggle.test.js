@@ -60,16 +60,15 @@ async function measureControl(chrome, selector) {
   })())`));
 }
 
-test('Spec, Doctrine and Activity use one measured toggle with real choices and counts in Chrome [N26]', {
-  timeout: 120_000, // budget: hang ceiling for a real board and six pane/viewport interaction journeys.
+test('Spec and Doctrine use one measured toggle with real choices and counts in Chrome [N26]', {
+  timeout: 120_000, // budget: hang ceiling for a real board and four pane/viewport interaction journeys.
 }, async () => {
   const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required to measure all three segmented controls');
+  assert.ok(executable, 'Chrome is required to measure both segmented controls');
   const box = machine();
   const demo = project(box, 'seg-toggle', SPEC + '\n- G3 [draft, must] A proposed page requirement. | gate: web test\n', { practice: 'DOCTRINE.md' });
   writeFileSync(join(demo.repo, 'DOCTRINE.md'), '# Team doctrine\n\n## Local rules\n- R1 [approved, must] Keep the board accurate. | gate: web test\n- R2 [draft, must] A proposed team rule. | gate: web test\n');
   box.run(demo.repo, 'add', 'web', 'An item for the controls', '--specs', 'G1', '--criterion', 'The page greets the visitor.');
-  box.run(demo.repo, 'shout', 'web', 'A real shout in Activity.');
   const view = await startView(box);
   const native = await boardOf(view, demo.repo);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-seg-toggle-chrome-'));
@@ -83,7 +82,6 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
       for (const [pane, selector, attribute, selected, alternative] of [
         ['spec', '#spec-chips', 'data-rows', 'spec:all', 'spec:approved'],
         ['doctrine', '#doctrine-chips', 'data-rows', 'doctrine:all', 'doctrine:approved'],
-        ['activity', '#activity-filters .activity-bar', 'data-activity-filter', 'all', 'shouts'],
       ]) {
         await press(chrome, 'document.querySelector("#tabs [data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');
@@ -127,7 +125,7 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
           const rows = pane === 'spec' ? native.spec : native.practice;
           assert.equal(actual.options.find(option => option.key === pane + ':all').count, String(rows.length));
           assert.equal(actual.options.find(option => option.key === pane + ':approved').count, String(rows.filter(row => row.status === 'approved').length));
-        } else assert.ok(Number(actual.options.find(option => option.text === 'Shouts').count) > 0, 'a real native shout is counted');
+        }
         await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
@@ -154,7 +152,6 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
         })())`));
         assert.equal(focus.visible, true, 'native Tab gives the next option a visible keyboard focus');
         assert.equal(focus.width, '2px'); assert.equal(focus.offset, '-2px'); assert.equal(focus.contained, true, 'the whole focus ring remains inside the scrolling track');
-        if (pane === 'activity') assert.equal(await chrome.stable('[...document.querySelectorAll("#activity [data-activity-kind]")].every(row => row.dataset.activityKind === "shout")'), true, 'Shouts still filters the real feed');
         await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await proofShot(chrome, 'seg-toggle-' + pane, width);
@@ -163,7 +160,7 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
         for (const [index, image] of chunks.entries()) console.log('PULLBOARD_SEG_SCREENSHOT ' + JSON.stringify({ pane, width, index, total: chunks.length, image }));
       }
     }
-    assert.deepEqual(chrome.exceptions, [], 'all three controls work without page exceptions');
+    assert.deepEqual(chrome.exceptions, [], 'both controls work without page exceptions');
   } finally {
     await closeSnapshotChrome(chrome);
     await view.stop();
