@@ -62,12 +62,15 @@ test('a red gate refuses submit [V4]', async t => {
   assert.equal(JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
 });
 
-test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async () => {
+test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async t => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runIn(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
-  assert.equal((await box.runIn(box.web, 'submit', '1')).code, 0);
+  // A pulled submit returns queued; settle its gate before a verdict reads the item [V4,C7,#7897].
+  const first = await box.runIn(box.web, 'submit', '1', '--json');
+  assert.equal(first.code, 0, first.err + first.out);
+  assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(first.out))).gate.green, true);
   assert.match((await box.runIn(box.web, 'verify', '1', 'accept')).err, /SELF_VERIFY/);
   const unsaid = await box.runIn(box.repo, 'verify', '1', 'accept', '--note', 'ran it');
   assert.match(unsaid.err, /MAIN_IS_COORDINATOR\] this is the main checkout, so this verdict would be the coordinator's/);
@@ -84,8 +87,9 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
   const refrozenItem = `${box.web}-item-1`;
   assert.equal(commitFile(box, refrozenItem, 'web/a.html', '<h1>Hi again</h1>', 'feat(web): update page [G1]').status, 0);
-  const resubmitted = await box.runIn(refrozenItem, 'submit', '1');
+  const resubmitted = await box.runIn(refrozenItem, 'submit', '1', '--json');
   assert.equal(resubmitted.code, 0, resubmitted.err || resubmitted.out);
+  assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(resubmitted.out))).gate.green, true);
   const submittedHead = JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.repo, 'switch', '--detach', submittedHead);
   assert.match((await box.runIn(box.repo, 'verify', '1', 'accept', '--as', 'coordinator')).err, /PROOF_REQUIRED/);
