@@ -707,7 +707,7 @@ export function preMergeHookProblems(root) {
  * @param {string} root
  * @returns {string}
  */
-function activeHooksDir(root) {
+export function activeHooksDir(root) {
   return resolve(root, gitPath(root, 'hooks'));
 }
 
@@ -1105,7 +1105,7 @@ function installerVersion() {
  * any rule (#876): an older global install would otherwise apply its old rules under a newer CLI's
  * guidance, and an old binary cannot be trusted to notice. A mismatch stops the hook, names both
  * versions, and gives the one command that fixes it: install the hook's version (project or global, where
- * the binary came from) when the found one is older, or rewrite the hooks with `pullboard init` when newer.
+ * the binary came from) when the found one is older, or rewrite the hooks with `pullboard init` in the main checkout (init refuses a worktree) when newer.
  *
  * @param {string} hook
  * @param {string} [version] The installing version; tests pass their own.
@@ -1121,7 +1121,7 @@ export function hookScript(hook, version = installerVersion()) {
     `want='${version}'`,
     ...(hook === 'commit-msg' ? ['message="$1"'] : []),
     'root=$(git rev-parse --show-toplevel)',
-    'main=$(git rev-parse --path-format=absolute --git-common-dir)/..',
+    'main=$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)',
     'run() {',
     '  bin="$1"; scope="$2"',
     // Shell builtins only, so a hook works on a PATH that has no tail or sed: keep the last line of --version.
@@ -1134,7 +1134,7 @@ export function hookScript(hook, version = installerVersion()) {
     '  nl=$(printf \'\\n_\'); nl=${nl%_}; have=${have##*"$nl"}',
     '  if [ "$have" != "$want" ]; then',
     '    newer=$(node -e \'const [a,b]=process.argv.slice(1).map(v=>String(v).split(".").map(n=>parseInt(n,10)||0));for(let i=0;i<3;i++)if(a[i]!==b[i]){process.stdout.write(a[i]>b[i]?"yes":"no");process.exit(0)}process.stdout.write("no")\' "$have" "$want" 2>/dev/null)',
-    '    if [ "$newer" = yes ]; then fix="pullboard init"; else fix="npm i $scope pullboard@$want"; fi',
+    '    if [ "$newer" = yes ]; then fix="cd \\"$main\\" && pullboard init"; else fix="npm i $scope pullboard@$want"; fi',
     `    echo "pullboard ${hook}: stopped before running any rule; these hooks were installed by Pullboard $want, but $bin is Pullboard \${have:-unknown}. Run: $fix" >&2`,
     '    exit 1',
     '  fi',

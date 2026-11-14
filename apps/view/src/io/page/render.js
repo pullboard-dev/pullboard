@@ -161,7 +161,7 @@ function itemStageMarks(item, project) {
  */
 function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, active = 0 } = {}) {
   const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
-  const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
+  const rulings = Number.isInteger(p.counts?.rulings) ? p.counts.rulings : (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
   const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
   // The preview reads what this page holds when the pointer arrives, never the board: the project, its recent events and its calls [#6651].
   notchBoard = p; notchAgents = agents;
@@ -295,8 +295,8 @@ function render({ tab: switching = false } = {}) {
   const scrolled = store.scrollMark([document.scrollingElement, ...SCROLLED_PARTS.map((id) => $(id))]);
   const p = privateModelProject(data.project);
   const group = data.group;
-  // An open-first state holds no finished items: the screens that show them read them now (#6697).
-  if (data.project?.itemsOmitted === 'finished' && (view.tab === 'roadmap' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
+  // An open-first state holds no finished items: the screens that show them (Activity titles every row by item) read them now (#6697, #7756).
+  if (data.project?.itemsOmitted === 'finished' && (view.tab === 'roadmap' || view.tab === 'activity' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
     || view.itemsView === 'pipeline' || $('q').value.trim() || view.item && !data.project.items.some((item) => item.id === view.item)))) ensureFinished(data.project);
   renderSide();
   writeChrome();
@@ -712,7 +712,7 @@ function render({ tab: switching = false } = {}) {
     const { labels, shorts, counts: n, shown: shownRows, feedbackId, sectionCounts, sectionReviewCounts, sectionKey } = selectedRows;
     const undecidedIds = new Set(selectedRows.undecidedIds);
     const undecided = row => undecidedIds.has(row.id);
-    store.paint($(kind + '-chips'), segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], short: shorts[key], count: n[key], title: kind === 'spec' && key === 'decide' ? selectedRows.decisionTitle : undefined })) }));
+    store.paint($(kind + '-chips'), segmentedToggle({ label: kind === 'spec' ? 'Spec rows' : 'Doctrine rows', attribute: 'data-rows', value: kind + ':' + filter, options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], short: shorts[key], count: n[key], title: key === 'decide' ? selectedRows.decideTitle : undefined })) }));
     // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
     view.row[kind] = selectedRows.nextSelectedId;
     let section = null;

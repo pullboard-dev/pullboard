@@ -471,7 +471,10 @@ export function proofReceipts(board, itemId) {
 }
 
 
-/** Read the adjacent batch receipt, never a per-item scan of all landing history. */
+/**
+ * Read the adjacent batch receipt, never a per-item scan of all landing history. A pulled landing writes no batch
+ * receipt, only a main-moved event naming its land job, so its base is that job's recorded main [#7751].
+ */
 function activityBatchBase(board, event) {
   const detail = activityEventDetail(event);
   if (!detail) return null;
@@ -480,7 +483,11 @@ function activityBatchBase(board, event) {
       json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END,'$.batch.base') AS base,
       json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END,'$.batch.tip') AS tip
       FROM event WHERE event_kind='landing_batch' AND event_id${operator}? ORDER BY event_id ${order} LIMIT 1`).get(event.event_id);
-    if (batch?.id === detail.batch && batch.tip === detail.sha && /^[a-f0-9]{40}$/u.test(batch.base ?? '')) return batch.base;
+    if (batch && batch.id === detail.batch && batch.tip === detail.sha && /^[a-f0-9]{40}$/u.test(batch.base ?? '')) return batch.base;
+  }
+  if (typeof detail.job === 'string' && !detail.batch) {
+    const base = board.db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(detail.job)?.job_base;
+    if (/^[a-f0-9]{40}$/u.test(base ?? '')) return base;
   }
   return null;
 }
