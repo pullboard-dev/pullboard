@@ -15,11 +15,15 @@ import * as store from '../../../../../packages/store/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
+import { fixturePolicy } from '../../../tests/fixtures/testkit.js';
 
 /** Use real CLI claims and installed hooks, with synthetic submission state only in this private board. */
 function fixture(t) {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
+  // The fixture pins one claim per seat (2f3f8c12f0); these cases hold several live claims at once.
+  fixturePolicy(box, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: 4 } });
+  box.git(box.web, 'merge', '-q', 'main');
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => { closeBoard(board); helpers.cleanup(); });
