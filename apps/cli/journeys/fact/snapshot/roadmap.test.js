@@ -69,9 +69,11 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
 
+    // Opening each release puts the last one opened in the address (#7303), so the tab's address from here carries it.
+    const opened = '/demo/#roadmap?release=Later';
     await press(chrome, roadmapRow('beacon#1'));
     await chrome.waitFor(roadmapRow('beacon#1') + ".getAttribute('aria-expanded') === 'true'");
-    assert.equal(await chrome.stable('location.pathname + location.hash'), '/demo/#roadmap');
+    assert.equal(await chrome.stable('location.pathname + location.hash'), opened);
     assert.match(await chrome.stable(roadmapRow('beacon#1') + ".parentElement.querySelector('.milestone-why').textContent"), /not in this snapshot/u);
     assert.equal(await chrome.stable(roadmapRow('beacon#1') + ".parentElement.querySelectorAll('.milestone-why a[data-go]').length"), 0, 'unavailable items expand to why, without a false navigation target');
     await press(chrome, roadmapRow('beacon#1'));
@@ -79,18 +81,18 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     // The address survives a reload on a static host, and Back and Forward show the tab it names,
     // whether the browser keeps the page for an entry or loads it again.
     await chrome.send('Page.reload');
-    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#1')}`);
+    await settled(chrome, `${ready} && ${showing('roadmap', opened)} && !!${roadmapRow('#1')}`);
     await travel(chrome, -1);
     await settled(chrome, `${ready} && ${showing('dashboard', '/demo/')}`);
     await travel(chrome, 1);
-    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#2')}`);
+    await settled(chrome, `${ready} && ${showing('roadmap', opened)} && !!${roadmapRow('#2')}`);
     await press(chrome, roadmapRow('#2'));
     await chrome.waitFor(roadmapRow('#2') + ".getAttribute('aria-expanded') === 'true'");
-    assert.equal(await chrome.stable('location.pathname + location.hash'), '/demo/#roadmap', 'a snapshot row click stays on Roadmap');
+    assert.equal(await chrome.stable('location.pathname + location.hash'), opened, 'a snapshot row click stays on Roadmap');
     await press(chrome, roadmapRow('#2') + ".parentElement.querySelector('.milestone-why a[data-go]')");
     await chrome.waitFor(`${showing('items', '/demo/#items/2')} && document.querySelector('#detail h2')?.innerText.includes('Open page')`);
     await travel(chrome, -1);
-    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')}`);
+    await settled(chrome, `${ready} && ${showing('roadmap', opened)}`);
     assert.equal(await chrome.stable("localStorage.getItem('snapshot.pb.tab')"), 'items', 'the earlier Items navigation remains the saved tab for this Chrome profile');
 
     // A fresh navigation in this profile restores Items, while an explicit #roadmap address still selects Roadmap.
@@ -182,7 +184,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
           title: detail.querySelector('h2').innerText,
           criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
           verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').textContent]),
-          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)).reverse(),
+          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].map((move) => move.dataset.timelineKind).reverse(), // a row folds its placement's event id, so it counts once
           facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)),
         };
       })()`);
