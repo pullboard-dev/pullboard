@@ -226,7 +226,7 @@ process.exit(lines.length?1:0);
     const base = box.git(box.repo, 'rev-parse', 'HEAD');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const added = JSON.parse(succeeded(fixtureAdd(box.run, box.repo, 'web', 'Leased doctrine control', '--specs', 'G1',
-      '--criterion', 'The ordinary submission keeps doctrine counts.', '--check', 'true', '--wait', '--json')).out);
+      '--criterion', 'The ordinary submission keeps doctrine counts.', '--check', 'true', '--accept-green', 'a fixture check that keeps passing', '--wait', '--json')).out);
     const id = added.item.item_id;
     succeeded(box.run(box.web, 'claim', String(id)));
     succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
@@ -235,7 +235,7 @@ process.exit(lines.length?1:0);
     // A doctrine rise refuses only once its machinery trial has passed (#2611): a probe item records the rule's identity
     // in report mode, the fixture ledger is aged past twenty clean gates, and the item under test is then refused.
     const probe = JSON.parse(succeeded(fixtureAdd(box.run, box.repo, 'web', 'Doctrine trial probe', '--specs', 'G1',
-      '--criterion', 'The probe records the doctrine trial.', '--check', 'true', '--wait', '--json')).out).item.item_id;
+      '--criterion', 'The probe records the doctrine trial.', '--check', 'true', '--accept-green', 'a fixture check that keeps passing', '--wait', '--json')).out).item.item_id;
     const folder = JSON.parse(succeeded(box.run(box.web, 'claim', String(probe), '--json')).out).itemFolder;
     assert.equal(helpers.commitFile(box, folder, 'web/a.txt', 'TODO old\nTODO probe\n', 'feat(web): probe rising count [G1]').status, 0);
     succeeded(box.run(folder, 'submit', String(probe), '--wait', '--no-next', '--json'));
