@@ -469,8 +469,9 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(texts.filter(text => /^Gate job \S+ green at /u.test(text)).length, 2, 'each submission records its green gate job');
   // A green pulled submission also detaches its review comparison, which records its own facts as it runs (#7267) [V4,C7].
   const comparisons = texts.filter(text => text.startsWith('Review comparison: '));
-  assert.equal(allFacts.length - comparisons.length, 5, 'only the gate job notes, review comparison facts and the accepting verify shadow are recorded');
-  assert.equal(shadows.length, 1, 'the accepting verify records one tier-1 shadow');
+  // The accepting verify reuses the submit proof and records no proof run, so no tier-1 shadow either [C7].
+  assert.equal(allFacts.length - comparisons.length, 4, 'only the gate job notes and review comparison facts are recorded');
+  assert.equal(shadows.length, 0, 'a reused submit proof records no tier-1 shadow');
   for (const event of shadows) {
     const fact = JSON.parse(event.event_detail);
     assert.equal(fact.kind, 'measurement');
