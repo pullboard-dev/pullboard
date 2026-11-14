@@ -12,6 +12,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 import {
   HOST,
   installSshStandIn,
@@ -52,21 +53,23 @@ test('clause 1: pullboard test from a checkout with an uncommitted tracked edit 
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
   writeFileSync(join(box.web, 'test/green.test.js'),
     "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('green case', () => assert.ok(true));\n// uncommitted edit\n");
-  // Process-level case: the notice goes to the real process stderr, which the in-process runner does not capture.
+  // Process-level case: the refusal goes to the real process stderr. A pulled run fetches only committed source, so the dirty tree is refused before anything is offered, not noted and run [C7,P7,#5772].
   const ran = box.run(box.web, 'test', 'test/green.test.js');
-  assert.equal(ran.code, 0, ran.err);
+  assert.notEqual(ran.code, 0, 'the dirty tree is refused, not run');
+  assert.match(ran.err, /TEST_UNCOMMITTED/u, ran.err);
   const lines = ran.err.split('\n').filter(line => /uncommitted changes/u.test(line));
   assert.equal(lines.length, 1, 'one line names the uncommitted changes');
   assert.match(lines[0], /test\/green\.test\.js/u, 'the line names the edited file');
   assert.ok(lines[0].includes(head.slice(0, 10)), 'the line names the committed commit the runner tests');
   assert.match(lines[0], /not under test/u);
-  assert.ok(ran.err.indexOf(lines[0]) < ran.err.indexOf('admitted on'), 'the line comes before admission');
+  assert.doesNotMatch(ran.err, /admitted on|queued test run/u, 'nothing is offered before the refusal');
 });
 
 test('clause 2: pullboard test from a clean checkout prints no uncommitted-changes line [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
   const box = await greenProject();
-  // Process-level case: as above, only the real process stderr could carry the notice, so a clean run is read there.
-  const ran = box.run(box.web, 'test', 'test/green.test.js');
-  assert.equal(ran.code, 0, ran.err);
-  assert.doesNotMatch(ran.err, /uncommitted changes/u);
+  // A clean tree is offered to a runner and waits for one this fixture does not serve, so the process is stopped after its notice window [C7,P7,#5772].
+  const ran = runFixtureChild(process.execPath, [e2e.BIN, 'test', 'test/green.test.js'], { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 20_000 }); // budget: notice window, not a throughput claim.
+  const text = `${ran.stdout ?? ''}${ran.stderr ?? ''}`;
+  assert.doesNotMatch(text, /uncommitted changes|TEST_UNCOMMITTED/u, text);
+  assert.ok(ran.status === 0 || ran.status === null, `a clean tree is offered, not refused: ${text}`);
 });
