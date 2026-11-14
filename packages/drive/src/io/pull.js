@@ -518,8 +518,8 @@ export async function jobProcesses(job, claim = null) {
  *
  * @param {string} job
  * @param {number | undefined} group - The job's process group (its first process's pid).
- * @param {{ claim?: string | null, folder?: string | null, graceMs?: number, list?: (job: string, claim: string | null) => Promise<number[]>, pause?: (ms: number) => Promise<void> }} [options] - folder: the job's
- *   environment folder; a process whose command line names a path in it is the job's too, which is how Chrome is found (#7811).
+ * @param {{ claim?: string | null, folder?: string | string[] | null, graceMs?: number, list?: (job: string, claim: string | null) => Promise<number[]>, pause?: (ms: number) => Promise<void> }} [options] - folder: the job's
+ *   environment folder, or it and its work tree; a process whose command line names a path in one is the job's too, which is how Chrome and orphaned test processes are found (#7811, #7813).
  * @returns {Promise<number[]>}
  */
 export async function reapJob(job, group, { claim = null, folder = null, graceMs = REAP_MS, list: listMarked = jobProcesses, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
@@ -607,7 +607,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   // Earlier serves' slot folders are dead once this one starts, so they go before the first job [P7].
   try { const gone = await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
   // A killed serve ran no cleanup: its orphaned jobs' processes, Chrome above all, end before the first job (#7811).
-  try { const left = await reapLeftovers(join(cache, 'env')); say(`killed ${left.length} leftover process(es) of earlier jobs`); } catch { /* Sweeping is best effort. */ }
+  try { const left = await reapLeftovers([join(cache, 'env'), join(cache, 'work')]); say(`killed ${left.length} leftover process(es) of earlier jobs`); } catch { /* Sweeping is best effort. */ }
   /** Prune old results and dead environment folders at most once an interval; a failure never stops serving. */
   const prune = () => {
     if (Date.now() - prunedAt < PRUNE_INTERVAL_MS) return;
@@ -752,7 +752,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const result = await running.done.finally(() => { signal?.removeEventListener('abort', stopping); });
     const lost = isLost();
     // Every process the job started ends before its receipt posts, a detached one too: its group, then its marker (#5805).
-    const survivors = await reapJob(claim.job, running.pid, { claim: tag, folder: job.folder, graceMs: reapMs });
+    const survivors = await reapJob(claim.job, running.pid, { claim: tag, folder: [job.folder, checkout.folder], graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
     // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
