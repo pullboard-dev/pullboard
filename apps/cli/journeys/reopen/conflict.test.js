@@ -53,7 +53,7 @@ function refusal(result) {
   return JSON.parse(result.out).error.code;
 }
 
-/** Add, claim, build and submit one web item from the joined builder worktree. */
+/** Add, claim, build and submit one web item from the joined builder worktree; the pulled gate settles before the accept [C7]. */
 async function submitItem(box, title, contents) {
   const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', `${title} stays valid`, '--check', 'node --check web/feature.js', '--json'));
   assert.equal(added.code, 0, added.err);
@@ -63,7 +63,7 @@ async function submitItem(box, title, contents) {
   for (const file of ODD_FILES) writeFileSync(join(box.web, file), contents);
   const committed = commitFile(box, box.web, 'web/feature.js', contents, `feat(web): ${title.toLowerCase()} [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = (await box.runLocal(box.web, 'submit', String(id)));
+  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--wait', '--no-next'));
   assert.equal(submitted.code, 0, submitted.err);
   return { id, commit: box.git(box.web, 'rev-parse', 'HEAD') };
 }
@@ -153,7 +153,7 @@ test('a conflicting accepted item reopens for a main merge [B3,D1]', async () =>
   const resolved = commitFile(box, box.web, 'web/feature.js', 'export const status = "ITEM";\n', 'fix(web): merge main into the item [G1]');
   assert.equal(resolved.status, 0, resolved.stderr);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
-  const resubmitted = (await box.runLocal(box.web, 'submit', String(item.id)));
+  const resubmitted = (await box.runLocal(box.web, 'submit', String(item.id), '--wait', '--no-next'));
   assert.equal(resubmitted.code, 0, resubmitted.err);
   const review = (await box.runLocal(box.repo, 'show', String(item.id)));
   assert.match(review.out, new RegExp(`re-review: main merge only; run the frozen check at ${head.slice(0, 12)}`, 'u'), 'the re-review is the frozen check at the new head');
