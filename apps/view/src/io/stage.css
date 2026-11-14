@@ -75,6 +75,9 @@
 .milestone-item .roadmap-afters .roadmap-after { display: inline; margin-right: var(--space-2); }
 /* Inline, not inline-flex: only inline text can end in the ellipsis, so a chip cut at the row edge never shows a bare "aft" (#7400). */
 .milestone-item .roadmap-afters .roadmap-after svg { display: inline-block; vertical-align: -2px; margin-right: var(--space-1); }
+.roadmap-page-sizes { display: inline-flex; flex: none; gap: var(--space-1); }
+.roadmap-page-size { padding: 0 var(--space-2); border: var(--border); border-radius: var(--radius-chip); background: var(--surface); color: var(--ink-muted); font: 500 var(--text-xs)/22px var(--sans); cursor: pointer; }
+.roadmap-page-size[aria-pressed="true"] { color: var(--ink); background: var(--surface-2); font-weight: 600; }
 /* Roadmap release header (#7547): the Dashboard release card's header, on the ground above its card, no chevron. */
 .milestone.roadmap-has-summary { background: none; border: 0; padding: 0; margin-top: var(--space-4); }
 .milestone.roadmap-has-summary:first-child { margin-top: 0; }
