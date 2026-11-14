@@ -117,7 +117,6 @@ import { relaySnapshotRequest } from '../../../pages/index.js';
 import { relayStorage } from '../../../pages/index.js';
 import { relayStorageLine } from '../../../pages/index.js';
 export { relayOrigin, relayStorageLine };
-
 import { loadLink } from './relay/link.js';
 import { saveLink } from './relay/link.js';
 import { STATE_FILES } from './relay/link.js';
