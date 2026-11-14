@@ -141,9 +141,12 @@ test('clause 1: a proof-timeout receipt offers the landing again, then names LAN
 });
 
 test('clause 1: the offer carries the push shard limit only when the setting is not the default [C7,#7820]', t => {
-  const { board, id, sha } = accepted(t);
-  const payload = config => JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(offerLandingJob(board.db, { items: [{ id, commit: sha }], expect: sha, config: { trunk: { remote: '/nowhere.git' }, ...config } }).id).job_step_payload).payload;
-  assert.equal(payload({ pushGate: { shardMinutes: 20 } }).proofMinutes, undefined);
-  board.db.prepare("DELETE FROM job").run();
-  assert.equal(payload({ pushGate: { shardMinutes: 45 } }).proofMinutes, 45);
+  // Offering the same landing again returns the job as it stands, so each setting is offered on its own board.
+  const payloadFor = config => {
+    const { board, id, sha } = accepted(t);
+    const job = offerLandingJob(board.db, { items: [{ id, commit: sha }], expect: sha, config: { trunk: { remote: '/nowhere.git' }, ...config } }).id;
+    return JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job).job_step_payload).payload;
+  };
+  assert.equal(payloadFor({ pushGate: { shardMinutes: 20 } }).proofMinutes, undefined);
+  assert.equal(payloadFor({ pushGate: { shardMinutes: 45 } }).proofMinutes, 45);
 });
