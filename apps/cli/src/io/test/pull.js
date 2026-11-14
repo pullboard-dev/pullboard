@@ -9,6 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
+import { FILE_TIME_LINE } from '../../../../../packages/gate/index.js';
 import { pullGateFor } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
@@ -96,6 +97,41 @@ const receipt = { version: 1, kind: 'test', main: input.main, source: input.sour
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
+/**
+ * Each named file's verdict in a red run, read from the whole output before any tail is cut: a failing file lists its
+ * first failing cases, a file the run finished while every failing case is placed in some named file is 'green'. Why: the
+ * outcome frames are dropped whole when the receipt line is too long or a nested failure voids them, and the clipped
+ * tail then proves no file, so a whole census shard read as no-result [C7,#7920].
+ */
+const verdicts = () => {
+  if (ran.status === 0) return null;
+  const bare = value => String(value).trim().replace(/^(['"])(.*)\\1$/u, '$2').replace(/:\\d+(?::\\d+)?$/u, '').replace(/^\\.\\//u, '');
+  const named = input.files.map(bare);
+  const fileOf = value => named.find(path => bare(value) === path || bare(value).endsWith('/' + path)) ?? null;
+  const lines = text.split('\\n');
+  const out = {};
+  let unplaced = 0;
+  for (let at = 0; at < lines.length; at += 1) {
+    const row = /^(\\s*)not ok\\s+\\d+\\s+-\\s+(.*)$/u.exec(lines[at]);
+    if (!row || /#\\s*(?:SKIP|TODO)\\b/iu.test(row[2])) continue;
+    const name = row[2].replace(/\\s+#.*$/u, '');
+    let file = fileOf(name);
+    for (let next = at + 1; next < lines.length && !file && /^\\s/u.test(lines[next]) && !/^\\s*(?:not )?ok\\s/u.test(lines[next]); next += 1) {
+      const location = /^\\s*location:\\s*(.*?)\\s*$/u.exec(lines[next]);
+      if (location) file = fileOf(location[1]);
+    }
+    if (file) out[file] = [...new Set([...(out[file] ?? []), name.slice(0, 120)])].slice(0, 3); else unplaced += 1;
+  }
+  const finished = new Set(lines.filter(line => line.startsWith(${JSON.stringify(FILE_TIME_LINE)})).map(line => fileOf(line.slice(${FILE_TIME_LINE.length}).replace(/^\\S+ /u, ''))));
+  const stopped = /run-tests: (?:HUNG|TIMEOUT) file/u.test(text);
+  for (const file of named) {
+    if (out[file]) continue;
+    const mine = (receipt.outcomes ?? []).filter(row => fileOf(row[0]) === file);
+    if (mine.length ? mine.every(row => row[2] === true) : !receipt.outcomes && unplaced === 0 && !stopped && finished.has(file)) out[file] = 'green';
+  }
+  return out;
+};
+try { receipt.verdicts = verdicts(); } catch { receipt.verdicts = null; }
 let keep = 40000, line;
 do { receipt.phases[0].tail = text.slice(-keep); line = ${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt); keep = Math.floor(keep / 2); } while (Buffer.byteLength(line) > 56 * 1024 && keep > 0);
 // Outcomes too many for the line are dropped whole, so the comparison reads them unavailable, never partial.
@@ -207,7 +243,8 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
     return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
-      signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes };
+      signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
+      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null };
   } finally {
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
@@ -240,7 +277,7 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  *
  * @param {object} ctx
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
- * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null }>}
+ * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null }>}
  */
 export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
   return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });
