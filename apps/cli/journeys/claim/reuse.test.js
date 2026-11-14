@@ -38,6 +38,7 @@ test('clause 1: [C7] a claim switches the seat idle clean item folder to the new
   const box = helpers.project('true');
   // The fixture pins one claim per seat; this case holds the reused folder's item while a second claim makes a worktree.
   fixturePolicy(box, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: 2 } });
+  box.git(box.web, 'merge', '-q', 'main');
   const old = await file(box, 'old reuse'), fresh = await file(box, 'fresh reuse'), last = await file(box, 'last reuse');
   const idle = idleFolder(box, old);
   const before = worktrees(box);
