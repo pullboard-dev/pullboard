@@ -285,6 +285,10 @@ function element(id) {
     querySelectorAll: () => [],
     querySelector: () => null,
     prepend() {},
+    // The notch preview appends its veil and panel to the body and listens on the element and its document [#6651].
+    append() {},
+    contains: () => false,
+    removeEventListener() {},
     replaceWith() {},
   };
 }
@@ -369,19 +373,19 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
   const elements = new Map();
   const node = (id) => {
-    if (!elements.has(id)) elements.set(id, element(id));
+    if (!elements.has(id)) elements.set(id, Object.assign(element(id), { ownerDocument: document }));
     return elements.get(id);
   };
   const clicks = [];
   const inflight = new Set();
   const requests = [];
   const document = {
-    body: Object.assign(element('body'), { appendChild() {} }),
+    body: Object.assign(element('body'), { appendChild() {}, get ownerDocument() { return document; } }),
     documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
     // The palette builds its overlay at load: a created element is a plain node the page may append and listen on.
-    createElement: () => element('created'),
+    createElement: () => Object.assign(element('created'), { ownerDocument: document }),
     querySelector: () => null,
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
