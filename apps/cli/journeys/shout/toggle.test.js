@@ -107,7 +107,9 @@ test('Spec and Doctrine use one measured toggle with real choices and counts in 
           assert.equal(option.size, '13px');
           assert.match(option.font, /system-ui/u);
           assert.equal(option.radius, actual.expected.optionRadius);
-          assert.deepEqual(option.padding, ['0px', '12px', '0px', '12px']);
+          // On a phone the rows keep each label one whole word beside its count by trimming the side padding (#7400).
+          const side = width === 1440 ? '12px' : '4px';
+          assert.deepEqual(option.padding, ['0px', side, '0px', side]);
           assert.equal(option.border, '0px');
           assert.equal(option.color, option.pressed === 'true' ? actual.expected.pressedColor : actual.expected.color, width + '/' + pane + '/' + option.text + ': resting option color');
           if (option.pressed === 'true') {
