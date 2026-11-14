@@ -110,7 +110,7 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   const folders = [];
   for (const [title, criterion] of [['Allowed edge', 'Temporary edge web/new.js -> src/git.js until contract #123 lands.'],
     ['No edge exception', 'Use the canonical front door.']]) {
-    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--wait', '--json'));
+    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--accept-green', 'fixture check keeps passing', '--wait', '--json'));
     assert.equal(added.code, 0, added.out + added.err);
     const id = JSON.parse(added.out).item.item_id;
     const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));
