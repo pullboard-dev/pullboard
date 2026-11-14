@@ -1,4 +1,5 @@
 import { recordLandingBatch } from '../../../../packages/store/index.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { join } from 'node:path';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -233,10 +234,13 @@ test('a real landing refuses a newly observed unquarantined flake [C7,T12]', asy
     }
   } finally { closeBoard(board); }
   const before = box.git(box.repo, 'rev-parse', 'main');
-  const result = await box.runLocal(box.repo, 'land', '--json');
-  assert.notEqual(result.code, 0, result.out);
-  assert.match(result.err + result.out, /FLAKE_RATCHET|unquarantined flaky test/);
-  assert.match(result.err + result.out, /test\/unstable\.test\.js/);
+  const offered = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(offered.code, 0, offered.err + offered.out);
+  const result = await settleLand(box, JSON.parse(offered.out));
+  assert.equal(result.batch.state, 'blocked', JSON.stringify(result.landJob.receipt));
+  const said = JSON.stringify(result.landJob.receipt);
+  assert.match(said, /FLAKE_RATCHET|unquarantined flaky test/);
+  assert.match(said, /test\/unstable\.test\.js/);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), before);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), before);
 });

@@ -1,4 +1,5 @@
 /** File-backed native board journey: exact companion bytes are checked and landed [V1,V4,H16,B3]. */
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -157,7 +158,7 @@ test('a native companion patch is independently checked and lands the exact acce
   document((await asSession(box, reviewer.session, reviewer.path, 'verify', String(id), 'accept', '--note', 'Rechecked the newly bound patch set.')));
   assert.deepEqual(liveSource(box, reviewer.path), beforeRenewedReview, 'the second verification also preserves its composed reservation');
   const finalReviewed = store.verdictsFor(board, id).at(-1).review.head;
-  const landed = document((await box.runLocal(box.repo, 'land', '--json')));
+  const landed = await settleLand(box, document((await box.runLocal(box.repo, 'land', '--json'))));
   assert.deepEqual(landed.landed, [id]);
   assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', finalReviewed, 'main'), '');
   assert.equal(readFileSync(join(box.repo, 'api/companion.txt'), 'utf8'), 'required companion\n');
