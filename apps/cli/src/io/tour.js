@@ -219,6 +219,17 @@ export async function tour(io) {
     }
     throw new TourStopped(`the gate of #${args[1]} did not settle in two minutes; pullboard runner local shows this machine's runner`);
   };
+  /**
+   * Wait for the land job the accept offered to merge the item onto main: this machine's runner takes it, as any
+   * board's does, and the item records merged. Why: the tour shows the real landing path, never a hand merge (#7750).
+   */
+  const landed = async (who, id) => {
+    for (const until = Date.now() + 120_000; Date.now() < until; await new Promise((done) => setTimeout(done, 250))) {
+      const shown = await pb(who, ['show', id], { label: '', show: null });
+      if (/^progress: landed/mu.test(shown)) { io.say(`       #${id} landed on main by the land job`); return; }
+    }
+    throw new TourStopped(`the land job for #${id} did not land it in two minutes; pullboard runner local shows this machine's runner`);
+  };
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
       mkdirSync(join(where[who], path, '..'), { recursive: true });
@@ -278,11 +289,10 @@ export async function tour(io) {
     run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # with the fix removed', show: /^# (pass|fail)/, fails: true, tone: 'red' });
     run('review-1', 'git', ['checkout', '--', 'src/greet.mjs']);
     if (color) run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # after restoring the fix', show: /^# (pass|fail)/, tone: 'green' });
-    await pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/, tone: 'green' });
+    await pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified|land job|not landed/, tone: 'green' });
 
-    step(8, 'The coordinator merges it. The ledger is the receipt.');
-    run('coordinator', 'git', ['merge', '-q', '--ff-only', 'app/1']);
-    await pb('coordinator', ['merged', '1', second]);
+    step(8, 'The lander lands it: a land job merges it onto main. The ledger is the receipt.');
+    await landed('coordinator', '1');
     await pb('coordinator', ['ledger'], { show: /^\| (#|1 )|verified by a second agent/ });
     // A pulled gate started this machine's local runner for the demo; it stops with the tour.
     await pb('coordinator', ['runner', 'local', '--off'], { label: '', show: null });
