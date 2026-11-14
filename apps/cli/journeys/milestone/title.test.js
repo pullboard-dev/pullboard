@@ -87,9 +87,10 @@ test('#6613 clause 3: the title and each badge count have exactly one writer in 
   assert.equal(page.match(/\$\('status-board'\)/gu).length, 1, 'one writer draws the status bar counts');
   assert.equal(page.match(/\$\('status-unread'\)/gu).length, 1, 'one writer fills the unread count');
   assert.equal(page.match(/'\[data-nav-fact="' \+ page \+ '"\]'/gu).length, 1, 'one writer sets every page count, the Spec count included');
-  assert.match(page, /function writeChrome\(\)/u, 'the chrome writer is one function');
+  // writeChrome takes a paint flag so a live update can read ahead without painting (1b5726c613).
+  assert.match(page, /function writeChrome\((?:paint = true)?\)/u, 'the chrome writer is one function');
   assert.equal(page.match(/document\.title = next|\$\('status-board'\)|\$\('status-unread'\)|'\[data-nav-fact="' \+ page \+ '"\]'/gu).length, 4);
-  const chrome = page.slice(page.indexOf('function writeChrome()'));
+  const chrome = page.slice(page.indexOf('function writeChrome('));
   const body = chrome.slice(0, chrome.indexOf('\n}\n'));
   for (const write of ['document.title = next', "$('status-board')", "$('status-unread')", 'drawNav(shown']) assert.ok(body.includes(write), write + ' happens inside writeChrome');
 });
