@@ -20,6 +20,7 @@ import { retrySync } from '../../index.js';
 import { waitForSubmissionVerdict } from '../../../../packages/items/index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 /** Read or mutate only this private fixture's actual CLI board, closing before a child runs. */
 function onBoard(box, work) {
@@ -71,6 +72,8 @@ test('ship review wait names its deadline without undoing the completed gate [V4
   const submitted = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   const value = JSON.parse(submitted.out);
+  // A pulled submit returns queued; the submit event the wait follows is recorded once the gate's receipt is applied [C7,#7736].
+  await settleSubmit(t, box, value);
   const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
   const lines = [];
   const io = { cwd: box.web, nativeBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
@@ -246,6 +249,7 @@ test('ship reclaims a lapsed lease only inside this builder first-refusal window
   assert.equal(f.helpers.commitFile(f.box, f.box.web, 'web/prior.txt', 'Prior rejected work.\n', 'feat(web): initial fixture [G1]').status, 0);
   const sent = await f.box.runLocal(f.box.web, 'submit', String(f.id), '--no-next', '--json');
   assert.equal(sent.code, 0, sent.out + sent.err);
+  await settleSubmit(t, f.box, JSON.parse(sent.out));
   onBoard(f.box, board => {
     const item = store.getItem(board, f.id);
     store.verify(board, f.id, { agentId: 'coordinator', decision: 'ACCEPT', digest: item.item_frozen_digest,
