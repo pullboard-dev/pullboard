@@ -74,7 +74,10 @@ async function project(t) {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', // the lifecycle items repeat one title shape on purpose
   });
+  // The fixture machine settles each submit's pull gate on the loopback runner inside the command.
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
   function pullboard(cwd, ...args) {
     return runCliInProcess(args, { cwd, env });
@@ -105,11 +108,7 @@ async function project(t) {
 
 /** Create a real item that cites one frozen row and return its persisted id. */
 async function addItem(box, title, specId = 'G1') {
-  const args = ['add', 'web', title, '--criterion', `Check ${title}.`, '--specs', specId];
-  let result = await box.pullboard(box.root, ...args, '--json');
-  // The lifecycle fixtures repeat one title shape on purpose, so a near-duplicate refusal is answered as it names.
-  const similar = /DUPLICATE_LIKELY[^]*?#(\d+)/u.exec(`${result.stdout}`)?.[1];
-  if (similar) result = await box.pullboard(box.root, ...args, '--not-duplicate-of', `${similar} lifecycle fixtures repeat by design`, '--json');
+  const result = await box.pullboard(box.root, 'add', 'web', title, '--criterion', `Check ${title}.`, '--specs', specId, '--json');
   assert.equal(result.status, 0, `${result.stdout}${result.context}`);
   return jsonOf(result).item.item_id;
 }
