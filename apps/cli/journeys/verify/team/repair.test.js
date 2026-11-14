@@ -29,6 +29,22 @@ import {
   writeFileSync,
 } from '../../../tests/fixtures/scenarios/team.js';
 import { join } from 'node:path';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
+
+/**
+ * Project a current board export onto an older board's tables and columns, which its importer requires to match exactly.
+ * Why: the current schema has tables and columns (pull jobs, runner state) engine 12 never had; the rows it knew are unchanged.
+ */
+function narrowedFor(document, db) {
+  const names = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(({ name }) => name);
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'").get()) names.push('sqlite_sequence');
+  const tables = {};
+  for (const name of names) {
+    const columns = db.prepare(`PRAGMA table_info("${name}")`).all().map(column => column.name);
+    tables[name] = (document.tables[name] ?? []).map(row => Object.fromEntries(columns.map(column => [column, row[column]])));
+  }
+  return { ...document, tables };
+}
 
 test('clause 1: a checkout or trunk moving during verification cannot acquire proof [E8]', () => {
   const box = helpers.project();
@@ -71,7 +87,7 @@ test('clause 1: a checkout or trunk moving during verification cannot acquire pr
   assert.equal(withBoard(box.repo, board => store.verdictsFor(board, 1)).length, 1);
 });
 
-test('clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', () => {
+test('clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', async () => {
   const box = helpers.project();
   const source = (feature, expected) => `feature = ${feature}\n${'// independent caller line\n'.repeat(12)}expected = ${expected}\n`;
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 1), 'feat(web): baseline caller [G1]').status, 0);
@@ -110,7 +126,8 @@ test('clause 2: landing retains the exact repair that passed stale re-review [E8
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
-  const landed = JSON.parse(run(box, box.repo, 'land', '--json'));
+  // Under pull `land` offers a runner job and returns at once; settleLand waits for its receipt [C7].
+  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
   assert.deepEqual(landed.landed, [1], JSON.stringify(landed));
   assert.equal(box.git(box.repo, 'show', landed.batch.tip + ':web/feature.txt'), source(2, 2).trim(), 'landing must retain the exact repaired file that passed the frozen check');
   assert.equal(box.git(box.remote ?? remote, 'rev-parse', 'main'), landed.batch.tip);
@@ -152,7 +169,7 @@ test('clause 2: an older pushed landing shows stale checked proof and a correcti
     // @pullboard-board-file migration: engine 12 imports the actual current landing history before finishing its recorded batch.
     const old = oldStore.openBoard(join(box.dir, 'old.sqlite'));
     t.after(() => oldStore.closeBoard(old));
-    oldExchange.importBoard(old, withBoard(box.repo, exportBoard));
+    oldExchange.importBoard(old, narrowedFor(withBoard(box.repo, exportBoard), old.db));
     const finish = oldEngine.prepareEngineMove(old, 'finishLandingBatch', [{ agentId: 'coordinator', id: batch.id, tip: submitted }], { id: 'actual-legacy-in-flight-finish' });
     assert.equal(finish.engine, 12);
 
