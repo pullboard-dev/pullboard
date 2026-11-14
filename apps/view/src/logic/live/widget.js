@@ -2,7 +2,7 @@
  * The /live runners widget [N26]: one dense row per runner with its CPU, RAM, a fire when it is busy and its item with
  * test progress, then one row per running task with how many agents work it and a bar that fills with its tests.
  *
- * Why: Corey on 11 Nov said the widget was not dense enough, its columns moved, and its bar did not show progress.
+ * Why: on 11 Nov the person said the widget was not dense enough, its columns moved, and its bar did not show progress.
  * Every column has a width set in the table's colgroup, so no refresh can resize one; this file only reads the public
  * snapshot (publicRunners), so it never sees a host, address or user name.
  */

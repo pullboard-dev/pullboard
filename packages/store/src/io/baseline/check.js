@@ -13,8 +13,8 @@ import { Refused } from "../../../../kernel/index.js";
 import { PROVES_NOTHING_HOLD_REASON } from "../../../../verify/index.js";
 import { checkAcceptance } from "../../../../verify/index.js";
 
-import { coordinatorCheck } from "../../../../verify/light.js";
-export { coordinatorCheck } from "../../../../verify/light.js";
+import { coordinatorCheck } from "../../../../verify/index.js";
+export { coordinatorCheck } from "../../../../verify/index.js";
 
 /** Keep each failing case's file and name, bounded; a malformed entry names nothing (#2594). */
 function failedCasesOf(rows) {
