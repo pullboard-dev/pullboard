@@ -119,7 +119,7 @@ async function addItem(box, title, specId = 'G1') {
  * no status, so the message carries its signal and elapsed time, never a bare null [S19].
  */
 function requireExit(result, status) {
-  const message = `${result.stdout}${result.context}`;
+  const message = `${result.stdout}${result.stderr ?? ''}${result.context ?? ''}`;
   if (status === 'refused') assert.ok(Number.isInteger(result.status) && result.status !== 0, `expected a refusal\n${message}`);
   else assert.equal(result.status, status, message);
   return result;
