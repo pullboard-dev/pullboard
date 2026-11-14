@@ -24,6 +24,11 @@ import {
   proofShot,
 } from '../../tests/fixtures/cockpit/harness.js';
 
+/** Scroll one choice into the segmented track, which scrolls sideways at phone width, before real input reaches it. */
+async function reveal(chrome, expression) {
+  await chrome.stable(`(() => { ${expression}.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; })()`);
+}
+
 /** Read the real browser cascade and bounds, independently of the renderer's markup strings. */
 async function measureControl(chrome, selector) {
   return JSON.parse(await chrome.stable(`JSON.stringify((() => {
@@ -122,10 +127,13 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
           assert.equal(actual.options.find(option => option.key === pane + ':all').count, String(rows.length));
           assert.equal(actual.options.find(option => option.key === pane + ':approved').count, String(rows.filter(row => row.status === 'approved').length));
         } else assert.ok(Number(actual.options.find(option => option.text === 'Shouts').count) > 0, 'a real native shout is counted');
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
         await tapTouch(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"] .seg-hit-top') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ').getAttribute("aria-pressed") === "true"');
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await tapTouch(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"] .seg-hit-bottom') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
         const selectedVisible = await chrome.stable(`(() => {
@@ -146,6 +154,7 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
         assert.equal(focus.visible, true, 'native Tab gives the next option a visible keyboard focus');
         assert.equal(focus.width, '2px'); assert.equal(focus.offset, '-2px'); assert.equal(focus.contained, true, 'the whole focus ring remains inside the scrolling track');
         if (pane === 'activity') assert.equal(await chrome.stable('[...document.querySelectorAll("#activity [data-activity-kind]")].every(row => row.dataset.activityKind === "shout")'), true, 'Shouts still filters the real feed');
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await proofShot(chrome, 'seg-toggle-' + pane, width);
         const screenshot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });

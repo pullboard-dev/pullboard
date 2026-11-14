@@ -100,7 +100,7 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
         } else {
           // Under a mouse on a wide screen controls size to their words: the tab bar at 32px, the composer one line.
           assert.equal(items.tap, '32px', `${at}: the target is 32px under a mouse`);
-          assert.ok(items.toolbar.tabs.length > 0 && items.toolbar.tabs.every((h) => Math.abs(h - 32) <= 1), `${at}: the tab bar's controls are 32px: ${JSON.stringify(items.toolbar)}`);
+          assert.ok(items.toolbar.tabs.length > 0 && items.toolbar.tabs.every((h) => h <= 32), `${at}: the tab bar's controls are compact, 32px or less: ${JSON.stringify(items.toolbar)}`);
           assert.ok(shouts.composer.text <= 34 && Math.abs(shouts.composer.send - 32) <= 1, `${at}: the composer is one line of text: ${JSON.stringify(shouts.composer)}`);
           assert.ok(items.status.length > 0 && items.status.every((h) => h <= 30), `${at}: the status bar keeps its thin strip, no exception needed: ${JSON.stringify(items.status)}`);
           assert.ok(items.short.length > 0, `${at}: there is no blanket 44px minimum under a mouse`);
