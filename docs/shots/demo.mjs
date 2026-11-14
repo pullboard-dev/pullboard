@@ -4,7 +4,7 @@
  * The disposable repo and private PULLBOARD_HOME keep personal projects and shouts out of the art.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, readlinkSync } from 'node:fs';
+import { readlinkSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -31,9 +31,7 @@ function setDemoMinutes(env, minutes) {
 
 /** Run a pullboard or git command in the disposable demo environment. */
 function command(file, args, cwd, env) {
-  const began = Date.now();
   const result = spawnSync(file, args, { cwd, env, encoding: 'utf8' });
-  try { appendFileSync('/Users/coreyolson/pbseat/coord/7863-phases.log', `${new Date().toISOString()} ${Date.now() - began}ms ${args.slice(file === 'git' ? 0 : 1, 4).join(' ')}\n`); } catch { /* diag only */ }
   if (result.status !== 0) throw new Error(`${file} ${args.join(' ')} failed: ${(result.stderr || result.stdout).trim()}`);
   return result.stdout.trim();
 }
@@ -434,22 +432,18 @@ else {
           observation.viewLaunch.branch = observation.viewPid === server.pid ? 'foreground' : observation.viewPid ? 'background' : 'unknown';
           observation.viewLaunch.reportedIdentity = processIdentity(observation.viewPid);
         }
-        try { appendFileSync('/Users/coreyolson/pbseat/coord/7863-phases.log', `${new Date().toISOString()} view up\n`); } catch { /* diag */ }
         view = await browser(chrome, join(base, 'chrome-profile'), url);
-        try { appendFileSync('/Users/coreyolson/pbseat/coord/7863-phases.log', `${new Date().toISOString()} chrome up\n`); } catch { /* diag */ }
         await view.evaluate("document.querySelector('[data-tab=\"items\"]').click()");
         await waitForDemoBoard(view, repo);
         if (!roadmapOnly) {
           await view.viewport(1440, 900);
-          await view.evaluate("document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"all\"]').click()");
-          await view.waitFor("!!document.querySelector('#chain .row[data-item=\"1\"]')", 'accepted item in All');
+          await view.waitFor("(() => { if (view.state !== 'all') document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"all\"]')?.click(); return !!document.querySelector('#chain .row[data-item=\"1\"]'); })()", 'accepted item in All');
           await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
           await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted')", 'selected accepted item');
           await view.waitFor("!!document.querySelector('#detail [data-item-panel-history]')", 'history control');
           await view.evaluate("document.querySelector('#detail [data-item-panel-history]').click()");
           await view.waitFor("document.querySelector('#detail').textContent.includes('The example skipped an edge') && document.querySelector('#detail').textContent.includes('edge passes')", 'both verdicts');
-          await view.evaluate("document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"active\"]').click()");
-          await view.waitFor("!document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('Questions and sentinels') && document.querySelector('#detail').textContent.includes('edge passes')", 'Active items, Questions and sentinels and the selected review history');
+          await view.waitFor("(() => { if (view.state !== 'active') document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"active\"]')?.click(); return !document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('Questions and sentinels') && document.querySelector('#detail').textContent.includes('edge passes'); })()", 'Active items, Questions and sentinels and the selected review history');
           await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
           for (const theme of THEMES) {
             await paintTheme(view, theme);
@@ -469,9 +463,7 @@ else {
             await view.screenshot(join(OUTPUT, `shouts-${theme}.png`));
           }
         }
-        try { appendFileSync('/Users/coreyolson/pbseat/coord/7863-phases.log', `${new Date().toISOString()} shots done\n`); } catch { /* diag */ }
         await captureRoadmap(view, repo, observation);
-        try { appendFileSync('/Users/coreyolson/pbseat/coord/7863-phases.log', `${new Date().toISOString()} roadmap done\n`); } catch { /* diag */ }
         await view.close(); view = null;
         recordBeforeViewStop(observation);
         await stop(server); server = null;
