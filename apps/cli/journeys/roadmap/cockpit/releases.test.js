@@ -166,7 +166,9 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
     assert.deepEqual((await read()).parts.map((part) => [part.key, part.open]), [['m:0.3', false], ['m:0.4', false], ['m:Later', false], ['shipped', true]], 'returning to the board preserves this visit\'s disclosure choices');
     // A reload keeps the address (shipped=1 included); a new visit is the board's plain link.
     await chrome.send('Page.navigate', { url: view.link.href });
-    await settled(chrome, "typeof data === 'object' && data?.project?.milestones?.length === 5 && !document.querySelector('[data-pane=roadmap]').hidden");
+    await settled(chrome, "typeof data === 'object' && data?.project?.milestones?.length === 5");
+    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=roadmap]').hidden");
     assert.deepEqual((await read()).parts.map((part) => [part.key, part.open]), [['m:0.3', true], ['m:0.4', false], ['m:Later', false], ['shipped', false]], 'a new visit opens only the next release and folds the rest and Shipped');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
