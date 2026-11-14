@@ -183,6 +183,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--title': ['--title "<title>"', 'the blueprint\'s title'],
   '--update': 'refreshes unchanged Claude Code skills from the shipped versions',
   '--compare-main': 'compares each red file with main, even for one file',
+  '--no-file-limit': 'lets each file run to the 10-minute hard stop, not the 3-minute kill, and reports its seconds; idle hangs still stop it',
   '--affected': 'tests the change and its accepted registry guards; no files needed',
   '--kind': ['--kind <kind>', 'the kind of shout'],
   'shout coordinator --kind': ['--kind <question|blocker|decision|exception|idea>', 'declares what kind of shout it is'],
