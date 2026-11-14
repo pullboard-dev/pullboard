@@ -17,6 +17,8 @@ import { companionMainFailuresUntouched } from '../../../../../packages/landing/
 import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { settledSubmit } from '../../../tests/fixtures/init/known-frozen.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 import { runFixtureGit } from '../../../tests/fixtures/child.js';
 import { submissionProof } from '../../../../../packages/state/light.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../../../../../packages/state/light.js';
@@ -67,6 +69,8 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'submit-main-red-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
+  // A fixture's submit settles the same way whatever the machine's dispatch default is [P7,C7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const box = { directory, root, env };
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
@@ -138,35 +142,29 @@ function attachCompanion(box, file, source, before, after) {
   assert.equal(result.status, 0, result.stdout + result.stderr);
 }
 
-test('an untouched inherited failure passes with a real docs companion [V4,B3]', t => {
+test('an untouched inherited failure passes with a real docs companion [V4,B3]', async t => {
   const box = fixture(t);
   attachCompanion(box, 'docs/companion.md', readFileSync(join(box.builder, 'docs/companion.md'), 'utf8'), 'Before.', 'After.');
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  const report = JSON.parse(result.stdout);
+  const report = await settledSubmit(t, box, { submitted: true });
   assert.equal(report.gate.green, false);
   assert.equal(report.gate.knownMainFailures.main, box.main);
   assert.deepEqual(report.gate.knownMainFailures.failures.map(row => row.file), ['test/inherited.test.js']);
   assert.ok(submittedProof(box), 'actual native submit event was recorded');
 });
 
-test('a companion frozen-check red retains its required refusal [V4,B3]', t => {
+test('a companion frozen-check red retains its required refusal [V4,B3]', async t => {
   const box = fixture(t, { check: 'node test/runner.js test/inherited.test.js' });
   attachCompanion(box, 'docs/companion.md', readFileSync(join(box.builder, 'docs/companion.md'), 'utf8'), 'Before.', 'After.');
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  const response = JSON.parse(result.stdout);
-  assert.equal(response.error.code, 'GATE_RED');
-  assert.match(response.error.message, /item check red/u, 'the actual composed frozen check ran and remains mandatory');
+  const response = await settledSubmit(t, box);
+  assert.equal(response.gate.green, false, 'the pulled gate ends red, so the composed frozen check remains mandatory: ' + JSON.stringify(response.gate).slice(0, 1500));
   assert.equal(submittedProof(box), null, 'a known-main summary cannot bypass the green criterion seal');
 });
 
-test('editing a failed test in a companion never inherits its main failure [V4,B3]', t => {
+test('editing a failed test in a companion never inherits its main failure [V4,B3]', async t => {
   const box = fixture(t);
   attachCompanion(box, 'test/inherited.test.js', readFileSync(join(box.builder, 'test/inherited.test.js'), 'utf8'), "import assert from 'node:assert/strict';", "import assert from 'node:assert/strict'; // Companion edit.");
-  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED', result.stdout + result.stderr);
+  const response = await settledSubmit(t, box);
+  assert.equal(response.gate.green, false, JSON.stringify(response.gate).slice(0, 1500));
   assert.equal(submittedProof(box), null);
 });
 
