@@ -135,7 +135,7 @@ export function testRunItem({ named, folder = null, claims = [] }) {
  *
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
- * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
+ * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean, noFileLimit?: boolean }} run
  * @param {{ launch?: typeof spawn, now?: number, bin?: string }} [options] - `bin`: the CLI entry the worker runs, the build
  *   that queued it; the caller names it so this package names no app [C7].
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
@@ -147,13 +147,13 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
   withBoard(board => {
     createJob(board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
     writeStep(board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
-      compareMain: run.compareMain === true, root: ctx.info.root, log }, { now });
+      compareMain: run.compareMain === true, noFileLimit: run.noFileLimit === true, root: ctx.info.root, log }, { now });
   });
   mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
   const out = openSync(log, 'a', 0o600);
   try {
     const args = [bin, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
-      ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
+      ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
       env: { ...process.env, PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });

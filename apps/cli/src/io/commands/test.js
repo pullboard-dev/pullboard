@@ -85,7 +85,7 @@ async function queueSeatRun(io, ctx, { agent, item, items, files, values }, pull
   }
   // A pulled run fetches only the committed source, so its refusal of an uncommitted change comes now, not through next [P7].
   if (pulledRun?.pullTestWanted(item, values)) await pulledRun.refuseUncommitted(ctx.info.root);
-  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true },
+  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true, noFileLimit: values['no-file-limit'] === true },
     { bin: CLI_ENTRY });
   io.result?.({ queued: true, run: queued.id, status: queued.status, files: queued.files, log: queued.log });
   if (values.wait === true || process.env.PULLBOARD_TEST_WAIT === '1') io.say('a seat holding a claim never blocks on its own test run; it queues');

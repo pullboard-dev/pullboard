@@ -110,6 +110,7 @@ const OPTIONS = {
   due: { type: 'boolean' },
   affected: { type: 'boolean' },
   'compare-main': { type: 'boolean' },
+  'no-file-limit': { type: 'boolean' },
   census: { type: 'boolean' },
   diagnose: { type: 'boolean' },
   'test-run': { type: 'string' },
