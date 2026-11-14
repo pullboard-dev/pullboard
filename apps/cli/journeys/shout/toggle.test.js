@@ -120,7 +120,7 @@ test('Spec and Doctrine use one measured toggle with real choices and counts in 
           } else assert.equal(option.shadow, 'none');
           if (option.count !== undefined) {
             assert.equal(option.countSize, '11px'); assert.match(option.countFont, /monospace/u);
-            assert.equal(option.countWeight, '400'); assert.equal(option.countGap, '6px'); assert.equal(option.countColor, actual.expected.countColor);
+            assert.equal(option.countWeight, '400'); assert.equal(option.countGap, width === 1440 ? '6px' : '4px'); assert.equal(option.countColor, actual.expected.countColor);
           }
         }
         if (pane === 'spec' || pane === 'doctrine') {
