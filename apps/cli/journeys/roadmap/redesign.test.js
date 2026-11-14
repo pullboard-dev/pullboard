@@ -71,30 +71,22 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       const result = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const card=document.querySelector('#roadmap-list > .milestone'), rows=[...card.querySelectorAll(':scope > .milestone-body .milestone-item')];
         const releases=[...document.querySelectorAll('#roadmap-releases [data-roadmap-jump^="m:"]')];
-        const last=[...document.querySelectorAll('.roadmap-last-shipped')].find(node=>node.getBoundingClientRect().height>0);
-        const forecast=card.querySelector('.roadmap-forecast');
-        const shippingCounts=[...document.querySelectorAll('.roadmap-stage-counts')].find(node=>node.getBoundingClientRect().height>0);
-        const shippingCells=[...(shippingCounts?.children||[])].filter(node=>node.getBoundingClientRect().height>0);
+        const railTiles=document.querySelectorAll('#roadmap-panel [data-shipping-stage], #roadmap-panel .roadmap-last-shipped, .roadmap-stage-counts, .roadmap-mobile-shipping').length;
         const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
         const rowFor=id=>rows.find(row=>row.dataset.roadmapKey==='i:#'+id);
         return {width:innerWidth,cardName:card.querySelector('.release-name')?.textContent||'',itemCount:card.querySelectorAll('.milestone-limit').length,
-          pace:rect(forecast),paceLineHeight:parseFloat(getComputedStyle(forecast).lineHeight),paceFits:forecast.scrollWidth<=forecast.clientWidth,name:rect(card.querySelector('.release-name')),
+          name:rect(card.querySelector('.release-name')),
           rows:rows.map(row=>({id:row.querySelector('.id')?.textContent||'',back:!!row.querySelector('.stage-mark.no, .roadmap-state.back'),label:row.querySelector('.stage-word')?.textContent||row.querySelector('.roadmap-stage-chip')?.textContent||'',
             order:row.querySelector('.queue-position')?.textContent||'',icon:!!row.querySelector('.roadmap-state svg'),after:row.querySelector('.roadmap-after')?.textContent.trim()||'',
             afterHref:row.querySelector('.roadmap-after a')?.getAttribute('href')||'',blockDots:row.querySelectorAll('.block-dot').length,titleLines:row.querySelector('.milestone-title')?.getClientRects().length||0,
             title:row.querySelector('.milestone-title')?.textContent||''})),
           releases:releases.map(button=>({name:button.querySelector(':scope > span')?.textContent||'',count:button.querySelector('b')?.textContent||'',
             progress:button.querySelector('svg')?{viewBox:button.querySelector('svg').getAttribute('viewBox'),rect:button.querySelector('rect')?.getAttribute('width')||''}:null})),
-          shipping:shippingCells.map(node=>{const key=node.dataset.shippingStage;return {key,label:node.querySelector('dt')?.textContent.trim(),swatch:getComputedStyle(node.querySelector('i')).backgroundColor,
-            headerSwatch:getComputedStyle(card.querySelector('.roadmap-summary-swatch.'+key)).backgroundColor};}),
-          shippingColumns:new Set(shippingCells.map(node=>Math.round(rect(node).left))).size,
-          last:last?[...last.children].map(node=>node.textContent):null,lastText:last?.textContent||'',
+          railTiles,
           bodyWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),viewport:document.documentElement.clientWidth};
       })())`));
-      assert.equal(result.cardName, '0.9.4: Restructure for Speed and Cost', `${width}: the release uses the shared named header`);
+      assert.equal(result.cardName, '0.9.4Restructure for Speed and Cost', `${width}: the release uses the shared named header`);
       assert.equal(result.itemCount, 0, `${width}: the shared header replaces the extra item-count line`);
-      assert.ok(result.pace.top >= result.name.bottom - 1, `${width}: pace appears beneath the release name`);
-      if (width === 1280) assert.ok(result.pace.height <= result.paceLineHeight + 1 && result.paceFits, `desktop pace stays on one shared header line without clipping: ${JSON.stringify({ rect: result.pace, lineHeight: result.paceLineHeight, fits: result.paceFits })}`);
       const rowsById = new Map(result.rows.map(row => [row.id, row]));
       assert.equal(rowsById.size, 5, `${width}: the release shows each of its five items once`);
       assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Blocked', 'Building', 'In review', 'Ready'], `${width}: each item shows its approved plain lifecycle stage`);
@@ -108,20 +100,10 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       assert.match(dependent.afterHref, /items\/1/u, `${width}: the after reference remains a link to the prerequisite`);
       assert.equal(dependent.blockDots, 0, `${width}: the dependency has no bare red dot`);
       assert.ok(result.releases.length >= 1 && result.releases.every(release => release.progress), `${width}: each upcoming release has a progress bar`);
-      for (const release of result.releases) {
-        const [done, total] = release.count.split('/').map(Number);
-        const viewWidth = Number(release.progress.viewBox.split(' ')[2]);
-        const filled = Number(release.progress.rect);
-        assert.equal(filled / viewWidth, total ? done / total : 0, `${width}: ${release.name} progress matches its count`);
-      }
+      for (const release of result.releases) assert.equal(release.count, '', `${width}: ${release.name} repeats no landed count in the Releases list`);
       const current = result.releases.find(release => release.name.startsWith('0.9.4'));
       assert.ok(current, `${width}: the Releases panel names the current release`);
-      assert.equal(current.count, '0/5', `${width}: the current release shows its landed count over total`);
-      assert.deepEqual(result.shipping.map(entry => entry.label), ['Landed', 'Accepted, landing', 'In review', 'Building', 'Waiting', 'Held'], `${width}: Shipping keeps all six counts in its two-column grid`);
-      assert.equal(result.shippingColumns, 2, `${width}: the six Shipping counts remain in two columns`);
-      assert.ok(result.shipping.every(entry => entry.swatch === entry.headerSwatch), `${width}: each Shipping dot matches its release bar segment color`);
-      assert.deepEqual(result.last, ['Last shipped', '0.9.3', shippedDate], `${width}: Last shipped names the release and recorded npm date`);
-      assert.doesNotMatch(result.lastText, /PRIVATE shipment note/u, `${width}: Last shipped never exposes the raw note`);
+      assert.equal(result.railTiles, 0, `${width}: the rail holds releases only, with no count tiles or last-shipped block`);
       assert.ok(result.bodyWidth <= result.viewport, `${width}: the Roadmap has no sideways page overflow`);
     }
     assert.deepEqual(chrome.exceptions, []);

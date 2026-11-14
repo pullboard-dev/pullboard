@@ -77,12 +77,6 @@ export function roadmapRemainingCount(reads) {
 export function roadmapCardsHtml(read, presentation = {}) {
   const { only = null, root, held, page = null, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map(), slotKey = null, place = null } = presentation;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  /** Format the latest shipped date; keep this dependency inside the renderer embedded in the page script. */
-  function shippedDate(milestone) {
-    const instant = Date.parse(milestone?.shipped?.at || '');
-    if (!Number.isFinite(instant)) return '';
-    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(instant) + ' · on npm';
-  }
   const firstLine = text => String(text ?? '').split('\n').map(line => line.trim()).find(Boolean) || '';
   const milestones = read.map(entry => entry.milestone);
   const lead = only ? '<div class="roadmap-only"><span>' + esc(only) + '</span><button class="link" data-roadmap-all type="button">show all</button></div>' : '';
@@ -92,15 +86,6 @@ export function roadmapCardsHtml(read, presentation = {}) {
   const caret = '<svg class="caret" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>'; // The view's stroke chevron, set inside the title to centre on its first line (#870).
   const next = coming.find((m) => m.rows.length) || null;
   const headerFor = entry => headers.get(entry) ?? null;
-  const stages = [['open', 'Open'], ['claimed', 'Building'], ['submitted', 'In review'], ['accepted', 'Accepted'], ['merged', 'Landed']];
-  const counts = headerFor(next) ? null : Object.fromEntries(stages.map(([stage]) => [stage, next ? next.rows.filter((row) => row.stage === stage).length : 0]));
-  const shippingCounts = headerFor(next)
-    ? '<dl class="roadmap-stage-counts">' + [['landed','Landed'],['landing','Accepted, landing'],['review','In review'],['building','Building'],['waiting','Blocked'],['held','Held']].map(([key,label]) => '<div data-shipping-stage="' + key + '"><dt><i class="roadmap-stage-swatch ' + key + '" aria-hidden="true"></i>' + label + '</dt><dd>' + next.milestone.summary[key] + '</dd></div>').join('') + '</dl>'
-    : '<dl class="roadmap-stage-counts">' + stages.map(([stage, label]) => '<div data-shipping-stage="' + stage + '"><dt><i class="roadmap-stage-swatch ' + stage + '" aria-hidden="true"></i>' + label + '</dt><dd>' + counts[stage] + '</dd></div>').join('') + '</dl>';
-  const lastShipped = '<p class="roadmap-last-shipped"><span>Last shipped</span><b>' + esc(shipped[0]?.milestone.name || 'None yet') + '</b>'
-    + (shipped[0] ? '<small>' + esc(shippedDate(shipped[0].milestone)) + '</small>' : '') + '</p>';
-  // With a release header its legend already shows the counts, so a phone repeats only the last shipped line.
-  const mobileShipping = '<section class="roadmap-shipping roadmap-mobile-shipping" aria-label="Release counts">' + (headerFor(next) ? '' : shippingCounts) + lastShipped + '</section>';
   /** Keep supplied landed progress beside an upcoming release without a modern summary. */
   const count = (m) => m.total ? '<span class="milestone-count" aria-label="' + m.done + '/' + m.total + ' landed">' + m.done + '/' + m.total + ' landed</span>' : '';
   /** Show the item count plainly, and name the limit only near capacity [N26]. */
@@ -134,7 +119,7 @@ export function roadmapCardsHtml(read, presentation = {}) {
     // A closed release is its one line only: its items are not drawn until it is opened (#7303).
     if (typeof contents === 'function') contents = open ? contents() : '';
     const head = '<div class="milestone-head' + (sharedHeader ? ' release-header-toggle' : '') + '" data-roadmap-key="' + esc(key) + '" role="button" tabindex="0" aria-expanded="' + open + '">'
-      + (sharedHeader ? caret + heading : heading.replace('<h2>', '<h2>' + caret)) + '</div>';
+      + (sharedHeader ? heading : heading.replace('<h2>', '<h2>' + caret)) + '</div>';
     const summary = sharedHeader ? '<div class="release-header">' + head + afterHead + '</div>' : head + afterHead;
     return '<' + tag + ' class="' + classes + '" data-key="' + esc(key) + '">' + summary + '<div class="milestone-body"' + (open ? '' : ' hidden') + '>' + contents + '</div></' + tag + '>';
   };
@@ -144,8 +129,8 @@ export function roadmapCardsHtml(read, presentation = {}) {
     const legacyTarget = m.milestone.target ? '<div class="milestone-targetline">Target <time datetime="' + esc(m.milestone.target) + '">' + esc(targets.get(m) ?? m.milestone.target) + '</time>' + (m.milestone.pastTarget ? ' <span class="chip warn">past target</span>' : '') + '</div>' : '';
     const heading = header ? header.top : '<h2>' + (headings.get(m) ?? esc(m.milestone.name)) + '</h2>' + count(m) + capacity(m);
     const detail = header ? header.detail : legacyTarget;
-    return wrap('section', 'card-panel milestone' + (header ? ' roadmap-has-summary' : ''), 'm:' + m.milestone.name, only !== null || m === next,
-      heading, () => body(m), detail + (m === next ? mobileShipping : ''), Boolean(header));
+    return wrap('section', header ? 'milestone roadmap-has-summary' : 'card-panel milestone', 'm:' + m.milestone.name, only !== null || m === next,
+      heading, () => body(m), detail, Boolean(header));
   };
   /** Summarize one shipped milestone with its first note line and total count. */
   const line = (m) => wrap('div', 'milestone shipped-one', 'm:' + m.milestone.name, false, '<h2>' + esc(m.milestone.name) + '</h2><small>' + esc(firstLine(m.milestone.note)) + '</small>' + '<span class="milestone-count">' + m.total + (m.total === 1 ? ' item' : ' items') + '</span>' + capacity(m), () => body(m), (m.milestone.shipped?.commit ? '<button class="hash-copy" type="button" title="' + esc(m.milestone.shipped.commit) + '" aria-label="Copy full hash ' + esc(m.milestone.shipped.commit) + '" data-copy="' + esc(m.milestone.shipped.commit) + '"><code class="roadmap-shipped-commit" title="' + esc(m.milestone.shipped.commit) + '">' + esc(m.milestone.shipped.commit.slice(0, 12)) + '</code></button>' : ''));
@@ -159,14 +144,13 @@ export function roadmapCardsHtml(read, presentation = {}) {
     let offset = 0;
     const segments = staged ? parts.map(part => { const x = offset; offset += summary[part]; return summary[part] ? '<rect class="' + part + '" x="' + x + '" width="' + summary[part] + '" height="1"/>' : ''; }).join('') : '<rect class="landed" width="' + done + '" height="1"/>';
     const progress = '<svg class="roadmap-release-progress" viewBox="0 0 ' + (staged ? summary.total : total) + ' 1" preserveAspectRatio="none" role="img" aria-label="' + esc(name) + ': ' + m.done + ' of ' + m.total + ' landed">' + segments + '</svg>';
-    return '<button class="roadmap-release" data-roadmap-jump="' + esc(key) + '" type="button" title="' + esc(name) + '"><span class="roadmap-release-version">' + esc(version) + '</span><span class="roadmap-release-name">' + esc(title) + '</span><b>' + m.done + '/' + m.total + '</b>' + progress + '</button>';
+    return '<button class="roadmap-release" data-roadmap-jump="' + esc(key) + '" type="button" title="' + esc(name) + '"><span class="roadmap-release-version">' + esc(version) + '</span><span class="roadmap-release-name">' + esc(title) + '</span>' + progress + '</button>';
   }).join('');
   const shippedButton = shipped.length
     ? '<button class="roadmap-release" data-roadmap-jump="shipped" type="button"><span class="roadmap-release-version">Shipped</span><span class="roadmap-release-name"></span><b>' + shipped.length + '</b></button>' : '';
   const releasePanel = '<aside class="card-panel roadmap-panel" id="roadmap-panel" aria-label="Roadmap releases and shipping">'
     + '<section class="roadmap-release-index"><h2>Releases</h2><nav class="roadmap-releases" id="roadmap-releases" aria-label="Roadmap releases">' + releaseButtons + shippedButton + '</nav></section>'
-    + '<section class="roadmap-shipping roadmap-desktop-shipping" aria-label="Release counts"><h2>Release</h2><h3 class="roadmap-next-release">' + esc(next?.milestone.name || 'No upcoming release') + '</h3>'
-    + shippingCounts + lastShipped + '</section></aside>';
+    + '</aside>';
   const roadmapList = '<div class="roadmap-list" id="roadmap-list">' + lead + (milestones.length ? coming.map(card).join('') : '<div class="card-panel empty">No milestones yet. The coordinator adds one with <code class="inline">pullboard milestone add</code>.</div>')
     + (shipped.length ? wrap('section', 'card-panel shipped', 'shipped', false, '<h2>Shipped</h2><span class="milestone-count">' + shipped.length + (shipped.length === 1 ? ' release' : ' releases') + '</span>', () => shipped.map(line).join('')) : '') + '</div>';
   // With no releases there is nothing to jump to, so the Roadmap is its list alone, as before the panel.

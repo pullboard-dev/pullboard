@@ -74,7 +74,7 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   assert.match(html, /data-roadmap-key="m:Next &lt;release&gt;"[^>]*aria-expanded="false"/u);
   assert.match(html, /Prepared header/u);
   assert.match(html, /Prepared progress/u);
-  assert.match(html, /data-shipping-stage="landing"><dt><i class="roadmap-stage-swatch landing" aria-hidden="true"><\/i>Accepted, landing<\/dt><dd>1<\/dd>/u);
+  assert.doesNotMatch(html, /data-shipping-stage|roadmap-stage-counts|roadmap-last-shipped/u, 'the rail holds releases only');
   assert.doesNotMatch(html, /class="milestone-limit"/u, 'the prepared shared header replaces the extra total-and-limit line');
   assert.doesNotMatch(html, /limit 4/u, 'a distant capacity limit is not presented beside the item count');
   assert.doesNotMatch(html, /data-roadmap-key="i:#1"/u, 'a closed release draws no rows (#7303)');
@@ -110,7 +110,7 @@ test('Roadmap names a limit only within ten percent and formats the forecast for
     pace: { last6h: 7, last2h: 7 }, estimate: { low: 71, high: 212.5 }, window: '6h', reason: null };
   const header = roadmapSummary({ name: 'Capacity', summary }, { now: Date.parse('2026-10-28T12:00:00Z'), locale: 'en-US', timeZone: 'UTC' });
   assert.match(header.count, /512 to go/u);
-  assert.match(header.top.replace(/<[^>]*>/gu, ''), /1\.2 items an hour · 7 landed in the last 6 h, 7 in the last 2 h · done in about 6 days, Tuesday morning/u);
+  assert.doesNotMatch(header.top, /items an hour|landed in the last|done in about/u, 'no pace line; the notch owns it');
   assert.match(header.detail, /<i class="roadmap-summary-swatch held"[^>]*><\/i><b>12<\/b> <span>held<\/span>/u,
     'held retains the same dot, bold number, whitespace and separate label structure');
 });

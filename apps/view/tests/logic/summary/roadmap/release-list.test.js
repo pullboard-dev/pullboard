@@ -23,7 +23,7 @@ test('clause 1: each release is one row with its full version, its whole name fo
   assert.match(buttons[0], /roadmap-release-version">0\.9\.4<\/span><span class="roadmap-release-name">Restructure for Speed and Cost, with a name far longer than the row<\/span>/u, 'the version is whole and the name is never cut in the markup');
   assert.match(buttons[1], /roadmap-release-version">0\.9\.4-UI<\/span>/u, 'a suffixed version stays whole');
   assert.match(buttons[2], /roadmap-release-version">Backlog<\/span><span class="roadmap-release-name"><\/span>/u, 'a release with no version is one word');
-  assert.match(buttons[0], /<b>\d+\/\d+<\/b>/u, 'the landed/total count');
+  assert.doesNotMatch(buttons[0], /<b>/u, 'the landed count lives in the release header alone');
   for (const part of ['landed', 'landing', 'review', 'building', 'waiting', 'held']) assert.match(buttons[0], new RegExp('<rect class="' + part + '" x="'), 'the bar has a ' + part + ' segment');
   assert.match(buttons[0], /viewBox="0 0 40 1"/u, 'the bar is drawn over the release total');
   assert.match(rule('.roadmap-release-name'), /overflow: hidden; text-overflow: ellipsis; white-space: nowrap/u, 'the name ends in an ellipsis at the row width');
