@@ -28,6 +28,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
+  press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
 test('older history says it is still loading until the stream completes [N26,H5]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for one real board, 43 CLI runs and one owned Chrome, not a throughput assertion.
@@ -105,7 +106,7 @@ export async function createTransport({ onUpdate }) {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.click(`document.querySelector('#chain [data-item]')`);
-    await chrome.stable("(() => { const more = document.querySelector('#detail [data-item-panel-history]'); if (more && more.getAttribute('aria-expanded') !== 'true') more.click(); return true; })()");
+    if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
     await chrome.waitFor(`${note('item')} === 'Older entries are still loading (75%).'`);
 
     // Complete: every line goes, and a redraw brings none back.
