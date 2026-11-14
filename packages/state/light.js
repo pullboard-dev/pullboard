@@ -209,7 +209,7 @@ export { factFromEvent } from './src/logic/projection.js';
 export { submitAdmission } from './src/logic/admission.js';
 export { ensureGrantActivationIndex } from './src/logic/relay/activation.js';
 export { manualLandingFailureQuoted } from './src/logic/landing.js';
-export { canonicalMilestoneTarget } from './src/logic/target.js';
+export { canonicalMilestoneTarget } from './src/logic/settings.js';
 export { missingGrantActivationIndex } from './src/logic/relay/activation.js';
 export { CAUSE_ENGINE } from './src/logic/move/constants.js';
 export { IMPLIES_ENGINE } from './src/logic/move/constants.js';
