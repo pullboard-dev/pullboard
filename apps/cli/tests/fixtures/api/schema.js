@@ -41,8 +41,8 @@ export function futureWorktree({ box, repo }) {
   box.git(repo, 'worktree', 'add', '-q', linked, '-b', 'schema/future');
   assert.equal(box.git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'), box.git(linked, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   assert.notEqual(box.git(repo, 'rev-parse', '--path-format=absolute', '--git-dir'), box.git(linked, 'rev-parse', '--path-format=absolute', '--git-dir'));
-  const schemaSource = join(linked, 'packages', 'store', 'src', 'io', 'board', 'schema', 'source.js');
-  const migrateSource = join(linked, 'packages', 'store', 'src', 'io', 'board', 'migrate.js');
+  const schemaSource = join(linked, 'packages', 'store', 'src/io/board/schema/source.js');
+  const migrateSource = join(linked, 'packages', 'store', 'src/io/board/migrate.js');
   const oldSource = readFileSync(schemaSource, 'utf8');
   const oldMigrations = readFileSync(migrateSource, 'utf8');
   const migration = "  ['shout', 'shout_request_outcome', \"TEXT NOT NULL DEFAULT ''\"],\n];";
