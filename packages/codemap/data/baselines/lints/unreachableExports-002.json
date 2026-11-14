@@ -243,7 +243,6 @@
     "src/land.js#landingMessage": 1,
     "src/land.js#landingSubject": 1,
     "src/land.js#landsOnTrunk": 1,
-    "src/land.js#runLandingBatch": 1,
     "src/land.js#runLandingCandidate": 1,
     "src/land.js#tapFailures": 1,
     "src/landing-cadence.js#landingCadenceStatus": 1,

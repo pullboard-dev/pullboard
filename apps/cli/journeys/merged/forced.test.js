@@ -31,7 +31,7 @@ test('clause 1: merged --forced records an unverified item as landed, forced wit
   assert.notEqual(blank.status, 0);
   assert.match(blank.stdout + blank.stderr, /FORCED_REASON/u);
   assert.deepEqual(merges(), []);
-  const forced = run('merged', '1', head, '--forced', 'landed by hand around the gate');
+  const forced = run('merged', '1', head, '--forced', 'landed by hand around the gate', '--waive-proof', 'fixture has no receipt');
   assert.equal(forced.status, 0, forced.stdout + forced.stderr);
   assert.equal(merges().length, 1);
   assert.equal(merges()[0].commit, head);
@@ -48,7 +48,7 @@ test('clause 2: an item withdrawn as met is re-recorded as forced-merged at its 
   assert.equal(withdrawn.status, 0, withdrawn.stdout + withdrawn.stderr);
   assert.equal(readItem().item_status, 'withdrawn');
   assert.equal(readItem().item_stage, 'withdrawn');
-  const forced = run('merged', '1', head, '--forced', 'hand landed, withdrawn as met');
+  const forced = run('merged', '1', head, '--forced', 'hand landed, withdrawn as met', '--waive-proof', 'fixture has no receipt');
   assert.equal(forced.status, 0, forced.stdout + forced.stderr);
   assert.equal(merges().at(-1).from, 'withdrawn');
   assert.equal(readItem().item_stage, 'landed', 'no longer counted as withdrawn');

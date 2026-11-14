@@ -5,7 +5,6 @@ import { importsIn } from '../../gate/index.js';
 import { commonJsIn } from '../../gate/index.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -50,16 +49,15 @@ test('the actual discovered command loader reaches command run and its literal h
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
     ['src/discovery.js', 'packages/kernel/index.js', 'packages/kernel/light.js'].includes(file)
-      || file.startsWith('packages/kernel/src/')) });
-  box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
-  box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
-  box.put('apps/demo/commands/next.js', "import { routing } from '../../../src/routing.js'; export function run() { return routing(); } export const unused = 1;\n");
+      || file.startsWith('packages/kernel/src/') || file === 'apps/cli/src/io/commands/index.js') });
+  box.put('apps/demo/index.js', "import { COMMANDS } from '../cli/src/io/commands/index.js'; COMMANDS.next();\n");
+  box.put('apps/cli/src/io/commands/next.js', "import { routing } from '../../../../../src/routing.js'; export function run() { return routing(); } export const unused = 1;\n");
   box.put('src/routing.js', 'export function routing() { return 1; }\n');
   box.put('src/not-a-command.js', 'export const unused = 1;\n');
   const report = box.report();
-  assert.ok(!report.metrics.unreachable.findings.some(row => ['apps/demo/commands/next.js', 'src/routing.js'].includes(row.key)));
-  assert.ok(!report.metrics.unreachableExports.findings.some(row => ['apps/demo/commands/next.js#run', 'src/routing.js#routing'].includes(row.key)));
-  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key === 'apps/demo/commands/next.js#unused'));
+  assert.ok(!report.metrics.unreachable.findings.some(row => ['apps/cli/src/io/commands/next.js', 'src/routing.js'].includes(row.key)));
+  assert.ok(!report.metrics.unreachableExports.findings.some(row => ['apps/cli/src/io/commands/next.js#run', 'src/routing.js#routing'].includes(row.key)));
+  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js#unused'));
   assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/not-a-command.js'));
 });
 
@@ -84,13 +82,13 @@ test('discovered command reach requires the exact kernel front door and discover
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    file === 'packages/kernel/index.js' || file === 'packages/kernel/light.js' || file.startsWith('packages/kernel/src/')) });
-  box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
-  box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
-  box.put('apps/demo/commands/next.js', 'export function run() {}\n');
+    file === 'packages/kernel/index.js' || file === 'packages/kernel/light.js' || file.startsWith('packages/kernel/src/')
+      || file === 'apps/cli/src/io/commands/index.js') });
+  box.put('apps/demo/index.js', "import { COMMANDS } from '../cli/src/io/commands/index.js'; COMMANDS.next();\n");
+  box.put('apps/cli/src/io/commands/next.js', 'export function run() {}\n');
   appendFileSync(join(box.root, 'packages/kernel/light.js'), '\n// changed provider\n');
-  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js'));
   copyPackageFiles(source, box.root, { files: ['packages/kernel/light.js'] });
   appendFileSync(join(box.root, 'packages/kernel/src/logic/discovery.js'), '\n// changed discovery\n');
-  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js'));
 });

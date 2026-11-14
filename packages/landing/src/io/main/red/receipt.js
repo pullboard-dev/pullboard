@@ -4,7 +4,6 @@
  * is measured through the measuring port, which writes the receipt; a file with a receipt is never run again.
  */
 import { createJob } from '../../../../../jobs/index.js';
-import { jobView } from '../../../../../jobs/index.js';
 import { writeStep } from '../../../../../jobs/index.js';
 import { mainRedKey } from '../../../../../receipt/index.js';
 import { classifyMainRed } from '../../../../../receipt/index.js';
@@ -202,18 +201,4 @@ export function firstRedLanding(root, file, { cache } = {}) {
   }
   // Several breaks of one file (red, fixed, red again): the earliest recorded red is the first one.
   return found.sort((a, b) => (a.red.at ?? '\uffff').localeCompare(b.red.at ?? '\uffff'))[0] ?? null;
-}
-
-/**
- * The verdict step of one item's gate verdict job (#3534), or null when the board holds none [C7,#3685].
- * Why the id is spelled here: it is gate's gateVerdictJobId ('gate-verdict:<item>:<candidate>'), kept local so landing
- * adds no cross-cell edge; apps/cli/journeys/verify/landing/verdict.test.js reads a real submit's verdict through it.
- *
- * @param {{ db: import('node:sqlite').DatabaseSync }} board
- * @param {number} item
- * @param {string} candidate - the submitted commit
- * @returns {object | null}
- */
-export function gateVerdictOf(board, item, candidate) {
-  try { return jobView(board.db, `gate-verdict:${item}:${candidate}`)?.steps.findLast(step => step.name === 'verdict')?.payload ?? null; } catch { return null; }
 }

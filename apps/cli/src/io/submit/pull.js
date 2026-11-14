@@ -7,6 +7,7 @@ import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
+import { mappedCheck } from '../../../../../packages/codemap/index.js';
 import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
@@ -494,12 +495,15 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   const doctrine = hasSubmitRules(root, main.commit, main.config.practice) ? { mainCommit: main.commit, commit, practice: main.config.practice,
     timeoutMs: main.config.check?.timeoutMs, ...(submitRulesNarrowable(root, main.commit, main.config.practice) ? { fast: true } : {}) } : null;
-  const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check: frozenCheck(held),
+  // A file moved since the claim keeps its frozen bar; the runner executes it at its new path, as the controller gate does [C7].
+  const frozen = frozenCheck(held);
+  const check = frozen ? mappedCheck(root, frozen, { commit: source }) : frozen;
+  const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
     criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(),
     authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
-  const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check: frozenCheck(held) }, pairPrefix) : null;
+  const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check }, pairPrefix) : null;
   if (pairing) request.input.data.flakes = pairing;
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
   // The claim base rides along, so the board never excuses a red at a later main that the item's own base passed [V4,B3].

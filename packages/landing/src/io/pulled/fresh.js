@@ -1,12 +1,11 @@
 /**
  * A pulled landing's verdict freshness: before a land job is offered, each accepted item's verdict is projected against
- * the main it lands onto, as the batch engine's selection does, and a verdict a plain main change made stale is
+ * the main it lands onto, and a verdict a plain main change made stale is
  * withdrawn and the item reopened to its lane [B3,C7].
  */
 import * as store from '../../../../store/index.js';
 import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
-import { returnStaleVerdicts } from '../step/batch.js';
 
 /**
  * The board's items with every stale accepted verdict taken out of this offer: a plain stale one is reopened to its
@@ -38,4 +37,29 @@ export async function withoutStaleVerdicts(board, root, main, all, { candidate, 
   for (const entry of selected.blocked) if (entry.code === 'STALE_VERDICT') say(staleVerdictRefusal({ item_id: entry.id }, entry).message);
   return all.map(item => reopened.has(item.item_id) ? { ...item, item_status: 'open' }
     : kept.has(item.item_id) ? { ...item, item_hold_at: item.item_hold_at ?? 'stale verdict' } : item);
+}
+
+/**
+ * Reopen each candidate whose verdict a concrete main change made stale: the accept is withdrawn, the item reopens
+ * with no owner and the changed file named, and its blocked entry becomes STALE_REOPENED. A moved landing, a legacy
+ * unsealed review or unreadable history keeps the refusal, since those are not a plain main change [B3,C7].
+ */
+async function returnStaleVerdicts(board, selected, write, say) {
+  const kept = [];
+  for (const entry of selected.blocked) {
+    const plain = entry.code === 'STALE_VERDICT' && entry.file && entry.commit && !entry.landingCode && !entry.legacy;
+    const item = plain ? store.getItem(board, entry.id) : null;
+    if (!item || item.item_status !== 'verified' || item.item_merged_commit) { kept.push(entry); continue; }
+    const where = `${entry.file} changed on main in ${entry.commit.slice(0, 12)}`;
+    const note = `verdict stale: ${where}, so the reviewed change no longer composes unchanged; merge current main, commit and resubmit`;
+    try {
+      await write('reopen', [entry.id, { agentId: 'coordinator', withdrawVerdict: true, note }]);
+      say(`STALE_VERDICT #${entry.id} reopened to its lane: ${where}`);
+      kept.push({ ...entry, code: 'STALE_REOPENED', message: note });
+    } catch (error) {
+      say(`STALE_VERDICT #${entry.id} could not be reopened: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`);
+      kept.push(entry);
+    }
+  }
+  selected.blocked = kept;
 }

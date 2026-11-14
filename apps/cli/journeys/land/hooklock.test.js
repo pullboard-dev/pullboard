@@ -32,8 +32,9 @@ const { landProject } = makeLandProjectFixtures({ sandbox, project, commitFile }
 
 /** Run the real pre-commit hook with a preload observing its agentAt SQLite read. */
 function startHookRead(box, probe, marker) {
-  const env = { ...box.env, HOOK_READ_ATTEMPT: marker };
-  const child = startFixtureChild(process.execPath, ['--import', probe, BIN, 'hook', 'pre-commit'], {
+  // The probe rides NODE_OPTIONS: the hook shim starts the real hook as a child that keeps the environment, never the parent's node flags.
+  const env = { ...box.env, HOOK_READ_ATTEMPT: marker, NODE_OPTIONS: `${box.env.NODE_OPTIONS ?? ''} --import=${pathToFileURL(probe).href}`.trim() };
+  const child = startFixtureChild(process.execPath, [BIN, 'hook', 'pre-commit'], {
     cwd: box.web, env, stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdoutText = '';
@@ -302,9 +303,10 @@ function lockChildOutcome(child) {
  * @returns {any}
  */
 function launchHookProbe(box, probe, marker) {
-  const env = { ...box.env, HOOK_READ_ATTEMPT: marker };
+  // The probe rides NODE_OPTIONS: the hook shim starts the real hook as a child that keeps the environment, never the parent's node flags.
+  const env = { ...box.env, HOOK_READ_ATTEMPT: marker, NODE_OPTIONS: `${box.env.NODE_OPTIONS ?? ''} --import=${pathToFileURL(probe).href}`.trim() };
   const hookTiming = { launchRequestedAt: Date.now(), marker };
-  const child = startFixtureChild(process.execPath, ['--import', probe, BIN, 'hook', 'pre-commit'], {
+  const child = startFixtureChild(process.execPath, [BIN, 'hook', 'pre-commit'], {
     cwd: box.web, env, stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.hookTiming = hookTiming;

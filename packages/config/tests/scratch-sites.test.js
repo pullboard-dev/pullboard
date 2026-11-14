@@ -21,14 +21,6 @@ const HOME = ['packages/config/src/logic/scratch.js', 'packages/config/src/logic
  */
 const ALLOWLIST = [
   'docs/tools/guarded-docs-refresh.js',
-  'packages/codemap/src/io/cell/parser.js',
-  'packages/codemap/src/io/cell/uses.js',
-  'packages/codemap/src/io/cells/shims.js',
-  'packages/codemap/src/io/cells/snapshots.js',
-  'packages/codemap/src/io/main/lints.js',
-  'packages/codemap/src/io/module/imports.js',
-  'packages/doctrine/src/io/checks.js',
-  'packages/doctrine/src/io/fast.js',
   'packages/drive/src/io/once.js',
   'packages/gate/src/io/run-tests.js',
   'packages/gate/src/io/snapshot.js',
@@ -36,9 +28,6 @@ const ALLOWLIST = [
   'packages/gate/src/io/test/run.js',
   'packages/git/src/io/tools.js',
   'packages/kernel/src/logic/machine.js',
-  'packages/link/src/io/relay/proof.js',
-  'packages/sandbox/src/io/environment.js',
-  'packages/sandbox/src/io/regeneration.js',
 ];
 
 /** The non-test source files under apps, packages and docs/tools. */

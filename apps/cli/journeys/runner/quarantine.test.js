@@ -165,7 +165,7 @@ test('one job recorded twice still costs one slot [C7]', async t => {
   try { assert.equal(lease.runner.host, 'same-job-host', 'its other slot stays usable'); } finally { lease.release(); }
 });
 
-test('a controller killed mid-job costs its runner one slot, and proving that exact job clears it [C7]', async t => {
+test('a controller killed mid-job costs its runner one slot, and proving that exact job clears it [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
   const { dir, pool } = machine(t);
   const runners = [{ host: 'shared-host', slots: 2, browser: 0 }];
   const resources = new URL('../../../../packages/resources/index.js', import.meta.url).href;

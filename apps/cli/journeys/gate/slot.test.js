@@ -13,13 +13,14 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 const { BIN, sandbox, project, holdingGate, launch, waitFor, gateEvents, commitFile } = e2e;
 
-test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', async () => {
+test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', async (t) => {
   const box = project();
   fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match((await box.runLocal(box.web, 'claim', '1')).out, /claimed #1/);
@@ -30,16 +31,16 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   writeFileSync(join(box.web, 'web', 'stray.txt'), 'x');
   assert.match((await box.runLocal(box.web, 'submit', '1')).err, /UNTRACKED/);
   rmSync(join(box.web, 'web', 'stray.txt'));
-  const submitted = (await box.runLocal(box.web, 'submit', '1'));
-  assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project/u);
-  assert.match(submitted.out, /test counts unavailable/u, 'a shell gate does not report test-case counts');
-  assert.match(submitted.out, /pinned as refs\/pullboard\/items\/1\/[0-9a-f]{12}/u);
+  const sent = await box.runLocal(box.web, 'submit', '1', '--json');
+  assert.equal(sent.code, 0, sent.err);
+  // A pulled submit queues the whole gate; the local runner's receipt settles it and the pin follows [P7,V4].
+  const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, JSON.parse(sent.out));
+  assert.equal(submitted.gateJob.step, 'done');
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
 
-test('submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', async () => {
+test('submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = sandbox();
   const gate = holdingGate(box);
   const projectBox = project(gate.command, box);
