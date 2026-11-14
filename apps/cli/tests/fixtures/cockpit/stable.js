@@ -133,6 +133,19 @@ async function openNavMenuFor(chrome, find) {
 }
 
 /**
+ * Visit a page as a person does: the tab strip over 900 px, or under it the Menu button and its drawer, where every page
+ * lives once the strip is gone (the compact layout, dcf117ebc6).
+ * @param {object} chrome
+ * @param {string} name - The page's data-tab name.
+ * @returns {Promise<void>}
+ */
+export async function pressTab(chrome, name) {
+  const drawer = await rawChromeEvaluation(chrome, 'innerWidth <= 900');
+  if (drawer) await press(chrome, "document.querySelector('#menu-btn')");
+  await press(chrome, `document.querySelector('${drawer ? '#mdrawer ' : ''}[data-tab="${name}"]')`);
+}
+
+/**
  * Press an uncovered, stable target through real Chrome input, optionally using a browser button or modifier.
  * A pointer move can change hover layout, so wait again after it and refuse a changed point rather than retrying.
  * Fixed dialog targets use viewport geometry; flowing targets retain the document-scroll guard as well.

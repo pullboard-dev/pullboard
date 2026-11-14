@@ -16,7 +16,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
-  press,
+  pressTab,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('the view names a milestone limit only near capacity, including empty and shipped plans [N26]', { timeout: 90_000 }, async () => {
@@ -37,7 +37,7 @@ test('the view names a milestone limit only near capacity, including empty and s
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("document.querySelector('[data-tab=roadmap]')");
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     // Active has work left, so its card opens with the shared release header, which carries no total-and-limit line (0ab202b994).
     await chrome.waitFor("document.querySelector('[data-key=\"m:Active\"] .release-header') && document.querySelector('[data-key=\"m:Empty\"] .milestone-limit')");
     // A shipped release opens with the shared release header too, so it has no item-and-limit line either (897349c90b).

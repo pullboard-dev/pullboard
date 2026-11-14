@@ -19,6 +19,7 @@ import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { pickProject } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { press } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/harness.js';
 import { searchFor } from '../../tests/fixtures/cockpit/harness.js';
 import { sendBack } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
@@ -76,7 +77,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     await chrome.waitFor('!!data?.project');
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)}`);
-    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
     await press(chrome, "document.querySelector('[data-filter-toggle]')");
     await press(chrome, "document.querySelector('[data-state=all]')");
@@ -139,12 +140,12 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     assert.deepEqual(pipelineOrder, ['Blocked', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
     const pipelineStage = await chrome.stable("document.querySelector('#pipeline [data-item=\\\"5\\\"] .stage-word')?.textContent");
     assert.equal(pipelineStage, 'Landing');
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     await chrome.waitFor("!document.querySelector('[data-pane=roadmap]').hidden && document.querySelector('#roadmap-list [data-roadmap-key=\\\"i:#5\\\"] .stage-word')");
     const roadmapStages = await chrome.stable(`JSON.stringify({ landing: document.querySelector('#roadmap-list [data-roadmap-key="i:#5"] .stage-word')?.textContent,
       hidden: !document.querySelector('#roadmap-list [data-roadmap-key="i:#11"]') })`);
     assert.deepEqual(JSON.parse(roadmapStages), { landing: 'Landing', hidden: true }, 'Roadmap uses the same stage and continues hiding withdrawn rows');
-    await press(chrome, "document.querySelector('[data-tab=dashboard]')");
+    await pressTab(chrome, 'dashboard');
     await chrome.waitFor("!document.querySelector('[data-pane=dashboard]').hidden && document.querySelector('#dashboard [data-go=\\\"item:5\\\"] .stage-word')");
     const dashboardStages = JSON.parse(await chrome.stable(`JSON.stringify({ landing: document.querySelector('#dashboard [data-go="item:5"] .stage-word')?.textContent,
       landingDetail: document.querySelector('#dashboard [data-go="item:5"] .stage-detail')?.textContent,

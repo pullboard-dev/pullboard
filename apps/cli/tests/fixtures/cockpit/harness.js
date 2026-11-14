@@ -29,6 +29,7 @@ import vm from 'node:vm';
 import {
   stableChrome,
   press,
+  pressTab,
   tapTouch,
 } from './stable.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
@@ -285,6 +286,8 @@ function element(id) {
     querySelectorAll: () => [],
     querySelector: () => null,
     prepend() {},
+    // The notch preview appends its veil and panel to the body (4f9646d478), and reaches it from its notch's document.
+    append() {},
     replaceWith() {},
   };
 }
@@ -369,7 +372,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
   const elements = new Map();
   const node = (id) => {
-    if (!elements.has(id)) elements.set(id, element(id));
+    if (!elements.has(id)) elements.set(id, Object.assign(element(id), { ownerDocument: document }));
     return elements.get(id);
   };
   const clicks = [];
@@ -1312,4 +1315,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive, pressTab };
