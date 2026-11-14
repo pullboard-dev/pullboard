@@ -95,15 +95,19 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
         const r = await read();
         assert.equal(r.statusRelease, '0.3 1/2', at + ': the status bar names the same next release');
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll`);
-        // Every release with work ahead stays open; the shipped ones fold into one part at the end.
+        // Only the next release opens; every other one folds to its line and the shipped ones fold into one part at the end (79b0e88d0f, #7303).
         assert.deepEqual(r.parts.map((part) => [part.key, part.open, part.summary]), [
           ['m:0.3', true, '0.3 | 1/2 landed'],
-          ['m:0.4', true, '0.4 | 0/1 landed'],
-          ['m:Later', true, 'Later'],
+          ['m:0.4', false, '0.4 | 0/1 landed'],
+          ['m:Later', false, 'Later'],
           ['shipped', false, 'Shipped | 2 releases'],
-        ], `${at}: every upcoming milestone opens in order, with Shipped folded last`);
+        ], `${at}: the next release opens and every other milestone folds to its line, in order, with Shipped last`);
         assert.deepEqual(r.parts[0].rows, ['#3', '#4'], `${at}: the next release shows its items`);
-        assert.deepEqual([r.parts[2].empty, r.parts[2].note], ['No items yet.', 'Work not filed yet.'], `${at}: the open empty milestone shows its note and empty state`);
+        assert.deepEqual(r.parts.slice(1, 3).map((part) => part.rows), [[], []], `${at}: a folded release draws no item rows`);
+        await click('#roadmap-list > [data-key="m:Later"] > .milestone-head');
+        const later = (await read()).parts[2];
+        assert.deepEqual([later.open, later.empty, later.note], [true, 'No items yet.', 'Work not filed yet.'], `${at}: the opened empty milestone shows its note and empty state`);
+        await click('#roadmap-list > [data-key="m:Later"] > .milestone-head');
         assert.ok(r.parts.every((part) => part.height >= 44), `${at}: each part opens from a 44px target`);
         await click('#roadmap-list > [data-key="shipped"] > .milestone-head');
         const expanded = await read();
@@ -153,16 +157,19 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
     await box.inProcess(alpha.web, 'claim', '3');
     await chrome.waitFor("data.project.items.find((i) => i.id === 3)?.status === 'claimed'", 15_000); // budget: hang ceiling for the native claim to reach the open roadmap; no throughput claim.
     r = await read();
-    assert.deepEqual(r.parts.map((part) => [part.key, part.open]), [['m:0.3', false], ['m:0.4', true], ['m:Later', true], ['shipped', true]], 'a redraw keeps each part as it was left');
+    assert.deepEqual(r.parts.map((part) => [part.key, part.open]), [['m:0.3', false], ['m:0.4', false], ['m:Later', false], ['shipped', true]], 'a redraw keeps each part as it was left');
     await pickProject(chrome, `[...document.querySelectorAll('[data-root]')].find((e) => e.dataset.root === ${JSON.stringify(other.repo)})`);
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     assert.deepEqual((await read()).parts.map((part) => [part.key, part.open]), [['m:0.3', true]], 'another board starts with its own next release open');
     await pickProject(chrome, `[...document.querySelectorAll('[data-root]')].find((e) => e.dataset.root === ${JSON.stringify(alpha.repo)})`);
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
-    assert.deepEqual((await read()).parts.map((part) => [part.key, part.open]), [['m:0.3', false], ['m:0.4', true], ['m:Later', true], ['shipped', true]], 'returning to the board preserves this visit\'s disclosure choices');
-    await chrome.send('Page.reload');
-    await settled(chrome, "typeof data === 'object' && data?.project?.milestones?.length === 5 && !document.querySelector('[data-pane=roadmap]').hidden");
-    assert.deepEqual((await read()).parts.map((part) => [part.key, part.open]), [['m:0.3', true], ['m:0.4', true], ['m:Later', true], ['shipped', false]], 'a new visit opens every upcoming milestone and folds Shipped again');
+    assert.deepEqual((await read()).parts.map((part) => [part.key, part.open]), [['m:0.3', false], ['m:0.4', false], ['m:Later', false], ['shipped', true]], 'returning to the board preserves this visit\'s disclosure choices');
+    // A reload keeps the address (shipped=1 included); a new visit is the board's plain link.
+    await chrome.send('Page.navigate', { url: view.link.href });
+    await settled(chrome, "typeof data === 'object' && data?.project?.milestones?.length === 5");
+    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=roadmap]').hidden");
+    assert.deepEqual((await read()).parts.map((part) => [part.key, part.open]), [['m:0.3', true], ['m:0.4', false], ['m:Later', false], ['shipped', false]], 'a new visit opens only the next release and folds the rest and Shipped');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

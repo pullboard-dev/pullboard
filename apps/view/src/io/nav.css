@@ -120,7 +120,7 @@
   :root[data-nav] .notch, :root[data-nav] .crumb, :root[data-nav] .pin, :root[data-nav][data-side] .side-top, :root[data-nav="top"] .strip { display: none; }
   :root[data-nav] .top-right { position: static; flex: none; margin-left: auto; gap: var(--space-4); }
   :root[data-nav] .top-find { flex: none; min-width: 0; }
-  :root[data-nav] .top-find input { width: 120px; text-overflow: ellipsis; height: 32px; padding: 0 var(--space-9) 0 var(--space-3); background: var(--surface-2); }
+  :root[data-nav] .top-find input { width: clamp(72px, calc(40vw - 28px), 120px); text-overflow: ellipsis; height: 32px; padding: 0 var(--space-9) 0 var(--space-3); background: var(--surface-2); }
   /* The page's title with its controls under it: the strip is gone, so the controls take their own line. */
   :root[data-nav="top"] .page-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-5); margin: 0 0 var(--space-4); }
   :root[data-nav="top"] .page-title h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
