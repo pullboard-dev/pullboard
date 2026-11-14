@@ -545,8 +545,16 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
       okNote: (() => { const c = document.querySelector('#console'); return !!c && !c.hidden && getComputedStyle(c).display !== 'none' && c.classList.contains('ok'); })(),
     };
   })())`));
-  // A page tab sits in a nav menu the person opens first, so it goes through the shared press (#6651's nav menus).
-  const click = (selector) => (selector.startsWith('[data-tab=') ? press(chrome, `document.querySelector(${JSON.stringify(selector)})`) : chrome.click(`document.querySelector(${JSON.stringify(selector)})`));
+  // A page tab sits in the top bar at a desktop width; a phone hides it behind the Menu button, so open the drawer first (#6651's nav menus).
+  const click = async (selector) => {
+    if (!selector.startsWith('[data-tab=')) return chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
+    if (await chrome.stable("document.querySelector('#menu-btn')?.getBoundingClientRect().width > 0")) {
+      if (await chrome.stable("document.querySelector('#mdrawer').hidden")) await press(chrome, "document.querySelector('#menu-btn')");
+      await chrome.waitFor("!document.querySelector('#mdrawer').hidden");
+      return press(chrome, `document.querySelector(${JSON.stringify('#mdrawer ' + selector)})`);
+    }
+    return press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+  };
   try {
     await confirmBaseline(view, alpha.repo);
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
