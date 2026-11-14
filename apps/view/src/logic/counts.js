@@ -142,6 +142,17 @@ export function splitReady(milestones, ready) {
 }
 
 /**
+ * A board state with its releases split by the ready definition NOW uses; a state without releases comes back as it was.
+ * It never changes the state it reads, so the page can apply it to every read of a state it keeps.
+ *
+ * @param {{ milestones?: any[] }} state
+ * @returns {object}
+ */
+export function withReadySplit(state) {
+  return state?.milestones ? { ...state, milestones: splitReady(state.milestones, readyAndBlocked(state).ready) } : state;
+}
+
+/**
  * The shared counts of one board state, read once per state so every page shows the same numbers.
  *
  * @param {object} project - The board state, with needs, dashboardRunners, dashboardRecent and dashboardLanded.

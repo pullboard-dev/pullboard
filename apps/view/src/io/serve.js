@@ -13,8 +13,7 @@ import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
 import { boardCounts } from "../logic/counts.js";
 import { firstLandings } from "../logic/counts.js";
-import { readyAndBlocked } from "../logic/counts.js";
-import { splitReady } from "../logic/counts.js";
+import { withReadySplit } from "../logic/counts.js";
 import { machineRead } from "./pipeline/machine.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
@@ -579,7 +578,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     // One number in one place: every page reads these counts, never its own (#7310).
     const counts = boardCounts(read, now);
     // Release and Roadmap read the same ready definition NOW does (#7763).
-    return { ...read, counts, ...(read.milestones ? { milestones: splitReady(read.milestones, readyAndBlocked(read).ready) } : {}) };
+    return withReadySplit({ ...read, counts });
   }, providedBoard, boardOpeners);
 }
 

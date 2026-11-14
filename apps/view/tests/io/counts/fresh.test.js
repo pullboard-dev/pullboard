@@ -13,6 +13,7 @@ import { publicLiveRunners } from '../../../src/io/live/read.js';
 import { firstLandings } from '../../../src/logic/counts.js';
 import { readyAndBlocked } from '../../../src/logic/counts.js';
 import { splitReady } from '../../../src/logic/counts.js';
+import { withReadySplit } from '../../../src/logic/counts.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -33,7 +34,6 @@ function freshBoard(t, landings = 3) {
   landed.forEach((id, index) => store.merged(board, id, { agentId: 'coordinator', commit: String(index + 1).repeat(40), forced: 'fixture landing', waiveProof: 'fixture' }));
   const ready = make(board, 'Ready one');
   const blocked = make(board, 'Blocked one', { after: [ready] });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.1: First release', items: [ready, blocked], reason: 'Fixture release' });
   return { project, board, landed, ready, blocked };
 }
 
@@ -63,10 +63,19 @@ test('clause 1: the first recording of each current merge counts once, whatever 
 
 test('clause 2: an item NOW calls ready is not called blocked by Release or the Roadmap header [C7]', t => {
   const { project, board, ready, blocked } = freshBoard(t, 0);
-  const state = projectState(project.repo, { board }), now = Date.now();
-  assert.deepEqual([state.counts.ready, state.counts.blocked], [1, 1]);
-  assert.deepEqual(readyAndBlocked(state), { ready: [ready], blocked: [blocked] });
-  const release = state.milestones.find(entry => entry.name === '0.1: First release');
+  const read = projectState(project.repo, { board }), now = Date.now();
+  assert.deepEqual([read.counts.ready, read.counts.blocked], [1, 1]);
+  assert.deepEqual(readyAndBlocked(read), { ready: [ready], blocked: [blocked] });
+  // The board's state names the release (as the roadmap reads it) after the server's counts; the page splits it on every read.
+  const entry = (id, state) => ({ id, title: 'Item ' + id, state });
+  const named = { ...read, milestones: [{ name: '0.1: First release', items: [entry(ready, 'waiting'), entry(blocked, 'waiting')],
+    summary: { total: 2, landed: 0, landing: 0, review: 0, building: 0, waiting: 2, held: 0, left: 2 } }] };
+  const state = withReadySplit(named);
+  assert.equal(named.milestones[0].summary.ready, undefined, 'the state the board sent is left as it was');
+  // The page and the state read both split a release the API sent as one waiting group, with the same ready definition.
+  const sent = { name: '0.1: First release', items: [{ id: ready, state: 'open' }, { id: blocked, state: 'open' }],
+    summary: { total: 2, left: 2, landed: 0, landing: 0, review: 0, building: 0, held: 0, waiting: 2 } };
+  const release = withReadySplit({ ...state, milestones: [sent] }).milestones[0];
   assert.equal(release.summary.ready, 1, 'the release names the ready item ready');
   assert.equal(release.summary.waiting, 1, 'and only the blocked one blocked');
   const header = roadmapSummary(release, {}).header;
