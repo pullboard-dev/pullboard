@@ -87,6 +87,7 @@ import {
   refuseUnreviewable,
 } from '../../../../../packages/verify/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
+import { frozenCheckTiming } from '../../../../../packages/items/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
@@ -231,6 +232,16 @@ function knownMainReds(root, failures, main) {
   try { return redsAreMains(failures, cachedMainComparison(root, main, failures.map(row => row.file)), main); } catch { return false; }
 }
 
+/**
+ * Refuse a bar frozen with exclusive check timing: every submit gate is a pulled runner job, and pulled gates do not yet
+ * hold the exclusive slots or write the timing receipt (#7942). Why refuse: running it untimed would ignore the bar [C7].
+ */
+function refusePulledTiming(item) {
+  if (!frozenCheckTiming(item)) return;
+  throw new Refused('PULL_TIMING_UNSUPPORTED', `#${item.item_id}'s frozen check asks for exclusive timing admission, which pulled gates do not yet support; every submit gate is pulled, so it would run untimed`,
+    `ask the coordinator to leave timing off: pullboard edit ${item.item_id} --check-timing false --reason "pulled gates have no timing admission"; pullboard check still runs it with timing on this machine`);
+}
+
 /** Stop unchanged third red submissions, queued or pulled, while naming the two test failures that need repair. */
 function requireRedSubmitProgress(root, board, id, digest, candidate, main, pulledReds = () => []) {
   // A gate whose every red is a case main fails by the same name is main's red, not the item's code, so it is no loop [C7].
@@ -313,6 +324,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     return item;
   }));
+  refusePulledTiming(held);
   ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   ctx.submitAttempt.stage = 'fast';
   const policy = itemPolicy(root, held);

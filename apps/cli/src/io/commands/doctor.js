@@ -15,6 +15,8 @@ import {
   tryGit,
 } from '../../../../../packages/git/index.js';
 import {
+  outdatedSender,
+  outdatedSenderLine,
   unlinkedRelayProjects,
 } from '../../../../../packages/link/index.js';
 import {
@@ -70,6 +72,9 @@ export async function run(io, { values = {} } = {}) {
   if (!problems.some(problem => incompatible.has(problem.code)) && !anyRunnerLive()) for (const job of withBoardRead(ctx, board => unclaimedGateJobs(board.db))) problems.push({ code: 'GATE_NO_RUNNER',
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
+  const outdated = outdatedSender();
+  if (outdated) problems.push({ code: 'RELAY_SENDER_OUTDATED', message: outdatedSenderLine(outdated),
+    next: 'run pullboard relay recover to stop it and start this version\'s sender' });
   const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
   if (checkpointProblem) problems.push(checkpointProblem);
   const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);

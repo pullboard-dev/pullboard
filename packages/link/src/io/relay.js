@@ -939,6 +939,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
         if (!io.relayCanary) recordClientHealth(root, true, null, Date.now() - roundTripStarted);
       }
       delete state.recovered;
+      if (operation === 'takeCoordinator' && !receipt.outcome.error && state.outboxRefusals) state.outboxRefusals = state.outboxRefusals.filter((kept) => kept.code !== 'COORDINATOR_HELD');
       saveLink(file, state);
       // A phone reads the next checkpoint; the background publisher sends it once moves go quiet (#1014).
       if (await io.checkpointInBackground()) await io.scheduleCheckpoint(root, file, io.checkpointWorker);

@@ -225,7 +225,8 @@ const browserRefusal = files => 'this runner offers no browser, so ' + files.sli
 // The board's ledger hits for this job's files: written once, named to the proof phase only, never to the item's own check.
 const ledger = (shard ? shard.ledger : input.ledger) ?? null;
 let hitsFile = null;
-if (ledger && Array.isArray(ledger.files)) { hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify(ledger), { mode: 0o600 }); }
+// The proof owes a test account for its files, so a hit is reused only on a green this runner stored with outcomes [C7,#7937].
+if (ledger && Array.isArray(ledger.files)) { hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify({ ...ledger, account: true }), { mode: 0o600 }); }
 /**
  * The reason a green proof does not prove its selected files: main's own account check, as the controller gate applies it
  * (TEST_SELECTION_UNVERIFIED), read from the phase's outcome frames or its TAP cases; null when every file reported.

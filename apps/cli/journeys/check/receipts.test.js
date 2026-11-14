@@ -74,17 +74,26 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   rmSync(armed, { force: true });
   const red = await settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
   assert.equal(red.gate.green, false, 'the item check is red on the first submit');
-  const staticRuns = runs(logs.static);
+  // A pulled submit runs the static check twice per new tree: once in the builder's checkout before any runner is queued
+  // (#5730), which records the tree's receipt, and once in the runner's gate, which cannot read that machine's receipts.
+  assert.equal(runs(logs.static), 2, 'the static check ran once before the queue and once in the gate');
   // The doctrine hold measures main's problems once (since #2575) and the candidate once: two runs, then none.
   assert.equal(runs(logs.doctrine), 2, 'the doctrine check ran once at main and once at the candidate');
   writeFileSync(armed, 'green\n');
-  const second = await settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
+  let queued = null;
+  const tapped = await withStderrTap(async () => {
+    const result = await box.runLocal(box.web, 'submit', '1', '--json');
+    queued = ok(result);
+    return result;
+  });
+  const second = await settleSubmit(t, box, queued);
   assert.equal(second.gate.green, true, JSON.stringify(second.gate));
-  assert.equal(runs(logs.static), staticRuns, 'the unchanged tree runs no static check again');
+  assert.equal(runs(logs.static), 2, 'the unchanged tree runs no static check again, before the queue or in the gate');
   assert.equal(runs(logs.doctrine), 2, 'the unchanged tree runs no doctrine check again');
+  assert.match(tapped.out + tapped.err, /static check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the static receipt');
   // The pulled gate job runs on a runner, so its citations are the notes its receipt carries, not the submitter's stderr.
   const notes = (second.gate.analysis?.notes ?? []).join('\n');
-  assert.match(notes, /static checks: reused the green run kept for this head/u, 'submit cites the static run it kept');
+  assert.match(notes, /static checks: reused the green run kept for this head/u, 'the gate cites the static run it kept');
   // A reviewer checking the same submitted tree from its own worktree cites the same receipt.
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'api-review');
@@ -92,7 +101,7 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   ok(await fixtureJoin(box.runLocal, review, 'api', '--model', 'Fixture reviewer', '--json'));
   const checked = await withStderrTap(() => box.runLocal(review, 'check', '1', '--yes'));
   assert.equal(checked.code, 0, checked.out + checked.err);
-  assert.equal(runs(logs.static), staticRuns, 'review on the same tree runs no static check');
+  assert.equal(runs(logs.static), 2, 'review on the same tree runs no static check');
   assert.match(checked.out + checked.err, /static check reused receipt/u, 'review cites the receipt');
 });
 
@@ -171,15 +180,26 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
     const submit = async () => settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
     assert.equal((await submit()).gate.green, false, 'the first item check is red after the guards pass');
     assert.equal((await submit()).gate.green, false, 'an unchanged submit still proves its red item check');
-    // The doctrine hold also measures main once, so its guard runs twice on the first submit and never again.
-    assert.equal(runs(counter), stage === 'doctrine' ? 2 : 1, 'the unchanged external guard is reused');
+    // A static guard runs once before the queue and once in the runner's gate; the doctrine hold measures main once and
+    // the candidate once. Either way two runs on the first submit and none on the unchanged second.
+    assert.equal(runs(counter), 2, 'the unchanged external guard is reused');
     writeFileSync(script, "process.stdout.write('changed checker\\n'); process.exit(1);\n");
     writeFileSync(armed, 'green\n');
-    const settled = await submit();
-    const second = { code: settled.gate.green ? 0 : 1, out: JSON.stringify(settled.gate), err: '' };
-    // A rising doctrine count is a report-only trial refusal (13532c41d): it prints "would refuse" and lets the submit go on.
-    if (stage === 'static') assert.notEqual(second.code, 0, 'changed checker bytes cannot reuse a successful guard');
-    assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /would refuse RATCHET_ROSE/u);
+    // Two settled red gates on unchanged item code stop the next submit before any check runs (SUBMIT_RED_LOOP, 08ab14bf8e);
+    // a builder fact recorded after them is the progress that lets the submit through to the changed guard.
+    const loop = await box.runLocal(box.web, 'submit', '1', '--json');
+    assert.notEqual(loop.code, 0, 'an unchanged third submit after two red gates is stopped');
+    assert.match(loop.out + loop.err, /SUBMIT_RED_LOOP/u);
+    ok(await box.runLocal(box.web, 'fact', '1', 'note', 'The checker changed; the unchanged source is submitted again.', '--json'));
+    // A red static guard refuses before any runner is queued (#5730); a doctrine guard runs in the gate.
+    const raw = await box.runLocal(box.web, 'submit', '1', '--json');
+    const second = stage === 'static' ? raw : await (async () => {
+      const settled = await settleSubmit(t, box, ok(raw));
+      return { code: settled.gate.green ? 0 : 1, out: JSON.stringify(settled.gate), err: '' };
+    })();
+    // A rising doctrine count is a report-only trial refusal (13532c41d): the pulled gate records it as machinery and stays green.
+    assert.equal(second.code === 0, stage === 'doctrine', 'changed checker bytes cannot reuse a successful guard');
+    assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /"code":"RATCHET_ROSE"/u);
     assert.match(second.out + second.err, /changed checker/u);
   }
 });
