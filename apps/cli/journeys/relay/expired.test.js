@@ -502,7 +502,7 @@ test('a deleted-copy pending move survives interrupted cleanup and is returned o
   assert.equal(captured.document.beforeCleanup.firstCount, 1,
     'the pending native move is durable before link cleanup can be interrupted');
   const next = await box.cliLocal('add', box.lane, 'new work after interrupted deletion cleanup');
-  assert.equal(next.code, 0, 'a fresh invocation completes cleanup and different local work');
+  assert.equal(next.code, 0, 'a fresh invocation completes cleanup and different local work: ' + JSON.stringify(next));
   const repeated = await box.cliLocal('add', box.lane, firstTitle);
   assert.equal(repeated.code, 0, 'the interrupted original command receives its retained native outcome');
   const exported = await box.cliLocal('export');
