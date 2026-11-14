@@ -322,7 +322,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
     assert.match(page.show('page-controls'), /data-value="questions"[^>]*>Questions<b>1<\/b>/,
       'the shared Questions segment retains the one native pending ask');
-    page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
+    // Forty notes follow the ask, so its thread folds the oldest messages; open them, as a person does.
+    page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; view.open['msgs:none'] = true; render();");
     const waitingMessage = conversationMessage(page, 1);
     assert.match(waitingMessage, /<span class="sx-snd seat" title="web-1 \(Test Model\) to coordinator">/,
       'the opened native question retains its exact author, model hover and recipient');
