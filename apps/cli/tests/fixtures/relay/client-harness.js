@@ -903,7 +903,10 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   });
   const beforeOutcomeRetry = relay.uploads.length;
   await restoreInventories();
-  const originalOutcome = await timing.wait('retry the submission of B after its lost reply', () => cli(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
+  const retried = await timing.wait('retry the submission of B after its lost reply', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
+  const heldOutcome = JSON.parse(readFileSync(recoveredLink, 'utf8')).recovered;
+  assert.equal(retried.status, 0, `${JSON.stringify(retried.document?.error)}; held ${JSON.stringify({ operation: heldOutcome?.move?.operation, args: heldOutcome?.move?.args, commandIntent: heldOutcome?.commandIntent }).slice(0, 1500)}`);
+  const originalOutcome = retried.document;
   assert.equal(originalOutcome.commit, recoveredStackCommit);
   assert.equal(originalOutcome.gateJob, lostJob, 'the retry reuses the gate job the lost submit offered, never a second gate');
   await assertOriginalOutcomeDelivery(relay.uploads.slice(beforeOutcomeRetry), key, boardId, stackOwnerB);
