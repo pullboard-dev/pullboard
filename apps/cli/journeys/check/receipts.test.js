@@ -197,9 +197,9 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
       const settled = await settleSubmit(t, box, ok(raw));
       return { code: settled.gate.green ? 0 : 1, out: JSON.stringify(settled.gate), err: '' };
     })();
-    // A rising doctrine count is a report-only trial refusal (13532c41d): it prints "would refuse" and lets the submit go on.
-    if (stage === 'static') assert.notEqual(second.code, 0, 'changed checker bytes cannot reuse a successful guard');
-    assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /would refuse RATCHET_ROSE/u);
+    // A rising doctrine count is a report-only trial refusal (13532c41d): the pulled gate records it as machinery and stays green.
+    assert.equal(second.code === 0, stage === 'doctrine', 'changed checker bytes cannot reuse a successful guard');
+    assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /"code":"RATCHET_ROSE"/u);
     assert.match(second.out + second.err, /changed checker/u);
   }
 });
