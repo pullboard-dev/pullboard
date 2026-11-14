@@ -112,7 +112,7 @@ export function listItems(board, { lane, all = false } = {}) {
   // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
   const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
   // Every item's hand-off record in one read of the job tables, where the record lives [C7].
-  const records = handoffRecords(board.db);
+  const records = handoffRecords(board.db, { live: true });
   const pulled = pulledGateRecords(board.db, null, Date.parse(at));
   const items = rows.map((row) => {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
