@@ -492,9 +492,9 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const proofs = recorded.filter(event => event.event_kind === 'proof-run');
   const receipts = proofs.map(event => JSON.parse(event.event_detail).receipt);
   assert.deepEqual(receipts.map(receipt => [receipt.item, receipt.commit]), [
-    [added.item_id, firstCommit], [added.item_id, firstCommit], [added.item_id, firstCommit],
+    [added.item_id, firstCommit], [added.item_id, firstCommit],
     [waiting.item_id, secondCommit], [waiting.item_id, secondCommit],
-  ], 'the two pulled submits record two proofs each, and the accepting verify records one more');
+  ], 'the two pulled submits record two proofs each; the accepting verify reuses them and records none');
   for (let index = 0; index < proofs.length; index++) {
     assert.equal(proofs[index].event_by, receipts[index].seat, 'each proof belongs to its executing seat');
     assert.equal(proofs[index].item_id, receipts[index].item, 'each proof belongs to its checked item');
