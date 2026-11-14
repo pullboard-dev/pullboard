@@ -31,7 +31,7 @@ test('clause 1: Spec and Doctrine tab labels have a one-word phone form and keep
   assert.doesNotMatch(css.match(/@media \(max-width: 700px\) \{\n  #spec-chips \.seg, [\s\S]*?\n\}/u)?.[0] ?? '', /text-overflow: ellipsis/u, 'no phone tab label ends in an ellipsis');
 });
 
-test('clause 2: a Settings row without a copy button keeps its value in the same column as one with it [N26]', () => {
+test('clause 2: a Settings row with a copy button reserves the copy column, and one without it ends flush at the value [N26,#7718]', () => {
   const entry = { rows: [
     { key: 'gate.slots', scope: 'machine', cli: 'gate-slots', value: 2, default: 2, description: 'd' },
     { key: 'gate.runnerDispatch', scope: 'machine', value: 'pull', default: 'pull', description: 'd' },
@@ -40,7 +40,9 @@ test('clause 2: a Settings row without a copy button keeps its value in the same
   assert.equal(html.match(/class="set[ "]/gu).length, 2);
   assert.equal(html.match(/class="copy"/gu).length, 1, 'only one row has a copy button');
   const css = composeViewStyles();
-  assert.match(css, /\n\.set \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto 28px;/u, 'every row reserves the copy column');
+  assert.equal(html.match(/class="set has-copy[ "]/gu).length, 1, 'only the row with a copy button is marked has-copy');
+  assert.match(css, /\n\.set \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/u, 'a row without a copy button has name and value columns only (#7718)');
+  assert.match(css, /\n\.set\.has-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto 28px;/u, 'a row with a copy button reserves the copy column');
 });
 
 test('clause 3: an after chip with no id is not drawn, and the chips are inline text that can end in an ellipsis [N26]', () => {

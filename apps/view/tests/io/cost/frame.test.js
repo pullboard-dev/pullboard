@@ -37,7 +37,7 @@ test('clause 1: Cost draws the last numbers this browser read while the fresh re
   const { readCostHistory, costPaneHtml, calls } = costPage({ 'pb.cost./repo\n7d': JSON.stringify(last) });
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
   assert.equal(calls.api, 1, 'a fresh read still starts');
-  assert.match(html, /<p class="cost-big">2<small>hours<\/small>/u, 'the remembered agent time is drawn at once');
+  assert.match(html, /<b class="cost-total">2\.0 h<\/b>/u, 'the remembered agent time is drawn at once');
   assert.match(html, /class="cap2 cost-updating" role="status">Updating…/u, 'and says it is updating');
   assert.doesNotMatch(html, /cost-waiting|Loading cost history/u);
   assert.doesNotMatch(costOverviewHtml(last, null, { updating: false }), /cost-updating/u, 'a settled page says nothing');
@@ -54,9 +54,9 @@ test('clause 1: Cost shows no line about agent time or adding model prices [N26]
   for (const hasPrices of [false, true]) assert.doesNotMatch(costOverviewHtml(panelData, null, { hasPrices }), /Showing agent time|Want dollars|Add model prices|cost-prices|data-cost-copy/u);
 });
 
-test('clause 2: Agent time and Agent time each day share one panel under one level-1 header, summary beside the chart at equal height [N26]', () => {
+test('clause 2: Agent time and Agent time each day share one panel under one level-1 header, below Models, summary beside the chart at equal height [N26]', () => {
   const html = costOverviewHtml(panelData);
-  const panel = /<h2 class="hd1">Agent time<\/h2><\/div><div class="cost-card cost-overview">(.*?)<\/div><\/section><section class="cost-sect"><div class="shd"><h2 class="hd1">Models/su.exec(html)?.[1] ?? '';
+  const panel = /<h2 class="hd1">Agent time<\/h2><\/div><div class="cost-card cost-overview">(.*?)<\/div><\/section><\/section>$/su.exec(html)?.[1] ?? '';
   assert.match(panel, /^<article class="cost-summary">/u, 'the summary opens the panel');
   assert.match(panel, /<article class="cost-chart"><div class="cost-chart-head"><h3 class="hd2">Agent time each day<\/h3>/u, 'the daily chart sits in the same panel under a level-2 head');
   assert.equal(panel.match(/<h2/gu), null, 'no second level-1 header inside the panel');

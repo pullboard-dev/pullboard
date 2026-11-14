@@ -26,6 +26,7 @@ import { oversizeNote } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
 import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
+import { noteSubmitSession } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
@@ -333,6 +334,9 @@ else {
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
     message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
+  // A registered guard or submit invariant the candidate deleted refuses as the controller gate did, rather than silently leaving the proof [V4,C7,#7725].
+  const lostGuard = !refusals.length ? [...(analysis.plan?.invariants ?? []).map(path => ['submitInvariants', path]), ...(analysis.plan?.registryGuards ?? []).map(path => ['registryGuards', path])].find(([, path]) => !existsSync(join(root, path))) : null;
+  if (lostGuard) refusals.push({ part: 'proof', code: 'BAD_CONFIG', message: lostGuard[0] + ' file ' + lostGuard[1] + ' is missing or unreadable; restore it or update the list on accepted main' });
   const unbrowsed = !refusals.length && analysis.plan?.proofCommand ? browserless(analysis.plan.proofFiles, analysis.plan.selection?.full === true) : [];
   if (unbrowsed.length) refusals.push({ part: 'proof', code: 'BROWSER_UNAVAILABLE', paths: unbrowsed.slice(0, 200), message: browserRefusal(unbrowsed) });
   if (!refusals.length && !receipt.analysis.infra) {
@@ -436,6 +440,16 @@ export function gateJobRequest(pinned) {
 }
 
 /**
+ * A gate-shard job's request with no gate job behind it: main's trusted gate entry run on one shard of files, the
+ * request offerProofShards gives a submit proof's shard. Why: the pre-push full gate offers its files the same way [P7,#7743].
+ *
+ * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string } }} fields
+ */
+export function gateShardRequest({ main, source, shard }) {
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main] };
+}
+
+/**
  * Offer one gate job row for a candidate, or return the open one already offered for it: a retried submit never
  * queues a second run of the same source.
  *
@@ -482,6 +496,8 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
 export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix }) {
   const { root } = ctx.info;
   const id = held.item_id;
+  // The session ledger notes every submit as it did on the controller path; refuse before any job row when it cannot be written [V1,B3,#7725].
+  noteSubmitSession(ctx.info, id, false);
   // The gate judges what would land: the builder head, or the companions composed onto it.
   const source = companion?.commit ?? commit;
   const configured = submitGateConfig(full || companion ? policyAt(root, source).config : ctx.config, main.config);
@@ -516,16 +532,18 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
   const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request }));
+  noteSubmitSession(ctx.info, id, true);
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
+  // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued, in json too, and the acknowledgment carries its receipt (#7076).
+  const delivered = {};
+  await deliverSubmitActivity(ctx, id, delivered);
   // id and pin keep the fields the inline submit document carried, so a script reading .id still reads the item (#6832).
-  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null };
+  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, ...(delivered.activity ? { activity: delivered.activity } : {}), localRunner: local.running ? { pid: local.pid, started: local.started } : null };
   if (ctx.json) ctx.io.result(acknowledgment);
-  // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued (#7076).
-  else await deliverSubmitActivity(ctx, id);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).

@@ -27,6 +27,11 @@ import { accountMenuHtml } from "../../logic/nav.js";
 import { navLayout } from "../../logic/nav.js";
 import { pageControlsHtml } from "../../logic/nav.js";
 import { rowWindow } from "../../logic/page/window.js";
+import { notchPreview } from "../../logic/notch/preview.js";
+import { notchPreviewData } from "../../logic/notch/preview.js";
+import { notchPreviewHtml } from "../../logic/notch/preview.js";
+import { notchRulings } from "../../logic/notch/preview.js";
+import { notchFloor } from "../../logic/notch/preview.js";
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -60,6 +65,12 @@ ${accountHtml.toString()}
 ${accountMenuHtml.toString()}
 ${navLayout.toString()}
 ${pageControlsHtml.toString()}
+${notchPreviewHtml.toString()}
+${notchPreviewData.toString()}
+${notchPreview.toString()}
+${notchRulings.toString()}
+${notchFloor.toString()}
+let notchHover = null, notchBoard = null, notchAgents = 0;
 
 /** Show a full commit value on hover and copy while keeping the visible hash concise. */
 function hashButton(value) {
@@ -152,6 +163,14 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
   const pace = p.dashboardPace && Number.isFinite(p.dashboardPace.last6h) ? p.dashboardPace.last6h / 6 : null;
   const rulings = (Array.isArray(p.needs) ? p.needs : personNeeds(p)).length;
   const text = (node, value) => { if (node && node.textContent !== value) node.textContent = value; };
+  // The preview reads what this page holds when the pointer arrives, never the board: the project, its recent events and its calls [#6651].
+  notchBoard = p; notchAgents = agents;
+  if (!notchHover && $('notch')) notchHover = notchPreview($('notch'), () => {
+    const board = notchBoard, kept = dashboardView.held(board.root);
+    const state = kept ? kept.state : dashboardModel(board, board.events || [], { now: Date.now(), complete: false });
+    const { items, oldest } = notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago);
+    return notchPreviewData({ floor: notchFloor(state, notchAgents, board.dashboardPace || null), rulings: items, oldest });
+  });
   text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
   text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
   const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
@@ -159,6 +178,12 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
   ruled?.classList?.toggle('a', rulings > 0);
   $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the Agents table.' : 'No agent at work. Open the Agents table.');
   text($('proj-rulings'), rulings ? String(rulings) : '');
+  // The menu drawer (under 900 px) holds the same numbers: the button's and the project's rulings, agents, pace and Rulings.
+  text($('menu-rulings'), rulings ? String(rulings) : '');
+  text($('mdrawer-rulings'), rulings ? String(rulings) : '');
+  text($('mdrawer')?.querySelector?.('[data-notch="agents"]'), String(agents));
+  text($('mdrawer')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
+  text($('mdrawer')?.querySelector?.('[data-notch="rulings"]'), String(rulings));
   // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
   const release = nextMilestone(p);
   const facts = { items: active || '',
@@ -270,6 +295,9 @@ function render({ tab: switching = false } = {}) {
   const scrolled = store.scrollMark([document.scrollingElement, ...SCROLLED_PARTS.map((id) => $(id))]);
   const p = privateModelProject(data.project);
   const group = data.group;
+  // An open-first state holds no finished items: the screens that show them read them now (#6697).
+  if (data.project?.itemsOmitted === 'finished' && (view.tab === 'roadmap' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
+    || view.itemsView === 'pipeline' || $('q').value.trim() || view.item && !data.project.items.some((item) => item.id === view.item)))) ensureFinished(data.project);
   renderSide();
   writeChrome();
   // A list that names a board no read has answered yet is still loading, never a machine without boards (#1035).
@@ -446,7 +474,8 @@ function render({ tab: switching = false } = {}) {
   const itemsSelection = selectItemsView({ items: p.items, query: q, matchedIds: found, readyIds, stateById, state: view.state,
     lane: view.lane, ids: view.itemIds || [], pipeline, dashboardList: view.dashboardList, dashboardNext: p.dashboardNext || [], selectedId: view.item,
     currentBoard: data.root === view.root, adding: view.adding,
-    addressDetail: view.tab === 'items' ? view.addressDetail : null, tab: view.tab, snapshot });
+    addressDetail: view.tab === 'items' ? view.addressDetail : null, tab: view.tab, snapshot,
+    finished: p.itemsOmitted === 'finished' ? p.finished : null });
   view.lane = itemsSelection.selectedLane;
   const { matching, laneOptions, inView, shown, finishedUnderAll } = itemsSelection;
   // The lanes the strip's Lane control offers, with each one's count under the shown state (Filters live in the strip).

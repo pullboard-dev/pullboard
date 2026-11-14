@@ -77,6 +77,9 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
+      // Shipped draws its releases only once opened, and a release draws its items only once opened (#7303).
+      await press(chrome, "document.querySelector('#roadmap-list > [data-key=shipped] > .milestone-head')");
+      await chrome.waitFor("document.querySelector('#roadmap .shipped-one[data-key=\"m:Shipped\"]')");
       const seen = await read();
       // Queued work leads in queue order, then other work, then landed items in landing order (36add4ed61, f8e8ce444a).
       assert.deepEqual(seen.rows, ['#2', '#5', '#1', '#3'], `${width}: work to ship leads, and landed items follow in landing order`);
@@ -88,10 +91,11 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
       assert.equal(seen.headerWaiting, '2', `${width}: the header includes both waiting items`);
       assert.equal(seen.shippedCount, '2 items', `${width}: folded history excludes withdrawn work from its total`);
       assert.equal(seen.allIds.includes('#4'), false, `${width}: no withdrawn row is rendered, including folded history`);
-      await press(chrome, "document.querySelector('#roadmap-list > [data-key=shipped] > .milestone-head')");
       await press(chrome, "document.querySelector('#roadmap .shipped-one[data-key=\"m:Shipped\"] > .milestone-head')");
-      await chrome.waitFor("document.querySelector('#roadmap .shipped-one[data-key=\"m:Shipped\"] > .milestone-head').getAttribute('aria-expanded') === 'true'");
-      assert.deepEqual((await read()).shippedRows, ['#1', '#3'], `${width}: verified history remains available below the work to ship`);
+      await chrome.waitFor("document.querySelector('#roadmap .shipped-one[data-key=\"m:Shipped\"] > .milestone-head').getAttribute('aria-expanded') === 'true' && document.querySelectorAll('#roadmap .shipped-one[data-key=\"m:Shipped\"] > .milestone-body > ul .milestone-item').length > 0");
+      const history = await read();
+      assert.deepEqual(history.shippedRows, ['#1', '#3'], `${width}: verified history remains available below the work to ship`);
+      assert.equal(history.allIds.includes('#4'), false, `${width}: no withdrawn row is rendered once folded history is opened`);
       await press(chrome, "document.querySelector('#roadmap .shipped-one[data-key=\"m:Shipped\"] > .milestone-head')");
       await press(chrome, "document.querySelector('#roadmap-list > [data-key=shipped] > .milestone-head')");
     }

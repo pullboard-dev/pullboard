@@ -6,6 +6,7 @@ import { matchingMainFailures } from '../../../../../../packages/landing/index.j
 import { ownersOf } from '../../../../../../packages/store/index.js';
 import { fixture } from '../../../../tests/fixtures/affected.js';
 import { cli } from '../../../../tests/fixtures/affected.js';
+import { settledSubmit } from '../../../../tests/fixtures/affected.js';
 
 const HELPER = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n"
   + "test('helper case [G1]', () => assert.equal(1, 2));\n";
@@ -21,12 +22,11 @@ function fileMainRed(box, file) {
 
 {
   const owned = 'test/helper-cases.js';
-  test(`a helper-defined case failing identically on main is accepted when the owner names ${owned} [V4,B3]`, t => {
+  test(`a helper-defined case failing identically on main is accepted when the owner names ${owned} [V4,B3]`, async t => {
     const box = fixture(t, { affected: RUNNER, extra: { 'test/helper-cases.js': HELPER } });
     const owner = fileMainRed(box, owned);
-    const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-    const known = JSON.parse(result.stdout).gate.knownMainReworks;
+    const settled = await settledSubmit(t, box);
+    const known = settled.submission.submissionProof.knownMainFailures.failures;
     assert.deepEqual(known.map(row => [row.name, row.item]), [['helper case [G1]', owner]], 'one failure, owned once');
   });
 }
