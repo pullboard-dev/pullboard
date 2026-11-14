@@ -458,7 +458,7 @@ else {
           }
           await view.viewport(1440, 900);
           await view.evaluate("document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-tab=\"shouts\"]').click()");
-          await view.waitFor("!document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .conversation-row').length >= 3", 'the answered conversation list');
+          await view.waitFor("!document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .sx-msg').length >= 3", 'the answered shout rows');
           for (const theme of THEMES) {
             await paintTheme(view, theme);
             await view.screenshot(join(OUTPUT, `shouts-${theme}.png`));
