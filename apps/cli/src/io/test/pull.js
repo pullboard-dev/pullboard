@@ -201,6 +201,26 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
 }
 
 /**
+ * Run one test file at one commit as a pulled test job and answer whether it passed: `pullboard red bisect`'s probe.
+ * Why a pulled job: a probe is any runner's work, offered as gate and test jobs are, never run on the board host [P7,C7,#7575].
+ *
+ * @param {object} ctx
+ * @param {{ commit: string, file: string, say?: (line: string) => void }} probe
+ * @returns {Promise<boolean>}
+ */
+export async function probeTestAt(ctx, { commit, file, say }) {
+  const config = ctx.config;
+  if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
+    throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
+  }
+  const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
+  const main = mainPolicy(ctx.info.root).commit;
+  if (!main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no accepted main to probe against; run pullboard red bisect from the board\'s checkout');
+  const ran = await runJobFor(ctx, { item: undefined, commit, main, command: `${config.affectedTests.trimEnd()} ${shellWord('./' + file)}`, files: [file] }, { say });
+  return ran.green;
+}
+
+/**
  * Run one side of a review comparison as a pulled test job: the files at `commit` under the comparison command, with
  * each case's outcome framed under `runId`. Why a pulled job: the comparison ran over the SSH controller transport,
  * which a local pull runner never claims, so `verify --compare` and the background comparison stopped under pull [V4,C7].
