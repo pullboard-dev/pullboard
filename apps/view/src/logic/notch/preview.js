@@ -58,7 +58,7 @@ export function notchPreviewHtml(data, which) {
   if ((which === 'rulings' || which === 'list') && r) {
     const items = r.items || [], count = items.length;
     const ruling = it => '<div class="np-d" data-ruling="' + esc(it.go || '') + '">' + icon(it.kind) + '<span class="np-tx"><b>' + esc(it.title) + '</b><small><em>' + esc(it.cls) + '</em> · ' + esc(it.thing) + '</small></span><button class="np-act" type="button" data-go="' + esc(it.go || '') + '">' + esc(it.action) + '</button></div>';
-    if (which === 'list') return head('Rulings · ' + count) + (count ? items.map(ruling).join('') : '<p class="np-empty">Nothing needs you.</p>');
+    if (which === 'list') return head('Rulings · ' + count) + (count ? items.map(ruling).join('') : '<p class="np-empty">No rulings.</p>');
     const kinds = [];
     for (const it of items) { const k = kinds.find(x => x.kind === it.kind); if (k) k.n++; else kinds.push({ kind: it.kind, label: it.cls, n: 1 }); }
     let offset = 0;
@@ -90,7 +90,7 @@ export function notchPreviewData({ floor, rulings = [], oldest = '' }) {
     agents: { total: n.live, measured: floor.complete !== false, time: floor.complete === false ? { build: n.building, review: n.reviewing, idle: n.between } : floor.time, go: 'tab:dashboard', goLabel: 'Open Progress', rows: [
       { kind: 'build', title: 'Building items', label: 'Builders', note: 'at work now', value: n.building },
       { kind: 'review', title: 'Reviewing submissions', label: 'Reviewers', note: 'checking another agent\'s work', value: n.reviewing },
-      { kind: 'idle', title: 'Between items', label: 'Idle', note: 'picking the next', value: n.between },
+      { kind: 'idle', title: 'Finding the next item', label: 'Idle', note: 'picking the next', value: n.between },
     ] },
     perHour: { rate: six + '/h', bins, go: 'tab:dashboard', goLabel: 'Open Dashboard', rows: [
       { kind: 'pace', title: 'Last 6 hours', label: 'Pace', note: 'today\'s rate', value: six + '/h', tone: 'g' },

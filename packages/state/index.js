@@ -40,6 +40,7 @@ export { assignEngineNumbers } from "./src/io/engine/numbers.js";
 export { appliedSequence } from "./src/io/engine.js";
 export { checkpointSequence } from "./src/io/engine.js";
 export { startRelayEpoch } from "./src/io/engine.js";
+export { restoreRelayEpoch } from "./src/io/engine.js";
 export { prepareEngineMove } from "./src/io/engine.js";
 export { requireSupportedEngine } from "./src/io/engine.js";
 export { executableArgs } from "./src/io/engine.js";
