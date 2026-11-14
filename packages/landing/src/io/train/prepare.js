@@ -1,16 +1,16 @@
 /** Prepare exact native train evidence at origin; replicas consume only the sealed request [C7,H16]. */
-import { checkedLandingCommit } from '../../../store/index.js';
-import { getItem } from '../../../store/index.js';
-import { landingBatches } from '../../../store/index.js';
-import { COORDINATOR } from '../../../config/index.js';
-import { contains } from '../../../git/index.js';
-import { git } from '../../../git/index.js';
-import { mainCheckout } from '../../../git/index.js';
-import { patchId } from '../../../git/index.js';
-import { tryGit } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
-import { readTrainLandingReceipt } from './train/receipt.js';
-import { prepareTrainCheckRepointPlan } from './train/repoints.js';
+import { checkedLandingCommit } from '../../../../store/index.js';
+import { getItem } from '../../../../store/index.js';
+import { landingBatches } from '../../../../store/index.js';
+import { COORDINATOR } from '../../../../config/index.js';
+import { contains } from '../../../../git/index.js';
+import { git } from '../../../../git/index.js';
+import { mainCheckout } from '../../../../git/index.js';
+import { patchId } from '../../../../git/index.js';
+import { tryGit } from '../../../../git/index.js';
+import { Refused } from '../../../../kernel/index.js';
+import { readTrainLandingReceipt } from './receipt.js';
+import { prepareTrainCheckRepointPlan } from './repoints.js';
 
 /** Derive a one-time migration annotation from the exact commit message and real parent objects. */
 function migrationEnvelope(root, board, commit, base) {
