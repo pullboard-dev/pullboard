@@ -137,6 +137,19 @@ function keylessBookkeeping(send) {
 }
 
 /**
+ * Whether main's committed policy lands accepted work automatically; a project with no commit on main yet has none.
+ *
+ * A fresh `pullboard init` is uncommitted, and resume --diagnostics must still print the setup card that leads to the first commit [I1,C7].
+ *
+ * @param {string} root The primary checkout.
+ * @returns {boolean} true only when committed policy enables automatic landing.
+ */
+function landingIsAutomatic(root) {
+  try { return automaticLandingEnabled(mainPolicy(root).config); }
+  catch (error) { if (error?.code === 'NO_POLICY') return false; throw error; }
+}
+
+/**
  * `pullboard resume` (N19): one short card that puts an agent back to work after a fresh start,
  * a restart or a compaction, from the board rather than from a summary.
  *
@@ -220,7 +233,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       toVerify: all.filter((item) => item.item_status === 'submitted' && item.item_built_by !== me.id),
       ...(diagnostics ? { toMerge, staleVerdicts } : { acceptedAwaitingLanding: pendingMerges }),
       // While the board lands accepted work, diagnostics name where each accepted item waits: its land job, a hold, or none (#7948).
-      ...(isMain && diagnostics && automaticLandingEnabled(mainPolicy(root).config) ? { landingWaits: landingWaits(board.db, pendingMerges, ctx.clock.now().getTime()) } : {}),
+      ...(isMain && diagnostics && landingIsAutomatic(root) ? { landingWaits: landingWaits(board.db, pendingMerges, ctx.clock.now().getTime()) } : {}),
       ...(isMain ? { landingBatches: store.landingBatches(board) } : {}),
       open: all.filter((item) => item.item_status === 'open'),
       hold: store.laneHold(board, me.lane),
