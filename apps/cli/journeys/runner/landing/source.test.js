@@ -27,7 +27,7 @@ function unlandedEngine(name) {
   return `import { unassignedEngine } from './engine-next.js';\nexport const ${name.toUpperCase()}_ENGINE = unassignedEngine();\n`;
 }
 
-test('a real landing runner receives the clean committed engine amendment [C7]', { timeout: 180_000 }, async () => {
+test('a real landing runner receives the clean committed engine amendment [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
   const box = landProject();
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));

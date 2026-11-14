@@ -28,7 +28,7 @@ import { readTestFileBudgets } from ${JSON.stringify(pathToFileURL(join(REPO, 'p
 record(process.cwd(), 'proof');
 const info = repoInfo(process.cwd());
 const main = mainCheckout(process.cwd());
-const budgets = readTestFileBudgets(process.cwd(), ['web/proof.test.js']);
+const budgets = readTestFileBudgets(process.cwd(), [process.env.PULLBOARD_FIXTURE_FILE]);
 appendFileSync(process.env.PULLBOARD_FIXTURE_STEPS, JSON.stringify({ step: 'proof-reads', root: info.root, main: main?.commit ?? null, budgets: budgets.size }) + '\\n');
 `;
 
@@ -41,7 +41,7 @@ async t => {
   // The board API's own jobs route: a recorded receipt is applied to the item.
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
   const steps = join(box.runnerHome, 'steps.jsonl');
-  const served = await serveOnce(box, url, 'r-proof', { PULLBOARD_FIXTURE_STEPS: steps });
+  const served = await serveOnce(box, url, 'r-proof', { PULLBOARD_FIXTURE_STEPS: steps, PULLBOARD_FIXTURE_FILE: 'web/proof.test.js' });
   assert.equal(served.code, 0, served.output);
 
   const [row] = jobsOf(board.db, { kind: 'gate', item: id });
