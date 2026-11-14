@@ -1514,9 +1514,6 @@
   "apps/cli/journeys/view/port.test.js": {
     "launch": 10
   },
-  "apps/cli/journeys/fact/landing/handover.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/run/receipts.test.js": {
     "launch": 7
   },
