@@ -126,11 +126,10 @@ test('a recorded submit stays successful when its later activity delivery fails 
   try {
     assert.equal(store.getItem(after, id).item_status, 'submitted');
     assert.equal(store.getItem(after, id).item_commit, document.gateJob.gate.commit ?? store.getItem(after, id).item_commit);
-    const submits = store.events(after).filter(event => event.event_kind === 'submit');
-    assert.equal(submits.length, 1);
-    const activity = JSON.parse(submits[0].event_detail).activity;
-    assert.equal(activity?.receipt?.recorded, false, JSON.stringify(activity));
-    assert.equal(activity.receipt.code, 'ACTIVITY_DELIVERY_FAILED');
+    assert.equal(store.events(after).filter(event => event.event_kind === 'submit').length, 1);
+    // The pulled submit delivers the digest as the gate job is queued and reports the failed delivery on its acknowledgment [N26,H16,V4].
+    assert.equal(queued.activity?.receipt?.recorded, false, JSON.stringify(queued.activity));
+    assert.equal(queued.activity.receipt.code, 'ACTIVITY_DELIVERY_FAILED');
     assert.equal(store.events(after).filter(event => event.event_kind === 'activity-delivered').length, 0);
   } finally { store.closeBoard(after); }
 });
