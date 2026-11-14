@@ -560,7 +560,8 @@ function exerciseUpgrade() {
     // One release back (#7767): 0.9.3 is schema SCHEMA_VERSION, so a schema-1 board is refused untouched.
     assert.throws(() => openBoard(file), { code: 'BOARD_TOO_OLD' }, 'a board from before the supported release is refused, never upgraded');
     const supported = new DatabaseSync(file);
-    supported.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    // Schema 3 is the oldest supported version, so an event log marker at the unversioned state is what makes the board behind, and it migrates.
+    supported.exec(`PRAGMA user_version = ${SCHEMA_VERSION}; DELETE FROM board_meta WHERE meta_key = 'event_log_version'`);
     supported.close();
 
     board = openBoard(file);
