@@ -10,11 +10,13 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+const { landProject, itemWorktree, acceptItem } = makeLandProjectFixtures(e2e);
 const { commitFile } = e2e;
 
 /** A plain landing project with its landing config changed by `edit` and committed on main. */
@@ -38,23 +40,32 @@ function traced(box) {
   return { full: rows.filter(row => !row.alone).length, alone: rows.filter(row => row.alone).length };
 }
 
-/** Submit and accept one green item, then land it; returns the whole-suite runs its submit and its landing started. */
-async function landOne(box) {
+/** Submit and accept one green item, then land it; returns the whole-suite runs its submit and its landing started. Each pulled step is settled before the next count is read [P7,C7]. */
+async function landOne(t, box) {
   const entry = itemWorktree(box, 1);
   const start = traced(box);
-  submitItem(box, entry, '// PASS again\n');
+  const committed = commitFile(box, entry.path, entry.file, '// PASS again\n', `feat(web): build land fixture ${entry.item} [G1]`);
+  assert.equal(committed.status, 0, committed.stderr);
+  entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
+  const queued = await box.runLocal(entry.path, 'submit', String(entry.item), '--no-next', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  const submitted = await settleSubmit(t, box, JSON.parse(queued.out));
+  assert.equal(submitted.gate?.green, true, JSON.stringify(submitted.gate));
   acceptItem(box, entry);
   const before = traced(box);
   const landed = await box.runLocal(box.repo, 'land', '--json');
   const output = landed.out + landed.err;
   assert.equal(landed.code, 0, output);
-  return { entry, output, submitFull: before.full - start.full, landingFull: traced(box).full - before.full };
+  // The landing is a runner land job; its receipt says whether the merged tree landed and its proof what ran [P7,C7].
+  const settled = await settleLand(box, JSON.parse(landed.out));
+  assert.equal(settled.landJob.receipt.outcome, 'landed', JSON.stringify(settled.landJob.receipt));
+  return { entry, output: JSON.stringify(settled.landJob.receipt), submitFull: before.full - start.full, landingFull: traced(box).full - before.full };
 }
 
 test('clause 1: in the default shape a whole-suite submit receipt for the identical tree is reused with no test run [C7,#6271]', { timeout: 120_000 }, // budget: one real submit, accept and landing; hang ceiling only.
-async () => {
+async t => {
   const box = shapedProject(config => { delete config.landing.publish; delete config.affectedTests; });
-  const { output, submitFull, landingFull } = await landOne(box);
+  const { output, submitFull, landingFull } = await landOne(t, box);
   assert.ok(submitFull >= 1, 'the submit ran the whole suite');
   assert.equal(landingFull, 0, `the whole-suite receipt stood for the identical tree: ${output}`);
 });
