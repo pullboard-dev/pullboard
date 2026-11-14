@@ -22,6 +22,8 @@ const PUSH_ATTEMPTS = 5;
  */
 export const LANDING_PAYLOAD_SHAPE = 2;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
+/** The release tags a trunk fetch also takes, as a runner's gate checkout does: a proof that archives an old release (git archive v0.8.6) needs them (#7816). */
+const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
 export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@pullboard.invalid', '-c', 'core.hooksPath=/dev/null'];
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
 export const INTO_CHECKOUT = '--receive-pack=git -c receive.denyCurrentBranch=updateInstead receive-pack';
@@ -74,9 +76,9 @@ export function landingCheckout(workdir) {
   return workdir;
 }
 
-/** Fetch the trunk remote's current tip; null when the remote has no trunk yet. */
+/** Fetch the trunk remote's current tip and its release tags; null when the remote has no trunk yet. */
 export function fetchTrunk(root, remote, trunk) {
-  const fetched = tryGit(root, ['fetch', '--no-tags', '--quiet', remote, `+${trunk}:${TRUNK_CACHE}`]);
+  const fetched = tryGit(root, ['fetch', '--no-tags', '--quiet', remote, `+${trunk}:${TRUNK_CACHE}`, RELEASE_TAGS]);
   if (fetched.status !== 0) throw new Error(`git fetch of ${trunk} failed: ${fetched.stderr.slice(0, 300)}`);
   return must(root, ['rev-parse', '--verify', `${TRUNK_CACHE}^{commit}`]);
 }
