@@ -84,7 +84,7 @@ export async function createTransport({ onUpdate }) {
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
     await chrome.waitFor(`${note('shouts')} === 'Older shouts are still loading (30%).'`);
     await chrome.click(`document.querySelector('[data-shout-thread="none"]')`);
-    await chrome.waitFor('!!document.querySelector("#feed .shout")');
+    await chrome.waitFor('!!document.querySelector("#feed .sx-th")');
     assert.equal(await chrome.stable(`document.querySelector('#feed').lastElementChild.dataset.historyNote`), 'shouts', 'the line ends the feed');
     await chrome.stable(`document.querySelector('[data-history-note="shouts"]').scrollIntoView({ block: 'end' })`);
     await chrome.waitFor(`document.querySelector('#feed').textContent.includes('The oldest shout, read once the feed reaches its end')`);

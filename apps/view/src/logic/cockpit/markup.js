@@ -92,10 +92,10 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     </div>
     <aside class="detail sx-rail" aria-label="Agents and lanes">
       <div id="agents"></div>
-      <details class="sx-lanes" id="lanes-fold"><summary>Lanes and credentials</summary>
+      <section id="credentials" aria-label="Agent credentials"></section>
+      <details class="sx-lanes" id="lanes-fold"><summary>Lanes</summary>
         <div id="lanes"></div>
         <form id="hold-form" class="panel-form"><label>Hold a lane<select id="hold-lane"></select></label><label>Why<input id="hold-reason" required placeholder="What its agents should wait for"></label><button class="go" type="submit">Hold lane</button></form>
-        <section id="credentials" aria-label="Agent credentials"></section>
       </details>
     </aside>
   </section>

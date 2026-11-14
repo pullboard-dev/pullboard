@@ -203,9 +203,12 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     assert.deepEqual(JSON.parse(await chrome.stable("JSON.stringify([!!document.querySelector('#pal-overlay .pal-box'), document.activeElement.id])")), [true, 'pal-q'], '"/" opens the palette with the cursor in its field');
     await key('Escape', 'Escape', 27);
     assert.equal(await chrome.stable("document.querySelector('#pal-overlay').innerHTML"), '', 'Esc closes it');
-    await chrome.stable("document.querySelector('#shout-text').focus()");
+    // A thread's reply box is the field a person types shouts into; open one and type a slash there.
+    await chrome.stable("document.querySelector('#feed [data-shout-thread]').click()");
+    await chrome.waitFor("!!document.querySelector('#feed [data-reply] input')");
+    await chrome.stable("document.querySelector('#feed [data-reply] input').focus()");
     await key('/', 'Slash', 191, '/');
-    assert.equal(await chrome.stable("document.querySelector('#shout-text').value"), '/', 'and in a field it is only a slash');
+    assert.equal(await chrome.stable("document.querySelector('#feed [data-reply] input').value"), '/', 'and in a field it is only a slash');
 
     // On a phone the lane picker shows while a lane narrows the list, so the person sees where they are and can leave
     // it; with every lane shown it drops again. A coordinator item makes a second lane to pick between.

@@ -159,9 +159,9 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       chips: [...document.querySelectorAll('#page-controls [data-page-ctl="state"]')].map((choice) => [choice.dataset.value, choice.getAttribute('aria-pressed') === 'true']),
       lanes: [...document.querySelectorAll('#page-controls select[data-page-ctl="lane"] option')].map((option) => option.textContent), pick: box(document.querySelector('#page-controls select[data-page-ctl="lane"]')),
       seg: box(document.querySelector('#page-controls [data-page-ctl="view"]')), go: box(document.querySelector('#page-controls [data-page-ctl="new"]')),
-      waiting: (() => { const fold = document.querySelector('[data-page-ctl=shouts][data-value=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: 0, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
-      idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
-      agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
+      waiting: (() => { const fold = document.querySelector('[data-page-ctl=shouts][data-value=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: hitHeight(fold), offset: 0, cards: document.querySelectorAll('#feed .sx-msg .sx-mk.ruling').length }; })(),
+      idle: (() => { const fold = document.querySelector('#agents .sx-idlehead[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .sx-idle-n').length }; })(),
+      agentRows: [...document.querySelectorAll('#agents .sx-ag')].filter((card) => card.getBoundingClientRect().height > 0).length,
     };
   })())`));
   const part = (r, to) => r.bar.find((p) => p.to === to);
@@ -295,10 +295,10 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     r = await read();
     const shut = r.waiting.offset;
     assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['Questions1', 'false', 0], `the question count stays on the composer line before a conversation is opened: ${JSON.stringify(r.waiting)}`);
-    assert.ok(/^\d+ idle show$/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
+    assert.ok(/^\d+ idle/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
     await click('[data-page-ctl=shouts][data-value=questions]');
     await openShoutConversation(chrome);
-    await click('#agents .fold-line[data-fold="idle"]');
+    await click('#agents .sx-idlehead[data-fold="idle"]');
     r = await read();
     assert.deepEqual([r.waiting.open, r.waiting.cards, r.idle.open, r.idle.pills > 0], ['true', 1, 'true', true], 'the Questions segment reveals the real question and the idle fold opens on a click');
     assert.equal(r.waiting.offset, shut, 'and the line stays where it was as its cards open under it');
@@ -319,7 +319,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await click('#status-unread');
     await chrome.waitFor("view.tab === 'shouts' && document.querySelector('#status-unread')?.hidden === true");
     await openShoutConversation(chrome);
-    const feed = async () => JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#feed .shout .text')].map((text) => text.textContent))"));
+    const feed = async () => JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#feed .sx-msg .sx-tx')].map((text) => text.textContent))"));
     assert.deepEqual([await feed(), await chrome.stable("document.querySelector('#feed .feed-bar span').textContent")], [['web-1 is on it'], '1 unread show all'],
       `1 unread opens that one shout, not the ${alreadyRead} already read`);
     await click('#feed [data-unread]');

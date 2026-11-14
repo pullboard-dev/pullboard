@@ -107,7 +107,7 @@ export async function assertShout(chrome, id, text) {
   await settled(chrome, `${SCRIPT} && !document.querySelector('#shout-address-status')?.textContent.startsWith('Loading')`);
   const result = JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const node=document.getElementById('shout-${id}'), rect=node?.getBoundingClientRect();
-    return { text:node?.querySelector('.text')?.textContent ?? null, heading:node?.querySelector('h2')?.textContent ?? null, marked:node?.classList.contains('found') ?? false, top:rect?.top, bottom:rect?.bottom, bar:document.querySelector('.top').getBoundingClientRect().bottom, height:innerHeight };
+    return { text:node?.querySelector('.sx-tx')?.textContent ?? null, heading:node?.querySelector('h2')?.textContent ?? null, marked:node?.classList.contains('found') ?? false, top:rect?.top, bottom:rect?.bottom, bar:document.querySelector('.top').getBoundingClientRect().bottom, height:innerHeight };
   })())`));
   assert.equal(result.text, text, 'the addressed shout body is rendered');
   assert.equal(result.heading, `Shout #${id}`, 'the addressed shout has its own heading');

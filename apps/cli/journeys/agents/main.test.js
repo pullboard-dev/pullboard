@@ -54,7 +54,6 @@ import {
   sendBack,
   startView,
   openPage,
-  agentEntries,
   accept,
   chromeExecutable,
   openSnapshotChrome,
@@ -69,13 +68,21 @@ import {
 
 /** Open the actual native thread before checking its full messages and agent filter. */
 async function openConversation(chrome, key = 'none') {
-  if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) {
+  if (await chrome.stable("!!document.querySelector('#feed .sx-tp')")) {
     await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
   }
   const selector = '#feed [data-shout-thread="' + key + '"]';
   await chrome.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`);
   await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
-  await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
+  await chrome.waitFor("!!document.querySelector('#feed .sx-tp')");
+}
+
+/** Read the agents rail as it draws: each agent's row (its first held item, the extra count, the age) and the idle pills. */
+function agentEntries(html) {
+  const rows = [...html.matchAll(/<button class="sx-ag ([a-z]+)[^"]*" type="button" data-agent="([^"]*)" title="([^"]*)">[^]*?<code>(#\d+)<\/code>([^]*?)<\/span><span class="sx-more">([^<]*)<\/span><code class="sx-seat">([^<]*)<\/code><time[^>]*>([^<]*)<\/time><\/button>/g)]
+    .map(([, group, id, title, item, words, more, , age]) => ({ id, group, title, holds: [item + ' ' + words], more: more ? Number(more.slice(1)) : 0, idle: false, age }));
+  const idle = [...html.matchAll(/<button class="sx-idle-n[^"]*" type="button" data-agent="([^"]*)" title="([^"]*)">/g)].map(([, id, title]) => ({ id, group: 'idle', title, holds: [], more: 0, idle: true, age: '' }));
+  return [...rows, ...idle];
 }
 
 /**
@@ -109,27 +116,26 @@ test('the agents panel says what each agent holds [N26]', async () => {
     const page = await openPage(view);
     await page.click({ tab: 'shouts' });
     await cardsShown(page, 2);
-    assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
-    assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator"><span>1 idle<\/span>/);
+    assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-2', 'web-1'], 'an agent holding nothing waits in the idle fold, closed; the agent with work sent back comes first');
+    assert.match(page.show('agents'), /<button class="sx-idlehead" type="button" data-fold="idle" aria-expanded="false"><i class="sx-dot idle"><\/i><span><b>1<\/b> idle<\/span>/);
     page.run('view.open.idle = true; render();');
     const agents = agentEntries(page.show('agents'));
     assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.more, agent.idle]), [
-      // An agent holding work is a row with its first thing: the claim, then work sent back, then work waiting for a verdict.
-      ['web-1', ['#1 Header: Building'], 1, false],
-      ['web-2', ['#2 Farewell: Ready · Sent back'], 1, false],
+      // An agent holding work is a row with its first thing: work sent back leads, then the claim.
+      ['web-2', ['#2 Farewell'], 1, false],
+      ['web-1', ['#1 Header'], 1, false],
       // One holding nothing is a pill.
       ['coordinator', [], 0, true],
     ]);
     for (const agent of agents.filter((entry) => !entry.idle)) assert.match(agent.age, /^(now|\d+[mhd])$/, `${agent.id} shows when it last moved`);
-    assert.deepEqual(agents.map((agent) => agent.path), [alpha.web, second, alpha.repo], 'each path is on hover');
-    // Picked, an agent's row opens to every thing it holds, in that order.
-    const opened = (id) => { page.run(`view.agent = ${JSON.stringify(id)}; render();`); return agentEntries(page.show('agents')).find((agent) => agent.id === id).holds; };
-    assert.deepEqual(opened('web-1'), ['#1 Header: Building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: In review']);
-    assert.deepEqual(opened('web-2'), ['#2 Farewell: Ready · Sent back', '#4 Footer: In review']);
+    assert.deepEqual(agents.filter((entry) => !entry.idle).map((agent) => agent.group), ['back', 'build'], 'sent back first, then building');
+    assert.ok(agents.filter((entry) => !entry.idle).every((agent) => /holds #\d+ and 1 more/.test(agent.title)), 'the extra holds are on hover');
+    // Picked, an agent's row is marked.
+    page.run('view.agent = "web-1"; render();');
+    assert.match(page.show('agents'), /class="sx-ag build on" type="button" data-agent="web-1"/, 'the picked agent is marked');
     page.run('view.agent = null; render();');
-    for (const agent of agents) assert.ok(!agent.text.includes(agent.path), `${agent.id}'s path is not in the text`);
 
-    await page.click({ go: 'item:1' });
+    page.run("go('item:1')");
     assert.match(page.show('detail'), /<h2><span class="id">#1<\/span>Header<\/h2>/, 'a held item opens on the Items tab');
   } finally {
     await view.stop();
@@ -163,8 +169,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await chrome.click("document.querySelector('[data-tab=shouts]')");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #agents [data-agent]")');
     await openConversation(chrome);
-    assert.equal(await chrome.stable("document.querySelectorAll('#agents .agent-pill').length + ':' + document.querySelector('#agents .fold-line[data-fold=\"idle\"]').getAttribute('aria-expanded')"), '0:false', 'the idle agents start folded');
-    await chrome.stable("(document.querySelector('.fold-line[data-fold=\"idle\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.fold-line[data-fold=\"idle\"]'))").then(open => open ? chrome.click("document.querySelector('.fold-line[data-fold=\"idle\"]')") : undefined);
+    assert.equal(await chrome.stable("document.querySelectorAll('#agents .sx-idle-n').length + ':' + document.querySelector('#agents .sx-idlehead[data-fold=\"idle\"]').getAttribute('aria-expanded')"), '0:false', 'the idle agents start folded');
+    await chrome.stable("(document.querySelector('.sx-idlehead[data-fold=\"idle\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.sx-idlehead[data-fold=\"idle\"]'))").then(open => open ? chrome.click("document.querySelector('.sx-idlehead[data-fold=\"idle\"]')") : undefined);
     const agents = await chrome.stable('data.project.agents.length');
     /** The panel as it reads: each row and pill, measured where it stands. */
     const panel = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
@@ -172,20 +178,12 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
       const list = document.querySelector('#agents');
       return {
         page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-        rows: [...list.querySelectorAll('.agent-card')].map((card) => {
-          const row = card.querySelector('.agent-row');
-          return { id: row.dataset.agent, text: row.innerText.replace(/\\s+/g, ' ').trim(), title: row.title, height: box(row).height, on: card.classList.contains('on'),
-            avatars: row.querySelectorAll('.avatar').length, name: row.querySelector('.agent-who b').textContent, model: row.querySelector('.agent-model').textContent,
-            state: row.querySelector('.agent-state').textContent, item: row.querySelector('.agent-what').textContent.trim(),
-            lines: [...row.querySelectorAll('.agent-who b, .agent-model')].map((part) => { const range = document.createRange(); range.selectNodeContents(part); return range.getClientRects().length; }),
-            cut: [...row.querySelectorAll('.agent-who b, .agent-model')].some((part) => part.scrollWidth > part.clientWidth),
-            whoBottom: row.querySelector('.agent-who').getBoundingClientRect().bottom, itemTop: row.querySelector('.agent-doing').getBoundingClientRect().top,
-            work: [...card.querySelectorAll('.agent-work[data-item]')].map((work) => [work.dataset.item, box(work).height]) };
-        }),
-        pills: [...list.querySelectorAll('.agent-pill')].map((pill) => ({ id: pill.dataset.agent, title: pill.title, height: box(pill).height, on: pill.classList.contains('on') })),
-        idle: list.querySelector('.fold-line[data-fold="idle"] span')?.textContent ?? null, all: list.querySelector('.all-agents')?.textContent ?? null, height: box(list).height,
+        rows: [...list.querySelectorAll('.sx-ag')].map((row) => ({ id: row.dataset.agent, text: row.innerText.replace(/\\s+/g, ' ').trim(), title: row.title, height: box(row).height, on: row.classList.contains('on'),
+          seat: row.querySelector('.sx-seat').textContent, item: row.querySelector('.sx-it').textContent.trim(), age: row.querySelector('time').textContent })),
+        pills: [...list.querySelectorAll('.sx-idle-n')].map((pill) => ({ id: pill.dataset.agent, title: pill.title, height: box(pill).height, on: pill.classList.contains('on') })),
+        idle: list.querySelector('.sx-idlehead span')?.textContent ?? null, all: list.querySelector('.sx-all')?.textContent ?? null, height: box(list).height,
         chip: document.querySelector('#shout-to-chip').hidden ? null : document.querySelector('#shout-to-chip').textContent, to: document.querySelector('#shout-to').value,
-        cards: [...document.querySelectorAll('#feed .shout')].map((card) => [card.querySelector('.who').textContent, card.querySelector('.to').textContent.replace('→ ', '')]),
+        cards: [...document.querySelectorAll('#feed .sx-msg')].map((m) => [m.querySelector('.sx-sn').textContent, m.querySelector('.sx-snd').title.split(' to ').pop()]),
       };
     })())`));
 
@@ -195,37 +193,34 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         const at = `${width}px ${scheme}`;
         const p = await panel();
         assert.ok(p.page.scroll <= p.page.width && p.page.body <= p.page.width, `${at}: no sideways scroll: ${JSON.stringify(p.page)}`);
-        // The approved entry keeps identity and time/state above its held item, with extra holds on hover.
+        // The row keeps the held item in ink, the seat and the age; extra holds are on hover.
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
-        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
-        assert.match(row.state, /^(?:now|\d+[mhd])Building$/, `${at}: native age stays beside the stage, which does not repeat the agent the row names`);
-        assert.deepEqual([row.lines, row.cut], [[1, 1], false], `${at}: the agent id and model each stay on one line, uncut`);
-        assert.ok(row.itemTop < row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item shares the agent's one line and additional work is on hover`);
-        assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
-        assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
+        assert.deepEqual([row.seat, row.item], ['web-1', '#1Header'], `${at}: the seat and the held item: ${row.text}`);
+        assert.match(row.age, /^(?:now|\d+[mhd])$/, `${at}: native age beside the seat`);
+        assert.ok(row.title.includes('and 1 more') && row.title.includes('Test Model'), `${at}: extra work and the model are on hover: ${row.title}`);
+        assert.ok(row.height >= (width < 900 ? 44 : 27), `${at}: the row is a target`);
+        assert.ok(!/strong/.test(row.text), `${at}: lane and route are not in the row: ${row.title}`);
         // Agents holding nothing are pills in the idle fold; one that has not moved in the last hour waits behind show all.
         assert.deepEqual([p.idle, p.pills.map((pill) => pill.id)], ['2 idle', ['coordinator', 'web-2']], `${at}: the idle agents are pills`);
-        assert.ok(p.pills.every((pill) => pill.height >= tapTarget(width) && pill.title.includes(' · ')), `${at}: each pill a target with its lane on hover`);
+        assert.ok(p.pills.every((pill) => pill.height >= (width < 900 ? 44 : 22) && pill.title.includes(' · ')), `${at}: each pill a target with its model on hover`);
         assert.equal(p.all, `show all ${agents}`, `${at}: every agent one click away`);
         assert.ok(p.height < 260, `${at}: four agents take little room: ${p.height}px`);
       }
     }
 
-    // A row filters the feed to that agent and addresses the composer to it, and opens to each thing it holds.
+    // A row filters the feed to that agent and addresses the composer to it.
     await shoutsAt(chrome, 1280, 'light');
-    await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
+    await chrome.click(`document.querySelector('#agents .sx-ag[data-agent="web-1"]')`);
     let p = await panel();
-    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1', 'coordinator and you']]],
-      `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
-    assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
+    assert.deepEqual([p.rows[0].on, p.chip, p.to, p.cards], [true, 'to web-1 (Test Model)×', 'web-1', [['web-1', 'coordinator and you']]],
+      `the picked row is marked, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
     // A pill does the same.
-    await chrome.click(`document.querySelector('#agents .agent-pill[data-agent="web-2"]')`);
+    await chrome.click(`document.querySelector('#agents .sx-idle-n[data-agent="web-2"]')`);
     p = await panel();
     assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2 (Test Model)×', [['web-2', 'coordinator and you']]], 'a pill filters and addresses too');
-    // And a thing an agent holds opens its item.
-    await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
-    await chrome.click(`document.querySelector('#agents .agent-work[data-item="2"]')`);
+    // And an item an agent holds opens from the page's own link.
+    await chrome.stable("go('item:2')");
     await chrome.waitFor(`!document.querySelector('[data-pane=items]').hidden && document.querySelector('#detail h2')?.textContent.includes('Footer')`);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
@@ -251,8 +246,7 @@ test('the shout feed names a seat broadcast and an item shout in product words [
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 2');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
-    await chrome.waitFor('document.querySelectorAll("#feed .conversation-row").length === 2');
-    await openConversation(chrome);
+    await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 2');
     for (const width of [1280, 375]) {
       await shoutsAt(chrome, width, 'light');
       const at = `${width}px`;
@@ -260,16 +254,16 @@ test('the shout feed names a seat broadcast and an item shout in product words [
       for (const key of ['none', 'item:1']) {
         await openConversation(chrome, key);
         snapshots.push(JSON.parse(await chrome.stable(`JSON.stringify({
-          tos: [...document.querySelectorAll('#feed .shout .to')].map((to) => to.textContent),
-          link: document.querySelector('#feed .shout .to a.ref')?.dataset.go ?? null,
-          text: document.querySelector('#feed').innerText }) `)));
+          tos: [...document.querySelectorAll('#feed .sx-msg .sx-snd')].map((node) => node.title.split(' to ').pop()),
+          link: document.querySelector('#feed .sx-ph a[data-go]')?.dataset.go ?? null,
+          text: document.querySelector('#feed').innerText + [...document.querySelectorAll('#feed [title]')].map((node) => node.title).join(' ') }) `)));
       }
       const feed = { tos: snapshots.flatMap(snapshot => snapshot.tos), link: snapshots.find(snapshot => snapshot.link)?.link,
         text: snapshots.map(snapshot => snapshot.text).join('\n') };
-      assert.ok(feed.tos.includes('→ coordinator and you'), `${at}: a seat broadcast reads coordinator and you: ${JSON.stringify(feed.tos)}`);
-      assert.ok(feed.tos.includes('→ #1'), `${at}: an item shout reads its id: ${JSON.stringify(feed.tos)}`);
-      assert.equal(feed.link, 'item:1', `${at}: the item id links to the item`);
-      assert.ok(!feed.text.includes('coordinator+person') && !feed.text.includes('item:'), `${at}: no card shows the internal address`);
+      assert.ok(feed.tos.includes('coordinator and you'), `${at}: a seat broadcast reads coordinator and you: ${JSON.stringify(feed.tos)}`);
+      assert.ok(feed.tos.includes('#1'), `${at}: an item shout reads its id: ${JSON.stringify(feed.tos)}`);
+      assert.equal(feed.link, 'item:1', `${at}: the item thread links to the item`);
+      assert.ok(!feed.text.includes('coordinator+person') && !feed.text.includes('item:'), `${at}: nothing shows the internal address`);
     }
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
@@ -388,8 +382,8 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         assert.ok((await text('#detail .verdict .by')).startsWith(expected.reviewer), `${at}: verdict identity`);
         await tab('shouts');
         for (const [id, label] of [['web-1', expected.builder], ['web-2', expected.unknown]]) {
-          assert.equal(await text(`#agents [data-agent="${id}"] .agent-who b`), id, `${at}: compact agent panel keeps the seat ${id}`);
-          assert.equal(await text(`#agents [data-agent="${id}"] .agent-model`), id === 'web-1' ? displayModel : 'unknown', `${at}: model stays a separate faint field`);
+          assert.equal(await text(`#agents [data-agent="${id}"] .sx-seat`), id, `${at}: compact agent rail keeps the seat ${id}`);
+          assert.ok(await chrome.stable(`document.querySelector('#agents [data-agent="${id}"]').title.endsWith(${JSON.stringify(id === 'web-1' ? displayModel : 'unknown')})`), `${at}: the model is on hover`);
         }
         if (!await chrome.stable('Boolean(view.open.idle)')) await press(chrome, 'document.querySelector("[data-fold=idle]")');
         assert.equal((await text('#agents [data-agent="coordinator"]')).trim(), 'coordinator', `${at}: idle agent seat`);
@@ -397,33 +391,14 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await openConversation(chrome);
         const feed = await text('#feed');
         assert.ok(feed.includes('web-1') && feed.includes('web-2') && feed.includes('coordinator'), `${at}: visible shout sender and recipient seats`);
-        assert.ok(feed.includes('→ all') && feed.includes('→ you'), `${at}: person and broadcast recipients keep their names`);
-        const headers = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .shout header')].map(header => {
-          const rect = header.getBoundingClientRect(), reference = header.cloneNode(true);
-          reference.style.cssText = 'position:fixed;left:-10000px;width:max-content;max-width:none;height:auto;';
-          header.parentElement.append(reference); const line = reference.getBoundingClientRect().height; reference.remove();
-          return { height: rect.height, line,
-            labels: [...header.querySelectorAll('[data-agent-address]')].map(label => {
-              const box = label.getBoundingClientRect();
-              return { name: label.textContent, title: label.title, aria: label.getAttribute('aria-label'), id: label.dataset.agentAddress,
-                left: box.left, right: box.right, headerLeft: rect.left, headerRight: rect.right, idWidth: label.clientWidth, idScroll: label.scrollWidth };
-            }) };
-        }))`));
-        assert.ok(headers.length > 0, `${at}: real shout headers render`);
-        const accessible = await chrome.send('Accessibility.getFullAXTree');
-        const names = accessible.nodes.filter(node => node.role?.value === 'group' && !node.ignored).map(node => node.name?.value);
-        assert.ok(names.includes(expected.builder) && names.includes(expected.unknown) && names.includes(expected.reviewer), `${at}: Chrome exposes complete model names to assistive readers`);
-
-        for (const header of headers) {
-          assert.ok(header.height <= header.line + 1, `${at}: shout identity stays on one line: ${JSON.stringify(header)}`);
-          for (const label of header.labels) {
-            assert.equal(label.title, ({ 'web-1': displayModel, coordinator: 'Claude', 'web-2': 'unknown' })[label.id], `${at}: full model stays only in the tooltip`);
-            assert.equal(label.aria, ({ 'web-1': expected.builder, coordinator: expected.reviewer, 'web-2': expected.unknown })[label.id], `${at}: full native API name stays accessible`);
-            assert.equal(label.idWidth, label.idScroll, `${at}: the address is never clipped`);
-            assert.ok(label.left >= label.headerLeft - 1 && label.right <= label.headerRight + 1, `${at}: address stays inside its header`);
-          }
+        const senders = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .sx-msg .sx-snd')].map(node => ({ name: node.querySelector('.sx-sn').textContent, title: node.title, clipped: node.querySelector('.sx-sn').scrollWidth > node.querySelector('.sx-sn').clientWidth })))`));
+        assert.ok(senders.length > 0 && senders.some(sender => sender.title.endsWith(' to all')) && senders.some(sender => sender.title.endsWith(' to you')), `${at}: person and broadcast recipients keep their names on hover: ${JSON.stringify(senders)}`);
+        for (const sender of senders) {
+          const model = ({ 'web-1': displayModel, coordinator: 'Claude', 'web-2': 'unknown' })[sender.name];
+          assert.ok(sender.title.startsWith(sender.name + ' (' + model + ') to '), `${at}: the full model stays only in the hover: ${JSON.stringify(sender)}`);
+          assert.equal(sender.clipped, false, `${at}: the address is never clipped`);
         }
-        assert.ok(headers.flatMap(header => header.labels).every(label => !label.name.includes(displayModel)), `${at}: the model is on hover while every complete seat address stays visible`);
+        assert.ok(senders.every(sender => !sender.name.includes(displayModel)), `${at}: the model is on hover while every complete seat address stays visible`);
 
         await press(chrome, 'document.querySelector("#agents [data-agent=\\"web-1\\"]")');
         await settled(chrome, 'view.agent === "web-1"');

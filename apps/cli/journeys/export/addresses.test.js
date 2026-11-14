@@ -250,7 +250,7 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     await press(chrome, `document.querySelector('[data-tab="shouts"]')`);
     await checkPlace('#shouts', "view.tab === 'shouts' && !document.querySelector('[data-pane=shouts]').hidden");
     // The Shouts tab lists conversations; open the first one so its message cards render.
-    await press(chrome, `document.querySelector('#feed .conversation-row')`);
+    await press(chrome, `document.querySelector('#feed .sx-th')`);
     await chrome.waitFor(`!!document.querySelector('#feed [data-shout-id]')`);
     const shoutId = await chrome.stable(`document.querySelector('#feed [data-shout-id]')?.dataset.shoutId`);
     await press(chrome, `document.querySelector('#feed [data-shout-id]')`);

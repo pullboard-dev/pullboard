@@ -662,7 +662,8 @@ function render({ tab: switching = false } = {}) {
     return { tone: pair[0], label: pair[1] };
   };
   // Native pending-question lists are authoritative: answered or stale asks never keep a thread amber.
-  const plainShouts = [...new Map((unread ? heard : [...heard, ...questions]).map(x => [x.shout_id, x])).values()].map((x) => ({ id: x.shout_id, from: x.shout_from, to: x.shout_to, at: x.shout_at,
+  const shoutById = new Map((unread ? heard : [...heard, ...questions]).map(x => [x.shout_id, x]));
+  const plainShouts = [...shoutById.values()].map((x) => ({ id: x.shout_id, from: x.shout_from, to: x.shout_to, at: x.shout_at, model: x.shout_from === 'person' ? '' : modelOf(x.shout_from),
     ms: Date.parse(x.shout_at), text: messageText(x), decision: Boolean(x.shout_decision), answers: x.shout_answers || null, item: itemOf(x) ? String(itemOf(x)) : null }));
   const itemFacts = {};
   for (const shoutItem of new Set(plainShouts.map((x) => x.item).filter(Boolean))) {
@@ -679,12 +680,18 @@ function render({ tab: switching = false } = {}) {
   shoutOpenKey = openedThread?.key ?? null;
   shoutThreadIds = new Map([...shoutModel.needs, ...shoutModel.threads, ...shoutModel.earlier.threads].map((thread) => [thread.key, thread.messages.at(-1).id]));
   view.shoutCounts = shoutModel.counts;
+  // The open thread's messages read in full with their item and code references live; the one-line rows stay plain text.
+  const richById = {};
+  for (const message of openedThread?.messages ?? []) {
+    const original = shoutById.get(message.id);
+    richById[message.id] = rich(messageText(original), titles, true, view.root, true) + (original.options ? '<ol>' + original.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '');
+  }
   const missingAddress = view.shout !== null && !openedThread ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
   const replyFocus = document.activeElement?.matches?.('#feed [data-reply] input') ? document.activeElement.closest('[data-reply]').dataset.reply : null;
   const caret = replyFocus ? document.activeElement.selectionStart : null;
   const dayOf = (iso) => dateFormat('day', { month: 'short', day: 'numeric' }).format(new Date(iso));
-  if (store.paint($('feed'), shoutsHtml(shoutModel, { clock, ago, day: dayOf, startOfToday, readOnly, full: [...openShouts], addressNote: missingAddress, bar }))) restoreShoutDrafts(replyFocus, caret);
-  if (view.focusReply && openedThread) { view.focusReply = false; $('feed').querySelector('[data-reply] input')?.focus(); }
+  if (store.paint($('feed'), shoutsHtml(shoutModel, { clock, ago, day: dayOf, startOfToday, readOnly, rich: richById, full: [...openShouts], allMessages: Object.keys(view.open).filter((name) => name.startsWith('msgs:') && view.open[name]).map((name) => name.slice(5)), addressNote: missingAddress, bar }))) restoreShoutDrafts(replyFocus, caret);
+  if (view.focusReply && openedThread) { view.focusReply = false; $('feed').querySelector?.('[data-reply] input')?.focus?.(); }
   // Keep legacy DOM anchors for older pages and automation; the decisions wall has no visible content.
   $('coordinator-decisions').hidden = true; $('coordinator-decisions').innerHTML = '';
   $('decisions').hidden = true; $('decisions').innerHTML = '';
@@ -715,6 +722,7 @@ function render({ tab: switching = false } = {}) {
   if (panelSelection.idle.some((agent) => agent.agentId === view.agent)) view.open.idle = true;
   store.paint($('agents'), agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) }, { now: panelNow, dashboardHref: tabHref('dashboard') }));
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
+  if (held.size && $('lanes-fold')) $('lanes-fold').open = true;
   store.paint($('lanes'), working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join(''));
 
   }

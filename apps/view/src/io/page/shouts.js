@@ -65,7 +65,7 @@ function openShoutThread(key) {
 
 /** Put each thread's unsent reply back after a draw, and the cursor where it was. */
 function restoreShoutDrafts(focusKey, caret) {
-  for (const form of $('feed').querySelectorAll('[data-reply]')) {
+  for (const form of $('feed').querySelectorAll?.('[data-reply]') ?? []) {
     const input = form.querySelector('input'), draft = shoutDrafts.get(form.dataset.reply);
     if (draft && input.value !== draft) input.value = draft;
     if (focusKey === form.dataset.reply) { input.focus({ preventScroll: true }); if (caret !== null) try { input.setSelectionRange(caret, caret); } catch { /* a field that refuses a caret keeps its end */ } }
@@ -86,6 +86,7 @@ $('feed').addEventListener('submit', async (event) => {
   if (!text) return;
   const sent = await (ask ? act(form.hasAttribute('data-ordinary') ? 'coordinator-answer' : 'answer', { id: Number(ask), text }, form)
     : key.startsWith('item:') ? act('shout', { to: key, text }, form) : act('request', { text }, form));
+  if (sent && ask && view.answering) answer(null);
   if (sent && input.isConnected && input.value.trim() === text) { input.value = ''; shoutDrafts.delete(key); }
   else if (sent) shoutDrafts.delete(key);
 });

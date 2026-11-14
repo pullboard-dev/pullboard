@@ -52,7 +52,7 @@ function needEntries(html) {
 
 /** Read one exact native message from the opened conversation without accepting an overview preview. */
 function conversationMessage(page, id) {
-  return page.show('feed').match(new RegExp('<article[^>]*data-shout-id="' + id + '"[^>]*>([^]*?)</article>'))?.[1] ?? '';
+  return page.show('feed').match(new RegExp('<div class="sx-msg[^"]*" id="shout-' + id + '" data-shout-id="' + id + '">([^]*?)</time></div>'))?.[1] ?? '';
 }
 
 /** Confirm the fixture's baseline approvals through the real person-view channel. */
@@ -324,10 +324,10 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
       'the shared Questions segment retains the one native pending ask');
     page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
     const waitingMessage = conversationMessage(page, 1);
-    assert.match(waitingMessage, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
+    assert.match(waitingMessage, /<span class="sx-snd seat" title="web-1 \(Test Model\) to coordinator">/,
       'the opened native question retains its exact author, model hover and recipient');
-    assert.match(waitingMessage, new RegExp('<div class="text">' + question + '</div>'), 'its entire escaped question remains visible');
-    assert.match(waitingMessage, /<div class="band">Decision needed<\/div>/, 'the native pending status is retained');
+    assert.match(waitingMessage, new RegExp('<span class="sx-tx"><span class="sx-mk ruling">Ruling</span>' + question + '</span>'), 'its entire escaped question remains visible, marked as a ruling');
+    assert.match(page.show('feed'), /data-shout-thread="none"/, 'the native pending question keeps its thread in the Questions list');
     assert.doesNotMatch(waitingMessage, /data-go="decide:/, 'an agent question has no person Answer control');
 
 
@@ -344,11 +344,11 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run("openTab('shouts'); render();");
     page.run("view.shoutThread = 'none'; render();");
     const passedMessage = conversationMessage(page, 42);
-    assert.match(passedMessage, /<b class="who"[^>]* title="[^"]*">coordinator<\/b><span class="to">→ you<\/span>/,
+    assert.match(passedMessage, /<span class="sx-snd coord" title="coordinator[^"]* to you">/,
       'the passed native call retains its coordinator author and person recipient');
-    assert.match(passedMessage, new RegExp('<div class="text">' + passed.replace('\n', '<br>') + '</div>'),
+    assert.match(passedMessage, new RegExp('<span class="sx-tx"><span class="sx-mk ruling">Ruling</span>' + passed.replace('\n', '<br>') + '</span>'),
       'the conversation keeps the complete passed question and coordinator note');
-    assert.match(passedMessage, /data-go="decide:42"/, 'the real passed call retains its Answer action');
+    assert.match(page.show('feed'), /<form class="sx-reply" data-reply="none" data-ask="42">/, 'the real passed call is answered from its thread');
     assert.equal(page.element('decisions').hidden, true, 'the superseded decisions wall stays hidden');
 
 
@@ -387,8 +387,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.run('refresh()');
     page.run("openTab('shouts'); view.shoutThread = 'none'; render();");
     const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who"[^>]* title="unknown">you<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    assert.match(feed, /<span class="sx-snd seat" title="web-1 \(Test Model\) to coordinator"><i class="sx-si seat"><\/i><span class="sx-sn">web-1<\/span><\/span><span class="sx-tx"><span class="sx-mk ruling">Ruling<\/span>Ship today\?<\/span>/, 'the feed marks an ask');
+    assert.match(feed, /<span class="sx-snd you" title="you to coordinator"><i class="sx-si you"><\/i><span class="sx-sn">you<\/span><\/span><span class="sx-tx">French, then English<\/span>/, 'and shows an answer from you');
     page.run("openTab('items'); render();");
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
@@ -456,14 +456,14 @@ test("needs-you holds only the person's calls; the rest show on the board with w
 
     // Each of the rest is on the board, with who holds it.
     page.run("openTab('shouts'); view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
-    assert.match(page.show('feed'), /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
+    assert.match(page.show('feed'), /<span class="sx-snd seat" title="web-1 \(Test Model\) to coordinator">/,
       "the native agent question waits on its coordinator in the Questions conversation");
     page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<b class="stage-word">In review<\/b>/, 'work waiting for a verdict keeps its approved stage');
     assert.match(itemRow(page.show('chain'), 1), /<small class="stage-detail" title="awaiting a verdict">awaiting a verdict<\/small>/, 'unassigned submitted work retains its truthful detail below the stage');
     assert.ok(itemRow(page.show('chain'), 2).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">no farewell yet'), 'and work sent back, with why');
     page.run("openTab('shouts'); view.agent = 'web-1'; render();");
-    assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: Blocked · Lane held · Sent back', '#1 Greeting: In review'], 'the agent retains both built items, with the shared stages and every applicable mark');
+    assert.match(page.show('agents'), /<button class="sx-ag back on" type="button" data-agent="web-1" title="web-1 holds #2 and 1 more · Test Model">/, 'the agent retains both built items: its row leads with the one sent back, and its hover names the other');
     page.run('view.agent = null; render();');
     assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no" title="held by coordinator">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
 
@@ -525,14 +525,14 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
       needsShown: shown(needs), inList: needs.parentElement === document.querySelector('#chain').parentElement, separateCard: !!document.querySelector('section.rulings-box#needs'),
       needs: [...needs.querySelectorAll('.needs-call')].map((row) => ({ go: row.querySelector('[data-go]')?.dataset.go ?? null, words: row.querySelector('.needs-copy b').textContent, title: [...row.querySelector('.needs-copy b').childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join(''), ref: row.querySelector('.needs-id')?.textContent ?? null,
         kind: row.querySelector('.needs-copy small').textContent, label: row.classList.contains('needs-drafts') ? !!row.querySelector('.needs-kind-draft') && row.querySelector('.needs-action').textContent === 'Review' : getComputedStyle(row.querySelector('.needs-kind')).color === warn && getComputedStyle(row.querySelector('.needs-action')).color === warn, chip: row.querySelector('.needs-action').textContent, age: !!row.querySelector('.needs-age time') })),
-      card: card ? [...card.children].map((e) => e.id || e.className) : null,
+
       wallsHidden: ['#coordinator-decisions', '#decisions'].every(selector => document.querySelector(selector).hidden && !document.querySelector(selector).textContent),
       composer: box(document.querySelector('.shout-form .composer')), asks: box(document.querySelector('[aria-label="Shouts filter"]')),
       questions: document.querySelector('[data-page-ctl=shouts][data-value=questions]')?.textContent.trim(), selected: document.querySelector('[data-page-ctl=shouts][data-value=questions]')?.getAttribute('aria-pressed'),
       showAgents: box(document.querySelector('.asks-slot [data-agents-toggle]')),
-      messages: [...document.querySelectorAll('#feed .shout .text')].map(text => text.textContent),
+      messages: [...document.querySelectorAll('#feed .sx-msg .sx-tx')].map(text => [...text.childNodes].filter(node => !node.classList?.contains('sx-mk')).map(node => node.textContent).join('')),
       feedBar: !!document.querySelector('#feed .feed-bar'), panelShown: shown(document.querySelector('#agents')), hide: !!document.querySelector('.panel-head [data-agents-toggle]'),
-      agents: [...document.querySelectorAll('#agents .agent-card')].filter(shown).map((row) => ({ who: row.querySelector('.agent-who b').textContent, model: row.querySelector('.agent-model').textContent, state: row.querySelector('.agent-state').textContent, what: row.querySelector('.agent-doing').textContent.trim(), chipInDoing: !!row.querySelector('.agent-doing .chip'), whatWidth: box(row.querySelector('.agent-what')).width, doingWidth: box(row.querySelector('.agent-doing')).width })),
+      agents: [...document.querySelectorAll('#agents .sx-ag')].filter(shown).map((row) => ({ who: row.querySelector('.sx-seat').textContent, age: row.querySelector('time').textContent, what: row.querySelector('.sx-it').textContent.trim(), title: row.title })),
       okNote: (() => { const c = document.querySelector('#console'); return !!c && !c.hidden && getComputedStyle(c).display !== 'none' && c.classList.contains('ok'); })(),
     };
   })())`));
@@ -564,22 +564,21 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         assert.deepEqual(r.needs.map((need) => need.age), [false, true, true, false], `${at}: a call that has an age shows it at the right`);
 
         await click('[data-tab=shouts]');
-        await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .conversation-row')");
+        await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .sx-th')");
         await click('[data-page-ctl=shouts][data-value=questions]');
         await click('#feed [data-shout-thread=\"none\"]');
-        await chrome.waitFor("document.querySelectorAll('#feed .shout').length === data.project.shouts.length");
+        await chrome.waitFor("document.querySelectorAll('#feed .sx-msg').length === data.project.shouts.length");
         r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Shouts`);
         // The original native questions now share the Questions segment and an actual conversation.
-        assert.deepEqual(r.card, ['shout-form', 'coordinator-decisions', 'decisions', 'feed'], `${at}: Shouts stays one card`);
         assert.ok(r.wallsHidden, `${at}: the replaced decisions walls carry no content`);
         assert.deepEqual([r.questions, r.selected], ['Questions2', 'true'], `${at}: both native questions are counted in the shared segment`);
         assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
         assert.equal(r.feedBar, false, `${at}: no bar above the feed while it shows every shout`);
-        assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
-        // An agent's row: its name and state in words, then what it holds at the full width.
-        const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
-        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])Building$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage, which does not repeat the agent the row names: ${JSON.stringify(holder)}`);
+        assert.ok(r.panelShown, `${at}: the agents rail shows beside the feed`);
+        // An agent's row: the item it holds in ink, its seat and when it last moved.
+        const holder = r.agents.find((agent) => agent.who === 'web-1');
+        assert.ok(holder && /^(?:now|\d+[mhd])$/.test(holder.age) && holder.what === '#1Greeting' && holder.title.includes('Test Model'), `${at}: web-1 keeps its seat, age and held item: ${JSON.stringify(holder)}`);
       }
     }
 
@@ -591,19 +590,13 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     await click('#feed [data-shout-thread="none"]');
     let r = await read();
     assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');
-    // Hidden, the agents come back from the composer's line, after the asks.
-    await click('.panel-head [data-agents-toggle]');
-    r = await read();
-    assert.ok(!r.panelShown && r.showAgents && r.showAgents.left >= r.composer.right, `hidden, Show agents sits on the composer's line: ${JSON.stringify([r.composer, r.showAgents])}`);
-    await click('.asks-slot [data-agents-toggle]');
-    assert.ok((await read()).panelShown, 'and brings the panel back');
-    // A sent shout shows in the feed, as a row or as a card in the open thread; no note pushes into the composer's line.
-    await chrome.stable("document.querySelector('#shout-text').focus()");
+    // A reply sent from the open thread shows in it; no note pushes into a composer's line.
+    await chrome.stable("document.querySelector('#feed [data-reply] input').focus()");
     await chrome.send('Input.insertText', { text: 'Footer after the greeting.' });
-    await click('#shout-send');
-    await chrome.waitFor("[...document.querySelectorAll('#feed .conversation-row, #feed .shout')].some((row) => row.textContent.includes('Footer after the greeting.'))", 15_000); // budget: hang ceiling for the sent shout to appear as a conversation row; no throughput claim.
+    await click('#feed [data-reply] .sx-send');
+    await chrome.waitFor("[...document.querySelectorAll('#feed .sx-msg .sx-tx')].some((row) => row.textContent.includes('Footer after the greeting.'))", 15_000); // budget: hang ceiling for the sent shout to appear in its thread; no throughput claim.
     r = await read();
-    assert.equal(r.okNote, false, 'a sent shout is its row, with no note beside the composer');
+    assert.equal(r.okNote, false, 'a sent shout is its message, with no note beside it');
     // However many calls there are, each is a row: six more decisions make ten rows, none folded into a count.
     for (const n of [1, 2, 3, 4, 5, 6]) await box.inProcess(alpha.repo, 'shout', 'person', `Ship part ${n} today?`, '--decision');
     await click('[data-tab=items]');

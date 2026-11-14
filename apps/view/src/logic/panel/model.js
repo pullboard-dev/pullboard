@@ -55,6 +55,7 @@ export function shoutsModel({ messages, openIds = [], personAskIds = [], queueAs
   const markOf = (message) => message.decision ? { tone: 'ruling', label: 'Ruling' }
     : /^gate red\b/iu.test(message.text) ? { tone: 'gate', label: 'Gate red' }
       : /^main moved to\b|\bconflicts in\b/iu.test(message.text) ? { tone: 'blk', label: 'Conflict' } : null;
+  const toWords = (to) => to === 'coordinator+person' ? 'coordinator and you' : String(to).startsWith('item:') ? '#' + String(to).slice(5) : to === 'person' ? 'you' : String(to);
   const byId = new Map(messages.map((message) => [message.id, message]));
   const open = new Set(openIds);
   // A reply belongs to its question's item even when the reply names none.
@@ -91,7 +92,7 @@ export function shoutsModel({ messages, openIds = [], personAskIds = [], queueAs
       ask: askId !== null ? { id: askId, ordinary: false } : queued !== null ? { id: queued, ordinary: true } : null,
       last: { from: last.from, kind: kindOf(last.from), text: last.text, mark: markOf(last), at: last.at, ms: last.ms },
       count: messagesOf.length, firstAt: messagesOf[0].at, firstMs: messagesOf[0].ms,
-      messages: messagesOf.map((message) => ({ id: message.id, from: message.from, kind: kindOf(message.from), text: message.text, mark: markOf(message),
+      messages: messagesOf.map((message) => ({ id: message.id, from: message.from, model: message.model || '', to: toWords(message.to), kind: kindOf(message.from), text: message.text, mark: markOf(message),
         at: message.at, ms: message.ms, fresh: kindOf(message.from) !== 'you' && message.ms > floor, found: message.id === foundId })) };
   }).sort((a, b) => b.last.ms - a.last.ms);
   const needsKeys = new Set(threads.filter((thread) => thread.ask && !thread.ask.ordinary).map((thread) => thread.key));

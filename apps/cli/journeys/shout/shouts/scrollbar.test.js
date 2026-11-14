@@ -44,11 +44,13 @@ async function openConversation(chrome, key = 'none') {
   const selector = '#feed [data-shout-thread="' + key + '"]';
   await chrome.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`);
   await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
-  await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
+  await chrome.waitFor("!!document.querySelector('#feed .sx-tp')");
+  // A long thread shows its latest eight messages; this journey measures every one.
+  if (await chrome.stable("!!document.querySelector('#feed .sx-earlier-msgs[aria-expanded=\"false\"]')")) await press(chrome, "document.querySelector('#feed .sx-earlier-msgs')");
 }
 
 
-test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, async () => {
+test('shout rows and open threads fit beside a classic scrollbar [N26]', { timeout: 120_000 }, async () => {
   assert.ok(chromeExecutable(), 'this scrollbar regression proof requires actual Chrome');
   const box = machine();
   const alpha = project(box, 'cards');
@@ -106,8 +108,10 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
       await sharedPress(chrome, `document.querySelector(${JSON.stringify(selector)})`);
     };
     await press('[data-tab="shouts"]');
-    await chrome.waitFor('!!document.querySelector("#feed .conversation-row")');
-    const threads = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#feed .conversation-row')].map(row => row.dataset.shoutThread))"));
+    await chrome.waitFor('!!document.querySelector("#feed .sx-th")');
+    // Threads older than today wait behind one Earlier row; open it so every thread is measured.
+    if (await chrome.stable("!!document.querySelector('#feed [data-fold=earlier][aria-expanded=\"false\"]')")) await press('#feed [data-fold=earlier]');
+    const threads = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#feed .sx-th')].map(row => row.dataset.shoutThread))"));
     const nativeIds = JSON.parse(await chrome.stable("JSON.stringify(data.project.shouts.map(row => row.shout_id).sort((a,b) => a-b))"));
     for (const font of ['monospace', '']) for (const scheme of ['light','dark']) {
       const observed = [];
@@ -123,19 +127,19 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
       const metrics=await chrome.stable(`(() => {
         const width=document.documentElement.clientWidth;
         const edge=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};};
-        const cards=[...document.querySelectorAll('#feed .shout')];
+        const cards=[...document.querySelectorAll('#feed .sx-msg')];
         const contentOver=[...document.body.querySelectorAll('*')].filter(e=>e.getClientRects().length && (edge(e).right>width+0.1 || e.scrollWidth>e.clientWidth+1)).slice(0,30).map(e=>{
           const s=getComputedStyle(e);return {kind:e.id||e.className||e.tagName,...edge(e),client:e.clientWidth,scroll:e.scrollWidth,display:s.display,minWidth:s.minWidth,font:s.font,overflow:s.overflow};});
         return {width,scroll:document.documentElement.scrollWidth,body:document.body.scrollWidth,contentOver,messageIds:cards.map(card=>Number(card.dataset.shoutId)),
-          headers:cards.map(card=>({box:edge(card.querySelector('header')),text:edge(card.querySelector('.text')),age:{...edge(card.querySelector('time')),whole:card.querySelector('time').scrollWidth<=card.querySelector('time').clientWidth},children:[...card.querySelector('header').children].map(e=>({kind:e.className||e.tagName,...edge(e)}))})),
-          models:cards.map(card=>card.querySelector('.who').title),
-          ids:cards.flatMap(card=>[...card.querySelectorAll('.who,.to')].map(id=>({id:edge(id),card:edge(card)}))),
-          over:cards.flatMap(card=>[...card.querySelectorAll('header,header>*')].filter(e=>edge(e).right>width).map(e=>({kind:e.className||e.tagName,...edge(e)})))};
+          headers:cards.map(card=>({box:edge(card),text:edge(card.querySelector('.sx-tx')),age:{...edge(card.querySelector('time')),whole:card.querySelector('time').scrollWidth<=card.querySelector('time').clientWidth},children:[...card.children].map(edge)})),
+          models:cards.map(card=>card.querySelector('.sx-snd').title),
+          ids:cards.flatMap(card=>[...card.querySelectorAll('.sx-sn')].map(id=>({id:edge(id),card:edge(card)}))),
+          over:cards.flatMap(card=>[...card.querySelectorAll('.sx-snd,.sx-snd>*,time')].filter(e=>edge(e).right>width).map(e=>({kind:e.className||e.tagName,...edge(e)})))};
       })()`);
       assert.equal(metrics.width,360, scheme+': actual page content is 360px, including on classic-scrollbar Chrome');
       assert.ok(metrics.models.some(text=>text.includes(MACHINE_MODEL)), 'the regression fixture includes real API model names');
       assert.ok(metrics.scroll<=metrics.width&&metrics.body<=metrics.width, scheme+': no sideways scroll: '+JSON.stringify({width:metrics.width,scroll:metrics.scroll,body:metrics.body,over:metrics.over,contentOver:metrics.contentOver}));
-      assert.ok(metrics.headers.every(h=>h.children.every(e=>e.left>=h.box.left-1&&e.right<=h.box.right+1)&&h.age.whole&&Math.abs(h.age.right-h.box.right)<=1&&h.age.bottom<=h.text.top+1),
+      assert.ok(metrics.headers.every(h=>h.children.every(e=>e.left>=h.box.left-1&&e.right<=h.box.right+1)&&h.age.whole&&h.age.right<=h.box.right+1&&h.age.bottom<=h.text.top+1),
         scheme+': each header fits one line with its complete age at the right: '+JSON.stringify(metrics.headers));
       assert.ok(metrics.ids.length>0&&metrics.ids.every(({id,card})=>id.width>0&&id.left>=card.left&&id.right<=card.right),
         scheme+': every address remains visible inside its card');

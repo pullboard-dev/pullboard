@@ -24,7 +24,7 @@ export function agentsPanelHtml(panel, { now, dashboardHref }) {
       + '<span class="sx-more">' + (more ? '+' + more : '') + '</span><code class="sx-seat">' + agent.nameHtml + '</code>' + (item.ageHtml || agent.ageHtml || '<time></time>').replace(/^<time/u, '<time class="' + (hours >= 2 ? 'late' : '') + '"') + '</button>';
   };
   const shown = groups.map((group) => '<div class="sx-grp ' + group.key + '">' + named[group.key] + '<span>' + group.rows.length + '</span></div>' + group.rows.map(line).join('')).join('');
-  const pill = (agent) => '<button class="sx-idle-n' + (panel.activeAgent === agent.agentId ? ' on' : '') + '" type="button" data-agent="' + esc(agent.agentId) + '">' + agent.nameHtml + '</button>';
+  const pill = (agent) => '<button class="sx-idle-n' + (panel.activeAgent === agent.agentId ? ' on' : '') + '" type="button" data-agent="' + esc(agent.agentId) + '" title="' + esc(agent.name || agent.agentId) + (agent.modelHtml ? ' · ' + agent.modelHtml : '') + '">' + agent.nameHtml + '</button>';
   const all = panel.showAll ? '<button class="sx-all" type="button" data-all-agents>' + (panel.allAgents ? 'show only agents at work' : 'show all ' + panel.totalAgents) + '</button>' : '';
   const idle = panel.idle.length ? '<button class="sx-idlehead" type="button" data-fold="idle" aria-expanded="' + Boolean(panel.idleOpen) + '"><i class="sx-dot idle"></i><span><b>' + panel.idle.length + '</b> idle</span><span class="chv">›</span></button>'
     + (panel.idleOpen ? '<div class="sx-idlelist">' + panel.idle.map(pill).join('') + all + '</div>' : '') : all ? '<div class="sx-idlelist">' + all + '</div>' : '';
@@ -40,20 +40,20 @@ export function agentsPanelHtml(panel, { now, dashboardHref }) {
  *
  * @param {ReturnType<import('./model.js').shoutsModel>} model
  * @param {{ clock: (iso: string) => string, ago: (iso: string) => string, day: (iso: string) => string, startOfToday: number,
- *   readOnly?: boolean, full?: number[], addressNote?: string, bar?: string }} view
+ *   readOnly?: boolean, rich?: Record<string, string>, full?: number[], allMessages?: string[], addressNote?: string, bar?: string }} view
  * @returns {string}
  */
-export function shoutsHtml(model, { clock, ago, day, startOfToday, readOnly = false, full = [], addressNote = '', bar = '' }) {
+export function shoutsHtml(model, { clock, ago, day, startOfToday, readOnly = false, rich = {}, full = [], allMessages = [], addressNote = '', bar = '' }) {
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
-  const sender = (from, kind) => '<span class="sx-snd ' + kind + '"><i class="sx-si ' + kind + '"></i><span class="sx-sn">' + esc(from === 'person' ? 'you' : from) + '</span></span>';
+  const sender = (from, kind, to, model) => '<span class="sx-snd ' + kind + '"' + (to ? ' title="' + esc((from === 'person' ? 'you' : from) + (model ? ' (' + model + ')' : '') + ' to ' + to) + '"' : '') + '><i class="sx-si ' + kind + '"></i><span class="sx-sn">' + esc(from === 'person' ? 'you' : from) + '</span></span>';
   const mark = (value) => value ? '<span class="sx-mk ' + value.tone + '">' + esc(value.label) + '</span>' : '';
   const chip = (value) => value ? '<span class="sx-chip ' + value.tone + '">' + esc(value.label) + '</span>' : '';
   const stamp = (iso, ms) => ms >= startOfToday ? '<time data-ago="' + esc(iso) + '">' + esc(ago(iso)) + '</time>' : '<time>' + esc(day(iso)) + '</time>';
   const rangeOf = (from, to) => from && to ? ' · ' + esc(clock(from)) + (clock(from) === clock(to) ? '' : ' – ' + esc(clock(to))) : '';
   const row = (thread, asking) => {
     const last = thread.last, count = plural(thread.count, 'message') + (thread.unread ? ', ' + thread.unreadCount + ' unread' : '');
-    return '<button class="sx-th' + (thread.unread ? ' unread' : '') + (thread.quiet ? ' quiet' : '') + (thread.open ? ' open' : '') + '" type="button" data-shout-thread="' + esc(thread.key) + '" aria-expanded="' + thread.open + '">'
+    return '<button class="sx-th' + (thread.unread ? ' unread' : '') + (thread.quiet ? ' quiet' : '') + (thread.open ? ' open' : '') + '" type="button" data-shout-thread="' + esc(thread.key) + '"' + (asking && thread.ask && !readOnly ? ' data-go="decide:' + thread.ask.id + '"' : '') + ' aria-expanded="' + thread.open + '">'
       + '<span class="sx-ud"' + (thread.unread ? ' role="img" aria-label="unread"' : '') + '></span>'
       + '<span class="sx-st">' + chip(thread.chip) + '</span>'
       + '<span class="sx-l1">' + (thread.item ? '<b class="sx-id">#' + esc(thread.item) + '</b>' : '') + '<b class="sx-tt">' + esc(thread.title) + '</b></span>'
@@ -71,9 +71,10 @@ export function shoutsHtml(model, { clock, ago, day, startOfToday, readOnly = fa
     return '<div class="sx-tp" data-thread-panel="' + esc(thread.key) + '"><div class="sx-ph conversation-heading"><span><b>' + thread.count + '</b> ' + (thread.count === 1 ? 'message' : 'messages') + ' · ' + esc(clock(first)) + (thread.count > 1 ? ' – ' + esc(clock(last)) : '') + '</span>'
       + (thread.item && thread.href ? '<a class="sx-lk" href="' + esc(thread.href) + '" data-go="item:' + esc(thread.item) + '">Item #' + esc(thread.item) + ' ›</a>' : '')
       + '<button class="sx-xb" type="button" data-shout-thread="" title="Close (Esc)" aria-label="Close thread">×</button></div>'
-      + '<div class="sx-msgs">' + thread.messages.map((message) => '<div class="sx-msg' + (message.kind === 'auto' ? ' quiet' : '') + (message.fresh ? ' new' : '') + (full.includes(message.id) ? ' full' : '') + '" id="shout-' + message.id + '" data-shout-id="' + message.id + '">'
+      + (thread.count > 8 ? '<button class="sx-earlier-msgs" type="button" data-fold="msgs:' + esc(thread.key) + '" aria-expanded="' + allMessages.includes(thread.key) + '">' + (allMessages.includes(thread.key) ? 'Show only the latest 8' : thread.count - 8 + ' earlier messages') + '</button>' : '')
+      + '<div class="sx-msgs">' + (thread.count > 8 && !allMessages.includes(thread.key) ? thread.messages.slice(-8) : thread.messages).map((message) => '<div class="sx-msg' + (message.kind === 'auto' ? ' quiet' : '') + (message.fresh ? ' new' : '') + (message.found ? ' found' : '') + (full.includes(message.id) ? ' full' : '') + '" id="shout-' + message.id + '" data-shout-id="' + message.id + '">'
         + (message.found ? '<h2 class="visually-hidden">Shout #' + message.id + '</h2>' : '')
-        + sender(message.from, message.kind) + '<span class="sx-tx">' + mark(message.mark) + esc(message.text) + '</span><time title="' + esc(day(message.at) + ' ' + clock(message.at)) + '">' + esc(clock(message.at)) + '</time></div>').join('') + '</div>' + reply + '</div>';
+        + sender(message.from, message.kind, message.to, message.model) + '<span class="sx-tx">' + mark(message.mark) + (rich[message.id] ?? esc(message.text)) + '</span><time title="' + esc(day(message.at) + ' ' + clock(message.at)) + '">' + esc(clock(message.at)) + '</time></div>').join('') + '</div>' + reply + '</div>';
   };
   const unit = (thread, asking) => row(thread, asking) + (thread.open ? panel(thread) : '');
   const since = model.since.unread || model.since.asks
@@ -92,5 +93,7 @@ export function shoutsHtml(model, { clock, ago, day, startOfToday, readOnly = fa
   const threads = '<section class="sx-sec' + (needs ? '' : ' sx-first') + '"><div class="shd"><p class="hd1">Threads<span class="sx-count">' + model.threads.length + '</span></p>'
     + (model.feed.n ? '<span class="cap2">newest ' + model.feed.n + ' shouts' + rangeOf(model.feed.from, model.feed.to) + '</span>' : '') + '</div>'
     + '<div class="sx-card sx-list" id="shouts-threads">' + model.threads.map((thread) => unit(thread, false)).join('') + fold + empty + '</div></section>';
-  return addressNote + bar + since + needs + threads;
+  const filters = '<div class="sx-mfilters">' + [['you', 'For you', model.counts.you], ['questions', 'Questions', model.counts.questions], ['all', 'All', model.counts.all]].map(([value, name, count]) => '<button type="button" data-shout-filter="' + value + '"'
+    + (model.filter === value ? ' class="on"' : '') + '>' + name + '<em' + (value === 'questions' ? ' class="amb"' : '') + '>' + count + '</em></button>').join('') + '</div>';
+  return addressNote + bar + filters + since + needs + threads;
 }

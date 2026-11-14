@@ -408,7 +408,8 @@ function go(target, root = view.root) {
   else if (kind === 'doctrine') { tab = 'doctrine'; view.row.doctrine = id; view.rows.doctrine = 'all'; }
   else if (kind === 'shout') { tab = 'shouts'; view.agent = null; view.unread = null; }
   else if (kind === 'tab') tab = id;
-  else if (kind === 'coordinate' || kind === 'decide') { tab = 'shouts'; answer(null); view.focusReply = true; }
+  else if (kind === 'coordinate') { tab = 'shouts'; answer(Number(id), true); view.focusReply = true; }
+  else if (kind === 'decide') { tab = 'shouts'; answer(Number(id)); view.focusReply = true; }
   if (kind === 'item') { view.tab = 'items'; view.itemsView = 'list'; pick(Number(id), root); }
   else { openTab(tab, ['spec', 'doctrine', 'shout', 'coordinate', 'decide'].includes(kind) ? id : null); render(); }
   if (kind === 'shout') void loadAddressedShout();
@@ -971,13 +972,16 @@ $('shouts-pane').addEventListener('click', (event) => {
   const filter = event.target.closest('[data-shout-filter]');
   if (filter) { view.shoutFilter = filter.dataset.shoutFilter; view.shoutThread = null; view.shout = null; if (view.addressDetail !== null) { view.addressDetail = null; } address(); render(); return; }
   const thread = event.target.closest('[data-shout-thread]');
-  if (thread) { openShoutThread(thread.dataset.shoutThread || null); return; }
+  // A second press closes the thread; an ask's row also carries its answer link, which only the opening press follows.
+  if (thread) { const closing = !thread.dataset.shoutThread || thread.dataset.shoutThread === shoutOpenKey; openShoutThread(thread.dataset.shoutThread || null); if (closing) event.stopPropagation(); return; }
   if (event.target.closest('[data-mark-read]')) { markAllShoutsRead(); return; }
   const message = event.target.closest('.sx-msg');
   if (message) {
-    event.stopPropagation();
-    if (event.target.closest('a, button, input')) return;
     const id = Number(message.dataset.shoutId);
+    // A code reference inside a message opens its lines, so the message opens too; a link or button is its own press.
+    if (event.target.closest('[data-code]')) { openShouts.add(id); message.classList.add('full'); return; }
+    if (event.target.closest('a, button, input')) return;
+    event.stopPropagation();
     if (openShouts.has(id)) openShouts.delete(id); else openShouts.add(id);
     message.classList.toggle('full', openShouts.has(id));
     return;
