@@ -11,7 +11,7 @@ export { requireHandoffActive } from './src/logic/handoff.js';
 export { lineSettings } from './src/logic/settings.js';
 export { REWORK_SAME_FAMILY_ENGINE } from './src/logic/engines/rework-same-family-engine.js';
 export { manualLandingFailureQuoted } from './src/logic/landing.js';
-export { canonicalMilestoneTarget } from './src/logic/target.js';
+export { canonicalMilestoneTarget } from './src/logic/settings.js';
 export { IMPLYING_OPERATIONS } from './src/logic/move/implies.js';
 export { carriesImplies } from './src/logic/move/implies.js';
 export { rejectedWorkReturns } from './src/logic/returns.js';
