@@ -16,6 +16,11 @@ import { amendLandingRegistries } from '../derive.js';
 export const LANDING_JOB_KIND = 'land';
 // Budget: a landing whose push keeps finding trunk moved tries this many tips, then hands the job back as trunk-busy.
 const PUSH_ATTEMPTS = 5;
+/**
+ * The newest land payload shape this runner's code understands (packages/api's LAND_PAYLOAD_SHAPE is what the board writes).
+ * A job of a newer shape is refused, never pushed without the options this code never learned (#7791).
+ */
+export const LANDING_PAYLOAD_SHAPE = 2;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@pullboard.invalid', '-c', 'core.hooksPath=/dev/null'];
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
@@ -282,6 +287,10 @@ function firstMerges(root, base, tip, pending) {
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null }) {
   const { remote, trunk, expect, items } = payload;
+  if (Number.isSafeInteger(payload.shape) && payload.shape > LANDING_PAYLOAD_SHAPE) {
+    // A plain coded error: this cell takes no kernel import, and the runner releases the job with this message, which names the code.
+    throw Object.assign(new Error(`[LANDING_PAYLOAD_VERSION] land job payload shape ${payload.shape} is newer than this runner's code (shape ${LANDING_PAYLOAD_SHAPE}); next: update this runner's pullboard checkout and restart it`), { name: 'Refused', code: 'LANDING_PAYLOAD_VERSION' });
+  }
   // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
   const phases = [];
   const check = checks ?? await landingCheck(payload, env, phases);

@@ -1,5 +1,8 @@
 import { modelLabelRules } from "../cost/tab.js";
 import { projectSummary } from "../../logic/summary/project.js";
+import { readyAndBlocked } from "../../logic/counts.js";
+import { splitReady } from "../../logic/counts.js";
+import { withReadySplit } from "../../logic/counts.js";
 /**
  * Read the private board's cost event history once per board and window, and again only after a usage, shared-usage
  * or merged event has arrived since the last read; a gap in the visible ids reads the event log for the missing ones. The drawn numbers stay on screen while a new read is on its way.
@@ -392,7 +395,7 @@ async function boardRead(board, seen) {
       // A state that already holds the finished items stays whole: the delta's counts never mark them omitted again (#6697).
       if (held.whole) { delete state.itemsOmitted; delete state.finished; }
       sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion, whole: held.whole });
-      return state;
+      return withReadySplit(state);
     }
   }
   // A first load takes the state the server keeps (kept=1): the stream's opening catch-up reads the delta to now [A2,C7].
@@ -401,8 +404,14 @@ async function boardRead(board, seen) {
   const reply = await api(path + (query && '?' + query));
   const state = expandItemSummaries(reply.state);
   if (local) sentStates.set(board.id, { state, sequence: state.sequence, version: reply.eventLogVersion });
-  return state;
+  // Release and Roadmap call ready what the Dashboard's NOW calls ready; the kept state stays as the board sent it (#7763).
+  return withReadySplit(state);
 }
+
+// The same split the server's counts use, embedded so the page and the server agree on which open items are ready.
+const readyAndBlocked = (${readyAndBlocked.toString()});
+const splitReady = (${splitReady.toString()});
+const withReadySplit = (${withReadySplit.toString()});
 
 // U94's sidebar summary, embedded as its own source so the page and a server that serves it count alike.
 const projectSummary = (${projectSummary.toString()});
