@@ -77,7 +77,11 @@ test('window overview renders canonical seeded values, directions, shares and mi
     await chrome.send('Page.navigate',{url:server.link.href});
     await chrome.waitFor('!!data?.project && !!document.querySelector("[data-tab=activity]")');
     await pressTab(chrome, 'activity'); // the two-hour comparison lives on Activity
-    await chrome.waitFor('document.querySelector("#activity-compare .window-comparison") && data.project.statsComparison.available');
+    // A refused comparison names its reason; carry it into the failure so a red run explains itself.
+    await chrome.waitFor('document.querySelector("#activity-compare .window-comparison") && data.project.statsComparison.available').catch(async error => {
+      const seen = await chrome.stable('JSON.stringify({ comparison: data?.project?.statsComparison ?? null, section: !!document.querySelector("#activity-compare .window-comparison"), width: innerWidth, tab: document.querySelector("[data-tab].on, [data-tab][aria-selected=true]")?.dataset.tab ?? null })').catch(() => 'unreadable');
+      throw new Error(error.message + ' | seen: ' + String(seen).slice(0, 600));
+    });
     const result=JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const c=data.project.statsComparison, root=document.querySelector('#activity-compare .window-comparison');
       const keys=[['landed',false],['rejectRate',true],['idleShare',true],['agentHoursPerLanding',false]];
