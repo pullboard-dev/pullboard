@@ -41,8 +41,8 @@ test('a machine with no board says how to start one [N26]', async () => {
     const style = await styleOf(view);
     // Agents start boards, so the view offers no form for it.
     const renderedMarkup = page.html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, '');
-    assert.doesNotMatch(renderedMarkup, /init-form|init-path|Start a board|<details/,
-      'the rendered page has no form or disclosure for starting a board');
+    assert.doesNotMatch(renderedMarkup, /init-form|init-path|Start a board|<details(?![^>]*sx-lanes)/u,
+      'the rendered page has no form or disclosure for starting a board (the Lanes fold, 154e174c55, is not one)');
     assert.doesNotMatch(style, /\.start\b/);
 
     const classes = (on) => ['loading', 'boardless'].filter((name) => on.run(`document.body.classList.contains('${name}')`));
