@@ -30,12 +30,46 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 - `pullboard intake --brief` lets a pull request enter on the mid route, and `milestone --as person` lets the person ship a milestone (#3813, #5375).
 - Two settings from user reports: `rigor.autoDraft` turns off unproved Rigor drafts, and `review.independence` chooses session-level verifier independence (#5403, #5407).
 
+### Changed
+
+- The repo is laid out in cells: shared code lives in `packages/` and each program in `apps/`, and packages never import apps. One scripted change moved the code; landing refuses a new file the layout does not place, and each cell is checked against the cells it may import (#3210, #3689, #4003, #4865, #4866, #6292, #6859, #6860, #6861).
+- Boards and runners made by 0.9.3 keep working after the upgrade to 0.9.4: old move history, worker paths and manifests are still read (#4868, #4869, #4870, #6267).
+- Pull is the default. Submit records the submit and returns; the whole gate runs as one runner job and posts one receipt. Nothing gate-related runs on the coordinator's machine (#2535, #5674, #5691, #5807, #5820, #6182).
+- Landing is automatic: accepted items land at once, the coordinator's machine only fast-forwards main, `pullboard land` offers the land job, and landing by hand says so and names `landing.manualOverride` (#3525, #5585, #6272, #6807).
+- Runners spread work by load: a runner pulls a job only while it has spare cores, runs a job's files in parallel, keeps tooling pinned and takes source as tree ids, and reuses a warm checkout between jobs. Agent test runs go ahead of queued gate shards, and job kinds have reserved shares (#3523, #3524, #5578, #5812, #5919, #6313, #6464, #6538, #6681).
+- Proof is reused: review and landing read the gate's receipt and run no tests again, a test whose inputs have not changed since its last green run is skipped, and one ledger records every reuse (#3526, #5471, #5839, #5842, #5843, #7277).
+- Faster board commands: commands start without the runner tooling capture, heartbeat and the commit hooks run through the warm board process, board writes hold the lock for milliseconds, `next` and `claim` open an item folder in under a second, and `next` picks for a build seat in under 2 s on a large board (#2437, #3172, #3250, #3847, #5561, #5776, #6357).
+- Read commands load less: `show`, `list` and offline `status` load only what they read, and a fresh seat's first inbox answers in under 300 ms (#5487, #6037, #6152, #6476, #6483, #7505).
+- Submit and the commit hooks do less git work: one status scan per submit, revisions and logs resolved in one batch, and at most 12 git processes per pre-commit (#5498, #6153, #6169, #6197, #6334, #6486, #6499).
+- The board API never blocks on a request: handlers run in a worker pool, survive main moving under them, and runners keep their leases across an API restart and reconnect within seconds (#6157, #6358, #6390, #6716, #6718, #6730, #6778).
+- A seat never waits: `test` and `submit` queue and return, `join`, `claim` and `submit` never print `next --wait` as the next step, and rejected work comes before new work in `next` (#2777, #5765, #5807, #6288).
+- A seat's route comes from the model running in it through one tier table; Sonnet seats take the strong route (#2848, #3678, #6268).
+- Review: eligibility follows the family of the builder of the submitted head, a seat that claimed or built an item never reviews it, and a seat that shares a parent session with the author is never offered the review. A forced landing gets a later review from another family (#2868, #3294, #5666, #6163, #6485, #7291).
+- A machine-verified item lands on its proof without waiting for a reviewer (#2183).
+- Policy is read live: a claim freezes the bar only, and a policy change never bounces work in flight (#2471, #5701, #5702, #5703).
+- Spec flow: `spec apply` applies approved rows at once on a busy board, a row cannot be approved while its gate file is missing, and commits can cite another board's spec ids (#1276, #2836, #6434, #7037).
+- Bars are checked at filing: `add`, `edit` and `claim` refuse a bar whose check names a missing path, and a per-item clause that needs the full suite or CI (#2843, #5709).
+- Every flag in `pullboard help` has a one-line meaning, and the reject form with reason codes is in the agent guide (#4966, #6564).
+- The person's screens use plain words: no codes, commands, tokens or relay terms in refusal lines, Needs you entries or banners, and the view calls the person's decisions Rulings (#3977, #3978, #3979, #6655).
+- The view loads a large board in seconds: it draws its frame at once, sends open work first, sends only what changed on a live update, draws only the rows on screen and serves compressed assets. Item search answers in under 300 ms and the Cost tab in under 1 s (#6584, #6586, #6588, #6630, #6658, #6663, #6665, #6667, #6668, #6676, #6678, #6679).
+- The view was redesigned to its approved mockups: Dashboard, Items, Activity, Roadmap, Shouts, Settings and Cost share one dense style that fits a phone (#6608, #6615, #6645, #6646, #6647, #6652, #6727, #6841, #6842, #6844, #6845, #6847, #6916, #6926, #6930, #7308, #7553).
+- Maintenance compacts the board daily and prunes runner results, temp tool trees and test caches by age and size, so disks stop filling (#3342, #3460, #5489, #6042, #7001, #7002, #7010).
+
 ### Fixed
 
 - On Linux, landing cleanup sees each process's working directory, so it removes only clean landed worktrees and never one in use (#1462).
 - `pullboard status` stays light when offline and reads runner use without writing (#1462).
 - Opening the decision queue no longer loads choices meant for other readers (#1462).
 - A read-only Needs panel shows its draft summary as text instead of a navigation button it cannot use (#1541).
+
+### Removed
+
+- The SSH controller: the hand-off dispatcher, gate drivers, hand-off worker and its cap, the lifeline and the resources controller path are gone. Runners pull jobs instead (#3495, #5693, #6579, #6580).
+- The inline submit gate and the submit hand-off modules (#6824, #6832, #6833, #6834).
+- The Mac landing engine: the in-process landing batch, candidate and parallel planning, the landing scheduler, `pending.json` and `worker.log` (#6121, #6810, #6812, #6817, #6818).
+- Landing no longer reads the restructure plan; its plan checks went with it (#6295, #7375, #7376).
+- The view's Progress page; Dashboard is the home page (#6726).
+- `docs/lifecycle.md` and `docs/cli-help.txt` are no longer committed; help prints the same facts (#5309, #6420).
 
 ## [0.9.3] - 2026-10-26
 
