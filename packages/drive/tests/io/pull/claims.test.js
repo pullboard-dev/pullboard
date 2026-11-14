@@ -120,3 +120,31 @@ async t => {
   assert.deepEqual([board.attempt, view.steps.find(step => step.name === 'receipt')?.payload.runner], [1, 'r-long'], 'one claim, one receipt, by the runner that ran it');
   assert.ok(renewalsBefore() >= 3, `the runner renewed its lease while the job ran: ${renewalsBefore()} renewals`);
 });
+
+test('#7815 clause 1: a land job keeps its lease through a board outage under a minute, renews when the board answers, and no second runner claims it [C7]', { timeout: 30_000 }, // budget: one handler held through a 0.4 s outage, no git.
+async t => {
+  // The first renewal starts an outage of renewals 50 s long on the board's clock; the handler never renews on its own
+  // until its proof is done, as a land job's proof does not, and the proof runs on past the lease its claim was given.
+  let outage = null, recovered = false, back;
+  const answeredAgain = new Promise(resolve => { back = resolve; });
+  const answered = call => {
+    if (call.action !== 'renew') return;
+    if (outage === null) { outage = { until: Date.now() + 400 }; board.offset += 50_000; } else { recovered = true; back(); }
+  };
+  const board = boardBehindFetch(t, { id: 'land:7815', kind: 'land' }, { answered, down: call => call.action === 'renew' && outage !== null && outage.until > Date.now() });
+  const rivals = [];
+  const handlers = { land: async (_claim, { renew }) => {
+    await answeredAgain;
+    board.offset += LEASE_MS - 30_000;
+    rivals.push(board.claim('r-rival'));
+    return { outcome: (await renew()) ? 'green' : 'lease-lost' };
+  } };
+  const said = [];
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-land', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {},
+    say: line => { said.push(line); }, timing: { renewMs: 100, renewRetryMs: 50, leaseMs: 300 } });
+  assert.ok(said.some(line => line.startsWith('renewal skipped')), `the runner saw the outage: ${said.join('\n')}`);
+  assert.equal(recovered, true, 'the runner renewed again once the board answered');
+  assert.deepEqual(rivals, [null], 'no second runner claimed the job while its holder kept renewing');
+  assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome, entry.receipt?.outcome]), [['land:7815', 'posted', 'green']], said.join('\n'));
+  assert.equal(board.attempt, 1, 'one claim');
+});
