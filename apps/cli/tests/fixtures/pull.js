@@ -20,6 +20,8 @@ import { fetchFresh } from './http.js';
 import { closeBoard } from '../../../lib/index.js';
 import { createApiHandler } from '../../../../packages/api/index.js';
 import { jobQueueCall } from '../../../../packages/api/index.js';
+import { getItem } from '../../../../packages/store/index.js';
+import { verify } from '../../../../packages/store/index.js';
 import { GATE_RECEIPT } from '../../src/io/submit/pull.js';
 
 /** Accepted main's stand-in tooling: each part records its step, the job that ran it and its pid in the checkout it judged, or in PULLBOARD_FIXTURE_STEPS when a runner's checkout is a worktree. */
@@ -252,4 +254,24 @@ export async function servedWithoutBrowser(t, change, tooling = {}) {
   const row = queue.board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job LIKE ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(`gate:${id}:%`);
   assert.ok(row, served.output);
   return JSON.parse(row.job_step_payload).receipt.gate;
+}
+
+/**
+ * Accept a gated item on the board with the review `pullboard verify` seals: the submitted commit, the trunk it was judged
+ * against and the paths it changed since its merge-base with that trunk. Why: an unsealed verdict is judged by the
+ * conservative claim-base bound, under which the fixture's own trunk policy commit reads as a main change to the item, and
+ * the pulled lander rightly holds it stale [B3,E8,#7269].
+ *
+ * @param {object} board - The fixture board.
+ * @param {string} root - The board host's main checkout.
+ * @param {number} id - The item.
+ * @param {string} head - The submitted commit the verdict accepts.
+ * @returns {ReturnType<typeof verify>}
+ */
+export function acceptGated(board, root, id, head) {
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  const trunk = git('rev-parse', 'refs/heads/main');
+  const paths = [...new Set(git('diff', '--no-renames', '--name-only', git('merge-base', trunk, head), head).split('\n').filter(Boolean))].sort();
+  return verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'fixture acceptance of a gated item', head, digest: getItem(board, id).item_frozen_digest,
+    policy: 'any', review: { commit: head, head, trunk, paths } });
 }

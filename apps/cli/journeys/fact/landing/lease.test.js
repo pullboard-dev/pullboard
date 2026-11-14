@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/index.js apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js apps/lib/index.js packages/landing/index.js packages/store/index.js */
+/** @pullboard-test-input apps/cli/index.js apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js apps/lib/index.js packages/landing/index.js packages/landing/src/io/automatic/scheduler.js packages/store/index.js */
 /** A landing that loses its lease mid-batch ends cleanly and the next wake adopts and lands its batch [C7,#5770]. */
 import assert from 'node:assert/strict';
 import {
@@ -15,11 +15,12 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { onBoard } from '../../../tests/fixtures/land/board.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   scheduleAutomaticLanding,
   automaticLandingDirectory,
-} from '../../../../../packages/landing/index.js';
+} from '../../../../../packages/landing/src/io/automatic/scheduler.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -34,7 +35,7 @@ const from = (names, path) => `import { ${names} } from ${JSON.stringify(pathToF
  * lease once its batch is recorded: the board's heartbeat for it is set in the past, as when renewals miss the deadline.
  */
 const WAKE = [
-  from('resumeAutomaticLanding, scheduleAutomaticLanding', '../../../../../packages/landing/index.js'),
+  from('resumeAutomaticLanding, scheduleAutomaticLanding', '../../../../../packages/landing/src/io/automatic/scheduler.js'),
   from('runLandingWake, wakeIo', '../../../src/io/landing/automatic.js'),
   from('context, landAfterAcceptance', '../../../index.js'),
   "import { DatabaseSync } from 'node:sqlite'; import { join } from 'node:path';",
@@ -78,6 +79,9 @@ test('clause 1 and clause 2 (#5770): a wake whose landing loses its lease mid-ba
   writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: false } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: the board lands accepted items');
+  // The landing lease belongs to the board host's own landing, which lands only with the local runner off; under pull with
+  // it on, the wake offers a runner land job instead, whose lease the runner holds (landing journeys under runner/) [C7,P7].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false } });
   await scheduleAutomaticLanding(box.repo, new Date().toISOString(), new URL('../../../src/io/landing/automatic.js', import.meta.url), { schedule: async () => {} });
 
   const first = wake(box, 'lose');

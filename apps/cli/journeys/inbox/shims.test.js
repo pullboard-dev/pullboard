@@ -63,6 +63,8 @@ function shimmed(t) {
   box.put('src/reader.js', "import { readFileSync } from 'node:fs';\nexport const text = readFileSync(new URL('./stats.js', import.meta.url), 'utf8');\nimport { resolve } from 'node:path';\nexport const here = resolve(import.meta.dirname, './stats.js');\n");
   box.put('test/pure.test.js', "import { pure } from '../src/stats.js';\nconsole.log(pure);\n");
   box.put('test/declared.test.js', '/** @pullboard-test-input src/stats.js package.json */\nexport const declared = 1;\n');
+  // The plan reads the seed and the cell inventory from the index, so stage every put before planning.
+  git(box.root, 'add', '-A');
   const plan = computePlan(box.root);
   const order = ['kernel', 'stats', 'mid', 'late', 'app:cli', 'store', 'items'];
   for (const cell of plan.cells) cell.order = order.indexOf(cell.name) + 1;
@@ -74,7 +76,9 @@ function shimmed(t) {
   writePlan(box.root, plan);
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'shimmed fixture');
-  return { ...box, plan };
+  // The cell inventory reads indexed files only (6193b1e81b), so a file a case adds after this commit is staged as it is put.
+  const put = (file, source) => { box.put(file, source); git(box.root, 'add', '--', file); };
+  return { ...box, put, plan };
 }
 
 /** Read one fixture file's current bytes. */

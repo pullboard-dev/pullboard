@@ -1,11 +1,17 @@
+/** @pullboard-world-pin: the #6810 and #6812 cases read the committed tree, which must no longer hold the in-process landing batch or the candidate workers. */
 /** A landing reruns its items' submit proof, never the full plan, and a batch of many lands on its items' receipts [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { landingReceiptReuse } from '../../../index.js';
-import { landingProgress } from '../../../src/io/in/process.js';
-import { LANDING_GATE_CEILING_MS } from '../../../src/io/in/process.js';
 import { submitProved } from '../../../src/io/step/gate.js';
 import { submittedSelections } from '../../../src/io/step/gate.js';
+
+/** The tracked files under one repository path, as git lists them; empty when none are. */
+function tracked(root, path) { return execFileSync('git', ['ls-files', '--', path], { cwd: root, encoding: 'utf8' }); }
 
 /** #3489's submit on 9 Nov: red only in the relay cases main fails the same way, recorded with gateGreen false. */
 function knownMainSubmit(commit) {
@@ -52,17 +58,31 @@ test('clause 3: a batch of several items lands on their submit receipts, rerunni
   assert.deepEqual([missing.reuse, missing.code, missing.item], [false, 'NO_RECEIPT', 9]);
 });
 
-test('clause 4: a gate still running on a runner is progress, so the 10-minute stop never ends it; past its ceiling it is not [C7]', () => {
-  let clock = 0;
-  const progress = landingProgress({ now: () => clock });
-  progress.said('gate candidate: 1392 files selected; running');
-  clock = 30 * 60_000;
-  assert.equal(progress.lastProgressAt(), clock, 'thirty silent minutes of a running gate still count as progress');
-  progress.said('gate candidate: run finished green');
-  clock += 11 * 60_000;
-  assert.equal(progress.lastProgressAt(), 30 * 60_000, 'after the run ends, silence is no progress again');
-  progress.said('gate candidate: 2 files selected; running');
-  const opened = clock;
-  clock += LANDING_GATE_CEILING_MS + 1;
-  assert.equal(progress.lastProgressAt(), opened, 'a gate past its ceiling no longer counts');
+test('#6810 clauses 1-2: the in-process landing batch file is gone and its runner is named nowhere in the tree [C7,#6810]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  assert.equal(tracked(root, 'packages/landing/src/io/in'), '');
+  // The name is split so this test does not name it; git grep exits 1 when nothing matches.
+  const name = 'inProcess' + 'LandingBatch';
+  let named = '';
+  try { named = execFileSync('git', ['grep', '-l', '-F', name], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  assert.equal(named, '');
+});
+
+test('#6812 clauses 1-3: candidates.js and step/parallel.js are gone and no file imports either [C7,#6812]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const gone = ['packages/landing/src/io/candidates.js', 'packages/landing/src/io/step/parallel.js'];
+  for (const file of gone) assert.equal(tracked(root, file), '', file);
+  // git grep reads the committed tree: every relative import naming either basename, resolved against its file.
+  let lines = '';
+  try { lines = execFileSync('git', ['grep', '-n', '-E', String.raw`(from|import)\s*\(?\s*['"]\.{1,2}/[^'"]*(candidates|parallel)\.js['"]`, '--', '*.js', '*.mjs'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  const importers = [];
+  for (const line of lines.split('\n').filter(Boolean)) {
+    const file = line.slice(0, line.indexOf(':'));
+    for (const [, specifier] of line.matchAll(/(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/gu)) {
+      if (gone.includes(join(dirname(file), specifier))) importers.push(`${file} -> ${specifier}`);
+    }
+  }
+  assert.deepEqual(importers, []);
 });

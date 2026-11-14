@@ -89,35 +89,6 @@ async function item(t, box, number, text) {
   return id;
 }
 
-/** Exercise the identical native acceptance assertions under serial and speculative-prefix landing. */
-async function assertAdditions(t, parallel) {
-  const box = project(parallel);
-  const first = await item(t, box, 1, BASE.replace('  base:', '  alpha: { item: true },\n  base:'));
-  const second = await item(t, box, 2, BASE.replace('  base:', '  beta: { item: true },\n  base:'));
-  const landed = await settleLand(box, json(box, box.repo, 'land'));
-  assert.deepEqual(landed.landed, [first, second], 'both independently verified additions land');
-  assert.deepEqual(landed.conflicts, []);
-  const source = box.git(box.repo, 'show', `main:${FILE}`);
-  assert.match(source, /alpha:.*\n  beta:.*\n  base:/u, 'stable order preserves both entries');
-  const resolutions = landed.batch.resolutions ?? [];
-  assert.ok(resolutions.some(entry => entry.id === second && entry.files.includes(FILE)), 'the native landing batch records its mechanical resolution');
-  for (const id of [first, second]) {
-    const state = json(box, box.repo, 'show', String(id));
-    assert.equal(state.item_status, 'verified');
-    assert.ok(state.item_merged_commit);
-  }
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), box.git(box.repo, 'rev-parse', 'main'));
-}
-
-// The pulled lander merges items with plain git and has no mechanical registry resolution, so there is nothing to land here but the batch engine's.
-test('the train keeps both added registry entries and lands without a reopen [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
-  await assertAdditions(t, false);
-});
-
-test('parallel train promotion retains its mechanical resolution receipt [B3,R3,C7]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, async t => {
-  await assertAdditions(t, true);
-});
-
 test('non-UTF8 bytes outside a registry stay untouched when resolution is refused [B3,R3,C7]', () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'raw-registry');

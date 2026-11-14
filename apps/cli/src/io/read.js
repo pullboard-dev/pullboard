@@ -118,9 +118,6 @@ export function context(io) {
   let doctrine;
   const ctx = { info, config, file, nativeBoard: io.nativeBoard, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
     get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
-  // Every successful repository command can recover a lost automatic-landing wake, including when its pending record
-  // disappeared before this CLI version started. The post-command bootstrap is guarded against replacing live custody.
-  io.automaticLandingContext = ctx;
   if (config.worktreeMaintenance?.enabled === true) io.worktreeMaintenanceContext = ctx;
   if (config.toolBuild?.autoGate === true) io.toolBuildGateContext = ctx;
   return ctx;

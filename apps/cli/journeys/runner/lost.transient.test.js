@@ -44,7 +44,7 @@ function child(box, source) {
   return JSON.parse(result.stdout);
 }
 
-test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, t => {
+test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, t => {
   const box = fixture(t);
   const url = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
   const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;

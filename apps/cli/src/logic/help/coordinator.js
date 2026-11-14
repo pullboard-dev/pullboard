@@ -2,8 +2,7 @@
 export const coordinatorHelp = `Coordinator
   pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
                                         file one item per file a linter, type checker or test reporter flags
-  pullboard land [--max N] [--dry-run] [--adopt]  manual override: gate and land a durable batch of accepted items
-  pullboard land --due [--dry-run]       manual override: use configured age/count; no --max or --adopt; explain when not due
+  pullboard land                        manual override: offer a runner land job for the accepted items
   pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners
   pullboard land --waive <test> --until <date> --reason \"why\"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes

@@ -24,7 +24,6 @@
     "packages/blueprints/src/io/main.js",
     "packages/blueprints/src/io/set.js",
     "packages/land/src/io/runs.js",
-    "packages/landing/src/io/candidates.js",
     "packages/landing/src/io/runner/job.js",
     "packages/landing/src/io/shards.js",
     "packages/landing/src/io/smoke.js",
@@ -102,7 +101,6 @@
   ],
   "stop-process-tree": [
     "apps/cli/src/io/scale.js",
-    "apps/cli/src/io/submit/handoff/worker.js",
     "apps/runner/src/io/private/check/worker.js",
     "apps/runner/src/io/private/privacy.js",
     "apps/runner/src/io/worker/process.js",

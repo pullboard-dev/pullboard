@@ -48,7 +48,7 @@ const HELP_EXAMPLES = {
   'milestone lift': 'pullboard milestone lift "0.7.0" 12,13',
   runner: 'pullboard runner add studio --slots 2 --browser 1', 'runner add': 'pullboard runner add studio --slots 2 --browser 1',
   edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12 --reason BLOCKED',
-  land: 'pullboard land --max 4',
+  land: 'pullboard land',
   map: 'pullboard map',
   publish: 'pullboard publish',
   handoff: 'pullboard handoff --take 12',
