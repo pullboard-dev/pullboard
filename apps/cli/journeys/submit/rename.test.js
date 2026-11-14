@@ -40,8 +40,11 @@ test('a real submit follows a registered guard through a rename and refuses a de
   // The pulled gate runs the guard on the machine's runner, so the journey waits for the settled receipt [C7,#7725].
   const accepted = await submitWithEnv(t, renamed.box, (...args) => renamed.box.run(...args), ['--infra', 'the guard fixture renames a registered guard']);
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
-  const ran = (accepted.receipt.gate.phases ?? []).flatMap(phase => phase.testOutcomes?.tests ?? []).filter(row => row.file === 'test/area/guard.test.js');
-  assert.equal(ran.length > 0 && ran.every(row => row.passed), true, 'the renamed guard executed during the submit, as a guard, at its new path and not at the old one ' + JSON.stringify(accepted.receipt.gate.phases).slice(0, 3000));
+  const phases = accepted.receipt.gate.phases ?? [];
+  assert.equal(accepted.receipt.gate.green, true, accepted.err);
+  const ran = phases.flatMap(phase => phase.testRuntimes ?? []).map(row => row.file);
+  assert.deepEqual(ran.filter(file => /guard\.test\.js$/u.test(file)), ['test/area/guard.test.js'],
+    'the renamed guard executed once during the submit, as a guard, at its new path and not at the old one');
 
   const deleted = project();
   rmSync(join(deleted.box.root, 'test/guard.test.js'));
@@ -51,5 +54,5 @@ test('a real submit follows a registered guard through a rename and refuses a de
   assert.notEqual(refused.code, 0, 'deleting a registered guard is refused');
   assert.match(refused.err + refused.out, /BAD_CONFIG/u);
   assert.match(refused.err + refused.out, /registryGuards file test\/guard\.test\.js is missing or unreadable/u);
-  assert.equal((refused.receipt?.gate?.phases ?? []).some(phase => (phase.testOutcomes?.tests ?? []).some(row => row.file === 'test/guard.test.js')), false, 'a deleted guard never runs');
+  assert.equal((refused.receipt?.gate?.phases ?? []).some(phase => (phase.testRuntimes ?? []).some(row => row.file === 'test/guard.test.js')), false, 'a deleted guard never runs');
 });

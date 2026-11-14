@@ -140,9 +140,10 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     blocked(await runLocal(box, 'check', '1', '--yes'), 'open');
     // A pulled submit queues its frozen check with the gate; the sandbox refusal is the settled gate receipt's failing part.
     const run = (...args) => runLocal(box, ...args);
-    blocked(await submitWithEnv(t, box, run), 'open');
-    const log = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-submit.log.check.log'));
-    assert.ok(readFileSync(log, 'utf8').includes(outside), 'the exact refused path remains in the raw log');
+    const blockedSubmit = await submitWithEnv(t, box, run);
+    blocked(blockedSubmit, 'open');
+    const checkPhase = blockedSubmit.receipt.gate.phases.find(phase => phase.role === 'check');
+    assert.ok(JSON.stringify(checkPhase).includes(outside), 'the exact refused path remains in the gate receipt\'s check phase');
     stage('AssertionError [ERR_ASSERTION]: ordinary assertion', undefined, 'feat(core): stage an ordinary failure [G1]');
     const ordinary = await submitWithEnv(t, box, run);
     assert.equal(ordinary.code, 1);
