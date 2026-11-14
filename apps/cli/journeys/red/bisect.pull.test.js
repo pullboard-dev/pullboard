@@ -53,7 +53,7 @@ test('clause 1: red bisect on a board with a local pull runner probes through ru
 async () => {
   const box = project();
   const commits = history(box);
-  const ran = box.run(box.repo, ['red', 'bisect', FILE]);
+  const ran = await box.runLocal(box.repo, ['red', 'bisect', FILE]);
   assert.equal(ran.status, 0, `${ran.stdout}${ran.stderr}`);
   assert.doesNotMatch(ran.stderr, /RED_NO_PROBE/u);
   const found = /Breaking commit: ([0-9a-f]{40}) \((\d+) probes over (\d+) closure commits\)/u.exec(ran.stdout);
@@ -72,7 +72,7 @@ async () => {
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const current = JSON.parse(readFileSync(settings, 'utf8'));
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...current, runners: [], gate: { ...current.gate, localRunner: false } });
-  const ran = box.run(box.repo, ['red', 'bisect', FILE]);
+  const ran = await box.runLocal(box.repo, ['red', 'bisect', FILE]);
   assert.equal(ran.status, 1, `${ran.stdout}${ran.stderr}`);
   assert.match(ran.stderr, /RED_NO_PROBE: red bisect needs a pull runner/u);
   assert.deepEqual(withBoard(join(box.repo, BOARD_FILE), board => jobsOf(board.db, { kind: 'test' })), []);
