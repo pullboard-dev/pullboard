@@ -382,8 +382,10 @@ async function nextWithProgress(io, values, progress) {
       }
       if (values.verify) refuseWhileBuilding(ctx);
       if (values.defaultLoop && !found.laneWork) {
-        io.result?.({ item: null, next: 'nothing for this seat: end your turn', reasons: found.reasons ?? [] });
-        io.say('next: nothing for this seat: end your turn');
+        // A named step, such as waiting on another seat's rework, says what to do instead of ending the turn (#7922).
+        const step = found.nextStep ?? 'nothing for this seat: end your turn';
+        io.result?.({ item: null, next: step, reasons: found.reasons ?? [] });
+        io.say(`next: ${step}`);
         return 0;
       }
       found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => inboxReasons(board, whoAmI(ctx, board)))];
