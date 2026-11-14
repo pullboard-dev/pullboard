@@ -8,7 +8,10 @@ import { composeViewStyles as composerModule } from '../../src/io/styles.js';
 
 const SHELL = new URL('../../src/io/', import.meta.url);
 const MARKER = /\/\* @pullboard-([\w-]+)-styles \*\//gu;
-const STYLESHEETS = { activity: 'activity', dashboard: 'dashboard', 'items-row': 'item/rows', nav: 'nav', notch: 'notch', palette: 'palette/palette', 'project-menu': 'project-menu', stage: 'stage' };
+const STYLESHEETS = { activity: 'activity', dashboard: 'dashboard', 'items-row': 'item/rows', nav: 'nav', palette: 'palette/palette', 'project-menu': 'project-menu', stage: 'stage' };
+
+/** The notch's and Shouts' stylesheets join the map here, so the line above stays one edit for everyone [#6651]. */
+Object.assign(STYLESHEETS, { notch: 'notch', shouts: 'shouts' });
 
 test('clause 1: composeViewStyles(), re-exported by apps/view/index.js, returns view.css with every @pullboard-*-styles marker replaced by its stylesheet [C7,#3020]', () => {
   assert.equal(composeViewStyles, composerModule, 'apps/view/index.js re-exports the composer from src/io/styles.js');
