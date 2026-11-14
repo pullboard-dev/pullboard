@@ -7,6 +7,7 @@
  */
 export function pageScriptPart4(scope) {
 return `function showTab() {
+  if (view.tab === 'shouts') shoutsWasShown = true; else if (shoutsWasShown) { shoutsWasShown = false; leaveShouts(); }
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
   document.documentElement.dataset.tab = view.tab;
@@ -170,7 +171,7 @@ function showNav() {
 function drawPageControls() {
   const slot = $('page-controls');
   if (!slot) return;
-  const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all', questions: view.shoutQuestions,
+  const html = pageControlsHtml({ tab: view.tab, state: view.state, lane: view.lane, lanes: view.itemLanes || [], itemsView: view.itemsView, shouts: view.shoutFilter || 'all', questions: view.shoutQuestions, shoutCounts: view.shoutCounts,
     shipped: view.roadmapOpen.get(JSON.stringify([view.root, 'shipped'])) === true, by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, costWindow: view.costWindow ?? '7d', win: view.activityWin || 24, window: view.pipelineWindow || '1h', writable: !snapshot && (!readOnly || requests) });
   const focused = document.activeElement?.closest?.('#page-controls') ? document.activeElement.dataset.pageCtl : null;
   if (slot.innerHTML !== html) slot.innerHTML = html;
@@ -406,10 +407,10 @@ function go(target, root = view.root) {
   else if (kind === 'doctrine') { tab = 'doctrine'; view.row.doctrine = id; view.rows.doctrine = 'all'; }
   else if (kind === 'shout') { tab = 'shouts'; view.agent = null; view.unread = null; }
   else if (kind === 'tab') tab = id;
-  else if (kind === 'coordinate') { tab = 'shouts'; answer(Number(id), true); }
-  else if (kind === 'decide') { tab = 'shouts'; answer(Number(id)); }
+  else if (kind === 'coordinate') { tab = 'shouts'; answer(Number(id), true); view.focusReply = true; }
+  else if (kind === 'decide') { tab = 'shouts'; answer(Number(id)); view.focusReply = true; }
   if (kind === 'item') { view.tab = 'items'; view.itemsView = 'list'; pick(Number(id), root); }
-  else { openTab(tab, ['spec', 'doctrine', 'shout'].includes(kind) ? id : null); render(); }
+  else { openTab(tab, ['spec', 'doctrine', 'shout', 'coordinate', 'decide'].includes(kind) ? id : null); render(); }
   if (kind === 'shout') void loadAddressedShout();
 }
 
@@ -871,8 +872,9 @@ async function act(command, args, anchor) {
  * changes, so a click is never lost to a rebuild; on a quiet board the ages would otherwise stay
  * as old as the page.
  */
-/** Shouts the person opened past their three lines, kept across refreshes. */
+/** Shouts the person opened past their line, kept across refreshes. */
 const openShouts = new Set();
+
 
 /** Fold each shout taller than three lines, with 'more' to open it; measured only while Shouts shows. */
 function foldShouts() {
@@ -969,7 +971,20 @@ $('shouts-pane').addEventListener('click', (event) => {
   const filter = event.target.closest('[data-shout-filter]');
   if (filter) { view.shoutFilter = filter.dataset.shoutFilter; view.shoutThread = null; view.shout = null; if (view.addressDetail !== null) { view.addressDetail = null; } address(); render(); return; }
   const thread = event.target.closest('[data-shout-thread]');
-  if (thread) { view.shoutThread = thread.dataset.shoutThread || null; view.shout = null; render(); return; }
+  // A second press closes the thread; an ask's row also carries its answer link, which only the opening press follows.
+  if (thread) { const closing = !thread.dataset.shoutThread || thread.dataset.shoutThread === shoutOpenKey; openShoutThread(thread.dataset.shoutThread || null); if (closing) event.stopPropagation(); return; }
+  if (event.target.closest('[data-mark-read]')) { markAllShoutsRead(); return; }
+  const message = event.target.closest('.sx-msg');
+  if (message) {
+    const id = Number(message.dataset.shoutId);
+    // A code reference inside a message opens its lines, so the message opens too; a link or button is its own press.
+    if (event.target.closest('[data-code]')) { openShouts.add(id); message.classList.add('full'); return; }
+    if (event.target.closest('a, button, input')) return;
+    event.stopPropagation();
+    if (openShouts.has(id)) openShouts.delete(id); else openShouts.add(id);
+    message.classList.toggle('full', openShouts.has(id));
+    return;
+  }
   const more = event.target.closest('[data-more]'), pick = event.target.closest('[data-agent]');
   if (more) {
     const card = more.closest('.shout'), id = Number(card.dataset.shoutId);
@@ -1183,7 +1198,7 @@ document.addEventListener('click', (event) => {
     code(t.dataset.code, t.dataset.before || '');
   }
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
-  else if (t.dataset.shout) { answer(null); addressTo(t.dataset.shout); $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
+  else if (t.dataset.shout) { answer(null); addressTo(t.dataset.shout); $('shout-text').value = '#' + t.dataset.about + ': '; $('shouts-pane').dataset.compose = 'open'; openTab('shouts'); showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
 // The viewport's scroll is fired at the document; the tests' stand-in document has no window.
@@ -1343,6 +1358,7 @@ $('shout-form').addEventListener('submit', async (event) => {
   if (view.root !== root || $('shout-text').value !== text || (currentAnswer?.root ?? null) !== answerRoot
       || (currentAnswer?.id ?? null) !== answerId) return;
   $('shout-text').value = '';
+  delete $('shouts-pane').dataset.compose;
   answer(null);
 });
 $('hold-form').addEventListener('submit', async (event) => {

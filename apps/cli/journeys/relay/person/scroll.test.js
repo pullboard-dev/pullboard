@@ -3,20 +3,17 @@
 /** @pullboard-test-gui */
 /** Real relay browser journeys and their owned setup [N26]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   createServer,
   request,
 } from 'node:http';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import {
   after,
   test,
 } from 'node:test';
 import { performance } from 'node:perf_hooks';
+import { composeViewStyles } from '../../../../view/index.js';
 import { press } from '../../../tests/fixtures/cockpit/stable.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../../index.js';
 import {
@@ -68,7 +65,7 @@ test('a person request never moves the reading position under a 6× CPU throttle
       .end(cockpitPage('', { readOnly: true, requests: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
     if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transportModule);
     if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' })
-      .end(readFileSync(resolve(import.meta.dirname, "../../../../view/src/io/main.css")));
+      .end(composeViewStyles()); // every stylesheet the view serves: main.css alone leaves the nav notch unsized and covering the page (#7658)
     if (url.pathname === '/intent' && request.method === 'POST') {
       const receivedAt = Date.now();
       const chunks = [];

@@ -1,5 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-input apps/cli/journeys/resume/flow.test.js apps/cli/pullboard.js apps/view/index.js packages/gate/src/io/run/tests.js */
+/** @pullboard-test-gui */
 /** Keep the view's exact named-port refusal covered in a core-owned file [N26]. */
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import assert from 'node:assert/strict';
@@ -47,6 +48,7 @@ import { fetchFresh } from '../../tests/fixtures/http.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fetchPrintedViewLink } from '../../tests/fixtures/view/link.js';
 import { startChrome } from '../../tests/fixtures/chrome.js';
+import { stableChrome } from '../../tests/fixtures/chrome.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
@@ -161,10 +163,10 @@ test('a fixture Chrome never reaches a view holding the default port [N26,C7]', 
     // A person's own view holds the port; this test cannot count it, so it never touches it.
     return t.skip('the default port was already occupied; its existing listener is left untouched');
   }
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   for (const host of ['127.0.0.1', 'localhost']) {
-    await chrome.evaluate(`fetch('http://${host}:${DEFAULT_VIEW_PORT}/local/protocol', { mode: 'no-cors' }).then(() => 'reached', () => 'refused')`);
+    await chrome.stable(`fetch('http://${host}:${DEFAULT_VIEW_PORT}/local/protocol', { mode: 'no-cors' }).then(() => 'reached', () => 'refused')`);
   }
   assert.equal(connections, 0, 'no fixture Chrome connection reaches whatever holds the default port');
 });

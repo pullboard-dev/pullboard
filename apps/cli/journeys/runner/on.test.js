@@ -16,6 +16,7 @@ import {
 } from 'node:test';
 import { localLoadStart } from '../../../../packages/gate/src/io/test/run.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
   installSshStandIn,
@@ -39,6 +40,8 @@ async function runnerProject() {
   for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
+  // The SSH stand-in is a controller-dispatch transport; under the pull default `pullboard test` offers a runner job that nothing here takes and waits on it silent [C7,#7712].
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller', localRunner: false } });
   assert.equal((await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1')).code, 0);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['gate.loadAwareDispatch', 'off'], ['browserSlots', '0'], ['gateSlots', '0']]) {
     const set = await box.runLocal(box.repo, 'settings', key, value);

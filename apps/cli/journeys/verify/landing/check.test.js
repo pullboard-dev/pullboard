@@ -68,7 +68,7 @@ async function fileDefect(box, batchId) {
     blob: box.git(box.repo, 'rev-parse', `HEAD:${HELD}`), trunkBlob: null, names: [CASE], lane: 'web', batchId, branch: BRANCH }));
 }
 
-test('clause 1: with no recorded run, the automatic lander runs the held green file at the trunk, closes the defect and lands the batch [C7]', { timeout: 300_000 }, async t => { // budget: one real accept-to-merged landing plus one local run of a one-case file in a private repo; hang ceiling, not speed.
+test('clause 1: with no recorded run, the automatic lander runs the held green file at the trunk, closes the defect and lands the batch [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6579 (the defect closing runs inside the host lander step; the pulled land job closes no landing test defect)' }, async t => { // budget: one real accept-to-merged landing plus one local run of a one-case file in a private repo; hang ceiling, not speed.
   const { box, reviewer } = await fixture(t);
   const item = await submitted(box, 'first');
   const defect = await fileDefect(box, '44444444-4444-4444-8444-444444444444');

@@ -21,6 +21,9 @@ import { withBoardRead } from '../context.js';
 import { retrySync } from '../sync.js';
 import { events } from '../../../../../packages/store/index.js';
 import { verdictsFor } from '../../../../../packages/store/index.js';
+import { newestGateJob } from './show.js';
+import { queuedAcknowledgment } from '../submit/pulled.js';
+import { waitForPulledGate } from '../submit/pulled.js';
 import { waitForSubmissionVerdict } from '../../../../../packages/items/index.js';
 
 /** Resolve only this seat's claim or its explicit returned-work reservation before any Git mutation. */
@@ -83,8 +86,13 @@ export async function run(io, { first, second, rest, values }) {
     gitStep(root, ['merge', '--no-edit', main.commit], 'merge', 'resolve the preserved merge conflict and commit normally, then run pullboard ship again');
     const code = await submit(io, { first: String(item.item_id), values: { ...values, wait: true, 'no-next': true }, rest: [] });
     if (code !== 0) { originalResult?.(result); return code; }
-    const gateResult = result;
     const waitContext = context(io);
+    let gateResult = result ?? queuedAcknowledgment(waitContext, item.item_id, gitStep(root, ['rev-parse', 'HEAD'], 'commit', 'rerun ship').trim(), { withBoardRead, getItem, newestGateJob });
+    // A pulled submit returns queued, and the claiming seat never blocks on its own gate: wait for the job's receipt here [C7,#7736].
+    if (gateResult?.queued) {
+      const gate = await waitForPulledGate(waitContext, item.item_id, gateResult, { withBoardRead, retrySync, getItem, newestGateJob });
+      gateResult = { ...gateResult, queued: false, gate };
+    }
     const receipt = withBoardRead(waitContext, board => events(board, { itemId: item.item_id })
       .findLast(event => event.event_kind === 'submit'
         && JSON.parse(event.event_detail).commit === gateResult.commit));

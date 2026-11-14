@@ -9,6 +9,6 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('the README badge landing still runs its configured gate without affectedTests [C7]', () => {
-  assertBadgeLanding(e2e);
+test('the README badge landing still runs its configured gate without affectedTests [C7]', async t => {
+  await assertBadgeLanding(e2e, t);
 });

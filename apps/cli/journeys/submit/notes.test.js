@@ -57,7 +57,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await chrome.waitFor('!!document.querySelector(\'[data-tab="items"]\')');
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-history]")');
-    await chrome.stable("(() => { const more = document.querySelector('#detail [data-item-panel-history]'); if (more && more.getAttribute('aria-expanded') !== 'true') more.click(); return true; })()");
+    if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
     await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
     // Other notes sit around it (the add records a short one), so the long note is found by its first line.
     const noteKey = await chrome.stable(`[...document.querySelectorAll('#detail .tl-note')].find(note => note.textContent.includes('Line 1: the complete note')).querySelector('[data-timeline-more]').dataset.timelineMore`);
