@@ -41,7 +41,7 @@ test('a real submit follows a registered guard through a rename and refuses a de
   const accepted = await submitWithEnv(t, renamed.box, (...args) => renamed.box.run(...args), ['--infra', 'the guard fixture renames a registered guard']);
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   const ran = (accepted.receipt.gate.phases ?? []).flatMap(phase => phase.testOutcomes?.tests ?? []).filter(row => row.file === 'test/area/guard.test.js');
-  assert.equal(ran.length > 0 && ran.every(row => row.passed), true, 'the renamed guard executed during the submit, as a guard, at its new path and not at the old one');
+  assert.equal(ran.length > 0 && ran.every(row => row.passed), true, 'the renamed guard executed during the submit, as a guard, at its new path and not at the old one ' + JSON.stringify(accepted.receipt.gate.phases).slice(0, 3000));
 
   const deleted = project();
   rmSync(join(deleted.box.root, 'test/guard.test.js'));

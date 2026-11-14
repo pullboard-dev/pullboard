@@ -122,7 +122,7 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     seedGraph(box);
     box = builderRepo(box);
     // The pulled gate runs the frozen check in the runner's clone with a scrubbed environment, so each diagnostic is committed with the source; a check run here reads the environment first [C7,#7725].
-    const fileCheck = 'node -e "const f=require(\'node:fs\');console.error(process.env.BLOCKED_DIAGNOSTIC??f.readFileSync(\'diag.txt\',\'utf8\'));process.exit(Number(process.env.BLOCKED_EXIT||f.readFileSync(\'exit.txt\',\'utf8\')))"';
+    const fileCheck = 'node -e "const f=require(\'node:fs\');console.error(process.env.BLOCKED_DIAGNOSTIC??f.readFileSync(\'src/diag.txt\',\'utf8\'));process.exit(Number(process.env.BLOCKED_EXIT||f.readFileSync(\'src/exit.txt\',\'utf8\')))"';
     const added = await coordinatorLocal(box, 'add', 'build', 'Sandbox check', '--check', fileCheck);
     assert.equal(added.code, 0, added.err);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
@@ -132,8 +132,8 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     function stage(diagnostic, exit, message) {
       box.env.BLOCKED_DIAGNOSTIC = diagnostic;
       if (exit === undefined) delete box.env.BLOCKED_EXIT; else box.env.BLOCKED_EXIT = exit;
-      put(box.root, 'diag.txt', diagnostic);
-      put(box.root, 'exit.txt', exit ?? '1');
+      put(box.root, 'src/diag.txt', diagnostic);
+      put(box.root, 'src/exit.txt', exit ?? '1');
       commitAll(box, message);
     }
     stage(`Error: EACCES: permission denied, open '${outside}'`, undefined, 'feat(core): update selected source [G1]');
