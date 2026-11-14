@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli apps/lib gate config landing state store items */
 /**
  * Accepted invariants cannot be edited away, deleted or duplicated at submit [V4,C7].
  */
