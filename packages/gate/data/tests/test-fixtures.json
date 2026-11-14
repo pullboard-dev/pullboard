@@ -3665,10 +3665,6 @@
     "model": 7,
     "raw-board": 8
   },
-  "apps/cli/journeys/submit/move.test.js": {
-    "model": 1,
-    "hand-policy": 1
-  },
   "apps/cli/tests/fixtures/submit/gate.js": {
     "tempdir": 2,
     "env-spread": 1,
