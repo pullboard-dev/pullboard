@@ -12,6 +12,7 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { builderRepo } from '../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../tests/fixtures/submit/gate.js';
@@ -34,7 +35,7 @@ async function project(t, { staticFails = false, staticLint = false, staticWaits
   const box = privateRepo(t);
   const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log'), doctrine: join(box.dir, 'doctrine.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
-    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules apps/cli/src/io/static/checks.js' : staticFails ? 'node test/static-problem.mjs' : staticWaitsForDoctrine ? `node test/wait-for.mjs ${markers.doctrine}` : 'true'}`,
+    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules apps/cli/src/io/static/checks.js' : staticFails ? 'node test/static-problem.mjs' : staticWaitsForDoctrine ? `node test/wait-for.mjs ${markers.doctrine} ${join(box.dir, 'machine-home')}` : 'true'}`,
     shared: ['pullboard.json'] }));
   if (staticLint) {
     put(box.root, 'packages/gate/data/baselines/test-waits-baseline.json', '{}\n');
@@ -48,17 +49,25 @@ if (failures.length) process.exitCode = 1;
   }
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], `ran ${Date.now()}\\n`);\n");
-  // Exits 0 only once the named file exists, so a static check that finishes proves the doctrine rule was running beside it, whatever the load.
-  put(box.root, 'test/wait-for.mjs', "import { existsSync } from 'node:fs';\nconst deadline = Date.now() + 60_000;\nwhile (!existsSync(process.argv[2])) {\n  if (Date.now() > deadline) { console.error('the doctrine rule never started beside the static check'); process.exit(1); }\n  await new Promise(resolve => setTimeout(resolve, 20));\n}\n");
+  // In the runner's gate job (a checkout under the machine's runner folder) it exits 0 only once the named file exists, so a static check that finishes there proves the doctrine rule was running beside it, whatever the load; the submit's own preflight, which runs no doctrine, passes at once.
+  put(box.root, 'test/wait-for.mjs', "import { existsSync, realpathSync } from 'node:fs';\nif (!realpathSync(process.cwd()).startsWith(realpathSync(process.argv[3]))) process.exit(0);\nconst deadline = Date.now() + 60_000;\nwhile (!existsSync(process.argv[2])) {\n  if (Date.now() > deadline) { console.error('the doctrine rule never started beside the static check'); process.exit(1); }\n  await new Promise(resolve => setTimeout(resolve, 20));\n}\n");
   put(box.root, 'test/static-problem.mjs', "console.error('src/a.js:1: a static problem');\nprocess.exit(1);\n");
   put(box.root, 'DOCTRINE.md', `# Doctrine\n\n## D · Fail fast\n- D1 [approved, must] The fixture rule leaves a marker when it runs. | gate: check ${MARK(markers.doctrine)} | count: 0\n`);
   commitAll(box);
   const builder = builderRepo(box);
-  assert.equal((await inProcess(builder, join(builder.dir, 'repo'), 'add', 'build', 'Fail fast fixture', '--criterion', 'the fixture change is submitted or refused', '--check', MARK(markers.item))).code, 0);
+  assert.equal((await inProcess(builder, join(builder.dir, 'repo'), 'add', 'build', 'Fail fast fixture', '--criterion', 'the fixture change is submitted or refused', '--check', MARK(markers.item), '--wait')).code, 0);
   assert.equal((await inProcess(builder, builder.root, 'claim', '1')).code, 0);
   // Adding the item ran its check once to baseline it; only runs after this point count.
   for (const path of Object.values(markers)) rmSync(path, { force: true });
   return { box: builder, markers };
+}
+
+/** Submit item 1 and settle it: a pull submit returns queued at once, then the machine's local runner serves the gate job [P7,C7]. */
+async function submitAndSettle(t, box, ...extra) {
+  const queued = box.run('submit', '1', '--json', '--no-next', '--infra', 'the fail-fast fixture', ...extra);
+  assert.equal(queued.code, 0, queued.out + queued.err);
+  const settleBox = { repo: box.root, env: box.env, run: (cwd, ...args) => inProcess(box, cwd, ...args) };
+  return settleSubmit(t, settleBox, JSON.parse(queued.out));
 }
 
 test('submit precheck refuses a dirty tree without scanning cells or running a gate [V4,C7]', async t => {
@@ -79,12 +88,11 @@ test('submit precheck refuses a candidate stacked on an unverified item without 
   const { box, markers } = await project(t);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): the first item changes the source [G1]');
-  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
-  const first = box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
-  assert.equal(first.code, 0, first.out + first.err);
+  const first = await submitAndSettle(t, box);
+  assert.equal(first.gate?.green, true, JSON.stringify(first.gate));
   const firstCommit = JSON.parse((await inProcess(box, box.root, 'show', '1', '--json')).out).item_commit;
   assert.match(firstCommit, /^[0-9a-f]{40}$/u);
-  assert.equal((await inProcess(box, join(box.dir, 'repo'), 'add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--check', MARK(markers.item))).code, 0);
+  assert.equal((await inProcess(box, join(box.dir, 'repo'), 'add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--check', MARK(markers.item), '--wait', '--not-duplicate-of', '1 fail fast fixture')).code, 0);
   assert.equal((await inProcess(box, box.root, 'claim', '2')).code, 0);
   put(box.root, 'src/b.js', 'export const other = 1;\n');
   commitAll(box, 'feat(core): the stacked item adds a source [G1]');
@@ -125,8 +133,8 @@ test('a change that conflicts with main is refused in seconds, before any static
   put(box.root, 'src/a.js', 'export const value = "branch";\n');
   commitAll(box, 'feat(core): the branch moves the same line [G1]');
   const started = Date.now();
-  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
-  const refused = box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
+  // Process-level: the conflict is refused by the submitting process before any gate job is offered, so it stays a child.
+  const refused = box.run('submit', '1', '--json', '--no-next', '--infra', 'the fail-fast fixture');
   const elapsed = Date.now() - started;
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /MERGE_CONFLICT/u);
@@ -139,8 +147,8 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
   const failing = await project(t, { staticFails: true });
   put(failing.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(failing.box, 'feat(core): change the source [G1]');
-  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
-  const refused = failing.box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
+  // Process-level: the static preflight refuses in the submitting process before any gate job is offered, so it stays a child.
+  const refused = failing.box.run('submit', '1', '--json', '--no-next', '--infra', 'the fail-fast fixture');
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /a static problem/u);
   assert.equal(existsSync(failing.markers.staticCheck), true, 'the static check ran');
@@ -148,12 +156,12 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
   const clean = await project(t, { staticWaitsForDoctrine: true });
   put(clean.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(clean.box, 'feat(core): change the source [G1]');
-  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
-  const accepted = clean.box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
-  assert.equal(accepted.code, 0, accepted.err + accepted.out);
+  const accepted = await submitAndSettle(t, clean.box);
+  assert.equal(accepted.gate?.green, true, JSON.stringify(accepted.gate));
   assert.equal(existsSync(clean.markers.staticCheck), true, 'the static check ran');
   assert.equal(existsSync(clean.markers.doctrine), true, 'the doctrine rule ran');
   assert.equal(existsSync(clean.markers.item), true, 'the item check ran');
+  assert.equal(existsSync(clean.markers.gate), true, 'the gate proof ran on the runner');
   // The static check only passes after the doctrine marker exists, so a green submit proves the two stages overlapped.
 });
 
@@ -169,8 +177,8 @@ test('changed import style is refused while other stages may run [V4,C7]', async
   const checkerOutput = checked.failure ?? checked.stderr ?? '';
   assert.notEqual(checked.status, 0, checkerOutput);
   assert.match(checkerOutput, /test\/style-bad\.js:1: one import binding per line/u);
-  // Process-level: this submit holds its gate in the submitting process (controller dispatch), so it stays a child.
-  const result = box.run('submit', '1', '--json', '--infra', 'static preflight fixture');
+  // Process-level: the static preflight refuses in the submitting process before any gate job is offered, so it stays a child.
+  const result = box.run('submit', '1', '--json', '--no-next', '--infra', 'static preflight fixture');
   assert.equal(existsSync(markers.staticCheck), true, 'the submit static stage actually ran');
   assert.notEqual(result.code, 0, result.err + result.out);
   assert.match(result.err + result.out, /test\/style-bad\.js:1: one import binding per line/u);
