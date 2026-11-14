@@ -336,7 +336,7 @@ test('doctor finds a missing lifecycle trigger without reinstalling it [A6]', as
   mutate(box, (db) => db.exec('DROP TRIGGER machine_item_start'));
   const result = await box.local('doctor');
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /machine_item_start is missing; repair: run pullboard status/);
+  assert.match(result.stdout, /machine_item_start is missing; repair: run pullboard inbox/);
   const db = new DatabaseSync(box.dbFile, { readOnly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type='trigger' AND name='machine_item_start'").get().n, 0);
@@ -437,10 +437,10 @@ test('doctor reports missing triggers on a current empty layout without changing
     if (flags.length) {
       const document = JSON.parse(result.stdout);
       assert.equal(document.version, 1);
-      assert.ok(document.problems.some((problem) => problem.code === 'TRIGGER_MISSING' && problem.message.includes('machine_item_start') && problem.next === 'run pullboard status'));
+      assert.ok(document.problems.some((problem) => problem.code === 'TRIGGER_MISSING' && problem.message.includes('machine_item_start') && problem.next === 'run pullboard inbox'));
       assert.ok(document.problems.some((problem) => problem.code === 'TABLE_MISSING' && problem.message.includes('item') && problem.next.includes('pullboard status')));
     } else {
-      assert.match(result.stdout, /machine_item_start is missing; repair: run pullboard status/);
+      assert.match(result.stdout, /machine_item_start is missing; repair: run pullboard inbox/);
       assert.doesNotMatch(result.stdout, /no such table|Error:/);
     }
     assert.deepEqual(readFileSync(box.dbFile), before);

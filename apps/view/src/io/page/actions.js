@@ -1003,7 +1003,7 @@ $('shouts-pane').addEventListener('click', (event) => {
   if (!pick) return;
   view.unread = null;
   view.agent = pick.dataset.agent && pick.dataset.agent !== view.agent ? pick.dataset.agent : null;
-  if (!view.answering) addressTo(view.agent);
+  if (!view.answering) { addressTo(view.agent); if (view.agent) $('shouts-pane').dataset.compose = 'open'; }
   render();
 });
 // Enter shouts; Shift+Enter starts a new line.

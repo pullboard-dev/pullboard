@@ -156,22 +156,25 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', async t => {
   const mainRefusal = JSON.parse((await box.runLocal(box.repo, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(mainRefusal.code, 'MAIN_IS_COORDINATOR');
   assert.match(mainRefusal.next, /different agent session/iu);
-  assert.match(mainRefusal.next, /git worktree add --detach.*&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
-  const startup = mainRefusal.next.split('\n').find(line => line.includes('git worktree add --detach'));
-  assert.ok(startup, 'the refusal prints the complete reviewer startup on one line');
-  assert.match(startup, /&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
+  assert.doesNotMatch(mainRefusal.next, /git worktree add/u, 'the refusal names a pullboard command, never a hand-built worktree [V1] (#7925)');
+  const startup = mainRefusal.next.split('\n').find(line => line.includes('pullboard worktree review'));
+  assert.ok(startup, 'the refusal names the command that creates a review seat on one line');
+  assert.match(startup, /pullboard worktree review --model "<model name>", then cd into the path it prints and run: pullboard next --verify 1/u);
   assert.equal(initialized.out.split('\n').filter(line => line.includes('git worktree add --detach')).length, 1,
     'init explains the same reviewer path once');
   const self = JSON.parse((await box.runLocal(box.web, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(self.code, 'SELF_VERIFY', 'the startup guidance does not give the builder a verdict');
-  assert.match(startup, /--family "<vendor family>"/u);
-  const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
-  const independent = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.repo,
-    // The fixture model name maps to no tier, so join would default to mid; item #1 needs a strong verifier [V4].
-    env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture', PULLBOARD_ROUTE: 'strong' }, encoding: 'utf8' });
+  const command = startup.slice(startup.indexOf('cd '), startup.indexOf(', then')).replaceAll('"<model name>"', "'Independent Reviewer Model'");
+  const env = { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture', PULLBOARD_ROUTE: 'strong' };
+  // The fixture model name maps to no tier, so the seat would default to mid; item #1 needs a strong verifier [V4].
+  const made = runFixtureChild('/bin/sh', ['-c', command + " --route strong --family 'Independent Fixture Reviewer Vendor'"], { cwd: box.repo, env, encoding: 'utf8' });
+  assert.equal(made.status, 0, made.context);
+  const seat = made.stdout.match(/made (.+) on branch/u)?.[1];
+  assert.ok(seat, `the named command prints the new seat's path: ${made.stdout}`);
+  const independent = runFixtureChild('/bin/sh', ['-c', 'pullboard next --verify 1'], { cwd: seat, env, encoding: 'utf8' });
   assert.equal(independent.status, 0, independent.context);
   assert.match(independent.stdout, /next to verify: #1 Ready for review/u,
-    'the printed line reserves the submitted item from the new independent fixture session');
+    'the new independent seat is offered the submitted item');
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const item = store.getItem(board, 1);

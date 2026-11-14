@@ -23,6 +23,8 @@ import {
   EVENT_LOG_VERSION,
   openBoardReadOnly,
   readEventLogVersion,
+  OLDEST_UPGRADABLE_SCHEMA,
+  BOARD_TOO_OLD_NEXT,
   SCHEMA_VERSION,
 } from '../../../store/index.js';
 import {
@@ -148,6 +150,10 @@ function layoutProblems(db) {
 function versionProblems(db, isMain) {
   const version = db.prepare('PRAGMA user_version').get().user_version;
   if (version === SCHEMA_VERSION) return [];
+  // Schema 0 is an empty layout that status creates; 1 to before the oldest upgradable is refused by every write [R4].
+  if (version > 0 && version < OLDEST_UPGRADABLE_SCHEMA) {
+    return [finding('BOARD_TOO_OLD', `this board is schema ${version}, from before pullboard 0.9.3, and is too old for this pullboard to upgrade`, BOARD_TOO_OLD_NEXT)];
+  }
   const repair = version < SCHEMA_VERSION
     ? (isMain ? 'run pullboard status to upgrade this board' : DEFAULT_NEXT_STEPS.BOARD_SCHEMA_BEHIND)
     : 'use a pullboard version that supports this board schema';
@@ -161,7 +167,8 @@ function versionProblems(db, isMain) {
  * @returns {{ code: string, message: string, next: string }[]}
  */
 function triggerProblems(db) {
-  const repair = 'run pullboard status';
+  // Status only reads; the first board write rewrites a changed trigger, and inbox is the lightest one [R4].
+  const repair = 'run pullboard inbox';
   const expected = storeTriggers();
   const actual = new Map(db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all().map((row) => [row.name, row.sql]));
   const problems = [];

@@ -280,6 +280,7 @@ export function dashboardModel(project, history, { now, complete = true, working
     bins, landing, inReview, next, last,
     // At work, runners and sent back are the state's shared counts, so the top bar, this page and Activity never differ (#7310).
     totals: { working: Number.isInteger(shared?.agents) ? shared.agents : Array.isArray(working) ? working.length : agents.filter(agent => agent.group !== 'quiet').length,
+      joined: Number.isInteger(shared?.joined) ? shared.joined : null,
       runners: Number.isInteger(shared?.runners) ? shared.runners : (project.dashboardRunners?.runners ?? []).length,
       allTime: Number.isInteger(shared?.landed?.total) ? shared.landed.total : merged.size,
       day: pace?.last24h ?? (Number.isInteger(shared?.landed?.last24h) ? shared.landed.last24h : complete ? times.filter(at => at > now-24*hour).length : null),

@@ -19,6 +19,9 @@ export const SCHEMA_VERSION = 3;
  */
 export const OLDEST_UPGRADABLE_SCHEMA = 3;
 
+/** The one next step for a board from before the oldest upgradable release, shared by the refusal and doctor [R4]. */
+export const BOARD_TOO_OLD_NEXT = 'open this board with pullboard 0.9.3 first, then open it with this version';
+
 export const SCHEMA = `
   CREATE TABLE IF NOT EXISTS board_meta (
     meta_key TEXT PRIMARY KEY,
