@@ -12,8 +12,8 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../../../../tests/fixtures/e2e.js';
-import { settleSubmit } from '../../../../../tests/fixtures/submit/settle.js';
 import { joinFixtureSeat } from '../../../../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../../../../tests/fixtures/submit/settle.js';
 import { TIMING_RUN_ID_ENV } from '../../../../../../../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
@@ -108,9 +108,8 @@ test('clause 1: a clause case defined in a fixture file is mapped from a gate ru
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   for (const n of [1, 2]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
-  // A pulled submit returns queued; settle its gate before reading the packet the board writes with the receipt [V4,C7].
-  const queued = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
-  const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, queued);
+  // A pulled submit returns queued; settle its gate before reading the result [V4,C7].
+  const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out));
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
   const packet = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`), 'utf8'));
   const [greeting, legacy] = packet.clauses;
