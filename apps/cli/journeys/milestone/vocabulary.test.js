@@ -13,6 +13,7 @@ import { openBoard } from '../../../lib/index.js';
 import { acceptLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { buildLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
+import { chooseFilter } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
 import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
@@ -81,8 +82,8 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     await chrome.waitFor('!!data?.project');
     await pressTab(chrome, 'items');
     await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
-    await press(chrome, "document.querySelector('[data-filter-toggle]')");
-    await press(chrome, "document.querySelector('[data-state=all]')");
+    // The Show control sits in the page strip, not behind a filter toggle (bc76548477).
+    await chooseFilter(chrome, 'state:all');
     await chrome.waitFor("document.querySelector('#chain [data-item=\\\"10\\\"] .item-stage')");
     await chrome.stable(`(() => { const item = data.project.items.find(entry => entry.id === 7); item.verdictState = { code: 'STALE_VERDICT', file: 'web/verified.txt', commit: 'a'.repeat(40), main: 'b'.repeat(40) }; render(); return true; })()`);
     const list = JSON.parse(await chrome.stable(`JSON.stringify(Object.fromEntries([...document.querySelectorAll('#chain [data-item]')].map(row => [row.dataset.item,
