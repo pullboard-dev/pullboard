@@ -15,7 +15,7 @@ test('clause 1: relay on for a board whose presentation exceeds the relay limit 
   const before = existsSync(config) ? readFileSync(config, 'utf8') : null;
   // A tiny limit stands in for the relay's, so the test needs no giant board.
   box.env.PULLBOARD_RELAY_PRESENTATION_LIMIT = '1000';
-  const refused = await box.cli('relay', 'on', '--url', box.origin);
+  const refused = await box.cliLocal('relay', 'on', '--url', box.origin);
   assert.notEqual(refused.code, 0, 'relay on refuses');
   const said = JSON.stringify([refused.failure, refused.document]);
   assert.match(said, /RELAY_BOARD_TOO_LARGE/u, 'the refusal names its rule');
