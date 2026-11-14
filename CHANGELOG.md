@@ -30,7 +30,8 @@ Restructure for speed: runners pull their work from the board, landing runs as a
 - The view's account menu holds sign-in, settings, theme and phone pairing, and the project menu tells boards apart by owner, name and kind (#6648, #6650).
 - `pullboard edit` can change an item's title, keeping the old one in its thread; `add` and `edit` catch an ambiguous bar and name the fix (#4967, #4984).
 - `pullboard intake --brief` lets a pull request enter on the mid route, and `milestone --as person` lets the person ship a milestone (#3813, #5375).
-- Two settings from user reports: `rigor.autoDraft` turns off unproved Rigor drafts, and `review.independence` chooses session-level verifier independence (#5403, #5407).
+- The `rigor.autoDraft` setting turns off unproved Rigor drafts (#5403; reported in [GitHub #26](https://github.com/pullboard-dev/pullboard/issues/26) by @klartext79)
+- The `review.independence` setting chooses session-level verifier independence (#5407; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
 
 ### Changed
 
@@ -73,9 +74,18 @@ Restructure for speed: runners pull their work from the board, landing runs as a
 - A green proof survives a main merge that touches nothing its check reads, and re-claiming an item keeps its clause evidence when its commit and bar are unchanged (#5780, #5784).
 - A gate never reports green from a run that ran none of the selected tests, printed nothing, edited its own checkout or hid an early pipe failure, and a runner with no browser refuses browser-bound proof instead of skipping it (#7276, #7484, #7489, #7494, #7516).
 - A verify whose checkout or trunk moves during a fresh check cannot gain proof (#3024).
-- Relay moves never wait silently: a move over the size limit gets a refusal with its size and the limit, the hosted relay takes up to 10 MB, a move the relay permanently refuses is parked and `pullboard relay recover` resolves it, and every relay refusal has a next step (#1196, #1300, #6693, #6696, #6707).
+- A move the relay permanently refuses is parked, and `pullboard relay recover` resolves it (#6693; reported in [GitHub #14](https://github.com/pullboard-dev/pullboard/issues/14) by @McHersheys)
+- Relay moves never wait silently: a move over the size limit gets a refusal with its size and the limit, the hosted relay takes up to 10 MB, and every relay refusal has a next step (#1196, #1300, #6696, #6707).
 - The board protects itself: archives refuse when they would fill the disk, old code refuses to write a board whose schema is ahead of it, a board whose shape drifted repairs its tables and triggers, export and sync stream a large board, and a long write never blocks other writers for minutes (#2089, #4996, #5825, #5899, #7297).
-- Secrets: landing refuses a candidate whose added lines contain a secret, and the pre-commit scan skips binary files and checks only what a merge from main adds (#1316, #3762, #5968).
+- The pre-commit scan skips binary files, so one large binary is no longer refused (#1316; reported in [GitHub #3](https://github.com/pullboard-dev/pullboard/issues/3) by @mlnj)
+- Secrets: landing refuses a candidate whose added lines contain a secret, and the pre-commit scan checks only what a merge from main adds (#3762, #5968).
+- On Windows, `next` in a lane worktree reuses its seat instead of opening a second one, so `pullboard tour` passes step 3 (#3306; reported in [GitHub #16](https://github.com/pullboard-dev/pullboard/issues/16) by @anhtahaylove)
+- The refusal for a verifier in the builder's session says to start the review in a separate process, and the pullboard-run guide lists every refusal (#3311; reported in [GitHub #20](https://github.com/pullboard-dev/pullboard/issues/20) by @bens27)
+- After `takeover`, `land --adopt` hands the interrupted landing folder to the new coordinator session (#5399; reported in [GitHub #24](https://github.com/pullboard-dev/pullboard/issues/24) by @klartext79)
+- `pullboard publish` works from an agent's shell (#5400; reported in [GitHub #25](https://github.com/pullboard-dev/pullboard/issues/25) by @klartext79)
+- A declined Rigor rule stays declined, and reopening an item to correct its bar no longer counts as a failure (#5404; reported in [GitHub #26](https://github.com/pullboard-dev/pullboard/issues/26) by @klartext79)
+- Each subagent runs `next` as its own seat and stays in its lane (#5405; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
+- A claim in the wrong lane refuses and names the lane instead of opening a seat (#5413; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
 - Paths with spaces work in test subprocesses and recorded wait keys (#1873, #6763).
 - Daemons started by a desktop app keep that app's macOS Local Network permission (#5699).
 - Command fixes: `status` and `resume --diagnostics` no longer throw on the shared read path, `spec draft` writes the row it prints, `doctor` names a missing spec gate file instead of hanging, `merged` records an item once, `add` and `edit` never drop a repeated `--criterion`, and `withdraw`'s hint names the right flag (#2835, #3267, #3350, #3743, #3992, #4988).
