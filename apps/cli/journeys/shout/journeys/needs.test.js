@@ -1,5 +1,5 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/view apps/cli apps/lib */
 /** @pullboard-test-gui */
 /** Cockpit needs-you calls: a decision answered from the view, who holds the rest, and titles on a phone [N26]. */
 import assert from 'node:assert/strict';
