@@ -94,8 +94,8 @@ async function refresh(fresh = null, attempt = 1) {
     if (typeof MessageChannel === 'function' && data.project) {
       const nextTask = () => new Promise((later) => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); later(); }; channel.port2.postMessage(null); });
       await nextTask();
-      // The chrome's counts and the person's rulings are read first; the draw that follows finds them read.
-      if (data.project) { writeChrome(); personalNeedsOf(data.project); }
+      // The chrome's counts and the person's rulings are read first, none shown until the draw that finds them read (#7604).
+      if (data.project) { writeChrome(false); personalNeedsOf(data.project); }
       await nextTask();
     }
     const reading = detailRead;
