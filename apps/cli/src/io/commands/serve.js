@@ -78,6 +78,16 @@ const LOOPBACK = '127.0.0.1';
 /** The ledger port for a pulled gate's machinery diagnostics: the board repository's refusal-trial ledger, as the inline gate kept it [C7]. */
 const pulledRefusalTrials = { refuse: machineryRefusal, count: countTrialGate };
 
+/**
+ * What `pullboard serve` prints first: the address, that it answers JSON and no page, and the command that shows the view [C7].
+ *
+ * @param {string} url - The API's printed address.
+ * @returns {string[]}
+ */
+export function serveBanner(url) {
+  return [`Pullboard API v1 (JSON only, it has no page): ${url}`, 'To see the board in a browser, run: pullboard view'];
+}
+
 /** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
 export async function serveHere(io, values) {
   traceServeStartup('serve-context-start');
@@ -114,7 +124,7 @@ export async function serveHere(io, values) {
   // The one board served off loopback, by the address runner serve and install-serve take.
   const boards = networked ? [withBoardRead(ctx, board => store.boardId(board))].map(id => ({ id, runnerUrl: `${new URL(api.url).origin}/api/v1/boards/${id}` })) : [];
   io.result?.({ url: api.url, port: api.port, address, ...(networked ? { boards, keyFile: boardKeyFile() } : {}) });
-  io.say(`Pullboard API v1: ${api.url}`);
+  for (const line of serveBanner(api.url)) io.say(line);
   if (!networked) io.say('Only this machine can reach it, with its session secret. Ctrl-C stops it.');
   for (const board of boards) io.say(`Runners pull from ${board.runnerUrl} with the key in ${boardKeyFile()}:\n  pullboard runner install-serve <ssh-host> --board ${board.runnerUrl}`);
   if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);

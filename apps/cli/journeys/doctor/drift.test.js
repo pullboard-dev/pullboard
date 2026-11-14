@@ -118,7 +118,7 @@ test('clause 2: pullboard status restores changed pullboard triggers, and doctor
   assert.equal(created.status, 0, created.stderr || created.stdout);
   driftLikeWebsite(project.file);
   const found = await project.command('doctor');
-  for (const name of CHANGED) assert.match(found.stdout, new RegExp(`board trigger ${name} has changed; repair: run pullboard status`, 'u'));
+  for (const name of CHANGED) assert.match(found.stdout, new RegExp(`board trigger ${name} has changed; repair: run pullboard inbox`, 'u'));
 
   // Only the main checkout's code repairs a repository board, and a runner runs this source from a linked worktree: the
   // same repair runs on a copy outside any repository, and its file is put back where the CLI reads it.

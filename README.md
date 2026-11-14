@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://pullboard.dev"><img alt="pullboard: finished items" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpullboard-dev%2Fpullboard%2Fmain%2Fdocs%2Fbadges%2Fitems.json&amp;style=flat-square"></a>
-  <a href="https://www.npmjs.com/package/pullboard"><img alt="npm" src="https://img.shields.io/badge/npm-v0.9.3-121a17?style=flat-square"></a>
+  <a href="https://www.npmjs.com/package/pullboard"><img alt="npm" src="https://img.shields.io/badge/npm-v0.9.4-121a17?style=flat-square"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/pullboard?style=flat-square&color=6b4fc8"></a>
 </p>
 
@@ -63,14 +63,14 @@ You follow progress, answer questions and approve changes from one board, and th
 
 ### One agent. Or a hundred. (Maybe thousands.)
 
-We've cycled through 490 agents on Pullboard's own board so far, and your project runs the same Pullboard, held to the spec you approve. Every agent you add starts the same way: one command gives it a worktree, a lane of its own and its first instructions. Pair your phone when you're ready to walk away.
+We build Pullboard on Pullboard's own board, and your project runs the same Pullboard, held to the spec you approve. Every agent you add starts the same way: one command gives it a worktree, a lane of its own and its first instructions. Pair your phone when you're ready to walk away.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/what-dark.svg">
   <img src="docs/img/what.svg" alt="One board. Every agent. Every machine. All of it is in Pullboard 0.9.0. Run a whole team of agents: builders, verifiers and a coordinator; 101 work items merged in one day on Pullboard's own board, 7 October. Your board, on your phone: Answer what's waiting, anywhere. Sealed: the relay can't read it. Start from a blueprint: Pick the one for your project, then approve its rules. Plug in any agent: Keep Claude Code or Codex, and add any MCP client. Across your machines: Pair a machine once. Its agents share your board, in one order.">
 </picture>
 
-**What are blueprints?** New in 0.8.29. A blueprint is the spec rules and starter items for one kind of project. Ten come bundled, for web apps, libraries, iOS apps, data pipelines and more. Start a board from one:
+**What are blueprints?** A blueprint is the spec rules and starter items for one kind of project. Ten come bundled, for web apps, libraries, iOS apps, data pipelines and more. Start a board from one:
 
 ```bash
 npx pullboard init --blueprint web-app
@@ -86,11 +86,11 @@ You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement 
 
 Five primitives. Everything else is built on them.
 
-- **Items.** The tasks. Each has a bar it is checked against, and one agent works it at a time.
+- **Items.** The tasks. Each has a bar it is checked against, and an agent may hold several at once when their files don't overlap.
 - **Shouts.** How agents talk. Questions go up the chain, and only your calls reach you.
 - **Spec.** The plan, one row per requirement. Only the rows you approve count.
 - **Doctrine.** Each rule has an enforcer, from a git hook to review.
-- **Activity.** Every claim, submit, reject and accept, in order. Nothing happens off the record.
+- **Activity.** Every claim, submit, reject, accept and landing, in order. Nothing happens off the record.
 
 ### Why
 
@@ -108,7 +108,8 @@ Pullboard gives agents a shared plan, separate lanes and proof before work count
 - **Spec.** Approved rows in `SPEC.md` are the contract, frozen when an agent claims the work.
 - **Doctrine.** `DOCTRINE.md` holds the repo's rules. Hooks enforce what a machine can check.
 - **Lanes.** Each agent works in its own worktree. Claims are atomic, and items can wait on others.
-- **Proof.** Submit needs a green gate. Then a different agent verifies that exact commit.
+- **Proof.** Submit queues the gate on a runner and returns, so the agent takes its next item. A green gate, then a different agent verifies that exact commit.
+- **Landing.** Accepted work lands on main by itself, with its receipt.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/loop-dark.svg">
@@ -152,11 +153,11 @@ For example:
 - G1 [approved, must] A shopper can pay by card in one step. | gate: test/checkout.test.js
 ```
 
-The id is a section letter and a number. A row stays a draft until you approve it, and only approved rows count.
+The id is a section letter and a number. A row stays a draft until you approve it, and only approved rows count. Any agent can draft a row with `pullboard spec draft`, you approve it in the view or with `pullboard spec approve`, and the coordinator writes it into the file with `pullboard spec apply`.
 
 ### Receipts
 
-We build Pullboard this way, and nearly one in three items goes back. One receipt:
+We build Pullboard this way, and nearly one in four reviews sends the work back. One receipt:
 
 ```
 #13  worktree prints a subagent's opening lines
@@ -176,11 +177,12 @@ We build Pullboard this way, and nearly one in three items goes back. One receip
 
 Your agents work in terminals. You watch them here: every project on this machine, live on one page.
 
-- **Needs you:** only your calls. Decisions passed up, rows to approve, held lanes.
-- **Timeline:** every item's claims, submits and verdicts, with the reason for a reject.
-- **Actions:** add items, answer decisions, shout to a lane, hold a lane.
-- **API:** it runs on local API v1, which your own scripts can use too.
-- **Export:** `view --export` writes a static, replayable snapshot.
+- **Work:** Items, Shouts and Roadmap. Every item's state, bar and review history, the agents' conversation, and each release's progress.
+- **Rules:** your Spec and Doctrine.
+- **Insights:** Dashboard, Activity, Cost and Pipeline. Dashboard is the home page, with every number on the board. Cost shows time and tokens per item, by model, and only in the view on your own machine. Pipeline shows why work isn't moving.
+- **Rulings:** the calls only you can make, counted in the strip along the top beside the agents at work and the items landed per hour.
+- **Search, command palette and hotkeys** reach any page.
+- **Export:** `view --export` writes a static, replayable snapshot. Settings, theme and phone pairing are in the account menu.
 
 ```sh
 pullboard view
@@ -215,7 +217,7 @@ Each release's progress, with any item expanded in place: its criterion, agents,
 
 ### On your phone
 
-The same board in your pocket.
+The same board in your pocket, with a drawer for pages and projects.
 
 <details>
 <summary>The board on a phone</summary>
@@ -287,29 +289,27 @@ Then set the gate and the lanes in `pullboard.json`, as in [Configuration](#conf
 pullboard add web "Checkout" --specs G1 --criterion "card payment takes one step"
 ```
 
-File the work. Its bar freezes when an agent claims it.
+File the work. Its bar freezes when an agent claims it. `add` shows the three open items most like it, and asks you to say how it differs if it reads like a duplicate.
 
 Set `PULLBOARD_MODEL` to the model your agent actually uses; the `--model` option can take its value.
 
 ```sh
 pullboard worktree web --model "$PULLBOARD_MODEL"
-cd ../myapp-web-1
+cd .claude/worktrees/web-1
 pullboard next
 pullboard submit 1
 ```
 
-A **builder** claims it, commits citing the row as `feat(web): pay by card [G1]`, and submits green.
-
-Set `PULLBOARD_MODEL` to the model your agent actually uses; the `--model` option can take its value.
+A **builder** claims it, commits citing the row as `feat(web): pay by card [G1]`, and submits. The gate runs on a runner and the command returns, so the builder takes its next item. A red gate or a reject comes back through `next`.
 
 ```sh
 pullboard worktree review --model "$PULLBOARD_MODEL"
-cd ../myapp-review-1
+cd .claude/worktrees/review-1
 pullboard next --verify
 pullboard verify 1 accept --note "paid in one step; without the fix the test fails"
 ```
 
-A **verifier** checks out that exact commit, then accepts with evidence or rejects with a reason.
+A **verifier** checks out that exact commit, then accepts with evidence or rejects with a reason. An accept is enough: the lander puts the item on main and records the receipt.
 
 ### Working with agents
 
@@ -317,35 +317,92 @@ A few commands keep every agent on track.
 
 - `pullboard worktree` makes a lane worktree and prints a subagent's first instructions.
 - `pullboard resume` brings an agent back to its claim, messages and next step after a restart.
-- `pullboard next` claims the next free item, never one someone else holds.
+- `pullboard next` hands an agent its next work: rejected work first, then up to the claims it may hold, each in its own item folder and never one someone else holds.
+- `pullboard search <text>` finds items by meaning.
 - `pullboard run` lets a lighter model build simple items unattended.
 - Claude Code gets skills. Codex and others read `AGENTS.md` or `pullboard prompt <role>`. The [triage skill](skills/pullboard-triage/SKILL.md) covers outside issues and pull requests, with replies and actions approved by the maintainer; other agents can read it with `pullboard prompt triage`.
 
+## Runners and landing
+
+Runners are the machines that run your tests and land your work.
+
+```sh
+pullboard runner list
+pullboard runner status
+```
+
+With no runner set up, your own machine is the runner, and you do nothing. Add more machines when the tests queue up. Each runner pulls a job from the board while it has cores to spare, runs it and posts a signed receipt. `pullboard stats runners` shows wait times, run times and health.
+
+### Add a runner
+
+Serve the board on your network, then point a runner at the address it prints.
+
+```sh
+pullboard serve --address 192.168.1.20
+pullboard runner serve <runner address> --key <board key>
+```
+
+`serve` prints the runner address and where the board key is kept. Anyone on your network who holds that key can use the board, so keep it private. On a Mac you can reach over SSH, `pullboard runner install-serve <host> --board <runner address>` installs the runner as a service that restarts by itself. `pullboard runner drain <host>` takes a runner out of rotation.
+
+### Tests on runners
+
+An agent tests its change without waiting for the result.
+
+```sh
+pullboard test test/checkout.test.js
+pullboard test --status <run id>
+```
+
+The run goes on the queue and the command returns. A green run at the item's head ticks the parts of the bar it proves. Review and landing reuse that proof, and a test whose inputs haven't changed since its last green run is skipped.
+
+### Landing
+
+Accepted work lands on its own, as a job on a runner. The lander takes every accepted item that merges cleanly, lands them in the order they were accepted, refuses a candidate that fails its checks, and moves main forward. Your trunk remote refuses a push to main that has no landing receipt.
+
+```sh
+pullboard why
+pullboard land --why
+```
+
+`why` shows the release on one screen: the one thing holding each unlanded item. `land --why` says why nothing landed. An accepted item that no longer merges goes back to its lane with the conflict named.
+
+### Boards anywhere
+
+A clone on another machine can work the same board.
+
+```sh
+pullboard settings board.url <board address>
+pullboard settings board.token <board key>
+pullboard join web --model "$PULLBOARD_MODEL"
+```
+
+Run those in the clone. Its agents then work the board over its API: `next`, `claim`, `submit`, `verify` and `test` all work from there. For your phone, `pullboard view --lan` gives a private link on your own network, and `pullboard relay on` links the board through pullboard.dev, sealed so the relay can't read it.
+
 ## Architecture
 
-Your whole board is one file inside `.git`, on your machine.
+Your whole board is one file inside `.git`, on your machine. You can serve it to your other machines and runners.
 
 Every move follows one declaration, printed by `pullboard lifecycle`.
 
 ### Agentic Item Lifecycle (AILC)
 
-Items are state machines. Every item starts **open**. An agent claims it and it's **claimed**; if the agent goes quiet, it reopens. Once submitted, it's **submitted** until a verifier accepts it as **verified** or rejects it back to **open**. Only the coordinator can **withdraw** an item. The board refuses any move the declaration doesn't allow.
+Items are state machines. Every item starts **open**. An agent claims it and it's **claimed**; if the agent goes quiet, it reopens. Once submitted, it's **submitted** until a verifier accepts it as **verified** or rejects it back to **open**. Only the coordinator can **withdraw** an item, and with `withdraw.review` on, a second agent must confirm it. The board refuses any move the declaration doesn't allow.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/lifecycle-dark.svg">
-  <img src="docs/img/lifecycle.svg" alt="An item's life, drawn from src/machine.js: each state an item can be in, the moves between them, and the refusals every way into a final state can raise.">
+  <img src="docs/img/lifecycle.svg" alt="An item's life, drawn from the lifecycle declaration: each state an item can be in, the moves between them, and the refusals every way into a final state can raise.">
 </picture>
 
-<sub>Drawn from one declaration, `src/machine.js`, which the commands, the view and the docs all share.</sub>
+<sub>Drawn from one declaration, which the commands, the view and the docs all share.</sub>
 
 ### Data and storage
 
-Everything lives in your repo. Nothing is hosted.
+Everything lives in your repo. Nothing is hosted unless you link the relay.
 
 - **Spec, doctrine and config:** plain files, committed with your code.
 - **The board:** one SQLite file inside `.git`, shared by every worktree, never committed.
 - **Submitted work:** pinned in git, so it survives a deleted worktree.
-- **Backups:** `pullboard export` writes out the whole board.
+- **Backups:** `pullboard export` writes out the whole board, and maintenance compacts it every day.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/layout-dark.svg">
@@ -366,11 +423,11 @@ Everything lives in your repo. Nothing is hosted.
 }
 ```
 
-The **gate** is any command that proves your code, like `npm test` or `pytest`, and it runs before every submit and push. Each **lane** owns paths and spec sections, and a commit outside its lane is refused.
+The **gate** is any command that proves your code, like `npm test` or `pytest`. Submit queues it on a runner and returns. Each **lane** owns paths and spec sections, and a commit outside its lane is refused.
 
 #### Multi-language support
 
-Pick the gate for your stack. Chain checks with `&&`, like `ruff check . && pytest`.
+`init` finds each language in the repo and sets a gate for each one. To set one yourself, pick the gate for your stack. Chain checks with `&&`, like `ruff check . && pytest`.
 
 | Stack | Gate |
 | --- | --- |
@@ -388,15 +445,14 @@ Pullboard exists to keep a team of agents coherent over a long build.
 
 ### Limits
 
-- Worktree identity only means something on one machine. It's not a security boundary.
-- You can skip a hook with `--no-verify`. The pre-push gate and the verifier are the backstops.
+- A seat's identity is its worktree, on its own machine or through the board key. It's not a security boundary.
+- You can skip a hook with `--no-verify`. The trunk remote's landing receipt, the lander's checks and the verifier are the backstops.
+- `runner install-serve` sets up Mac runners only. On Linux, run `pullboard runner serve` under your own service manager.
 - CI runs on Linux and macOS. Windows isn't tested yet.
 
 ### What's next
 
-- A team shares one board: every person's clones, machines and phones show the same items in one order [E1].
-- Every session on a paired machine works the board alike: terminal, SSH, agent, scheduled job or CI; the key sits in an owner-only file [E9].
-- Each person may keep a private board per repo in ~/.pullboard; its items stay on that person's devices [E11].
+- Pullboard works the same on macOS, Linux and Windows [A8].
 
 The full plan lives in the Roadmap tab in Pullboard View and `pullboard roadmap`.
 

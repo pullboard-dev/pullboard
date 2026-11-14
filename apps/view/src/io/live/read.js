@@ -68,7 +68,8 @@ function parsed(text) {
 
 /**
  * The runners that ran this board's pulled jobs in the last day, by name without the per-session suffix: the local runner
- * that ran every gate shows on the runner card even while it holds no lease and no job is live (#7763).
+ * that ran every gate shows on the runner card even while it holds no lease and no job is live, though a finished job clears
+ * its lease owner (#7763).
  *
  * @param {import('node:sqlite').DatabaseSync} db - A board, read-only.
  * @param {number} now
@@ -76,8 +77,16 @@ function parsed(text) {
  */
 export function readRecentJobRunners(db, now) {
   const kinds = PULLED_KINDS.map(() => '?').join(', ');
-  return [...new Set(db.prepare(`SELECT DISTINCT job_lease_owner AS owner FROM job WHERE job_kind IN (${kinds}) AND job_lease_owner IS NOT NULL AND job_updated > ?`)
-    .all(...PULLED_KINDS, now - RUNNER_SEEN_MS).map(row => String(row.owner).replace(/-[0-9a-f]{6}$/u, '')))];
+  const names = new Set(db.prepare(`SELECT DISTINCT job_lease_owner AS owner FROM job WHERE job_kind IN (${kinds}) AND job_lease_owner IS NOT NULL AND job_updated > ?`)
+    .all(...PULLED_KINDS, now - RUNNER_SEEN_MS).map(row => String(row.owner).replace(/-[0-9a-f]{6}$/u, '')));
+  // A finished job clears its lease owner; the runner that claimed it stays named in its claimed step.
+  for (const row of db.prepare(`SELECT job_step.job_step_payload AS payload FROM job JOIN job_step ON job_step.job_step_job = job.job_id AND job_step.job_step_name = 'claimed'
+    WHERE job.job_kind IN (${kinds}) AND job.job_updated > ?`).all(...PULLED_KINDS, now - RUNNER_SEEN_MS)) {
+    const runner = parsed(row.payload)?.runner;
+    if (typeof runner === 'string' && runner) names.add(runner.replace(/-(?:[0-9a-f]{6}|\d{4,})$/u, ''));
+  }
+  // The per-session suffix is a random word or the runner's process id.
+  return [...names];
 }
 
 /**
