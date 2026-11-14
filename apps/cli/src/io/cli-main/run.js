@@ -36,6 +36,9 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
 const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
   'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
 
+/** The commands that never create a scratch folder, so they never resolve the scratch root. */
+const NO_SCRATCH = new Set(['list', 'show', 'whoami', 'status', 'inbox', 'roadmap', 'hook commit-msg']);
+
 /**
  * Whether a command line writes the board. Reads bind no write session and wake no dispatcher recovery, so a read
  * such as whoami, show or status pays for neither [C7].
@@ -97,7 +100,8 @@ async function timedMain(argv, streams) {
 /** Record local command wall time without sending timing data to the board. */
 export async function main(rawArgv, streams) {
   const { argv, why } = extractWhy(rawArgv);
-  (await import('../../../../../packages/config/index.js')).applyMachineScratch();
+  // Reads and the commit-msg hook make no throwaway folder, so they skip the config barrel's load; every other command hands the scratch root down first [C7].
+  if (!NO_SCRATCH.has(argv[0] === 'hook' ? `hook ${argv[1]}` : argv[0])) (await import('../../../../../packages/config/index.js')).applyMachineScratch();
   const { beginSeatTiming, timingSeat } = await import('../../../../../packages/seats/light.js');
   const cwd = streams.cwd ?? process.cwd();
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
