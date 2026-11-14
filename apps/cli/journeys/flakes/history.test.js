@@ -123,6 +123,7 @@ test('native check, submit and independent verification execute the old frozen p
   assert.equal(e2e.commitFile(box, web, 'web/item.txt', 'built\n', 'feat(web): build mapped fixture [G1]').status, 0);
   // The pulled gate settles before the item is verified [P7,C7].
   const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, await json(web, 'submit', '1'));
+  assert.equal(submitted.gate?.result ?? submitted.gate?.state, 'green', JSON.stringify(submitted.gate) + JSON.stringify(submitted.gateJob));
   box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
   try { await json(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'The original frozen command executes the mapped file.'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -190,6 +191,7 @@ test('why on an old name includes work landed at the new name [C7]', async (t) =
     await json(box.web, 'claim', String(id));
     assert.equal(e2e.commitFile(box, box.web, file, content, 'feat(web): preserve moved history [G1]').status, 0);
     const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, await json(box.web, 'submit', String(id)));
+    assert.equal(submitted.gate?.result ?? submitted.gate?.state, 'green', JSON.stringify(submitted.gate) + JSON.stringify(submitted.gateJob));
     box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
     try { await json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The named fixture file exists at the submitted source.'); }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
