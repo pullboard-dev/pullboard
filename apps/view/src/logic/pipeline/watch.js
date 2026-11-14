@@ -130,6 +130,8 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
       }
       continue;
     }
+    // Sent back is one definition on every page: a reject or a reopen, as the Dashboard and Cost count it (#7310).
+    if (kind === 'reopen' && id != null && period) { period.rejects++; period.reviewed.add(id); continue; }
     if ((kind === 'accept' || kind === 'reject') && id != null) {
       const d = parse(event.event_detail), reservedAt = reserveAt.get(id);
       if (period) {
@@ -268,11 +270,14 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
   const measured = value => typeof value === 'number' && Number.isFinite(value);
   const tone = (delta, higherBetter) => !measured(delta) || delta === 0 ? '' : (delta > 0) === higherBetter ? 'good' : 'bad';
   const verdicts = (period) => period.accepts + period.rejects;
-  const shareNow = rec.review && verdicts(w) > 0 ? w.rejects / verdicts(w) : null, shareBefore = rec.review && verdicts(b) > 0 ? b.rejects / verdicts(b) : null;
+  // Sent back is rejects and reopens over verdicts, the board's own definition (#7261); a window with none reads 0%, never a dash beside a Rework share (#7310).
+  const shared = project?.counts?.sentBack && Number.isFinite(project.counts.sentBack.share) ? project.counts.sentBack.share : null;
+  // With no review recorded in the window, the state's shared four-hour share stands in, so no dash sits beside the Rework share.
+  const shareNow = rec.review ? (verdicts(w) > 0 ? w.rejects / verdicts(w) : 0) : shared, shareBefore = rec.review ? (verdicts(b) > 0 ? b.rejects / verdicts(b) : 0) : null;
   const landedNow = w.landed.size, landedBefore = b.landed.size;
   const measures = [
     { key: 'landed', label: 'landed', value: rec.land ? landedNow : null, unit: '', delta: rec.land ? landedNow - landedBefore : null, higherBetter: true, ids: idsOf(w.landed) },
-    { key: 'sent-back', label: 'sent back', value: shareNow, unit: '%', delta: measured(shareNow) && measured(shareBefore) ? shareNow - shareBefore : null, higherBetter: false, ids: idsOf(w.reviewed) },
+    { key: 'sent-back', label: 'sent back', value: shareNow, unit: '%', delta: measured(shareNow) && measured(shareBefore) ? shareNow - shareBefore : null, higherBetter: false, ids: idsOf(w.reviewed), title: 'Share of finished reviews that were sent back, over the same window as the Dashboard count' },
     { key: 'idle', label: 'agents idle', value: compare?.current?.idleShare ?? null, unit: '%', delta: compare?.change?.idleShare ?? null, higherBetter: false, basis: '2 h' },
     { key: 'hours', label: 'agent-hours per landing', value: compare?.current?.agentHoursPerLanding ?? null, unit: '', delta: compare?.change?.agentHoursPerLanding ?? null, higherBetter: false, basis: '2 h' },
   ].map(entry => ({ ...entry, tone: tone(entry.delta, entry.higherBetter) }));
@@ -388,7 +393,7 @@ export function pipelineWatchHtml(model, { href = () => '#', itemHref = id => '#
     const shown = !Number.isFinite(entry.value) ? '—' : entry.unit === '%' ? Math.round(entry.value * 100) + '%' : entry.key === 'hours' ? fixed(entry.value, 1) : String(entry.value);
     const d = entry.delta, arrow = !Number.isFinite(d) || d === 0 ? '' : (d > 0 ? '↑' : '↓') + (entry.unit === '%' ? Math.abs(Math.round(d * 1000) / 10) + ' pts' : entry.key === 'hours' ? Math.abs(d).toFixed(1) : Math.abs(d));
     const body = '<b>' + shown + '</b> ' + esc(entry.label) + (arrow ? '<small class="' + entry.tone + '">' + arrow + '</small>' : '');
-    return '<span class="m"' + (entry.basis ? ' title="Counted over the last ' + entry.basis + ' against the ' + entry.basis + ' before"' : '') + '>' + link(entry.ids, body) + '</span>';
+    return '<span class="m"' + (entry.basis ? ' title="Counted over the last ' + entry.basis + ' against the ' + entry.basis + ' before"' : entry.title ? ' title="' + esc(entry.title) + '"' : '') + '>' + link(entry.ids, body) + '</span>';
   };
   const barSvg = (list, key, before) => {
     let x = 0;

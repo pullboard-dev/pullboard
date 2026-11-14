@@ -175,7 +175,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const runners = (() => {
     const live = m.runners, list = Array.isArray(live?.runners) ? live.runners : [];
     const settings = '<button type="button" class="dash-lk" data-tab="settings">Settings ›</button>';
-    if (!list.length) return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static">0</span>'), '<div class="dash-card dash-runners"><div class="dash-l"><p class="dash-empty">No runner reports to this board.</p></div></div>', { link: settings });
+    if (!list.length) return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static" data-count="runners">'+(m.totals?.runners ?? 0)+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l"><p class="dash-empty">No runner reports to this board.</p></div></div>', { link: settings });
     const busy = list.filter(runner => runner.busy).length, jobs = list.reduce((sum, runner) => sum + runner.jobs.length, 0);
     const pick = list.toSorted((a, b) => b.jobs.length - a.jobs.length || (b.cpu ?? 0) - (a.cpu ?? 0))[0];
     const load = cpu => '<svg class="dash-load" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect class="bg" width="100" height="1"/>'+(Number.isFinite(cpu) ? '<rect class="'+(cpu >= 90 ? 'hot' : cpu >= 70 ? 'hi' : '')+'" width="'+Math.min(100, cpu)+'" height="1"/>' : '')+'</svg>';
@@ -187,7 +187,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const job = entry => '<div class="dash-j"><span class="dash-id">'+(entry.item ? '#'+entry.item : '')+'</span><span class="dash-t">'+esc(entry.kind ?? 'job')+(entry.selected ? ' <small>· '+(entry.done ?? 0)+' of '+entry.selected+(entry.selected === 1 ? ' file' : ' files')+'</small>' : '')+'</span><span class="dash-age'+(entry.failing ? ' late' : '')+'">'+(entry.failing ? entry.failing+' red' : entry.minutesLeft !== null && entry.minutesLeft !== undefined ? entry.minutesLeft+'m left' : '')+'</span></div>';
     const runs = Array.isArray(live.runs) ? live.runs : [];
     const kinds = kind => runs.filter(run => run.kind === kind).length;
-    return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static">'+list.length+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
+    return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static" data-count="runners">'+(m.totals?.runners ?? list.length)+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
       + '<p class="dash-sub"><b>'+jobs+'</b> jobs on <b>'+busy+'</b> of '+list.length+' runners</p>'+table+'</div>'
       + '<div class="dash-node"><h3>Runner '+pick.runner+'<small>busiest</small></h3><p class="dash-facts"><b>'+pct(pick.cpu)+'</b> CPU · <b>'+pct(pick.ram)+'</b> RAM · <b>'+pick.jobs.length+'</b> jobs</p>'
       + sub('Running here · '+pick.jobs.length)+(pick.jobs.length ? pick.jobs.map(job).join('') : '<p class="dash-empty">Nothing running.</p>')
