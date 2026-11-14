@@ -18,16 +18,18 @@ import { pathToFileURL } from 'node:url';
 import { onBoard } from '../land/board.js';
 import { runFixtureChild } from '../child.js';
 import { waitForCondition } from '../runner/holders.js';
-import { automaticLandingDirectory } from '../../../../../packages/landing/index.js';
 
 /** The test file whose recorded defect holds the fixture trunk. */
 export const HELD = 'web/held.test.js';
 // The fixture runner reads RED and NAME: from the file text, so the held case is red for real when landing measures it (#3719).
 export const HELD_TEXT = "// RED NAME:held-case\nimport test from 'node:test'; test('held case', () => {});\n";
 
+/** The fixture repository's wake record folder; its main checkout's .git is the common directory. */
+const wakeDirectory = repo => join(repo, '.git', 'pullboard', 'automatic-landing');
+
 /** Read one of the fixture's private wake records, or null. */
 export function record(box, name = 'pending.json') {
-  const file = join(automaticLandingDirectory(box.repo), name);
+  const file = join(wakeDirectory(box.repo), name);
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
 
@@ -84,7 +86,7 @@ export function heldTrunk(t, { landProject, itemWorktree, submitItem, acceptItem
 
 /** What the wake left behind, so a lander that never backs off names the record, the timer and its own log. */
 export function wakeState(box) {
-  const log = join(automaticLandingDirectory(box.repo), 'worker.log');
+  const log = join(wakeDirectory(box.repo), 'worker.log');
   return JSON.stringify({ pending: record(box), timer: record(box, 'timer.json'), leases: leaseRequests(box).length,
     log: existsSync(log) ? readFileSync(log, 'utf8').slice(-1500) : null });
 }
@@ -120,7 +122,7 @@ export function resumeLander(box, { commits = {}, idle = false, pollMs = 5000 } 
   stopLanders(box);
   const source = [
     `import { runLandingWake, landingWakeMarks } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/io/landing/automatic.js')).href)};`,
-    `import { resumeAutomaticLanding, automaticLandingDirectory } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
+    `import { resumeAutomaticLanding, automaticLandingDirectory } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/src/io/automatic/scheduler.js')).href)};`,
     `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../tests/fixtures/child.js')).href)};`,
     "import { existsSync, readFileSync, writeFileSync } from 'node:fs'; import { join } from 'node:path'; import { randomUUID } from 'node:crypto';",
     'const { root, commits, idle, pollMs } = JSON.parse(process.argv[1]);',
