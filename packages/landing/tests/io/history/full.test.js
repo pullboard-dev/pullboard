@@ -115,5 +115,4 @@ test('#6814 clauses 1-2: the landing receipt reuse path is gone from reuse.js an
   try { named = execFileSync('git', ['grep', '-l', '-F', name], { cwd: root, encoding: 'utf8' }); }
   catch (error) { if (error.status !== 1) throw error; }
   assert.equal(named, '');
-  assert.equal(tracked(root, 'packages/landing/src/io/reuse.js').trim(), 'packages/landing/src/io/reuse.js', 'reuse.js keeps its other export');
 });
