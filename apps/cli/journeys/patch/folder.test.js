@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 /** Run the real CLI and retain its refusal text. */
 async function document(box, root, ...args) {
@@ -41,7 +42,8 @@ test('attach and submit compose a companion against the item folder, not its old
   box.git(folder, 'commit', '-m', 'feat(web): advance item fixture [G1]');
   const advanced = box.git(folder, 'rev-parse', 'HEAD');
   assert.notEqual(advanced, head);
-  const submitted = await document(box, folder, 'submit', String(item), '--wait', '--no-next');
+  // A pulled submit returns queued; the gate's receipt arrives once the runner settles it [C7,#7283].
+  const submitted = await settleSubmit(t, box, await document(box, folder, 'submit', String(item), '--no-next'));
   // The pulled gate judges the companions composed onto the item head: its source is that composed commit, not the head [P7].
   assert.notEqual(submitted.gate.source, advanced);
   assert.equal((await document(box, box.repo, 'patch', 'list', String(item))).patches[0].commit, advanced);
