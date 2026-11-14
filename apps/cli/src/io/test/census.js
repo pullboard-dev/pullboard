@@ -31,6 +31,7 @@ import { pulledShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
 import { parseShardHeader } from '../../logic/census.js';
 import { shardRows } from '../../logic/census.js';
+import { verdictOutcomes } from '../../logic/census.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
 import { fileBudgetField } from './file-limit.js';
@@ -74,7 +75,7 @@ function pulledCensus(ctx, io, values = {}) {
       try {
         const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
-        write(`${ran.outcomes ? formatTestOutcomes(randomUUID(), ran.outcomes) : ''}${ran.output}\n`);
+        write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${ran.output}\n`);
       } catch (error) {
         io.err(`pullboard test --census: shard ${label} got no answer: ${error?.message ?? error}`);
         write(`# landing shard ${label} attempt 1 on none: infrastructure (${error?.code ?? 'error'}) in ${Date.now() - started} ms\n`);
