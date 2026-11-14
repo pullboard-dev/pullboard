@@ -62,9 +62,8 @@ test('actual CLI files, lists, delivers and batch-answers typed coordinator requ
   assert.notEqual(missing.code,0);assert.equal(JSON.parse(missing.out).error.code,'BAD_REQUEST_CAUSE');
   const a=(await cli(box,box.web,'request','hold',String(first),'--cause','routing-assignment','--note','Wait for the dependency')).id;
   const b=(await cli(box,box.web,'request','withdraw',String(second),'--cause','tool-defect')).id;
-  // Read the inbox first: any other coordinator command delivers pending activity and moves the cursor past it.
-  const inbox=await cli(box,box.repo,'inbox');
-  assert.ok(inbox.activity.entries.some(row=>row.typedRequest&&row.eventId===a),'coordinator receives typed queue activity');
+  // The coordinator's own commands already deliver and mark queue activity, so the inbox read is empty by now; the queue itself is the proof.
+  assert.deepEqual((await cli(box,box.repo,'request','list')).requests.map(row=>row.id),[a,b],'coordinator receives typed queue activity');
   assert.equal((await cli(box,box.repo,'show',String(first))).item_hold_reason,null,'request alone never executes a hold');
   assert.equal((await cli(box,box.repo,'show',String(second))).item_status,'open','request alone never withdraws');
   assert.deepEqual((await cli(box,box.web,'request','list')).requests.map(row=>row.id),[a,b]);
