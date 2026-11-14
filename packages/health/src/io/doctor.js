@@ -82,7 +82,7 @@ export function doctorProblems(file, root, tryGit, config, { isMain = true, chec
       ...preMergeHookProblems(root),
       ...unwiredHookProblems(root),
       ...eventProblems,
-      ...triggerProblems(db, isMain),
+      ...triggerProblems(db),
       ...layout.problems,
       ...(layout.itemFields ? itemProblems(db) : []),
       ...(layout.itemPins ? pinProblems(db, root, tryGit) : []),
@@ -156,12 +156,10 @@ function versionProblems(db, isMain) {
  * Report missing, changed or undeclared lifecycle triggers and how the normal opener repairs them.
  *
  * @param {DatabaseSync} db
- * @param {boolean} [isMain]
  * @returns {{ code: string, message: string, next: string }[]}
  */
-function triggerProblems(db, isMain = true) {
-  // Only the main checkout's code repairs a board, so anywhere else the repair is the one status names when it refuses (#7761).
-  const repair = isMain ? 'run pullboard status' : DEFAULT_NEXT_STEPS.BOARD_SCHEMA_BEHIND;
+function triggerProblems(db) {
+  const repair = 'run pullboard status';
   const expected = storeTriggers();
   const actual = new Map(db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all().map((row) => [row.name, row.sql]));
   const problems = [];
