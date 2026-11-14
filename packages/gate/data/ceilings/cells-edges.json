@@ -2532,10 +2532,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/landing/src/io/train.js": {
-      "cells": 3,
-      "deep": 0
-    },
     "packages/landing/src/io/train/receipt.js": {
       "cells": 4,
       "deep": 0

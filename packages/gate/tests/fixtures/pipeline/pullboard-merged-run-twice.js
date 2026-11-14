@@ -31,7 +31,7 @@ test('a second merged for a recorded item names the record and a different commi
     const merges = () => JSON.parse(run('log', '1', '--json').stdout).events.filter(event => event.event_kind === 'merged');
     const recorded = () => JSON.parse(run('show', '1', '--json').stdout).item_merged_commit;
     const first = box.git(alpha.repo, 'rev-parse', 'HEAD');
-    const one = run('merged', '1', first, '--forced', 'harness: first record');
+    const one = run('merged', '1', first, '--forced', 'harness: first record', '--waive-proof', 'harness has no receipt');
     assert.equal(one.status, 0, one.stdout + one.stderr);
     assert.equal(merges().length, 1, 'the first run records one merged event');
     assert.equal(recorded(), first);
