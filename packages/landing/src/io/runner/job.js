@@ -139,15 +139,21 @@ export function commandCheck(argv) {
  * lines merged since the base, then the candidate's CLI smoke on a scratch board. A refusal is the check's red, named
  * by its code. Why: a pulled land job ran neither, so a duplicate import or a broken help reached trunk [C7,#7307].
  */
-async function landingGuards({ root, base }) {
-  try {
-    await (await import('../guards.js')).requireLandingModuleResolution(root, base, 'HEAD');
-    (await import('../smoke.js')).runLandingCliSmoke(root);
-    return { ok: true, detail: null };
-  } catch (error) {
-    if (!error?.code) throw error;
-    return { ok: false, detail: `${error.code}: ${String(error.message).slice(0, 600)}` };
-  }
+function landingGuards(payload) {
+  return async ({ root, base, items }) => {
+    const merged = new Set(items);
+    try {
+      const guards = await import('../guards.js');
+      // A rename the path map does not record is refused as the batch landing refused it: LAND_MOVE_UNRECORDED [C7,#7700].
+      for (const entry of payload.items.filter(row => merged.has(row.id))) guards.requireRecordedMoves(root, base, entry.commit);
+      await guards.requireLandingModuleResolution(root, base, 'HEAD');
+      (await import('../smoke.js')).runLandingCliSmoke(root);
+      return { ok: true, detail: null };
+    } catch (error) {
+      if (!error?.code) throw error;
+      return { ok: false, detail: `${error.code}: ${String(error.message).slice(0, 600)}` };
+    }
+  };
 }
 
 /**
@@ -163,7 +169,7 @@ async function landingCheck(payload, env) {
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
     const guard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, commandCheck) : null;
-    const parts = [['check', landingGuards], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
+    const parts = [['check', landingGuards(payload)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
       ...(payload.check ? [['proof', commandCheck(payload.check)]] : []),
       ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
