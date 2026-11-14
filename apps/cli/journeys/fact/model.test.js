@@ -21,6 +21,8 @@ function strongSeatWithWork() {
   config.modelTiers = [{ contains: 'haiku', route: 'light' }, { contains: 'fixture-mid-model', route: 'mid' }, { contains: 'opus', route: 'strong' }];
   writeFileSync(file, JSON.stringify(config, null, 2));
   box.git(box.repo, 'commit', '-q', '-am', 'chore: project model tiers');
+  // The web-1 seat reads its own checkout's config, so it takes the tier table too.
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const strong = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Strong work', route: 'strong', diagnose: false });
   const mid = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Mid work', route: 'mid', diagnose: false });
   return { box, strong: strong.item_id, mid: mid.item_id };
