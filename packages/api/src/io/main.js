@@ -876,9 +876,9 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   return { status: 200, body: { version: VERSION, event, result } };
 }
 
-/** The relay ports a board API move sends with: the higher composition root's, saying nothing on this process's stderr. */
-function relayMoveIo(boardOpeners) {
-  return { err: () => {}, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem };
+/** The relay ports a board API move sends with: the higher composition root's, saying nothing on this process's stderr; extra adds or replaces ports. */
+function relayMoveIo(boardOpeners, extra = {}) {
+  return { ...extra, err: () => {}, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem };
 }
 
 /** Create a person's coordinator request through the view's channel, never a standalone serve key. */
@@ -1293,16 +1293,22 @@ async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
 }
 
 /**
- * Order a receipt's engine moves through the relay, oldest first; this replica applies each in the relay's order too.
+ * Queue a receipt's engine moves in this replica's relay outbox, oldest first: each applies here at once and the
+ * sender (or the next command's sync) orders it through the relay, so every replica sees it [C7,H16,H21].
+ * Why the outbox even when relay.outbox is off: the runner waits on this answer with a 15 s budget, and the receipt
+ * is recorded before the moves are sent, so a move that waited on the relay inline was lost when the runner gave up
+ * and its retry found the receipt already applied (#7562). The opt-out keeps a waiting command on the relay's ACK;
+ * no one waits on a receipt's moves, and the outbox keeps them across a timeout or a relay outage.
  * A move the relay or the board refuses is named in the answer and the rest still go, so a refused wake-up shout never
- * holds back the submit before it, and the runner's log says what did not reach the other replicas [C7,H16].
+ * holds back the submit before it, and the runner's log says what did not reach the other replicas.
  *
  * @returns {Promise<{ moves: number, refused: string[] }>}
  */
 async function relayReceiptMoves(root, moves, boardOpeners) {
   const refused = [];
+  const io = relayMoveIo(boardOpeners, { relayOutbox: () => true, launchRelaySender: boardOpeners.launchRelaySender });
   for (const { operation, args } of moves) {
-    try { await relayOperation(root, operation, args, relayMoveIo(boardOpeners)); }
+    try { await relayOperation(root, operation, args, io); }
     catch (error) {
       if (typeof error?.code !== 'string') throw error;
       refused.push(`${operation} ${error.code}: ${error.message}`.slice(0, 400));
