@@ -1,22 +1,25 @@
 /** @pullboard-test-input source-cell apps/view */
-/** #7311: Shouts rows keep the shout text on a phone and align the text column in every row [N26]. */
+/** Shouts rows are one fixed grid that never wraps, so the text column starts at the same x in every row [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { composeViewStyles } from '../../src/io/styles.js';
 
 const css = composeViewStyles();
-const rule = selector => [...css.matchAll(new RegExp(selector.replace(/[.]/gu, '\\.') + ' \\{([^}]*)\\}', 'gu'))].map(([, body]) => body);
+const rule = selector => [...css.matchAll(new RegExp('(?:^|\\n)' + selector.replace(/[.]/gu, '\\.') + ' \\{([^}]*)\\}', 'gu'))].map(([, body]) => body);
 
-test('clause 1: at phone width the shout text is never hidden and sits after the title in its own column [N26]', () => {
-  const phone = css.slice(css.lastIndexOf('.conversation-row { grid-template-columns: 38px'));
-  assert.match(phone, /^\.conversation-row \{ grid-template-columns: 38px minmax\(0, 1fr\) minmax\(0, 1fr\) 28px 40px/u, 'id, title, text, count, age');
-  assert.doesNotMatch(rule('.conversation-preview').join('\n'), /display: none/u);
-  assert.doesNotMatch(css.slice(css.lastIndexOf('.conversation-row { grid-template-columns: 38px')).split('\n}')[0], /\.conversation-preview \{ display: none/u);
-  assert.match(rule('.conversation-id, .conversation-title, .conversation-preview')[0], /text-overflow: ellipsis/u, 'the text ends in an ellipsis');
+test('clause 1: a thread row keeps fixed state, mark, count and time columns and never wraps [N26]', () => {
+  const [row] = rule('.sx-th');
+  assert.match(row, /grid-template-columns: 8px 76px minmax\(0, 1fr\) auto/u, 'dot, stage, text, time');
+  assert.doesNotMatch(row, /grid-template-columns:[^;]*\bauto\b[^;]*\bauto\b/u);
+  assert.match(row, /white-space: nowrap/u);
+  assert.match(rule('.sx-tt')[0], /text-overflow: ellipsis/u, 'the title ends in an ellipsis');
+  assert.match(rule('.sx-tx')[0], /text-overflow: ellipsis/u, 'the latest words end in an ellipsis');
+  assert.match(rule('.sx-n')[0], /min-width: 30px/u, 'the count column is as wide in every row');
 });
 
-test('clause 2: every row has fixed count and age columns, so the text column starts at the same x [N26]', () => {
-  const [row] = rule('.conversation-row');
-  assert.match(row, /grid-template-columns: 44px minmax\(0, 2fr\) minmax\(0, 3fr\) 32px 48px/u, 'no auto column that grows with a count like 25');
-  assert.doesNotMatch(row, /grid-template-columns:[^;]*\bauto\b/u);
+test('clause 2: the old conversation-row styling is gone, and at phone width the stage column folds away, not the text [N26]', () => {
+  assert.doesNotMatch(css, /\.conversation-(row|id|title|preview|heading)/u);
+  const phone = css.slice(css.indexOf('@media (max-width: 640px) {\n  .sx-th'));
+  assert.match(phone, /\.sx-st \{ display: none; \}/u);
+  assert.doesNotMatch(phone.split('\n}')[0], /\.sx-tx \{ display: none/u, 'the shout text is never hidden');
 });

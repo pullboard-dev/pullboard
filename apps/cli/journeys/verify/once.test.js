@@ -27,6 +27,7 @@ import {
 } from '../../../../packages/gate/index.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { captureCommandInProcess } from '../../tests/fixtures/process.js';
 import { main } from '../../tests/fixtures/native.js';
 import { openBoard } from '../../../lib/index.js';
@@ -170,6 +171,8 @@ test('native review records sealed citations and reuses the actual submit execut
   box.git(box.web, 'add', '-A'); box.git(box.web, 'commit', '-qm', 'feat(web): change private base [G1]');
   const submitted = await cli(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  // Under pull dispatch submit returns once the gate job is queued; wait for the runner to settle it before reading its marker.
+  await settledGateJob(box, id);
   const count = readFileSync(baseRuns, 'utf8');
   assert.equal(count, 'x', 'submit executes the actual candidate test exactly once');
   assert.equal(existsSync(aloneRuns), false, 'the unchanged sealed package did not execute');
