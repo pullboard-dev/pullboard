@@ -166,7 +166,7 @@ test('the doctrine detail keeps its citing items after a tab round trip [N26,C7]
     const links = detail?.querySelector('.links');
     const target = links?.querySelector('[data-item="2"]');
     const box = target?.getBoundingClientRect();
-    return { tab:document.querySelector('[data-tab="doctrine"]')?.classList.contains('on'), paneHidden:!!pane?.hidden,
+    return { tab:document.querySelector('[data-tab="doctrine"]:not(:root)')?.classList.contains('on'), paneHidden:!!pane?.hidden,
       detailOpen:!!heading,
       heading:heading?.textContent ?? null, linksPresent:!!links,
       itemIds:[...(links?.querySelectorAll('[data-item]') ?? [])].map(row => row.dataset.item),
@@ -179,7 +179,7 @@ test('the doctrine detail keeps its citing items after a tab round trip [N26,C7]
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
-      await press(chrome, "document.querySelector('[data-tab=doctrine]')");
+      await press(chrome, "document.querySelector('[data-tab=doctrine]:not(:root)')");
       await press(chrome, "document.querySelector('#doctrine-chips [data-rows=\"doctrine:all\"]')");
       await press(chrome, "document.querySelector('#doctrine-list [data-row=\"doctrine:G1\"]')");
       await chrome.waitFor("document.querySelector('#doctrine-detail .links [data-item=\"2\"]')");
@@ -188,13 +188,13 @@ test('the doctrine detail keeps its citing items after a tab round trip [N26,C7]
       assert.equal(before.targetPresent, true, `${width}px: the live Doctrine detail contains the second real citing item`);
       assert.equal(before.targetVisible, true, `${width}px: the live Doctrine citation is rendered before leaving`);
 
-      await press(chrome, "document.querySelector('[data-tab=items]')");
-      await chrome.waitFor("document.querySelector('[data-tab=items].on') && !document.querySelector('[data-pane=items]').hidden");
+      await press(chrome, "document.querySelector('[data-tab=items]:not(:root)')");
+      await chrome.waitFor("document.querySelector('[data-tab=items]:not(:root).on') && !document.querySelector('[data-pane=items]').hidden");
       const refreshMarkerTitle = `Refresh marker ${width}px`;
       await box.inProcess(repo.repo, 'add', 'web', refreshMarkerTitle, '--specs', 'G1', '--criterion', 'The refresh marker is visible from a real board read.');
       await chrome.waitFor(`data?.project?.items?.some(item => item.title === ${JSON.stringify(refreshMarkerTitle)})`);
-      await press(chrome, "document.querySelector('[data-tab=doctrine]')");
-      await chrome.waitFor("document.querySelector('[data-tab=doctrine].on') && !document.querySelector('[data-pane=doctrine]').hidden");
+      await press(chrome, "document.querySelector('[data-tab=doctrine]:not(:root)')");
+      await chrome.waitFor("document.querySelector('[data-tab=doctrine]:not(:root).on') && !document.querySelector('[data-pane=doctrine]').hidden");
       let waitError = null;
       try {
         await chrome.waitFor("!document.querySelector('[data-pane=doctrine]').hidden && document.querySelector('#doctrine-detail h2 span')?.textContent === 'G1' && document.querySelector('#doctrine-detail .links [data-item=\"2\"]')");
@@ -250,7 +250,7 @@ test('a doctrine row names its source under its id [N26]', { timeout: 300_000 },
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor(`!!data?.project?.practice?.some(row => row.id === ${JSON.stringify(inherited.id)})`);
-    await press(chrome, "document.querySelector('[data-tab=doctrine]')");
+    await press(chrome, "document.querySelector('[data-tab=doctrine]:not(:root)')");
     await press(chrome, "document.querySelector('#doctrine-chips [data-rows=\"doctrine:all\"]')");
     const expected = new Map([
       [inherited.id, 'Standard'],
@@ -311,7 +311,7 @@ test('a doctrine row names its source under its id [N26]', { timeout: 300_000 },
   try {
     allChrome = await openSnapshotChrome(executable, allView.link.href, allProfile);
     await allChrome.waitFor(`data?.project?.practice?.length === ${allStandard.rows.length}`);
-    await press(allChrome, "document.querySelector('[data-tab=doctrine]')");
+    await press(allChrome, "document.querySelector('[data-tab=doctrine]:not(:root)')");
     await press(allChrome, "document.querySelector('#doctrine-chips [data-rows=\"doctrine:all\"]')");
     for (const [width, theme] of [[375, 'light'], [1280, 'dark']]) {
       await allChrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
