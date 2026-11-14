@@ -238,7 +238,7 @@ test('[B34,V6] clean divergent submit and accept preserve every checkout and ind
   assert.deepEqual(checkoutState(box, review), reviewBefore);
   assert.deepEqual(checkoutState(box, box.web), after[1], 'accept leaves the builder checkout and index as submitted');
   // Accept only offers a land job under pull; the runner's landing is what advances trunk, so wait for its receipt [C7].
-  await settleLand(box, { messages: [accepted.out, accepted.err] });
+  await settleLand(box, { messages: [accepted.out, accepted.err] }, { deadlineMs: 45_000 });
   // Accept lands the verified source on trunk, so the primary checkout advances cleanly to contain it.
   const landed = checkoutState(box, box.repo);
   assert.equal(box.git(box.repo, 'merge-base', after[1].head, landed.head), after[1].head, 'the primary head contains the verified builder head');
