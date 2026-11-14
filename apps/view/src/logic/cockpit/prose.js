@@ -14,7 +14,8 @@ function markAlone(refs) {
   const blocks = new Map();
   for (const ref of refs) {
     let block = ref.parentElement;
-    while (block.parentElement && INLINE_TAGS.has(block.tagName)) block = block.parentElement;
+    // A span the page lays out as a block (a shout's text in its row, 154e174c55) is the block around its references.
+    while (block.parentElement && INLINE_TAGS.has(block.tagName) && !(typeof getComputedStyle === 'function' && !getComputedStyle(block).display.startsWith('inline'))) block = block.parentElement;
     if (blocks.has(block)) blocks.get(block).push(ref); else blocks.set(block, [ref]);
   }
   for (const [block, inside] of blocks) {

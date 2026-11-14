@@ -213,3 +213,5 @@
   .sx-send { height: var(--tap); }
   .sx-all { min-height: var(--tap); }
 }
+/* A finger on a wide screen: the conversation link is a 44px target as it is on a phone. */
+@media (pointer: coarse) { .sx-lk { display: inline-flex; align-items: center; min-height: var(--tap); } }

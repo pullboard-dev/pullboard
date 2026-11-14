@@ -14,6 +14,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
+  pressTab,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('Rulings keeps raw questions in details, and the notch opens the full list from the Dashboard [N26,B26]', { timeout:120_000 }, async () => { // budget: native809-item seed, authenticated HTTP and real Chrome at desktop/phone widths.
@@ -44,7 +45,8 @@ test('Rulings keeps raw questions in details, and the notch opens the full list 
     await chrome.waitFor('Number(document.querySelector("#notch [data-notch=rulings]")?.textContent) >= 4 && !!document.querySelector("#dashboard .dash-live")');
     assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-card, #dashboard .needs-call").length'),0,'the Dashboard holds no Rulings rows');
     const openOn = place => 'document.querySelectorAll("'+place+' .needs-call details[open]").length';
-    await chrome.click('document.querySelector("#notch [data-peek=rulings]")');
+    // 38945243eb: the rulings notch opens its own preview panel, so the full list is the Items page, reached through the page's tab.
+    await pressTab(chrome, 'items');
     await chrome.waitFor('view.tab === "items" && document.querySelectorAll("#needs [data-needs-key]").length === 4');
     assert.equal(await chrome.stable('document.querySelector("#needs .needs-copy b").textContent'),'#'+asks[0]+question+' Choice 1.', 'the complete Needs list retains the original native question after compact navigation');
     assert.equal(await chrome.stable(openOn('#needs')),0,'#6595: no Items Rulings row opens by default');
