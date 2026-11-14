@@ -155,7 +155,7 @@ test('a seat commits through the hooks 0.9.3 installed, or is told one command t
 test('doctor on the upgraded board ends clean after the steps it names [R4,A5]', t => {
   const box = project(t);
   const problems = box.cli(box.repo, box.coordinator, 'doctor');
-  const steps = [...(problems.stdout + problems.stderr).matchAll(/repair: (pullboard [^;\n]+)/gu)].map(match => match[1]);
+  const steps = [...(problems.stdout + problems.stderr).matchAll(/repair: (?:run )?(pullboard [^;\n]+)/gu)].map(match => match[1]);
   for (const step of steps) {
     const [, ...args] = words(step);
     const done = box.cli(box.repo, box.coordinator, ...args);
