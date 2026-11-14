@@ -92,7 +92,7 @@ test('submit precheck refuses a candidate stacked on an unverified item without 
   assert.equal(first.gate?.green, true, JSON.stringify(first.gate));
   const firstCommit = JSON.parse((await inProcess(box, box.root, 'show', '1', '--json')).out).item_commit;
   assert.match(firstCommit, /^[0-9a-f]{40}$/u);
-  const added = await inProcess(box, join(box.dir, 'repo'), 'add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--check', MARK(markers.item), '--wait', '--not-duplicate-of', '1 fail fast fixture');
+  const added = await inProcess(box, join(box.dir, 'repo'), 'add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--check', MARK(markers.item), '--wait', '--accept-green', 'the fixture check keeps passing', '--not-duplicate-of', '1 fail fast fixture');
   assert.equal(added.code, 0, added.out + added.err);
   assert.equal((await inProcess(box, box.root, 'claim', '2')).code, 0);
   put(box.root, 'src/b.js', 'export const other = 1;\n');
@@ -177,11 +177,13 @@ test('changed import style is refused while other stages may run [V4,C7]', async
   const checkerOutput = checked.failure ?? checked.stderr ?? '';
   assert.notEqual(checked.status, 0, checkerOutput);
   assert.match(checkerOutput, /test\/style-bad\.js:1: one import binding per line/u);
-  // Process-level: the static preflight refuses in the submitting process before any gate job is offered, so it stays a child.
-  const result = box.run('submit', '1', '--json', '--no-next', '--infra', 'static preflight fixture');
-  assert.equal(existsSync(markers.staticCheck), true, `the submit static stage actually ran: ${JSON.stringify(result)}`);
-  assert.notEqual(result.code, 0, result.err + result.out);
-  assert.match(result.err + result.out, /test\/style-bad\.js:1: one import binding per line/u);
+  // A test-only change skips the submit's own preflight, so the runner's gate job runs the static stage and refuses.
+  const queued = box.run('submit', '1', '--json', '--no-next', '--infra', 'static preflight fixture');
+  assert.equal(queued.code, 0, JSON.stringify(queued));
+  const settled = await settleSubmit(t, { repo: box.root, env: box.env, run: (cwd, ...args) => inProcess(box, cwd, ...args) }, JSON.parse(queued.out));
+  assert.equal(existsSync(markers.staticCheck), true, 'the static stage actually ran');
+  assert.notEqual(settled.gate?.green, true, JSON.stringify(settled.gate));
+  assert.match(JSON.stringify(settled.gate), /test\/style-bad\.js:1: one import binding per line/u);
   // The independent stages start beside the static check, so whether they ran before the refusal is not part of the contract.
   assert.equal(JSON.parse((await inProcess(box, box.root, 'show', '1', '--json')).out).item_status, 'claimed', 'a static refusal leaves the item claimed');
 });
