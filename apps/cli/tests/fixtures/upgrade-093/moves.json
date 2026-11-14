@@ -592,7 +592,7 @@
    "recorded": {
     "error": {
      "code": "ALREADY_MERGED",
-     "message": "item #1 was merged as 4e158e0e8a271e7a7b8d90ff150467efffd1a993; merged items cannot be reopened",
+     "message": "item #1 was merged as bd5dc82befead840a45f96c4206c626b24ba6601; merged items cannot be reopened",
      "next": "Run pullboard help, correct the reported problem, and retry the command."
     }
    }
@@ -607,7 +607,7 @@
     "agent_last_shout_id": 0,
     "agent_route": "strong",
     "agent_family": null,
-    "agent_created_at": "2026-11-14T06:59:19.325Z"
+    "agent_created_at": "2026-11-14T07:07:11.384Z"
    },
    {
     "agent_id": "api-1",
@@ -616,7 +616,7 @@
     "agent_last_shout_id": 0,
     "agent_route": "strong",
     "agent_family": null,
-    "agent_created_at": "2026-11-14T06:59:23.688Z"
+    "agent_created_at": "2026-11-14T07:07:17.413Z"
    },
    {
     "agent_id": "web-1",
@@ -625,7 +625,7 @@
     "agent_last_shout_id": 0,
     "agent_route": "strong",
     "agent_family": null,
-    "agent_created_at": "2026-11-14T06:59:23.945Z"
+    "agent_created_at": "2026-11-14T07:07:17.741Z"
    },
    {
     "agent_id": "review-1",
@@ -634,7 +634,7 @@
     "agent_last_shout_id": 0,
     "agent_route": "strong",
     "agent_family": null,
-    "agent_created_at": "2026-11-14T06:59:24.210Z"
+    "agent_created_at": "2026-11-14T07:07:18.096Z"
    }
   ],
   "board_meta": [
@@ -644,7 +644,7 @@
    },
    {
     "meta_key": "board_id",
-    "meta_value": "6f7a2f27cf592899f7f58e16d913cf79"
+    "meta_value": "91f1815178ca72d9d566a9d6c68fbb1c"
    },
    {
     "meta_key": "agent_model:coordinator",
@@ -652,15 +652,15 @@
    },
    {
     "meta_key": "spec_approval_baseline",
-    "meta_value": "{\"version\":1,\"file\":\"SPEC.md\",\"anchor\":\"6ccabb359c4c73ddb10c9eff9036ba9c5828a275\",\"rows\":[]}"
+    "meta_value": "{\"version\":1,\"file\":\"SPEC.md\",\"anchor\":\"df2e74c2c86d241615a493e1b3b52f8e70a8ad3f\",\"rows\":[]}"
    },
    {
     "meta_key": "row_drafts",
-    "meta_value": "[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\",\"tier\":\"must\",\"section\":\"G · Goals: what the client asked for\",\"target\":\"spec\",\"written\":true,\"by\":\"coordinator\",\"event\":3,\"at\":\"2026-11-14T06:59:21.621Z\"}]"
+    "meta_value": "[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\",\"tier\":\"must\",\"section\":\"G · Goals: what the client asked for\",\"target\":\"spec\",\"written\":true,\"by\":\"coordinator\",\"event\":3,\"at\":\"2026-11-14T07:07:14.396Z\"}]"
    },
    {
     "meta_key": "row_decisions",
-    "meta_value": "[{\"version\":1,\"type\":\"row-decision\",\"kind\":\"spec\",\"file\":\"SPEC.md\",\"id\":\"G1\",\"source\":\"- G1 [draft, must] An API returns a greeting | gate: review\",\"replacement\":\"- G1 [approved, must] An API returns a greeting | gate: review\",\"text\":\"An API returns a greeting\",\"decision\":\"approve\",\"reason\":\"\",\"by\":\"person\",\"on\":\"2026-11-14T06:59:21.821Z\",\"commit\":\"3b2676430c545cf2f3fa9fd8a873cad264647463\",\"note\":\"\",\"event\":4,\"at\":\"2026-11-14T06:59:21.822Z\",\"applied\":true,\"appliedAt\":\"2026-11-14T06:59:22.038Z\"}]"
+    "meta_value": "[{\"version\":1,\"type\":\"row-decision\",\"kind\":\"spec\",\"file\":\"SPEC.md\",\"id\":\"G1\",\"source\":\"- G1 [draft, must] An API returns a greeting | gate: review\",\"replacement\":\"- G1 [approved, must] An API returns a greeting | gate: review\",\"text\":\"An API returns a greeting\",\"decision\":\"approve\",\"reason\":\"\",\"by\":\"person\",\"on\":\"2026-11-14T07:07:14.616Z\",\"commit\":\"8f9056116b4c8121d672b8c22bf650127f7adf10\",\"note\":\"\",\"event\":4,\"at\":\"2026-11-14T07:07:14.618Z\",\"applied\":true,\"appliedAt\":\"2026-11-14T07:07:14.835Z\"}]"
    },
    {
     "meta_key": "agent_session:api-1",
@@ -714,7 +714,7 @@
   "event": [
    {
     "event_id": 1,
-    "event_at": "2026-11-14T06:59:19.326Z",
+    "event_at": "2026-11-14T07:07:11.384Z",
     "event_by": "coordinator",
     "event_kind": "join",
     "item_id": null,
@@ -722,15 +722,15 @@
    },
    {
     "event_id": 2,
-    "event_at": "2026-11-14T06:59:19.335Z",
+    "event_at": "2026-11-14T07:07:11.407Z",
     "event_by": "coordinator",
     "event_kind": "spec_approval_baseline",
     "item_id": null,
-    "event_detail": "{\"version\":1,\"file\":\"SPEC.md\",\"anchor\":\"6ccabb359c4c73ddb10c9eff9036ba9c5828a275\",\"rows\":[],\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"version\":1,\"file\":\"SPEC.md\",\"anchor\":\"df2e74c2c86d241615a493e1b3b52f8e70a8ad3f\",\"rows\":[],\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 3,
-    "event_at": "2026-11-14T06:59:21.621Z",
+    "event_at": "2026-11-14T07:07:14.396Z",
     "event_by": "coordinator",
     "event_kind": "row_draft",
     "item_id": null,
@@ -738,15 +738,15 @@
    },
    {
     "event_id": 4,
-    "event_at": "2026-11-14T06:59:21.822Z",
+    "event_at": "2026-11-14T07:07:14.618Z",
     "event_by": "person",
     "event_kind": "row_decision",
     "item_id": null,
-    "event_detail": "{\"record\":{\"version\":1,\"type\":\"row-decision\",\"kind\":\"spec\",\"file\":\"SPEC.md\",\"id\":\"G1\",\"source\":\"- G1 [draft, must] An API returns a greeting | gate: review\",\"replacement\":\"- G1 [approved, must] An API returns a greeting | gate: review\",\"text\":\"An API returns a greeting\",\"decision\":\"approve\",\"reason\":\"\",\"by\":\"person\",\"on\":\"2026-11-14T06:59:21.821Z\",\"commit\":\"3b2676430c545cf2f3fa9fd8a873cad264647463\",\"note\":\"\"},\"channel\":\"terminal\"}"
+    "event_detail": "{\"record\":{\"version\":1,\"type\":\"row-decision\",\"kind\":\"spec\",\"file\":\"SPEC.md\",\"id\":\"G1\",\"source\":\"- G1 [draft, must] An API returns a greeting | gate: review\",\"replacement\":\"- G1 [approved, must] An API returns a greeting | gate: review\",\"text\":\"An API returns a greeting\",\"decision\":\"approve\",\"reason\":\"\",\"by\":\"person\",\"on\":\"2026-11-14T07:07:14.616Z\",\"commit\":\"8f9056116b4c8121d672b8c22bf650127f7adf10\",\"note\":\"\"},\"channel\":\"terminal\"}"
    },
    {
     "event_id": 5,
-    "event_at": "2026-11-14T06:59:22.038Z",
+    "event_at": "2026-11-14T07:07:14.835Z",
     "event_by": "coordinator",
     "event_kind": "row_apply",
     "item_id": null,
@@ -754,7 +754,7 @@
    },
    {
     "event_id": 6,
-    "event_at": "2026-11-14T06:59:22.848Z",
+    "event_at": "2026-11-14T07:07:16.169Z",
     "event_by": "coordinator",
     "event_kind": "add",
     "item_id": 1,
@@ -762,7 +762,7 @@
    },
    {
     "event_id": 7,
-    "event_at": "2026-11-14T06:59:23.052Z",
+    "event_at": "2026-11-14T07:07:16.511Z",
     "event_by": "coordinator",
     "event_kind": "add",
     "item_id": 2,
@@ -770,7 +770,7 @@
    },
    {
     "event_id": 8,
-    "event_at": "2026-11-14T06:59:23.253Z",
+    "event_at": "2026-11-14T07:07:16.793Z",
     "event_by": "coordinator",
     "event_kind": "add",
     "item_id": 3,
@@ -778,7 +778,7 @@
    },
    {
     "event_id": 9,
-    "event_at": "2026-11-14T06:59:23.454Z",
+    "event_at": "2026-11-14T07:07:17.066Z",
     "event_by": "coordinator",
     "event_kind": "add",
     "item_id": 4,
@@ -786,7 +786,7 @@
    },
    {
     "event_id": 10,
-    "event_at": "2026-11-14T06:59:23.689Z",
+    "event_at": "2026-11-14T07:07:17.413Z",
     "event_by": "api-1",
     "event_kind": "join",
     "item_id": null,
@@ -794,7 +794,7 @@
    },
    {
     "event_id": 11,
-    "event_at": "2026-11-14T06:59:23.945Z",
+    "event_at": "2026-11-14T07:07:17.741Z",
     "event_by": "web-1",
     "event_kind": "join",
     "item_id": null,
@@ -802,7 +802,7 @@
    },
    {
     "event_id": 12,
-    "event_at": "2026-11-14T06:59:24.210Z",
+    "event_at": "2026-11-14T07:07:18.096Z",
     "event_by": "review-1",
     "event_kind": "join",
     "item_id": null,
@@ -810,31 +810,31 @@
    },
    {
     "event_id": 13,
-    "event_at": "2026-11-14T06:59:24.478Z",
+    "event_at": "2026-11-14T07:07:18.398Z",
     "event_by": "api-1",
     "event_kind": "claim",
     "item_id": 1,
-    "event_detail": "{\"leaseUntil\":\"2026-11-14T08:59:24.419Z\",\"digest\":\"837f08cdcf481c1316ea176753b4398eb7690aeaf8c4fb660548b318595f4adb\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T09:07:18.331Z\",\"digest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 14,
-    "event_at": "2026-11-14T06:59:26.262Z",
+    "event_at": "2026-11-14T07:07:20.491Z",
     "event_by": "api-1",
     "event_kind": "proof-run",
     "item_id": 1,
-    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"5806f3e2-3fd3-4b53-82fe-e2c6a95b7651\",\"kind\":\"submit\",\"item\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"frozenDigest\":\"837f08cdcf481c1316ea176753b4398eb7690aeaf8c4fb660548b318595f4adb\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:E289M.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":54,\"sourceClean\":true,\"at\":\"2026-11-14T06:59:26.183Z\",\"testRuntimes\":[{\"pid\":36581,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"369f2c2e-2ca6-48d4-892c-750b2e5ba3a4\",\"kind\":\"submit\",\"item\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"frozenDigest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:E289M.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":68,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:20.388Z\",\"testRuntimes\":[{\"pid\":37835,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 15,
-    "event_at": "2026-11-14T06:59:26.321Z",
+    "event_at": "2026-11-14T07:07:20.561Z",
     "event_by": "api-1",
     "event_kind": "submit",
     "item_id": 1,
-    "event_detail": "{\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"policyCommit\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"criterionDigest\":\"837f08cdcf481c1316ea176753b4398eb7690aeaf8c4fb660548b318595f4adb\",\"submissionProof\":{\"version\":1,\"files\":[],\"full\":true,\"deferred\":false,\"reason\":\"affected-test selection is not enabled for this project\"},\"gateGreen\":true,\"submissionSize\":{\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"head\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"lines\":1,\"method\":\"added-plus-deleted-no-renames\"},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"policyCommit\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"criterionDigest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"submissionProof\":{\"version\":1,\"files\":[],\"full\":true,\"deferred\":false,\"reason\":\"affected-test selection is not enabled for this project\"},\"gateGreen\":true,\"submissionSize\":{\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"head\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"lines\":1,\"method\":\"added-plus-deleted-no-renames\"},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 16,
-    "event_at": "2026-11-14T06:59:26.352Z",
+    "event_at": "2026-11-14T07:07:20.604Z",
     "event_by": "api-1",
     "event_kind": "activity-delivered",
     "item_id": null,
@@ -842,119 +842,119 @@
    },
    {
     "event_id": 17,
-    "event_at": "2026-11-14T06:59:26.937Z",
+    "event_at": "2026-11-14T07:07:21.324Z",
     "event_by": "review-1",
     "event_kind": "accept",
     "item_id": 1,
-    "event_detail": "{\"reason\":\"CRITERION_MET\",\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"note\":\"read the diff; criterion met; gate receipt green\",\"check\":\"none\",\"environment\":null,\"review\":{\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"head\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"trunk\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"paths\":[\"src/api/index.js\"]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"reason\":\"CRITERION_MET\",\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"note\":\"read the diff; criterion met; gate receipt green\",\"check\":\"none\",\"environment\":null,\"review\":{\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"head\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"trunk\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"paths\":[\"src/api/index.js\"]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 18,
-    "event_at": "2026-11-14T06:59:27.308Z",
+    "event_at": "2026-11-14T07:07:21.750Z",
     "event_by": "coordinator",
     "event_kind": "landing_lease",
     "item_id": null,
-    "event_detail": "{\"action\":\"request\",\"token\":\"06d8b9c0-ea03-407d-9423-4a403437b94e\",\"holder\":\"coordinator landing 06d8b9c0\",\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"action\":\"request\",\"token\":\"d78df246-1b83-41b5-8e4d-31ef215a9bbc\",\"holder\":\"coordinator landing d78df246\",\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 19,
-    "event_at": "2026-11-14T06:59:27.614Z",
+    "event_at": "2026-11-14T07:07:22.046Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/batch.log\",\"revision\":1,\"updatedAt\":\"2026-11-14T06:59:27.614Z\"},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":1,\"updatedAt\":\"2026-11-14T07:07:22.046Z\"},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 20,
-    "event_at": "2026-11-14T06:59:27.640Z",
+    "event_at": "2026-11-14T07:07:22.080Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/batch.log\",\"revision\":2,\"updatedAt\":\"2026-11-14T06:59:27.640Z\",\"resolutions\":[]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":2,\"updatedAt\":\"2026-11-14T07:07:22.080Z\",\"resolutions\":[]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 21,
-    "event_at": "2026-11-14T06:59:29.595Z",
+    "event_at": "2026-11-14T07:07:24.183Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"merge\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/batch.log\",\"revision\":3,\"updatedAt\":\"2026-11-14T06:59:29.595Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":3,\"updatedAt\":\"2026-11-14T07:07:24.183Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 22,
-    "event_at": "2026-11-14T06:59:29.608Z",
+    "event_at": "2026-11-14T07:07:24.201Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"merge\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/batch.log\",\"revision\":4,\"updatedAt\":\"2026-11-14T06:59:29.608Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":4,\"updatedAt\":\"2026-11-14T07:07:24.201Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 23,
-    "event_at": "2026-11-14T06:59:29.673Z",
+    "event_at": "2026-11-14T07:07:24.268Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"merge\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/affected-4.log\",\"revision\":5,\"updatedAt\":\"2026-11-14T06:59:29.673Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":5,\"updatedAt\":\"2026-11-14T07:07:24.268Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 24,
-    "event_at": "2026-11-14T06:59:30.043Z",
+    "event_at": "2026-11-14T07:07:24.692Z",
     "event_by": "coordinator",
     "event_kind": "gate-run",
     "item_id": null,
-    "event_detail": "{\"engine\":85,\"run\":{\"version\":1,\"id\":\"38e81e68-0eeb-430c-87ce-98ce7c496b60\",\"kind\":\"land\",\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"head\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"main\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"command\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"green\":true,\"failures\":[],\"load\":{\"average\":[9.1162109375,9.66650390625,10.67724609375],\"cpus\":14,\"freeMB\":2656},\"at\":\"2026-11-14T06:59:29.993Z\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"engine\":85,\"run\":{\"version\":1,\"id\":\"9dd37230-7a24-4cc8-8a55-acf10a1cacf3\",\"kind\":\"land\",\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"head\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"main\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"command\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"green\":true,\"failures\":[],\"load\":{\"average\":[10.486328125,11.35595703125,11.53759765625],\"cpus\":14,\"freeMB\":6531},\"at\":\"2026-11-14T07:07:24.636Z\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 25,
-    "event_at": "2026-11-14T06:59:30.089Z",
+    "event_at": "2026-11-14T07:07:24.736Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"merge\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/affected-4.log\",\"revision\":6,\"updatedAt\":\"2026-11-14T06:59:30.089Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":6,\"updatedAt\":\"2026-11-14T07:07:24.736Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 26,
-    "event_at": "2026-11-14T06:59:30.129Z",
+    "event_at": "2026-11-14T07:07:24.772Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"merge\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"trunk\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/affected-4.log\",\"revision\":7,\"updatedAt\":\"2026-11-14T06:59:30.129Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"proof\":{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"failures\":[],\"logPath\":null},\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"trunk\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":7,\"updatedAt\":\"2026-11-14T07:07:24.772Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"proof\":{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"failures\":[],\"logPath\":null},\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 27,
-    "event_at": "2026-11-14T06:59:30.134Z",
+    "event_at": "2026-11-14T07:07:24.777Z",
     "event_by": "coordinator",
     "event_kind": "merged",
     "item_id": 1,
-    "event_detail": "{\"commit\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 28,
-    "event_at": "2026-11-14T06:59:30.135Z",
+    "event_at": "2026-11-14T07:07:24.778Z",
     "event_by": "coordinator",
     "event_kind": "main-moved",
     "item_id": null,
-    "event_detail": "{\"sha\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"batch\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"items\":[1],\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"sha\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"batch\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"items\":[1],\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 29,
-    "event_at": "2026-11-14T06:59:30.135Z",
+    "event_at": "2026-11-14T07:07:24.779Z",
     "event_by": "coordinator",
     "event_kind": "landing_batch",
     "item_id": null,
-    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"fe0de8b5-150d-4274-8b4d-1bf8df6db772\",\"startedAt\":\"2026-11-14T06:59:27.610Z\",\"base\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"tip\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"items\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\",\"merge\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"landed\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/affected-4.log\",\"revision\":8,\"updatedAt\":\"2026-11-14T06:59:30.135Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/fe0de8b5-150d-4274-8b4d-1bf8df6db772/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"proof\":{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"failures\":[],\"logPath\":null},\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"5fbcd599805acde45283e69b60bff705e3b79b4e\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"landed\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":8,\"updatedAt\":\"2026-11-14T07:07:24.779Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"proof\":{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"failures\":[],\"logPath\":null},\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 30,
-    "event_at": "2026-11-14T06:59:30.431Z",
+    "event_at": "2026-11-14T07:07:25.066Z",
     "event_by": "coordinator",
     "event_kind": "landing_lease",
     "item_id": null,
-    "event_detail": "{\"action\":\"release\",\"token\":\"06d8b9c0-ea03-407d-9423-4a403437b94e\",\"holder\":null,\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"action\":\"release\",\"token\":\"d78df246-1b83-41b5-8e4d-31ef215a9bbc\",\"holder\":null,\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 31,
-    "event_at": "2026-11-14T06:59:30.644Z",
+    "event_at": "2026-11-14T07:07:25.275Z",
     "event_by": "coordinator",
     "event_kind": "shout",
     "item_id": null,
@@ -962,39 +962,39 @@
    },
    {
     "event_id": 32,
-    "event_at": "2026-11-14T06:59:30.950Z",
+    "event_at": "2026-11-14T07:07:25.563Z",
     "event_by": "web-1",
     "event_kind": "claim",
     "item_id": 2,
-    "event_detail": "{\"leaseUntil\":\"2026-11-14T08:59:30.882Z\",\"digest\":\"441721c3db9ec03eec5f4806f6015ad98f0b1671b86fa6fe4807f4e04871bcf9\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T09:07:25.496Z\",\"digest\":\"1b7776f4733dbe726c5a1744d158b1b3c5ea74fa55daf4f96fa2c449cc8ca04b\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 33,
-    "event_at": "2026-11-14T06:59:31.232Z",
+    "event_at": "2026-11-14T07:07:25.873Z",
     "event_by": "api-1",
     "event_kind": "claim",
     "item_id": 3,
-    "event_detail": "{\"leaseUntil\":\"2026-11-14T08:59:31.169Z\",\"digest\":\"e940ca70837c18d34a9dd79197a17a3d6ac90e32d61ea6c2cf85f1b33eb6e7dd\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T09:07:25.804Z\",\"digest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 34,
-    "event_at": "2026-11-14T06:59:32.681Z",
+    "event_at": "2026-11-14T07:07:27.442Z",
     "event_by": "api-1",
     "event_kind": "proof-run",
     "item_id": 3,
-    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"a770a83e-9466-4808-8091-0610d2d60f1b\",\"kind\":\"submit\",\"item\":3,\"commit\":\"a50a5afe9f17d8af70d67f6fb5f53f0e18ec3fb3\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"frozenDigest\":\"e940ca70837c18d34a9dd79197a17a3d6ac90e32d61ea6c2cf85f1b33eb6e7dd\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:E289M.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":51,\"sourceClean\":true,\"at\":\"2026-11-14T06:59:32.606Z\",\"testRuntimes\":[{\"pid\":42122,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"f8fb8634-a5d8-4787-9a60-ed4912edffbf\",\"kind\":\"submit\",\"item\":3,\"commit\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"frozenDigest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:E289M.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":53,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:27.356Z\",\"testRuntimes\":[{\"pid\":42848,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 35,
-    "event_at": "2026-11-14T06:59:32.740Z",
+    "event_at": "2026-11-14T07:07:27.511Z",
     "event_by": "api-1",
     "event_kind": "submit",
     "item_id": 3,
-    "event_detail": "{\"commit\":\"a50a5afe9f17d8af70d67f6fb5f53f0e18ec3fb3\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"policyCommit\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"criterionDigest\":\"e940ca70837c18d34a9dd79197a17a3d6ac90e32d61ea6c2cf85f1b33eb6e7dd\",\"submissionProof\":{\"version\":1,\"files\":[],\"full\":true,\"deferred\":false,\"reason\":\"affected-test selection is not enabled for this project\"},\"gateGreen\":true,\"submissionSize\":{\"base\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"head\":\"a50a5afe9f17d8af70d67f6fb5f53f0e18ec3fb3\",\"lines\":1,\"method\":\"added-plus-deleted-no-renames\"},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"commit\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"policyCommit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"criterionDigest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"submissionProof\":{\"version\":1,\"files\":[],\"full\":true,\"deferred\":false,\"reason\":\"affected-test selection is not enabled for this project\"},\"gateGreen\":true,\"submissionSize\":{\"base\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"head\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"lines\":1,\"method\":\"added-plus-deleted-no-renames\"},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 36,
-    "event_at": "2026-11-14T06:59:32.777Z",
+    "event_at": "2026-11-14T07:07:27.559Z",
     "event_by": "api-1",
     "event_kind": "activity-delivered",
     "item_id": null,
@@ -1002,7 +1002,7 @@
    },
    {
     "event_id": 37,
-    "event_at": "2026-11-14T06:59:33.019Z",
+    "event_at": "2026-11-14T07:07:27.861Z",
     "event_by": "coordinator",
     "event_kind": "hold_item",
     "item_id": 4,
@@ -1113,23 +1113,23 @@
     "item_status": "verified",
     "item_owner": "api-1",
     "item_lease_until": null,
-    "item_frozen": "{\"title\":\"Greeting endpoint\",\"criterion\":\"src/api/index.js exports greet() returning 'hello'\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"46af0a5decd8a7429b882804b8806a95324afb1a\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
-    "item_frozen_digest": "837f08cdcf481c1316ea176753b4398eb7690aeaf8c4fb660548b318595f4adb",
+    "item_frozen": "{\"title\":\"Greeting endpoint\",\"criterion\":\"src/api/index.js exports greet() returning 'hello'\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
+    "item_frozen_digest": "dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b",
     "item_built_by": "api-1",
     "item_builder_family": null,
-    "item_commit": "5fbcd599805acde45283e69b60bff705e3b79b4e",
+    "item_commit": "83cc21a52e7d9ace9bb911a89adc55438158b262",
     "item_tree": "f62c09eadad8f68a3b1618f4701577682f51abf3",
     "item_verdict": "ACCEPT",
     "item_verified_by": "review-1",
-    "item_merged_commit": "4e158e0e8a271e7a7b8d90ff150467efffd1a993",
+    "item_merged_commit": "bd5dc82befead840a45f96c4206c626b24ba6601",
     "item_withdrawn_reason": null,
     "item_hold_reason": null,
     "item_hold_by": null,
     "item_hold_at": null,
     "item_created_by": "coordinator",
-    "item_created_at": "2026-11-14T06:59:22.848Z",
-    "item_updated_at": "2026-11-14T06:59:30.134Z",
-    "item_claim_head": "46af0a5decd8a7429b882804b8806a95324afb1a",
+    "item_created_at": "2026-11-14T07:07:16.169Z",
+    "item_updated_at": "2026-11-14T07:07:24.777Z",
+    "item_claim_head": "22829dfef4cfc579174b43199afce4d649dc74d8",
     "item_files": "src/api/index.js",
     "item_review_by": null,
     "item_review_until": null
@@ -1147,9 +1147,9 @@
     "item_check": "",
     "item_status": "claimed",
     "item_owner": "web-1",
-    "item_lease_until": "2026-11-14T08:59:30.882Z",
-    "item_frozen": "{\"title\":\"Show greeting\",\"criterion\":\"src/web/index.js exports page() containing the greeting\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
-    "item_frozen_digest": "441721c3db9ec03eec5f4806f6015ad98f0b1671b86fa6fe4807f4e04871bcf9",
+    "item_lease_until": "2026-11-14T09:07:25.496Z",
+    "item_frozen": "{\"title\":\"Show greeting\",\"criterion\":\"src/web/index.js exports page() containing the greeting\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
+    "item_frozen_digest": "1b7776f4733dbe726c5a1744d158b1b3c5ea74fa55daf4f96fa2c449cc8ca04b",
     "item_built_by": null,
     "item_builder_family": null,
     "item_commit": null,
@@ -1162,9 +1162,9 @@
     "item_hold_by": null,
     "item_hold_at": null,
     "item_created_by": "coordinator",
-    "item_created_at": "2026-11-14T06:59:23.052Z",
-    "item_updated_at": "2026-11-14T06:59:30.950Z",
-    "item_claim_head": "4e158e0e8a271e7a7b8d90ff150467efffd1a993",
+    "item_created_at": "2026-11-14T07:07:16.511Z",
+    "item_updated_at": "2026-11-14T07:07:25.563Z",
+    "item_claim_head": "bd5dc82befead840a45f96c4206c626b24ba6601",
     "item_files": "",
     "item_review_by": null,
     "item_review_until": null
@@ -1183,11 +1183,11 @@
     "item_status": "submitted",
     "item_owner": "api-1",
     "item_lease_until": null,
-    "item_frozen": "{\"title\":\"Bye endpoint\",\"criterion\":\"src/api/index.js exports bye()\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"4e158e0e8a271e7a7b8d90ff150467efffd1a993\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
-    "item_frozen_digest": "e940ca70837c18d34a9dd79197a17a3d6ac90e32d61ea6c2cf85f1b33eb6e7dd",
+    "item_frozen": "{\"title\":\"Bye endpoint\",\"criterion\":\"src/api/index.js exports bye()\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
+    "item_frozen_digest": "c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f",
     "item_built_by": "api-1",
     "item_builder_family": null,
-    "item_commit": "a50a5afe9f17d8af70d67f6fb5f53f0e18ec3fb3",
+    "item_commit": "df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6",
     "item_tree": "4f1e75721362e6c888522648d168d3c41639a505",
     "item_verdict": null,
     "item_verified_by": null,
@@ -1197,9 +1197,9 @@
     "item_hold_by": null,
     "item_hold_at": null,
     "item_created_by": "coordinator",
-    "item_created_at": "2026-11-14T06:59:23.253Z",
-    "item_updated_at": "2026-11-14T06:59:32.740Z",
-    "item_claim_head": "4e158e0e8a271e7a7b8d90ff150467efffd1a993",
+    "item_created_at": "2026-11-14T07:07:16.793Z",
+    "item_updated_at": "2026-11-14T07:07:27.511Z",
+    "item_claim_head": "bd5dc82befead840a45f96c4206c626b24ba6601",
     "item_files": "src/api/index.js",
     "item_review_by": null,
     "item_review_until": null
@@ -1232,7 +1232,7 @@
     "item_hold_by": "coordinator",
     "item_hold_at": "2026-11-14T07:00:10.000Z",
     "item_created_by": "coordinator",
-    "item_created_at": "2026-11-14T06:59:23.453Z",
+    "item_created_at": "2026-11-14T07:07:17.065Z",
     "item_updated_at": "2026-11-14T07:00:10.000Z",
     "item_claim_head": null,
     "item_files": "",
@@ -1316,7 +1316,7 @@
     "shout_from": "coordinator",
     "shout_to": "api",
     "shout_text": "fixture shout: please add a test for #3",
-    "shout_at": "2026-11-14T06:59:30.644Z",
+    "shout_at": "2026-11-14T07:07:25.275Z",
     "shout_decision": 0,
     "shout_answers": null,
     "shout_evidence_kind": null,
@@ -1351,10 +1351,10 @@
     "verdict_decision": "ACCEPT",
     "verdict_reason": "CRITERION_MET",
     "verdict_note": "read the diff; criterion met; gate receipt green",
-    "verdict_commit": "5fbcd599805acde45283e69b60bff705e3b79b4e",
-    "verdict_digest": "837f08cdcf481c1316ea176753b4398eb7690aeaf8c4fb660548b318595f4adb",
-    "verdict_head": "5fbcd599805acde45283e69b60bff705e3b79b4e",
-    "verdict_at": "2026-11-14T06:59:26.936Z"
+    "verdict_commit": "83cc21a52e7d9ace9bb911a89adc55438158b262",
+    "verdict_digest": "dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b",
+    "verdict_head": "83cc21a52e7d9ace9bb911a89adc55438158b262",
+    "verdict_at": "2026-11-14T07:07:21.324Z"
    }
   ],
   "sqlite_sequence": [

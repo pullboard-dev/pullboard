@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import {
   chmodSync,
   copyFileSync,
-  cpSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -52,8 +52,8 @@ test('current code opens the 0.9.3 board and replays its recorded moves with ide
   copyFileSync(join(FIXTURE, 'board.sqlite'), file);
   const recorded = JSON.parse(readFileSync(join(FIXTURE, 'moves.json'), 'utf8'));
   assert.equal(recorded.release, '0.9.3');
-  /** A result or table with the event ids dropped: opening the board adds one guards event first, which shifts every later id by one. */
-  const unnumbered = value => JSON.parse(JSON.stringify(value, (key, field) => key === 'event_id' ? undefined : field));
+  /** A result or table with the event ids (event_id, eventId) dropped: opening the board adds one guards event first, which shifts every later id by one. */
+  const unnumbered = value => JSON.parse(JSON.stringify(value, (key, field) => key === 'event_id' || key === 'eventId' ? undefined : field));
   withFixtureBoard(file, board => {
     const opened = tables(board);
     assert.deepEqual(opened.item.map(row => [row.item_id, row.item_status]), [[1, 'verified'], [2, 'claimed'], [3, 'submitted'], [4, 'open']]);
@@ -88,7 +88,6 @@ test('current code opens the 0.9.3 board and replays its recorded moves with ide
 function project(t) {
   const dir = scratch(t);
   const repo = join(dir, 'repo');
-  cpSync(join(FIXTURE, 'repo'), repo, { recursive: true });
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   // The release after 0.9.3 is 0.9.4; until the package version says so, the hooks' version probe sees it from this shim.
@@ -107,11 +106,16 @@ function project(t) {
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   const git = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const setup = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
+  // The project 0.9.3 made: its own history, with the pins it keeps for submitted work, from a bundle of that repository.
+  mkdirSync(repo);
   setup(repo, 'init', '-q', '-b', 'main');
+  setup(repo, 'fetch', '-q', join(FIXTURE, 'repo.bundle'), '+refs/heads/main:refs/remotes/fixture/main', '+refs/pullboard/*:refs/pullboard/*');
+  setup(repo, 'checkout', '-q', '-B', 'main', 'refs/remotes/fixture/main');
   setup(repo, 'config', 'core.hooksPath', '.githooks');
   setup(repo, 'config', 'pullboard.trunk', 'refs/heads/main');
-  setup(repo, 'add', '-A');
-  setup(repo, 'commit', '-q', '-m', 'initial');
+  for (const hook of readdirSync(join(FIXTURE, 'hooks'))) {
+    assert.equal(readFileSync(join(repo, '.githooks', hook), 'utf8'), readFileSync(join(FIXTURE, 'hooks', hook), 'utf8'), `${hook} is the script 0.9.3 installed`);
+  }
   const worktree = join(repo, '.claude', 'worktrees', 'web-t');
   setup(repo, 'worktree', 'add', '-q', '--detach', worktree, 'main');
   mkdirSync(join(repo, '.git', 'pullboard'), { recursive: true });
