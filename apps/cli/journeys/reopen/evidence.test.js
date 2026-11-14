@@ -37,14 +37,14 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', async () =
   box.env.LAND_SUPPRESS_RED = '1';
   submitItem(box, entry, 'RED\n');
   acceptItem(box, entry);
-  box.env.LAND_SUPPRESS_RED = '0'; // the pulled gate reads a mirrored switch file; '0' turns suppression off there too
+  delete box.env.LAND_SUPPRESS_RED; // the switch folder mirrors the delete to the pulled gate, so the red shows
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
   moveMainPastSubmit(box);
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landing = box.run(box.repo, 'land', '--json');
   // The pulled land job returns the red item on its receipt; land itself offers the job and exits 0 [#4265].
   const settled = await settleLand(box, JSON.parse(landing.out));
-  assert.deepEqual(settled.landed, [], `every candidate is a culprit, so nothing lands: ${landing.err}${landing.out}`);
+  assert.deepEqual(settled.landed, [], `every candidate is a culprit, so nothing lands: ${landing.err}${landing.out}${JSON.stringify(settled.landJob ?? {})}`);
   assert.equal(settled.batch.state, 'blocked', JSON.stringify(settled.landJob ?? {}));
   const item = json(box, box.repo, 'show', String(entry.item));
   assert.equal(item.item_status, 'open');
