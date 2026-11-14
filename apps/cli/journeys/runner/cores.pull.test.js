@@ -39,5 +39,6 @@ async t => {
   const cores = readFileSync(steps, 'utf8').trim().split('\n').map(line => JSON.parse(line)).find(entry => entry.step === 'proof-cores');
   assert.ok(cores, 'the proof recorded its concurrency');
   assert.equal(cores.marker, '1', 'the gate job marks its proof as the runner job');
-  assert.equal(cores.files, availableParallelism(), 'the proof spreads its files over every core of the runner');
+  // A lone job gets twice its share of the runner's cores, since tests mostly wait on processes (#5919, jobWorkers in packages/drive pull.js).
+  assert.equal(cores.files, 2 * availableParallelism(), 'the proof spreads its files over twice the runner cores for a lone job');
 });
