@@ -633,10 +633,26 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   };
   /** Run a handled kind in this process and post its result as the receipt; a lost lease posts nothing. */
   const handled = async (claim, held, workCache, name) => {
+    // A handled job (a land job's proof) runs for minutes between its own renew() calls, so the lease is kept in the
+    // background as an argv job's is; renew() reads false only once the board refused the renewal (#7815).
+    const lease = keepLease(held);
     const renew = async () => {
-      try { return (await queueCall(endpoint, { action: 'renew', ...held }, fetchImpl)).renewed !== false; }
-      catch (error) { return error instanceof BoardUnreachable; }
+      if (lease.isLost()) return false;
+      let renewed;
+      try { renewed = (await queueCall(endpoint, { action: 'renew', ...held }, fetchImpl)).renewed !== false; }
+      catch (error) {
+        // An unreachable board keeps the job: the background renewal retries until the board answers.
+        if (error instanceof BoardUnreachable) return !lease.isLost();
+        renewed = false;
+      }
+      if (!renewed) lease.lose();
+      return renewed;
     };
+    try { return await runHandled(claim, held, workCache, name, renew); }
+    finally { lease.stop(); }
+  };
+  /** Run a handled kind's handler under a lease the caller keeps, and post its result as the receipt. */
+  const runHandled = async (claim, held, workCache, name, renew) => {
     let receipt;
     // A land job's proof runs under the same environment a gate job does, so its ledger context key matches the gate's [P7].
     liveEnvironments.add(name);
@@ -675,24 +691,30 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) };
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
+    const lease = keepLease(held);
+    try { return await runHeld(claim, trunk, slot, held, lease.isLost, lease.whenLost, claimedAt); }
+    finally { lease.stop(); }
+  };
+  /**
+   * Keep a held job's lease from its claim until stop(): renew every renewMs, and retry a renewal the board never
+   * answered every few seconds, past the lease too. Only the board's answer that another runner holds the job loses it,
+   * since the board renews a lapsed lease no one claimed (#6546); a handled job is kept the same way (#7815).
+   */
+  const keepLease = held => {
     let lost = false, onLost = () => {}, renewedAt = Date.now(), timer = null, ended = false;
-    const lose = () => { lost = true; onLost(); };
-    // A renewal the board never answered retries every few seconds, past the lease too: only the board's answer that
-    // another runner holds the job stops it, since the board renews a lapsed lease no one claimed (#6546).
+    const lose = () => { if (lost) return; lost = true; onLost(); };
     const renewOnce = () => {
       if (ended || lost) return;
       queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
         if (renewed.renewed === false) { lose(); return; }
-        renewedAt = Date.now(); timer = setTimeout(renewOnce, renewMs);
+        renewedAt = Date.now(); if (!ended) timer = setTimeout(renewOnce, renewMs);
       }, error => {
         if (error instanceof Refused && error.code === 'JOB_LEASE_MOVED') { lose(); return; }
-        say(`renewal ${Date.now() - renewedAt >= leaseMs ? 'still failing past the lease' : 'skipped'}: ${error.message}`); timer = setTimeout(renewOnce, renewRetryMs);
+        say(`renewal ${Date.now() - renewedAt >= leaseMs ? 'still failing past the lease' : 'skipped'}: ${error.message}`); if (!ended) timer = setTimeout(renewOnce, renewRetryMs);
       });
     };
     timer = setTimeout(renewOnce, renewMs);
-    const renewer = { stop: () => { ended = true; clearTimeout(timer); } };
-    try { return await runHeld(claim, trunk, slot, held, () => lost, stop => { onLost = stop; }, claimedAt); }
-    finally { renewer.stop(); }
+    return { isLost: () => lost, lose, whenLost: stop => { onLost = stop; }, stop: () => { ended = true; clearTimeout(timer); } };
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now()) => {
