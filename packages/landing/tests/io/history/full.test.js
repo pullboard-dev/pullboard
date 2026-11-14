@@ -1,4 +1,4 @@
-/** @pullboard-world-pin: the #6810 and #6812 cases read the committed tree, which must no longer hold the in-process landing batch or the candidate workers. */
+/** @pullboard-world-pin: the #6810, #6812, #6817 and #6818 cases read the committed tree, which must no longer hold the in-process landing batch, the candidate workers or the scheduler. */
 /** A landing reruns its items' submit proof, never the full plan, and a batch of many lands on its items' receipts [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -85,4 +85,28 @@ test('#6812 clauses 1-3: candidates.js and step/parallel.js are gone and no file
     }
   }
   assert.deepEqual(importers, []);
+});
+
+test('#6817 clauses 1-2: index.js exports nothing from the scheduler and no source calls its timer, owner or wake [C7,#6817]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  // The scheduler file is gone (#6818), so index.js has nothing of it to export; no source names its four entry points.
+  assert.equal(tracked(root, 'packages/landing/src/io/automatic'), '');
+  const names = ['scheduleAutomaticLanding', 'resumeAutomaticLanding', 'recoverAutomaticLanding', 'mainLandingWorker'];
+  let found = '';
+  try { found = execFileSync('git', ['grep', '-l', '-w', ...names.flatMap(name => ['-e', name]), '--', '*.js'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  const callers = found.split('\n').filter(Boolean).filter(file => !/(^|\/)(tests|journeys)\//u.test(file) && !file.endsWith('.test.js'));
+  assert.deepEqual(callers, []);
+});
+
+test('#6818 clauses 1-3: the scheduler and its test are gone and no landing source reads or writes its pending record or worker log [C7,#6818]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  assert.equal(tracked(root, 'packages/landing/src/io/automatic/scheduler.js'), '');
+  assert.equal(tracked(root, 'packages/landing/tests/io/automatic/scheduler.test.js'), '');
+  // Landing source: the landing package and the CLI's landing folder. The names are split so this file does not hold them.
+  const files = ['pending' + '.json', 'worker' + '.log'];
+  let named = '';
+  try { named = execFileSync('git', ['grep', '-n', '-F', ...files.flatMap(file => ['-e', file]), '--', 'packages/landing/src', 'apps/cli/src/io/landing'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  assert.equal(named, '');
 });
