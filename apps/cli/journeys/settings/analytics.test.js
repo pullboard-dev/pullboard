@@ -52,7 +52,7 @@ test('native landing cohorts, duration, unknowns and Wilson score remain consist
   assert.equal(result.totals.agentMs, 60000);
   assert.equal(result.totals.medianItemMs, 1000);
   assert.deepEqual(result.totals.sentBack, { items: 20, itemShare: 1 / 3, agentMs: 20000, agentMsShare: 1 / 3 });
-  assert.deepEqual(result.days, [{ date: '2026-10-30', firstTimeMs: 40000, sentBackMs: 20000, items: 60 }]);
+  assert.deepEqual(result.days, [{ date: '2026-10-30', firstTimeMs: 40000, sentBackMs: 20000, items: 60, timedItems: 60, untimedItems: 0 }]);
   assert.equal(result.builders.verdict, 'clear');
   assert.equal(result.builders.best, 'alpha');
   assert.equal(result.verifiers.rows[0].verdicts, 80);
@@ -60,6 +60,13 @@ test('native landing cohorts, duration, unknowns and Wilson score remain consist
   const interval = wilson(5, 10);
   assert.ok(Math.abs(interval.low - 0.236593) < 0.00001);
   assert.ok(Math.abs(interval.high - 0.763407) < 0.00001);
+});
+
+test('a day says how many of its landed items have recorded time and how many have none [N26]', () => {
+  const input = seeded([[FIXTURE_MODEL, 3, 0]]);
+  input.events = input.events.filter(event => !(event.event_kind === 'usage' && JSON.parse(event.event_detail).item === 2));
+  const [day] = costAnalytics(input).days;
+  assert.deepEqual([day.items, day.timedItems, day.untimedItems, day.firstTimeMs], [3, 2, 1, 2000]);
 });
 
 test('model comparison distinguishes overlapping, small and single qualified cohorts [N26]', () => {
