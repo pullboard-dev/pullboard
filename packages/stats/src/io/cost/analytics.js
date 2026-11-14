@@ -124,7 +124,8 @@ function* projectCost({ items, agents, events, window = '30d', now = new Date(),
   const sent = projected.filter(row => row.sentBack), sentMs = sent.length ? knownSum(sent.map(row => row.agentMs)) : 0;
   const days = [...new Set(projected.map(row => row.date))].sort().map(day => {
     const rows = projected.filter(row => row.date === day), first = rows.filter(row => !row.sentBack), returned = rows.filter(row => row.sentBack);
-    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length };
+    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length,
+      timedItems: rows.filter(row => row.agentMs !== null).length, untimedItems: rows.filter(row => row.agentMs === null).length };
   });
   /** Agent time per model and per lane: hours, share of the total and the part sent back [N26]. */
   const spread = (entries) => [...entries.values()].filter(row => row.agentMs > 0).sort((x, y) => y.agentMs - x.agentMs || String(x.key).localeCompare(String(y.key)))
