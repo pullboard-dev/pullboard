@@ -3,6 +3,7 @@ import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js'
 import { writeTarget } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { privateBuilder } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { settledCommit } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
@@ -18,7 +19,8 @@ test('a frozen private check that changes its source records no pair, and verify
   builder.git('add', '-A'); builder.git('commit', '-q', '-m', 'chore: controlled private-check mutation');
   const submitted = await builder.call('submit', String(id));
   assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
-  const head = (await box.call('show', String(id))).document.item_commit;
+  // The pulled gate posts its receipt before the item holds a submitted commit [P7,C7].
+  const head = await settledCommit(box, id);
   writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);

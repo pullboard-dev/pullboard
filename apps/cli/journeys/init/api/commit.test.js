@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import {
   apiHttpBox as httpBox,
   commitWork,
+  submitSettled,
   checkOutSubmitted,
   FIXTURE_BRIEF,
 } from '../../../tests/fixtures/api.js';
@@ -24,7 +25,9 @@ test('[A2, N26] a review through the API needs the reviewer on the submitted com
   const id = added.document.result.item.item_id;
   assert.equal((await box.call(box.path + '/moves', { verb: 'claim', item: id, agent: builder.agent })).status, 200);
   commitWork(box, builder, id);
-  assert.equal((await box.call(box.path + '/moves', { verb: 'submit', item: id, agent: builder.agent })).status, 200);
+  // The pulled gate must settle before a reviewer sees the submission [P7,N26].
+  const submitted = await submitSettled(t, box, args => box.call(box.path + '/moves', args), id, builder.agent);
+  assert.equal(submitted.status, 200);
   // A clean reviewer is switched onto the submitted commit (#2907); uncommitted work keeps it where it is.
   writeFileSync(join(verifier.path, 'scratch.txt'), 'uncommitted\n');
   const refusal = await box.call(box.path + '/moves', { verb: 'verify', item: id, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'not checked out' } });
