@@ -35,6 +35,7 @@ async t => {
   }
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'node --test' }, null, 2) + '\n');
+  const claimBase = box.git(box.repo, 'rev-parse', 'main'); // The items were claimed here; the gate reads main's receipts at the claim base too.
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: main red cases [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -42,7 +43,7 @@ async t => {
   // Main's receipts: each file is red on main in "main case" only.
   const red = file => ({ result: 'red', failures: [{ file, name: 'main case', signature: 'a'.repeat(64) }], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: `mr-${file}` });
   mkdirSync(dirname(cacheFile(box.repo)), { recursive: true });
-  writeFileSync(cacheFile(box.repo), JSON.stringify({ version: 2, entries: { [main]: Object.fromEntries(Object.keys(CASES).map(file => [file, red(file)])) } }), { mode: 0o600 });
+  writeFileSync(cacheFile(box.repo), JSON.stringify({ version: 2, entries: Object.fromEntries([main, claimBase].map(commit => [commit, Object.fromEntries(Object.keys(CASES).map(file => [file, red(file)]))])) }), { mode: 0o600 });
 
   const [mixed, mainOnly] = box.ids;
   const mixedSubmit = submitOne(box, mixed);
