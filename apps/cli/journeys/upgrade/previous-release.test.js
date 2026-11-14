@@ -26,6 +26,7 @@ import { FIXTURE_MODEL } from '../../tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { withFixtureBoard } from '../../tests/fixtures/testkit.js';
 
 const FIXTURE = join(import.meta.dirname, '../../tests/fixtures/upgrade-093');
@@ -33,7 +34,7 @@ const BIN = join(import.meta.dirname, '../../pullboard.js');
 /** The folder 0.9.3 built the fixture board in; its seats' recorded paths point here until a test moves them. */
 const MADE_IN = '/private/tmp/pbfx/repo';
 /** The version the CLI under test reports, which the 0.9.3 hooks are compared with. */
-const OWN_VERSION = runFixtureChild(process.execPath, [BIN, '--version'], { encoding: 'utf8' }).stdout.trim();
+const OWN_VERSION = (await runCliInProcess(['--version'], { env: withoutPullboardEnv(process.env) })).stdout.trim();
 
 /** The board tables a move can change, without the relay's own bookkeeping, which a replica does not share. */
 function tables(board) {
@@ -129,14 +130,14 @@ function project(t) {
   copyFileSync(join(FIXTURE, 'session-web.json'), join(repo, '.git', 'worktrees', 'web-t', 'pullboard-checkout-session.json'));
   const seat = { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'fx-web' };
   const coordinator = { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'fx-coord' };
-  const cli = (cwd, as, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: as, encoding: 'utf8' });
+  const cli = (cwd, as, ...args) => runCliInProcess(args, { cwd, env: as });
   return { repo, worktree, git, seat, coordinator, cli };
 }
 
 /** One shell-free command line split on spaces: a refusal's `Run:` step is a plain command. */
 const words = line => line.trim().split(/\s+/u);
 
-test('a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', { todo: 'the hook refusal and its repair from a worktree depend on #7760' }, t => {
+test('a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', { todo: 'the hook refusal and its repair from a worktree depend on #7760' }, async t => {
   const box = project(t);
   writeFileSync(join(box.worktree, 'src', 'web', 'index.js'), "export const y = 1;\nexport function footer() { return '<p>bye</p>'; }\n");
   assert.equal(box.git(box.worktree, 'add', '-A').status, 0);
@@ -146,23 +147,23 @@ test('a seat commits through the hooks 0.9.3 installed, or is told one command t
     assert.ok(step, `a refused commit names the command that clears it: ${committed.stderr}${committed.stdout}`);
     const [command, ...args] = words(step);
     assert.equal(command, 'pullboard', 'the named step is a pullboard command');
-    const cleared = box.cli(box.worktree, box.seat, ...args);
+    const cleared = await box.cli(box.worktree, box.seat, ...args);
     assert.equal(cleared.status, 0, `the named step works from the seat's worktree: ${cleared.stderr}${cleared.stdout}`);
     committed = box.git(box.worktree, 'commit', '-m', 'feat(web): footer [G1]');
   }
   assert.equal(committed.status, 0, committed.stderr + committed.stdout);
 });
 
-test('doctor on the upgraded board ends clean after the steps it names [R4,A5]', t => {
+test('doctor on the upgraded board ends clean after the steps it names [R4,A5]', async t => {
   const box = project(t);
-  const problems = box.cli(box.repo, box.coordinator, 'doctor');
+  const problems = await box.cli(box.repo, box.coordinator, 'doctor');
   const steps = [...(problems.stdout + problems.stderr).matchAll(/repair: (?:run )?(pullboard [^;\n]+)/gu)].map(match => match[1]);
   for (const step of steps) {
     const [, ...args] = words(step);
-    const done = box.cli(box.repo, box.coordinator, ...args);
+    const done = await box.cli(box.repo, box.coordinator, ...args);
     assert.equal(done.status, 0, `${step}: ${done.stderr}${done.stdout}`);
   }
-  const after = box.cli(box.repo, box.coordinator, 'doctor');
+  const after = await box.cli(box.repo, box.coordinator, 'doctor');
   // Only the main checkout's code repairs a board; a runner runs this source from a linked worktree, where doctor sends the person to main (#7761).
   if (codeIsFromMain()) {
     assert.equal(after.status, 0, after.stdout + after.stderr);
