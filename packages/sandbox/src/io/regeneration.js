@@ -14,7 +14,7 @@ import { recordedToolCommits } from '../../../git/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/light.js';
 import { Refused } from '../../../kernel/index.js';
 import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../kernel/index.js';
+import { scratchBase } from '../../../kernel/light.js';
 
 /** Execute a bounded fixed executable, keeping complete diagnostics in the caller's private log. */
 function execute(root, executable, args, log, { input, env = {} } = {}) {

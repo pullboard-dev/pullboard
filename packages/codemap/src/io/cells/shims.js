@@ -32,7 +32,7 @@ import {
 } from './plan/cuts.js';
 import { ownerFor } from './plan/cuts.js';
 import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../../kernel/index.js';
+import { scratchBase } from '../../../../kernel/light.js';
 
 /** Marks a use that takes the shim's whole namespace, so every name it exports must stay reachable. */
 const ALL = Symbol('all');

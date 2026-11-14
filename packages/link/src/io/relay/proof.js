@@ -10,7 +10,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../../kernel/light.js';
 import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../../kernel/index.js';
+import { scratchBase } from '../../../../kernel/light.js';
 
 /** Run ssh-keygen in a private scratch folder, refusing plainly when OpenSSH is not installed. */
 function sshKeygen(args, input) {

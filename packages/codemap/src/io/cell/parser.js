@@ -15,7 +15,7 @@ import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scratchBase } from '../../../../kernel/index.js';
+import { scratchBase } from '../../../../kernel/light.js';
 
 const parsers = new AsyncLocalStorage();
 const MAX_BYTES = 2 ** 26;

@@ -49,7 +49,7 @@ import {
   parseSpec,
 } from '../../../spec/index.js';
 import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../kernel/index.js';
+import { scratchBase } from '../../../kernel/light.js';
 import { storeName } from './store-names.js';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;

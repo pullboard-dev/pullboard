@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { lex } from '../../../../kernel/index.js';
 import { importsWithCompiler } from '../../../../kernel/index.js';
 import { commonJsWithCompiler } from '../../../../kernel/index.js';
-import { scratchBase } from '../../../../kernel/index.js';
+import { scratchBase } from '../../../../kernel/light.js';
 
 /**
  * A child Node that compiles each source in its private input file as an ES module and reports, for each, whether
