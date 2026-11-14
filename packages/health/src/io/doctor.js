@@ -16,6 +16,7 @@ import {
   STATES,
   storeTriggers,
 } from '../../../state/index.js';
+import { DEFAULT_NEXT_STEPS } from '../../../state/index.js';
 
 import {
   boardBusyError,
@@ -68,7 +69,7 @@ export function doctorProblems(file, root, tryGit, config, { isMain = true, chec
       const version = readEventLogVersion(db);
       if (version < EVENT_LOG_VERSION) {
         const next = isMain ? 'run pullboard status to upgrade this event log'
-          : 'merge this code into the main checkout first, then run pullboard status there; or test it against a throwaway board';
+          : DEFAULT_NEXT_STEPS.BOARD_SCHEMA_BEHIND;
         eventProblems.push(finding('EVENT_LOG_VERSION', `event log version is ${version}; this pullboard expects ${EVENT_LOG_VERSION}`, next));
       }
     }
@@ -146,7 +147,7 @@ function versionProblems(db, isMain) {
   const version = db.prepare('PRAGMA user_version').get().user_version;
   if (version === SCHEMA_VERSION) return [];
   const repair = version < SCHEMA_VERSION
-    ? (isMain ? 'run pullboard status to upgrade this board' : 'merge this code into the main checkout first, then run pullboard status there; or test it against a throwaway board')
+    ? (isMain ? 'run pullboard status to upgrade this board' : DEFAULT_NEXT_STEPS.BOARD_SCHEMA_BEHIND)
     : 'use a pullboard version that supports this board schema';
   return [finding('SCHEMA_VERSION', `schema version is ${version}; this pullboard expects ${SCHEMA_VERSION}`, repair)];
 }
@@ -158,16 +159,17 @@ function versionProblems(db, isMain) {
  * @returns {{ code: string, message: string, next: string }[]}
  */
 function triggerProblems(db) {
+  const repair = 'run pullboard status';
   const expected = storeTriggers();
   const actual = new Map(db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all().map((row) => [row.name, row.sql]));
   const problems = [];
   for (const trigger of expected) {
     const sql = actual.get(trigger.name);
-    if (sql === undefined) problems.push(finding('TRIGGER_MISSING', `board trigger ${trigger.name} is missing`, 'run pullboard status'));
-    else if (sql !== trigger.sql) problems.push(finding('TRIGGER_CHANGED', `board trigger ${trigger.name} has changed`, 'run pullboard status'));
+    if (sql === undefined) problems.push(finding('TRIGGER_MISSING', `board trigger ${trigger.name} is missing`, repair));
+    else if (sql !== trigger.sql) problems.push(finding('TRIGGER_CHANGED', `board trigger ${trigger.name} has changed`, repair));
   }
   for (const name of actual.keys()) {
-    if (!expected.some((trigger) => trigger.name === name)) problems.push(finding('TRIGGER_UNEXPECTED', `board trigger ${name} is unexpected`, 'run pullboard status'));
+    if (!expected.some((trigger) => trigger.name === name)) problems.push(finding('TRIGGER_UNEXPECTED', `board trigger ${name} is unexpected`, repair));
   }
   return problems;
 }

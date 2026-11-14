@@ -1,6 +1,6 @@
 /**
  * The notch's hover preview and rulings list: one centred panel under the notch, over a blurred page [N26].
- * Corey's prototype is nav-switch-approved-1112. Every function here uses only its arguments and the language's
+ * The approved prototype is nav-switch-approved-1112. Every function here uses only its arguments and the language's
  * globals, so the page script may embed its source text, as it does for the other view renderers. The page's
  * stylesheet policy refuses inline styles, so each bar is an SVG whose widths are attributes.
  */

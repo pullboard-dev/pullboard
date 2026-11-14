@@ -104,7 +104,7 @@
 :root[data-nav][data-side="collapsed"] .side.open .side-body { position: static; display: grid; width: auto; max-height: none; padding: var(--space-2); border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 /* The status bar: the system's own state, along the foot. */
 :root[data-nav] .status { height: 26px; border-top: var(--border); }
-/* Narrow screens (#6725, the approved compact mockup, Corey 13 Nov): a plain Menu button opens a drawer from the left; the notch,
+/* Narrow screens (#6725, the approved compact mockup): a plain Menu button opens a drawer from the left; the notch,
  * the crumb, the pin and the strip give way. The top bar reads Menu with its rulings, the project name, Search, the account. */
 .menubtn, .ptitle, .mveil, .mdrawer { display: none; }
 @media (max-width: 900px) {
