@@ -19,7 +19,7 @@ function redLines(job, item) {
  * @param {object} ctx - The command context.
  * @param {number} id - The shipped item.
  * @param {{ gateJob: string, commit: string }} submission - The queued submit document.
- * @param {{ withBoardRead: Function, retrySync: Function, getItem: Function, newestGateJob: Function, pulledRedLines: Function }} ports
+ * @param {{ withBoardRead: Function, retrySync: Function, getItem: Function, newestGateJob: Function }} ports
  * @param {{ deadlineMs?: number }} [options]
  * @returns {Promise<object>} The settled gate, as the inline submit printed it.
  */
