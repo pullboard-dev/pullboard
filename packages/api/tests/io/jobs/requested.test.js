@@ -2,14 +2,15 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { serveRunner } from '../../../index.js';
-import { testGit as pullGit } from '../../fixtures/git.js';
+import { serveRunner } from '../../../../drive/index.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { jobQueueCall } from '../../../../api/index.js';
-import { offerLandingJob } from '../../../../api/index.js';
+import { jobQueueCall } from '../../../index.js';
+import { offerLandingJob } from '../../../index.js';
 import { recordTestResults } from '../../../../store/index.js';
 
+// The land handler is stubbed, so the runner's git is never asked for anything.
+const pullGit = async () => ({ status: 0, stdout: '', stderr: '' });
 const COMMIT = 'a'.repeat(40);
 
 test('clause 2: the runner serving a land job whose proof moved to its request gives the handler the whole proof [C7,#7766]', async t => {
