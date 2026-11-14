@@ -70,12 +70,14 @@ test('landing refuses a candidate that renames a tracked file with no path-map e
   const box = await fixture(t);
   const refused = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(refused.code, 0, refused.err + refused.out);
+  // Under pull the runner's land job refuses it: the red receipt names the code and the shard, and returns the item.
   const { receipt } = (await settleLand(box, JSON.parse(refused.out))).landJob;
-  console.log(JSON.stringify(receipt));
-  const error = receipt;
-  assert.equal(error.code, 'LAND_MOVE_UNRECORDED');
-  assert.match(error.message, /web\/old-name\.txt -> web\/new-name\.txt/u);
-  assert.match(error.message, /packages\/codemap\/data\/plan\/path-map\/untangle\.json/u);
+  assert.equal(receipt.outcome, 'red');
+  assert.deepEqual(receipt.landed, []);
+  const detail = receipt.returned[0].detail;
+  assert.match(detail, /LAND_MOVE_UNRECORDED/u);
+  assert.match(detail, /web\/old-name\.txt -> web\/new-name\.txt/u);
+  assert.match(detail, /packages\/codemap\/data\/plan\/path-map\/untangle\.json/u);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), box.before);
   assert.equal((await box.show()).item_merged_commit, null);
 });
@@ -84,6 +86,7 @@ test('landing lands the same rename once a path-map shard records it [C7]', asyn
   const box = await fixture(t, { recorded: true });
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err + landed.out);
+  assert.equal((await settleLand(box, JSON.parse(landed.out))).landJob.receipt.outcome, 'landed');
   assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), box.before);
   assert.equal(existsSync(join(box.repo, 'web/new-name.txt')), true);
   assert.equal(existsSync(join(box.repo, 'web/old-name.txt')), false);
