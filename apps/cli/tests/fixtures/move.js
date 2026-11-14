@@ -314,7 +314,7 @@ export async function privateBoardMoves(box, privateFile) {
   await settleRelayCalls(box);
   const callsBeforePrivateAdd = box.calls.length;
   const linkedPrivate = await box.cli('add', box.lane, 'private item delivered through the relay', '--private');
-  assert.equal(linkedPrivate.code, 0);
+  assert.equal(linkedPrivate.code, 0, JSON.stringify(linkedPrivate.document?.error ?? linkedPrivate.failure ?? null));
   assert.equal(box.calls.length, callsBeforePrivateAdd, 'a successful private add makes no shared request or publication');
   assertPrivateHeartbeat(privateFile, addHeartbeat);
   assertPrivateTransportIsolation(box, privateFile);
