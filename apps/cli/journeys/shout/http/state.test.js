@@ -49,6 +49,9 @@ import {
   fetchFresh,
 } from '../../../tests/fixtures/http.js';
 import {
+  waitFor,
+} from '../../../tests/fixtures/gate/resource.js';
+import {
   commitWork,
   submitSettled,
   checkOutSubmitted,
@@ -187,6 +190,9 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let leaseUntil;
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }
+
+  // The green gate detaches a review comparison that records its result later; wait for it, so every read below sees one settled board.
+  await waitFor(() => ['complete', 'unavailable'].includes(box.cli(box.root, 'show', String(accepted)).comparison?.status), 'the detached review comparison recording its result', 120000); // budget: hang ceiling for the real detached comparison, no elapsed-time assertion.
 
   const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'progress', 'updatedAt', 'stage', 'since', 'counts', 'verdict', 'withdrawnReason', 'withdrawnFrom'];
   const summaryState = await box.call(box.path + '/state');
