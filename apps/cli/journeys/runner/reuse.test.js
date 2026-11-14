@@ -29,25 +29,26 @@ after(cleanupToolingSnapshots);
 after(helpers.cleanup);
 
 test('sync and async admitted runner profiles retain the actual worker source phases and receipts [C7]', async () => {
-  const box = helpers.sandbox();
-  const paths = Object.fromEntries(['repo', 'worker', 'ssh-bin', 'remote-home', 'remote-machine'].map(name => [name, join(box.dir, name)]));
-  for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
-  box.git(paths.repo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(paths.repo, 'pullboard.json'), '{"gate":"true"}\n');
-  writeFileSync(join(paths.repo, 'source.txt'), 'A committed source input.\n');
-  box.git(paths.repo, 'add', '-A');
-  box.git(paths.repo, 'commit', '-qm', 'test: source preparation observation fixture');
-  const head = box.git(paths.repo, 'rev-parse', 'HEAD');
-  const requests = join(box.dir, 'requests.jsonl'), stderrLog = join(box.dir, 'worker.stderr');
-  installSshStandIn({ bin: paths['ssh-bin'], worker: paths.worker, home: paths['remote-home'],
-    machineHome: paths['remote-machine'], requests, stderrLog });
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1,
-    browserSlots: 0, runners: [{ host: HOST, slots: 1, browser: 0 }],
-    gate: { runnersOnly: true, memoryFloorMB: 0 } }));
-  const gateUrl = pathToFileURL(join(committedToolingSnapshot(join(import.meta.dirname, '../../../..'), box.env), 'packages/gate/index.js')).href;
-  const command = `node -e "console.log('SOURCE_PREPARATION_CAPTURED')"`;
   for (const mode of ['sync', 'async']) {
+    // Each mode gets its own machine: a second job would reuse the first's source and the stand-in's shared stderr misses the pulled worker's receipt [C7].
+    const box = helpers.sandbox();
+    const paths = Object.fromEntries(['repo', 'worker', 'ssh-bin', 'remote-home', 'remote-machine'].map(name => [name, join(box.dir, name)]));
+    for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
+    box.git(paths.repo, 'init', '-q', '-b', 'main');
+    writeFileSync(join(paths.repo, 'pullboard.json'), '{"gate":"true"}\n');
+    writeFileSync(join(paths.repo, 'source.txt'), 'A committed source input.\n');
+    box.git(paths.repo, 'add', '-A');
+    box.git(paths.repo, 'commit', '-qm', 'test: source preparation observation fixture');
+    const head = box.git(paths.repo, 'rev-parse', 'HEAD');
+    const requests = join(box.dir, 'requests.jsonl'), stderrLog = join(box.dir, 'worker.stderr');
+    installSshStandIn({ bin: paths['ssh-bin'], worker: paths.worker, home: paths['remote-home'],
+      machineHome: paths['remote-machine'], requests, stderrLog });
+    mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1,
+      browserSlots: 0, runners: [{ host: HOST, slots: 1, browser: 0 }],
+      gate: { runnersOnly: true, memoryFloorMB: 0 } }));
+    const gateUrl = pathToFileURL(join(committedToolingSnapshot(join(import.meta.dirname, '../../../..'), box.env), 'packages/gate/index.js')).href;
+    const command = `node -e "console.log('SOURCE_PREPARATION_CAPTURED')"`;
     const driver = `import {readFileSync} from 'node:fs';
 import {runProfiledShell,runProfiledShellAsync,withGateSlot} from ${JSON.stringify(gateUrl)};
 ${executionServicesSource(gateUrl)}
