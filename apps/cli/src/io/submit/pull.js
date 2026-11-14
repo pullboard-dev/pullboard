@@ -11,6 +11,7 @@ import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
+import { ruleLine } from '../../../../../packages/doctrine/index.js';
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
@@ -104,6 +105,7 @@ ${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
 ${specFailureFiles}
 ${fitReceipt}
+${ruleLine}
 // Main's own TAP reader names each failing case, so the board can compare them with main's receipts; without it a red phase stays unaccounted.
 let light = null, gate = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: red phases carry no cases */ }
@@ -132,7 +134,8 @@ const failingCases = (status, text, run) => {
   } catch { rows = null; }
   if (!Array.isArray(rows) || !rows.length || rows.length > ${PHASE_CASES} || rows.some(row => !row?.file || !row.name)) return null;
   // A file Node killed (a timeout) is named by its path in this job's own checkout; the project path names it on any runner.
-  return rows.map(({ file, name }) => ({ file, name: (String(name).startsWith(root + '/') ? String(name).slice(root.length + 1) : String(name)).slice(0, 500) }));
+  // Names stay whole here: each case is signed by its TAP name, and the receipt clips them after (#7495).
+  return rows.map(({ file, name }) => ({ file, name: String(name).startsWith(root + '/') ? String(name).slice(root.length + 1) : String(name) }));
 };
 /**
  * PATH for the check and the proof: main's trusted CLI first as \`pullboard\`, then this Node. Why: an item check calls
@@ -169,19 +172,23 @@ const planOf = plan => {
     phasePlan: (Array.isArray(plan.phases) ? plan.phases : []).map(phase => ({ role: String(phase.role), command: String(phase.command ?? '').slice(0, ${PLAN_COMMAND_CHARS}) })) };
 };
 /**
- * What the plan decided about deferral, in the fields the inline gate returned: full, deferred, deferredFiles and the report.
+ * What the plan decided about deferral, in the fields the inline gate returned: full, deferred, deferredFiles and the report;
+ * the cross-lane mechanical edits the authorization found ride on both the report and the durable note.
  * Why: the board records the submission's deferral from the receipt, as the controller records it from its own gate [C7].
  */
-const deferralOf = (plan, config) => {
+const deferralOf = (plan, config, mechanical = []) => {
+  const edits = Array.isArray(mechanical) && mechanical.length ? 'cross-lane mechanical edits: ' + mechanical.join(', ') : '';
   const files = plan.deferSelection && Array.isArray(plan.selection?.files) ? plan.selection.files : null;
   const proof = Array.isArray(plan.proofFiles) ? plan.proofFiles : [];
   const invariants = plan.deferred && Array.isArray(plan.invariants) && plan.invariants.length ? 'submit invariants: ' + plan.invariants.join(', ') + '; ' : '';
   const note = files ? (typeof gate?.deferredSelectionNote === 'function' ? gate.deferredSelectionNote(files) : files.length + ' affected test files deferred to the landing gate') : '';
   const report = files ? invariants + note + ' (over submitDeferAbove ' + config?.submitDeferAbove + '): ' + files.join(', ')
     : plan.deferFullFallback ? invariants + 'full suite deferred to the landing gate'
-    : plan.selection?.full ? 'full gate' : 'affected tests: ' + (proof.join(', ') || 'none');
-  return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}), ...(plan.deferred ? { deferNote: note || 'full suite deferred to the landing gate' } : {}),
-    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report };
+    : plan.selection?.full ? 'full gate' : 'affected tests: ' + (proof.join(', ') || 'none') + (plan.deferred ? '; full suite deferred to the landing gate' : '');
+  const said = edits ? report + '; ' + edits : report;
+  return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}),
+    ...(plan.deferred ? { deferNote: (note || 'full suite deferred to the landing gate') + (edits ? '; ' + edits : '') } : {}),
+    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report: said };
 };
 /** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
 const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
@@ -260,12 +267,14 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { testRuntimes = capture?.finish() ?? null; } catch { testRuntimes = null; }
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
-  const failures = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  const cases = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
+  const failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 500) })) : null;
   // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
   const failedFiles = ran.status !== 0 && !failures ? specFailureFiles(text, root, { files: ${PHASE_CASES} }) : [];
   // Each named case's diagnostic signature, as the controller signs it, so the board tells two failures of one case apart [V4,B3].
   let failureSignatures = null;
-  try { failureSignatures = failures ? caseSignatures(failures, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
+  // Signed by the whole names: a case clipped on the receipt matches no diagnostic by name, so it would read unsigned (#7495).
+  try { failureSignatures = cases ? caseSignatures(cases, tapFailureDiagnostics(text, root, value => createHash('sha256').update(value).digest('hex'))) : null; } catch { failureSignatures = null; }
   // Each file that ran under a key becomes a proof-ledger row on the board, green files of a red phase included [P7].
   let ledger = null;
   try { ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root }) : null; } catch { ledger = null; }
@@ -280,8 +289,11 @@ const runPhase = async (role, command, PATH, selected = null) => {
   for (const row of errors) if (row.error.length > 600) row.error = row.error.slice(0, 600) + '…';
   // A red phase names each failing case with its error, and the lines that explain its exit, whether or not its TAP accounts for every failure.
   const counts = totals(text);
+  // A red with no named case keeps its first diagnostic and an omission count, which the tail and exit lines alone drop [C7,V10].
+  let digest = null;
+  try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
 if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
@@ -307,13 +319,15 @@ else {
   if (analysis.refused) refusals.push({ part: 'analysis', ...analysis.refused });
   // A lane-ownership finding is data, not a refusal: the proof still runs, and the board routes green proof to the owners [B3,L1,P7].
   const ownership = analysis.authorization?.ownership;
-  receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null, notes: (analysis.notes ?? []).slice(0, 20),
+  receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null,
+    // Each doctrine rule's count line rides first in the notes, as the controller submit printed it ("doctrine: Q1 · 1, was 2 · holding") [D1,D3,C7].
+    notes: [...(Array.isArray(analysis.doctrine) ? analysis.doctrine.map(rule => 'doctrine: ' + ruleLine(rule)) : []), ...(analysis.notes ?? [])].slice(0, 20),
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
     // The cells and doctrine machinery's diagnostics ride to the board, which records them in the repository's refusal-trial ledger [C7].
     machinery: [...(analysis.cells?.machinery ?? []), ...doctrineMachinery].slice(0, 20).map(row => ({ kind: row.kind, code: row.code, message: String(row.message ?? '').slice(0, 2000), rule: row.rule })), proofFiles: analysis.plan?.proofFiles ?? null, proofCommand: analysis.plan?.proofCommand ?? null, admission: analysis.admission ?? null };
-  if (analysis.plan && typeof analysis.plan === 'object') { receipt.plan = planOf(analysis.plan); Object.assign(receipt, deferralOf(analysis.plan, input.analysis.config)); }
+  if (analysis.plan && typeof analysis.plan === 'object') { receipt.plan = planOf(analysis.plan); Object.assign(receipt, deferralOf(analysis.plan, input.analysis.config, analysis.authorization?.mechanical)); }
   // A candidate that changed what the proof runner imports cannot run its proof as written [P7].
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],

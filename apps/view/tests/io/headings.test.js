@@ -13,7 +13,7 @@ test('clause 1: one shared class per header level, and Cost and Settings headers
   assert.match(main, /\.hd1 \{[^}]*10\.5px[^}]*uppercase/u, 'level 1: the sheet section header');
   assert.match(main, /\.hd2 \{[^}]*12\.5px[^}]*text-transform: none/u, 'level 2: the sheet sub-head');
   const cost = costOverviewHtml({ window: '7d', totals: { agentMs: 3600000, itemCount: 1 }, days: [], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 1 }, null, {});
-  assert.deepEqual([...cost.matchAll(/<h2 class="hd1">([^<]*)</gu)].map(match => match[1]), ['Agent time', 'Agent time each day', 'Models', 'Took the longest'], 'Cost section headers use level 1');
+  assert.deepEqual([...cost.matchAll(/<h2 class="hd1">([^<]*)</gu)].map(match => match[1]), ['Agent time', 'Models', 'Took the longest'], 'Cost section headers use level 1');
   assert.doesNotMatch(cost, /<h[1-4](?![^>]*class="hd[12]")/u, 'no heading on Cost has any other style');
   for (const header of cost.matchAll(/<h2 class="hd1">/gu)) {
     const before = cost.slice(0, header.index);

@@ -51,9 +51,6 @@ async function withReviewer(box) {
   return { ...box, review };
 }
 
-// CONTROLLER_ONLY: the up-front LAND_PUSH refusal for a repo with no origin came from the in-process landing; a pulled land job offers and its runner reports the push in its receipt [C7].
-test('land refuses a push the repo cannot make, before it gates anything [I1,B3]', { skip: 'CONTROLLER_ONLY: deleted with #6807' }, () => {});
-
 test('an accept says how to land, and the land it names lands the item [I1,B3]', async t => {
   const box = await withReviewer(project());
 

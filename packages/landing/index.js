@@ -1,5 +1,4 @@
 /** Landing's automatic wake custody behind its cell front door [B35,C7]. */
-export { automaticLandingDirectory, scheduleAutomaticLanding, resumeAutomaticLanding, recoverAutomaticLanding } from './src/io/automatic/scheduler.js';
 /** Landing retry and backoff policy for the automatic lander [C7]. */
 export { retryableLandingRefusal, HELD_TRUNK_REFUSALS, LANDING_ADOPT_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/logic/retry.js';
 /** Landing, queue and main-red front door [C7] */
@@ -12,7 +11,6 @@ export * from "./src/logic/batch/history.js";
 export * from "./src/logic/batch/size.js";
 export * from "./src/logic/split.js";
 export * from "./src/logic/cadence.js";
-export * from "./src/io/candidates.js";
 export * from "./src/io/deferred/run.js";
 export * from "./src/io/doctrine.js";
 export * from "./src/logic/environment.js";
@@ -30,7 +28,6 @@ export * from "./src/io/run.js";
 export * from "./src/io/test/policy.js";
 export * from "./src/logic/waivers.js";
 export * from "./src/io/worker.js";
-export { inProcessLandingBatch, landingProgress } from "./src/io/in/process.js";
 export * from "./src/io/prune.js";
 export * from "./src/io/main/matches.js";
 export * from "./src/io/main/red.js";
@@ -53,7 +50,6 @@ export { runLandingCliSmoke, runCommitCliSmoke, recordSmokeReceipt, smokeCandida
 export * from "./src/io/step/diagnose.js";
 export * from "./src/io/step/publish.js";
 export * from "./src/io/step/trunk.js";
-export * from "./src/io/step/parallel.js";
 export * from "./src/io/step/batch.js";
 export { withoutStaleVerdicts } from "./src/io/pulled/fresh.js";
 export * from "./src/io/train/repoints.js";

@@ -260,7 +260,11 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     assert.deepEqual([await chrome.stable("[...document.querySelectorAll('#roadmap .milestone h2')].map((h) => h.textContent).join()"), await roadmapRows()], ['1.0: first cut', 3],
       'the release the part counts, and only its three items');
     await click('#roadmap [data-roadmap-all]');
-    assert.equal(await roadmapRows(), 6, 'show all brings back every release');
+    // Since #7303 only the chosen release is open: show all brings every release back as a heading, and the rows stay in the open one.
+    const releaseNames = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#roadmap .milestone h2')].map((h) => h.textContent))"));
+    assert.ok(releaseNames.length > 1 && releaseNames.includes('1.0: first cut'), `show all brings back every release: ${releaseNames}`);
+    assert.equal(await chrome.stable("document.querySelector('#roadmap [data-roadmap-all]') === null"), true, 'the only-this-release line is gone');
+    assert.equal(await roadmapRows(), 3, 'the open release keeps its three rows');
     const last = r.bar.find((p) => p.to.startsWith('item:'));
     if (last) {
       await click(`.status [data-status="${last.to}"]`);

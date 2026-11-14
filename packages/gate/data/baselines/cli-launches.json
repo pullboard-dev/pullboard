@@ -68,17 +68,11 @@
   "packages/runners/tests/logic/diagnostics/recovery.test.js": {
     "launch": 1
   },
-  "packages/runners/tests/io/handoff/handover.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/io/run/tests/selection.test.js": {
     "launch": 1
   },
   "packages/runners/tests/io/run/reporter.test.js": {
     "launch": 4
-  },
-  "packages/resources/tests/io/handoff/worker/dispatcher/launcher.test.js": {
-    "launch": 1
   },
   "apps/lib/tests/runner/cache.test.js": {
     "launch": 2
@@ -575,9 +569,6 @@
   "apps/cli/journeys/init/refresh.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/runner/recovery.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/roadmap/cockpit/jumps.test.js": {
     "launch": 3
   },
@@ -604,9 +595,6 @@
   },
   "apps/cli/journeys/gate/profile.test.js": {
     "launch": 3
-  },
-  "apps/cli/journeys/handoff/checkout.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/runner/source.test.js": {
     "launch": 1
@@ -644,9 +632,6 @@
   "apps/cli/journeys/merged/idempotent.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/submit/handoff/recovery/dead.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/roadmap/cockpit/stages-open.test.js": {
     "launch": 1
   },
@@ -662,17 +647,11 @@
   "packages/kernel/tests/logic/seal.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/land/takeover.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/runner/policy.test.js": {
     "launch": 1
   },
   "packages/codemap/tests/freeze.test.js": {
     "launch": 3
-  },
-  "apps/cli/tests/io/cli-main/recovery.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/init/browser.test.js": {
     "launch": 1
@@ -719,9 +698,6 @@
   "apps/cli/journeys/run/lazy.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/submit/handoff/recovery/silent.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/version/node.test.js": {
     "launch": 7
   },
@@ -764,9 +740,6 @@
   "packages/config/tests/submit/infra.test.js": {
     "launch": 1
   },
-  "packages/resources/tests/io/handoff/worker/dispatcher/locked.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/next/runs.test.js": {
     "launch": 1
   },
@@ -780,9 +753,6 @@
     "launch": 1
   },
   "apps/cli/journeys/init/clock.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/handoff/dispatcher/relaunch.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/gate/timing.test.js": {
@@ -1061,9 +1031,6 @@
   "apps/cli/journeys/hook/amend.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/land/adoption.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/submit/retry.test.js": {
     "launch": 2
   },
@@ -1328,9 +1295,6 @@
   "packages/commits/tests/runner/scan/leak.test.js": {
     "launch": 1
   },
-  "packages/resources/tests/io/handoff/worker/dispatcher/eperm.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/resume/flow/setup.test.js": {
     "launch": 3
   },
@@ -1592,8 +1556,8 @@
   "apps/cli/journeys/runner/controller/pull-cpu.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/roadmap/cockpit/refs.test.js": {
-    "launch": 9
+  "apps/cli/journeys/roadmap/cockpit/sendbacks.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/init/provenance.test.js": {
     "launch": 1
@@ -1603,9 +1567,6 @@
   },
   "apps/cli/journeys/runner/controller/orphan.test.js": {
     "launch": 3
-  },
-  "packages/resources/tests/io/handoff/worker/dispatcher/function.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/relay/checkpoint.test.js": {
     "launch": 1

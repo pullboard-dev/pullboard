@@ -3,9 +3,6 @@
  * command when there is any, and dispatch through the lazy command table. It loads a module only when the command
  * in hand needs it, so --version and a read pay for nothing they do not run [C7].
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { commandOutput } from '../../../../../packages/config/browser.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
@@ -50,17 +47,6 @@ export function writesBoard([command, first]) {
   return WRITES.has(command) || (command === 'tool-build' && first === 'promote') || (command === 'patch' && ['attach', 'remove', 'object'].includes(first))
     || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first) && !['board.url', 'board.token'].includes(first))
     || (command === 'spec' && first === 'apply') || (command === 'relay' && ['on', 'off'].includes(first));
-}
-
-/**
- * Whether a command line wakes queued-handoff recovery: board writes do, reads and Git hooks never. Why: on 8 Nov a
- * commit-msg hook, heartbeats and inbox reads each ran recovery and waited minutes behind the dispatcher launch [C7].
- *
- * @param {string[]} positionals - The command and its verb.
- * @returns {boolean}
- */
-export function wakesHandoffRecovery(positionals) {
-  return writesBoard(positionals) && !['hook', 'hooks'].includes(positionals[0]);
 }
 
 /**
@@ -174,11 +160,10 @@ async function runMain(argv, streams) {
     io.loadProcessPorts = undefined;
   };
   io.hookWorker = streams.hookWorker;
-  io.submitHandoffWorker = streams.submitHandoffWorker;
   // In-process tests replace the detached audit launch; production always starts apps/cli/src/io/landing/audit.js.
   io.nudgeMainAudit = streams.nudgeMainAudit;
   /** Bind recursive CLI operations to this process root's native provider. */
-  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
   io.launchRelaySender = streams.launchRelaySender;
   let sync = true;
@@ -188,7 +173,6 @@ async function runMain(argv, streams) {
   let auditAfterCommand = false;
   let advanceAfterCommand = false;
   let maintenanceAfterCommand;
-  let automaticLandingAfterCommand;
   let toolBuildGateAfterCommand;
   try {
     parsed = parseCommandArgs(argv);
@@ -257,9 +241,6 @@ async function runMain(argv, streams) {
   try {
     if (needsRepo) {
       await rememberTrunk(io, git);
-      if (!parsed?.values['dry-run'] && wakesHandoffRecovery(parsed?.positionals ?? [])) {
-        await (await import('./recovery.js')).recoverQueuedHandoffs(io, git);
-      }
     }
     traceServeStartup('cli-command-preamble-start');
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
@@ -291,7 +272,6 @@ async function runMain(argv, streams) {
       && !QUIET_COMMANDS.has(parsed?.positionals[0])) {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
-      automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
     if (status === 0 && needsRepo && !parsed?.values['dry-run']) {
@@ -306,30 +286,6 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
-    if (automaticLandingAfterCommand) {
-      // A release run from an item folder removes that folder before this wake; the pending record names the
-      // trunk checkout, so the wake uses it. Why: on 6 Nov every such release printed NOT_A_REPO and woke nothing [C7].
-      const { info } = automaticLandingAfterCommand;
-      const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
-      try {
-        // Nothing loads for the wake unless a pending record exists or a verified item waits to land [C7].
-        if (!(existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))
-          || (await import('../../../../../packages/store/light.js')).landingMayWait(join(info.commonDir, 'pullboard', 'board.sqlite')))) throw LANDING_IDLE;
-        const worker = await import('../../../../../packages/landing/index.js');
-        // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
-        const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
-        // A backed-off lander waits out its back-off unless an accept, a green gate or a held-test correction came since [C7].
-        // One board read answers both: recovery and the bootstrap share the answer for the same record.
-        const answers = new Map();
-        const woken = async job => {
-          if (!answers.has(job.id)) answers.set(job.id, (await import('../landing/automatic.js')).landingBackoffWoken(job.root, job, { schemaDiagnostics }));
-          return answers.get(job.id);
-        };
-        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../landing/automatic.js', import.meta.url), { woken });
-        if (!recovered) await (await import('../landing/automatic.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
-      }
-      catch (error) { if (error !== LANDING_IDLE) io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
-    }
     // A runner job's processes die with the job, so no timer is scheduled and the scheduler is never loaded [C7].
     if (maintenanceAfterCommand && !process.env.PULLBOARD_RUNNER_JOB) {
       try { await (await import('../worktree/maintenance/scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
@@ -366,13 +322,4 @@ async function runMain(argv, streams) {
 if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
-}
-
-/** Thrown inside the landing wake when nothing could be waiting to land, so the wake loads nothing. */
-const LANDING_IDLE = new Error('landing idle');
-
-/** The trunk checkout the pending landing record names, or null when there is no readable record. */
-function landingJobRoot(commonDir) {
-  try { return JSON.parse(readFileSync(join(commonDir, 'pullboard', 'automatic-landing', 'pending.json'), 'utf8')).root ?? null; }
-  catch { return null; }
 }

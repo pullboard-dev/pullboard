@@ -10,13 +10,14 @@ import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { HANDOFF_WORKER_RESOURCE } from '../../../index.js';
 import { listResources } from '../../../index.js';
 import { takeResource } from '../../../index.js';
 import { enqueueResourceWrite } from '../../../src/io/write/queue.js';
 import { enterResourceQueue } from '../../../src/io/write/queue.js';
 import { resourceQueueDirectory } from '../../../src/io/write/queue.js';
 
+/** The machine resource the dispatcher's slot takes used; any machine resource name serves this queue measure. */
+const HANDOFF_WORKER_RESOURCE = 'submit-handoff-workers';
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../index.js')).href;
 const QUEUE = pathToFileURL(resolve(import.meta.dirname, '../../../src/io/write/queue.js')).href;
 

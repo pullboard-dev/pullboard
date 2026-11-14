@@ -1,6 +1,6 @@
 import * as self from './light.js';
 /** Pure state source classification, without loading the native board [C7]. */
-export { EXIT_RULES_ENGINE } from "./src/logic/engine/metadata.js";
+export { EXIT_RULES_ENGINE } from "./src/logic/engines/exit-rules-engine.js";
 export { correctedBar } from "./src/logic/bar.js";
 export { engineAtLeast } from "./src/logic/engine/minimum.js";
 export { MACHINE } from "./src/logic/machine/declaration.js";
@@ -73,6 +73,7 @@ export { KNOWN_MAIN_FAILURES_ENGINE } from './src/logic/engines/known-main-failu
 export { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './src/logic/engines/known-main-owner-pattern-engine.js';
 export { KNOWN_MAIN_REWORKS_ENGINE } from './src/logic/engines/known-main-reworks-engine.js';
 export { KNOWN_MAIN_RUNNING_FILE_ENGINE } from './src/logic/engines/known-main-running-file-engine.js';
+export { KNOWN_MAIN_RECEIPT_ENGINE } from './src/logic/engines/known-main-receipt-engine.js';
 export { LANDING_DEFECT_CLOSE_ENGINE } from './src/logic/engines/landing-defect-close-engine.js';
 export { LANDING_ENVIRONMENT_ENGINE } from './src/logic/engines/landing-environment-engine.js';
 export { LANDING_LEASE_ENGINE } from './src/logic/engines/landing-lease-engine.js';

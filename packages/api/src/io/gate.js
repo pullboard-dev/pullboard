@@ -20,6 +20,7 @@ import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
 import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
+import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
@@ -333,7 +334,7 @@ export function failingParts(receipt) {
     // A phase the runner found blocked by its environment is named by the controller's refusal code, never read as an ordinary red [C7].
     if (typeof phase.sandboxBlocked === 'string' && phase.sandboxBlocked) parts.push(`SANDBOX_BLOCKED: the environment refused ${clip(phase.sandboxBlocked)}. Ask the coordinator to bring this operation to the person, or run the gate outside the sandbox; keep the tests unchanged; to ask: pullboard shout coordinator --kind question "<the denied operation>" --decision`);
     // Why the exit lines first: a plain tail of a crashed proof ends on its closing counts, which name nothing.
-    if (!cases.length) parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${clip(phase.exit || phase.tail)}`);
+    if (!cases.length) parts.push(`${phase.role} exited ${phase.status ?? phase.signal}: ${typeof phase.digest === 'string' && phase.digest ? phase.digest : clip(phase.exit || phase.tail)}`);
   }
   if (gate.proofPlan) parts.push('proof: the gate left its proof to shard jobs the board could not offer; submit again');
   if (!parts.length && receipt?.status !== 0) parts.push(`the gate job exited ${receipt?.status ?? receipt?.signal}`);
@@ -378,9 +379,11 @@ export function compareGateWithMain(board, receipt, main, lookup) {
       const named = one.owner === 'unknown' ? null : keyedMainFailing(board.db, receiptId(one.receipt));
       // Main fails the same case only when it fails it the same way: the name and the diagnostic signature both match, and an
       // unsigned case on either side differs, so a changed assertion is never excused by main's red of that name [V4,B3].
-      const same = named ? named.some(main => main.name === row.name && main.signature !== null && main.signature === row.signature)
+      // A main-test receipt keeps each name clipped, so a longer case is matched by that clip; the signature still has to agree (#7495).
+      const clipped = row.name.slice(0, MAIN_CASE_NAME_UNITS);
+      const same = named ? named.some(main => main.name === clipped && main.signature !== null && main.signature === row.signature)
         : row.signature !== null && !one.own.includes(row.name);
-      const byName = named ? named.some(main => main.name === row.name) : !one.own.includes(row.name);
+      const byName = named ? named.some(main => main.name === clipped) : !one.own.includes(row.name);
       return { ...row, onMain: one.owner === 'unknown' ? null : same, ...(one.owner !== 'unknown' && byName && !same ? { differs: true } : {}), receipt: receiptId(one.receipt) };
     }),
     jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
@@ -410,8 +413,11 @@ function keyedMainFailing(db, id) {
  * against main's receipts the way the controller gate's main-owned verdict does, linking repairs and asking for the rest [V4,B3,C7].
  */
 function mainOwnership(board, id, compared, main) {
-  // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure.
-  const failures = [...new Map(compared.cases.map(({ file, name, signature }) => [`${file}\0${name}`, { file, name, signature }])).values()];
+  // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure, and the main
+  // receipt that recorded it failing, so review cites it; a board on an older engine records no receipt id (#7495).
+  const cites = (board.executionEngineVersion ?? store.ENGINE_VERSION) >= store.KNOWN_MAIN_RECEIPT_ENGINE;
+  const failures = [...new Map(compared.cases.map(({ file, name, signature, receipt }) => [`${file}\0${name}`,
+    { file, name, signature, ...(cites && typeof receipt === 'string' && receipt ? { receipt } : {}) }])).values()];
   const items = store.listItems(board, { all: true });
   const { clear, ambiguous } = store.splitAmbiguousMainReds({ main, failures }, items, id);
   const unowned = store.unownedMainReds(clear, items, id) ?? [];
@@ -612,7 +618,10 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
         store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });
-      } catch (error) { if (error?.code === undefined) throw error; }
+      } catch (error) {
+        // The submission is recorded above; a refused or failed shout is named on the thread, never thrown past it (#7495).
+        store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Main red decision shout not sent: ${error?.code ?? 'SHOUT_FAILED'}: ${error?.message ?? String(error)}; next: the coordinator reads pullboard show ${id}`.slice(0, 2000) });
+      }
       // A green gate is one real gate for every refusal on trial, counted once per receipt set, as the controller's own submit counts it [C7].
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
@@ -869,7 +878,13 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
     const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);
     const byFile = compared ? null : compareFilesWithMain(board, receipt, job_base, compareWithMain);
     if (compared ? compared.cases.some(row => row.onMain === null) : !byFile || byFile.unavailable || byFile.files.some(row => row.result === null)) continue;
-    if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job);
+    // The main-test receipt is already recorded, so a throw here would strand the item claimed with no word on its thread:
+    // an uncoded error is recorded as this re-apply's refusal instead, and the next waiting gate still settles (#7495).
+    try { if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job); }
+    catch (error) {
+      const why = error?.code ? `${error.code}: ${error.message}` : `GATE_REAPPLY_FAILED: ${error?.name ?? 'Error'}: ${error?.message ?? String(error)}`;
+      store.appendFact(board, item, { agentId: 'coordinator', kind: 'note', text: `Gate job ${job} was not re-applied after main-test job ${mainTest} recorded: ${why}; next: submit again`.slice(0, 2000) });
+    }
   }
   return settled;
 }

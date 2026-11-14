@@ -1,44 +1,14 @@
-import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
-import { landBatch } from '../../../../../packages/land/index.js';
-import { driveLanding } from '../../../../../packages/drive/index.js';
-import { inProcessLandingBatch } from '../../../../../packages/landing/index.js';
-import { landingProgress } from '../../../../../packages/landing/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
-import { PHASE_LINE } from '../../../../../packages/landing/index.js';
-import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
-import { closeLandingSpans } from '../../../../../packages/resources/index.js';
-import { landingSpan } from '../../../../../packages/resources/index.js';
-import { openLandingSpans } from '../../../../../packages/resources/index.js';
 import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
-import { repoInfo } from '../../../../../packages/git/index.js';
-import { tryGit } from '../../../../../packages/git/index.js';
-import { adoptLocalSession } from '../../../../../packages/seats/index.js';
-import { localSeatSessionDigest } from '../../../../../packages/seats/index.js';
-import { existsSync } from 'node:fs';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
-import { landAcceptedItems } from '../../../../../packages/merge/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { requireManualLanding } from '../../../../../packages/merge/index.js';
-import { flakeLedger } from '../../../../../packages/flakes/index.js';
 import { badgeCounts } from '../../../../view/index.js';
 import { badgeDocuments } from '../../../../view/index.js';
-import { writeBadges } from '../../../../view/index.js';
-import { flakeSource } from '../../../../../packages/flakes/index.js';
-import { observeNativeFailure } from '../../../../../packages/flakes/index.js';
-import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
-import { quarantineVerdictSnapshot } from '../../../../../packages/flakes/index.js';
-import { validateQuarantineGate } from '../../../../../packages/flakes/index.js';
-import { validateQuarantineLandingProof } from '../../../../../packages/flakes/index.js';
-import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { pairPrefix } from '../../../../../packages/flakes/index.js';
-import { postLandSuitePorts } from '../ports/suite.js';
-import { parseProcessCensus } from '../../../../../packages/kernel/index.js';
-import { fileURLToPath } from 'node:url';
-import { codeIsFromMain } from '../../../../../packages/git/index.js';
-import { syncRelay } from '../../../../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/index.js';
 import { landWhyLines } from '../../../../../packages/landing/index.js';
@@ -49,12 +19,6 @@ import {
   COORDINATOR,
 } from '../../../../../packages/config/index.js';
 import {
-} from '../../../../../packages/gate/index.js';
-import {
-  land,
-} from '../../../../../packages/landing/index.js';
-import {
-  agentSessionDigest,
   requirePersonChannel,
 } from '../../../../../packages/person/index.js';
 import {
@@ -63,9 +27,6 @@ import {
 import {
   Refused,
 } from '../../../../../packages/kernel/index.js';
-import {
-  staleVerdictRefusal,
-} from '../../../../../packages/verify/index.js';
 import {
   randomUUID,
 } from 'node:crypto';
@@ -95,17 +56,8 @@ export async function run(io, { first, second, rest, values }) {
   }
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
   if (values.forced !== undefined) return offerForcedLanding(ctx, io, board, [first, second, ...rest], values);
-  // A signed person's waiver and the coordinator's named landing stay open while the board owns landing [#3675,#5559].
-  const named = values.items !== undefined || values.commit !== undefined ? namedLanding(ctx.info.root, values) : null;
-  if (values.waive === undefined && !named) {
-    try { requireManualLanding(mainPolicy(ctx.info.root).config); } catch (error) {
-      if (!(error instanceof Refused) || error.code !== 'BOARD_LANDS_ACCEPTED') throw error;
-      // A 0.9.3 user ran land by hand; say what changed and the one setting that brings it back.
-      throw new Refused('BOARD_LANDS_ACCEPTED', 'the board lands accepted items by itself: once an item is accepted, landing starts on its own, so pullboard land is no longer needed by hand', 'to land by hand as before, set landing.manualOverride to true in pullboard.json (the person sets it); otherwise run pullboard next for other work');
-    }
-  }
-  if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
   if (values.waive !== undefined) {
+    if (first || second || rest.length || values.due || values.adopt || values.max !== undefined) throw new Refused('USAGE', 'pullboard land --waive <test> --until <date> --reason <why>');
     const confirmed = await requireSignedPerson(ctx, board, me, { verb: 'land-waive', args: { waive: String(values.waive), until: String(values.until ?? ''), reason: String(values.reason ?? '') } });
     if (confirmed !== null) return confirmed;
     requirePersonChannel(io.personChannel);
@@ -115,13 +67,25 @@ export async function run(io, { first, second, rest, values }) {
     io.say(`waived ${waiver.kind ?? store.landingWaiverKind(waiver.test)} ${waiver.test} until ${waiver.until}: ${waiver.reason}`);
     return 0;
   }
-  if (values.until !== undefined || values.reason !== undefined || values.max !== undefined && (!/^[1-9][0-9]*$/u.test(values.max) || !Number.isSafeInteger(Number(values.max)))) throw new Refused('USAGE', 'use --max with a positive item count, or --waive with --until and --reason');
-  // A plain hand landing offers the same runner land job that accept offers, when the board lands by pull (#5864).
-  const plain = !named && !values['dry-run'] && !values.adopt && !values.due && values.max === undefined;
-  if (plain && await offerLanding(ctx, ctx.info.root, { board })) return 0;
-  const result = await executeBoardLanding(ctx, board, io, values, named);
-  return !values['dry-run'] && !result.landed?.length && result.culprits?.length ? 1 : 0;
+  // The land job is the one landing path: land offers it and runs no batch on this host (lander v2 section 3) [#6119].
+  const batchOption = ['items', 'commit', 'dry-run', 'adopt', 'due', 'max', 'until', 'reason'].find(name => values[name] !== undefined && values[name] !== false);
+  if (first || second || rest.length || batchOption) throw new Refused('LAND_OFFER_ONLY', `pullboard land only offers the land job${batchOption ? `; --${batchOption} ran the retired host batch` : ''}`, 'run pullboard land with no option, or land <id> --forced "<why>"');
+  try { requireManualLanding(mainPolicy(ctx.info.root).config); } catch (error) {
+    if (!(error instanceof Refused) || error.code !== 'BOARD_LANDS_ACCEPTED') throw error;
+    // A 0.9.3 user ran land by hand; say what changed and the one setting that brings it back.
+    throw new Refused('BOARD_LANDS_ACCEPTED', 'the board lands accepted items by itself: once an item is accepted, landing starts on its own, so pullboard land is no longer needed by hand', 'to land by hand as before, set landing.manualOverride to true in pullboard.json (the person sets it); otherwise run pullboard next for other work');
+  }
+  const offered = await offerLanding(ctx, ctx.info.root, { board });
+  if (!offered) throw noLandingRunner();
+  io.result?.(offered);
+  if (!offered.offered) io.say('no verified items ready to land');
+  return 0;
 });
+}
+
+/** The refusal when no runner can take a land job: no trunk remote of record and no local runner on this machine. */
+function noLandingRunner() {
+  return new Refused('LAND_NO_RUNNER', 'a landing is a runner land job, and this board has no trunk remote of record and no local runner under pull dispatch', 'set trunk.remote in pullboard.json to the trunk\'s git URL, or use pull dispatch with gate.localRunner on in the machine settings');
 }
 
 /** Offer a runner land job from the main checkout (pull.js's offerPulledLanding), loaded only when a landing is offered. */
@@ -139,116 +103,10 @@ async function offerForcedLanding(ctx, io, board, args, values) {
   if (!forced) throw new Refused('FORCED_REASON', 'a forced landing names why it went around the gate: --forced "<why>"');
   if (!ids.length || ids.some(id => !/^[1-9][0-9]*$/u.test(String(id)))) throw new Refused('USAGE', 'pullboard land <id> [<id>...] --forced "<why>"');
   const offered = await offerLanding(ctx, primaryCheckoutRoot(ctx.info), { ids: ids.map(Number), forced, board });
-  if (!offered) throw new Refused('LAND_NO_RUNNER', 'a forced landing is a runner land job, and this board has no trunk remote of record', 'set trunk.remote in pullboard.json to the trunk\'s git URL');
+  if (!offered) throw noLandingRunner();
   io.result?.(offered);
   return 0;
 }
-
-/**
- * Read `--items 1,2 --commit <sha>,<sha>` into the named landing: each item with the proven commit it lands as.
- * Why: the coordinator lands work proven outside the board's verify step (the blitz lander's job) through the same
- * train as any landing, so the lease, guards, detached worktree and compare-and-swap of main apply to it too [C7,#5559].
- *
- * @param {string} root
- * @param {Record<string, unknown>} values - The parsed options.
- * @returns {{ id: number, commit: string }[]}
- */
-function namedLanding(root, values) {
-  const usage = 'pullboard land --items <id>[,<id>...] --commit <sha>[,<sha>...] [--dry-run]; one commit per item, in order, and no other landing option';
-  if (typeof values.items !== 'string' || typeof values.commit !== 'string' || values.adopt || values.due || values.replay || values.waive !== undefined || values.max !== undefined) throw new Refused('USAGE', usage);
-  const ids = values.items.split(',');
-  const commits = values.commit.split(',');
-  if (ids.length !== commits.length || ids.some(id => !/^[1-9][0-9]*$/u.test(id)) || new Set(ids).size !== ids.length) throw new Refused('USAGE', usage);
-  return ids.map((id, index) => {
-    const resolved = tryGit(root, ['rev-parse', '--verify', '--quiet', `${commits[index]}^{commit}`]);
-    if (resolved.status !== 0 || !resolved.stdout.trim()) throw new Refused('LAND_NAMED', `commit ${commits[index]} for item #${id} is not a commit in this repository`, 'fetch it or name its full sha');
-    return { id: Number(id), commit: resolved.stdout.trim() };
-  });
-}
-
-/**
- * Write a landed batch through the land cell's finish sequence, the one `pullboard merged` also runs, so the landing
- * job and its tooling pin exist for every landing. The batch is already recorded, so a failure here is reported and
- * never changes the landing's result.
- *
- * @param {object} ctx
- * @param {object} board
- * @param {object} io
- * @param {{ batch?: object }} result - The batch engine's result.
- * @returns {Promise<void>}
- */
-async function recordBatchLanding(ctx, board, io, result) {
-  try { await landBatch(board.db, { repo: ctx.info.root, batch: result?.batch, owner: `land:${agentSessionDigest() ?? `pid-${process.pid}`}` }); }
-  catch (error) { io.err?.(`landing job deferred: ${error.code ?? 'ERROR'} ${error.message}`); }
-}
-
-/**
- * The in-process batch runner `land` uses in place of the spawned bin/landing-worker.js, composed with the same
- * runner check and candidate worker the worker process composed.
- *
- * Why: the runner cell is imported only when a real landing runs, so every other board command stays fast. The
- * batch reports its progress to `progress`, which the landing's drive job watches (#3477).
- *
- * @param {ReturnType<typeof landingProgress>} progress - The batch's progress record.
- * @returns {Promise<Function>}
- */
-async function landingBatchRunner(progress) {
-  const { checkAtCommit } = await import('../../../../runner/index.js');
-  return inProcessLandingBatch({ checkAtCommit, candidateWorkerFile: fileURLToPath(new URL('../../../../lib/src/io/landing/candidate.js', import.meta.url)), progress });
-}
-
-/**
- * Hand an interrupted landing batch's worktree to the coordinator session that adopts it (GH #24).
- * Why: the batch's merges ran under the first session, whose digest the worktree's own checkout-session file still
- * held; after `takeover` in the main checkout, `land --adopt` merged there and was refused NOT_YOUR_CHECKOUT, and
- * `takeover` cannot run in a landing worktree, which has no lane. The file is replaced only while it still holds the
- * coordinator binding read here, under the worktree's lease, so a session that bound it meanwhile is never overwritten.
- *
- * @param {object} board
- * @param {string} root the main checkout
- */
-async function rebindAdoptedLanding(board, root) {
-  const digest = agentSessionDigest();
-  const batch = store.landingBatches(board).findLast((entry) => entry.state !== 'landed' && entry.state !== 'blocked');
-  if (!digest || !batch?.root || !existsSync(batch.root)) return;
-  const info = repoInfo(batch.root);
-  if (info.root === root) return;
-  const from = localSeatSessionDigest(info, COORDINATOR);
-  if (from && from !== digest) await adoptLocalSession(info, { agent: COORDINATOR, digest, from: { agent: COORDINATOR, digest: from } });
-}
-
-/** Compose the existing native batch engine for both automatic acceptance and an authorized manual command. */
-export async function executeBoardLanding(ctx, board, io, values = {}, named = null) {
-  if (!values['dry-run'] && codeIsFromMain()) {
-    const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
-    await (await import('../../../../../packages/gate/index.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
-  }
-  const owner = agentSessionDigest() ?? `pid-${process.pid}`;
-  if (values.adopt && !values['dry-run']) await rebindAdoptedLanding(board, ctx.info.root);
-  // The repository's landing.stall: how long a batch may make no progress before it ends (2 minutes unset, #3186, #3477, #5816).
-  const progress = landingProgress();
-  const watch = { stallAfterMs: ctx.config?.landing?.stallMs, lastProgressAt: progress.lastProgressAt, stall: progress.stall };
-  /** One landing through the batch engine; a real one runs in this process as a drive-cell job [C7]. */
-  const landOnce = async () => land({ landingPorts: { badgeCounts, badgeDocuments, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
-    runBatch: values['dry-run'] ? undefined : await landingBatchRunner(progress),
-    write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner,
-    ...(named ? { named } : {}), maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
-  let result;
-  // A real landing records a span per step, read back by pullboard gate-health [C7].
-  if (!values['dry-run']) openLandingSpans({ commonDir: ctx.info.commonDir });
-  try { result = values['dry-run'] ? await landOnce() : await driveLanding(board.db, { owner, run: () => landingSpan('run', landOnce), say: line => io.err?.(line), watch });
-  } catch (error) {
-    await recordLandingNotices(ctx, board, io);
-    throw error;
-  } finally { if (!values['dry-run']) closeLandingSpans(); }
-  if (!values['dry-run']) await recordLandingNotices(ctx, board, io);
-  if (!values['dry-run']) await recordBatchLanding(ctx, board, io, result);
-  io.result?.(result);
-  for (const blocked of result.blocked ?? []) if (blocked.code === 'STALE_VERDICT') io.say(staleVerdictRefusal({ item_id: blocked.id }, blocked).message);
-  if (!result.batch && !result.deferredUntil && !result.cadence) io.say(result.items ? `would land: ${result.items.map((id) => `#${id}`).join(', ') || 'none'}` : 'no verified items ready to land');
-  return result;
-}
-
 
 /**
  * How long an accept's landing wake waits before it starts: none, so the lander starts the accepted item's landing at
@@ -258,45 +116,19 @@ export async function executeBoardLanding(ctx, board, io, values = {}, named = n
 export const LANDING_COALESCE_MS = 0;
 
 /**
- * Run board-owned landing after acceptance; the caller catches this entire post-verdict effect.
- * An agent session hands landing to the board's own worker: the main checkout belongs to the coordinator's session,
- * so landing there from a reviewer's session was refused NOT_YOUR_CHECKOUT and nothing landed (#2499). The worker
- * holds no session, and one pending wake absorbs every accept made before it fires. Returns true, or the landing's
- * result when this process ran it.
+ * Offer the land job after acceptance; the caller catches this entire post-verdict effect. A runner merges and pushes,
+ * so no session on this host lands anything (#2499). Returns the offer, or false (with the next step said) when
+ * automatic landing is off or no runner can take the job [#6119].
  */
-export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding, session = agentSessionDigest, now = Date.now } = {}) {
+export async function landAfterAcceptance(ctx) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
   const root = primaryCheckoutRoot(ctx.info);
-  // With a trunk remote of record a runner lands, in any dispatch mode: this host offers one land job row and returns [P7,#5864].
+  // A runner lands, in any dispatch mode: this host offers one land job row and returns, and runs no batch [P7,#5864,#6119].
   const pulled = await offerLanding(ctx, root);
   if (pulled) return pulled;
-  if (session()) {
-    await schedule(root, new Date(now() + LANDING_COALESCE_MS).toISOString(), new URL('../landing/automatic.js', import.meta.url));
-    ctx.io.say?.('the board lands this accept from the main checkout shortly; no command is needed there');
-    return true;
-  }
-  const io = { ...ctx.io, cwd: root, result: undefined, relayCommand: undefined, requestedCommand: undefined, personRequest: undefined, personRequestMoveId: undefined };
-  let reopened = 0;
-  const result = await actOn(io, async (landing, board) => {
-    const policy = mainPolicy(root);
-    const items = store.listItems(board, { all: true }).filter(item => item.item_status === 'verified' && !item.item_merged_commit)
-      .map(item => ({ id: item.item_id, commit: store.checkedLandingCommit(board, item) }));
-    const landed = await landAcceptedItems({ root, config: policy.config, trunk: policy.commit, items,
-      reopen: (id, conflict, note) => {
-        const item = store.getItem(board, id);
-        if (item.item_status !== 'verified' || item.item_merged_commit) return null;
-        reopened += 1;
-        return untilBoardFree(() => ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : { withdrawVerdict: true }), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]), { say: line => ctx.io.err?.(line) });
-      },
-      execute: () => executeBoardLanding(landing, board, io, { automatic: true }) });
-    return { ...(landed && typeof landed === 'object' ? landed : {}), retryMs: policy.config.landing?.cadenceMs ?? LANDING_RETRY_MS,
-      reopened, waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at),
-      untried: untriedAfter(store.listItems(board, { all: true }), landed?.batch) };
-  });
-  const retryAt = landingRetryAt(result, now());
-  if (retryAt) await schedule(root, retryAt, new URL('../landing/automatic.js', import.meta.url));
-  // The wake reads the run's outcome, so a blocked batch with untried work waiting starts the next run at once [C7].
-  return result && typeof result === 'object' ? result : true;
+  const refusal = noLandingRunner();
+  ctx.io.say?.(`not landed: ${refusal.message}; next: ${refusal.next}`);
+  return false;
 }
 
 /**
