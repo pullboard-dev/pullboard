@@ -47,6 +47,8 @@ function renderSide() {
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   const selectedRepo = data.projects.find((x) => x.root === view.root);
   $('proj-name').textContent = selectedGroup?.name || selectedRepo?.name || (p ? p.root.split('/').pop() : 'No project');
+  if ($('proj-title')) $('proj-title').textContent = $('proj-name').textContent;
+  if ($('mdrawer-proj-name')) $('mdrawer-proj-name').textContent = $('proj-name').textContent;
 }
 
 /** The Spec rows that need the person, read once per board from the store (#6613). */
