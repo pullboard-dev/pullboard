@@ -199,7 +199,7 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
     if (heldIds.has(item.id) || laneHeld.has(item.lane)) {
       const reason = String(holdReason.get(item.id) ?? '');
       row.detail = norm(reason);
-      add(/^Released twice/i.test(reason) ? 'held-twice' : /Corey|person|ruling/i.test(reason) ? 'held-person' : 'held', row); continue;
+      add(/^Released twice/i.test(reason) ? 'held-twice' : /person|ruling/i.test(reason) ? 'held-person' : 'held', row); continue;
     }
     if (item.status === 'verified') { row.detail = landBlock.get(item.id) || 'not selected by the lander yet'; add(landBlock.has(item.id) ? 'accepted-blocked' : 'accepted', row); continue; }
     const pending = unmet(item);
