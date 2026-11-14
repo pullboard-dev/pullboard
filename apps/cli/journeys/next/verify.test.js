@@ -159,15 +159,15 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', async t => {
   assert.doesNotMatch(mainRefusal.next, /git worktree add/u, 'the refusal names a pullboard command, never a hand-built worktree [V1] (#7925)');
   const startup = mainRefusal.next.split('\n').find(line => line.includes('pullboard worktree review'));
   assert.ok(startup, 'the refusal names the command that creates a review seat on one line');
-  assert.match(startup, /pullboard worktree review --model "<model name>" --family "<vendor family>".*pullboard next --verify 1/u);
+  assert.match(startup, /pullboard worktree review --model "<model name>", then cd into the path it prints and run: pullboard next --verify 1/u);
   assert.equal(initialized.out.split('\n').filter(line => line.includes('git worktree add --detach')).length, 1,
     'init explains the same reviewer path once');
   const self = JSON.parse((await box.runLocal(box.web, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(self.code, 'SELF_VERIFY', 'the startup guidance does not give the builder a verdict');
-  const command = startup.slice(startup.indexOf('cd '), startup.indexOf(', then')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
+  const command = startup.slice(startup.indexOf('cd '), startup.indexOf(', then')).replaceAll('"<model name>"', "'Independent Reviewer Model'");
   const env = { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture', PULLBOARD_ROUTE: 'strong' };
   // The fixture model name maps to no tier, so the seat would default to mid; item #1 needs a strong verifier [V4].
-  const made = runFixtureChild('/bin/sh', ['-c', command + ' --route strong'], { cwd: box.repo, env, encoding: 'utf8' });
+  const made = runFixtureChild('/bin/sh', ['-c', command + " --route strong --family 'Independent Fixture Reviewer Vendor'"], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(made.status, 0, made.context);
   const seat = made.stdout.match(/made (.+) on branch/u)?.[1];
   assert.ok(seat, `the named command prints the new seat's path: ${made.stdout}`);
