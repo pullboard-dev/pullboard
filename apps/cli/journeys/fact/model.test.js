@@ -4,6 +4,9 @@ import {
   test,
   after,
 } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 
@@ -13,6 +16,11 @@ after(e2e.cleanup);
 /** A project whose web-1 seat joined on the strong route with fixture-model, holding an older strong item and a mid one. */
 function strongSeatWithWork() {
   const box = e2e.project('true');
+  // Sonnet is strong since 7cf17d51ed, so the project names its own mid-tier label; an unnamed label lowers nothing.
+  const file = join(box.repo, 'pullboard.json'), config = JSON.parse(readFileSync(file, 'utf8'));
+  config.modelTiers = [{ contains: 'haiku', route: 'light' }, { contains: 'fixture-mid-model', route: 'mid' }, { contains: 'opus', route: 'strong' }];
+  writeFileSync(file, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'commit', '-q', '-am', 'chore: project model tiers');
   const strong = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Strong work', route: 'strong', diagnose: false });
   const mid = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Mid work', route: 'mid', diagnose: false });
   return { box, strong: strong.item_id, mid: mid.item_id };
