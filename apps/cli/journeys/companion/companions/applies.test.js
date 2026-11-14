@@ -105,10 +105,10 @@ test('native landing includes every attached companion and a manual omission can
 
 test('a composed landing with a deleted literal import target never moves main or the remote [B35]', async t => {
   const box = await fixture(t, { deleted: true });
-  const refused = await box.runLocal(box.repo, 'land', '--json');
-  assert.equal(refused.code, 1, refused.err + refused.out);
-  assert.equal(JSON.parse(refused.out).error.code, 'LAND_MODULE_RESOLUTION');
-  assert.match(JSON.parse(refused.out).error.message, /web\/client\.js.*\.\/value\.js/u);
+  const offered = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(offered.code, 0, offered.err + offered.out); // land is pulled: it offers a runner land job; the guard refuses inside that job
+  const settled = await settleLand(box, JSON.parse(offered.out));
+  assert.notEqual(settled.batch.state, 'landed', JSON.stringify(settled.landJob ?? {}));
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), box.before);
   assert.equal(box.git(box.repo, 'ls-remote', 'origin', 'refs/heads/main').split(/\s/u)[0], box.before);
   assert.equal(existsSync(box.marker), false, 'compiling source graph inputs never evaluates candidate code');
