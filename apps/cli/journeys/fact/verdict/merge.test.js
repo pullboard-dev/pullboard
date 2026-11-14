@@ -1,10 +1,7 @@
-import { landingPorts } from '../../../tests/fixtures/landing/ports.js';
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import {
-  land,
-} from '../../../../../packages/landing/index.js';
+import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -40,6 +37,20 @@ import {
 import { MERGE_ONLY_VERDICT_ENGINE } from '../../../../../packages/state/light.js';
 import { operationIntent } from '../../../../../packages/state/index.js';
 import { capturePrProof } from '../../../../../packages/github/index.js';
+
+/**
+ * What the pulled land offer does with every verified item on this board against the checkout's main: the lines it
+ * said and the items it handed back. Why: `land` no longer merges (lander v2, #6813); the offer's stale-verdict
+ * filter is the step that keeps a forged acceptance from reaching a land job [V1,V4,H16].
+ */
+async function offered(box, board) {
+  const said = [];
+  const items = await withoutStaleVerdicts(board, box.repo, box.git(box.repo, 'rev-parse', 'HEAD'), store.listItems(board), {
+    candidate: () => true, say: line => said.push(line),
+    write: async () => { throw new Error('the offer must not rewrite the board in this journey'); },
+  });
+  return { said, items };
+}
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -253,10 +264,10 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     assert.equal(store.getItem(forged, id).item_status, 'verified',
       'canonical replay records the sealed decision consistently; landing is the authoritative Git backstop');
     const beforeLanding = box.git(box.repo, 'rev-parse', 'HEAD');
-    await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT'
-        && /recorded merge-only acceptance/u.test(error.message),
-      'forged canonical carry must not reach a physical merge');
+    const forgedOffer = await offered(box, forged);
+    assert.ok(forgedOffer.said.some(line => /STALE_VERDICT/u.test(line) || /recorded merge-only acceptance/u.test(line)), forgedOffer.said.join('\n'));
+    assert.ok(forgedOffer.said.some(line => /recorded merge-only acceptance/u.test(line)), 'the refusal names the recorded merge-only acceptance');
+    assert.ok(forgedOffer.items.find(row => row.item_id === id).item_hold_at, 'forged canonical carry must not reach a land job');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
     assert.deepEqual(store.verdictsFor(forged, id), original.verdicts);
     assert.deepEqual(store.landingBatches(forged), []);
@@ -277,8 +288,9 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     chained.args[1].mergeOnly = nextProof;
     applyEngineMove(forged, chained, { sequence: 2, at: '2026-01-01T00:00:01.000Z' });
     assert.equal(store.getItem(forged, id).item_status, 'verified');
-    await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT',
+    const chainedOffer = await offered(box, forged);
+    assert.ok(chainedOffer.said.some(line => /STALE_VERDICT/u.test(line) || /merge-only/u.test(line)), chainedOffer.said.join('\n'));
+    assert.ok(chainedOffer.items.find(row => row.item_id === id).item_hold_at,
       'a later clean carry must not launder a forged earlier carry into a landable acceptance');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), nextTrunk);
     box.git(box.repo, 'reset', '--hard', trunk);
