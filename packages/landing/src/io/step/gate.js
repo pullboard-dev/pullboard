@@ -4,15 +4,12 @@ import { hasTestTiers } from '../../../../gate/index.js';
 import { selectTestTiers } from '../../../../gate/index.js';
 import { requireSealedSkips } from '../../../../gate/index.js';
 import { landingRunFiles } from '../../../../gate/index.js';
-import { packageHashesAt } from '../../../../gate/index.js';
-import { TEST_TIERS_FILE } from '../../../../gate/index.js';
 import { testTierCommand } from '../../../../gate/index.js';
 import { VALUE_GATE } from '../../../../gate/index.js';
 import { gateStages } from '../../../../gate/index.js';
 import { blockingFailures } from '../../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
-import { reusableSubmitFiles } from '../reuse.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { runLocalLandingGuard } from '../../logic/land/guard.js';
@@ -35,7 +32,6 @@ import { runStaticChecks } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
 import { selectAffectedTests } from '../../../../gate/index.js';
-import { testClosures } from '../../../../gate/index.js';
 import { ledgerFromOutput } from '../../../../gate/index.js';
 import { selectRegistryGuards } from '../../../../kernel/index.js';
 import { literalShellWords } from '../../../../kernel/index.js';
@@ -97,7 +93,7 @@ function batchAffectedTests(state, readEvents, readItem) {
     }
     const named = new Set(affected.files);
     // A5 keeps proved units out; journeys and deferred files still need actual merged-tree reach.
-    const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, submittedUnits(state, commit, readEvents));
+    const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, new Set());
     const deferred = submitted === null ? deferredSelections(state, readEvents).flatMap(row => row.files).filter(file => named.has(file)) : [];
     const explicit = submitted?.filter(file => !testTiers.units.includes(file)) ?? [];
     return { full: false, mandatory, testTiers, journeys: testTiers.journeys.filter(file => named.has(file)), proved: submitted ?? [],
@@ -435,48 +431,6 @@ export function landingGateShard(state, files) {
   return { files: [...files], filesCommand: batch => affectedTestsCommand({ affectedTests: runner }, batch), say: line => state.say?.(line) };
 }
 
-/**
- * The test files a main move during a landing can change the result of: those whose import closure reaches both a file
- * main's new commits changed and a file the batch changes. A test that reaches only main's change runs the same bytes
- * main's own landing proved; one that reaches only the batch's runs the bytes the batch's gate proved. A test whose
- * closure cannot be read reruns when either side changed it or the affected selection for main's move names it (all of
- * them when that selection is the full suite). Null when the repository has no import graph to read (no test tiers or
- * no focused runner): the caller keeps its own selection.
- * Why: every "main moved outside this batch's files" rebuild reran a selection, the full plan when the move was wide,
- * up to 2m07s a landing on 9 Nov, while the move rarely shared a test closure with the batch [C7].
- *
- * @param {any} state
- * @param {{ trunkFiles: Set<string>, batchFiles: Set<string>, trunkAffected: { full?: boolean, files?: string[] } }} changes - Paths
- *   main's move and the batch each changed, and the affected-test selection for main's move.
- * @returns {string[] | null}
- */
-export function trunkMoveReruns(state, { trunkFiles, batchFiles, trunkAffected }) {
-  const commit = headCommit(state.batch.root);
-  if (!state.config.affectedTests?.trim() || !hasTestTiers(state.batch.root, commit)) return null;
-  let closures;
-  try { closures = testClosures(state.batch.root, commit).closures; } catch { return null; }
-  return auditOnlySplit(state.config, interactingTests(closures, { trunkFiles, batchFiles, trunkAffected })).files;
-}
-
-/**
- * The tests of trunkMoveReruns from an import-closure map: each test file to `{ files }`, or `{ files: null }` when its
- * closure cannot be read.
- *
- * @param {Map<string, { files: string[] | null }>} closures
- * @param {{ trunkFiles: Set<string>, batchFiles: Set<string>, trunkAffected?: { full?: boolean, files?: string[] } }} changes
- * @returns {string[]}
- */
-export function interactingTests(closures, { trunkFiles, batchFiles, trunkAffected }) {
-  const named = new Set(trunkAffected?.files ?? []);
-  const reruns = [];
-  for (const [file, closure] of closures) {
-    const reached = closure?.files;
-    if (!reached) { if (trunkAffected?.full || named.has(file) || trunkFiles.has(file) || batchFiles.has(file)) reruns.push(file); continue; }
-    if (reached.some(path => trunkFiles.has(path)) && reached.some(path => batchFiles.has(path))) reruns.push(file);
-  }
-  return reruns.sort();
-}
-
 /** Merge and test one speculative prefix without giving its worker publication authority. */
 export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
@@ -503,33 +457,6 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   if (!claimed.cached) await finishGate(tree, gate);
   await save(state, { state: gate.isGreen ? 'ready' : 'blocked' });
   return { batch: state.batch, gate };
-}
-
-/**
- * The unit and contract files some batch item's exact submit already ran on the same test bytes and the same content of
- * every package the test covers, so landing reuses that proof (RFC 0006 A4).
- * Why: any other freshly selected unit, such as a contract that reached main after the submit, must run at landing.
- */
-function submittedUnits(state, commit, readEvents = id => store.events(state.board, { itemId: id })) {
-  const root = state.batch.root, proven = new Set();
-  let manifest;
-  try { manifest = JSON.parse(git(root, ['show', `${commit}:${TEST_TIERS_FILE}`], { maxBuffer: 256 * 1024 * 1024 })); } catch { return proven; }
-  const rows = new Map((manifest?.files ?? []).map(row => [row.file, row]));
-  const blob = (rev, file) => { try { return git(root, ['rev-parse', `${rev}:${file}`]).trim(); } catch { return null; } };
-  for (const entry of state.batch.items) {
-    const event = readEvents(entry.id).findLast((row) => row.event_kind === 'submit');
-    const detail = event ? JSON.parse(event.event_detail) : null;
-    const proof = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof : null;
-    if (!proof?.files?.length) continue;
-    const [then, now] = packageHashesAt(root, [entry.commit, commit]);
-    const { reuse } = reusableSubmitFiles({ proof, closureUnchanged: file => {
-      const row = rows.get(file);
-      return Boolean(row) && blob(entry.commit, file) !== null && blob(entry.commit, file) === blob(commit, file)
-        && row.packages.every(name => then.get(name)?.hash === now.get(name)?.hash);
-    } });
-    for (const file of reuse) proven.add(file);
-  }
-  return proven;
 }
 
 /** The affected test files each batch item's submission moved to the landing gate, read from its exact submit. */
