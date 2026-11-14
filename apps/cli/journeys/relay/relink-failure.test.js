@@ -23,9 +23,8 @@ test('a relay on whose device key cannot be saved leaves board_id, its relink in
   const keys = join(box.env.PULLBOARD_HOME, 'relay-keys');
   mkdirSync(keys, { recursive: true });
   chmodSync(keys, 0o500);
-  t.after(() => chmodSync(keys, 0o700));
   // The key is saved after the epoch starts and the snapshot is taken, so this is a failure after the id switch.
-  await assert.rejects(box.cliLocal('relay', 'on', '--url', box.origin), { code: 'EACCES' });
+  try { await assert.rejects(box.cliLocal('relay', 'on', '--url', box.origin), { code: 'EACCES' }); } finally { chmodSync(keys, 0o700); }
   assert.equal(existsSync(box.linkFile), false, 'no link was written');
   assert.equal(currentId(box), before, 'the board id is what it was before relay on');
 });
