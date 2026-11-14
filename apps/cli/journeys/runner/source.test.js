@@ -221,7 +221,7 @@ async function historyFixture(t) {
   };
   const scan = sha => protectHistory(repo, { commit: sha }, [defaults().protect]);
   const logs = () => (existsSync(launches) ? readFileSync(launches, 'utf8').split('\n').filter(Boolean) : []);
-  return { commit, scan, logs };
+  return { commit, scan, logs, repo };
 }
 
 test('a candidate one commit ahead of a scanned main runs no full-history log, even beside an unscanned sibling [C7,#5550]', async t => {
@@ -256,4 +256,27 @@ test('a bad path in the new commit is still refused beside a scanned ancestor [C
   const bad = commit('data/board.sqlite', main);
   assert.throws(() => scan(bad), error => error.code === 'RUNNER_SECRET');
   assert.throws(() => scan(commit('e.txt', bad)), error => error.code === 'RUNNER_SECRET');
+});
+
+test('the committed 0.9.3 upgrade fixture board passes both runner source scans [C7,R4,#7894]', async t => {
+  const { commit, scan, repo } = await historyFixture(t);
+  const { sourceObjects } = await import('../../../../packages/runners/index.js');
+  const { defaults } = await import('../../../../packages/config/index.js');
+  const fixture = commit('apps/cli/tests/fixtures/upgrade-093/board.sqlite');
+  assert.doesNotThrow(() => scan(fixture), 'its history is admitted');
+  assert.doesNotThrow(() => sourceObjects(repo, { commit: fixture, protect: defaults().protect }), 'its current tree is admitted');
+});
+
+test('a real board file outside test fixtures is still refused by both runner source scans [C7,R4,#7894]', async t => {
+  const { commit, scan, repo } = await historyFixture(t);
+  const { sourceObjects } = await import('../../../../packages/runners/index.js');
+  const { defaults } = await import('../../../../packages/config/index.js');
+  const refused = error => error.code === 'RUNNER_SECRET';
+  for (const path of ['board.sqlite', 'data/board.sqlite', 'apps/cli/tests/board.sqlite', 'apps/cli/tests/fixtures/board.sqlite',
+    'apps/cli/tests/fixtures/upgrade-093/sub/board.sqlite', 'apps/cli/tests/fixtures/upgrade-093/board.sqlite-wal',
+    'apps/cli/tests/fixtures/upgrade-093/board.sqlite-shm']) {
+    const bad = commit(path);
+    assert.throws(() => scan(bad), refused, `${path} in history`);
+    assert.throws(() => sourceObjects(repo, { commit: bad, protect: defaults().protect }), refused, `${path} in the tree`);
+  }
 });

@@ -38,6 +38,7 @@ import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
 import { caseReworkLines } from './gate/files.js';
+import { companionInherits } from './gate/companion.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -553,8 +554,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
-  const owned = ownershipOnly(receipt);
-  if (receipt?.status === 0 && receipt?.gate?.green === true || owned) {
+  const owned = ownershipOnly(receipt), proved = receipt?.status === 0 && receipt?.gate?.green === true || owned;
+  if (proved) {
     const admission = receipt?.status === 0 && receipt?.gate?.green === true && !submit.companion ? recordSubmitAdmission(board, { id, item, candidate, submit }) : null;
     try { phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check, admission }); }
     catch (error) {
@@ -576,7 +577,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   // as the controller's main-owned verdict asks [V4,B3]. A claim base main's receipts cannot key excuses nothing.
   const claimBase = typeof submit.claimBase === 'string' && SHA.test(submit.claimBase) && submit.claimBase !== main ? submit.claimBase : null;
   const atClaim = claimBase && compared?.cases.length && compared.cases.every(row => row.onMain === true) ? compareGateWithMain(board, receipt, claimBase, compareWithMain) : null;
-  const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true) && (!claimBase || Boolean(atClaim?.cases.every(row => row.onMain === true)));
+  const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true) && (!claimBase || Boolean(atClaim?.cases.every(row => row.onMain === true))) && companionInherits(board, submit, main, compared.cases);
   const recorded = compared ? { cases: compared.cases } : {};
   let parts = compared ? [...trials.refused, ...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
     ...(claimBase && !mainOnly && compared.cases.every(row => row.onMain === true) ? (atClaim ? caseLines(atClaim) : compared.cases.map(row => `main receipt missing: ${row.phase} ${row.file} (${row.name})`)).map(line => `at claim base ${claimBase.slice(0, 12)}, ${line}`) : []),
@@ -602,7 +603,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     const deferred = receipt.gate?.deferred === true;
     const deferredFiles = deferred && Array.isArray(receipt.gate.deferredFiles) && receipt.gate.deferredFiles.every(file => typeof file === 'string' && PROJECT_FILE.test(file)) ? receipt.gate.deferredFiles : null;
     try {
-      // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
+      // A companion submit binds the builder head it composed onto to the composed source's green phase receipts, also for an inherited red [P7,V4,B3].
+      if (submit.companion && !proved) phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check });
       const companion = submit.companion ? { ...submit.companion, receiptIds: phaseReceipts.map(row => row.id),
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
       store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
