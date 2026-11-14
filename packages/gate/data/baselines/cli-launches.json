@@ -299,9 +299,6 @@
   "apps/cli/journeys/submit/regeneration.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/fact/landing/lease.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/roadmap/count.test.js": {
     "launch": 4
   },
@@ -1516,9 +1513,6 @@
   },
   "apps/cli/journeys/view/port.test.js": {
     "launch": 10
-  },
-  "apps/cli/journeys/fact/landing/handover.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/run/receipts.test.js": {
     "launch": 7
