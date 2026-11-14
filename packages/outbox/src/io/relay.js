@@ -780,11 +780,13 @@ async function recoverParked(link) {
     const document = link.snapshotDocument();
     const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
     const sealed = await link.sealedRecord(key, document, state, 'snapshot', sequence);
-    const reply = await link.request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: { sequence, sealed } }, io);
+    const reply = await link.request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: { sequence, sealed, recovery: true } }, io);
     if (reply.state?.sequence !== sequence || reply.state.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the recovery checkpoint; the parked moves stay parked, retry pullboard relay recover');
     removeOutbox(where);
     saveOutboxSummary(link, null);
     state.presentationDigest = link.presentationDigest(document.presentation);
+    // This machine published the recovery, so it already holds it; every other computer reads it by its epoch (#7776).
+    if (Number.isSafeInteger(reply.state.epoch)) state.checkpointEpoch = reply.state.epoch;
     delete state.checkpoint;
     delete state.checkpointPresentationDigest;
     delete state.checkpointRefusal;
