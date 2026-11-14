@@ -253,16 +253,17 @@ test('health reads each seat session instead of offering its own material for re
 });
 
 
-test('health matches two free seats to distinct eligible work instead of hiding the second item [N2,A6]', async t => {
+test('health observes each of two free seats beside the item next selects for it [N2,A6]', async t => {
   const box = await fixture(t);
   const first = box.add('First ready item');
   const second = box.add('Second ready item');
   const observed = dispatchHealth(box.board, box.config);
-  assert.deepEqual(new Set(observed.dispatch.map(pair => pair.item)), new Set([first, second]));
-  assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2);
+  // Health reports the item next actually selects for each free seat (#1160, 7bb430cfcb), so both seats may name the top item.
+  assert.ok(observed.dispatch.every(pair => [first, second].includes(pair.item)));
+  assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2, 'each free seat has its own observation');
   box.scan(); box.advance(300000); box.scan();
   const messages = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
-  assert.equal(messages.length, 2, 'each distinct free pairing has one loud warning');
+  assert.equal(messages.length, 2, 'each free seat has one loud warning');
 });
 
 test('an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
