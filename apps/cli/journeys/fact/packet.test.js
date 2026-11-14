@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { performance } from 'node:perf_hooks';
 import {
@@ -178,7 +179,7 @@ test('a fully covered packet accepts in under 10 s with no checkout, test proces
   // The landing step still composes main and runs the landing gate, which runs the item's test.
   box.git(box.dir, 'init', '-q', '--bare', join(box.dir, 'origin.git'));
   box.git(box.repo, 'remote', 'add', 'origin', join(box.dir, 'origin.git'));
-  const landed = JSON.parse((await ok(box, box.repo, 'land', '--json')).out);
+  const landed = await settleLand(box, JSON.parse((await ok(box, box.repo, 'land', '--json')).out)); // the pulled land job posts its receipt after the command returns [C7]
   assert.deepEqual(landed.landed, [id], JSON.stringify(landed));
   assert.ok(existsSync(marker), 'the landing gate ran the item test');
 });
