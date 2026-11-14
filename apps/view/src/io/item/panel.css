@@ -3,10 +3,12 @@
 .item-panel-head { display: grid; gap: 0; min-width: 0; }
 .ip-l1 { display: flex; align-items: center; gap: var(--space-3); min-width: 0; white-space: nowrap; }
 .ip-l1 .id { color: var(--ink-faint); font: 500 var(--text-xs) var(--mono); }
+.ip-marks { display: inline-flex; flex: none; align-items: center; gap: var(--space-1); }
 .ip-who { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-faint); font-size: var(--text-xs); }
 .ip-who code, .ip-cap code, .ip-vh code, .ip-hr code, .ip-cl code, .ip-gr code { font: 11px var(--mono); }
 .item-panel-head h2 { margin: var(--space-2) 0 3px; font: 600 var(--text-xl)/1.3 var(--sans); letter-spacing: -.005em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .item-panel-head h2 code { font-size: .88em; }
+.ip-overlap { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 .ip-meta { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); font-size: var(--text-xs); }
 .ip-chip { display: inline-flex; flex: none; align-items: center; gap: 5px; padding: 0 7px; border-radius: var(--radius-chip); font: 500 var(--text-2xs)/18px var(--sans); white-space: nowrap; }
 .ip-chip.b { background: var(--tint-blue); color: var(--tint-blue-ink); }
@@ -33,6 +35,8 @@
 
 /* verdict: the sent-back or passed note, three lines until opened */
 .ip-verdict { padding: 9px 0 0; }
+/* The shared .sentback tint is for the old card; the approved panel marks a send-back with its chip alone. */
+.item-panel .ip-verdict.sentback { border: var(--border); background: var(--surface); border-radius: var(--radius-card); padding: 9px 0 0; }
 .ip-vh { display: flex; align-items: center; gap: var(--space-3); margin: 0 var(--space-4); white-space: nowrap; }
 .ip-at { margin-left: auto; color: var(--ink-faint); font-size: var(--text-xs); }
 .ip-vn { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 7px var(--space-4) 4px; font-size: var(--text-sm); line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }

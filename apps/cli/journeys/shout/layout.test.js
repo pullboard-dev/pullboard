@@ -100,7 +100,7 @@ test('no box carries a coloured edge [N26]', async () => {
     assert.doesNotMatch(style, /box-shadow:[^;}]*inset -?\d+(?:\.\d+)?px 0 0/, 'and no stripe drawn by a shadow');
 
     await page.click({ go: 'item:1' });
-    assert.match(page.show('detail'), /<div class="verdict no"><b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/, 'a verdict says what it decided');
+    assert.match(page.show('detail'), /<span class="ip-chip x" title="BEHAVIOR_MISMATCH">Behavior did not match<\/span>/, 'a verdict says what it decided');
     assert.match(style, /\.verdict\.yes b \{ color: var\(--accent-strong\); \} \.verdict\.no b \{ color: var\(--reject\); \}/, 'in the colour of its word, not a bar');
   } finally {
     await view.stop();

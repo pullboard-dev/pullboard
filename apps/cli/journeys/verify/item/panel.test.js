@@ -101,6 +101,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
     await chrome.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Chicago' });
     await chrome.waitFor(`view.item === ${id} && !!document.querySelector('#detail .item-panel')`);
     const fullCommit = item.verdict.commit;
+    const standardCheck = 'node packages/gate/src/io/run/tests.js apps/cli/journeys/verify/item/panel.test.js';
     for (const [width, mobile] of [[1440, false], [375, true]]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
       const shown = JSON.parse(await chrome.stable(`JSON.stringify((() => {

@@ -61,8 +61,7 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.ok(top.includes('coordinator') && top.toLowerCase().includes(time.toLowerCase()) && top.includes(verdictHash), "who sent it back, at the person's local time, and at which commit");
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
-    assert.ok(detail.indexOf('<p class="ip-lbl">Done when</p>') < detail.indexOf('<p class="ip-lbl">Brief</p>'));
-    assert.ok(detail.indexOf('<p class="ip-lbl">Brief</p>') < detail.indexOf('<p class="ip-lbl">Brief</p>'));
+    assert.ok(detail.indexOf('<p class="ip-lbl">Done when</p>') < detail.indexOf('<p class="ip-lbl">History</p>'));
     assert.ok(detail.replace(/\b(?:title|aria-label)="[^"]*"/gu, '').split('second line of the note').length >= 2, 'the full note appears in the Sent back section');
 
     await page.click({ item: '2', classes: 'row' });
@@ -80,13 +79,13 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.match(page.show('detail'), /<span class="id">#4<\/span>[^]*<h2>Banner<\/h2>/);
     assert.match(page.show('detail'), /item-panel-head[^]*ip-chip g">Withdrawn/);
     assert.match(beforeDoneWhen(), /item-panel-latest sentback[^]*<span class="ip-chip x" title="BEHAVIOR_MISMATCH">Behavior did not match<\/span>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
-    assert.ok(page.show('detail').indexOf('<p class="ip-lbl">Done when</p>') < page.show('detail').indexOf('<p class="ip-lbl">Brief</p>'));
+    assert.ok(page.show('detail').indexOf('<p class="ip-lbl">Done when</p>') < page.show('detail').indexOf('<p class="ip-lbl">History</p>'));
 
     await page.click({ item: '3', classes: 'row' });
     const verified = page.show('detail');
     assert.match(verified, /<p class="ip-lbl">Passed<\/p>/, 'the current passed verdict leads the panel');
     assert.doesNotMatch(verified, /item-panel-latest sentback/, 'the latest panel is not tinted as sent back after acceptance');
-    assert.ok(verified.indexOf('<p class="ip-lbl">Done when</p>') < verified.indexOf('<p class="ip-lbl">Brief</p>'));
+    assert.ok(verified.indexOf('<p class="ip-lbl">Done when</p>') < verified.indexOf('<p class="ip-lbl">History</p>'));
     const verdicts = page.show('detail');
     assert.ok(verdicts.indexOf('the page shows it') < verdicts.indexOf('no heading yet'), 'every verdict remains available newest first in the opened history');
   } finally {

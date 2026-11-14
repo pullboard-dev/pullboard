@@ -51,7 +51,7 @@ export function itemPanelModel(item, ctx) {
   let section = null;
   if (verdict && !(verdict.decision === 'REJECT' && landed)) {
     const pass = verdict.decision === 'ACCEPT';
-    section = { pass, code: verdict.reason || '', label: ctx.reason(verdict.reason), by: verdict.by ? name(verdict.by) : '', at: Number.isFinite(at(verdict.at)) ? stamp(at(verdict.at)) : '', commit: verdict.commit || '', note: ctx.note || '', long: String(ctx.note || '').length > 170 || String(ctx.note || '').split(/\r?\n/u).length > 3 };
+    section = { pass, code: verdict.reason || '', label: String(ctx.reason(verdict.reason)).replace(/^./u, first => first.toUpperCase()), by: verdict.by ? name(verdict.by) : '', at: Number.isFinite(at(verdict.at)) ? stamp(at(verdict.at)) : '', commit: verdict.commit || '', note: ctx.note || '', long: String(ctx.note || '').length > 170 || String(ctx.note || '').split(/\r?\n/u).length > 3 };
   }
 
   // ---- the latest gate ----
@@ -206,9 +206,9 @@ export function itemPanelHtml(model, h) {
   const hd = model.head;
   const header = '<header class="item-panel-head"><div class="ip-l1"><span class="id">#' + hd.id + '</span><span class="ip-chip ' + (STAGE[hd.stage] || 'g') + '">' + esc(hd.stage === 'Merged' ? 'Landed' : hd.stage) + '</span>'
     + (hd.back ? '<span class="ip-mark" title="Sent back ' + hd.back + (hd.back === 1 ? ' time' : ' times') + '">' + icon(ICON.back) + hd.back + '</span>' : '')
-    + '<span class="ip-who">' + hd.right.replace('\u0001', copy(hd.commit)) + '</span></div>'
+    + (h.marks ? '<span class="ip-marks stage-marks">' + h.marks + '</span>' : '') + '<span class="ip-who">' + hd.right.replace('\u0001', copy(hd.commit)) + '</span></div>'
     + '<h2>' + h.title + '</h2>'
-    + (hd.meta.length ? '<p class="ip-meta">' + hd.meta.map(esc).join(' · ') + '</p>' : '') + '</header>';
+    + (hd.meta.length ? '<p class="ip-meta">' + hd.meta.map(esc).join(' · ') + '</p>' : '') + (h.overlap ? '<div class="ip-overlap">' + h.overlap + '</div>' : '') + '</header>';
 
   let out = '';
   const v = model.section;

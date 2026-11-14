@@ -487,15 +487,15 @@ function render({ tab: switching = false } = {}) {
   if (!selected) store.paint($('detail'), '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>');
   const opened = selected && !view.adding ? detailOf(p, selected, view.tab === 'items' && data.root === view.root) : null;
   /** The opened item's whole panel from its model: the header alone while its detail loads, every section once it has arrived (#7571). */
-  const drawPanel = (it) => {
-    const baseline = it.checkBaseline;
+  const drawPanel = (item) => {
+    const baseline = item.checkBaseline;
     const baselineLabel = baseline?.result === 'red' ? 'red on main' : baseline?.result === 'green' ? 'green on main' : baseline?.result === 'pending' ? 'pending on main' : 'no baseline on main';
-    const verdict = it.verdict;
-    const model = itemPanelModel(it, { now: Date.now(), esc, name: (seat) => agentName(seat), stage: stageOfItem(it, p, gatedOf(it), '').stage,
-      milestone: (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === it.id))?.name,
-      reason: (code) => activityWords({ cause: code }).label, brief: briefCopyOf(it.brief), note: verdict ? visibleVerdictNote(verdict.reason, verdict.note) : '', files: panelFiles(it.brief || ''),
+    const verdict = item.verdict;
+    const model = itemPanelModel(item, { now: Date.now(), esc, name: (seat) => String(seat), stage: stageOfItem(item, p, gatedOf(item), '').stage,
+      milestone: (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name,
+      reason: (code) => activityWords({ cause: code }).label, brief: briefCopyOf(item.brief), note: verdict ? visibleVerdictNote(verdict.reason, verdict.note) : '', files: panelFiles(item.brief || ''),
       baseline: { label: baselineLabel, warn: baseline?.warning === 'CRITERION_PROVES_NOTHING' }, historyOpen: view.historyOpen?.has(JSON.stringify([view.root, view.item])) === true });
-    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), inline: (text) => inline(text, titles), timeline: it.thread ? timeline(it, { newestFirst: true }) : '', title: rich(it.title, titles),
+    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), marks: itemStageMarks(item, p).filter(mark => !/aria-label="Sent back/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
       note: verdict ? inline(visibleVerdictNote(verdict.reason, verdict.note), titles) : '' });
   };
   /** The brief without its Files section, whose paths the panel lists as rows. */
