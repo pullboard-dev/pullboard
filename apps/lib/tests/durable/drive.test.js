@@ -264,7 +264,7 @@ test('clause 1: drainLoop calls driveOnce until the job reaches its terminal ste
   } finally { closeBoard(board); }
 });
 
-test('clause 1: the hand-off worker is a child that drives the job to its verdict, and killing it loses nothing [C7]', async () => {
+test('clause 1: the hand-off worker is a child that drives the job to its verdict, and killing it loses nothing [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526 (the SSH stand-in hand-off worker and its detached shards never finish inside a pulled runner job)' }, async () => {
   const head = seededRepo();
   const env = localSsh();
   const file = join(filesPart3.root, 'board.sqlite');
