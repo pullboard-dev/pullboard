@@ -992,6 +992,10 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   const settledBase = await baseSettled;
   // The coordinator's sentinel sweep marks the unreviewable stack base once; let it upload before the baseline.
   await settledUploadCount(relay, async () => (await Promise.all([...clones, ...worktrees].map((root, index) => cli(root, envs[index % 3], 'status'))))[2]);
+  // Clause 1 (#7562): the gate B's runner pulled settles on C through the relay, never on B's store alone.
+  const seenOnC = store.openBoardForRead(replicaFiles[2]);
+  try { assert.deepEqual(['status', 'commit'].map(key => store.getItem(seenOnC, stackedA)[`item_${key}`]), ['submitted', firstRecoveryCommit], `replica C sees #${stackedA} submitted by B's pulled gate`); }
+  finally { store.closeBoard(seenOnC); }
   const beforeFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
   await restoreInventories();
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
