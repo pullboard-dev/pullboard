@@ -107,18 +107,23 @@ function statusBarHtml(p) {
  * The page's chrome has one writer (#3200, #6613): the tab title, the Spec tab's count, the status bar and its unread
  * shouts. Each is built from the store's board the same way on every tab and written only when it differs, so a
  * refresh that changes nothing leaves all of them alone. Roadmap's title counts the releases it shows; other tabs
- * keep the machine-wide call count.
+ * keep the machine-wide call count. Called with paint false it only reads the counts into the store's memo and touches
+ * no node, so a live update can read ahead of its draw without the title or status bar showing a board the lists do not (#7604).
  */
-function writeChrome() {
+function writeChrome(paint = true) {
   if (!data) return;
   const p = data.project, selectedGroup = data.groups.find((group) => group.key === view.root);
   const roadmap = view.tab === 'roadmap' && p && !selectedGroup;
   const next = tabTitle({ shown: Boolean(p || selectedGroup), name: $('proj-name').textContent, tab: view.tab, group: Boolean(selectedGroup),
     needs: data.projects.reduce((n, x) => n + needCount(x), 0), remaining: roadmap ? store.select('roadmap-remaining', [p, data.projects, view.roadmapOnly], (project) => roadmapRemainingCount(roadmapReads(project))) : null,
     cost: privateCost && !snapshot && !hosted.local && !readOnly && !data.group });
+  const shown = p && data.root === view.root ? p : null;
+  if (!paint) {
+    if (shown) { store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml); store.select('nav-numbers', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers); }
+    return;
+  }
   if (document.title !== next) document.title = next;
   // While a switch loads, the board on hand is the last project's: its counts are never shown as the new one's.
-  const shown = p && data.root === view.root ? p : null;
   store.paint($('status-board'), shown ? store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml) : '');
   if (!shown) return;
   // The navigation's numbers: the notch, the switcher's rulings, each page's one fact (#6614).

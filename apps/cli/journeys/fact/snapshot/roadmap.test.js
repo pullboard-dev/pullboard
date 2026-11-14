@@ -62,10 +62,10 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await openRoadmapParts(chrome);
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
-      { id: '#2', label: 'Ready', tone: 'ready', button: true },
       { id: '#1', label: 'Verified', tone: 'verified', button: true },
+      { id: '#2', label: 'Ready', tone: 'ready', button: true },
       { id: 'beacon#1', label: 'Ready', tone: 'ready', button: true },
-    ], "the snapshot's rows expand in place; another repo's unavailable item has no Items link");
+    ], "the snapshot's rows expand in place, by stage first: verified, then ready in queue order (#6841); another repo's unavailable item has no Items link");
     assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
 
@@ -163,9 +163,11 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
     };
     const folder = join(box.dir, 'full-board-export');
     await exportView(alpha.repo, folder, { fetchApi, runCommand: nativeTestMain });
+    // Since #6661 the export reads the state once as summaries, then each item's own detail, so no one read carries the whole board.
     const stateReads = asked.filter((url) => url.pathname.endsWith('/state'));
-    assert.deepEqual(stateReads.map((url) => url.searchParams.get('detail')), ['full'],
-      `the export reads the state once, asking for detail=full; it asked for ${asked.map((url) => url.pathname + url.search).join(', ')}`);
+    assert.deepEqual(stateReads.map((url) => url.searchParams.get('detail')), ['summary'],
+      `the export reads the state once, as summaries; it asked for ${asked.map((url) => url.pathname + url.search).join(', ')}`);
+    assert.ok(asked.some((url) => url.pathname.endsWith('/items/1')), 'and reads item #1 in full, so the exported item keeps its whole detail');
 
     // With no API left to ask, the exported page still opens the item's criterion, verdicts and thread.
     const host = await serveFolder(folder, '/demo/');
