@@ -112,7 +112,8 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   assert.equal(mainRefusal.code, 1, `${mainRefusal.out}\n${mainRefusal.err}`);
   const mainError = JSON.parse(mainRefusal.out).error;
   assert.equal(mainError.code, 'MAIN_IS_COORDINATOR');
-  assert.match(mainError.next, /git worktree add --detach/u);
+  assert.match(mainError.next, /pullboard worktree \w+ --model/u);
+  assert.doesNotMatch(mainError.next, /git worktree add/u, 'a pullboard command makes the review seat (#7925)');
   assert.match(mainError.next, /reviewer.*(?:did not|not).*build/iu, 'the step requires an independent reviewer');
   const reviewer = join(repo, '.claude', 'worktrees', 'reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'HEAD');
