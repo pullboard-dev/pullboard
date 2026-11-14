@@ -205,6 +205,13 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
 }
 
 /**
+ * Note a pulled submit in the agent-session ledger as the board move did: check the ledger is writable first, record once the gate job is offered.
+ *
+ * Why: the pulled submit queues its gate and the runner's receipt applies the move, so no session wrote the ledger row that `verify` reads to refuse the builder's own session [V1,B3,#7725].
+ */
+export function noteSubmitSession(info, id, record) { return record ? itemSessions.recordItemSession(info, id, 'submit', agentSessionDigest()) : itemSessions.requireLedger(info, agentSessionDigest()); }
+
+/**
  * Whether a fresh claim drops a legacy pinned policy from this item's frozen bar, re-freezing it bar-only [B4,R2].
  *
  * Why: a bar frozen by the previous release pins a whole pullboard.json commit, and every later policy commit made that
