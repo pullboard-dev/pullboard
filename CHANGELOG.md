@@ -4,6 +4,32 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- Runners pull their work. A runner serves jobs from the board's queue by capability, renews a lease while it works and posts a signed receipt; only the runner holding a job's lease can post its result. `pullboard runner serve` runs gate, test, landing and main-check jobs, `--once` runs a single job, `runner install-serve` installs it as a service, and `runner drain` stops a runner taking new jobs (#3429, #5467, #5468, #5469, #5689, #5690, #5721, #5732, #5735, #5758, #5777, #5623, #6063).
+- A machine with no registered runners is its own runner: submit starts a local runner, a board command restarts it if it dies, and `runner list` and `doctor` show it (#5764, #6556, #6557, #6558).
+- Boards anywhere: with `board.url` set, `show`, `whoami`, `next`, `claim`, `fact`, `release`, `submit`, `verify` and `test` work over the board API from any machine, `join` registers a remote agent, and runners fetch code from the trunk remote or from the board itself (#5904, #5905, #5906, #5908, #5909, #5945, #5759).
+- Multi-item claims: a seat may hold several live claims, and one `next` hands it up to that many ready items whose files do not overlap, each in its own item folder. The allowance comes from board data (#6262, #6263, #6673, #7461).
+- `pullboard test` posts a proof run that a runner pulls and returns at once. It says when it is admitted and on which runner, prints progress every minute, and has `--status`, `--cancel`, `--diagnose` and `--compare-main`. A green run at the item's head ticks the clauses it proves (#3439, #4078, #5300, #5584, #5772, #5774, #5888, #3479, #3670).
+- Lander v2: accepted items land as a job on a runner. The land job takes every verified item that composes cleanly, lands them in accept order, refuses a candidate that fails the parse guard or CLI smoke, and publishes the landed tip; the trunk remote refuses a push to main without a landing receipt (#5568, #5734, #5815, #5848, #5863, #5864, #7307, #7387, #7395, #7398).
+- `pullboard search <text>` finds items by meaning across titles, bars and briefs, and `add` prints the nearest three open items. Filing a likely duplicate is refused unless you say how it differs (#5915, #5916, #5917, #6475).
+- The `withdraw.review` setting makes a withdrawal wait for a second agent to confirm it (#6474).
+- `pullboard trace <agent|item>` rebuilds a timeline from one trace line per command and the board's events, down to each gate step and runner lease (#3214, #3216, #3856).
+- `pullboard why` prints the release flow on one screen: one cause for each unlanded item and each idle seat. `pullboard land --why` says why nothing landed and what holds the line (#2887, #6326, #6327).
+- `pullboard status` prints the most agents this board can use and what limits it (#7322).
+- `pullboard stats runners`, `stats agents` and `stats review` report slot wait, utilization, run time and health per runner, claims, submits, landings and wait per seat, and review queue depth, time to review and reject rate. `stats` shows the pipeline per hour and Pullboard's disk use per store (#2186, #3000, #6031, #6032, #6033, #6034, #6136, #6137, #6138).
+- Items carry labels computed from the board, and `pullboard labels` lists them (#6321, #6322).
+- `pullboard contribute check <file>` prints every failure in a contribution record with its rule, its fix and a skill command (#3910, #6387, #6508).
+- The pullboard-release skill ships with Pullboard, with a release receipt check (#6511, #6522).
+- Commit hooks fix mechanical style themselves and say what they changed (#5775).
+- `init` detects every language in a mixed repo and sets up one gate per language (#3707).
+- A `scratch` setting names one root for throwaway folders (#6316).
+- The view has a search box, a command palette and hotkeys (#6616).
+- The view's account menu holds sign-in, settings, theme and phone pairing, and the project menu tells boards apart by owner, name and kind (#6648, #6650).
+- `pullboard edit` can change an item's title, keeping the old one in its thread; `add` and `edit` catch an ambiguous bar and name the fix (#4967, #4984).
+- `pullboard intake --brief` lets a pull request enter on the mid route, and `milestone --as person` lets the person ship a milestone (#3813, #5375).
+- Two settings from user reports: `rigor.autoDraft` turns off unproved Rigor drafts, and `review.independence` chooses session-level verifier independence (#5403, #5407).
+
 ### Fixed
 
 - On Linux, landing cleanup sees each process's working directory, so it removes only clean landed worktrees and never one in use (#1462).
