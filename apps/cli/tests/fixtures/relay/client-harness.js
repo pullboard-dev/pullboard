@@ -889,16 +889,22 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   }
   const recoveredStackCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
 
-  // Clone B replays B's recovered submit, whose policy commit is clone A's main (the coordinator's init commit): fetch it as a clone of that main does [H3].
-  gitAt(worktrees[1], envs[1], 'fetch', '-q', clones[0], 'main');
+  // A pulled submit orders one move of its own, the note naming its gate job; the board's submit comes from the
+  // runner's receipt. So the lost reply is that note's, and recovery must reuse the one gate job, never offer another [C7,P7].
   const beforeRecoveredStack = relay.uploads.length;
-  relay.dropNextReply({ offline: true, operation: 'submit', item: stackedB, key, boardId });
+  relay.dropNextReply({ offline: true, operation: 'appendFact', item: stackedB, key, boardId });
   await restoreInventories();
   const lostStackSubmit = await timing.wait('submit recovered-stack item B with its reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB)));
   const afterLostStackSubmit = relay.uploads.length;
   assertDroppedReplyConsumed(relay, 'the recovered-stack submission reply');
   assert.equal(lostStackSubmit.status, 1);
   assert.equal(lostStackSubmit.document.error.code, 'RELAY_UNAVAILABLE');
+  const recoveredLink = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
+  const lostNote = JSON.parse(readFileSync(recoveredLink, 'utf8')).pending?.move;
+  assert.equal(lostNote?.operation, 'appendFact', 'the dropped reply belongs to the submit\'s gate-offer note');
+  assert.equal(lostNote?.args?.[0], stackedB, 'the pending note is for item B');
+  const lostJob = /^Gate job (\S+) offered for /u.exec(lostNote.args[1]?.text ?? '')?.[1];
+  assert.ok(lostJob, `the pending note names B's gate job: ${JSON.stringify(lostNote.args[1]?.text)}`);
   relay.failReads(false);
   await restoreInventories();
   const laterA = await timing.wait('submit stack item A after B has a lost reply', () => cliResult(worktrees[1], envs[1], 'submit', String(stackedA)));
@@ -908,20 +914,17 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   await timing.wait('sync clone A to recover stacked submission B', () => cli(clones[0], envs[0], 'status'));
   const afterStackRecovery = relay.uploads.length;
 
-  const recoveredLink = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
-  const pendingOutcome = JSON.parse(readFileSync(recoveredLink, 'utf8')).recovered;
-  const beforeOutcomeRetry = relay.uploads.length;
   const stackOwnerB = await assertRecoveredStackUploads({
     uploads: relay.uploads,
-    bounds: { beforeRecoveredStack, afterLostStackSubmit, afterLaterA, afterStackRecovery, beforeOutcomeRetry },
-    key, boardId, replicaFiles, stackedA, stackedB, firstRecoveryCommit, recoveredStackCommit, pendingOutcome,
+    bounds: { beforeRecoveredStack, afterLostStackSubmit, afterLaterA, afterStackRecovery },
+    key, boardId, replicaFiles, stackedA, stackedB, lostNote,
   });
+  const beforeOutcomeRetry = relay.uploads.length;
   await restoreInventories();
-  const originalOutcome = await timing.wait('read the durable original submission outcome for B', () => cli(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
+  const originalOutcome = await timing.wait('retry the submission of B after its lost reply', () => cli(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
   assert.equal(originalOutcome.commit, recoveredStackCommit);
-  assert.match(originalOutcome.gate.report, /recovered the original submission/u);
+  assert.equal(originalOutcome.gateJob, lostJob, 'the retry reuses the gate job the lost submit offered, never a second gate');
   await assertOriginalOutcomeDelivery(relay.uploads.slice(beforeOutcomeRetry), key, boardId, stackOwnerB);
-  assert.equal(relay.uploads.length, beforeOutcomeRetry + 1);
   await restoreOutboxDefault();
 }
 
