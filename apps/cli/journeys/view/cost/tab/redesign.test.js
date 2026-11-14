@@ -44,7 +44,7 @@ test('the private Cost overview renders prepared analytics and each confidence [
     assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted, came back later/u);
 
     const order = costOverviewHtml(fixture).match(/cost-summary|cost-model-card|cost-chart"|cost-longest|Took the longest/gu);
-    assert.deepEqual(order, ['cost-summary', 'cost-model-card', 'cost-chart"'], 'Models sit above Agent time each day and nothing is Took the longest');
+    assert.deepEqual(order, ['cost-model-card', 'cost-summary', 'cost-chart"'], 'Models sit above Agent time each day and nothing is Took the longest');
     assert.deepEqual(chrome.exceptions, []);
   } finally { if (chrome) await closeSnapshotChrome(chrome); await new Promise(resolve => server.close(resolve)); rmSync(dir,{recursive:true,force:true}); }
 });
