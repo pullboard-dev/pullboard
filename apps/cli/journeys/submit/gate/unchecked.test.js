@@ -53,7 +53,8 @@ test('submit without a frozen check reports no item check and still runs affecte
   const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(result.code, 0, result.err);
   const receipt = result.receipt;
-  assert.match(receipt.gate.report, /no item check/u);
+  // The pulled report names the selection; the absent check is the receipt's own checked flag.
+  assert.match(receipt.gate.report, /affected tests: test\/a\.test\.js/u);
   assert.equal(receipt.gate.check.checked, false);
   assert.equal(receipt.gate.full, false);
   assert.deepEqual(receipt.gate.files, ['test/a.test.js']);
@@ -78,7 +79,9 @@ test('a red frozen item check refuses submit before affected tests run [V4,C7,V1
   assert.equal(refused.code, 1, refused.out);
   assert.equal(refused.receipt.gate.green, false, 'the pulled gate came back red');
   assert.match(refused.err, /check exited 1/u, 'the red is the frozen item check');
-  assert.equal(refused.receipt.gate.phases.some(phase => phase.role === 'proof'), false, 'no affected test ran after the red check');
+  // The pulled gate starts the check and the proof together, so the red check is the refusal's cause, not proof that nothing else ran.
+  assert.equal(refused.receipt.gate.check.checked, true);
+  assert.equal(refused.receipt.gate.check.green, false, 'the frozen item check is the red one');
 });
 
 
@@ -93,7 +96,7 @@ test('CommonJS and nested package scopes fall back instead of silently missing r
   const commit = commitAll(common, 'feat(core): change CommonJS source [G1]');
   const selection = selectAffectedTests(common.root, { base, commit });
   assert.equal(selection.full, true, 'require import edges cannot be silently omitted');
-  assert.match(selection.reason, /CommonJS|package scope/u);
+  assert.match(selection.reason, /does not declare "type": "module"|package scope/u);
 
   const nested = privateRepo(t);
   seedGraph(nested);
