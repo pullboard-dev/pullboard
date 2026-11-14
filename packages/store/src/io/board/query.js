@@ -524,6 +524,12 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     json_type(CASE WHEN json_valid(event_detail) THEN event_detail ELSE 'null' END) != 'object' OR
     json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END, '$.shout') IN (SELECT value FROM json_each(?)))`;
   const messageIds = JSON.stringify(messages.map(message => message.shout_id));
+  // A fresh seat's unread messages still owe it their answers and passes, which sit before the head it starts at (#6152).
+  if (fromHead && messages.length) {
+    const first = board.db.prepare(`SELECT MIN(event_id) AS id FROM event WHERE event_kind IN ('shout','pass','answer') AND event_id<=?
+      AND json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END, '$.shout') IN (SELECT value FROM json_each(?))`).get(cursor, messageIds).id;
+    if (first !== null) after = Math.min(after, first - 1);
+  }
   const rows = new Map();
   // Read the new events once by id range and keep the wanted items' ones: an advanced cursor leaves a handful of rows,
   // where probing the item index once per wanted item cost tens of milliseconds on a board of a thousand items.
