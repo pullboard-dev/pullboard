@@ -23,6 +23,8 @@ Name the cause when you send work back, so Rigor can read it. For example:
     pullboard verify <id> reject --reason TEST_FAILURE --note "what failed" --cause <key>
     pullboard reopen <id> --note "why" --cause <key>
 
+Copy the key exactly as `pullboard rigor` prints it, so the failure joins the same line.
+
 A reject or reopen without a cause still counts as a failure. Rigor just cannot read it, and the report says how many there are.
 
 ## How you use it
