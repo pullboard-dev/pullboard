@@ -78,7 +78,8 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify({ height: innerHeight,
       pageHeight: document.documentElement.scrollHeight, scrollY,
       console: document.querySelector('#console').getBoundingClientRect().toJSON(),
-      success: document.querySelector('#console').classList.contains('ok') })`));
+      success: document.querySelector('#console').classList.contains('ok'),
+      probe: [...document.querySelectorAll('body *')].map(e => [e.id || String(e.className) || e.tagName, Math.round(e.getBoundingClientRect().bottom), e.scrollHeight, e.clientHeight, getComputedStyle(e).overflowY, getComputedStyle(e).position]).filter(r => r[2] > r[3] + 4 || r[1] > 800).slice(0, 25) })`));
     t.diagnostic('late hold geometry: ' + JSON.stringify(geometry));
     assert.ok(geometry.pageHeight > geometry.height, 'the real feed can scroll, so a redundant scroll cannot pass vacuously');
     assert.ok(geometry.success && geometry.console.height > 0 && geometry.console.top >= 0 && geometry.console.bottom <= geometry.height,
