@@ -415,7 +415,12 @@ function jobAtHead(entry, job) {
   // infrastructure stop on that digest is the same work waiting for the machine, never fresh builder work (#4989).
   const frozenHead = !entry.item_commit && Boolean(entry.item_frozen_digest) && job.digest === entry.item_frozen_digest
     && job.state === 'infrastructure' && job.error?.code === 'GATE_INFRA_EXHAUSTED';
-  return frozenHead || (Boolean(entry.item_commit) && job.commit === entry.item_commit);
+  if (frozenHead) return true;
+  if (entry.item_commit) return job.commit === entry.item_commit;
+  // A queued gate records the submit only when it is green, so its builder's own red returns a claimed item with no
+  // commit: the red is still that claim's, on its frozen bar, and the builder must see it [C7,N2].
+  return entry.item_status === 'claimed' && Boolean(entry.item_owner) && job.agentId === entry.item_owner
+    && Boolean(entry.item_frozen_digest) && job.digest === entry.item_frozen_digest && job.state === 'red';
 }
 
 /**
