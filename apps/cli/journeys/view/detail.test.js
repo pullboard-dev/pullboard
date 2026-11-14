@@ -126,7 +126,8 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("view.item === 2 && !document.querySelector('#detail [aria-busy]') && !!document.querySelector('#detail .tl')");
       const farewell = await chrome.stable(DETAIL);
       assert.equal(farewell.criterion, 'The farewell mentions the zeppelin.');
-      assert.deepEqual(farewell.moves, ['add', 'claim', 'renew', 'proof-run', 'submit']);
+      // The Launch placement folds into the add row, so its event id counts as a second add (b86bdc79c0).
+      assert.deepEqual(farewell.moves, ['add', 'add', 'claim', 'renew', 'proof-run', 'submit']);
       assert.deepEqual(readSet(await chrome.stable('window.__pbReads')).filter((path) => path !== 'items/1'), ['items/2', 'items?q=zeppelin'], 'opening an item adds no detail request beyond its read ahead');
 
       // The verified item opens with its criterion, check, brief, verdicts and thread from one more request.
