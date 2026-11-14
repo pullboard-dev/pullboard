@@ -59,7 +59,7 @@ const DETAIL = `(() => {
     // The opened history lists newest first; the helper reads it oldest first. The latest verdict has its own section.
     moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].reverse().flatMap((move) => move.dataset.eventIds.split(' ').reverse().map(() => move.dataset.timelineKind)),
     // Gate bookkeeping facts (shadow receipts, review comparisons) are not findings; fact/snapshot.test.js drops them the same way.
-    facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)),
+    facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:|Not a duplicate of #)/u.test(text)),
   };
 })()`;
 
@@ -148,7 +148,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
         criterion: 'The greeting renders from the snapshot alone.',
         check: ['true', 'runs one command · green on main'],
         brief: 'Keep the greeting short.',
-        moves: ['add', 'check-baseline', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'accept'],
+        moves: ['add', 'add', 'check-baseline', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'accept', 'accept'], // a folded placement and a folded landing event each count as a second row kind.
         facts: ['The corrected greeting renders offline.'],
       }, 'the detail carries what the summary leaves out');
       assert.deepEqual(readSet(await chrome.stable('window.__pbReads')), ['items/1', 'items/2', 'items?q=zeppelin'], 'both details were read once, ahead');
