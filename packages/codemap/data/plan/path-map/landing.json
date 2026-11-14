@@ -31,7 +31,6 @@
   "src/publish-pause.js": "packages/landing/src/io/pause.js",
   "src/record-train-landing.js": "packages/landing/src/io/trainrecord.js",
   "src/train-landing-receipt.js": "packages/landing/src/io/train/receipt.js",
-  "src/train-landing.js": "packages/landing/src/io/train.js",
   "src/landing-step-selection.js": "packages/landing/src/io/step/selection.js",
   "src/landing-step-merge.js": "packages/landing/src/io/step/merge.js",
   "src/landing-step-failures.js": "packages/landing/src/io/step/failures.js",
