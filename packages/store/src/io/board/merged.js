@@ -5,6 +5,7 @@ import { logEvent } from "./event/log.js";
 import { Refused } from "../../../../kernel/index.js";
 import { coordinatorOnly } from "../board.js";
 import { setItem } from "../board.js";
+import { closeItemAsks } from "./decision/answer.js";
 import { withdraw } from "./withdraw.js";
 import { FORCED_MERGE_ENGINE } from "../../../../state/index.js";
 
@@ -45,5 +46,6 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
     logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
       ...(reason ? { forced: true, reason, from: item.item_status } : {}),
       ...(flakeRatchet === undefined ? {} : { flakeRatchet }) });
+    closeItemAsks(board, id, { agentId, reason: 'landed' });
   });
 }

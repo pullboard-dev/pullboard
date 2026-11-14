@@ -100,6 +100,7 @@ import { shout } from "./board/shout.js";
 import { recordHealthFindings } from "./board/record/findings.js";
 import { passDecision } from "./board/decision/pass.js";
 import { answerDecision } from "./board/decision/answer.js";
+import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
@@ -480,6 +481,7 @@ export {
   recordHealthFindings,
   passDecision,
   answerDecision,
+  closeFinishedAsks,
   appendFact,
   buildOrder,
   nextFor,
