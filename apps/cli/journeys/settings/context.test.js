@@ -68,8 +68,9 @@ test('Settings render hostile values as read-only text in a narrow real browser 
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'settings-chrome'));
     await chrome.waitFor('document.body.classList.contains("loading") === false');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: false });
-    await chrome.click(`document.querySelector('#proj-switch')`);
-    await chrome.click('document.querySelector("[data-proj-all]")');
+    // Under 900 px the project switcher lives in the Menu drawer, whose project button opens the list (dcf117ebc6).
+    await chrome.click("document.querySelector('#menu-btn')");
+    await chrome.click("document.querySelector('#mdrawer-proj')");
     // Settings now lives in the account menu, which draws its rows when it opens.
     await press(chrome, 'document.querySelector("#account")');
     await chrome.click(`document.querySelector('#account-menu [data-tab="settings"]')`);

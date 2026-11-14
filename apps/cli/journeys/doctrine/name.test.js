@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { projectState } from '../../src/io/view.js';
 import { doctrineHistory } from '../../../../packages/doctrine/index.js';
 import {
@@ -147,9 +148,8 @@ test('[D1,D2,A5] explicit custom practice paths remain authoritative beside DOCT
   const repo = await initializedRepo(box, 'custom-repo');
   const custom = '# Custom doctrine\n\n## C · Custom\n- C1 [fact] Use the configured custom doctrine file.\n';
   writeFileSync(join(repo.root, 'ways.md'), custom);
-  const configPath = join(repo.root, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, `${JSON.stringify({ ...config, practice: 'ways.md' }, null, 2)}\n`);
+  const config = JSON.parse(readFileSync(join(repo.root, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(repo.root, { config: { ...config, practice: 'ways.md' } });
 
   const checked = await box.inProcess(repo.root, 'spec', 'check');
   assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
@@ -186,7 +186,7 @@ test('[D4,A5] canonical collisions stay errors without legacy rename history', a
   const root = join(box.dir, 'never-legacy');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'SPEC.md'), '# Requirements\n\n## G · Goals\n- G1 [draft, aim] Existing requirement.\n');
+  fixtureProjectPolicy(root, { spec: '# Requirements\n\n## G · Goals\n- G1 [draft, aim] Existing requirement.\n' });
   writeFileSync(join(root, DOCTRINE), '# Doctrine\n\n## G · Goals\n- G1 [draft] Existing collision.\n');
   box.git(root, 'add', 'SPEC.md', DOCTRINE);
   box.git(root, 'commit', '-q', '-m', 'docs: add canonical doctrine collision');

@@ -31,6 +31,7 @@ import {
   chooseFilter,
   openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 test('in-text item references stay inline and open their target at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for item-reference layout checks.');
@@ -47,14 +48,14 @@ test('in-text item references stay inline and open their target at phone and des
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('document.querySelectorAll("#chain .row").length >= 2 && document.querySelector("#needs .needs-call")');
 
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // Needs you heads the Items list under Active; the steps below leave other tabs and filters open.
-      await chrome.click("document.querySelector('[data-tab=items]')"); await chooseFilter(chrome, 'state:active');
+      await pressTab(chrome, 'items'); await chooseFilter(chrome, 'state:active');
       await openItemsNeeds(chrome);
       const decision = "document.querySelector('#needs details[data-needs-key^=\"decision:\"]')";
       if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
@@ -93,12 +94,12 @@ test('in-text item references stay inline and open their target at phone and des
       // The agents rail is one line per agent and no longer lists an agent's items, so only Spec and Doctrine carry item references.
       for (const section of ['spec', 'doctrine']) {
         if (section === 'agents') {
-          await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+          await pressTab(chrome, 'shouts');
           const agent = await chrome.stable("(() => { const item=data.project.items.find(i => i.id===2); return item.claim?.by || item.builtBy; })()");
           if (!await chrome.stable(`!!document.querySelector('#agents .agent-card.on [data-agent="${agent}"]')`)) await chrome.click(`document.querySelector('#agents [data-agent="${agent}"]')`);
           await chrome.waitFor('document.querySelector("#agents [data-item=\\"2\\"]")');
         } else {
-          await chrome.click(`document.querySelector('[data-tab="${section}"]')`);
+          await pressTab(chrome, `${section}`);
           await chrome.click(`document.querySelector('[data-rows="${section}:all"]')`);
           const citedRow = 'G1';
           if (section === 'doctrine') {
@@ -125,12 +126,12 @@ test('in-text item references stay inline and open their target at phone and des
         assert.equal(metrics.nestedButtons, 0, `${width}: ${section} title has no nested controls`);
         await chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
         await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
-        await chrome.click(`document.querySelector('[data-tab="${section === 'agents' ? 'shouts' : section}"]')`);
+        await pressTab(chrome, section === 'agents' ? 'shouts' : section);
         await chrome.click(`document.querySelector(${JSON.stringify(selector)}).closest('[data-item="2"]')`);
         await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1')");
       }
 
-      await chrome.click(`document.querySelector('[data-tab="items"]')`);
+      await pressTab(chrome, 'items');
       await chrome.click(`document.querySelector('#chain .row[data-item="2"] .t a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
       await chooseFilter(chrome, 'state:active');
@@ -139,11 +140,11 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       // The redesigned Activity page (#7507) has no inline item link in a shout's words: a row about #1 opens #1's journey, as the Activity journeys assert.
-      await chrome.click(`document.querySelector('[data-tab="activity"]')`);
+      await pressTab(chrome, 'activity');
       await chrome.waitFor(`document.querySelector('#activity .act-row[data-row="1"]')`);
       await chrome.click(`document.querySelector('#activity .act-row[data-row="1"]')`);
       await chrome.waitFor(`!!document.querySelector('#activity svg[aria-label="Journey of #1"]')`);
-      await chrome.click(`document.querySelector('[data-tab="items"]')`);
+      await pressTab(chrome, 'items');
       await chrome.click(`document.querySelector('#chain .row[data-item="1"]')`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 

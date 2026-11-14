@@ -73,7 +73,8 @@ test('the roadmap panel counts the next release by stage [N26]', {
         await chrome.waitFor(`matchMedia('(prefers-color-scheme: ${scheme})').matches`);
         const counts = await read();
         assert.equal(counts.next, '0.8.7', `${width}/${scheme}: the panel names the next release`);
-        const expected = [['landed', '1'], ['landing', '1'], ['review', '1'], ['building', '1'], ['waiting', '1'], ['held', '0']];
+        const expected = [['landed', '1'], ['landing', '1'], ['review', '1'], ['building', '1'], ['ready', '1'], ['waiting', '0'], ['held', '0']];
+        // The board splits ready out of waiting, so the one unclaimed, unblocked item reads ready and none are blocked (6648c0eb6b, #7763).
         assert.deepEqual(counts.headerCounts, expected, `${width}/${scheme}: the header reads every supplied state, Landed in its chip row as on the Dashboard`);
         assert.equal(counts.landedText.length, 1, `${width}/${scheme}: the landed-of-total count appears once`);
         assert.equal(counts.railTiles, 0, `${width}/${scheme}: the rail holds no count tiles and no last-shipped block`);

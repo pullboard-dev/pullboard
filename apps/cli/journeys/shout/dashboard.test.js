@@ -85,7 +85,9 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
         return { tag: element.tagName, id: element.id, class: element.getAttribute('class'), left: rect.left, right: rect.right, width: rect.width, display: style.display };
       }).filter(rect => rect.width > 0 && (rect.right > document.documentElement.clientWidth + 1 || rect.left < -1)).slice(0, 16))`);
       assert.equal(fits, true, `${scheme} at ${width}px has no sideways page scroll; overflow: ${overflow}`);
-      assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs > [data-tab], #tabs .tab-group-btn')).every(button => {
+      // Under 900px the strip gives way to the menu drawer (nav.css, max-width 900px), so the phone case proves the menu button is on screen.
+      if (width <= 900) assert.equal(await chrome.stable(`(() => { const rect = document.querySelector('.menubtn').getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1; })()`), true, 'the menu button that opens every tab is on screen');
+      else assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs > [data-tab], #tabs .tab-group-btn')).every(button => {
         const rect = button.getBoundingClientRect(), strip = button.closest('.strip'); return rect.width > 0 && (strip && getComputedStyle(strip).overflowX === 'auto' ? rect.left >= 0 : rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1);
       })`), true, 'every retained tab is on screen, or reachable by sideways scroll');
       const title = await chrome.stable(`(() => {

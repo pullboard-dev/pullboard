@@ -13,6 +13,7 @@ import {
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
 
 test('the roadmap chips keep their scroll through a redraw with wide fonts [N26]', async () => {
@@ -36,7 +37,7 @@ test('the roadmap chips keep their scroll through a redraw with wide fonts [N26]
     await chrome.waitFor('data?.project?.milestones?.length === 13');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375');
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     await chrome.waitFor("document.querySelector('#roadmap-releases [aria-current=location]')");
     const before = await labels();
     // The current release's chip is bold, so it is wider than when it is not marked, by an amount that depends on
