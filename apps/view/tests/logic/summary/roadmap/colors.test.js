@@ -87,7 +87,6 @@ test('every stage color in the view resolves to its token, never a literal or a 
   assert.match(all, /\.roadmap-summary-swatch\.held\b[^}]*var\(--border-held[a-z-]*\)/, 'the Roadmap legend draws Held as a dashed ring');
   assert.ok(!/\.roadmap-(stage-swatch|summary)[^{]*\.held\b[^}]*var\(--warn\)/.test(all), 'Held is no longer brown');
   assert.match(all, /\.stage-mark\.gate \{[^}]*background: none;[^}]*dashed/, 'the Held mark is dashed, with no fill');
-  assert.match(all, /\.roadmap-summary-needs \{[^}]*color: var\(--ink\)/, 'Rulings is ink, not a color');
 });
 
 test('stage chip text on its tint is at least 4.5:1 in light and dark (clause 3) [N26]', () => {

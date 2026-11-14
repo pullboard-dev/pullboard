@@ -45,21 +45,19 @@ test('the roadmap panel counts the next release by stage [N26]', {
   await box.inProcess(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'The last shipped note.\nA second detail line.', '--items', '6', '--reason', 'the test release names its shipped item');
   await box.inProcess(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'Shipping next.', '--items', '1,2,3,4,5', '--reason', 'the test release takes the next items');
   await box.inProcess(alpha.repo, 'milestone', 'ship', '0.8.6', '--next', '0.8.7');
-  const shippedAt = JSON.parse(await box.inProcess(alpha.repo, 'roadmap', '--json')).milestones.find(milestone => milestone.name === '0.8.6').shipped.at;
-  const shippedLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(Date.parse(shippedAt)) + ' · on npm';
+  JSON.parse(await box.inProcess(alpha.repo, 'roadmap', '--json')).milestones.find(milestone => milestone.name === '0.8.6');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-panel-counts-'));
   let chrome;
   /** Read the visible stage counts and the bounded last-shipped summary. */
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const card=document.querySelector('#roadmap-panel'), rect=e=>{const r=e?.getBoundingClientRect();return r ? {top:r.top,bottom:r.bottom,height:r.height} : {top:0,bottom:0,height:0};};
-    const last=[...document.querySelectorAll('#roadmap .roadmap-last-shipped')].find(e=>e.getBoundingClientRect().height>0);
     return {next:document.querySelector('#roadmap-list > .milestone > .release-header .release-name').textContent,
-      counts:[...document.querySelectorAll('#roadmap .roadmap-desktop-shipping [data-shipping-stage]')].filter(e=>e.getBoundingClientRect().height>0).map(e=>[e.dataset.shippingStage,e.querySelector('dd').textContent]),
-      shipped:last ? [...last.children].map(e=>e.textContent) : null,
-      panel:rect(card),desktop:rect(card.querySelector('.roadmap-desktop-shipping')),mobile:rect(document.querySelector('.roadmap-list .roadmap-mobile-shipping')),
+      railTiles:document.querySelectorAll('#roadmap-panel [data-shipping-stage], #roadmap-panel .roadmap-last-shipped, #roadmap-list .roadmap-mobile-shipping').length,
+      railRows:[...document.querySelectorAll('#roadmap-panel .roadmap-release')].map(e=>e.textContent),
+      landedText:document.querySelector('#roadmap-list > .milestone .release-header').textContent.match(/[0-9]+ of [0-9]+ landed/g)||[],
       heading:rect(document.querySelector('#roadmap-list > .milestone > .release-header .release-name')),
-      mobileCounts:rect(document.querySelector('#roadmap-list > .milestone .roadmap-mobile-shipping .roadmap-stage-counts')),
+      card:rect(document.querySelector('#roadmap-list > .milestone > .milestone-body')),
       headerCounts:[...document.querySelector('#roadmap-list > .milestone').querySelectorAll('[data-summary-state]')].map(e=>[e.dataset.summaryState,e.querySelector('b').textContent]),
       documentWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),viewport:document.documentElement.clientWidth,viewportHeight:document.documentElement.clientHeight};
   })())`));
@@ -76,12 +74,12 @@ test('the roadmap panel counts the next release by stage [N26]', {
         const counts = await read();
         assert.equal(counts.next, '0.8.7', `${width}/${scheme}: the panel names the next release`);
         const expected = [['landed', '1'], ['landing', '1'], ['review', '1'], ['building', '1'], ['waiting', '1'], ['held', '0']];
-        assert.deepEqual(counts.headerCounts, expected, `${width}/${scheme}: the header reads every supplied state`);
-        assert.deepEqual(counts.counts, width < 900 ? [] : expected, `${width}/${scheme}: the desktop companion panel shares those supplied counts`);
-        assert.deepEqual(counts.shipped, ['Last shipped', '0.8.6', shippedLabel], `${width}/${scheme}: the last shipped row names its recorded publish date without exposing the note`);
+        assert.deepEqual(counts.headerCounts, expected, `${width}/${scheme}: the header reads every supplied state, Landed in its chip row as on the Dashboard`);
+        assert.equal(counts.landedText.length, 1, `${width}/${scheme}: the landed-of-total count appears once`);
+        assert.equal(counts.railTiles, 0, `${width}/${scheme}: the rail holds no count tiles and no last-shipped block`);
+        assert.ok(counts.railRows.every(text => !/\d+\/\d+/u.test(text)), `${width}/${scheme}: the Releases list repeats no landed count`);
+        assert.ok(counts.heading.bottom <= counts.card.top, `${width}/${scheme}: the header sits above its card`);
         assert.ok(counts.documentWidth <= counts.viewport, `${width}/${scheme}: the page never scrolls sideways`);
-        if (width < 900) assert.ok(counts.heading.top < counts.mobileCounts.top && counts.mobile.height > 0 && counts.desktop.height === 0, `${width}/${scheme}: counts sit under the actual next release heading on the phone`);
-        else assert.ok(counts.desktop.height > 0 && counts.mobile.height === 0, `${width}/${scheme}: desktop shipping counts stay in the right panel alongside the header`);
       }
       await proofShot(chrome, 'roadmap-panel-counts', width);
     }
