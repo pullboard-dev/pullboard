@@ -66,7 +66,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
         const opaqueSurface = getComputedStyle(surface).backgroundColor; surface.remove();
         const row = document.querySelector('#feed .sx-th');
         return { pageWidth:document.documentElement.scrollWidth, viewport:innerWidth, feed:box('#feed'), panel:box('#shouts-pane > aside'),
-          composer:getComputedStyle(document.querySelector('#shout-form')).display, status:{...box('.status'),visible:style.display !== 'none',background:style.backgroundColor,expected:opaqueSurface},
+          composer:document.querySelector('#shout-form').getClientRects().length, status:{...box('.status'),visible:style.display !== 'none',background:style.backgroundColor,expected:opaqueSurface},
           component:document.querySelector('#page-controls [data-page-ctl=shouts]').dataset.pageCtl, rowBox:{height:row.getBoundingClientRect().height,lines:getComputedStyle(row).whiteSpace},
           open:document.querySelectorAll('#feed .sx-th.open').length, panels:document.querySelectorAll('#feed .sx-tp').length,
           needs:[...document.querySelectorAll('#shouts-needs .sx-th')].map(r => r.dataset.shoutThread), threads:[...document.querySelectorAll('#shouts-threads > .sx-th')].map(r => r.dataset.shoutThread),
@@ -78,7 +78,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       console.log('PULLBOARD_SHOUTS_REDESIGN ' + JSON.stringify({ width, list }));
       assert.equal(list.pageWidth, list.viewport, 'the feed never widens the viewport');
       if (width === 1280) assert.ok(list.feed.right <= list.panel.left, 'the feed column ends before Agents begins');
-      assert.equal(list.composer, 'none', 'the composer waits: replies are sent from inside a thread');
+      assert.equal(list.composer, 0, 'the composer waits out of sight: replies are sent from inside a thread');
       assert.equal(list.component, 'shouts', 'the one filter set lives in the strip');
       assert.ok(list.rowBox.height <= 64 && list.rowBox.lines === 'nowrap', 'a thread is a two-line row that never wraps: ' + JSON.stringify([width, list.rowBox]));
       assert.deepEqual([list.open, list.panels], [0, 0], 'no thread is open until one is pressed');

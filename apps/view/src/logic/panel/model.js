@@ -85,7 +85,7 @@ export function shoutsModel({ messages, openIds = [], personAskIds = [], queueAs
     const floor = Math.max(floorOf(key), ...messagesOf.filter((message) => kindOf(message.from) === 'you').map((message) => message.ms), -Infinity);
     const unreadCount = messagesOf.filter((message) => kindOf(message.from) !== 'you' && message.ms > floor).length;
     return { key, item, title: item ? info?.title || 'Item #' + item : quiet ? 'Notices with no item' : 'Shouts with no item',
-      chip: item ? info?.chip ?? null : { tone: 'none', label: 'No item' }, href: item ? info?.href ?? '' : '',
+      chip: item ? info?.chip ?? null : { tone: 'none', label: 'No item' }, href: item ? info?.href ?? '' : '', lane: item ? info?.lane ?? '' : '',
       unread: unreadCount > 0, unreadCount, quiet, open: key === openedKey,
       toYou: messagesOf.some((message) => message.to === 'person' || message.to === 'coordinator+person'),
       hasAsk: messagesOf.some((message) => open.has(message.id)),

@@ -66,7 +66,7 @@ export function shoutsHtml(model, { clock, ago, day, startOfToday, readOnly = fa
     const first = thread.firstAt, last = thread.last.at;
     const reply = readOnly ? '' : '<form class="sx-reply" data-reply="' + esc(thread.key) + '"' + (thread.ask ? ' data-ask="' + thread.ask.id + '"' + (thread.ask.ordinary ? ' data-ordinary' : '') : '') + '>'
       + '<i class="sx-si you"></i><input type="text" autocomplete="off" aria-label="' + (thread.ask ? 'Answer' : 'Reply') + '" placeholder="' + (thread.ask ? 'Answer' : 'Reply') + (thread.item ? ' on #' + esc(thread.item) : '') + '">'
-      + '<span class="sx-reach">' + (thread.ask ? 'answers the ruling' : thread.item ? 'reaches its builder, reviewer and coordinator' : 'reaches the coordinator') + '</span>'
+      + '<span class="sx-reach">' + (thread.ask ? 'answers the ruling' : thread.item && thread.lane ? 'reaches the ' + esc(thread.lane) + ' lane' : 'reaches the coordinator') + '</span>'
       + '<button class="sx-send" type="submit">' + (thread.ask ? 'Answer' : 'Reply') + '</button></form>';
     return '<div class="sx-tp" data-thread-panel="' + esc(thread.key) + '"><div class="sx-ph conversation-heading"><span><b>' + thread.count + '</b> ' + (thread.count === 1 ? 'message' : 'messages') + ' · ' + esc(clock(first)) + (thread.count > 1 ? ' – ' + esc(clock(last)) : '') + '</span>'
       + (thread.item && thread.href ? '<a class="sx-lk" href="' + esc(thread.href) + '" data-go="item:' + esc(thread.item) + '">Item #' + esc(thread.item) + ' ›</a>' : '')

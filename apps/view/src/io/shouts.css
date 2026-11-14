@@ -13,7 +13,8 @@
 }
 @media (max-width: 1180px) { #shouts-pane { grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-5); } }
 @media (max-width: 1000px) { #shouts-pane { grid-template-columns: minmax(0, 1fr); } }
-#shouts-pane > .primary { overflow: visible; }
+#shouts-pane > .primary { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+#shouts-pane #feed { min-width: 0; }
 #shouts-pane #feed { display: block; padding: 0; }
 #shouts-pane .sx-rail { position: static; display: block; max-height: none; padding: 0; overflow: visible; }
 #shouts-pane .sx-sec { display: flex; max-width: none; padding: 0; border: 0; background: none; }
@@ -108,6 +109,12 @@
 .sx-msg.full .sx-tx { overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: var(--leading-body); }
 .sx-msg.full .sx-tx .sx-mk { margin-right: var(--space-2); vertical-align: 1px; }
 .sx-msg time { color: var(--ink-faint); font-size: var(--text-xs); text-align: right; }
+/* In a message a chip says what it is: an item, a path, a commit, a command; a long one stays one piece and ends in an ellipsis. */
+.sx-msg button.ref[data-go], .sx-msg a.ref[data-go] { padding: 0 var(--space-2); border-radius: var(--radius-sm); background: var(--violet-soft); color: var(--violet); font-weight: 600; text-decoration: none; }
+.sx-msg code.inline.path { background: var(--blue-soft); color: var(--blue); }
+.sx-msg code.inline.sha { background: var(--warn-soft); color: var(--warn); }
+.sx-msg code.inline.cmd { background: var(--accent-soft); color: var(--accent-strong); }
+.sx-msg code.inline.long { display: inline-block; box-sizing: border-box; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; vertical-align: bottom; }
 /* the shout an address names */
 .sx-msg.found { background: var(--accent-soft); }
 .sx-msg.new time { color: var(--ink); font-weight: 600; }
@@ -159,15 +166,17 @@
 .sx-earlier-msgs:hover { color: var(--ink); }
 /* where the strip is hidden or cut off, the same three filters head the feed */
 .sx-mfilters { display: none; }
+#shouts-pane #feed > .sx-mfilters { display: none; }
 @media (max-width: 900px) {
-  .sx-mfilters { display: flex; align-items: center; gap: var(--space-4); margin: 0 var(--space-0) var(--space-3); font-size: var(--text-sm); }
+  #shouts-pane #feed > .sx-mfilters { display: flex; align-items: center; gap: var(--space-4); padding: 0; border: 0; grid-template-columns: none; margin: 0 var(--space-0) var(--space-3); font-size: var(--text-sm); }
   .sx-mfilters button { display: inline-flex; align-items: center; height: 36px; padding: 0 var(--space-3); border: 0; background: none; color: var(--ink-faint); font: inherit; cursor: pointer; }
   .sx-mfilters button:first-child { padding-left: 0; }
   .sx-mfilters button.on { color: var(--ink); font-weight: 600; }
   .sx-mfilters em { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--text-2xs); font-style: normal; font-weight: 400; }
   .sx-mfilters em.amb { color: var(--warn); }
 }
-#shouts-pane #credentials { margin-top: var(--space-3); }
+#shouts-pane #credentials { margin-top: var(--space-3); padding: 0 var(--space-4); }
+#shouts-pane #credentials > .link { color: var(--ink-faint); font-size: var(--text-xs); }
 /* the page filter counts in the strip: one number, quiet; the questions in amber */
 :root[data-nav] .pagectl [data-page-ctl="shouts"] b { margin-left: var(--space-1); color: var(--ink-faint); font-size: var(--text-2xs); font-weight: 400; }
 :root[data-nav] .pagectl [data-page-ctl="shouts"][data-value="questions"] b { color: var(--warn); }

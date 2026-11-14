@@ -84,8 +84,12 @@ $('feed').addEventListener('submit', async (event) => {
   event.preventDefault();
   const input = form.querySelector('input'), text = input.value.trim(), key = form.dataset.reply, ask = form.dataset.ask;
   if (!text) return;
-  const sent = await (ask ? act(form.hasAttribute('data-ordinary') ? 'coordinator-answer' : 'answer', { id: Number(ask), text }, form)
-    : key.startsWith('item:') ? act('shout', { to: key, text }, form) : act('request', { text }, form));
+  // The move's result line lives beside the (folded) composer, never inside the feed a redraw replaces; a refusal opens the composer so it shows.
+  const anchor = $('shout-form');
+  const lane = key.startsWith('item:') ? data.project.items.find((entry) => String(entry.id) === key.slice(5))?.lane : null;
+  const sent = await (ask ? act(form.hasAttribute('data-ordinary') ? 'coordinator-answer' : 'answer', { id: Number(ask), text }, anchor)
+    : lane ? act('shout', { to: lane, text: '#' + key.slice(5) + ': ' + text }, anchor) : act('request', { text: key.startsWith('item:') ? '#' + key.slice(5) + ': ' + text : text }, anchor));
+  if (!sent) $('shouts-pane').dataset.compose = 'open';
   if (sent && ask && view.answering) answer(null);
   if (sent && input.isConnected && input.value.trim() === text) { input.value = ''; shoutDrafts.delete(key); }
   else if (sent) shoutDrafts.delete(key);

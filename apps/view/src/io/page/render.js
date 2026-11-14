@@ -667,7 +667,7 @@ function render({ tab: switching = false } = {}) {
     ms: Date.parse(x.shout_at), text: messageText(x), decision: Boolean(x.shout_decision), answers: x.shout_answers || null, item: itemOf(x) ? String(itemOf(x)) : null }));
   const itemFacts = {};
   for (const shoutItem of new Set(plainShouts.map((x) => x.item).filter(Boolean))) {
-    itemFacts[shoutItem] = { title: titles.get(shoutItem) || 'Item #' + shoutItem, chip: stageChip(itemById.get(shoutItem)), href: itemAddress(shoutItem, view.root) };
+    itemFacts[shoutItem] = { title: titles.get(shoutItem) || 'Item #' + shoutItem, chip: stageChip(itemById.get(shoutItem)), lane: itemById.get(shoutItem)?.lane || '', href: itemAddress(shoutItem, view.root) };
   }
   const startOfToday = new Date().setHours(0, 0, 0, 0);
   const seenMarks = shoutSeen(view.root);
