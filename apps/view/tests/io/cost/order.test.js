@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/view apps/lib */
 /** The Cost page's order: Models near the top, no Took the longest, Agent time each day lower [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -440,6 +440,16 @@ export function gateJobRequest(pinned) {
 }
 
 /**
+ * A gate-shard job's request with no gate job behind it: main's trusted gate entry run on one shard of files, the
+ * request offerProofShards gives a submit proof's shard. Why: the pre-push full gate offers its files the same way [P7,#7743].
+ *
+ * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string } }} fields
+ */
+export function gateShardRequest({ main, source, shard }) {
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main] };
+}
+
+/**
  * Offer one gate job row for a candidate, or return the open one already offered for it: a retried submit never
  * queues a second run of the same source.
  *

@@ -263,7 +263,7 @@ function redShard(part) {
  * The gate receipt the shards of one proof make together: the gate's own receipt with one proof phase that is green
  * only when every shard is, naming every failing case its red shards name (none when any red shard names none).
  */
-function combinedReceipt(gateReceipt, shards) {
+export function combinedReceipt(gateReceipt, shards) {
   const gate = gateReceipt.gate ?? {};
   const parts = shards.map(({ job, posted }) => {
     const shardGate = posted?.receipt?.gate ?? {};
