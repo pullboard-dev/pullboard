@@ -99,7 +99,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
     href.pathname = '/items/' + id;
     chrome = await openSnapshotChrome(executable, href.href, profile);
     await chrome.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Chicago' });
-    await chrome.waitFor(`view.item === ${id} && !!document.querySelector('#detail .item-panel')`);
+    await chrome.waitFor(`view.item === ${id} && !!document.querySelector('#detail .item-panel .ip-cl') && !document.querySelector('#detail [aria-busy]')`);
     const fullCommit = item.verdict.commit;
     const standardCheck = 'node packages/gate/src/io/run/tests.js apps/cli/journeys/verify/item/panel.test.js';
     for (const [width, mobile] of [[1440, false], [375, true]]) {

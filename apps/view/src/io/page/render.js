@@ -524,7 +524,7 @@ function render({ tab: switching = false } = {}) {
     const baseline = item.checkBaseline;
     const baselineLabel = baseline?.result === 'red' ? 'red on main' : baseline?.result === 'green' ? 'green on main' : baseline?.result === 'pending' ? 'pending on main' : 'no baseline on main';
     const verdict = item.verdict;
-    const model = itemPanelModel(item, { now: Date.now(), esc, name: (seat) => String(seat), holderName: (seat) => agentName(seat), stage: item.status === 'withdrawn' ? 'Withdrawn' : stageOfItem(item, p, gatedOf(item), '').stage,
+    const model = itemPanelModel(item, { now: Date.now(), esc, name: (seat) => agentName(seat), stage: item.status === 'withdrawn' ? 'Withdrawn' : stageOfItem(item, p, gatedOf(item), '').stage,
       milestone: (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name,
       reason: (code) => activityWords({ cause: code }).label, brief: briefCopyOf(item.brief), note: verdict ? visibleVerdictNote(verdict.reason, verdict.note) : '', files: panelFiles(item.brief || ''),
       baseline: { label: baselineLabel, warn: baseline?.warning === 'CRITERION_PROVES_NOTHING' }, historyOpen: view.historyOpen?.has(JSON.stringify([view.root, view.item])) === true });
