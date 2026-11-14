@@ -8,6 +8,7 @@ import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 import * as store from '../../../../store/index.js';
+import { testResults } from '../../../../store/index.js';
 import { boardJobQueueCall } from '../../../index.js';
 import { claimJob } from '../../../index.js';
 import { offerJob } from '../../../index.js';
@@ -31,7 +32,8 @@ function pulledSubmit(t) {
   return { board, seat, id: item.item_id, head, job, post };
 }
 
-const green = head => ({ version: 1, status: 0, gate: { source: head, green: true, phases: [] } });
+const LEDGER = { contexts: ['e'.repeat(64)], files: [['web/page.test.js', '1'.repeat(64), 0, 'pass']], omitted: 0 };
+const green = head => ({ version: 1, status: 0, gate: { source: head, green: true, phases: [{ role: 'proof', status: 0, ledger: LEDGER }] } });
 const red = head => ({ version: 1, status: 1, gate: { source: head, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: 'web/page.test.js', name: 'the page renders' }] }] } });
 
 test('clause 1: on a linked board a green pulled gate hands its submit to the relay, and the relay\'s order submits the item [C7,H16]', t => {
@@ -49,6 +51,7 @@ test('clause 1: on a linked board a green pulled gate hands its submit to the re
   assert.equal(before.item_status, 'claimed', 'this replica waits for the relay\'s order like every other replica');
   assert.ok(!store.itemThread(board, id).some(fact => fact.text?.startsWith(`Gate job ${job} green`)), 'no gate note is left behind on this replica alone');
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt'").get(job).n, 1, 'the receipt row is kept');
+  assert.deepEqual(testResults(board.db, { inputKey: '1'.repeat(64) }).map(row => row.status), ['pass'], 'the proof-ledger row the receipt wrote, no engine move, is kept');
 
   // The relay's order applies each move through the engine's store writer, on this replica and every other alike.
   for (const { operation, args } of ordered) store[operation](board, ...structuredClone(args));

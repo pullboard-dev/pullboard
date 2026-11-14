@@ -22,6 +22,18 @@ const SAVEPOINT = 'pullboard_receipt_moves';
 const OMIT = 0;
 
 /**
+ * Make one gap's rows again; a row that leaned on an engine move taken back is left out, as the relay's order makes it again.
+ * Why two forms: newer Node takes onConflict only as a function, Node 22.13 only as a number.
+ */
+function applyGap(db, gap) {
+  try { db.applyChangeset(gap, { onConflict: () => OMIT }); }
+  catch (error) {
+    if (error?.code !== 'ERR_INVALID_ARG_TYPE' || !String(error.message).includes('onConflict')) throw error;
+    db.applyChangeset(gap, { onConflict: OMIT });
+  }
+}
+
+/**
  * Make one engine move: at once on a local board; inside orderedReceiptMoves also recorded, with the rows made since
  * the last engine move kept as a changeset, so only the engine moves are taken back.
  *
@@ -81,8 +93,7 @@ export function orderedReceiptMoves(board, work) {
     }
     if (recorder.moves.length) {
       db.exec(`ROLLBACK TO ${SAVEPOINT}`);
-      // A row made between engine moves that leaned on one is left out (SQLITE_CHANGESET_OMIT, a number every Node 22.13+ takes).
-      for (const gap of recorder.gaps) if (gap.length) db.applyChangeset(gap, { onConflict: OMIT });
+      for (const gap of recorder.gaps) if (gap.length) applyGap(db, gap);
     }
     db.exec(`RELEASE ${SAVEPOINT}`);
     return { result, moves: recorder.moves };
