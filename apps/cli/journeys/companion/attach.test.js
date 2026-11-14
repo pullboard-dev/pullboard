@@ -6,6 +6,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import {
   fixtureAdd,
@@ -45,7 +46,9 @@ async function companionFixture(t) {
 test('clause 1: submit automatically attaches the builder recorded companion and its owner objection reopens the item [C7]', async t => {
   const { box, id, owner, ownerSeat, patchFile } = (await companionFixture(t));
   const submitted = document((await box.runLocal(box.web, 'submit', String(id), '--companion', patchFile, '--key', 'api-view', '--author', ownerSeat, '--wait', '--json')));
-  assert.equal(submitted.id, id);
+  // The pulled gate queues the submit; the item is submitted once its receipt lands [C7].
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, submitted);
+  assert.equal(submitted.id ?? submitted.item, id);
   assert.equal(document((await box.runLocal(box.repo, 'show', String(id), '--json'))).item_status, 'submitted');
   const patches = document((await box.runLocal(box.web, 'patch', 'list', String(id), '--json'))).patches;
   assert.equal(patches.length, 1, 'the builder attached the companion during submit without a coordinator command');
@@ -70,7 +73,8 @@ test('a submit without a recorded companion does not open an objection window [C
   writeFileSync(join(box.web, 'web/page.txt'), 'web\n');
   box.git(box.web, 'add', 'web/page.txt');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add page [G1]');
-  document((await box.runLocal(box.web, 'submit', String(id), '--wait', '--json')));
+  const queued = document((await box.runLocal(box.web, 'submit', String(id), '--wait', '--json')));
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, queued);
   assert.equal(document((await box.runLocal(box.web, 'patch', 'list', String(id), '--json'))).patches.length, 0);
   const noPatch = (await box.runLocal(box.web, 'patch', 'object', String(id), 'missing', '--note', 'nothing to object', '--json'));
   assert.equal(noPatch.code, 1);
