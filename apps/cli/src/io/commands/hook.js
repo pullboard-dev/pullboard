@@ -110,6 +110,24 @@ export function refuseSeatItemWork(root, seat) {
     `move the change to ${folder} (pullboard claim ${match[1]} opens it), commit there, and switch this seat checkout off the item branch`);
 }
 
+/**
+ * Name the item folder for each claim a seat holds when a commit in the seat checkout itself is refused.
+ * Why: a new user following the README commits in the seat; the refusal (a spec row the seat has not merged yet) never said the work belongs in the item folder [C7,#7946].
+ *
+ * @param {any} ctx hook context
+ * @param {string} root the committing checkout
+ * @returns {string[]} one next-step line per claim, or none outside a seat checkout
+ */
+function seatItemFolderHints(ctx, root) {
+  return hookRead(ctx, (board) => {
+    const seat = store.agentAt(board, root);
+    if (!seat?.agent_path) return [];
+    return store.listItems(board, { lane: seat.agent_lane })
+      .filter((item) => item.item_status === 'claimed' && item.item_owner === seat.agent_id && !pendingSubmitHandoff(board, item))
+      .map((item) => { const folder = itemFolderPath(seat.agent_path, item.item_id); return `this is the seat checkout; build and commit #${item.item_id} in its item folder ${folder}, then cd ${folder} && pullboard submit ${item.item_id}`; });
+  }) ?? [];
+}
+
 export async function hookCommand(io, { first, second }) {
   const info = repoInfo(io.cwd);
   let ctx;
@@ -181,6 +199,7 @@ export async function hookCommand(io, { first, second }) {
     // Only the main checkout or a landing worktree merges a verified item; elsewhere no trailer exempts a header.
     const rowlessLandings = (metadataContext.landings ?? []).filter(item => !landingRows(item).length).map(item => item.item_id);
     problems = [...prepared.problems, ...commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine, claimedItems, rowlessLandings })];
+    if (problems.length) problems.push(...seatItemFolderHints(ctx, info.root));
     if (!problems.length && message !== originalMessage) writeFileSync(second, message);
   } else if (first === 'pre-push') {
     const refsText = await readStdin(io.stdin);
