@@ -119,6 +119,7 @@ export { PLAN_MERGE_ENGINE } from './src/logic/engines/plan-merge-engine.js';
 export { PRIVATE_REHOME_ENGINE } from './src/logic/engines/private-rehome-engine.js';
 export { PROOF_RUN_ENGINE } from './src/logic/engines/proof-run-engine.js';
 export { PR_BRIDGE_ENGINE } from './src/logic/engines/pr-bridge-engine.js';
+export { PULLED_RED_COUNT_ENGINE } from './src/logic/engines/pulled-red-count-engine.js';
 export { QUARANTINE_BACKFILL_ENGINE } from './src/logic/engines/quarantine-backfill-engine.js';
 export { QUARANTINE_CORE_ENGINE } from './src/logic/engines/quarantine-core-engine.js';
 export { QUARANTINE_VERDICT_ENGINE } from './src/logic/engines/quarantine-verdict-engine.js';
