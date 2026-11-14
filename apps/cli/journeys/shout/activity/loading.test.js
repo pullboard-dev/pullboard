@@ -86,6 +86,8 @@ export async function createTransport({ onUpdate }) {
     await chrome.click(`document.querySelector('[data-shout-thread="none"]')`);
     await chrome.waitFor('!!document.querySelector("#feed .sx-th")');
     assert.equal(await chrome.stable(`document.querySelector('#feed').lastElementChild.dataset.historyNote`), 'shouts', 'the line ends the feed');
+    // A long thread shows its latest twelve messages; open the rest, as a person does, so the oldest shout can show.
+    await chrome.click(`document.querySelector('#feed .sx-earlier-msgs')`);
     await chrome.stable(`document.querySelector('[data-history-note="shouts"]').scrollIntoView({ block: 'end' })`);
     await chrome.waitFor(`document.querySelector('#feed').textContent.includes('The oldest shout, read once the feed reaches its end')`);
     assert.ok(reads.some((path) => /\/shouts\/\d+$/.test(path)), 'the next page came from addressed shout reads');

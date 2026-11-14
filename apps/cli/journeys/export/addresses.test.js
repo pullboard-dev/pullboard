@@ -254,7 +254,7 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     await chrome.waitFor(`!!document.querySelector('#feed [data-shout-id]')`);
     const shoutId = await chrome.stable(`document.querySelector('#feed [data-shout-id]')?.dataset.shoutId`);
     await press(chrome, `document.querySelector('#feed [data-shout-id]')`);
-    await checkPlace('#shouts/' + shoutId, `view.tab === 'shouts' && view.shout === Number(${JSON.stringify(shoutId)}) && document.querySelector('#feed article.found')?.dataset.shoutId === ${JSON.stringify(shoutId)}`);
+    await checkPlace('#shouts/' + shoutId, `view.tab === 'shouts' && view.shout === Number(${JSON.stringify(shoutId)}) && document.querySelector('#feed .sx-msg.found')?.dataset.shoutId === ${JSON.stringify(shoutId)}`);
     await press(chrome, `document.querySelector('[data-tab="spec"]')`);
     await press(chrome, `document.querySelector('[data-rows="spec:all"]')`);
     const specId = await chrome.stable(`document.querySelector('#spec-list [data-row]')?.dataset.row.split(':')[1]`);

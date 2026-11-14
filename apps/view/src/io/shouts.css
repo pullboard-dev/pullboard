@@ -115,6 +115,12 @@
 .sx-msg code.inline.sha { background: var(--warn-soft); color: var(--warn); }
 .sx-msg code.inline.cmd { background: var(--accent-soft); color: var(--accent-strong); }
 .sx-msg code.inline.long { display: inline-block; box-sizing: border-box; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; vertical-align: bottom; }
+/* the evidence a shout carries reads under its words once the message is open */
+.sx-msg .receipt { display: grid; gap: var(--space-1); margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); font-size: var(--text-xs); }
+.sx-msg .receipt .badge { padding: 0 var(--space-3); border-radius: var(--radius-chip); background: var(--blue-soft); color: var(--blue); font: 600 var(--text-2xs) var(--mono); text-transform: capitalize; }
+.sx-msg .receipt .outcome { color: var(--ink-muted); }
+.sx-msg .receipt-foot { color: var(--ink-faint); font-size: var(--text-xs); }
+.sx-msg:not(.full) .receipt { display: none; }
 /* the shout an address names */
 .sx-msg.found { background: var(--accent-soft); }
 .sx-msg.new time { color: var(--ink); font-weight: 600; }
@@ -201,4 +207,9 @@
   .sx-idle-n { min-height: var(--tap); }
   .sx-since { flex-wrap: wrap; white-space: normal; }
   .sx-end { display: none; }
+  .sx-lk { display: inline-flex; align-items: center; min-height: var(--tap); }
+  .sx-xb { width: var(--tap); height: var(--tap); }
+  .sx-mfilters button { height: var(--tap); }
+  .sx-send { height: var(--tap); }
+  .sx-all { min-height: var(--tap); }
 }

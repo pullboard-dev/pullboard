@@ -109,8 +109,9 @@ test('an empty feed says so on one line [N26]', async () => {
   try {
     const page = await openPage(view);
     page.run("openTab('shouts'); render();");
-    assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>', 'one line, with no bar while the feed shows everything');
-    assert.match(page.html, /<div class="card-panel shouts-card">[^]*<div class="feed" id="feed"><\/div><\/div>/, 'the shouts feed, in the Shouts card');
+    assert.match(page.show('feed'), /<p class="sx-empty">No shouts yet\.<\/p>/, 'one line, with no bar while the feed shows everything');
+    assert.doesNotMatch(page.show('feed'), /feed-bar|class="sx-th/, 'no bar and no rows when nothing was said');
+    assert.match(page.html, /<div class="feed" id="feed"><\/div>/, 'the shouts feed');
     assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
     const style = await styleOf(view);
     assert.match(style, /\n\.feed > div \{ display: grid; grid-template-columns: 4\.6em minmax\(0, 1fr\);[^\n]*\n\.feed > \.empty \{ display: block; \}\n/, 'a feed row has a time column; its empty note takes the whole width');
@@ -133,13 +134,13 @@ test('a shout shows the evidence it carries [B22]', async () => {
     page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     const feed = page.show('feed');
     const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (${MACHINE_MODEL}) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
-    const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button" aria-expanded="false">Show all<\/button>/, '');
+    const after = (text) => feed.slice(feed.indexOf(text) + text.length);
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
-    assert.match(feed, /<b>#1 Greeting<\/b>/, 'the opened conversation names the real item above its messages');
+    assert.match(feed, /<b class="sx-id">#1<\/b><b class="sx-tt">Greeting<\/b>/, 'the opened conversation names the real item above its messages');
     page.run("view.shoutThread = 'none'; render();");
     const plain = page.show('feed');
-    assert.ok(plain.includes('nothing to show</div>'), 'the No item conversation retains its native words');
+    assert.ok(plain.includes('nothing to show</span>'), 'the No item conversation retains its native words');
     assert.doesNotMatch(plain, /class="receipt"/, 'a shout with no evidence has no receipt');
   } finally {
     await view.stop();
@@ -167,12 +168,12 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     await page.fire('shout-form', 'submit');
     await page.run('refresh()');
     page.run("view.shoutThread = 'none'; render();");
-    const cards = () => [...page.show('feed').matchAll(/<b class="who"[^>]* title="([^"]*)">([^<]*)<\/b><span class="to">→ (?:<span[^>]*>)?([^<]*)(?:<\/span>)?<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
+    const cards = () => [...page.show('feed').matchAll(/<span class="sx-snd [a-z]+" title="([^"]*)"><i[^>]*><\/i><span class="sx-sn">([^<]*)<\/span><\/span><span class="sx-tx">(?:<span class="sx-mk[^>]*>[^<]*<\/span>)?([^<]*)<\/span>/g)].map((m) => m.slice(1));
     assert.deepEqual(cards(), [
-      [MACHINE_MODEL, 'web-1', 'coordinator and you', 'web-1 is on the greeting'],
-      ['unknown', 'you', 'coordinator', 'Hello from the person'],
-      ['unknown', 'you', 'web', 'Web, keep it short'],
-    ], 'the conversation keeps native author and recipient order, naming the model only on hover');
+      [`web-1 (${MACHINE_MODEL}) to coordinator and you`, 'web-1', 'web-1 is on the greeting'],
+      ['you to coordinator', 'you', 'Hello from the person'],
+      ['you to web', 'you', 'Web, keep it short'],
+    ], 'the conversation keeps native author and recipient order, naming the model and recipient only on hover');
 
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
     assert.deepEqual(said(JSON.parse(box.run(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');

@@ -684,7 +684,10 @@ function render({ tab: switching = false } = {}) {
   const richById = {};
   for (const message of openedThread?.messages ?? []) {
     const original = shoutById.get(message.id);
-    richById[message.id] = rich(messageText(original), titles, true, view.root, true) + (original.options ? '<ol>' + original.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '');
+    // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it, and the commit, shortened, with the full SHA on hover.
+    const receipt = original.shout_evidence_kind ? '<div class="receipt"><div><span class="badge">' + esc(original.shout_evidence_kind) + '</span> <span class="outcome">' + esc(original.shout_evidence_outcome) + '</span></div>'
+      + '<div class="receipt-foot">' + linked('#' + original.shout_evidence_item, titles) + ' · ' + esc(agentName(original.shout_from)) + ' · ' + codeChip(String(original.shout_evidence_commit), 'sha') + '</div></div>' : '';
+    richById[message.id] = rich(messageText(original), titles, true, view.root, true) + receipt + (original.options ? '<ol>' + original.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '');
   }
   const missingAddress = view.shout !== null && !openedThread ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
   const replyFocus = document.activeElement?.matches?.('#feed [data-reply] input') ? document.activeElement.closest('[data-reply]').dataset.reply : null;
