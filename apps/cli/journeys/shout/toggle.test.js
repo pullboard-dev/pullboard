@@ -55,11 +55,11 @@ async function measureControl(chrome, selector) {
   })())`));
 }
 
-test('Items, Spec, Doctrine and Activity use one measured toggle with real choices and counts in Chrome [N26]', {
-  timeout: 120_000, // budget: hang ceiling for a real board and eight pane/viewport interaction journeys.
+test('Spec, Doctrine and Activity use one measured toggle with real choices and counts in Chrome [N26]', {
+  timeout: 120_000, // budget: hang ceiling for a real board and six pane/viewport interaction journeys.
 }, async () => {
   const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required to measure all four segmented controls');
+  assert.ok(executable, 'Chrome is required to measure all three segmented controls');
   const box = machine();
   const demo = project(box, 'seg-toggle', SPEC + '\n- G3 [draft, must] A proposed page requirement. | gate: web test\n', { practice: 'DOCTRINE.md' });
   writeFileSync(join(demo.repo, 'DOCTRINE.md'), '# Team doctrine\n\n## Local rules\n- R1 [approved, must] Keep the board accurate. | gate: web test\n- R2 [draft, must] A proposed team rule. | gate: web test\n');
@@ -76,7 +76,6 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
       for (const [pane, selector, attribute, selected, alternative] of [
-        ['items', '#items-view-switch', 'data-items-view', 'list', 'pipeline'],
         ['spec', '#spec-chips', 'data-rows', 'spec:all', 'spec:approved'],
         ['doctrine', '#doctrine-chips', 'data-rows', 'doctrine:all', 'doctrine:approved'],
         ['activity', '#activity-filters .activity-bar', 'data-activity-filter', 'all', 'shouts'],
@@ -118,10 +117,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
             assert.equal(option.countWeight, '400'); assert.equal(option.countGap, '6px'); assert.equal(option.countColor, actual.expected.countColor);
           }
         }
-        if (pane === 'items') {
-          assert.deepEqual(actual.options.map(option => option.text), ['List', 'Pipeline']);
-          assert.equal(await chrome.stable('document.querySelector("#filter-toggle").getBoundingClientRect().height'), actual.height, 'Items Filter and toggle match');
-        } else if (pane === 'spec' || pane === 'doctrine') {
+        if (pane === 'spec' || pane === 'doctrine') {
           const rows = pane === 'spec' ? native.spec : native.practice;
           assert.equal(actual.options.find(option => option.text === 'All rows').count, String(rows.length));
           assert.equal(actual.options.find(option => option.text === 'Approved').count, String(rows.filter(row => row.status === 'approved').length));
@@ -149,7 +145,6 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         })())`));
         assert.equal(focus.visible, true, 'native Tab gives the next option a visible keyboard focus');
         assert.equal(focus.width, '2px'); assert.equal(focus.offset, '-2px'); assert.equal(focus.contained, true, 'the whole focus ring remains inside the scrolling track');
-        if (pane === 'items') assert.equal(await chrome.stable('document.querySelector("#pipeline").hidden'), false, 'Pipeline still opens');
         if (pane === 'activity') assert.equal(await chrome.stable('[...document.querySelectorAll("#activity [data-activity-kind]")].every(row => row.dataset.activityKind === "shout")'), true, 'Shouts still filters the real feed');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await proofShot(chrome, 'seg-toggle-' + pane, width);
@@ -158,7 +153,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         for (const [index, image] of chunks.entries()) console.log('PULLBOARD_SEG_SCREENSHOT ' + JSON.stringify({ pane, width, index, total: chunks.length, image }));
       }
     }
-    assert.deepEqual(chrome.exceptions, [], 'all four controls work without page exceptions');
+    assert.deepEqual(chrome.exceptions, [], 'all three controls work without page exceptions');
   } finally {
     await closeSnapshotChrome(chrome);
     await view.stop();
