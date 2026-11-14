@@ -40,6 +40,9 @@ const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const BIN = fileURLToPath(new URL('../../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 const PLAN = readPlan(ROOT);
 
+/** Stage every fixture file: the cell inventory reads only what Git tracks, staged changes included, so an unstaged put is invisible to a lint [C7,D3]. */
+function stage(root) { git(root, 'add', '-A'); }
+
 /** Map every file the plan names, at its old path, its target or its committed path-map path, to its cell. */
 function cellIndex(plan, map) {
   const index = new Map();
@@ -174,6 +177,7 @@ test('a moved shim that bypasses its unreachable front door fails by both paths 
   put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
   put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   put('src/refused.js', "export { Refused } from '../packages/kernel/light.js';\n");
+  stage(root);
   const problems = checkMoved(root, plan, 'kernel');
   assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door packages/kernel/index.js')), problems.join('\n'));
   assert.ok(problems.some(problem => problem.includes('unreachable front door packages/kernel/index.js')), problems.join('\n'));
@@ -201,6 +205,7 @@ test('only exact named own-body worker shims pass the bounded process-entry exce
     put('apps/runner/src/io/scripts/worker.js', worker);
     // Once any app file exists the production roots are apps/*/index.js, so the runner app reaches the worker and the board.
     put('apps/runner/index.js', "import './src/io/scripts/worker.js';\nimport '../../src/board.js';\n");
+    stage(root);
     const problems = checkMoved(root, plan, 'kernel');
     if (mode === 'worker') assert.deepEqual(problems, [], 'a closed actual worker may retain its exact named own-body shim');
     else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
@@ -227,6 +232,7 @@ test('only exact named own-body move shims pass the bounded move-registry except
     if (mode === 'opaque') move += 'await import(process.env.UNKNOWN_MOVE_PATH);\n';
     if (mode === 'oversize') move += `export const padding = '${'x'.repeat(1_048_576)}';\n`;
     put('src/moves/fixtureMove.js', move);
+    stage(root);
     const problems = checkMoved(root, plan, 'kernel');
     if (mode === 'move') assert.deepEqual(problems, [], 'an actual bounded move closure retains its exact named own-body shim');
     else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
@@ -242,6 +248,7 @@ test('a correct shim does not make an otherwise unreachable moved package reacha
   put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
   put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   put('src/board.js', "import { claims } from './claims.js';\nexport const board = () => claims;\n");
+  stage(root);
   assert.ok(checkMoved(root, plan, 'kernel').some(problem => problem.includes('unreachable front door packages/kernel/index.js')));
 });
 
@@ -477,6 +484,7 @@ test('moved shim exceptions require a live edge or trusted historical import [C7
     put('src/refused.js', `export { Refused } from '../packages/kernel/src/logic/${mode === 'wrong-leaf' ? 'other' : 'refused'}.js';\n`);
     if (['live', 'expired', 'wrong-leaf'].includes(mode)) put('packages/codemap/data/plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'packages/kernel/src/logic/refused.js', contractItem: 42, expires: mode === 'expired' ? '2000-01-01' : '2999-01-01' }] }));
     if (mode === 'uncommitted-history') put('packages/state/data/history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
+    stage(root);
     const notes = [], problems = checkMoved(root, plan, 'kernel', { notes });
     if (mode === 'live' || mode === 'history') {
       assert.deepEqual(problems, [], `${mode}: ${problems.join('\n')}`);
