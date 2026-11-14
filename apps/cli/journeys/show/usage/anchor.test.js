@@ -15,6 +15,7 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { settlePulledJobs } from '../../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { checkpointAfterMove } from '../../../../../packages/stats/index.js';
 
@@ -43,6 +44,7 @@ function fixture({ missing = false, locked = false } = {}) {
   const run = (...args) => {
     const result = runFixtureChild(process.execPath, [helpers.BIN, ...args], { cwd: box.web, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `${args[0]}: ${result.stdout}${result.stderr}`);
+    settlePulledJobs(box.web, args, env); // a pulled Submit returns once its gate job is queued; show reads the item after the board submitted it (P7)
     return result;
   };
   const lock = join(box.repo, '.git/pullboard/cost-ledger.json.lock');
