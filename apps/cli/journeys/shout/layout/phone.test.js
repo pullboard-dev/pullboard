@@ -96,11 +96,11 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
       // The grouped top nav keeps Dashboard, Items and the Rules and Insights menus on the strip; the other tabs sit in the menus.
       const strip = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const e = document.querySelector('#tabs').closest('.strip') || document.querySelector('#tabs');
-        return { tabs: document.querySelectorAll('#tabs .tab').length, scrolls: e.scrollWidth > e.clientWidth, overflowX: getComputedStyle(e).overflowX, page: document.documentElement.scrollWidth };
+        return { tabs: document.querySelectorAll('#tabs .tab').length, scrolls: e.scrollWidth > e.clientWidth, overflowX: getComputedStyle(e).overflowX, page: document.documentElement.scrollWidth, wide: [...document.body.querySelectorAll('*')].map(e => { const r = e.getBoundingClientRect(); return { e: e.tagName + (e.id ? '#' + e.id : '') + '.' + (e.getAttribute('class') || '').split(' ')[0], l: Math.round(r.left), r: Math.round(r.right) }; }).filter(x => x.r > document.documentElement.clientWidth + 1 || x.l < -1).slice(0, 8) };
       })())`));
       assert.equal(strip.tabs, 9, `${width}/${font}: Dashboard and all retained tabs remain`);
       // Approved behaviour: at phone width the strip scrolls sideways itself; the page never does.
-      assert.ok(strip.page <= bar.client, `${width}/${font}: the page never scrolls sideways, ${strip.page} wide in ${bar.client}`);
+      assert.ok(strip.page <= bar.client, `${width}/${font}: the page never scrolls sideways, ${strip.page} wide in ${bar.client}: ${JSON.stringify(strip.wide)}`);
       if (strip.scrolls) assert.equal(strip.overflowX, 'auto', `${width}/${font}: a strip wider than the screen scrolls sideways inside itself`);
       for (const layout of bar.layouts) {
         const where = `${width}/${font}/${layout.on}`;

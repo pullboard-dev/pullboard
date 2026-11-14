@@ -95,15 +95,19 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
         const r = await read();
         assert.equal(r.statusRelease, '0.3 1/2', at + ': the status bar names the same next release');
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll`);
-        // Every release with work ahead stays open; the shipped ones fold into one part at the end.
+        // Only the next release opens; every other one folds to its line and the shipped ones fold into one part at the end (79b0e88d0f, #7303).
         assert.deepEqual(r.parts.map((part) => [part.key, part.open, part.summary]), [
           ['m:0.3', true, '0.3 | 1/2 landed'],
-          ['m:0.4', true, '0.4 | 0/1 landed'],
-          ['m:Later', true, 'Later'],
+          ['m:0.4', false, '0.4 | 0/1 landed'],
+          ['m:Later', false, 'Later'],
           ['shipped', false, 'Shipped | 2 releases'],
-        ], `${at}: every upcoming milestone opens in order, with Shipped folded last`);
+        ], `${at}: the next release opens and every other milestone folds to its line, in order, with Shipped last`);
         assert.deepEqual(r.parts[0].rows, ['#3', '#4'], `${at}: the next release shows its items`);
-        assert.deepEqual([r.parts[2].empty, r.parts[2].note], ['No items yet.', 'Work not filed yet.'], `${at}: the open empty milestone shows its note and empty state`);
+        assert.deepEqual(r.parts.slice(1, 3).map((part) => part.rows), [[], []], `${at}: a folded release draws no item rows`);
+        await click('#roadmap-list > [data-key="m:Later"] > .milestone-head');
+        const later = (await read()).parts[2];
+        assert.deepEqual([later.open, later.empty, later.note], [true, 'No items yet.', 'Work not filed yet.'], `${at}: the opened empty milestone shows its note and empty state`);
+        await click('#roadmap-list > [data-key="m:Later"] > .milestone-head');
         assert.ok(r.parts.every((part) => part.height >= 44), `${at}: each part opens from a 44px target`);
         await click('#roadmap-list > [data-key="shipped"] > .milestone-head');
         const expanded = await read();
