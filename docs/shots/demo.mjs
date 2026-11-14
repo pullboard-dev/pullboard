@@ -238,12 +238,14 @@ async function buildBoard(base, env) {
   setDemoMinutes(env, 14);
   command('git', ['merge', '-q', '--ff-only', 'app/1'], repo, env);
   pb(repo, 'merged', '1', second);
-  pb(app, 'claim', '3');
-  await writeFile(join(app, 'src', 'review.js'), 'export const ready = true;\n');
-  command('git', ['add', '-A'], app, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], app, env);
-  pb(app, 'submit', '3', '--no-next');
-  await settleSubmitted(pb, app, '3');
+  // A claim by id may open the item's own folder, which is where its commit and submit belong.
+  const folder = pb(app, 'claim', '3').match(/^item folder: (.+)$/mu)?.[1] ?? app;
+  await mkdir(join(folder, 'src'), { recursive: true });
+  await writeFile(join(folder, 'src', 'review.js'), 'export const ready = true;\n');
+  command('git', ['add', '-A'], folder, env);
+  command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], folder, env);
+  pb(folder, 'submit', '3', '--no-next');
+  await settleSubmitted(pb, folder, '3');
   pb(app, 'claim', '4');
   setDemoMinutes(env, 75);
   pb(repo, 'lanes', 'lead', 'app', 'app-1');
