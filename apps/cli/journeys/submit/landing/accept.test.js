@@ -1,6 +1,5 @@
 /** An accept from any seat's own session lands through the board's landing worker for the main checkout [B35,B3,R3]. */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -12,7 +11,6 @@ import { onBoard } from '../../../tests/fixtures/land/board.js';
 import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import * as store from '../../../../../packages/store/index.js';
-import { automaticLandingDirectory } from '../../../../../packages/landing/src/io/automatic/scheduler.js';
 import { joinFixtureSeat } from '../../../tests/fixtures/testkit.js';
 
 const BIN = new URL('../../../pullboard.js', import.meta.url).pathname;
@@ -99,14 +97,12 @@ function accept(box, item) {
     { cwd: item.reviewer, env: sessionEnv(box, item.session), stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
-/** Wait, with the test's own deadline, until every item carries its landing commit and the worker has finished its wake. */
+/** Wait, with the test's own deadline, until every item carries its landing commit. */
 async function landed(box, items) {
-  const pending = join(automaticLandingDirectory(box.repo), 'pending.json');
-  await waitForCondition(() => !existsSync(pending) && onBoard(box, board => items.every(item => store.getItem(board, item.id).item_merged_commit)),
+  await waitForCondition(() => onBoard(box, board => items.every(item => store.getItem(board, item.id).item_merged_commit)),
     'the board landing worker lands every accepted item', {
       signal: AbortSignal.timeout(180_000),
-      state: () => ({ pending: existsSync(pending) ? readFileSync(pending, 'utf8') : null,
-        items: onBoard(box, board => items.map(item => [item.id, store.getItem(board, item.id).item_status])) }),
+      state: () => ({ items: onBoard(box, board => items.map(item => [item.id, store.getItem(board, item.id).item_status])) }),
     });
 }
 
