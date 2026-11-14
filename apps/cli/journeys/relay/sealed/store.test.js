@@ -228,7 +228,7 @@ test('[A4,H7] live streams follow the same order, resume by cursor and stop afte
 });
 
 test('[A4,H7] a bounded large sealed snapshot is independent of the smaller move-body limit', async (t) => {
-  const box = await fixture(t);
+  const box = await fixture(t, { moveBodyBytes: 100_000 });
   const document = { record: 'a'.repeat(150_000) };
   const uploaded = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal(document, 'snapshot', 0) } });
   assert.equal(uploaded.status, 200);
