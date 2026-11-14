@@ -1,9 +1,15 @@
 /** Wait for the exact pulled gate job a submit queued, so ship can go on to the verdict or report the red [V4,B3,C7]. */
 import { setTimeout as pause } from 'node:timers/promises';
+import { pulledRedLines } from '../../logic/show/gate.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 
 /** Budget: how long a green job may wait for the board to apply its receipt before ship calls it stale. */
 const RECEIPT_GRACE_MS = 60_000;
+
+/** The red's failing cases as show prints them, led by the job's name, so the refusal itself says what failed. */
+function redLines(job, item) {
+  return pulledRedLines(job, item).map((line, at) => at === 0 ? line.replace(/^GATE_RED: /u, '') : line);
+}
 
 /**
  * Follow a pulled gate job to its receipt. A seat that submitted holds its claim while the gate runs, so the submit
@@ -13,7 +19,7 @@ const RECEIPT_GRACE_MS = 60_000;
  * @param {object} ctx - The command context.
  * @param {number} id - The shipped item.
  * @param {{ gateJob: string, commit: string }} submission - The queued submit document.
- * @param {{ withBoardRead: Function, retrySync: Function, getItem: Function, newestGateJob: Function }} ports
+ * @param {{ withBoardRead: Function, retrySync: Function, getItem: Function, newestGateJob: Function, pulledRedLines: Function }} ports
  * @param {{ deadlineMs?: number }} [options]
  * @returns {Promise<object>} The settled gate, as the inline submit printed it.
  */
@@ -27,7 +33,7 @@ export async function waitForPulledGate(ctx, id, submission, ports, { deadlineMs
     if (job?.step === 'done' && job.gate) {
       // A known-main red is submitted all the same, so a moved item goes on to its verdict whatever the gate's colour.
       if (item.item_status !== 'claimed') return job.gate;
-      if (job.gate.green !== true) throw new Refused('GATE_RED', `gate job ${submission.gateJob} for #${id} is red`,
+      if (job.gate.green !== true) throw new Refused('GATE_RED', redLines(job, item).join('\n'),
         `run pullboard show ${id} to read the failing cases, fix them, commit, and run pullboard ship again`);
       // The board applies a receipt right after marking the job done; one that never moves the item is a stale gate.
       doneAt ??= Date.now();
