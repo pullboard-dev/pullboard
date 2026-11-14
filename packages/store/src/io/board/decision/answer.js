@@ -3,6 +3,9 @@ import { leadOwnsDecision } from "../../../../../seats/index.js";
 import { answerProvenance } from "../../../../../items/index.js";
 import { getShout } from "../read/shouts.js";
 import { PERSON } from "../query.js";
+import { openDecisions } from "../query.js";
+import { ENGINE_VERSION } from "../../../../../state/index.js";
+import { ASK_CLOSE_ENGINE } from "../../../../../state/index.js";
 import { COORDINATION_SHOUT } from "../../../logic/board/audience.js";
 import { itemShoutReader } from "../../../logic/board/audience.js";
 import { shoutItemId } from "../../../../../kernel/index.js";
@@ -13,6 +16,7 @@ import { Refused } from "../../../../../kernel/index.js";
 import { requestAnswerRefusal } from "../../../../../state/index.js";
 import { tellAnswerImplications } from "../../../../../state/index.js";
 import { insertShout } from "../shout.js";
+import { persistShout } from "../shout.js";
 
 /**
  * Answer an open decision addressed to the caller, delivering passed-up answers to the asker (B27).
@@ -53,5 +57,65 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
       insertShout(board, { from, to: original.shout_from, text: `${personAnswer ? 'Person' : 'Coordinator'} answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id, channel, ...(shoutItemId(original.shout_to) === null ? {} : { item: shoutItemId(original.shout_to) }) });
     }
     return answerId;
+  });
+}
+
+/** The item an open ask is about: the item it was addressed to, the item its decision record names, or the #id its text opens with. */
+export function askItem(ask) {
+  const addressed = shoutItemId(ask.shout_to);
+  if (addressed !== null) return addressed;
+  if (Number.isSafeInteger(ask.item)) return ask.item;
+  const lead = /^(?:[\w.-]+: )?#(\d+)\b/u.exec(ask.shout_text ?? '');
+  return lead ? Number(lead[1]) : null;
+}
+
+/** Why an item no longer needs its asks, or null while it is still live work. */
+function finishedReason(item) {
+  if (item.item_merged_commit) return 'landed';
+  if (item.item_status === 'withdrawn') return `withdrawn: ${item.item_withdrawn_reason ?? ''}`.trim();
+  return null;
+}
+
+/** Answer each listed open ask with the reason, in the caller's transaction, through the ordinary answer event. */
+function closeAsks(board, asks, agentId, reasonOf) {
+  const closed = [];
+  for (const ask of asks) {
+    const reason = reasonOf(ask);
+    if (!reason) continue;
+    persistShout(board, { from: agentId, to: ask.shout_from, text: `Closed: #${askItem(ask)} ${reason}`, answers: ask.shout_id,
+      detail: { item: askItem(ask), closed: reason.split(':')[0] } });
+    closed.push(ask.shout_id);
+  }
+  return closed;
+}
+
+/**
+ * Close every open ask on one item that just landed or was withdrawn, with that reason, so openDecisions never lists an ask on finished work.
+ * It does nothing on a board below the engine that introduced it, so older logs replay as they were written [B21,C7,H16].
+ */
+export function closeItemAsks(board, id, { agentId = COORDINATOR, reason }) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < ASK_CLOSE_ENGINE) return [];
+  return atomic(board, () => closeAsks(board, openDecisions(board).filter(ask => askItem(ask) === id), agentId, () => reason));
+}
+
+/**
+ * One idempotent sweep for asks already open on items that landed or were withdrawn: each closes once with that
+ * reason and a second run finds nothing left to close. The scheduled sentinel sweep runs it [B21,C7,H16].
+ */
+export function closeFinishedAsks(board, { agentId = COORDINATOR } = {}) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < ASK_CLOSE_ENGINE) return [];
+  return atomic(board, () => {
+    const found = new Map();
+    const asks = openDecisions(board);
+    const items = new Map();
+    for (const ask of asks) {
+      const id = askItem(ask);
+      if (id === null) continue;
+      if (!items.has(id)) items.set(id, board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id) ?? null);
+      const item = items.get(id);
+      const reason = item ? finishedReason(item) : null;
+      if (reason) found.set(ask.shout_id, reason);
+    }
+    return closeAsks(board, asks, agentId, ask => found.get(ask.shout_id));
   });
 }
