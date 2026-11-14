@@ -298,3 +298,9 @@ svg.mini rect { fill: var(--ink-faint); } svg.mini rect.hot { fill: var(--mark-b
 @media (max-width: 900px) { :root[data-tab="activity"] .pagectl { display: none; } }
 
 .act-mfilters select { padding-right: var(--space-4); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%238a8a8a' stroke-width='1.4'/%3E%3C/svg%3E") right center / 10px no-repeat; }
+/* On a phone every Activity action is a full tap target: the filters, the resource cells and the hour event tabs (#7908). */
+@media (max-width: 900px) {
+  .act-live .act-mfilters button { min-height: var(--tap); }
+  .act-live .rcell { height: var(--tap); }
+  .act-live .act-evt .tb { height: var(--tap); }
+}
