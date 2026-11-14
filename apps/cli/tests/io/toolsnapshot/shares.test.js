@@ -106,11 +106,11 @@ test('clause 1: a cold comparison snapshot is built by the detached worker from 
   const recorded = JSON.parse(readFileSync(requestFile, 'utf8'));
   assert.equal(recorded.tools, target.tools, 'the request names the shared folder');
   assert.equal(recorded.toolsCommit, git(repo, 'rev-parse', 'HEAD'), 'the request pins the commit taken at launch');
-  writeFileSync(join(repo, 'bin', 'a.js'), 'export const changed = 1;\n');
+  writeFileSync(join(repo, 'bin/a.js'), 'export const changed = 1;\n');
   git(repo, 'commit', '-qam', 'branch moved after launch');
   const runs = [];
   await prepareComparison(requestFile, { runTools: async args => { runs.push(args); return { status: 0 }; } });
-  assert.equal(readFileSync(join(target.tools, 'bin', 'a.js'), 'utf8'), 'export const bin = 1;\n', 'the worker builds the pinned commit, not the moved checkout');
+  assert.equal(readFileSync(join(target.tools, 'bin/a.js'), 'utf8'), 'export const bin = 1;\n', 'the worker builds the pinned commit, not the moved checkout');
   assert.equal(runs.length, 1, 'the comparison then runs once');
   assert.match(runs[0][0], /comparison\.js$/u, 'the run is the comparison worker, named under the built shared folder');
   assert.equal(runs[0][1], requestFile);

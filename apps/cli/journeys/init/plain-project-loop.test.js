@@ -79,8 +79,8 @@ async t => {
   assert.match(claimed, new RegExp(`claimed #${id}`, 'u'));
   const folder = `${builderSeat}-item-${id}`;
   mkdirSync(join(folder, 'src'), { recursive: true });
-  writeFileSync(join(folder, 'src', 'add.js'), 'export const add = (a, b) => a + b;\n');
-  writeFileSync(join(folder, 'src', 'add.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from './add.js';\ntest('add', () => assert.equal(add(1, 2), 3));\n");
+  writeFileSync(join(folder, 'src/add.js'), 'export const add = (a, b) => a + b;\n');
+  writeFileSync(join(folder, 'src/add.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from './add.js';\ntest('add', () => assert.equal(add(1, 2), 3));\n");
   box.git(folder, 'add', '-A');
   assert.equal(box.tryGit(folder, 'commit', '-q', '-m', `feat(web): add adds [G1]`).status, 0);
 
@@ -105,7 +105,7 @@ async t => {
   // Landing: accepted, then landed on main.
   const landed = await stageOf(box, repo, id, 'landed');
   assert.match(landed, /\(landed\)/u, landed);
-  assert.equal(existsSync(join(repo, 'src', 'add.js')), true, 'the item\'s file is on main');
+  assert.equal(existsSync(join(repo, 'src/add.js')), true, 'the item\'s file is on main');
   // The landing is a --no-ff merge carrying the engine's message: its body names the item (#7268) [C7].
   assert.equal(box.git(repo, 'rev-list', '--parents', '-n', '1', 'main').split(' ').length, 3, 'main\'s tip is a two-parent landing merge');
   assert.match(box.git(repo, 'log', '-1', '--format=%B', 'main'), new RegExp(`^Pullboard-Item: #${id}$`, 'mu'));
