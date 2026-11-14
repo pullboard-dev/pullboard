@@ -39,3 +39,20 @@ export function moveAcross(from, to, { rename = renameSync } = {}) {
     rmSync(from, { recursive: true, force: true });
   }
 }
+
+/**
+ * Hands the `scratch` machine setting down as PULLBOARD_SCRATCH, so cells below config land under it without importing config.
+ * Why: the setting is config's to read, and an environment already naming a root wins [C7].
+ *
+ * @param {Record<string, string | undefined>} [env] - Environment, defaulting to process.env.
+ * @returns {void}
+ */
+export function applyMachineScratch(env = process.env) {
+  if (env.PULLBOARD_SCRATCH) return;
+  try {
+    const { scratch } = loadMachineSettings();
+    if (typeof scratch === 'string' && scratch) env.PULLBOARD_SCRATCH = scratch;
+  } catch {
+    // Unreadable settings are reported by the commands that need them; the scratch root then stays os.tmpdir().
+  }
+}
