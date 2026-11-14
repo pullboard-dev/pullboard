@@ -23,6 +23,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import { once } from 'node:events';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
@@ -55,6 +56,7 @@ test('submit leaves a dependency fast-forwarded in out of the files it records [
   (await box.runLocal(box.web, 'claim', '1'));
   commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
   assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
+  await settledGateJob(box, 1); // under pull the gate settles on the runner; verify before it fails NOT_SUBMITTED [C7,#7283]
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   assert.match((await box.runLocal(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed dep.html; the page broke')).out, /verified #1/);
   box.git(box.repo, 'switch', '-q', 'main');
