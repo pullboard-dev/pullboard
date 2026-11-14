@@ -1,5 +1,5 @@
 /** Route a pulled gate's green proof of foreign paths to their lane owners, as the controller submit does [B3,L1,P7]. */
-import * as store from '../../../store/index.js';
+import { store } from './gate/moves.js';
 
 /**
  * True when a gate receipt's only finding is lane ownership: every phase ran and passed, nothing else refused.
