@@ -12,6 +12,7 @@ const VIEW_STYLESHEETS = new Map([
   ['palette', './palette/palette.css'],
   ['nav', './nav.css'],
   ['shouts', './shouts.css'],
+  ['notch', './notch.css'],
 ]);
 
 /**
