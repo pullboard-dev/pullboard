@@ -15,6 +15,7 @@ import {
   startView,
   openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 test('Needs you shares grouped, expandable rows and exact person confirmation across Items and Dashboard [N26,B26]', { timeout: 120_000 }, async () => { // budget: native board/Git setup, two viewports and a real person confirmation.
   const box = machine();
@@ -44,12 +45,12 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
     };
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+      await pressTab(chrome, 'dashboard');
       await chrome.waitFor('view.tab === "dashboard"');
       // The /live-style Dashboard (#6847) holds no Rulings rows; Items is where the person rules.
       assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-call").length'), 0, 'the Dashboard draws no Rulings rows');
       await capture('dashboard', width);
-      await press(chrome, 'document.querySelector("[data-tab=items]")');
+      await pressTab(chrome, 'items');
       await chrome.waitFor('view.tab === "items"');
       await openItemsNeeds(chrome);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Questions and sentinels · 2/u);
