@@ -205,7 +205,7 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     assert.equal(await chrome.stable("document.querySelector('#pal-overlay').innerHTML"), '', 'Esc closes it');
     // A thread's reply box is the field a person types shouts into; open one and type a slash there.
     // The shout result already opened its thread in place; open one only if none is.
-    if (!(await chrome.stable("!!document.querySelector('#feed [data-reply] input')"))) await chrome.stable("document.querySelector('#feed [data-shout-thread]').click()");
+    if (!(await chrome.stable("!!document.querySelector('#feed [data-reply] input')"))) await chrome.click("document.querySelector('#feed [data-shout-thread]')");
     await chrome.waitFor("!!document.querySelector('#feed [data-reply] input')");
     await chrome.stable("document.querySelector('#feed [data-reply] input').focus()");
     await key('/', 'Slash', 191, '/');

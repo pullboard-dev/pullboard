@@ -25,6 +25,7 @@ import { exportView } from '../../src/io/commands/view.js';
 import { relayPresentation } from '../../../../packages/pages/index.js';
 import {
   openShoutConversation,
+  pressTab,
   machine,
   project,
   build,
@@ -174,7 +175,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
 
     // A refused reference says why where its code would be.
     await box.inProcess(alpha.web, 'shout', 'all', `gone: web/greeting.html:7@${sha}`);
-    await page.run('refresh()');
+    for (let attempt = 0; attempt < 100 && !page.show('feed').includes('data-before="gone: "'); attempt++) await page.run('refresh()'); // the server's kept state catches up with the write
     await page.click({ code: `web/greeting.html:7@${sha}`, before: 'gone: ' });
     assert.ok(page.show('feed').includes(`<span class="code no" role="status">[NO_LINES] web/greeting.html has 1 lines at ${sha}</span>`));
     assert.match(page.show('feed'), /Code reference unavailable: missing a usable commit SHA\./);
@@ -242,7 +243,7 @@ test('committed shout and fact references stay local, expand safely at phone and
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
-      await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+      await pressTab(chrome, 'shouts');
       await openShoutConversation(chrome);
       await chrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]')`);
       await chrome.waitFor(`document.querySelector('#feed .code-wrap pre.code .tok-keyword')?.textContent === 'const'`);
@@ -256,7 +257,7 @@ test('committed shout and fact references stay local, expand safely at phone and
       await chrome.waitFor(`document.querySelectorAll('#feed pre.code > span').length === 60`);
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, `${width}px page has no sideways overflow`);
 
-      await chrome.click(`document.querySelector('[data-tab="items"]')`);
+      await pressTab(chrome, 'items');
       await chrome.click(`document.querySelector('#chain [data-item="1"]')`);
       assert.equal(await chrome.stable(`!!document.querySelector('#detail .fact-code .code-ref:not(.open) > button.ref.block[aria-expanded="false"]')`), true, 'a fact\'s reference is a collapsed block too');
       await chrome.click(`document.querySelector('#detail .fact-code button[data-code]')`);
@@ -264,7 +265,7 @@ test('committed shout and fact references stay local, expand safely at phone and
       assert.equal(await chrome.stable(`document.querySelector('#detail .fact-code pre.code').textContent.includes('localOnlyFixture = 42')`), true, 'typed fact refs use the same local renderer');
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, `${width}px thread ref has no sideways overflow`);
       await chrome.click(`document.querySelector('#detail .fact-code button[data-code]')`);
-      await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+      await pressTab(chrome, 'shouts');
       await openShoutConversation(chrome);
       await chrome.click(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
       await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]').getAttribute('aria-expanded') === 'false'`);
@@ -305,10 +306,10 @@ test('committed shout and fact references stay local, expand safely at phone and
     const address = snapshotServer.address();
     snapshotChrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, join(box.dir, 'relay-snapshot-chrome'));
     await snapshotChrome.waitFor('data?.project');
-    await snapshotChrome.click("document.querySelector('[data-tab=shouts]')");
+    await pressTab(snapshotChrome, 'shouts');
     await openShoutConversation(snapshotChrome);
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
-    await snapshotChrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await pressTab(snapshotChrome, 'shouts');
     await openShoutConversation(snapshotChrome);
     await snapshotChrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]')`);
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')?.getAttribute('aria-expanded') === 'true'`);

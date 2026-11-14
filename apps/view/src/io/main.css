@@ -1383,7 +1383,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
   #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow: hidden; }
   #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); white-space: nowrap; }
   #spec-chips .seg button, #doctrine-chips .seg button { display: flex; align-items: center; justify-content: center; }
-  #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: visible; }
+  #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   #spec-chips .seg-full, #doctrine-chips .seg-full { display: none; }
   #spec-chips .seg-short, #doctrine-chips .seg-short { display: inline; }
   #spec-chips .seg button b, #doctrine-chips .seg button b { flex: none; margin-left: var(--space-1); }
