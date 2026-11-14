@@ -50,6 +50,7 @@ import { budgetInbox } from '../../../../packages/activity/index.js';
 import { readActivityCursor } from '../../../../packages/activity/index.js';
 import { readActivityDelivery } from '../../../../packages/activity/index.js';
 import { saveActivityCursor } from '../../../../packages/activity/index.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -99,7 +100,7 @@ test('inbox reads leave the writer available and acknowledge only after selectio
   assert.equal(reads, 2);
 });
 
-test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', async () => {
+test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', async t => {
   const box = e2e.project('true');
   const boardPath = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const board = openBoard(boardPath);
@@ -116,7 +117,9 @@ test('a recorded submit stays successful when its later activity delivery fails 
   store.closeBoard(broken);
   const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  const document = JSON.parse(submitted.out);
+  const queued = JSON.parse(submitted.out);
+  // A pulled submit returns queued; the gate result comes from its settled gate job [P7,C7].
+  const document = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, queued);
   assert.equal(document.id, id);
   assert.equal(document.gate.green, true);
   assert.equal(document.activity.receipt.recorded, false);
