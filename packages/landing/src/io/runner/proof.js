@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
+import { timeoutDetail } from './deadline.js';
+import { watchDeadline } from './deadline.js';
 
 // The run-tests ledger variable (packages/gate LEDGER_HITS_ENV), named here so the runner bundle stays free of the gate package.
 const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
@@ -111,11 +113,12 @@ function shellWord(word) {
  *
  * @param {{ runner: string, files: string[], ledger?: { contexts: string[], files: Array<[string, string, number]>, mainRed?: Array<[string, string, number]> } | null }} proof
  * A red whose every failure a live person waiver covers is ok and names them as `waived`: the landing goes ahead, waived, not green [#655].
- * @param {{ env?: NodeJS.ProcessEnv, waivers?: { id: string, kind: string, test: string, until: string }[], now?: () => number }} [options] - waivers: the job's payload waivers.
+ * @param {{ env?: NodeJS.ProcessEnv, waivers?: { id: string, kind: string, test: string, until: string }[], now?: () => number, deadline?: () => { at: number, ms: number } | null }} [options] - waivers: the job's payload waivers;
+ * deadline: when the landing's checks must be done; a proof still running then has its process tree stopped and returns `timeout: true`, never a red [C7,#7820].
  * failures: a red's failing tests by file, when its TAP accounts for every one (accountedRed), else absent.
  * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, waived?: { file: string, name: string, waiver: string }[], failures?: { file: string, name: string }[], proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
  */
-export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now } = {}) {
+export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now, deadline = null } = {}) {
   return ({ root }) => new Promise(resolve => {
     const clean = Object.fromEntries(Object.entries(env).filter(([name]) => !INHERITED.test(name)));
     const command = `${proof.runner} ${proof.files.map(file => shellWord(`./${file}`)).join(' ')}`;
@@ -149,7 +152,17 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       for (const line of lines) cause(line);
       tail = (tail + chunk.toString('utf8')).slice(-2000);
     });
+    let settled = false;
+    const clear = watchDeadline(child, deadline, limitMs => {
+      if (settled) return undefined;
+      settled = true;
+      const result = { ok: false, timeout: true, detail: timeoutDetail(`the landing proof (${proof.files.length} files, ${reused} reused so far)`, limitMs, tail), proof: { files: proof.files.length, reused, ran: proof.files.length - reused } };
+      return () => resolve(result);
+    });
     const finish = (ok, detail, waived = null, failures = null) => {
+      clear();
+      if (settled) return;
+      settled = true;
       if (REUSED.test(pending)) reused++;
       if (MAIN_RED.test(pending)) mainRed++;
       resolve({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
