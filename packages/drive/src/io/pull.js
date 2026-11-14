@@ -521,11 +521,11 @@ export async function jobProcesses(job, claim = null) {
  * @param {string} job
  * @param {number | undefined} group - The job's process group (its first process's pid).
  * @param {{ claim?: string | null, folder?: string | string[] | null, graceMs?: number, list?: (job: string, claim: string | null) => Promise<number[]>, pause?: (ms: number) => Promise<void> }} [options] - folder: the job's
- *   environment folder, or it and its work tree; a process whose command line names a path in one is the job's too, which is how Chrome and orphaned test processes are found (#7811, #7813).
+ *   environment folder, or it and its work tree; a process whose command line names a path in one is the job's too, which is how Chrome and orphaned test processes are found (#7811, #7813); so is one whose environment names it, a fixture's local runner or view (#7819).
  * @returns {Promise<number[]>}
  */
 export async function reapJob(job, group, { claim = null, folder = null, graceMs = REAP_MS, list: listMarked = jobProcesses, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
-  const list = async () => [...new Set([...await listMarked(job, claim), ...(folder ? await pathProcesses(folder) : [])])];
+  const list = async () => [...new Set([...await listMarked(job, claim), ...(folder ? await pathProcesses(folder, { environment: true }) : [])])];
   const kill = (pid, name) => { try { process.kill(pid, name); } catch { /* already gone */ } };
   if (group) kill(-group, 'SIGTERM');
   const found = await list();
