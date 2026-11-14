@@ -115,11 +115,13 @@ const verdicts = () => {
     const row = /^(\\s*)not ok\\s+\\d+\\s+-\\s+(.*)$/u.exec(lines[at]);
     if (!row || /#\\s*(?:SKIP|TODO)\\b/iu.test(row[2])) continue;
     const name = row[2].replace(/\\s+#.*$/u, '');
-    let file = fileOf(name);
+    // The case's own location line places it first; its name, which may merely mention another file, only when there is none.
+    let file = null, located = false;
     for (let next = at + 1; next < lines.length && !file && /^\\s/u.test(lines[next]) && !/^\\s*(?:not )?ok\\s/u.test(lines[next]); next += 1) {
       const location = /^\\s*location:\\s*(.*?)\\s*$/u.exec(lines[next]);
-      if (location) file = fileOf(location[1]);
+      if (location) { located = true; file = fileOf(location[1]); }
     }
+    if (!located) file = fileOf(name);
     if (file) out[file] = [...new Set([...(out[file] ?? []), name.slice(0, 120)])].slice(0, 3); else unplaced += 1;
   }
   const finished = new Set(lines.filter(line => line.startsWith(${JSON.stringify(FILE_TIME_LINE)})).map(line => fileOf(line.slice(${FILE_TIME_LINE.length}).replace(/^\\S+ /u, ''))));
