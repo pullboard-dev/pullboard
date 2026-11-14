@@ -23,6 +23,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { captureCommandInProcess } from '../../tests/fixtures/process.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 import { removeSandboxes } from '../../tests/fixtures/submit/handoff.js';
 import { main } from '../../tests/fixtures/native.js';
 
@@ -80,6 +81,8 @@ async function acceptedItem(t) {
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
+  // A pulled submit settles after --wait returns, so the board records the item's commit a moment later; read it once it is there.
+  await waitForCondition(() => getItem(board, item).item_commit, `#${item} records its submitted commit`);
   const reviewer = join(box.dir, 'drive-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, getItem(board, item).item_commit);
   // The board may route this item strong, and a strong verifier covers every route.
