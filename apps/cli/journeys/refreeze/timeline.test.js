@@ -50,7 +50,7 @@ test('retained refreeze remains claimed in API history and the detail timeline o
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
       await press(chrome, `document.querySelector('[data-tab="items"]')`);
       await chrome.waitFor(`!document.querySelector('[data-pane="items"]').hidden`);
-      if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
+      if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
       const row = `document.querySelector('#detail .tl li[data-event-id="${threadRefreeze.eventId}"]')`;
       await chrome.waitFor(`${row} !== null`);
       const rendered = JSON.parse(await chrome.stable(`(() => { const row = ${row}; return JSON.stringify({
