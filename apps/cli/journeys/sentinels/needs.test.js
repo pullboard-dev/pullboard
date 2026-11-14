@@ -339,8 +339,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
 
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
+    // machine().inProcess returns stdout and refuses a non-zero status itself.
     const handed = await box.inProcess(alpha.repo, 'pass', '1', 'over to you');
-    assert.equal(handed.status, 0, 'pass hands the ask up: ' + handed.stderr + handed.stdout);
+    assert.match(handed, /passed #1 upward as #\d+/u, 'pass hands the ask up: ' + handed);
     await page.run('refresh()');
     assert.ok(page.run('data.project.decisions.some(shout => shout.shout_id === 42)'), 'the passed ask is decision 42; the page holds ' + page.run('JSON.stringify(data.project.decisions.map(shout => shout.shout_id))'));
     const passedAt = page.run('Date.parse(data.project.decisions.find(shout => shout.shout_id === 42).shout_at)');
