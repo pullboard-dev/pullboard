@@ -128,3 +128,8 @@
 .item-panel-verdicts .row-detail { padding: var(--space-2) var(--space-4) var(--space-3); }
 .item-panel-verdicts .row-detail .verdict { margin: 0; }
 .ip-row.waits-on { overflow: hidden; }
+
+/* Under touch or on a phone every action in the panel is a full target; under a mouse the compact rows stay (N26). */
+@media (pointer: coarse), (width < 900px) {
+  .ip-cl, .item-panel .links button { min-height: var(--tap); }
+}
