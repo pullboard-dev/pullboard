@@ -90,7 +90,8 @@ test('in-text item references stay inline and open their target at phone and des
       assert.ok(rendered.needAction.height >= tapTarget(width) && (width >= 900 || rendered.realButton.height >= tapTarget(width)), // the desktop strip keeps compact text controls (nav.css .pagectl)
         `${width}: real controls keep their targets: ${JSON.stringify(rendered)}`);
 
-      for (const section of ['agents', 'spec', 'doctrine']) {
+      // The agents rail is one line per agent and no longer lists an agent's items, so only Spec and Doctrine carry item references.
+      for (const section of ['spec', 'doctrine']) {
         if (section === 'agents') {
           await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
           const agent = await chrome.stable("(() => { const item=data.project.items.find(i => i.id===2); return item.claim?.by || item.builtBy; })()");

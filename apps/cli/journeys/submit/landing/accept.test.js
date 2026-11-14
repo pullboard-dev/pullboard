@@ -11,6 +11,7 @@ import { onBoard } from '../../../tests/fixtures/land/board.js';
 import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import * as store from '../../../../../packages/store/index.js';
+import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { joinFixtureSeat } from '../../../tests/fixtures/testkit.js';
 
 const BIN = new URL('../../../pullboard.js', import.meta.url).pathname;
@@ -131,7 +132,6 @@ test('two accepts at once from two sessions land both, each in a batch of one [B
   // The board's own batch size (Corey 5 Nov). An accept's landing starts at once, with no 10 s wait to gather accepts.
   onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'landingBatchSize', value: 1,
     reason: 'Batch size stays one', window: { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 } }));
-  const before = onBoard(box, board => store.landingBatches(board).length);
   const results = await Promise.all(items.map(item => accept(box, item)));
   for (const result of results) {
     assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -139,6 +139,8 @@ test('two accepts at once from two sessions land both, each in a batch of one [B
   }
   await landed(box, items);
   assertLanded(box, items, binding);
-  const batches = onBoard(box, board => store.landingBatches(board)).slice(before).filter(batch => batch.state === 'landed');
-  assert.deepEqual(batches.map(batch => (batch.items ?? []).length), [1, 1], 'concurrent accepts land one item per batch');
+  // A landing is a runner land job, so the batch is the job's item list; the board host runs no landing batch [C7,#7728].
+  const jobs = onBoard(box, board => jobsOf(board.db, { kind: 'land' }).map(job => job.steps.find(step => step.name === 'offered').payload.payload.items.map(entry => entry.id)));
+  assert.deepEqual(jobs.map(ids => ids.length), [1, 1], `concurrent accepts land one item per land job: ${JSON.stringify(jobs)}`);
+  assert.deepEqual(jobs.flat().sort((left, right) => left - right), items.map(item => item.id).sort((left, right) => left - right), 'no two land jobs share an item');
 });

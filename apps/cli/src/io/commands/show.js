@@ -68,7 +68,7 @@ export const nativeBoardRequired = false;
  * The item's newest gate job as its step and, once done, the gate its receipt recorded; null when it has none.
  * Why: a pulled submit returns queued at once, and this is how a script reads the gate's settled verdict [C7,#6821].
  */
-function newestGateJob(db, id, receipts = []) {
+export function newestGateJob(db, id, receipts = []) {
   let job;
   try { job = jobsOf(db, { kind: 'gate', item: id }).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!job) return null;

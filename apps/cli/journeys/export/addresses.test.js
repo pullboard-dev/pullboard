@@ -112,7 +112,7 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
     assert.deepEqual(waits, [['#2', '/items/2']], 'waits-on references link to the waited item');
     await press(chrome, `document.querySelector('[data-tab="activity"]')`);
     const activity = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
-    const activityCites = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-event')]
+    const activityCites = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .act-row')]
       .filter(node=>node.textContent.includes('Activity cites #1 and waits on #2'))
       .flatMap(node=>[...node.querySelectorAll('a.ref[data-go]:not(.activity-about)')].map(link=>[link.textContent,new URL(link.href).pathname])))`));
     assert.deepEqual(activityCites, [['#1', '/items/1'], ['#2', '/items/2']], 'the Activity citation and wait prose link to their exact item targets');
@@ -250,11 +250,11 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     await press(chrome, `document.querySelector('[data-tab="shouts"]')`);
     await checkPlace('#shouts', "view.tab === 'shouts' && !document.querySelector('[data-pane=shouts]').hidden");
     // The Shouts tab lists conversations; open the first one so its message cards render.
-    await press(chrome, `document.querySelector('#feed .conversation-row')`);
+    await press(chrome, `document.querySelector('#feed .sx-th')`);
     await chrome.waitFor(`!!document.querySelector('#feed [data-shout-id]')`);
     const shoutId = await chrome.stable(`document.querySelector('#feed [data-shout-id]')?.dataset.shoutId`);
     await press(chrome, `document.querySelector('#feed [data-shout-id]')`);
-    await checkPlace('#shouts/' + shoutId, `view.tab === 'shouts' && view.shout === Number(${JSON.stringify(shoutId)}) && document.querySelector('#feed article.found')?.dataset.shoutId === ${JSON.stringify(shoutId)}`);
+    await checkPlace('#shouts/' + shoutId, `view.tab === 'shouts' && view.shout === Number(${JSON.stringify(shoutId)}) && document.querySelector('#feed .sx-msg.found')?.dataset.shoutId === ${JSON.stringify(shoutId)}`);
     await press(chrome, `document.querySelector('[data-tab="spec"]')`);
     await press(chrome, `document.querySelector('[data-rows="spec:all"]')`);
     const specId = await chrome.stable(`document.querySelector('#spec-list [data-row]')?.dataset.row.split(':')[1]`);
