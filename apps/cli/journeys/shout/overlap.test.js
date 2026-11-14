@@ -19,6 +19,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { holdPriorShoutResponse } from '../../tests/fixtures/cockpit/barrier.mjs';
 
@@ -72,7 +73,7 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("innerWidth===375&&document.querySelector('#proj-list .pname')?.textContent==='prior-shout-overlap'");
-    await press(chrome, `document.querySelector(${JSON.stringify('[data-tab="shouts"]')})`);
+    await pressTab(chrome, 'shouts');
     await openShoutConversation(chrome);
     const armed = await armWitness(chrome);
     captureArmed = armed.armed === true;
@@ -169,7 +170,7 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("innerWidth===375&&document.querySelector('#proj-list .pname')?.textContent==='prior-shout-mode-order'");
-    await press(chrome, `document.querySelector(${JSON.stringify('[data-tab="shouts"]')})`);
+    await pressTab(chrome, 'shouts');
     await openShoutConversation(chrome);
     const armed = await armWitness(chrome);
     captureArmed = armed.armed === true;
