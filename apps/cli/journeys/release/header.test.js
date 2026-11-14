@@ -53,7 +53,7 @@ test('Dashboard Release and the Roadmap release header read the same release at 
       assert.equal(dashboard.nameSize, '17px');
       assert.equal(dashboard.left, '2 to go3 of 5 landed');
       assert.equal(dashboard.bars, 1, 'one stage bar');
-      assert.ok(dashboard.bar.width > 0 && dashboard.keys.width > 0 && dashboard.keysBelow, `${width}px the legend sits under the bar`);
+      assert.ok(dashboard.bar.width > 0 && dashboard.keys.width > 0 && dashboard.keysBelow, `${width}px the legend sits under the bar: ${JSON.stringify({ bar: dashboard.bar, keys: dashboard.keys, below: dashboard.keysBelow })}`);
       assert.deepEqual(dashboard.tiles, ['Today’s pace', 'Right now', 'ETA']);
       assert.equal(dashboard.overflow, false, `${width}px Dashboard has no horizontal overflow`);
       // The bar and its legend paint in the formal stage colours (Waiting is the sheet's grey): each segment and its swatch resolve to the same token.

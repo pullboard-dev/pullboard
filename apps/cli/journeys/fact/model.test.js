@@ -4,6 +4,9 @@ import {
   test,
   after,
 } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 
@@ -13,6 +16,13 @@ after(e2e.cleanup);
 /** A project whose web-1 seat joined on the strong route with fixture-model, holding an older strong item and a mid one. */
 function strongSeatWithWork() {
   const box = e2e.project('true');
+  // Sonnet is strong since 7cf17d51ed, so the project names its own mid-tier label; an unnamed label lowers nothing.
+  const file = join(box.repo, 'pullboard.json'), config = JSON.parse(readFileSync(file, 'utf8'));
+  config.modelTiers = [{ contains: 'haiku', route: 'light' }, { contains: 'fixture-mid-model', route: 'mid' }, { contains: 'opus', route: 'strong' }];
+  writeFileSync(file, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'commit', '-q', '-am', 'chore: project model tiers');
+  // The web-1 seat reads its own checkout's config, so it takes the tier table too.
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const strong = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Strong work', route: 'strong', diagnose: false });
   const mid = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Mid work', route: 'mid', diagnose: false });
   return { box, strong: strong.item_id, mid: mid.item_id };
@@ -31,11 +41,11 @@ async function declaring(box, model, ...args) {
 
 test('clause 1: a strong seat whose session declares a mid model is offered the mid item, never the strong one, through next [B13]', async () => {
   const { box, strong, mid } = strongSeatWithWork();
-  const next = await declaring(box, 'claude-sonnet-5-5', 'next', '--json');
+  const next = await declaring(box, 'fixture-mid-model', 'next', '--json');
   assert.equal(next.code, 0, next.out + next.err);
   const offered = JSON.parse(next.out);
   assert.equal(offered.item?.item_id ?? offered.id, mid, `next must offer the mid item, not strong #${strong}: ${next.out}`);
-  const whoami = JSON.parse((await declaring(box, 'claude-sonnet-5-5', 'whoami', '--json')).out);
+  const whoami = JSON.parse((await declaring(box, 'fixture-mid-model', 'whoami', '--json')).out);
   assert.equal(whoami.route, 'mid', 'the caller route is the declared model\'s route');
 });
 
