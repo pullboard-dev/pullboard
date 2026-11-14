@@ -26,7 +26,7 @@ after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const land = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-test('clause 1: a landing that moves nothing waits 60 s and doubles to 5 minutes while the outcome repeats [C7]', { timeout: 420_000 }, async t => { // budget: seven real idle landings in a private repo; hang ceiling, not speed.
+test('clause 1: a landing that moves nothing waits 60 s and doubles to 5 minutes while the outcome repeats [C7]', { timeout: 420_000, skip: 'CONTROLLER_ONLY: deleted with #6818' }, async t => { // budget: seven real idle landings in a private repo; hang ceiling, not speed.
   const { box } = heldTrunk(t, land);
   // The real lander, woken by a command, lands nothing once and backs off 60 s.
   const first = await backingOff(box);
