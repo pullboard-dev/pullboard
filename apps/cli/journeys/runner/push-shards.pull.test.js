@@ -11,6 +11,7 @@ import { jobsOf } from '../../../../packages/jobs/index.js';
 import { pullProject } from '../../tests/fixtures/pull.js';
 import { pullQueue } from '../../tests/fixtures/pull.js';
 import { serveOnce } from '../../tests/fixtures/pull.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 
 /** Four node:test files; the one named `red` fails its one case. */
 function testFiles(red) {
@@ -24,8 +25,7 @@ test('case ${name} holds', () => assert.equal(${JSON.stringify(name === red ? 'r
 async function pushProject(t, red = null) {
   const box = await pullProject(t, 1);
   for (const [path, text] of Object.entries(testFiles(red))) { mkdirSync(join(box.repo, 'web'), { recursive: true }); writeFileSync(join(box.repo, path), text); }
-  const configFile = join(box.repo, 'pullboard.json');
-  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), gate: 'node --test' }, null, 2) + '\n');
+  fixtureProjectPolicy(box.repo, { config: { ...JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')), gate: 'node --test' } });
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test(web): four gate files [G1]');
   const queue = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo }) });
