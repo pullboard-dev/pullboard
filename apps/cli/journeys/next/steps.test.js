@@ -26,7 +26,10 @@ test('agents are never told to ask the person [B26]', () => {
     if (/\bask the person\b/iu.test(original)) assert.equal(builder, route, `${code} names the coordinator decision route`);
     else assert.equal(builder, original, `${code} keeps unrelated guidance`);
     assert.equal(refusalDocument(refusal, { caller: 'coordinator' }).error.next, original, `${code} keeps coordinator guidance`);
-    assert.equal(refusalDocument(refusal, { caller: 'person' }).error.next, original, `${code} keeps person guidance`);
+    // A person's line holds no command or code (#3977): the original, or the one plain sentence when the original names a command.
+    const personal = refusalDocument(refusal, { caller: 'person' }).error.next;
+    if (personal !== original) assert.match(personal, /^your coordinator will sort this out; nothing needs you right now$/u, `${code} gives the person one plain sentence`);
+    assert.doesNotMatch(personal, /\bpullboard\s+[-\w]/u, `${code} never shows the person a command`);
   }
   for (const text of ['ask the person to approve G1', 'Ask the person for a waiver', 'ask the person to preview this change']) {
     const explicit = { code: 'B26_PERSON_APPROVAL', message: 'An approval is required.', next: text };
@@ -48,7 +51,9 @@ test('person routing preserves reasons, quoted text and canonical refusal receip
   assert.match(builder.error.message, /needed: approve its current row again/u);
   assert.doesNotMatch(builder.error.next, /ask the person/iu);
   assert.deepEqual(refusalDocument(error, { caller: 'coordinator' }), original);
-  assert.deepEqual(refusalDocument(error, { caller: 'person' }), original);
+  const personal = refusalDocument(error, { caller: 'person' });
+  assert.match(personal.error.next, /^your coordinator will sort this out; nothing needs you right now$/u, 'the person reads one plain sentence, not the pullboard view command');
+  assert.equal(personal.error.code, original.error.code);
   assert.deepEqual(recordedRefusal(error), before, 'presentation never changes the authoritative receipt');
   const quoted = new Refused('NO_READER', 'nobody reads "a title; ask the person to approve it": register a reader');
   assert.equal(refusalDocument(quoted, { caller: 'seat' }).error.message, refusalDocument(quoted).error.message, 'quoted user content stays exact');

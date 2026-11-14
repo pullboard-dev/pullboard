@@ -122,7 +122,9 @@ test('the installed pre-commit hook lands a two-binding import already split and
   writeFileSync(join(box.repo, 'src/other.js'), 'export default 3; export const extra = 4;\n');
   writeFileSync(join(box.repo, 'src/two.js'), TWO);
   box.git(box.repo, 'add', 'src');
-  box.git(box.repo, 'commit', '-q', '-m', 'feat: commit automatically split imports [G1]');
+  // A setup commit skips hooks; this journey is about the hook, so it commits through tryGit [C7].
+  const committed = box.tryGit(box.repo, 'commit', '-q', '-m', 'feat: commit automatically split imports [G1]');
+  assert.equal(committed.status, 0, committed.stderr);
   const landed = box.git(box.repo, 'show', 'HEAD:src/two.js');
   assert.notEqual(landed.trimEnd(), TWO.trimEnd(), 'the actual hook rewrote the staged two-binding import');
   assert.equal(landed.trimEnd(), splitImportBindings(TWO).source.trimEnd());

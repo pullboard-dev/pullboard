@@ -246,7 +246,6 @@
   ["src/pinned-tool-publish.js","apps/cli/src/io/pinned/tool/publish.js","rule"],
   ["src/commands/tool-build.js","apps/cli/src/io/commands/tool-build.js","rule"],
   ["src/command-docs/tool-build.json","apps/cli/src/io/command-docs/build.json","rule"],
-  ["src/submit-handoff.js","apps/cli/src/io/submit/handoff.js","rule"],
   ["src/worktree-maintenance.js","apps/cli/src/io/worktree/maintenance.js","rule"],
   ["src/worktree-maintenance-observation.js","apps/cli/src/io/worktree/maintenance/observation.js","rule"],
   ["src/worktree-maintenance-command.js","apps/cli/src/io/worktree/maintenance/command.js","rule"],
@@ -274,7 +273,6 @@
   ["src/cli-main/run-main.js","apps/cli/src/io/cli-main/run.js","rule"],
   ["src/cli-trace.js","apps/cli/src/io/trace.js","rule"],
   ["src/submit-remote-gate.js","apps/cli/src/io/submit/gate.js","rule"],
-  ["src/submit-handoff-worker.js","apps/cli/src/io/submit/handoff/worker.js","rule"],
   ["src/cli-hook-work.js","apps/cli/src/io/hook/work.js","rule"]
  ],
  "reexports": ["src/cli-read-context.js","src/commands/index.js","src/help.js","src/next-steps.js"],

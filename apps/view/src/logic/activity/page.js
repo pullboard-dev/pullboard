@@ -46,46 +46,70 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     return new Set(flow.events.filter(entry => entry.kind === filter && entry.id !== null).map(entry => entry.id));
   })();
   const waterfall = (hour, big) => {
-    const topMin = (hour.h1 + (hour.h1 < now ? BLEED * MIN : 0)) / MIN, botMin = (hour.from - BLEED * MIN) / MIN;
+    const BLEED_MIN = 10, GUT = 54, X0 = 8, STILL = ['ready', 'blk', 'held'];
+    const topMin = (hour.h1 + (hour.h1 < now ? BLEED_MIN * MIN : 0)) / MIN, botMin = (hour.from - BLEED_MIN * MIN) / MIN;
     // The current hour is drawn at least twice as tall as an older one, however few minutes of it have passed.
-    const PPM = big ? Math.max(3, 220 / (topMin - botMin)) : 1.05, tall = Math.round((topMin - botMin) * PPM);
-    const W = width, y = ms => (topMin - ms / MIN) * PPM;
-    const pitch = Math.max(2, Math.min(10, Math.floor((W - 64) / Math.max(flow.lanes, 1)))), bw = Math.max(2, Math.round(pitch * 0.55));
+    const PPM = big ? Math.max(3, 220 / (topMin - botMin)) : 1.25, tall = Math.round((topMin - botMin) * PPM);
+    const W = width, AREA = W - GUT - X0 - 6, y = ms => (topMin - ms / MIN) * PPM;
+    const lowMs = botMin * MIN, highMs = topMin * MIN, lo = hour.from, hi = hour.h1;
+    // Moved this hour: an item that changed (stage, landing, send-back, ruling, shout) or was at work inside the hour. Items that only waited are counted, not drawn.
+    const firstChange = item => Math.min(item.drawStart >= lo && item.drawStart < hi ? item.drawStart : Infinity, ...item.segs.filter(seg => seg.a >= lo && seg.a < hi && seg.a > item.drawStart && !seg.over).map(seg => seg.a),
+      item.landed && item.end >= lo && item.end < hi ? item.end : Infinity, ...item.marks.filter(mark => mark.t >= lo && mark.t < hi).map(mark => mark.t));
+    const working = item => item.segs.some(seg => seg.b > Math.max(lo, item.drawStart) && seg.a < hi && !STILL.includes(seg.k));
+    const inHour = [...flow.journeyById.values()].filter(item => item.end >= lo && item.drawStart < hi);
+    const moved = inHour.filter(item => firstChange(item) < Infinity || working(item)), still = inHour.filter(item => !moved.includes(item));
+    const order = new Map(moved.map(item => [item, Math.min(firstChange(item), Math.max(item.drawStart, lo))]));
+    const CAP = 60;
+    const sorted = moved.filter(item => item.segs.some(seg => !STILL.includes(seg.k)) || firstChange(item) < Infinity).sort((a, b) => order.get(a) - order.get(b) || a.id - b.id);
+    const more = Math.max(0, sorted.length - CAP), list = sorted.slice(0, CAP);
+    // Columns: the first one free for three minutes, so the hour fills the card's width.
+    const ends = [], lane = new Map();
+    for (const item of list) {
+      const from = Math.max(item.drawStart, lowMs), to = Math.min(item.end, highMs);
+      let at = ends.findIndex(end => end <= from);
+      if (at < 0) { at = ends.length; ends.push(0); }
+      ends[at] = to + 3 * MIN; lane.set(item.id, at);
+    }
+    const cols = Math.max(ends.length, 1), pitch = Math.min(28, AREA / cols), bw = Math.max(2, Math.min(12, Math.round(pitch * 0.6)));
     let s = '<svg class="act-wfsvg" viewBox="0 0 ' + W + ' ' + tall + '" width="' + W + '" height="' + tall + '" shape-rendering="crispEdges" role="img" aria-label="' + esc(hourName(hour.h0)) + ' waterfall">';
-    for (let q = 15; q < 60; q += 15) { const at = hour.h0 + q * MIN; if (at < hour.h1) s += '<line class="act-grid" x1="0" x2="' + W + '" y1="' + y(at) + '" y2="' + y(at) + '"/>'; }
+    for (let q = 15; q < 60; q += 15) { const at = hour.h0 + q * MIN; if (at < hour.h1) s += '<line class="act-grid" x1="0" x2="' + (W - GUT) + '" y1="' + y(at) + '" y2="' + y(at) + '"/>'; }
     const left = leftKnown ? flow.since.at : null;
-    if (left !== null && left >= hour.from && left < hour.h1) s += '<line class="act-lleft" x1="0" x2="' + W + '" y1="' + y(left) + '" y2="' + y(left) + '"/>';
-    const lowMs = botMin * MIN, highMs = topMin * MIN;
-    for (const item of flow.journeys) {
-      if (item.end < lowMs || item.drawStart >= highMs) continue;
-      const x = 10 + item.lane * pitch, dim = keepSet && !keepSet.has(item.id);
+    if (left !== null && left >= hour.from && left < hour.h1) s += '<line class="act-lleft" x1="0" x2="' + (W - GUT) + '" y1="' + y(left) + '" y2="' + y(left) + '"/>';
+    for (const item of list) {
+      const x = X0 + lane.get(item.id) * pitch + (pitch - bw) / 2, dim = keepSet && !keepSet.has(item.id);
       let g = '<g data-id="' + item.id + '"' + (dim ? ' class="dim"' : '') + '><rect class="act-hit" x="' + (x - (pitch - bw) / 2) + '" y="' + y(Math.min(item.end, highMs)) + '" width="' + pitch + '" height="' + Math.max(0, y(Math.max(item.drawStart, lowMs)) - y(Math.min(item.end, highMs))) + '"/>';
       for (const seg of item.segs) {
-        const a = Math.max(seg.a, item.drawStart, lowMs), b = Math.min(seg.b, highMs);
-        if (b <= a) continue;
-        const yy = y(b), hh = Math.max(0.6, (b - a) / MIN * PPM - 0.4);
-        g += '<rect class="s-' + seg.k + '" x="' + x + '" y="' + yy + '" width="' + bw + '" height="' + hh + '"/>';
-        if (seg.over) g += '<rect class="s-over" x="' + x + '" y="' + yy + '" width="' + bw + '" height="' + hh + '"/>';
+        const a0 = Math.max(seg.a, item.drawStart, lowMs), b0 = Math.min(seg.b, highMs);
+        if (b0 <= a0) continue;
+        // Neighbour minutes are faint; a stay carried in from before the hour is pale; what starts in the hour is full colour.
+        for (const [a, b, tone] of [[a0, Math.min(b0, lo), ' nb'], [Math.max(a0, lo), Math.min(b0, hi), seg.a < lo ? ' mut' : ''], [Math.max(a0, hi), b0, ' nb']]) {
+          if (b > a) g += '<rect class="s-' + seg.k + tone + '" x="' + x + '" y="' + y(b) + '" width="' + bw + '" height="' + Math.max(0.8, (b - a) / MIN * PPM - 0.4) + '"/>';
+        }
+        // Past limit is a thin red cap where the board's limit was crossed: the excess segment begins there.
+        if (seg.over && seg.a >= Math.max(lo, lowMs) && seg.a < hi) g += '<rect class="m-cap" x="' + (x - 1) + '" y="' + (y(seg.a) - 1.2) + '" width="' + (bw + 2) + '" height="2.4"/>';
       }
       for (const mark of item.marks) {
-        if (mark.t < lowMs || mark.t >= highMs) continue;
+        if (mark.t < lo || mark.t >= hi) continue;
         const cy = y(mark.t), cx = x + bw / 2;
         if (mark.k === 'back') g += '<rect class="m-back" x="' + (x - 2) + '" y="' + (cy - 1) + '" width="' + (bw + 4) + '" height="2.2"/>';
-        else g += '<circle class="m-' + (mark.k === 'ruling' ? 'rul' : 'sh') + '" cx="' + cx + '" cy="' + cy + '" r="' + (mark.k === 'ruling' ? Math.max(2.6, bw / 2 + 1) : Math.max(2, bw / 2 + 0.4)) + '" shape-rendering="auto"/>';
+        else g += '<circle class="m-' + (mark.k === 'ruling' ? 'rul' : 'sh') + '" cx="' + cx + '" cy="' + cy + '" r="' + Math.max(2.4, bw / 2 + 0.6) + '" shape-rendering="auto"/>';
       }
-      if (item.landed && item.end >= lowMs && item.end < highMs) g += '<rect class="m-land" x="' + (x - 1) + '" y="' + (y(item.end) - 3) + '" width="' + (bw + 2) + '" height="3"/>';
+      if (item.landed && item.end >= lo && item.end < hi) g += '<rect class="m-land" x="' + (x - 1) + '" y="' + (y(item.end) - 3) + '" width="' + (bw + 2) + '" height="3"/>';
       s += g + '</g>';
     }
-    const edge = (ms) => '<rect class="act-veil" x="0" y="' + (ms === 'top' ? 0 : y(hour.from)) + '" width="' + W + '" height="' + (ms === 'top' ? y(hour.h1) : tall - y(hour.from)) + '"/><line class="act-edge" x1="0" x2="' + W + '" y1="' + (ms === 'top' ? y(hour.h1) : y(hour.from)) + '" y2="' + (ms === 'top' ? y(hour.h1) : y(hour.from)) + '"/>';
-    if (topMin * MIN > hour.h1) s += edge('top');
-    s += edge('bottom');
-    if (hour.h1 === now) s += '<line class="act-lnow" x1="0" x2="' + W + '" y1="0.5" y2="0.5"/>';
+    // Light neighbour edges: a dashed hour line with its label in the right gutter, never on the bars.
+    if (highMs > hour.h1) s += '<line class="act-edge" x1="0" x2="' + W + '" y1="' + y(hour.h1) + '" y2="' + y(hour.h1) + '"/><text class="act-bleed" x="' + (W - 6) + '" y="' + (y(hour.h1) - 4) + '" text-anchor="end">' + esc(hourName(hour.h1)) + ' ↑</text>';
+    s += '<line class="act-edge" x1="0" x2="' + W + '" y1="' + y(hour.from) + '" y2="' + y(hour.from) + '"/><text class="act-bleed" x="' + (W - 6) + '" y="' + (y(hour.from) + 11) + '" text-anchor="end">' + esc(hourName(hour.from - HOUR)) + ' ↓</text>';
+    if (hour.h1 === now) s += '<line class="act-lnow" x1="0" x2="' + W + '" y1="0.5" y2="0.5"/><text class="act-tick now" x="' + (W - 6) + '" y="13" text-anchor="end">now</text>';
     // Labels are SVG text, so no element needs a style attribute.
-    for (const q of [15, 30, 45]) { const at = hour.h0 + q * MIN; if (at < hour.h1 - 4 * MIN && !(hour.h1 === now && y(at) < 26) && !(left !== null && Math.abs(at - left) <= 7 * MIN)) s += '<text class="act-tick" x="' + (W - 8) + '" y="' + (y(at) + 4) + '" text-anchor="end">:' + q + '</text>'; }
-    if (left !== null && left >= hour.from && left < hour.h1) s += '<text class="act-tick" x="' + (W - 40) + '" y="' + (y(left) - 4) + '" text-anchor="end">you left</text>';
-    if (topMin * MIN > hour.h1) s += '<text class="act-bleed" x="10" y="12">:' + String(BLEED).padStart(2, '0') + ' · ' + esc(hourName(hour.h1)) + '</text>'; else s += '<text class="act-tick now" x="' + (W - 8) + '" y="13" text-anchor="end">now</text>';
-    s += '<text class="act-bleed" x="10" y="' + (tall - 5) + '">:' + (60 - BLEED) + ' · ' + esc(hourName(hour.from - HOUR)) + '</text>';
-    return s + '</svg>';
+    for (const q of [15, 30, 45]) { const at = hour.h0 + q * MIN; if (at < hour.h1 - 4 * MIN && !(hour.h1 === now && y(at) < 26) && !(left !== null && Math.abs(at - left) <= 7 * MIN)) s += '<text class="act-tick" x="' + (W - 6) + '" y="' + (y(at) + 3.5) + '" text-anchor="end">:' + q + '</text>'; }
+    if (left !== null && left >= hour.from && left < hour.h1) s += '<text class="act-tick" x="' + (W - 6) + '" y="' + (y(left) + 3.5) + '" text-anchor="end">you left</text>';
+    s += '</svg>';
+    const by = { ready: 0, blk: 0, held: 0, other: 0 };
+    for (const item of still) { const seg = item.segs.findLast(seg => seg.a < hour.h1) ?? item.segs.at(-1); by[seg && seg.k in by ? seg.k : 'other']++; }
+    const parts = [['ready', 'ready'], ['blk', 'blocked'], ['held', 'held'], ['other', 'other']].filter(([k]) => by[k]).map(([k, word]) => by[k] + ' ' + word);
+    const note = [more ? 'and ' + more + ' more moved' : '', still.length ? still.length + ' only waited all hour, counted in Bottlenecks: ' + parts.join(' · ') : ''].filter(Boolean).join(' · ');
+    return s + (note ? '<p class="act-wfnote">' + esc(note) + '</p>' : '');
   };
 
   // ---- event rows ----
@@ -233,7 +257,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   const hoursHead = '<div class="act-shd byh"><p class="act-lbl">By hour · ' + flow.windowHours + ' h</p><span class="act-cap">' + esc(hourName(first.h0)) + '–' + esc(hourName(last.h1 === now ? last.h0 + HOUR : last.h1)) + ' · ' + (page * PER + 1) + '–' + Math.min(flow.hours.length, (page + 1) * PER) + ' of ' + flow.hours.length + '</span></div>';
   const key = (cls, label, kind = 'sw') => '<span><i class="' + kind + ' ' + cls + '"></i>' + label + '</span>';
   const legend = '<div class="act-lg"><div>' + key('ready', 'Ready') + key('building', 'Building') + key('gate', 'Gate') + key('wait', 'Pending review') + key('review', 'In review') + key('landing', 'Landing') + '</div>'
-    + '<div>' + key('blocked', 'Blocked') + key('held', 'Held') + key('over', 'Past limit') + '<span class="x"></span>' + key('k-cap', 'Landed', '') + key('k-back', 'Sent back', '') + key('k-dot rul', 'Ruling', '') + key('k-dot sh', 'Shout', '') + '</div></div>';
+    + '<div>' + key('blocked', 'Blocked') + key('held', 'Held') + key('cap', 'Past limit') + key('mute', 'Carried in, no change') + '<span class="x"></span>' + key('k-cap', 'Landed', '') + key('k-back', 'Sent back', '') + key('k-dot rul', 'Ruling', '') + key('k-dot sh', 'Shout', '') + '</div></div>';
   const end = '<p class="act-since end"><span>' + (page ? '<a class="pgn" data-act-page="-1">‹ Newer</a>' : '') + '</span>' + (page < pagesTotal - 1 ? '<a class="lkr" data-act-page="1">Earlier ' + PER + ' hours ›</a>' : '') + '</p>';
   const defs = '<svg class="act-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>'
     + '<pattern id="act-p-over" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="p-over" width="1.6" height="4"/></pattern>'

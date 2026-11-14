@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 import {
   ReleaseTransportError,
   releaseParticipationDigest,
-  runAccept,
 } from '../../../../packages/gate/index.js';
+import { runAccept } from '../../../../packages/gate/heavy.js';
 import { verifyHostedRelease } from '../../../../packages/sandbox/index.js';
 
 const ROOT = join(fileURLToPath(import.meta.url), '../../../../..');

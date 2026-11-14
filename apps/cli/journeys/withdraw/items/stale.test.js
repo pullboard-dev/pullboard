@@ -39,8 +39,7 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
     assert.deepEqual(rows(page.show('chain'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the verified filter still lists them');
     await page.click({ go: 'item:1' });
     assert.equal(marks(page.show('detail')), stale, 'the detail marks it beside the verified chip');
-    await page.click({ itemPanelTab: 'verdicts' });
-    assert.match(page.show('detail'), /<div class="verdict yes"><b>Accepted · <span title="CRITERION_MET">criterion met<\/span>/, 'the ACCEPT stays in the history with its native reason tooltip');
+    assert.match(page.show('detail'), /<span class="ip-chip l" title="CRITERION_MET">Criterion met<\/span>/, 'the ACCEPT stays on the panel with its native reason tooltip');
     await page.click({ go: 'item:3' });
     assert.equal(marks(page.show('detail')), '', 'a merged item carries no mark');
     page.run('view.tab = "roadmap"; render();');

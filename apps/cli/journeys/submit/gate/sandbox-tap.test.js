@@ -24,6 +24,7 @@ import {
 import {
   coordinatorLocal,
   runLocal,
+  submitSettled,
 } from './local.js';
 import {
   privateRepo,
@@ -73,7 +74,7 @@ test('real outside-file TAP denials refuse while permission assertions stay ordi
       assert.throws(() => writeFileSync(outside, 'sentinel'), { code: 'EACCES' }, 'the operating system actually denies this write');
       blocked(await runLocal(box, 'gate'), outside);
       blocked(await runLocal(box, 'check', '1', '--yes'), outside);
-      blocked(await runLocal(box, 'submit', '1'), outside);
+      blocked(await submitSettled(t, box, (...args) => runLocal(box, ...args)), outside);
       const privateResult = checkAtCommit(box.root, item);
       assert.equal(privateResult.state, 'red');
       assert.ok(privateResult.sandboxBlocked?.includes(outside), 'the real private checker scans the TAP record');

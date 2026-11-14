@@ -443,7 +443,8 @@ test('automatic conflict returns bind native evidence and replay without caller 
   json(joinFixtureSeat(box, second, 'web'));
   const clean = await build('Keep a clean footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   assert.throws(() => prepareEngineMove(source, 'reopen', [clean, { agentId: actor, automaticConflict: true }]),
-    error => error.code === 'NOT_CONFLICTING', 'a clean submitted head cannot acquire computed conflict evidence');
+    error => error.code === 'NOT_CONFLICTING' || (t.diagnostic(`clean return refused as ${error.code}: ${error.message}; item is ${store.getItem(source, clean)?.item_status}`), false),
+    'a clean submitted head cannot acquire computed conflict evidence');
   assert.equal(store.getItem(source, clean).item_status, 'submitted');
 });
 
@@ -568,5 +569,8 @@ test('a recorded automatic conflict return first replays after the replica trunk
   assert.equal(replayed.tables.item.find(item => item.item_id === conflicted).item_status, 'open',
     'first delivery of the validated Git-log record uses its immutable recorded trunk, not current local main');
   const acknowledged = replayed.tables.board_meta.find(row => row.meta_key === 'relay_receipt_' + JSON.parse(record.move).id);
-  assert.deepEqual(JSON.parse(acknowledged.meta_value).outcome, record.outcome);
+  // Event ids number each board's own history, and the origin also records pulled gate and runner events the replica never
+  // receives (P7), so the replay is compared by what it recorded, not by the number each board gave it.
+  const bare = outcome => ({ ...outcome, events: outcome.events?.map(({ event_id, ...event }) => event) });
+  assert.deepEqual(bare(JSON.parse(acknowledged.meta_value).outcome), bare(record.outcome));
 });

@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/verify/machine.test.js packages/landing/src/io/step/trunk.js */
+/** @pullboard-test-input apps/cli/journeys/verify/machine.test.js */
 /** Only an item's own red reopens it: batch-wide, foreign-file and infrastructure landing failures reopen nothing [C7,#2967]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -149,11 +149,7 @@ test('renewLocalLanding retries BOARD_BUSY with backoff until the acknowledged l
   await assert.rejects(renewWithBackoff(() => { throw new Refused('LAND_LEASE_LOST', 'lost'); }, clock), /lost/);
 });
 
-test('a locked slot database is a landing fault, and the local trunk keeps its batch resumable [C7]', async () => {
+test('a locked slot database is a landing fault [C7]', async () => {
   const { landingFault } = await import('../../../../../packages/landing/src/io/step/diagnose.js');
   assert.equal(landingFault(new Refused('SLOT_DB_LOCKED', 'never ran: the resource queue database stayed locked')), true);
-  const { readFileSync } = await import('node:fs');
-  const source = readFileSync(new URL('../../../../../packages/landing/src/io/step/trunk.js', import.meta.url), 'utf8');
-  const handler = /\} catch \(error\) \{\s*if \(!\(error instanceof Refused\)\) throw error;\s*[^\n]*\n\s*if \(landingFault\(error\)\) throw error;/u;
-  assert.match(source, handler, 'a landing fault leaves the local trunk before it can save the batch blocked');
 });

@@ -300,9 +300,6 @@
     "daemon-loop": 1,
     "state-file": 3
   },
-  "packages/landing/src/io/automatic/scheduler.js": {
-    "state-file": 1
-  },
   "packages/landing/src/io/smoke.js": {
     "state-file": 7
   },
@@ -315,9 +312,6 @@
   },
   "packages/landing/src/io/shards.js": {
     "detached": 1
-  },
-  "packages/landing/src/io/step/batch.js": {
-    "state-file": 1
   },
   "packages/landing/src/io/step/publish.js": {
     "detached": 1,

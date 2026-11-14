@@ -1,21 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { untilBoardFree } from '../../../../src/io/commands/land.js';
 import { prepareFlakeLanding } from '../../../../../../packages/landing/index.js';
 import { Refused } from '../../../../../../packages/kernel/index.js';
 
 const STALE = 'flake evidence or repair status changed before the landing snapshot was recorded; retry the landing';
-
-test('a stale flake-ratchet boundary is thrown to the worker at once; a held board still waits [C7]', async () => {
-  const waits = [];
-  const wait = ms => { waits.push(ms); return Promise.resolve(); };
-  await assert.rejects(untilBoardFree(async () => { throw new Refused('BOARD_BUSY', STALE); }, { wait }), { code: 'BOARD_BUSY' });
-  assert.deepEqual(waits, [], 'no sleep on a stale boundary');
-  let calls = 0;
-  const value = await untilBoardFree(async () => { if (++calls < 3) throw new Refused('BOARD_BUSY', 'board file x remained held by another process after 10ms'); return 'done'; }, { wait });
-  assert.equal(value, 'done');
-  assert.deepEqual(waits, [1000, 2000], 'a held board is retried with the backoff');
-});
 
 test('prepareFlakeLanding recomputes the snapshot when the board moved under it, and gives up after a bound [C7]', async () => {
   let boundary = 0;

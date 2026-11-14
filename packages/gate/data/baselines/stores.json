@@ -80,7 +80,6 @@
       "owner": "apps/cli/src/io/cli-main/run.js",
       "homes": {
         "apps/view/src/io/live/read.js": 1,
-        "packages/landing/src/io/automatic/scheduler.js": 1,
         "packages/landing/src/io/main/red/refresh.js": 1
       }
     },
@@ -144,7 +143,7 @@
     "landings": {
       "kind": "dir",
       "disk": "receipts",
-      "owner": "packages/landing/src/io/step/batch.js"
+      "owner": "packages/api/src/io/landing.js"
     },
     "ledger-cache": {
       "kind": "dir",
@@ -803,10 +802,6 @@
     "path-map.json": {
       "kind": "json",
       "owner": "packages/codemap/src/logic/path/map.js"
-    },
-    "pending.guard.sqlite": {
-      "kind": "sqlite",
-      "owner": "packages/landing/src/io/automatic/scheduler.js"
     },
     "pending.json": {
       "kind": "json",
@@ -1504,7 +1499,6 @@
     "last-green.json",
     "models.json",
     "path-map.json",
-    "pending.guard.sqlite",
     "post-land-suite.json",
     "publish.json",
     "pullboard-item.json",
