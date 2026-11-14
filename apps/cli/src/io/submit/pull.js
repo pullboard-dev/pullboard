@@ -334,6 +334,9 @@ else {
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
     message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
+  // A registered guard or submit invariant the candidate deleted refuses as the controller gate did, rather than silently leaving the proof [V4,C7,#7725].
+  const lostGuard = !refusals.length ? [...(analysis.plan?.invariants ?? []).map(path => ['submitInvariants', path]), ...(analysis.plan?.registryGuards ?? []).map(path => ['registryGuards', path])].find(([, path]) => !existsSync(join(root, path))) : null;
+  if (lostGuard) refusals.push({ part: 'proof', code: 'BAD_CONFIG', message: lostGuard[0] + ' file ' + lostGuard[1] + ' is missing or unreadable; restore it or update the list on accepted main' });
   const unbrowsed = !refusals.length && analysis.plan?.proofCommand ? browserless(analysis.plan.proofFiles, analysis.plan.selection?.full === true) : [];
   if (unbrowsed.length) refusals.push({ part: 'proof', code: 'BROWSER_UNAVAILABLE', paths: unbrowsed.slice(0, 200), message: browserRefusal(unbrowsed) });
   if (!refusals.length && !receipt.analysis.infra) {
