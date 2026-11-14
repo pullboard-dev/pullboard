@@ -97,7 +97,8 @@ test('clause 2: scale takes the declared model and tier from the current environ
 
 test('clause 1: unknown models fall back to mid and model-tier configuration is validated [C7]', () => {
   assert.equal(modelTierRoute('Claude 3.5 Haiku', defaults().modelTiers), 'light');
-  assert.equal(modelTierRoute('Claude 3.7 Sonnet', defaults().modelTiers), 'mid');
+  // Sonnet seats are strong since #6268 (model-tiers.json); only a model with no listed fragment is mid.
+  assert.equal(modelTierRoute('Claude 3.7 Sonnet', defaults().modelTiers), 'strong');
   assert.equal(modelTierRoute('unlisted test model', defaults().modelTiers), 'mid');
   assert.equal(configProblems({ ...defaults(), modelTiers: [{ contains: '', route: 'strong' }] })
     .filter(problem => problem.includes('modelTiers')).length, 1);

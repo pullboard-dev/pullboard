@@ -118,3 +118,20 @@ test('a stuck non-gate pin line clears: stale head is swept, a fresh waiter is a
     await rejoin.stop();
   } finally { fresh?.release(); holder.release(); await orphan.stop(); }
 });
+
+test('a live non-gate pin waiter below two minutes is not swept and keeps its place at the head [C7]', async t => {
+  const box = fixture(t);
+  const holder = await box.take({ agent: 'holder', name: PIN });
+  const live = await waiting(box, 'live-pin', PIN);
+  try {
+    inPool(box, db => db.prepare('UPDATE waiter SET heartbeat = ? WHERE agent = ?').run(Date.now() - 60_000, 'live-pin'));
+    holder.release();
+    const blocked = new Error('fresh waiter is behind a live pin head');
+    await assert.rejects(box.take({ agent: 'fresh', name: PIN, onWait: () => { throw blocked; } }), error => error === blocked);
+    inPool(box, db => {
+      assert.deepEqual(db.prepare('SELECT agent FROM waiter WHERE agent = ?').all('live-pin').map(r => r.agent), ['live-pin'], 'the live head is not swept');
+      assert.equal(db.prepare('SELECT agent FROM waiter ORDER BY ticket LIMIT 1').get().agent, 'live-pin', 'it keeps the head of the queue');
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM holder').get().n, 0, 'the free slot is held for the live head, not taken by the fresh arrival');
+    });
+  } finally { holder.release(); await live.stop(); }
+});
