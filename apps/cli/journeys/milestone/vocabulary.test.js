@@ -28,7 +28,7 @@ import { startView } from '../../tests/fixtures/cockpit/harness.js';
 test('every screen shows an item\'s stage from the seven approved words, in order, with marks beside them [N28]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the stage vocabulary journey.');
-  const T0 = Date.now(); const mark = (label) => console.log('PHASE ' + label + ' ' + (Date.now() - T0));
+  const T0 = Date.now(); const mark = (label) => { if (Date.now() - T0 > 60000) throw new Error('PHASE ' + label + ' ' + (Date.now() - T0)); }
   const box = machine();
   const alpha = project(box, 'stage-vocabulary', undefined, {
     lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] } },
@@ -50,6 +50,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   build(box, alpha, 7, 'verified.txt');
   accept(box, alpha, 7);
+  mark('after builds 4-7');
   box.run(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
   box.run(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
   build(box, alpha, 10, 'returned.txt');
@@ -58,6 +59,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   box.run(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
   box.run(alpha.web, 'claim', '3');
   box.run(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
+  mark('after sendback and milestone');
   const reviewer = join(box.dir, 'stage-vocabulary-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/stage-vocabulary-reviewer', reviewer, 'main');
   box.run(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
