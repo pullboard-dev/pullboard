@@ -5,7 +5,6 @@ import { main as nativeTestMain } from '../../../tests/fixtures/native.js';
 import assert from 'node:assert/strict';
 import { fetchLocal } from '../../../../../packages/sync/index.js';
 import { exportView } from '../../../src/io/commands/view.js';
-import { request } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
