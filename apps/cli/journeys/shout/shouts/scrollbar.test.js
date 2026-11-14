@@ -45,7 +45,7 @@ async function openConversation(chrome, key = 'none') {
   await chrome.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`);
   await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
   await chrome.waitFor("!!document.querySelector('#feed .sx-tp')");
-  // A long thread shows its latest eight messages; this journey measures every one.
+  // A long thread shows its latest twelve messages; this journey measures every one.
   if (await chrome.stable("!!document.querySelector('#feed .sx-earlier-msgs[aria-expanded=\"false\"]')")) await press(chrome, "document.querySelector('#feed .sx-earlier-msgs')");
 }
 

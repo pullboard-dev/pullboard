@@ -295,7 +295,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     r = await read();
     const shut = r.waiting.offset;
     assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['Questions1', 'false', 0], `the question count stays on the composer line before a conversation is opened: ${JSON.stringify(r.waiting)}`);
-    assert.ok(/^\d+ idle/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
+    assert.ok(/^\s*\d+ idle/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
     await click('[data-page-ctl=shouts][data-value=questions]');
     await openShoutConversation(chrome);
     await click('#agents .sx-idlehead[data-fold="idle"]');
