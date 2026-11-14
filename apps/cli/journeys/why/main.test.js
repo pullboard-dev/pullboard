@@ -12,6 +12,7 @@ import {
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { minimumMoveEngine } from '../../../../packages/moves/index.js';
 import { DECISION_ORIGIN_ENGINE } from '../../../../packages/state/light.js';
 import { originOf } from '../../../../packages/commits/src/logic/origin.js';
@@ -53,7 +54,8 @@ async function fixture() {
     box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
     try { await json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The committed result exists.'); }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
-    assert.deepEqual((await json(box.repo, 'land')).landed, [id]);
+    // Landing is a runner land job: wait for its receipt, which names what landed (land only offers the job since 1a432cf0c2).
+    assert.deepEqual((await settleLand(box, await json(box.repo, 'land'))).landed, [id]);
   }
   return { ...box, json, landItem };
 }
