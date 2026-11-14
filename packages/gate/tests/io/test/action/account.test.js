@@ -1,20 +1,18 @@
 /** A reused test file keeps its test account: a ledger hit with no stored outcomes runs, and a resubmit stays green [C7,#7937]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { planTestActions } from '../../../../src/io/test/action/cache.js';
 import { phaseLedger } from '../../../../src/io/test/account.js';
 import { readTestOutcomes } from '../../../../src/io/test/outcomes.js';
 import { requireTestTierAccount } from '../../../../src/io/test/tier/selection.js';
 import { fixtureCommittedGraph } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFocusedRunner } from '../../../fixtures/focused-runner.js';
 
-const RUNNER = fileURLToPath(new URL('../../../../src/io/run/tests.js', import.meta.url));
 const FILES = ['tests/one.test.js', 'tests/two.test.js'];
 
 /** This process's environment without any enclosing run's reuse, ledger or timing variables, on the given store. */
@@ -48,9 +46,9 @@ async function ledgerHitFile(fx) {
 /** Run the focused runner on both files as a pulled proof phase does, and return its output and the gate's account verdict. */
 function proof(fx, hits) {
   const id = randomUUID();
-  const ran = spawnSync(process.execPath, [RUNNER, ...FILES.map(file => `./${file}`)], { cwd: fx.root, encoding: 'utf8', timeout: 120_000,
-    env: cleanEnv(join(fx.scratch, 'runner'), { PULLBOARD_LEDGER_HITS: hits, PULLBOARD_TIMING_RUN_ID: id }) });
-  const text = `${ran.stdout}\n${ran.stderr}`;
+  const ran = runFocusedRunner(fx.root, FILES.map(file => `./${file}`),
+    cleanEnv(join(fx.scratch, 'runner'), { PULLBOARD_LEDGER_HITS: hits, PULLBOARD_TIMING_RUN_ID: id }));
+  const text = ran.text;
   let refused = null;
   try { requireTestTierAccount({ green: ran.status === 0, testOutcomes: readTestOutcomes(text, id) }, FILES); }
   catch (error) { refused = error; }
