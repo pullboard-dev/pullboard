@@ -105,7 +105,11 @@ async function project(t) {
 
 /** Create a real item that cites one frozen row and return its persisted id. */
 async function addItem(box, title, specId = 'G1') {
-  const result = await box.pullboard(box.root, 'add', 'web', title, '--criterion', `Check ${title}.`, '--specs', specId, '--json');
+  const args = ['add', 'web', title, '--criterion', `Check ${title}.`, '--specs', specId];
+  let result = await box.pullboard(box.root, ...args, '--json');
+  // The lifecycle fixtures repeat one title shape on purpose, so a near-duplicate refusal is answered as it names.
+  const similar = /DUPLICATE_LIKELY[^]*?#(\d+)/u.exec(`${result.stdout}`)?.[1];
+  if (similar) result = await box.pullboard(box.root, ...args, '--not-duplicate-of', `${similar} lifecycle fixtures repeat by design`, '--json');
   assert.equal(result.status, 0, `${result.stdout}${result.context}`);
   return jsonOf(result).item.item_id;
 }
