@@ -37,7 +37,7 @@ function shapedProject(edit) {
 function traced(box) {
   let rows = [];
   try { rows = readFileSync(box.trace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); } catch { rows = []; }
-  return { full: rows.filter(row => !row.alone).length, alone: rows.filter(row => row.alone).length };
+  return { full: rows.filter(row => !row.alone).length, alone: rows.filter(row => row.alone).length, rows };
 }
 
 /** Submit and accept one green item, then land it; returns the whole-suite runs its submit and its landing started. Each pulled step is settled before the next count is read [P7,C7]. */
@@ -59,7 +59,7 @@ async function landOne(t, box) {
   // The landing is a runner land job; its receipt says whether the merged tree landed and its proof what ran [P7,C7].
   const settled = await settleLand(box, JSON.parse(landed.out));
   assert.equal(settled.landJob.receipt.outcome, 'landed', JSON.stringify(settled.landJob.receipt));
-  return { entry, output: JSON.stringify(settled.landJob.receipt), submitFull: before.full - start.full, landingFull: traced(box).full - before.full };
+  return { entry, output: `${JSON.stringify(settled.landJob.receipt)}; gate runs since accept: ${JSON.stringify(traced(box).rows.slice(before.rows.length))}`, submitFull: before.full - start.full, landingFull: traced(box).full - before.full };
 }
 
 test('clause 1: in the default shape a whole-suite submit receipt for the identical tree is reused with no test run [C7,#6271]', { timeout: 120_000 }, // budget: one real submit, accept and landing; hang ceiling only.
