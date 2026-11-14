@@ -313,9 +313,6 @@
   "packages/landing/src/io/shards.js": {
     "detached": 1
   },
-  "packages/landing/src/io/step/batch.js": {
-    "state-file": 1
-  },
   "packages/landing/src/io/step/publish.js": {
     "detached": 1,
     "unref": 1
