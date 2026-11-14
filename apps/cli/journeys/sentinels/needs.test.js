@@ -34,6 +34,7 @@ import {
   boardOf,
   fetchLive,
   serveFolder,
+  press,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -142,7 +143,7 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
       return true;
     })()`);
     // The /live-style Dashboard draws no Rulings card (#6847); the Items list carries the row.
-    await chrome.click('document.querySelector("[data-tab=items]")');
+    await press(chrome, 'document.querySelector("[data-tab=items]")');
     await chrome.waitFor(`Array.from(document.querySelectorAll('#needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const row = [...document.querySelectorAll('#needs .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
@@ -232,7 +233,7 @@ test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_00
       chrome = await openSnapshotChrome(executable, address, profile);
       await chrome.waitFor("data?.project?.needs?.length === 4");
       assert.equal(await chrome.stable('view.tab'), 'dashboard', mode + ' opens on Dashboard');
-      await chrome.click('document.querySelector("[data-tab=items]")');
+      await press(chrome, 'document.querySelector("[data-tab=items]")');
       await chrome.waitFor("data?.project?.needs?.length === 4 && document.querySelectorAll('#needs .needs-call').length === 4");
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(projectNeeds(data.project))')), expected, mode + ' computes identical entries');
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#needs .needs-copy b")].map(row => row.textContent))')),
@@ -539,7 +540,8 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
       okNote: (() => { const c = document.querySelector('#console'); return !!c && !c.hidden && getComputedStyle(c).display !== 'none' && c.classList.contains('ok'); })(),
     };
   })())`));
-  const click = (selector) => chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
+  // A page tab sits in a nav menu the person opens first, so it goes through the shared press (#6651's nav menus).
+  const click = (selector) => (selector.startsWith('[data-tab=') ? press(chrome, `document.querySelector(${JSON.stringify(selector)})`) : chrome.click(`document.querySelector(${JSON.stringify(selector)})`));
   try {
     await confirmBaseline(view, alpha.repo);
     chrome = await openSnapshotChrome(executable, view.link.href, profile);

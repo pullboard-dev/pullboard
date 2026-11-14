@@ -380,7 +380,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const inflight = new Set();
   const requests = [];
   const document = {
-    body: Object.assign(element('body'), { appendChild() {}, get ownerDocument() { return document; } }),
+    body: Object.assign(element('body'), { appendChild() {} }),
     documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
@@ -390,6 +390,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
+  document.body.ownerDocument = document;
   // The body starts with the classes its markup gives it, as at first paint.
   for (const name of (/<body class="([^"]*)">/.exec(html)?.[1] ?? '').split(' ').filter(Boolean)) document.body.classList.add(name);
   let release = () => {};
