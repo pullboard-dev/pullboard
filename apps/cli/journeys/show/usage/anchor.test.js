@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import {
   appendFileSync,
-  readdirSync,
   mkdirSync,
   readFileSync,
   unlinkSync,
@@ -66,12 +65,34 @@ test('a normal native claim, work and submit preserves its real counter anchor [
   writeFileSync(join(box.web, 'web/ready'), 'ready\n');
   box.git(box.web, 'add', 'web/ready');
   box.git(box.web, 'commit', '-qm', 'feat(web): synthetic usage work [G1]');
-  const submitted = run('submit', String(item), '--no-next', '--json');
+  run('submit', String(item), '--no-next', '--json');
   const shown = JSON.parse(run('show', String(item), '--json').stdout);
-  assert.ok(shown.usage, JSON.stringify({ status: shown.item_status, gateJob: shown.gateJob?.step, err: submitted.stderr.slice(0, 500), ledger: readFileSync(join(box.repo, '.git/pullboard/cost-ledger.json'), 'utf8').slice(0, 900) }));
   assert.equal(shown.usage.inputTokens, 27);
   assert.equal(shown.usage.outputTokens, 5);
   assert.ok(!shown.usage.unknownReasons.includes('missed-claim-anchor'));
+});
+
+test('a red pulled Submit gate leaves the claim open, so the resubmit continues its usage allocation [N2]', () => {
+  const { box, item, usage, run } = fixture();
+  usage(37, 6);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web/draft'), 'draft\n');
+  box.git(box.web, 'add', 'web/draft');
+  box.git(box.web, 'commit', '-qm', 'feat(web): synthetic draft without the check file [G1]');
+  run('submit', String(item), '--no-next', '--json');
+  const red = JSON.parse(run('show', String(item), '--json').stdout);
+  assert.notEqual(red.item_status, 'submitted', 'the check file is missing, so the gate is red');
+  assert.equal(red.usage.inputTokens, 27, 'the offered gate closed the allocation at the first Submit');
+  usage(50, 9);
+  writeFileSync(join(box.web, 'web/ready'), 'ready\n');
+  box.git(box.web, 'add', 'web/ready');
+  box.git(box.web, 'commit', '-qm', 'feat(web): synthetic usage work [G1]');
+  run('submit', String(item), '--no-next', '--json');
+  const shown = JSON.parse(run('show', String(item), '--json').stdout);
+  assert.equal(shown.item_status, 'submitted');
+  assert.equal(shown.usage.inputTokens, 40);
+  assert.equal(shown.usage.outputTokens, 8);
+  assert.deepEqual(shown.usage.unknownReasons, []);
 });
 
 test('a synthetic claim-time ledger lock alone produces recovered missed-claim-anchor [N2]', () => {
