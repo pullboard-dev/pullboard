@@ -28,6 +28,7 @@ import {
   installSshStandIn,
 } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { fixtureAdd } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixturePolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../../resources/index.js')).href;
 const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../../../../config/src/io/settings.js')).href;
@@ -223,6 +224,8 @@ process.exit(lines.length?1:0);
     appendFileSync(join(box.repo, 'DOCTRINE.md'), '\n## Q · Quality\n- Q7 [approved, must] Web problems only fall. | gate: check node bin/doctrine-check.cjs | count: 1 | files: web\n');
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: add private doctrine runner control');
+    // The item under test stays claimed while the probe item is built beside it, so the seat holds two claims [C7].
+    fixturePolicy(box, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: 2 } });
     const base = box.git(box.repo, 'rev-parse', 'HEAD');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const added = JSON.parse(succeeded(fixtureAdd(box.run, box.repo, 'web', 'Leased doctrine control', '--specs', 'G1',
