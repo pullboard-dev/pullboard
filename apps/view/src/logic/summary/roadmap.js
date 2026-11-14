@@ -3,9 +3,10 @@ export function roadmapSummary(milestone, context = {}) {
   /** Escape supplied milestone text before placing it in HTML or attributes. */
   const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
   const summary = milestone.summary;
-  const states = [['landed','landed'],['landing','landing'],['review','in review'],['building','building'],['waiting','blocked'],['held','held']];
   /** Accept only nonnegative integer counts from the backend contract. */
   const number = value => Number.isInteger(value) && value >= 0;
+  // Ready is its own state when the board splits it out (the Dashboard's NOW calls the same items ready); then blocked counts only what waits on something (#7763).
+  const states = [['landed','landed'],['landing','landing'],['review','in review'],['building','building'],...(number(summary?.ready) ? [['ready','ready']] : []),['waiting','blocked'],['held','held']];
   if (!summary || !number(summary.total) || !number(summary.left) || states.some(([key]) => !number(summary[key]))) return null;
   // Only a milestone with work left has a header: a finished one or an empty plan never reads "0 remaining" or
   // "About 0 hours"; an empty plan keeps its No items yet reading, as before this header.

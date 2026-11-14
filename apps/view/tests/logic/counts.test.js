@@ -53,5 +53,6 @@ test('clause 3: sent back is every reject or reopen over four hours, and its sha
 test('the board counts gather the four functions from one state [N26]', () => {
   const project = { agents: [{ agent_id: 'core-1', lastMoveAt: ago(1) }], items: [{ id: 1, status: 'claimed', claim: { by: 'core-1' } }],
     dashboardRunners: { runners: [{ runner: 1 }] }, needs: [{ kind: 'decision' }], dashboardRecent: { sentBack: 2, accepted: 2 } };
-  assert.deepEqual(boardCounts(project, now), { agents: 1, agentIds: ['core-1'], runners: 1, rulings: 1, sentBack: { count: 2, verdicts: 4, share: 0.5, hours: 4 } });
+  assert.deepEqual(boardCounts(project, now), { agents: 1, agentIds: ['core-1'], runners: 1, rulings: 1, sentBack: { count: 2, verdicts: 4, share: 0.5, hours: 4 },
+    landed: { total: 0, last4h: 0, last24h: 0 }, ready: 0, blocked: 0 });
 });
