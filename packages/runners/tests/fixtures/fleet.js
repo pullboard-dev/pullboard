@@ -40,7 +40,8 @@ export async function fleetTestResultReuse(t, { composition = false } = {}) {
   const controller = join(directory, 'controller');
   const homeA = join(directory, 'machine-a');
   const homeB = join(directory, 'machine-b');
-  for (const folder of [repo, bin, worker, controller, homeA, homeB, join(repo, 'test'), join(repo, 'lib')]) mkdirSync(folder, { recursive: true });
+  const homeC = join(directory, 'machine-c');
+  for (const folder of [repo, bin, worker, controller, homeA, homeB, homeC, join(repo, 'test'), join(repo, 'lib')]) mkdirSync(folder, { recursive: true });
   copyPackageFiles(SOURCE, repo);
   const shippedManifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ ...shippedManifest, name: 'fleet-cache-fixture', private: true, type: 'module' }) + '\n');
@@ -81,7 +82,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     else process.env[key] = env[key];
   }
   /** Use a fresh worker HOME and persistent namespace, through the unchanged authenticated SSH transport. */
-  const languagePreload = join(homeB, 'language.mjs');
+  const languagePreload = join(homeC, 'language.mjs');
   writeFileSync(languagePreload, "process.env.LANG = 'cache-material-language';\n");
   let invocation = 0;
   const run = async (home, host, stage, differentLanguage = false, customReporter = false) => {
@@ -131,7 +132,9 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
       assert.match(reporter.output, /EXECUTED-STABLE/u);
       assert.doesNotMatch(reporter.output, /^# reused /mu, 'caller-selected reporters cannot use the reporter-free harness shortcut');
     }
-    const differentEnvironment = await run(homeB, `${HOST}-setup`, 'verify', true);
+    // A third machine under a host name the controller holds no runtime for (the stand-in accepts three; it drops nothing unless asked): a worker agent still alive on machine B would keep its own LANG, ignoring this run's preload,
+    // and a host the controller already sent the runtime to is sent none again, which a new machine does not hold (5c6da27234; 4de3a661db reverted it).
+    const differentEnvironment = await run(homeC, `${HOST}-drop`, 'verify', true);
     assert.equal(differentEnvironment.isGreen, true, differentEnvironment.output);
     assert.match(differentEnvironment.output, new RegExp(EXECUTED), 'a material execution environment change requires a fresh body');
     assert.doesNotMatch(differentEnvironment.output, /^# reused /mu);
