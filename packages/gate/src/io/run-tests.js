@@ -1162,7 +1162,7 @@ function namesOnlyTestFiles(args) {
 
 
 /** Run tests in the disposable environment, preserving a marker only when a parent holds the slot. */
-async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, timing) {
+async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, timing, fullScope = fullSuite) {
   const setupAt = performance.now();
   const env = testEnvironment(sandbox, gateMarkers);
   timing.phase('setupMs', setupAt);
@@ -1199,7 +1199,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   timing.phase('selectionMs', selectionAt);
   const attemptAt = performance.now();
   const result = process.env[LANDING_RUN_ENV] === '1'
-    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
+    ? await runLandingTests(selectedArgs, env, concurrency, fullScope && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
   process.stderr.write(formatTestOutcomes(timing.id, result.testOutcomes));
@@ -1291,7 +1291,7 @@ async function main(args) {
     try {
       clonesBefore = cloneCheck?.chromeCloneSnapshot();
       timing.phase('setupMs', setupAt); clock.mark('admission');
-      const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);
+      const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing, fullSuite && actions.trimmed !== true);
       signal = result.signal;
       process.exitCode = result.status ?? 1; clock.mark('tests');
       if (fileTimes) (await services.landing()).printShardFileTimes(fileTimes);
