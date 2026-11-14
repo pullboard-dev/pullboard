@@ -18,7 +18,7 @@ function pulledSubmit(t) {
   const board = cellBoard(t, repo.boardFile, undefined, { gitRoot: repo.root });
   board.gitRoot = repo.root;
   const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
-  const item = cellItem(board, { lane: 'web', title: 'Build the page', criterion: '1. the page renders [test]' });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   cellClaim(board, item.item_id, seat, { root: repo.root });
   const held = store.getItem(board, item.item_id);
   const head = repo.commit;
