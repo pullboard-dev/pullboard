@@ -125,6 +125,7 @@ test('a lane can own the repository root, spelled . or ./, and root files stay i
   for (const spelling of ['./', '.', './.', './/']) {
     const box = project(t, ['src']);
     writeFileSync(join(box.root, 'app.py'), 'print(1)\n');
+    assert.equal((await box.runLocal('init')).status, 0);
     const added = await box.runLocal('lane', 'add', 'app', '--owns', spelling);
     assert.equal(added.status, 0, `${spelling}: ${added.stderr}`);
     assert.match(added.stdout, /^added lane app: owns \.\/$/mu);
@@ -137,6 +138,7 @@ test('a lane can own the repository root, spelled . or ./, and root files stay i
   }
   // A more specific lane still wins inside its folder, and a second root owner is refused.
   const box = project(t, ['packages/web']);
+  assert.equal((await box.runLocal('init')).status, 0);
   assert.equal((await box.runLocal('lane', 'add', 'web', '--owns', 'packages/web/')).status, 0);
   assert.equal((await box.runLocal('lane', 'add', 'app', '--owns', '.')).status, 0);
   const config = loadConfig(box.root);
