@@ -50,7 +50,7 @@ export const setupHelp = `Set up
   pullboard view --export <dir> [--public]  a read-only snapshot with event replay, for any static host
                                         --public requires a checked public filter
   pullboard serve [--port N] [--address <ipv4>]  the board API v1 (JSON, no page): boards, state, moves, requests and live events,
-                                        behind the session secret in its printed address; pullboard view shows the page
+                                        behind the session secret in its printed address; for the page, run pullboard view
                                         serve.address and serve.port in ~/.pullboard/settings.json listen for runners with the board key (default loopback)
   pullboard mcp                        MCP tools over stdio for this worktree's agent, started by its MCP client:
                                         board status, show, shout and capture an idea; a person's move is refused
