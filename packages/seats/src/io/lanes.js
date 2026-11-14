@@ -72,7 +72,7 @@ export function outOfLane(config, lane, paths) {
  */
 export function lanePath(root, path) {
   const given = String(path).trim().replaceAll('\\', '/');
-  if (/^(?:\.\/*)+$/u.test(given)) return ROOT_LANE_PATH;
+  if (/^(?:\.(?:\/+|$))+$/u.test(given)) return ROOT_LANE_PATH;
   let prefix = given.replace(/^(?:\.\/)+/u, '');
   if (!prefix || prefix.startsWith('/') || prefix.split('/').includes('..')) {
     throw new Refused('BAD_LANE_PATH', `"${path}" is not a folder inside this repo; give a path relative to the repo root, like packages/web/`);
