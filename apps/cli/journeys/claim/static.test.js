@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
@@ -28,7 +29,7 @@ test('an actual submit static refusal never counts toward the three runner failu
   box.git(box.web, 'commit', '-qm', 'feat(web): private result [G1]');
   const failed = await box.runLocal(box.web, 'submit', String(id));
   assert.notEqual(failed.code, 0);
-  assert.match(failed.out + failed.err, /static checks are red/u, 'the real static stage refused it');
+  assert.match(failed.out + failed.err, /staticChecks: node static\.cjs exited 1/u, 'the real static stage refused it in preflight');
   const observed = onBoard(box, board => {
     const outcomes = store.events(board, { itemId: id }).map(event => JSON.parse(event.event_detail).submitOutcome).filter(Boolean);
     assert.equal(outcomes.at(-1)?.code, 'GATE_RED');
@@ -50,12 +51,14 @@ test('an actual submit runner red counts toward the three runner failures [B4,B5
   writeFileSync(join(box.web, 'web/result.txt'), 'private result\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-qm', 'feat(web): private result [G1]');
-  const failed = await box.runLocal(box.web, 'submit', String(id));
-  assert.notEqual(failed.code, 0);
+  // The pulled gate queues the submit; the runner's red receipt lands after the command returns.
+  const queued = await box.runLocal(box.web, 'submit', String(id), '--json');
+  assert.equal(queued.code, 0, queued.err);
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, JSON.parse(queued.out));
   const observed = onBoard(box, board => {
-    const outcomes = store.events(board, { itemId: id }).map(event => JSON.parse(event.event_detail).submitOutcome).filter(Boolean);
-    assert.match(outcomes.at(-1)?.code ?? '', /^(?:GATE_RED|CHECK_RED)$/u);
-    assert.notEqual(outcomes.at(-1)?.stage, 'fast');
+    // A pulled red receipt is a measurement fact, not a submit outcome; it still counts as one runner failure [C7].
+    const reds = store.events(board, { itemId: id }).map(event => JSON.parse(event.event_detail)).filter(detail => detail.kind === 'measurement' && /^Gate job \S+ red at /u.test(detail.text ?? ''));
+    assert.equal(reds.length, 1, 'the pulled gate recorded its red');
     return claimProgress(board, store.getItem(board, id), Date.now(), { runnerOnly: true });
   });
   assert.equal(observed.failures, 1);
