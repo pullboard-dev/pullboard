@@ -1,10 +1,7 @@
 /** A relay refusal's next step is a command the person can run, and running it resolves the refusal [C7,H17]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  mkdirSync,
-} from 'node:fs';
+import { chmodSync } from 'node:fs';
 import {
   join,
   resolve,
@@ -22,8 +19,8 @@ const PERSON_RUNS = 'in your own terminal, run: ';
 
 /** A `pullboard` on the PATH that runs this checkout's CLI, so a printed step runs word for word. */
 function pullboardOnPath(files) {
-  const wrapper = files.write('bin/pullboard', `#!/bin/sh\nexec "${process.execPath}" "${CLI}" "$@"\n`);
-  chmodSync(wrapper, 0o755);
+  files.write('bin/pullboard', `#!/bin/sh\nexec "${process.execPath}" "${CLI}" "$@"\n`);
+  chmodSync(join(files.root, 'bin/pullboard'), 0o755);
   return join(files.root, 'bin');
 }
 
