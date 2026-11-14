@@ -62,3 +62,16 @@ test('clause 1: a queued sentinel shout reaches the relay and the moves after it
   assert.ok(sent[0].startsWith('sentinel: '), 'the sentinel notice keeps its system actor');
   assert.deepEqual(shouts(here), shouts(there), 'both computers hold the same shouts in the same order');
 });
+
+test('probe: two plain queued shouts drain [C7]', async (t) => {
+  const box = await relayClientFixture(t);
+  enableOutbox(box);
+  await box.link();
+  await step('pair', async () => box.otherDeviceJoin((await box.cliLocal('relay', 'pair')).document.code));
+  await box.stopRelay();
+  assert.equal((await box.cliLocal('shout', 'all', 'plain one')).code, 0);
+  assert.equal((await box.cliLocal('shout', 'all', 'plain two')).code, 0);
+  await box.restartRelay();
+  const drained = await step('probe status up', () => box.cli('status'));
+  assert.equal(drained.code, 0, drained.failure);
+});
