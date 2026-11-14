@@ -143,7 +143,7 @@
     "landings": {
       "kind": "dir",
       "disk": "receipts",
-      "owner": "packages/landing/src/io/step/batch.js"
+      "owner": "packages/api/src/io/landing.js"
     },
     "ledger-cache": {
       "kind": "dir",

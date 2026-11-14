@@ -5,6 +5,7 @@ import { withBoardRead } from '../context.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { openBoardForRead } from '../../../../lib/index.js';
+import { nativeBoardPorts } from '../../../../lib/index.js';
 import { loadKeyedResult } from '../../../../../packages/pin/index.js';
 import { saveKeyedResult } from '../../../../../packages/pin/index.js';
 import { savedKeyedResults } from '../../../../../packages/pin/index.js';
@@ -101,7 +102,7 @@ export async function serveHere(io, values) {
   traceServeStartup('serve-listen-start');
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
-  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog }));
   const api = listening.value;
@@ -171,7 +172,7 @@ const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(ro
  * @param {{ projects: () => Array<{ root: string, name: string, project: string, added: string }>, secret: string }} options
  */
 export async function loopbackBoardApi(io, { projects, secret }) {
-  const ctx = context(io), openers = { ...nativeBoardOpeners(io), trunkPack: servedTrunkPack }, ids = new Map();
+  const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -203,7 +204,7 @@ export function boardStatePorts() {
  * main-test and baseline recorders a posted receipt reaches; provided inside each worker thread, which cannot be
  * handed functions from the request thread [A2,C7].
  */
-export function boardHandlerPorts({ isMain } = {}) {
+export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -215,7 +216,10 @@ export function boardHandlerPorts({ isMain } = {}) {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');
     return main(args, { ...streams, loadNativeBoard, loadProcessPorts, gateWaitReporter });
   };
-  return { handlers: poolHandlers({ boardOpeners: { moveArgs, openBoard, openBoardForRead } }, { isMain, runCommand, refusalDocument }) };
+  // A receipt on a relay-linked board queues its moves in the relay outbox, so the worker carries the relay ports too (#7562).
+  const { loadProcessPorts } = await import('../ports/process.js');
+  const boardOpeners = { ...await loadProcessPorts(), moveArgs, openBoard, openBoardForRead, nativeBoardPorts };
+  return { handlers: poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument }) };
 }
 
 /** Run `pullboard serve` and return its exit code. */
