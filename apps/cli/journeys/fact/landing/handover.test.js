@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js packages/landing/index.js packages/landing/src/io/automatic/scheduler.js */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js packages/landing/index.js */
 /** A waiting lander whose code is older than main's releases its place, names the change and hands over to a fresh lander [C7,#3467]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -20,7 +20,6 @@ import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import * as store from '../../../../../packages/store/index.js';
-import { automaticLandingDirectory } from '../../../../../packages/landing/src/io/automatic/scheduler.js';
 import { staleLanderReason } from '../../../src/io/landing/automatic.js';
 
 const e2e = createE2eHelpers();
@@ -33,7 +32,7 @@ const LANDER_FILE = 'packages/landing/lander.js';
 
 /** Read one of the fixture's private wake records, or null. */
 function record(box, name = 'pending.json') {
-  const file = join(automaticLandingDirectory(box.repo), name);
+  const file = join(box.repo, '.git', 'pullboard', 'automatic-landing', name);
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
 
