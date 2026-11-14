@@ -50,7 +50,10 @@ import {
 } from '../../../kernel/index.js';
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay/undo.js';
-import { stampCoordinatorHolder } from '../../../seats/index.js';
+import {
+  requireKnownCoordinatorHold,
+  stampCoordinatorHolder,
+} from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   outboxFile,
@@ -438,6 +441,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
     move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
   }
   refuseRevokedSeat(state, senderPolicy.credentialActor(move));
+  localRecords(root, (board) => requireKnownCoordinatorHold(board, move));
   const stray = strayItemRefs(outbox, move);
   if (stray.length) {
     throw new Refused('RELAY_OUTBOX_UNBOUND', `this move names #${stray[0]}, which this machine added while the relay was down, in a field the outbox cannot follow if the relay renumbers it; run it again once the relay answers`);
@@ -586,9 +590,16 @@ function restoreBase(link, image, sequence) {
   });
 }
 
+/** Drop the kept COORDINATOR_HELD refusals: the person followed their takeover step (#7939). */
+function clearHeldRefusals(state) {
+  if (state.outboxRefusals) state.outboxRefusals = state.outboxRefusals.filter((kept) => kept.code !== 'COORDINATOR_HELD');
+}
+
 /** Settle one queued move the relay ordered: report a refusal with the move that won, and note a renumbered item. */
 function settle(link, outbox, entry, receipt) {
   const { root, state, io, localRecords } = link;
+  // Taking the coordinator is the step a COORDINATOR_HELD refusal names, so once it is ordered those lines are answered.
+  if (!receipt.outcome.error && entry.move.operation === 'takeCoordinator') clearHeldRefusals(state);
   if (receipt.outcome.error) {
     const earlier = localRecords(root, (board) => earlierMoves(board, { ...entry, move: resolveMove(entry, outbox).move }, receipt.sequence));
     const line = keepRefusal(state, entry, receipt.outcome.error, earlier);
