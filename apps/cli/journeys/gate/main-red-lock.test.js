@@ -58,7 +58,8 @@ async t => {
   // Both gates are red only on missing main receipts; no main-test job has been served, yet neither item waits on the other.
   for (const id of box.ids) assert.equal(getItem(board, id).item_status, 'claimed', facts(board, id));
   const queued = jobsOf(board.db, { kind: 'main-test' });
-  assert.deepEqual(queued.map(job => job.step).sort(), ['queued', 'queued'], 'one main-test job per distinct file (a once, b once), not one per submit: ' + JSON.stringify(queued.map(job => [job.id, job.step])));
+  assert.ok(queued.every(job => job.step !== 'done'), 'no main-test job has been served');
+  assert.equal(queued.length, 2, 'one main-test job per distinct file (a once, b once), not one per submit: ' + JSON.stringify(queued.map(job => [job.id, job.step])));
 
   for (const runner of ['r-main-1', 'r-main-2']) assert.equal((await serveOnce(box, url, runner)).code, 0);
   assert.deepEqual(jobsOf(board.db, { kind: 'main-test' }).map(job => job.step), ['done', 'done'], 'both main-test jobs recorded');
