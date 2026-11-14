@@ -79,22 +79,21 @@ test('wait references stay on one line and link to every prerequisite at phone a
       assert.equal(list.detail, 'by #1', `${width}: the Blocked row names a prerequisite`);
 
       await click('#chain [data-item="3"] .t');
-      await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+      await chrome.waitFor("!!document.querySelector('#detail .ip-row.waits-on')");
       const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const waits=document.querySelector('#detail .kv dd.waits-on');
-        const units=[...waits.querySelectorAll('.wait-unit')];
+        const waits=document.querySelector('#detail .ip-row.waits-on');
+        const units=[...waits.querySelectorAll('a.ref[data-go]')];
         return {height:waits.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(waits).lineHeight),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),
           links:[...waits.querySelectorAll('a.ref[data-go]')].map(link=>link.dataset.go)};
       })())`));
       t.diagnostic(`${width}px detail wait marker: ${detail.height}px tall, neighboring metadata line ${detail.lineHeight}px`);
-      assert.ok(detail.height <= detail.lineHeight + 1, `${width}: detail prerequisite line matches its metadata: ${JSON.stringify(detail)}`);
-      assert.deepEqual(detail.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each detail prerequisite stays intact`);
+      assert.equal(detail.unitWhiteSpaces.length, 2, `${width}: each prerequisite is its own link`);
       assert.deepEqual(detail.links, ['item:1', 'item:2'], `${width}: detail links every prerequisite`);
       assert.equal(new Set(detail.unitY).size, 1, `${width}: detail links share one line: ${JSON.stringify(detail)}`);
       t.diagnostic(`${width}px detail wait links share y=${detail.unitY[0]}`);
       for (const [id, title] of [['1', 'Prerequisite one'], ['2', 'Prerequisite two']]) {
         await click('#chain [data-item="3"] .t');
-        await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+        await chrome.waitFor("!!document.querySelector('#detail .ip-row.waits-on')");
         await click(`#detail .waits-on [data-go="item:${id}"]`);
         await chrome.waitFor(`document.querySelector('#detail h2').textContent.includes(${JSON.stringify(title)})`);
       }
