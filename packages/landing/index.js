@@ -41,7 +41,6 @@ export * from "./src/logic/envelope.js";
 export * from "./src/io/pause.js";
 export * from "./src/io/trainrecord.js";
 export * from "./src/io/train/receipt.js";
-export * from "./src/io/train.js";
 export * from "./src/io/step/selection.js";
 export * from "./src/io/step/merge.js";
 export * from "./src/io/step/failures.js";
