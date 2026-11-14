@@ -245,7 +245,6 @@ async function buildBoard(base, env) {
   command('git', ['add', '-A'], folder, env);
   command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], folder, env);
   pb(folder, 'submit', '3', '--no-next');
-  await settleSubmitted(pb, folder, '3');
   pb(app, 'claim', '4');
   setDemoMinutes(env, 75);
   pb(repo, 'lanes', 'lead', 'app', 'app-1');
@@ -266,6 +265,8 @@ async function buildBoard(base, env) {
   }
   const doctrine = JSON.parse(pb(repo, 'spec', '--json'));
   if (!doctrine.rows.some((row) => row.origin === 'standard')) throw new Error('The demo board must include standard doctrine.');
+  // Item 3's gate has run beside the commands above; the board is final once it reads submitted.
+  await settleSubmitted(pb, folder, '3');
   return repo;
 }
 
