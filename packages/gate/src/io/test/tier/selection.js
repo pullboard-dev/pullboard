@@ -11,6 +11,7 @@ import { testOutcomeFields } from '../outcomes.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { literalShellWords } from '../../../../../kernel/index.js';
 import { generateTestTiersFrom } from '../tiers.js';
+import { pushOnlyTests } from '../push-only.js';
 import { commitSourceSnapshot } from '../../snapshot.js';
 import { ownerOf } from '../tiers.js';
 import { TEST_TIERS_FILE } from '../tiers.js';
@@ -180,7 +181,7 @@ function ownUnit(row, snapshot, unsealed) {
 
 /**
  * Select only units belonging to changed packages and defer every current journey to the batch.
- * `auditOnly` is landing.auditOnly: a listed file the change does not itself touch is left to the main audit and named in `auditLeft`,
+ * `auditOnly` is landing.auditOnly, joined by the push-only listing (packages/gate/data/tests/push-only.json): a listed file the change does not itself touch is left to the main audit and named in `auditLeft`,
  * so a repo-wide inventory test never turns one item's gate red [C7].
  */
 export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test', auditOnly = [] } = {}) {
@@ -251,7 +252,8 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const readers = confined?.listings.length ? listingReaders(root, base, commit, confined.listings) : null;
   const journeys = confined ? after.manifest.files.filter(row => readers?.has(row.file) && !units.includes(row.file)).map(row => row.file)
     : after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  const audit = new Set((Array.isArray(auditOnly) ? auditOnly : []).filter(file => typeof file === 'string'));
+  // The push-only listing joins landing.auditOnly here, the one place every item gate selects its files [R4,C7].
+  const audit = new Set([...(Array.isArray(auditOnly) ? auditOnly : []), ...pushOnlyTests()].filter(file => typeof file === 'string'));
   const touched = new Set(actual ?? []);
   const left = [...new Set([...units, ...journeys])].filter(file => audit.has(file) && !touched.has(file)).sort();
   const kept = file => !left.includes(file);
