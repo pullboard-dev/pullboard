@@ -28,6 +28,7 @@ import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
+import { openLandJobs } from './waiting.js';
 
 const TRUNK = 'refs/heads/main';
 
@@ -88,13 +89,7 @@ export function hostUpstream(root, config) {
  * names one twice, so no two jobs push the same land ref or merge the same item [C7,#7728].
  */
 function openLandingItems(db) {
-  const rows = db.prepare(`SELECT step.job_step_payload FROM job JOIN job_step AS step ON step.job_step_job = job.job_id
-    AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_kind = 'land' AND job.job_step <> 'done'`).all();
-  const ids = new Set();
-  for (const row of rows) {
-    try { for (const entry of JSON.parse(row.job_step_payload)?.payload?.items ?? []) ids.add(entry.id); } catch { /* an unreadable offer names nothing */ }
-  }
-  return ids;
+  return new Set(openLandJobs(db).keys());
 }
 
 /**
