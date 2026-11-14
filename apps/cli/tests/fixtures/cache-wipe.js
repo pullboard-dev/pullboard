@@ -39,7 +39,7 @@ export function cacheWipeBoard() {
   writeFileSync(join(box.repo, TEST_FILE), "import { test } from 'node:test';\ntest('the fixture proves one case [G1]', () => {});\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the cache fixture');
-  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cache wipe fixture item' });
+  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cache wipe fixture item', wait: true });
   const runnerRoot = join(box.dir, 'runner-root');
   const machineHome = box.env.PULLBOARD_MACHINE_HOME;
   for (const folder of [join(machineHome, 'cache'), join(machineHome, 'main-facts'), join(runnerRoot, 'repos'), join(runnerRoot, 'cache', 'resource-pool')]) {
