@@ -295,8 +295,8 @@ function render({ tab: switching = false } = {}) {
   const scrolled = store.scrollMark([document.scrollingElement, ...SCROLLED_PARTS.map((id) => $(id))]);
   const p = privateModelProject(data.project);
   const group = data.group;
-  // An open-first state holds no finished items: the screens that show them read them now (#6697).
-  if (data.project?.itemsOmitted === 'finished' && (view.tab === 'roadmap' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
+  // An open-first state holds no finished items: the screens that show them (Activity titles every row by item) read them now (#6697, #7756).
+  if (data.project?.itemsOmitted === 'finished' && (view.tab === 'roadmap' || view.tab === 'activity' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
     || view.itemsView === 'pipeline' || $('q').value.trim() || view.item && !data.project.items.some((item) => item.id === view.item)))) ensureFinished(data.project);
   renderSide();
   writeChrome();

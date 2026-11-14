@@ -1,6 +1,7 @@
 /** The Activity page draws the approved mockup's sections from the board's own events, and its one slot holds one tab [N26,#6916]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { pageRenderScript } from '../../../index.js';
 import { activityFlow } from '../../../src/logic/activity/flow.js';
 import { activityPageHtml } from '../../../src/logic/activity/page.js';
 import { activityStart } from '../../../src/logic/activity/slot.js';
@@ -115,4 +116,21 @@ test('clause 2: a stage with no board limit, such as Ready, is never drawn past 
   assert.deepEqual(flow.limits, {}, 'no placeholder limits remain');
   assert.equal(flow.journeyById.get(8).segs.some(seg => seg.over), false, 'ten hours in Ready is not past limit');
   assert.equal(flow.journeyById.get(8).stuck, false);
+});
+
+test('clause 1: Activity rows show each item title and a withdrawn item shows as withdrawn, never only Ready [N26,#7756]', () => {
+  const events = [event(50, 'add', 4, 'coordinator'), event(30, 'withdraw', 4, 'coordinator', { reason: 'duplicate' }), event(20, 'add', 5, 'coordinator')];
+  const items = [{ id: 4, title: 'Dropped work', status: 'withdrawn', updatedAt: new Date(now - 30 * MIN).toISOString(), blockedBy: [] }, { id: 5, title: 'Fresh work', status: 'open', blockedBy: [] }];
+  const flow = activityFlow({ stageLimits: {}, items, agents: [], shouts: [] }, events, { now });
+  const html = activityPageHtml(flow, activityStart(flow), { width: 740 });
+  const rows = [...html.matchAll(/<div class="act-row has" data-row="(\d+)">[^]*?<\/div>/gu)].map(match => match[0]);
+  const four = rows.filter(row => row.includes('data-row="4"')).join('');
+  assert.match(four, /Withdrawn/u, 'the withdraw is its own row with a Withdrawn chip');
+  assert.match(four, /withdrawn by coordinator · duplicate/u);
+  assert.ok(rows.some(row => row.includes('data-row="5"') && row.includes('Fresh work')), 'a row names its item title');
+  assert.doesNotMatch(html, /A message/u, 'no item row is titled A message');
+});
+
+test('clause 1: the Activity tab loads the finished and withdrawn items an open-first state left out, so its rows have titles [N26,#7756,#6697]', () => {
+  assert.match(pageRenderScript(), /view\.tab === 'activity'[^;]*\)\) ensureFinished\(data\.project\)/u, 'the Activity tab reads the finished items');
 });

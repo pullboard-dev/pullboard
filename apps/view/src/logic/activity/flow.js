@@ -115,7 +115,7 @@ export function activityFlow(project, events, { now, windowHours = 24, left = nu
       else if (e.kind === 'merged') {
         if (landedAt === null) { landedAt = e.at; close(e.at); ended = true; cur = null; row(e.at, 'landed', 'in flight ' + minutes(e.at - (segs[0]?.a ?? e.at)) + 'm' + (typeof d.commit === 'string' && d.commit ? ' · ' + d.commit.slice(0, 7) : ''), { by: e.by, event: e.event }); }
       }
-      else if (e.kind === 'withdraw') { close(e.at); withdrew = true; }
+      else if (e.kind === 'withdraw') { close(e.at); withdrew = true; row(e.at, 'withdrawn', 'withdrawn by ' + e.by + (d.reason ? ' · ' + String(d.reason).slice(0, 80) : ''), { by: e.by, event: e.event }); }
       else if (e.kind === 'hold_item') { held = cur?.k ?? 'ready'; open('held', e.at); row(e.at, 'held', 'paused on purpose' + (d.reason ? ' · ' + String(d.reason).slice(0, 80) : ''), { by: e.by, event: e.event }); }
       else if (e.kind === 'unhold_item') { if (cur?.k === 'held') { open(held ?? 'ready', e.at); row(e.at, 'ready', 'hold lifted · back to ' + NAMES[held ?? 'ready'].toLowerCase(), { by: e.by, event: e.event }); } }
       else if (e.kind === 'ruling') { marks.push({ k: 'ruling', t: e.at }); row(e.at, 'ruling', 'asked by ' + e.by, { by: e.by, quote: e.text, event: e.event }); }
