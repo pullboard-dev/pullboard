@@ -1075,7 +1075,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 
 /* The hosted page paints only its neutral mark until its script knows which screen applies (#932). */
 .hosted-mark { display: none; }
-.hosted-page.loading .shell { display: none; }
+/* :root outranks the navigation strip's own :root[data-nav] .shell display, which loads after this sheet. */
+:root .hosted-page.loading .shell { display: none; }
 /* @private-view-css src/view/cost.css */
 
 .hosted-page.loading .hosted-mark { display: grid; place-items: center; min-height: 100vh; color: var(--ink-muted); }
