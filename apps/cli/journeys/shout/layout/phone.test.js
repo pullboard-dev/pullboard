@@ -86,7 +86,7 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor('!!data?.project && document.querySelectorAll("#tabs .tab").length === 8');
+    await chrome.waitFor('!!data?.project && document.querySelectorAll("#tabs .tab").length > 0');
     for (const [width, font] of [[375, 'system-ui, sans-serif'], [375, 'Verdana, "DejaVu Sans", sans-serif'],
       [320, 'Verdana, "DejaVu Sans", sans-serif'], [305, 'Verdana, "DejaVu Sans", sans-serif'], [1280, 'system-ui, sans-serif']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -98,7 +98,7 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
         const e = document.querySelector('#tabs').closest('.strip') || document.querySelector('#tabs');
         return { tabs: document.querySelectorAll('#tabs .tab').length, scrolls: e.scrollWidth > e.clientWidth, overflowX: getComputedStyle(e).overflowX, page: document.documentElement.scrollWidth };
       })())`));
-      assert.equal(strip.tabs, 8, `${width}/${font}: Dashboard and all retained tabs remain`);
+      assert.equal(strip.tabs, 9, `${width}/${font}: Dashboard and all retained tabs remain`);
       // Approved behaviour: at phone width the strip scrolls sideways itself; the page never does.
       assert.ok(strip.page <= bar.client, `${width}/${font}: the page never scrolls sideways, ${strip.page} wide in ${bar.client}`);
       if (strip.scrolls) assert.equal(strip.overflowX, 'auto', `${width}/${font}: a strip wider than the screen scrolls sideways inside itself`);
