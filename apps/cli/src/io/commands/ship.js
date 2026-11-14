@@ -41,7 +41,7 @@ function shippingItem(ctx, requested) {
       throw new Refused('NOT_YOURS', `ship cannot reclaim #${item.item_id}: this seat has neither a live claim nor its first-refusal window`,
         `claim #${item.item_id} normally before shipping; never take another builder's reserved work`);
     }
-    return { item, reclaim: !live };
+    return { item, reclaim: !live, me };
   });
 }
 
@@ -58,7 +58,7 @@ export async function run(io, { first, second, rest, values }) {
   if (second || rest.length) throw new Refused('USAGE', 'pullboard ship [id] [--note text] [--infra text]');
   if (values.note !== undefined && (typeof values.note !== 'string' || !values.note.trim())) throw new Refused('USAGE', '--note needs nonempty text');
   const ctx = context(io);
-  const { item, reclaim } = shippingItem(ctx, first);
+  const { item, reclaim, me } = shippingItem(ctx, first);
   const root = ctx.info.root;
   const unstaged = tryGit(root, ['diff', '--quiet'], { env: cleanGitEnvironment() });
   if (unstaged.status !== 0) throw new Refused('DIRTY', 'ship leaves unstaged tracked changes alone; stage exactly the work to ship', 'stage or restore the unstaged changes, then run pullboard ship again');
@@ -101,8 +101,8 @@ export async function run(io, { first, second, rest, values }) {
     if (reviewCode !== 0) { originalResult?.(result); return reviewCode; }
     const submission = result;
     if (values.note !== undefined) {
+      // The seat was resolved before the work moved: an item folder names its seat only while the item is claimed, and the verdict has landed it by now [C7,#7752].
       await withBoard(context(io), async board => {
-        const me = whoAmI(context(io), board);
         await ordered(context(io), board, 'appendFact', [item.item_id, { agentId: me.id, kind: 'note', text: values.note }]);
       });
     }

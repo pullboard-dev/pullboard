@@ -241,12 +241,13 @@ export function dashboardModel(project, history, { now, complete = true, working
   const lastLanded = Math.max(0, ...landed.values());
   // Passed review counts each item once: one the reviewer accepted in the window, or one that landed in it (a landing
   // is a pass even when the board recorded no accept, as for a hand landing), so it never reads 0 beside its landings.
+  const shared = project.counts ?? null;
   const passed = new Set([...acceptedItems, ...landedRecent.map(([id]) => id)]).size;
   const waitingReview = checked.filter(item => !reserved(item));
   const flow = complete ? {
     claimed: moved('claimed').length, submitted: moved('submitted').length, handedBack: moved('handed back').length, buildMedian: median,
     green: moved('green').length, red: moved('red').length, gateRunning: inGate.length,
-    accepted: passed, sentBack, waitingReview: waitingReview.length,
+    accepted: passed, sentBack: Number.isInteger(shared?.sentBack?.count) ? shared.sentBack.count : sentBack, waitingReview: waitingReview.length,
     oldestWait: waitingReview.length ? Math.min(...waitingReview.map(item => last(item, 'submit'))) : null,
     landed: landedRecent.length, lastLanded: lastLanded || null,
   } : null;
@@ -275,12 +276,14 @@ export function dashboardModel(project, history, { now, complete = true, working
     inFlight: { building: claims.filter(item => milestoneIds.has(item.id)), review: reviewing.filter(item => milestoneIds.has(item.id)) },
     landed: [...landed].map(([id, at]) => ({ item: byId.get(id), at })).sort((a,b) => b.at-a.at),
     bins, landing, inReview, next, last,
-    totals: { working: agents.filter(agent => agent.group !== 'quiet').length,
+    // At work, runners and sent back are the state's shared counts, so the top bar, this page and Activity never differ (#7310).
+    totals: { working: Number.isInteger(shared?.agents) ? shared.agents : Array.isArray(working) ? working.length : agents.filter(agent => agent.group !== 'quiet').length,
+      runners: Number.isInteger(shared?.runners) ? shared.runners : (project.dashboardRunners?.runners ?? []).length,
       allTime: merged.size,
       day: pace?.last24h ?? (complete ? times.filter(at => at > now-24*hour).length : null),
       recent: complete ? times.filter(at => at > start).length : read('landed'),
       passed: complete ? passed : read('passed'),
-      sentBack: complete ? sentBack : read('sentBack'),
+      sentBack: Number.isInteger(shared?.sentBack?.count) ? shared.sentBack.count : complete ? sentBack : read('sentBack'),
       shouts: complete ? personShouts : read('shouts') },
     // Why a hero count is missing, for its hover; null once every count is a number.
     unread: complete || recent ? null : 'The board has not sent its last-4-hour counts yet, and its full event history is still loading.',

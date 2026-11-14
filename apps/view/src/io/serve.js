@@ -11,6 +11,7 @@ import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
+import { boardCounts } from "../logic/counts.js";
 import { machineRead } from "./pipeline/machine.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
@@ -571,7 +572,9 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       products: fields.products,
     });
     const projected = projectSpecRevisions({ ...state, ...derived.late }, derived.rowDrafts, derived.rowDecisions);
-    return { ...projected, needs: personNeeds(projected) };
+    const read = { ...projected, needs: personNeeds(projected) };
+    // One number in one place: every page reads these counts, never its own (#7310).
+    return { ...read, counts: boardCounts(read, now) };
   }, providedBoard, boardOpeners);
 }
 
