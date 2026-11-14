@@ -813,8 +813,8 @@ test('an older board gets the triggers quietly on its next open; one dropped by 
     tampered.exec('DROP TRIGGER machine_proof_verified');
     tampered.exec('DROP TRIGGER machine_item_move');
     tampered.exec('CREATE TRIGGER machine_item_move BEFORE UPDATE OF item_status ON item WHEN 0 BEGIN SELECT 1; END');
-    // Only a board whose user_version is behind is audited on open (#1047); a guarded older board still reports.
-    tampered.exec('PRAGMA user_version = 0');
+    // A board at the supported version is audited on open; one dropped by hand still reports (a board behind it is refused, #7767).
+    tampered.exec('PRAGMA user_version = 3');
     tampered.close();
 
     const restored = openBoard(lab.file);
