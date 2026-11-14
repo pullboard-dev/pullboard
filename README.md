@@ -295,18 +295,16 @@ Set `PULLBOARD_MODEL` to the model your agent actually uses; the `--model` optio
 
 ```sh
 pullboard worktree web --model "$PULLBOARD_MODEL"
-cd ../myapp-web-1
+cd .claude/worktrees/web-1
 pullboard next
 pullboard submit 1
 ```
 
 A **builder** claims it, commits citing the row as `feat(web): pay by card [G1]`, and submits. The gate runs on a runner and the command returns, so the builder takes its next item. A red gate or a reject comes back through `next`.
 
-Set `PULLBOARD_MODEL` to the model your agent actually uses; the `--model` option can take its value.
-
 ```sh
 pullboard worktree review --model "$PULLBOARD_MODEL"
-cd ../myapp-review-1
+cd .claude/worktrees/review-1
 pullboard next --verify
 pullboard verify 1 accept --note "paid in one step; without the fix the test fails"
 ```
