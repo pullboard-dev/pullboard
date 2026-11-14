@@ -85,7 +85,10 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
       + "field.value=" + JSON.stringify(PRIOR) + ";field.dispatchEvent(new Event('input',{bubbles:true}));"
       + "field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#shout-form').requestSubmit();})()";
     await chrome.stable(beginPrior);
-    const held = await barrier.waitUntilHeld(10_000); // budget: the existing local browser-wait ceiling, not a speed target.
+    const held = await barrier.waitUntilHeld(10_000).catch(async (error) => {
+      t.diagnostic('prior-shout-not-held ' + JSON.stringify({ trace: barrier.trace, page: await chrome.stable("JSON.stringify({consoleText:document.querySelector('#console')?.textContent??null,consoleHidden:document.querySelector('#console')?.hidden??null,to:document.querySelector('#shout-to')?.value??null,text:document.querySelector('#shout-text')?.value??null,tab:view.tab,thread:view.shoutThread??null,answering:view.answering?.id??null,acting:view.acting??null,formDisplay:getComputedStyle(document.querySelector('#shout-form')).display,drawer:getComputedStyle(document.querySelector('#mdrawer')).display})").catch((e) => 'unreadable ' + e.message) }));
+      throw error;
+    }); // budget: the existing local browser-wait ceiling, not a speed target.
     await chrome.waitFor("document.querySelector('#feed')?.innerText.includes(" + JSON.stringify(PRIOR) + ")");
     const committed = await boardOf(view, demo.repo);
     assert.ok(committed.shouts.some((shout) => shout.shout_text === PRIOR), 'the real server committed the prior shout while its response was held');
@@ -182,7 +185,10 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
       + "field.value=" + JSON.stringify(PRIOR) + ";field.dispatchEvent(new Event('input',{bubbles:true}));"
       + "field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#shout-form').requestSubmit();})()";
     await chrome.stable(beginPrior);
-    const held = await barrier.waitUntilHeld(10_000); // budget: the existing local browser-wait ceiling, not a speed target.
+    const held = await barrier.waitUntilHeld(10_000).catch(async (error) => {
+      t.diagnostic('prior-shout-not-held ' + JSON.stringify({ trace: barrier.trace, page: await chrome.stable("JSON.stringify({consoleText:document.querySelector('#console')?.textContent??null,consoleHidden:document.querySelector('#console')?.hidden??null,to:document.querySelector('#shout-to')?.value??null,text:document.querySelector('#shout-text')?.value??null,tab:view.tab,thread:view.shoutThread??null,answering:view.answering?.id??null,acting:view.acting??null,formDisplay:getComputedStyle(document.querySelector('#shout-form')).display,drawer:getComputedStyle(document.querySelector('#mdrawer')).display})").catch((e) => 'unreadable ' + e.message) }));
+      throw error;
+    }); // budget: the existing local browser-wait ceiling, not a speed target.
     await chrome.waitFor("document.querySelector('#feed')?.innerText.includes(" + JSON.stringify(PRIOR) + ")");
     const committed = await boardOf(view, demo.repo);
     const committedPrior = committed.shouts.find((shout) => shout.shout_text === PRIOR);
