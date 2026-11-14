@@ -186,7 +186,7 @@ export async function hookCommand(io, { first, second }) {
     const refsText = await readStdin(io.stdin);
     // Only a push runs the gate, so the gate, runner, landing and flake graphs load here and never for a commit hook [C7,#3250].
     const { resourceAgent, withBoard } = await import('../entry.js');
-    const { gateReport, runGate } = await import('../../../../../packages/gate/index.js');
+    const { gateReport, isStampedGreen, runGate } = await import('../../../../../packages/gate/index.js');
     const { runnerExecutionServices } = await import('../../../../../packages/runners/index.js');
     const { landingExecutionServices, waivedLandingProof: nativeWaivedLandingProof } = await import('../../../../../packages/landing/index.js');
     const { quarantineWaivers } = await import('../../../../../packages/flakes/index.js');
@@ -206,9 +206,12 @@ export async function hookCommand(io, { first, second }) {
       else if (knownMain && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree red only in cases red on main in batch ${knownMain.id}: ${knownMain.proof.knownMain.map((row) => `${row.file} :: ${row.name}`).join('; ')}`);
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
       else {
-        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });
-        if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
-        if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
+        // The full gate's files run as pull shard jobs over every free runner, not as one command on one runner [C7,#7743].
+        const sharded = landing || isStampedGreen(info.root) ? null : await (await import('../hook/push.js')).pushShardGate(ctx, { say: io.say });
+        if (sharded && !sharded.isGreen) problems = [sharded.problem];
+        const gate = sharded ? null : await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });
+        if (gate?.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
+        if (gate && !gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
       }
     }
   } else {
