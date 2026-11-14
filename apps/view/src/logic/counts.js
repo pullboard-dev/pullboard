@@ -157,11 +157,11 @@ export function withReadySplit(state) {
  *
  * @param {object} project - The board state, with needs, dashboardRunners, dashboardRecent and dashboardLanded.
  * @param {number} now - The state's clock in milliseconds.
- * @returns {{ agents: number, agentIds: string[], runners: number, rulings: number, sentBack: { count: number, verdicts: number, share: number, hours: 4 },
+ * @returns {{ agents: number, agentIds: string[], joined: number, runners: number, rulings: number, sentBack: { count: number, verdicts: number, share: number, hours: 4 },
  *   landed: { total: number, last4h: number, last24h: number }, ready: number, blocked: number }}
  */
 export function boardCounts(project, now) {
   const agentIds = agentsAtWork(project, now), split = readyAndBlocked(project);
-  return { agents: agentIds.length, agentIds, runners: runnersReporting(project), rulings: rulingsWaiting(project), sentBack: sentBackRecent(project),
+  return { agents: agentIds.length, agentIds, joined: (project.agents ?? []).filter(agent => agent.agent_id !== 'coordinator').length, runners: runnersReporting(project), rulings: rulingsWaiting(project), sentBack: sentBackRecent(project),
     landed: landedCounts(project, now), ready: split.ready.length, blocked: split.blocked.length };
 }
