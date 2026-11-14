@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
 } from 'node:fs';
 import {
+  delimiter,
   join,
   resolve,
 } from 'node:path';
@@ -21,7 +23,11 @@ const CLI = resolve(import.meta.dirname, '../../pullboard.js');
 const PERSON_RUNS = 'in your own terminal, run: ';
 
 /** A `pullboard` on the PATH that runs this checkout's CLI, so a printed step runs word for word. */
-function pullboardOnPath(files) {
+function pullboardOnPath(files, bare, path) {
+  // The fixture's origin is a GitHub address that only a clone may reach, so only `git clone` is pointed at the local bare copy.
+  const git = path.split(delimiter).map(entry => join(entry, 'git')).find(existsSync);
+  files.write('bin/git', `#!/bin/sh\nif [ "$1" = clone ]; then export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.${bare}.insteadOf" GIT_CONFIG_VALUE_0=git@github.com:fixture/repository.git; fi\nexec "${git}" "$@"\n`);
+  chmodSync(join(files.root, 'bin/git'), 0o755);
   files.write('bin/pullboard', `#!/bin/sh\nexec "${process.execPath}" "${CLI}" "$@"\n`);
   chmodSync(join(files.root, 'bin/pullboard'), 0o755);
   return join(files.root, 'bin');
@@ -33,12 +39,12 @@ test('IMPORT_NOT_EMPTY on relay join names a command the person runs, and runnin
   const code = (await box.cli('relay', 'pair')).document.code;
   const files = privateFixtureFiles('pullboard-join-step-');
   const scratch = files.root;
-  const bin = pullboardOnPath(files);
   const bare = join(scratch, 'project.git');
+  const bin = pullboardOnPath(files, bare, box.env.PATH);
   const home = join(scratch, 'home');
   mkdirSync(home, { mode: 0o700 });
   const env = { ...box.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'),
-    PATH: [bin, box.env.PATH, '/usr/bin', '/bin'].join(':'), GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: 'git@github.com:fixture/repository.git' };
+    PATH: [bin, box.env.PATH, '/usr/bin', '/bin'].join(':') };
   const sh = (cwd, command, extra = {}) => spawnSync('sh', ['-c', command], { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
   assert.equal(sh(scratch, `git clone --bare "${box.root}" project.git`).status, 0);
   assert.equal(sh(scratch, `git clone "${bare}" first && git -C first remote set-url origin git@github.com:fixture/repository.git`).status, 0);
