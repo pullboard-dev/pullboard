@@ -301,6 +301,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         { green: true, report: 'recovered the original submission; its gate ran before the original send' });
     }
   }
+  // A pulled submit's own move is its gate-offer note; a lost reply to it is answered with the job it already offered [C7,H16].
+  if (recovered?.operation === 'appendFact' && recovered.args[0] === id) {
+    const offered = await (await import('../submit/pull.js')).recoverOfferedGate(ctx, id, recovered);
+    if (offered !== null) return offered;
+  }
   const preflightStart = performance.now();
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
