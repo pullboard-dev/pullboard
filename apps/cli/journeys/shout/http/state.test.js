@@ -192,7 +192,15 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }
 
   // The green gate detaches a review comparison that records its result later; wait for it, so every read below sees one settled board.
-  await waitFor(() => ['complete', 'unavailable'].includes(box.cli(box.root, 'show', String(accepted)).comparison?.status), 'the detached review comparison recording its result', 120000); // budget: hang ceiling for the real detached comparison, no elapsed-time assertion.
+  let comparisonSettled = false, comparisonRead = null;
+  /** Read the accepted item's thread over HTTP in the background; the poll sees the latest finished read. */
+  const readComparison = () => {
+    comparisonRead ??= box.call(box.path + '/items/' + accepted).then((detail) => {
+      comparisonSettled = detail.document.item.thread.some((entry) => entry.type === 'fact' && /^Review comparison: .*"status":"(?:complete|unavailable)"/u.test(entry.text));
+    }).finally(() => { comparisonRead = null; });
+    return comparisonSettled;
+  };
+  await waitFor(readComparison, 'the detached review comparison recording its result', 120000); // budget: hang ceiling for the real detached comparison, no elapsed-time assertion.
 
   const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'progress', 'updatedAt', 'stage', 'since', 'counts', 'verdict', 'withdrawnReason', 'withdrawnFrom'];
   const summaryState = await box.call(box.path + '/state');
