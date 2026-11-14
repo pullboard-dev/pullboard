@@ -49,8 +49,11 @@ for (const what of ['trigger', 'schema']) {
       // Only the main checkout's code repairs a board; a runner runs this source from a linked worktree.
       if (codeIsFromMain()) assert.equal((await box.command('doctor')).status, 0, 'doctor is clean once the named repair ran');
     } else {
-      assert.match(status.stderr + status.stdout, /BOARD_SCHEMA_BEHIND/u);
-      assert.ok((status.stderr + status.stdout).includes(step), `status names doctor's step "${step}": ${status.stderr}${status.stdout}`);
+      // Code outside the main checkout cannot upgrade a board; status and doctor both send the person to main's pullboard.
+      const said = status.stderr + status.stdout;
+      assert.match(said, /BOARD_SCHEMA_BEHIND|UNMERGED_SCHEMA/u);
+      assert.match(said, /merge this code into the main checkout first/u);
+      assert.match(step, /^merge this code into the main checkout first/u, `doctor says the same: ${step}`);
     }
   });
 }
