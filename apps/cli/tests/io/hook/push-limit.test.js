@@ -22,7 +22,7 @@ async function giveUp(t, ctx, minutes, env) {
   claimJob(db, { runner: 'r1', now: clock.at, leaseMs: 600 * MIN });
   const on = work => work({ db });
   let polls = 0;
-  const wait = async () => { clock.at += minutes * MIN; if (++polls > 3) throw new Error('never gave up'); };
+  const wait = async () => { clock.at += minutes * MIN; if (++polls > 2) throw new Error('never gave up'); };
   const limit = pushShardLimitMs(ctx.config, env);
   return awaitAndWithdraw(ctx, JOBS, { read: on, write: on, now: () => clock.at, wait, pollMs: 0, limitMs: limit, exit: () => assert.fail('no exit'), signals: new EventEmitter() });
 }
