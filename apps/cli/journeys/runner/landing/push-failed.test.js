@@ -45,7 +45,7 @@ function accepted(t) {
 /** Claim the one open land job as a stub runner and post a push-failed receipt for it; return the applied result. */
 function failPush(board) {
   const call = body => jobQueueCall(board.db, body, { mode: 'pull' });
-  const taken = call({ action: 'claim', runner: 'stub', capabilities: [], kinds: ['land'] });
+  const { claim: taken } = call({ action: 'claim', runner: 'stub', capabilities: [], kinds: ['land'] });
   const receipt = { kind: 'land', outcome: 'push-failed', detail: 'refusing to update checked out branch', landed: [], already: [], returned: [], attempts: 1, moved: [], phases: [] };
   call({ action: 'receipt', job: taken.job, runner: 'stub', token: taken.token, receipt });
   return { job: taken.job, applied: applyLandingReceipt(board, { job: taken.job, receipt }) };
