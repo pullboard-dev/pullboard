@@ -38,7 +38,7 @@ import { stripPerItemFullSuiteCriterion } from "../../../../items/index.js";
 import { PER_ITEM_FULL_SUITE_ENGINE } from "../../../../state/light.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { loadConfig } from "../../../../config/index.js";
-import { requireOwnLaneCheck } from "../../../../verify/light.js";
+import { requireOwnLaneCheck } from "../../../../verify/index.js";
 import { laneOf } from "../../../../seats/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
 import { Refused } from "../../../../kernel/index.js";

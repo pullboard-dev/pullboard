@@ -2,7 +2,9 @@
 import { needsActionsHtml } from "../../logic/needs/actions.js";
 import { needsPanelHtml } from "../../logic/needs/panel.js";
 import { agentsPanelModel } from "../../logic/panel/model.js";
+import { shoutsModel } from "../../logic/panel/model.js";
 import { agentsPanelHtml } from "../../logic/panel/render.js";
+import { shoutsHtml } from "../../logic/panel/render.js";
 import { itemPanelModel } from "../../logic/panel/item.js";
 import { itemPanelHtml } from "../../logic/panel/item.js";
 import { needsPanelModel } from "../../logic/needs/panel.js";
@@ -31,6 +33,8 @@ export function pageRenderScript() {
   return `let drawnRoadmap = null;
 let roadmapNodes = new Map();
 const agentsPanelModel = (${agentsPanelModel.toString()});
+const shoutsModel = (${shoutsModel.toString()});
+const shoutsHtml = (${shoutsHtml.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const itemPanelModel = (${itemPanelModel.toString()});
 const itemPanelHtml = (${itemPanelHtml.toString()});
@@ -561,32 +565,16 @@ function render({ tab: switching = false } = {}) {
   // a number that names no item stays text. A path:lines@commit reference opens that code (B23). It
   // counts only as a whole word, never as the tail of one, so what it opens is what it says, and the
   // view refuses what is no path in the repo.
-  const mark = (x) => (x.shout_decision ? '<span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> ' : x.shout_answers ? '<span class="mark" role="group" title="answer" aria-label="answer">answer</span> ' : '');
-  // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it,
-  // and the commit, shortened, with the full SHA on hover.
-  const evidence = (x) => (x.shout_evidence_kind ? '<div class="receipt"><div><span class="badge">' + esc(x.shout_evidence_kind) + '</span> <span class="outcome">' + esc(x.shout_evidence_outcome) + '</span></div>'
-    + '<div class="receipt-foot">' + linked('#' + x.shout_evidence_item, titles) + ' · ' + esc(agentName(x.shout_from)) + ' · ' + codeChip(String(x.shout_evidence_commit), 'sha') + '</div></div>' : '');
-  // A shout as a card (#250): who, in a colour of their own, to whom, its item and when on top; what was said
-  // below. An ask carries a band until it is answered; a long shout folds at six lines.
   const hue = (id) => [...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 8;
   const initials = (id) => { const [name, rest = ''] = String(id).split(/[-_ ]/); const digits = rest.replace(/\\D/g, ''); return (name.slice(0, digits ? 1 : 2) + digits.slice(0, 3)).toUpperCase(); };
   const questions = [...p.decisions, ...p.asked, ...(p.decisionQueue || [])];
   const open = new Set(questions.map((d) => d.shout_id));
   view.shoutQuestions = open.size;
-  const answerOf = new Map(p.shouts.filter((y) => y.shout_answers).map((y) => [y.shout_answers, y]));
-  const band = (x) => !x.shout_decision ? '' : open.has(x.shout_id) ? '<div class="band">Decision needed</div>'
-    : '<div class="band done">Answered' + (answerOf.has(x.shout_id) ? ' by ' + esc(agentName(answerOf.get(x.shout_id).shout_from)) + ': <a href="#shout-' + answerOf.get(x.shout_id).shout_id + '">see the answer</a>' : '') + '</div>';
   // The shout's item: the first #N in its text that names an item on this board, or else its evidence's.
   const itemOf = (x) => /^item:([1-9]\\d*)$/.exec(String(x.shout_to))?.[1] || [...String(x.shout_text).matchAll(/#(\\d+)/g)].map((m) => String(Number(m[1]))).find((id) => titles.has(id)) || x.shout_evidence_item;
   // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
   const LEAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>';
   const lead = (from) => from === 'coordinator';
-  // A shout's recipient in product words: the reserved coordinator+person address and item:<id> are internal.
-  const shoutTo = (to) => {
-    if (to === 'coordinator+person') return 'coordinator and you';
-    const item = /^item:([1-9]\\d*)$/.exec(String(to));
-    return item ? '<a class="ref" href="' + esc(itemAddress(item[1], view.root)) + '" data-go="item:' + item[1] + '">#' + item[1] + '</a>' : p.agents.some(agent => agent.agent_id === to) ? '<span data-agent-address="' + esc(to) + '" role="group" aria-label="' + esc(agentName(to)) + '" title="' + esc(modelOf(to)) + '">' + esc(to) + '</span>' : esc(to === 'person' ? 'you' : to);
-  };
   // Opened from the status bar's unread, the feed is exactly those shouts, the ones after the mark the person had.
   const unread = view.unread?.root === view.root ? view.unread : null;
   const addressed = addressedShouts.get(JSON.stringify([view.root, view.shout]));
@@ -595,22 +583,6 @@ function render({ tab: switching = false } = {}) {
   const heard = unread ? feedShouts.filter((x) => x.shout_id > unread.after) : view.agent ? feedShouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : feedShouts;
   const bar = !unread && !view.agent ? '' : '<div class="feed-bar">' + (unread ? '<span><b>' + heard.length + '</b> unread <button class="link" data-unread type="button">show all</button></span>'
     : '<span>Shouts with <b>' + esc(agentName(view.agent)) + '</b> <button class="link" data-agent="" type="button">show all</button></span>') + '</div>';
-  $('shouts-pane').classList.toggle('bare', view.agentsHidden);
-  // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
-  // cursor is already on the board, so this is presentation only; reading is all it says, not acting on it.
-  const reached = (x, a) => a.agent_id !== x.shout_from && ['all', a.agent_id, a.agent_lane].includes(x.shout_to);
-  const dot = (a) => '<span class="heard-face h' + hue(a.agent_id) + (lead(a.agent_id) ? ' lead' : '') + '">' + (lead(a.agent_id) ? LEAD : esc(initials(a.agent_id))) + '</span>';
-  const heardBy = (x) => {
-    if (x.shout_from !== 'person') return '';
-    const to = p.agents.filter((a) => reached(x, a)), by = to.filter((a) => (a.agent_last_shout_id ?? 0) >= x.shout_id);
-    // A shout that reaches no agent at all, such as one to a lane nobody has joined, has not been heard either.
-    if (!by.length) return '<div class="heard not">Not heard yet</div>';
-    const first = by.find((a) => lead(a.agent_id)) || by[0], rest = by.length - 1;
-    return '<div class="heard" title="Heard by ' + esc(by.map((a) => agentName(a.agent_id)).join(', ')) + '">Heard by ' + esc(agentName(first.agent_id)) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
-  };
-  // One card for a shout, in the feed and among the asks; tail adds what the place needs, such as Answer. Only the
-  // feed's copy carries the band and the id an answer's link lands on, so an ask shown twice never repeats an id.
-  // The person's own shout is signed "you", plainly, never as the coordinator that ran it.
   /** Keep model spelling consistent without rewriting the recorded message or native seat id. */
   const modelLabel = value => {
     const model = String(value || 'unknown').trim();
@@ -622,49 +594,50 @@ function render({ tab: switching = false } = {}) {
   const modelOf = id => modelLabel(p.agents.find(agent => agent.agent_id === id)?.model);
   /** Share the original native notice formatting between previews and full messages, preserving authored words. */
   const messageText = message => findingWords({ why: message.shout_text }, message.shout_from !== 'sentinel').text;
-  /** A message keeps the exact native words; only references and disclosure add presentation. */
-  const card = (x, tail = '') => '<article class="shout' + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + (x.shout_id === view.shout ? ' found' : '') + '" id="shout-' + x.shout_id + '" data-shout-id="' + x.shout_id + '"><div class="shout-main">'
-    + (x.shout_id === view.shout ? '<h2 class="visually-hidden">Shout #' + x.shout_id + '</h2>' : '')
-    + '<header><b class="who" data-agent-address="' + esc(x.shout_from) + '" role="group" aria-label="' + esc(agentName(x.shout_from)) + '" title="' + esc(modelOf(x.shout_from)) + '">' + esc(x.shout_from === 'person' ? 'you' : x.shout_from) + '</b><span class="to">→ ' + shoutTo(x.shout_to) + '</span>' + mark(x) + '<time title="' + esc(when(x.shout_at)) + '">' + esc(clock(x.shout_at)) + '</time></header>'
-    + '<div class="text">' + rich(messageText(x), titles, true, view.root, true) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + band(x) + evidence(x) + heardBy(x) + tail + '</div></article>';
+  /** The page's facts about the items the shouts name: their title, the stage they stand at and where they open. */
+  const itemById = new Map(p.items.map((entry) => [String(entry.id), entry]));
+  const stageChip = (entry) => {
+    if (!entry) return null;
+    if (entry.status === 'withdrawn') return { tone: 'g', label: 'Withdrawn' };
+    if (entry.status === 'open' && entry.verdict?.decision === 'REJECT') return { tone: 'sb', label: 'Sent back' };
+    const word = stageOfItem(entry, p, gatedOf(entry)).stage;
+    const pair = { Merged: ['l', 'Landed'], Landing: ['l', 'Landing'], Verified: ['l', 'Verified'], 'In review': ['r', 'In review'], Building: ['b', 'Building'], Ready: ['rd', 'Ready'], Blocked: ['wt', 'Waiting'] }[word] || ['g', word];
+    return { tone: pair[0], label: pair[1] };
+  };
   // Native pending-question lists are authoritative: answered or stale asks never keep a thread amber.
-  const uniqueShouts = new Map((unread ? heard : [...heard, ...questions]).map(x => [x.shout_id, x]));
-  /** Replies inherit their original question's item even when the answer names no item. */
-  const conversationItem = message => {
-    const visited = new Set();
-    for (let entry = message; entry && !visited.has(entry.shout_id); entry = uniqueShouts.get(entry.shout_answers)) {
-      visited.add(entry.shout_id);
-      const item = itemOf(entry);
-      if (item) return item;
-    }
-    return null;
-  };
-  const conversations = new Map();
-  for (const message of uniqueShouts.values()) {
-    const item = conversationItem(message), key = item ? 'item:' + item : 'none';
-    if (!conversations.has(key)) conversations.set(key, { key, item, messages: [], open: false, toYou: false });
-    const conversation = conversations.get(key);
-    conversation.messages.push(message);
-    conversation.open ||= open.has(message.shout_id);
-    conversation.toYou ||= ['person', 'coordinator+person'].includes(message.shout_to);
+  const shoutById = new Map((unread ? heard : [...heard, ...questions]).map(x => [x.shout_id, x]));
+  const plainShouts = [...shoutById.values()].map((x) => ({ id: x.shout_id, from: x.shout_from, to: x.shout_to, at: x.shout_at, model: x.shout_from === 'person' ? '' : modelOf(x.shout_from),
+    ms: Date.parse(x.shout_at), text: messageText(x), decision: Boolean(x.shout_decision), answers: x.shout_answers || null, item: itemOf(x) ? String(itemOf(x)) : null }));
+  const itemFacts = {};
+  for (const shoutItem of new Set(plainShouts.map((x) => x.item).filter(Boolean))) {
+    itemFacts[shoutItem] = { title: titles.get(shoutItem) || 'Item #' + shoutItem, chip: stageChip(itemById.get(shoutItem)), lane: itemById.get(shoutItem)?.lane || '', href: itemAddress(shoutItem, view.root) };
   }
-  const threads = [...conversations.values()].map(thread => ({ ...thread,
-    messages: thread.messages.sort((a, b) => a.shout_id - b.shout_id) })).sort((a, b) => b.messages.at(-1).shout_id - a.messages.at(-1).shout_id);
-  const filter = view.shoutFilter || 'all';
-  store.paint($('asks-slot'), view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : '');
-  const selected = view.shout !== null ? threads.find(thread => thread.messages.some(message => message.shout_id === view.shout))
-    : threads.find(thread => thread.key === view.shoutThread);
-  /** Render one item conversation as a real button with bounded title and preview columns. */
-  const conversationRow = thread => {
-    const last = thread.messages.at(-1), title = thread.item ? titles.get(String(thread.item)) : 'No item';
-    return '<button class="conversation-row" data-shout-thread="' + esc(thread.key) + '" type="button"><code class="conversation-id">' + (thread.item ? '#' + esc(thread.item) : '') + '</code><span class="conversation-title">'
-      + esc(title || (thread.item ? 'Item #' + thread.item : '')) + '</span><span class="conversation-preview"><b>' + esc(last.shout_from) + '</b>: ' + esc(messageText(last)) + '</span><span class="chip' + (thread.open ? ' warn' : '') + '" title="' + (thread.open ? 'Question open, ' : '') + thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages') + '">' + thread.messages.length + '</span><time class="conversation-time" data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + agoLong(last.shout_at) + '</time></button>';
-  };
-  const rows = threads.filter(thread => filter === 'all' || (filter === 'questions' ? thread.open : thread.toYou));
-  const missingAddress = view.shout !== null && !selected ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
-  store.paint($('feed'), missingAddress + bar + (selected ? '<div class="conversation-heading"><button class="link" data-shout-thread="" type="button">All conversations</button><b>' + (selected.item ? '#' + esc(selected.item) + ' ' + esc(titles.get(String(selected.item)) || '') : 'No item') + '</b></div>'
-    + dayRules(selected.messages, message => message.shout_at, message => card(message, open.has(message.shout_id) && message.shout_to === 'person' && !readOnly ? '<button class="ghost answer" data-go="decide:' + message.shout_id + '" type="button">Answer</button>' : ''))
-    : rows.length ? dayRules(rows, thread => thread.messages.at(-1).shout_at, conversationRow) : '<div class="empty">' + (filter === 'questions' ? 'No open questions.' : filter === 'you' ? 'No shouts to you.' : 'No shouts yet.') + '</div>'));
+  const startOfToday = new Date().setHours(0, 0, 0, 0);
+  const seenMarks = shoutSeen(view.root);
+  const buildShouts = () => shoutsModel({ messages: plainShouts, openIds: [...open], personAskIds: (p.decisions || []).map((d) => d.shout_id), queueAskIds: (p.decisionQueue || []).map((d) => d.shout_id),
+    items: itemFacts, startOfToday, seen: seenMarks, filter: view.shoutFilter || 'all', openKey: view.shoutThread, foundId: view.shout, folded: Boolean(view.open.earlier) });
+  let shoutModel = buildShouts();
+  const openedThread = [...shoutModel.needs, ...shoutModel.threads, ...shoutModel.earlier.threads].find((thread) => thread.open);
+  // Opening a thread reads it: the mark moves past what the thread holds, in this browser only.
+  if (openedThread?.unread) { markShoutRead(view.root, openedThread.key); shoutModel = buildShouts(); }
+  shoutOpenKey = openedThread?.key ?? null;
+  shoutThreadIds = new Map([...shoutModel.needs, ...shoutModel.threads, ...shoutModel.earlier.threads].map((thread) => [thread.key, thread.messages.at(-1).id]));
+  view.shoutCounts = shoutModel.counts;
+  // The open thread's messages read in full with their item and code references live; the one-line rows stay plain text.
+  const richById = {};
+  for (const message of openedThread?.messages ?? []) {
+    const original = shoutById.get(message.id);
+    // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it, and the commit, shortened, with the full SHA on hover.
+    const receipt = original.shout_evidence_kind ? '<div class="receipt"><div><span class="badge">' + esc(original.shout_evidence_kind) + '</span> <span class="outcome">' + esc(original.shout_evidence_outcome) + '</span></div>'
+      + '<div class="receipt-foot">' + linked('#' + original.shout_evidence_item, titles) + ' · ' + esc(agentName(original.shout_from)) + ' · ' + codeChip(String(original.shout_evidence_commit), 'sha') + '</div></div>' : '';
+    richById[message.id] = rich(messageText(original), titles, true, view.root, true) + receipt + (original.options ? '<ol>' + original.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '');
+  }
+  const missingAddress = view.shout !== null && !openedThread ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
+  const replyFocus = document.activeElement?.matches?.('#feed [data-reply] input') ? document.activeElement.closest('[data-reply]').dataset.reply : null;
+  const caret = replyFocus ? document.activeElement.selectionStart : null;
+  const dayOf = (iso) => dateFormat('day', { month: 'short', day: 'numeric' }).format(new Date(iso));
+  if (store.paint($('feed'), shoutsHtml(shoutModel, { clock, ago, day: dayOf, startOfToday, readOnly, rich: richById, full: [...openShouts], allMessages: Object.keys(view.open).filter((name) => name.startsWith('msgs:') && view.open[name]).map((name) => name.slice(5)), addressNote: missingAddress, bar }))) restoreShoutDrafts(replyFocus, caret);
+  if (view.focusReply && openedThread) { view.focusReply = false; $('feed').querySelector?.('[data-reply] input')?.focus?.(); }
   // Keep legacy DOM anchors for older pages and automation; the decisions wall has no visible content.
   $('coordinator-decisions').hidden = true; $('coordinator-decisions').innerHTML = '';
   $('decisions').hidden = true; $('decisions').innerHTML = '';
@@ -693,8 +666,9 @@ function render({ tab: switching = false } = {}) {
   const panelSelection = agentsPanelModel({ agents: agentRows, items: agentItems, now: panelNow,
     activeAgent: view.agent, allAgents: view.allAgents, idleOpen: Boolean(view.open.idle) });
   if (panelSelection.idle.some((agent) => agent.agentId === view.agent)) view.open.idle = true;
-  store.paint($('agents'), agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) }));
+  store.paint($('agents'), agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) }, { now: panelNow, dashboardHref: tabHref('dashboard') }));
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
+  if (held.size && $('lanes-fold')) $('lanes-fold').open = true;
   store.paint($('lanes'), working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join(''));
 
   }

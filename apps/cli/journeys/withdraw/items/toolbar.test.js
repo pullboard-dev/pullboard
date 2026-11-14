@@ -79,19 +79,23 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     const ref = (id, title) => `<a class="ref" href="/items/${id}" data-go="item:${id}" title="${title}">#${id}</a>`;
     assert.ok(feed.includes(`${ref(7, 'Filler 7')}, see${ref(7, 'Filler 7')} and ${ref(7, 'Filler 7')}${ref(8, 'Filler 8')}: it&#39;s 5 o&#39;clock`), 'every #id links, whatever stands next to it');
     assert.equal(feed.match(/class="ref"/g).length, 7);
+    page.run('window.reveals = 0; window.scrollTo = () => { window.reveals += 1; }; globalThis.requestAnimationFrame = (next) => next();');
     await page.click({ go: 'item:2', classes: 'ref' });
     assert.equal(page.run('view.tab'), 'items', 'the link opens the Items tab');
     assert.match(page.show('detail'), /<span class="id">#2<\/span>[^]*<h2>Farewell banner<\/h2>/, 'on that item');
-    assert.equal(page.element('detail').scrolled, 0, 'side by side, the detail is already in view');
+    assert.equal(page.run('window.reveals'), 0, 'side by side, the detail is already in view');
 
+    // Under 900px the detail is placed with window.scrollTo (reveal() in the page actions, #7403), not scrollIntoView.
     const narrow = await openPage(view, { width: 600 });
+    narrow.run('window.reveals = 0; window.scrollTo = () => { window.reveals += 1; }; globalThis.requestAnimationFrame = (next) => next();');
     await narrow.click({ tab: 'items' });
     await narrow.click({ item: '1', classes: 'row' });
     assert.match(narrow.show('detail'), /Greeting/);
-    assert.equal(narrow.element('detail').scrolled, 1, 'under 900px, picking an item brings its detail into view');
+    const picked = narrow.run('window.reveals');
+    assert.ok(picked > 0, 'under 900px, picking an item brings its detail into view');
     await narrow.click({ tab: 'shouts' });
     await narrow.click({ go: 'item:2', classes: 'ref' });
-    assert.equal(narrow.element('detail').scrolled, 2, 'and so does a link to one');
+    assert.ok(narrow.run('window.reveals') > picked, 'and so does a link to one');
   } finally {
     await view.stop();
   }
