@@ -4,13 +4,14 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { selectAffectedTests } from '../../../../packages/gate/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { cleanupFixtureChildren } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(async () => { await cleanupFixtureChildren(); e2e.cleanup(); });
@@ -64,10 +65,11 @@ async function affectedBatch(t, { stableBadges = false, inline = false, waive = 
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): update the value and its test [G1]');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   process.stderr.write('# land-affected: submit frozen source\n');
-  const submitted = await box.runLocal(box.web, 'submit', String(item), '--wait', '--no-next');
-  assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  const checkLog = box.git(box.web, 'rev-parse', '--git-path', 'pullboard-submit.log.check.log');
-  assert.match(readFileSync(resolve(box.web, checkLog), 'utf8'), /# tests 1\b/u, 'submit really executes its frozen test');
+  const queued = await box.runLocal(box.web, 'submit', String(item), '--no-next', '--json');
+  assert.equal(queued.code, 0, queued.out + queued.err);
+  // The pulled gate runs on a runner, so its green receipt, not a local submit log, proves the frozen test ran [P7,C7].
+  const submitted = await settleSubmit(t, box, JSON.parse(queued.out));
+  assert.equal(submitted.gate?.green, true, JSON.stringify(submitted.gate));
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
     process.stderr.write('# land-affected: verify frozen source\n');
@@ -92,23 +94,26 @@ async function affectedBatch(t, { stableBadges = false, inline = false, waive = 
   if (waive) assert.equal((await box.runLocal(box.repo, 'land', '--waive', 'web/new-importer.test.js', '--until', '2099-01-01', '--reason', 'private exact affected-stage waiver')).code, 0);
   process.stderr.write('# land-affected: land candidate with late importer\n');
   const outcome = await box.runLocal(box.repo, 'land', '--json');
-  // A blocked batch exits 1, a landed one 0 (#4265, #2858: a red-only landing exits 1).
-  assert.equal(outcome.code, waive && !opaque ? 0 : 1, outcome.out + outcome.err);
-  const landing = JSON.parse(outcome.out);
-  t.diagnostic(JSON.stringify({ landing, messages: outcome.err }));
+  // A pulled landing offers a runner land job and returns; its receipt says landed or red [P7,C7].
+  assert.equal(outcome.code, 0, outcome.out + outcome.err);
+  const landing = await settleLand(box, JSON.parse(outcome.out));
+  t.diagnostic(JSON.stringify({ receipt: landing.landJob.receipt, messages: outcome.err }));
   if (waive && !opaque) {
     assert.deepEqual(landing.landed, [item], 'an exact live waiver covers only the accounted affected failure');
     assert.equal(landing.batch.state, 'landed');
     assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), main);
-    assert.equal((await json(box, box.repo, 'show', String(item))).item_merged_commit, landing.batch.tip);
-    assert.equal(landing.batch.proof.failures[0].file, 'web/new-importer.test.js');
+    assert.equal((await json(box, box.repo, 'show', String(item))).item_merged_commit, landing.landJob.receipt.merges?.[item] ?? landing.batch.tip);
+    assert.equal(landing.landJob.receipt.waived[0].file, 'web/new-importer.test.js');
   } else {
     assert.deepEqual(landing.landed, [], 'the merged-tree importer failure must stop adoption');
     assert.equal(landing.batch.state, 'blocked');
     assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'red affected tests never move main');
     assert.equal((await json(box, box.repo, 'show', String(item))).item_merged_commit, null);
   }
-  const selection = selectAffectedTests(landing.batch.root, { base: landing.batch.base, commit: landing.batch.tip });
+  // The merged batch the runner checked: main with the item's commit merged, rebuilt here so the selection reads the same tree [C7,V4].
+  const mergedTree = box.git(box.repo, 'merge-tree', '--write-tree', main, commit);
+  const merged = box.git(box.repo, 'commit-tree', mergedTree, '-p', main, '-p', commit, '-m', 'merged batch');
+  const selection = selectAffectedTests(box.repo, { base: main, commit: merged });
   assert.equal(selection.full, !stableBadges, selection.reason);
   if (stableBadges) assert.deepEqual(selection.files, ['web/new-importer.test.js', 'web/value.test.js']);
 }
