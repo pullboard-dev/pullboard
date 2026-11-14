@@ -17,6 +17,20 @@ export function censusShardCount(runners, perRunner = SHARDS_PER_RUNNER) {
   return Math.max(1, count);
 }
 
+/** Most files one pulled census job runs, so its receipt's output tail and case outcomes still name every file. */
+export const PULLED_FILES_PER_JOB = 40;
+
+/**
+ * Shards for a census on a pull board: the runners' count, or more so that no job runs over PULLED_FILES_PER_JOB files.
+ *
+ * @param {number} files
+ * @param {number} runners - censusShardCount of the registered runners.
+ * @returns {number}
+ */
+export function pulledShardCount(files, runners, perJob = PULLED_FILES_PER_JOB) {
+  return Math.max(1, runners, Math.ceil(files / perJob));
+}
+
 /** The shard-header line runLandingShards writes before each attempt's output: `# landing shard 2/9 attempt 1 on host: green in 4 ms`. */
 const HEADER = /^# landing shard (\d+\/\d+) attempt (\d+) on (\S+): (\w+)(?: \([^)]*\))? in \d+ ms/u;
 

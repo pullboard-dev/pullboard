@@ -14,18 +14,24 @@ import { allTestOutcomes } from '../../../../../packages/gate/index.js';
 import { browserBoundFiles } from '../../../../../packages/gate/index.js';
 import { testsNeedGui } from '../../../../../packages/gate/index.js';
 import { LANDING_COLLECT_ALL_ENV } from '../../../../../packages/landing/index.js';
+import { LANDING_SHARD_ENV } from '../../../../../packages/gate/index.js';
+import { formatTestOutcomes } from '../../../../../packages/gate/index.js';
+import { headCommit } from '../../../../../packages/git/index.js';
 import { fileKey } from '../../../../../packages/landing/index.js';
 import { planLandingShards } from '../../../../../packages/landing/index.js';
 import { runLandingShards } from '../../../../../packages/landing/index.js';
 import { shardFileTimes } from '../../../../../packages/landing/index.js';
 import { readFileTimes } from '../../../../../packages/gate/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { censusShardCount } from '../../logic/census.js';
+import { pulledShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
 import { parseShardHeader } from '../../logic/census.js';
 import { shardRows } from '../../logic/census.js';
 import { storeName } from '../store-names.js';
+import { runPulledComparison } from './pull.js';
 
 /** Tracked test entry files at HEAD, the way the gate lists them for a full suite. */
 async function trackedTests(root) {
@@ -40,6 +46,43 @@ function cleanHead(root) {
   return git(['rev-parse', 'HEAD']).stdout.trim();
 }
 
+/** Quote one shell word for a pulled job's command. */
+const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+
+/**
+ * A shard dispatcher for a pull board: each shard is one pulled test job a runner takes, as `pullboard test` offers one,
+ * and its answer is written in the landing log's words. Why: the landing path holds controller custody in this
+ * process, which crashed every census on a pull board with "controller custody needs the exact process start" (#7602) [C7].
+ * A shard whose job refuses is that shard's infrastructure answer, so its files are unrun and the census goes on.
+ *
+ * @param {object} ctx
+ * @param {{ err: (line: string) => void }} io
+ */
+function pulledCensus(ctx, io) {
+  return async ({ root, files, count, write }) => {
+    const command = ctx.config?.affectedTests;
+    if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
+    const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
+    const commit = headCommit(root), main = mainPolicy(root).commit ?? commit;
+    const plan = planLandingShards(files, count, readFileTimes(root), root);
+    await Promise.all(plan.map(async (shard, index) => {
+      const label = `${index + 1}/${plan.length}`, started = Date.now();
+      const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
+      try {
+        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID() });
+        write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
+        write(`${ran.outcomes ? formatTestOutcomes(randomUUID(), ran.outcomes) : ''}${ran.output}\n`);
+      } catch (error) {
+        io.err(`pullboard test --census: shard ${label} got no answer: ${error?.message ?? error}`);
+        write(`# landing shard ${label} attempt 1 on none: infrastructure (${error?.code ?? 'error'}) in ${Date.now() - started} ms\n`);
+        write(`${error?.message ?? error}\n`);
+      }
+    }));
+    write('# landing result: done\n');
+    return { isGreen: true };
+  };
+}
+
 /**
  * Run the census here, the one coordinator process for the whole run, and append a row per file to the JSONL as each
  * shard settles. Returns 0 when every file is green.
@@ -50,7 +93,7 @@ function cleanHead(root) {
  * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards }} [options] - `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
  * @returns {Promise<number>}
  */
-export async function runCensus(io, ctx, values, { shards, prefixes = [], run = runLandingShards } = {}) {
+export async function runCensus(io, ctx, values, { shards, prefixes = [], run } = {}) {
   const root = ctx.info.root;
   const sha = cleanHead(root);
   const files = (await trackedTests(root)).filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
@@ -58,7 +101,11 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run = 
   const out = resolve(root, values.out ?? join('.git', 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, '');
-  const count = Math.min(shards ?? censusShardCount(loadMachineSettings().runners), files.length);
+  // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
+  const pulled = !run && runnerDispatchMode() === 'pull';
+  run ??= pulled ? pulledCensus(ctx, io) : runLandingShards;
+  const runners = censusShardCount(loadMachineSettings().runners);
+  const count = Math.min(shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
   // The same plan runLandingShards cuts, so a shard's label names the files it held.
   const plan = planLandingShards(files, count, readFileTimes(root), root);
   const rows = new Map();
