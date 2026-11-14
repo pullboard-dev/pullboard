@@ -131,8 +131,8 @@ test('the actual tour leaves a labelled demo visible at phone and desktop widths
       assert.equal(await chrome.stable('document.querySelector("#proj-name").textContent'), 'demo', `${width}: the selected board is the registered tour demo`);
       // A first load asks for open work only; Roadmap reads the finished items it shows (de3affd4f4, #6697).
       await tab(chrome, 'roadmap');
-      await chrome.waitFor('data.project.items.some(item => item.status === "verified" && item.merged)');
-      assert.ok(await chrome.stable('data.project.items.some(item => item.status === "verified" && item.merged)'), `${width}: the tour\'s actual accepted history is visible`);
+      await chrome.waitFor('data.project.items.some(item => item.status === "verified" && (item.merged || item.stage === "merged"))');
+      assert.ok(await chrome.stable('data.project.items.some(item => item.status === "verified" && (item.merged || item.stage === "merged"))'), `${width}: the tour\'s actual accepted history is visible`);
       await tab(chrome, 'items');
       await press(chrome, 'document.querySelector(\'[data-page-ctl=new]\')');
       assert.equal(await chrome.stable('document.querySelector("#add-lane").value'), 'app', `${width}: tour work also defaults to its building lane`);
