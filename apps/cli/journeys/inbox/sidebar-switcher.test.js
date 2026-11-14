@@ -63,7 +63,13 @@ test('the project list drops from the switcher at the top left, over a full-widt
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375');
     const phone = await read();
-    assert.ok(phone.switcher.shown && !phone.list.shown && phone.theme.right >= phone.width - 24, `a phone keeps the switcher and the account slot in its top row: ${JSON.stringify(phone)}`);
+    // Under 900 px the switcher lives in the Menu drawer (dcf117ebc6, #6725): the top row holds Menu, the project name and the account.
+    const menu = JSON.parse(await chrome.stable(`JSON.stringify((() => { const m = document.querySelector('#menu-btn').getBoundingClientRect(); return { shown: m.width > 0, top: m.top, bottom: m.bottom, title: document.querySelector('#proj-title').textContent }; })())`));
+    assert.ok(menu.shown && menu.title === 'collapse-other' && !phone.switcher.shown && !phone.list.shown && phone.theme.right >= phone.width - 24, `a phone keeps Menu, the project name and the account slot in its top row: ${JSON.stringify({ phone, menu })}`);
+    await chrome.click('document.querySelector("#menu-btn")');
+    assert.ok(await chrome.stable('(() => { const r = document.querySelector("#mdrawer-proj").getBoundingClientRect(); return r.width > 0 && !document.querySelector("#mdrawer").hidden; })()'), 'Menu opens the drawer with the project switcher in it');
+    await chrome.click('document.querySelector("#mdrawer-proj")');
+    assert.ok((await read()).list.shown, 'the drawer\'s switcher opens the project list');
     assert.ok(!phone.overflow, 'and nothing runs off the phone');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

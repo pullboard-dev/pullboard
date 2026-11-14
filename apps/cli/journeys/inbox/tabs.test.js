@@ -153,12 +153,12 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-arrow-chrome-'));
   let chrome;
   /** The switcher's arrow as it reads: shown, its size, which way it points, and whether it animates. */
-  const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const arrow = document.querySelector('#proj-switch small'), svg = arrow.querySelector('svg'), s = getComputedStyle(arrow), r = svg.getBoundingClientRect();
+  const read = async (switcher = '#proj-switch') => JSON.parse(await chrome.stable(`JSON.stringify((() => {
+    const arrow = document.querySelector('${switcher} small'), svg = arrow.querySelector('svg'), s = getComputedStyle(arrow), r = svg.getBoundingClientRect();
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       shown: s.display !== 'none' && r.width > 0, size: [Math.round(r.width), Math.round(r.height)], faint: s.color === (() => { const p = document.createElement('i'); p.style.color = 'var(--ink-faint)'; document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c; })(),
-      turn: s.transform, motion: [s.transitionDuration, s.animationName], open: document.querySelector('#proj-switch').getAttribute('aria-expanded'),
+      turn: s.transform, motion: [s.transitionDuration, s.animationName], open: document.querySelector('${switcher}').getAttribute('aria-expanded'),
     };
   })())`));
   const click = (selector) => chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
@@ -174,6 +174,15 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
         await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
         await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
         const at = `${width}px ${scheme}`;
+        if (width === 375) {
+          // Under 900 px the switcher is in the Menu drawer (dcf117ebc6, #6725): the same chevron, drawn once the drawer is open. Its press hands over to the project list, so it has no turn to check.
+          await click('#menu-btn');
+          const drawn = await read('#mdrawer-proj');
+          assert.ok(drawn.page.scroll <= drawn.page.width, `${at}: no sideways scroll`);
+          assert.deepEqual([drawn.shown, drawn.size, drawn.faint, drawn.turn, drawn.motion], [true, [16, 16], true, DOWN, ['0s', 'none']], `${at}: the drawer's switcher keeps a 16px faint chevron that never animates: ${JSON.stringify(drawn)}`);
+          await click('#mveil');
+          continue;
+        }
         const closed = await read();
         assert.ok(closed.page.scroll <= closed.page.width, `${at}: no sideways scroll`);
         assert.deepEqual([closed.shown, closed.size, closed.faint, closed.open, closed.turn], [true, [16, 16], true, 'false', DOWN], `${at}: a 16px chevron in the faint ink, pointing down while the list is closed: ${JSON.stringify(closed)}`);
