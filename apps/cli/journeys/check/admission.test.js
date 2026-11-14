@@ -1,4 +1,4 @@
-/** Coordinator-authored frozen timing reaches real submit/review leases and durable receipts [C7,V4,H16]. */
+/** Coordinator-authored frozen timing: pulled submits refuse it (#7942 builds it), controller check/review leases honour it [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -30,7 +30,7 @@ function document(result) {
 }
 
 for (const timing of [true, false]) {
-  test(`frozen check timing ${timing} controls actual submit and verify admission and receipts [C7,V4]`, async t => {
+  test(`frozen check timing ${timing}: pulled submit refuses timing, controller check and verify honour it [C7,V4]`, async t => {
     const helpers = createE2eHelpers();
     t.after(helpers.cleanup);
     const box = helpers.project('true');
@@ -54,15 +54,28 @@ for (const timing of [true, false]) {
     assert.equal(JSON.parse(frozen.item_frozen).checkTiming === true, timing);
     if (!timing) assert.equal(Object.hasOwn(JSON.parse(frozen.item_frozen), 'checkTiming'), false, 'unflagged historical bytes remain absent');
     helpers.commitFile(box, box.web, 'web/change.txt', 'actual candidate\n', 'feat(web): real timing candidate [G1]');
+    if (timing) {
+      // Every submit gate is a pulled job since c77c8f38cf (#6832), and pulled gates have no timing admission yet (#7942):
+      // the submit refuses rather than running the timed bar untimed [C7].
+      const refused = await box.runLocal(box.web, 'submit', '1', '--no-next', '--json');
+      assert.notEqual(refused.code, 0, 'a timed bar is never submitted to a pulled gate');
+      assert.match(refused.out + refused.err, /PULL_TIMING_UNSUPPORTED/u);
+      assert.match(refused.out + refused.err, /timing admission, which pulled gates do not yet support/u);
+      assert.match(refused.out + refused.err, /--check-timing false/u, 'the refusal names leaving timing off');
+      assert.equal(document((await box.runLocal(box.repo, 'show', '1', '--json'))).item_status, 'claimed', 'the refusal queues nothing');
+      // The controller path the refusal names still holds the exclusive slots and writes its receipt.
+      assert.equal(document((await box.runLocal(box.web, 'check', '--yes', '--json'))).green, true);
+      const checkReceipt = recentReceipts(box.repo).filter(row => row.kind === 'check').at(-1);
+      assert.ok(checkReceipt, 'the controller check persisted its admission receipt');
+      assert.equal(checkReceipt.timing, true);
+      assert.equal(checkReceipt.exclusive, true);
+      assert.equal(checkReceipt.occupiedSlots, 2);
+      assert.deepEqual(checkReceipt.unfencedClients, []);
+      return;
+    }
     // A pulled submit returns queued; settle its gate before reading the result [V4,C7].
     const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, document((await box.runLocal(box.web, 'submit', '1', '--no-next', '--json'))));
-    assert.equal(submitted.gate.green, true, 'actual native submit check and proof completed');
-    const submitReceipt = recentReceipts(box.repo).filter(row => row.kind === 'submit').at(-1);
-    assert.ok(submitReceipt, 'native submit persisted its real admission receipt');
-    assert.equal(submitReceipt.timing, timing);
-    assert.equal(submitReceipt.exclusive, timing);
-    assert.equal(submitReceipt.occupiedSlots, timing ? 2 : 1);
-    assert.deepEqual(submitReceipt.unfencedClients, []);
+    assert.equal(submitted.gate.green, true, 'actual pulled submit check and proof completed');
     const head = box.git(box.web, 'rev-parse', 'HEAD');
     // A submit proof is reused past a moved main unless main changed what the check runs (4bcbf7d227), so main edits the checked
     // test file; verification then runs the frozen check and writes its own review receipt.
@@ -73,13 +86,13 @@ for (const timing of [true, false]) {
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
     document(fixtureJoin(box.run, reviewer, 'api', '--model', FIXTURE_MODEL, '--json'));
-    const accepted = document((await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'real timed admission observed', '--no-next', '--json')));
+    const accepted = document((await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'real untimed admission observed', '--no-next', '--json')));
     assert.equal(accepted.decision, 'ACCEPT');
     const reviewReceipt = recentReceipts(box.repo).filter(row => row.kind === 'review').at(-1);
     assert.ok(reviewReceipt, 'native verification persisted its real admission receipt');
-    assert.equal(reviewReceipt.timing, timing);
-    assert.equal(reviewReceipt.exclusive, timing);
-    assert.equal(reviewReceipt.occupiedSlots, timing ? 2 : 1);
+    assert.equal(reviewReceipt.timing, false);
+    assert.equal(reviewReceipt.exclusive, false);
+    assert.equal(reviewReceipt.occupiedSlots, 1);
     assert.deepEqual(reviewReceipt.unfencedClients, []);
     assert.equal(box.git(reviewer, 'status', '--porcelain'), '', 'verification leaves live source clean');
   });
