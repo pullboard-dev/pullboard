@@ -116,3 +116,14 @@ test('#6814 clauses 1-2: the landing receipt reuse path is gone from reuse.js an
   catch (error) { if (error.status !== 1) throw error; }
   assert.equal(named, '');
 });
+
+test('#6815 clauses 1-2: the batch gate\'s unit reuse and trunk-move reruns are gone from step/gate.js and named nowhere in the tree [C7,#6815]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  // The names are split so this test does not name them; git grep exits 1 when nothing matches.
+  for (const name of ['submitted' + 'Units', 'trunkMove' + 'Reruns', 'interacting' + 'Tests']) {
+    let named = '';
+    try { named = execFileSync('git', ['grep', '-l', '-w', '-F', name], { cwd: root, encoding: 'utf8' }); }
+    catch (error) { if (error.status !== 1) throw error; }
+    assert.equal(named, '', name);
+  }
+});
