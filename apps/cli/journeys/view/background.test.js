@@ -140,6 +140,19 @@ test('init leaves a view running for pullboard.dev [H5,N26]', async (t) => {
   assert.deepEqual(viewProcesses(port), [], 'no view process is left behind');
 });
 
+test('init --no-open starts no view and leaves none running [H5,N26]', async (t) => {
+  const { box, repo, port } = await backgroundBox(t, 'init-no-open');
+  const init = await box.runLocal(repo, 'init', '--no-open', '--json');
+  assert.equal(init.code, 0, init.err || init.out);
+  assert.equal(JSON.parse(init.out).view.state, 'off', 'init says the view is off');
+  assert.equal(existsSync(join(box.env.PULLBOARD_HOME, `view-${port}.json`)), false, 'no session record for a view');
+  assert.equal(await answers(port), null, 'nothing answers on the view port');
+  assert.deepEqual(viewProcesses(port), [], 'no view process is left behind');
+  const text = await box.runLocal(repo, 'init', '--no-open');
+  assert.equal(text.code, 0, text.err || text.out);
+  assert.deepEqual(viewLines(text.out), [], 'init --no-open says nothing about a view');
+});
+
 test('resume starts the view once and the setting turns it off [H5,N26]', async (t) => {
   const { box, repo, port } = await backgroundBox(t, 'resume-view');
   // Process-level: this case starts, reuses and outlives detached views across several commands, which hang the in-process loop; its launches stay real processes.
