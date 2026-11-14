@@ -141,7 +141,7 @@ export function roadmapCardsHtml(read, presentation = {}) {
     const key = 'm:' + m.milestone.name, name = String(m.milestone.name);
     const total = Math.max(1, m.total), done = Math.min(m.done, total);
     const split = /^([^:\s][^:]*?):\s+(.+)$/u.exec(name), version = split ? split[1] : name, title = split ? split[2] : '';
-    const summary = m.milestone.summary, parts = ['landed', 'landing', 'review', 'building', 'waiting', 'held'];
+    const summary = m.milestone.summary, parts = ['landed', 'landing', 'review', 'building', ...(Number.isInteger(summary?.ready) ? ['ready'] : []), 'waiting', 'held'];
     const staged = summary && Number.isInteger(summary.total) && summary.total > 0 && parts.every(part => Number.isInteger(summary[part]) && summary[part] >= 0);
     let offset = 0;
     const segments = staged ? parts.map(part => { const x = offset; offset += summary[part]; return summary[part] ? '<rect class="' + part + '" x="' + x + '" width="' + summary[part] + '" height="1"/>' : ''; }).join('') : '<rect class="landed" width="' + done + '" height="1"/>';

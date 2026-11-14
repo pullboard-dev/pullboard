@@ -113,6 +113,7 @@
 .dash-seg-landing { fill: color-mix(in oklab, var(--stage-merged) 55%, var(--surface)); background: var(--stage-stripe); }
 .dash-seg-review { fill: var(--stage-review); background: var(--stage-review); }
 .dash-seg-building { fill: var(--stage-building); background: var(--stage-building); }
+.dash-seg-ready { fill: var(--stage-ready); background: var(--stage-ready); }
 .dash-seg-waiting { fill: var(--waiting); background: var(--waiting); }
 rect.dash-seg-held { fill: var(--surface); stroke: var(--mark-held); stroke-width: .6; stroke-dasharray: 1.2 .8; vector-effect: non-scaling-stroke; }
 i.dash-seg-held { background: none; border: var(--border-held-thin); }
