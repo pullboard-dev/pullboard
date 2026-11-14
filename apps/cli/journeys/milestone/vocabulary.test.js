@@ -29,6 +29,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the stage vocabulary journey.');
   // Setup builds run in this process, not as launches: seven launched builds alone took 79 s under runner load (the 180 s budget).
+  let last = Date.now(); const mark = (label) => { const now = Date.now(); const took = now - last; last = now; if (took > 25000) throw new Error('SLOW segment before ' + label + ': ' + took + 'ms'); };
   const box = machine();
   const alpha = project(box, 'stage-vocabulary', undefined, {
     lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] } },
@@ -50,6 +51,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   await buildLocal(box, alpha, 7, 'verified.txt');
   await acceptLocal(box, alpha, 7);
+  mark('hold');
   box.run(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
   box.run(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
   await buildLocal(box, alpha, 10, 'returned.txt');
@@ -58,6 +60,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   box.run(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
   box.run(alpha.web, 'claim', '3');
   box.run(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
+  mark('reviewer');
   const reviewer = join(box.dir, 'stage-vocabulary-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/stage-vocabulary-reviewer', reviewer, 'main');
   box.run(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
@@ -70,20 +73,27 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
       version: 1, id: 'stage-vocabulary-active-batch', state: 'gating', items: [{ id: 5 }], startedAt,
     } });
   } finally { store.closeBoard(board); }
+  mark('startView');
   const view = await startView(box);
+  mark('view up');
   const profile = mkdtempSync(join(box.dir, 'stage-vocabulary-chrome-'));
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    mark('chrome open');
     await chrome.waitFor('!!data?.project');
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)}`);
+    await chrome.waitFor('!!data?.project');
+    mark('project data');
     await pressTab(chrome, 'items');
+    mark('items tab');
     await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
     await press(chrome, "document.querySelector('[data-filter-toggle]')");
     await press(chrome, "document.querySelector('[data-state=all]')");
     await chrome.waitFor("document.querySelector('#chain [data-item=\\\"10\\\"] .item-stage')");
     await chrome.stable(`(() => { const item = data.project.items.find(entry => entry.id === 7); item.verdictState = { code: 'STALE_VERDICT', file: 'web/verified.txt', commit: 'a'.repeat(40), main: 'b'.repeat(40) }; render(); return true; })()`);
+    mark('filter all');
     const list = JSON.parse(await chrome.stable(`JSON.stringify(Object.fromEntries([...document.querySelectorAll('#chain [data-item]')].map(row => [row.dataset.item,
       { key: row.querySelector('.item-stage')?.dataset.stage, stage: row.querySelector('.stage-word')?.textContent || row.querySelector('.item-seat')?.getAttribute('aria-label')?.split(': ')[0], seat: row.querySelector('.item-seat')?.textContent.trim(), seatHover: row.querySelector('.item-seat')?.title, seatAccessible: row.querySelector('.item-seat')?.getAttribute('aria-label'), detail: row.querySelector('.stage-detail')?.textContent,
         accessible: row.querySelector('.item-stage')?.getAttribute('aria-label'), hover: row.querySelector('.item-stage')?.title,
