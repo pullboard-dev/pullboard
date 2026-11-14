@@ -17,6 +17,7 @@ import {
 import { test } from 'node:test';
 import { coordinatorLocal } from '../local.js';
 import { runLocal } from '../local.js';
+import { submitWithEnv } from '../local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
@@ -37,20 +38,21 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
     seedGraph(box);
     const fullMarker = join(box.dir, 'full-suite.log');
     const checkMarker = join(box.dir, 'item-check.log');
-    box.env.FULL_SUITE_MARKER = fullMarker;
-    box.env.ITEM_CHECK_MARKER = checkMarker;
+    box.env.FIXTURE_FULL_SUITE_MARKER = fullMarker;
+    box.env.FIXTURE_ITEM_CHECK_MARKER = checkMarker;
     for (const [file, name] of [['a', 'first'], ['b', 'second'], ['c', 'third']]) {
       put(box.root, `test/${file}.test.js`, [
         "import { appendFileSync } from 'node:fs';",
         ...(file === 'a' ? ["import '../src/entry.js';"] : []),
-        `appendFileSync(process.env.FULL_SUITE_MARKER, '${name}\\n');`,
+        `appendFileSync(process.env.FIXTURE_FULL_SUITE_MARKER, '${name}\\n');`,
       ].join('\n') + '\n');
     }
     put(box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 1;\n');
     commitAll(box, 'chore(core): prepare landing-gate fixture');
     box = builderRepo(box, ['apps/cli/src/io/run/tests.js']);
-    const check = `node -e "require('node:fs').appendFileSync(process.env.ITEM_CHECK_MARKER, 'check\\n')"`;
-    assert.equal((await coordinatorLocal(box, 'add', 'build', 'Landing gate fixture', '--check', check)).code, 0);
+    const check = `node -e "require('node:fs').appendFileSync(process.env.FIXTURE_ITEM_CHECK_MARKER, 'check\\n')"`;
+    // --wait: the check's baseline job appends to the same marker, so it must have run before the marker is cleared [#7530].
+    assert.equal((await coordinatorLocal(box, 'add', 'build', 'Landing gate fixture', '--check', check, '--wait')).code, 0);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     rmSync(fullMarker, { force: true });
     rmSync(checkMarker, { force: true });
@@ -68,9 +70,9 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   put(optedIn.box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 2;\n');
   commitAll(optedIn.box, 'feat(core): change global source [G1]');
 
-  const deferred = await runLocal(optedIn.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const deferred = await submitWithEnv(t, optedIn.box, (...args) => runLocal(optedIn.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(deferred.code, 0, deferred.err);
-  const receipt = JSON.parse(deferred.out);
+  const receipt = deferred.receipt;
   assert.equal(receipt.gate.full, true, 'the selector still reports that it fell back to the whole suite');
   assert.equal(receipt.gate.deferred, true);
   assert.match(receipt.gate.report, /full suite deferred to the landing gate/u);
@@ -95,9 +97,9 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   put(candidateOnly.box.root, 'pullboard.json', JSON.stringify(candidateConfig));
   put(candidateOnly.box.root, 'apps/cli/src/io/run/tests.js', 'export const version = 2;\n');
   commitAll(candidateOnly.box, 'feat(core): try candidate-only deferral [G1]');
-  const ordinary = await runLocal(candidateOnly.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const ordinary = await submitWithEnv(t, candidateOnly.box, (...args) => runLocal(candidateOnly.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(ordinary.code, 0, ordinary.err);
-  const ordinaryReceipt = JSON.parse(ordinary.out);
+  const ordinaryReceipt = ordinary.receipt;
   assert.equal(ordinaryReceipt.gate.deferred, false, 'a candidate-only setting is not trusted');
   assert.ok(existsSync(candidateOnly.fullMarker), 'without current-main opt-in the full suite still runs at submit');
   const ordinaryEvent = JSON.parse((await runLocal(candidateOnly.box, 'show', '1', '--json')).out).thread.findLast((event) => event.kind === 'submit');
@@ -106,9 +108,9 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   const named = await project('landing');
   put(named.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(named.box, 'feat(core): change one selected source [G1]');
-  const selected = await runLocal(named.box, 'submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
+  const selected = await submitWithEnv(t, named.box, (...args) => runLocal(named.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.equal(selected.code, 0, selected.err);
-  const selectedReceipt = JSON.parse(selected.out);
+  const selectedReceipt = selected.receipt;
   assert.equal(selectedReceipt.gate.full, false);
   assert.equal(selectedReceipt.gate.deferred, true);
   assert.deepEqual(selectedReceipt.gate.files, ['test/a.test.js']);
