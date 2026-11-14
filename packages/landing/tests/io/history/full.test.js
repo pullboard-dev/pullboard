@@ -110,3 +110,21 @@ test('#6818 clauses 1-3: the scheduler and its test are gone and no landing sour
   catch (error) { if (error.status !== 1) throw error; }
   assert.equal(named, '');
 });
+
+test('#6819 clauses 1-2: the train landing module moved into train/ and no file imports its old path [C7,H16,#6819]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  // Built from parts, so this test names no deleted path itself.
+  const gone = ['packages/landing/src/io', 'train.js'].join('/');
+  assert.equal(tracked(root, gone), '', gone);
+  let lines = '';
+  try { lines = execFileSync('git', ['grep', '-n', '-E', String.raw`(from|import)\s*\(?\s*['"]\.{1,2}/[^'"]*train\.js['"]`, '--', '*.js', '*.mjs'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  const importers = [];
+  for (const line of lines.split('\n').filter(Boolean)) {
+    const file = line.slice(0, line.indexOf(':'));
+    for (const [, specifier] of line.matchAll(/(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/gu)) {
+      if (join(dirname(file), specifier) === gone) importers.push(`${file} -> ${specifier}`);
+    }
+  }
+  assert.deepEqual(importers, []);
+});
