@@ -557,7 +557,10 @@ test('the actual relay page seals its shout and refuses generic direct moves [H1
   const direct = await chrome.stable(`api(boardPath(view.root) + '/moves', {verb:'claim',item:1}).then(() => 'allowed', error => error.message)`);
   assert.match(direct, /read-only view/);
   assert.equal(box.calls.slice(callsBefore).some(call => call.method === 'POST'), false, 'the generic direct move never reaches the relay');
-  await pressTab(chrome, 'shouts');
+  // The composer waits until an item's Shout button asks for it (#7572), so reach it as a person does.
+  await pressTab(chrome, 'items');
+  await chrome.waitFor("document.querySelector('#detail button[data-shout]')?.getClientRects().length > 0");
+  await chrome.click("document.querySelector('#detail button[data-shout]')");
   await chrome.waitFor("document.querySelector('#shout-form')?.getClientRects().length > 0 && document.querySelector('#shout-text')?.getClientRects().length > 0");
   const composer = await chrome.stable(`(() => {
     const form = document.querySelector('#shout-form'), text = document.querySelector('#shout-text'), send = document.querySelector('#shout-send');
