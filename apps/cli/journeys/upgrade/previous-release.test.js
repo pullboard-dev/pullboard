@@ -18,6 +18,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
+import { codeIsFromMain } from '../../../../packages/git/index.js';
 import { applyRelayMove } from '../../../../packages/state/index.js';
 import { exportBoard } from '../../../../packages/store/index.js';
 import { withoutPullboardEnv } from '../../tests/fixtures/e2e.js';
@@ -162,6 +163,11 @@ test('doctor on the upgraded board ends clean after the steps it names [R4,A5]',
     assert.equal(done.status, 0, `${step}: ${done.stderr}${done.stdout}`);
   }
   const after = box.cli(box.repo, box.coordinator, 'doctor');
-  assert.equal(after.status, 0, after.stdout + after.stderr);
-  assert.match(after.stdout, /board is clean/u);
+  // Only the main checkout's code repairs a board; a runner runs this source from a linked worktree, where doctor sends the person to main (#7761).
+  if (codeIsFromMain()) {
+    assert.equal(after.status, 0, after.stdout + after.stderr);
+    assert.match(after.stdout, /board is clean/u);
+  } else {
+    assert.match(after.stdout + after.stderr, /repair: (?:run pullboard status|merge this code into the main checkout first)/u, 'doctor still names a repair');
+  }
 });
