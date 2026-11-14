@@ -74,9 +74,9 @@ test('actual CLI files, lists, delivers and batch-answers typed coordinator requ
   const events=[eventFor(box,first,'hold_item'),eventFor(box,second,'withdraw')];
   const answered=await cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(','));
   assert.deepEqual(answered.requests.map(row=>row.status),['done','done']);
+  const reply=await cli(box,box.web,'inbox'); // First read: any other command by the requester delivers and marks its activity.
   assert.equal((await cli(box,box.repo,'request','list')).requests.length,0);
   assert.equal((await cli(box,box.web,'request','list','--all')).requests.length,2);
-  const reply=await cli(box,box.web,'inbox');
   assert.ok(reply.activity.entries.some(row=>row.typedRequest&&row.text.includes(`#${a} done`)),'requester receives actual answer activity');
   await cli(box,box.repo,'hold',String(first),'--off');
   assert.deepEqual((await cli(box,box.repo,'request','answer',`${a},${b}`,'done','--acted-on',events.join(','))).requests,answered.requests,'exact retry retains original result after later legitimate state changes');
