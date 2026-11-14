@@ -325,6 +325,9 @@ export async function submitSettled(t, box, move, id, agent) {
     // The runner also pulls the board's automatic land job; a person lands by hand here, so accepted items stay accepted.
     const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
     fixtureProjectPolicy(box.root, { config: { ...config, landing: { ...config.landing, manualOverride: true } } });
+    // Only policy committed to trunk grants the override (mainPolicy reads trunk), so commit it or the board still offers land jobs whose push fails and retries.
+    runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env, stdio: 'pipe' });
+    runFixtureGit(['commit', '-q', '-m', 'chore: fixture lands by hand'], { cwd: box.root, env: box.env, stdio: 'pipe' });
     startFixtureLocalRunner(box.env, box.root);
     box.localRunnerStarted = true;
   }

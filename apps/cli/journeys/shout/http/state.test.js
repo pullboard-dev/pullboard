@@ -248,8 +248,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.equal(acceptedDetail.checkBaseline.result, 'green');
   assert.match(acceptedDetail.verdict.note, /^ran the check and read the summary\n(?:reused submit proof [0-9a-f-]+(?:, [0-9a-f-]+)*\n)?verified against agent-approved G1$/u,
     'the post-init approved fixture row qualifies the receipt without losing the reviewer note');
-  // A push-failed land retry notes the thread (b9093a3767, #7791); the fixture trunk push fails, so that note is not the fact under test.
-  assert.deepEqual(acceptedDetail.thread.filter((entry) => entry.type === 'fact').map((entry) => entry.text).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:|Land job \S+ push-failed: )/u.test(text)), ['a fact only the thread carries']);
+  assert.deepEqual(acceptedDetail.thread.filter((entry) => entry.type === 'fact').map((entry) => entry.text).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:)/u.test(text)), ['a fact only the thread carries']);
 
   /** Search through HTTP and return the matching ids in board order. */
   const search = async (text) => {
@@ -297,15 +296,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   });
   const servedState = await fetchFresh(servedUrl.origin + box.path + '/state', { headers: { 'x-pullboard-key': servedUrl.searchParams.get('k') } });
   assert.equal(servedState.status, 200);
-  // Land retry notes keep landing on every thread while the fixture's trunk push fails (b9093a3767), so one can arrive between any two reads
-  // and move an item's fact tally. Compare the summaries without that tally, then prove the facts that are not land retries are identical.
-  const landNote = (entry) => entry.type === 'fact' && /^Land job \S+ push-failed: /u.test(entry.text ?? '');
-  const withoutFacts = (items) => items.map(({ counts: { facts, ...counts }, ...item }) => ({ ...item, counts }));
-  const ownFacts = (full) => full.thread.filter((entry) => entry.type === 'fact' && !landNote(entry)).map((entry) => entry.text);
-  const servedFull = await fetchFresh(servedUrl.origin + box.path + '/state?detail=full', { headers: { 'x-pullboard-key': servedUrl.searchParams.get('k') } });
-  const servedFulls = new Map((await servedFull.json()).state.items.map((item) => [item.id, item]));
-  assert.deepEqual(withoutFacts((await servedState.json()).state.items), withoutFacts(summaryState.document.state.items), 'pullboard serve sends the same summaries');
-  for (const [id, full] of fulls) assert.deepEqual(ownFacts(servedFulls.get(id)), ownFacts(full), `pullboard serve carries #${id}'s same stored facts`);
+  assert.deepEqual((await servedState.json()).state.items, summaryState.document.state.items, 'pullboard serve sends the same summaries');
   let pagePort;
   const pageHandler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: 'page-fixture-secret', getPort: () => pagePort, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   const page = createServer(pageHandler);
@@ -313,15 +304,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   pagePort = page.address().port;
   t.after(() => new Promise((done) => { pageHandler.close(); page.close(done); page.closeIdleConnections(); }));
   const pageState = await fetchFresh('http://127.0.0.1:' + pagePort + box.path + '/state', { headers: { 'x-pullboard-key': 'page-fixture-secret' } });
-  // The same async land retry notes can land between these two full reads, so drop them (thread, history, tally and the activity stamps they move) from both before comparing.
-  const withoutLandNotes = (items) => items.map((item) => {
-    const kept = item.thread.filter((entry) => !landNote(entry));
-    const landAt = new Set(item.thread.filter(landNote).map((entry) => entry.at));
-    const { updatedAt, since, ...rest } = item;
-    const { lastActivity, ...progress } = rest.progress ?? {};
-    return { ...rest, progress, thread: kept, history: item.history.filter((event) => !(event.kind === 'fact' && landAt.has(event.at))), counts: { ...item.counts, facts: kept.filter((entry) => entry.type === 'fact').length } };
-  });
-  assert.deepEqual(withoutLandNotes((await pageState.json()).state.items), withoutLandNotes(fullState.document.state.items), 'a page server that has not opted in keeps every item in full');
+  assert.deepEqual((await pageState.json()).state.items, fullState.document.state.items, 'a page server that has not opted in keeps every item in full');
   const pageSummary = await fetchFresh('http://127.0.0.1:' + pagePort + box.path + '/state?detail=summary', { headers: { 'x-pullboard-key': 'page-fixture-secret' } });
   assert.deepEqual((await pageSummary.json()).state.items, summaryState.document.state.items, 'and sends summaries when asked');
 });
