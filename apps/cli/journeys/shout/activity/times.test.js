@@ -91,7 +91,8 @@ test('times say which day they were [N26]', async () => {
     const tomorrow = await openPage(view, { later: 1 });
     await tomorrow.click({ tab: 'shouts' });
     await tomorrow.click({ tab: 'activity' });
-    assert.deepEqual(ages(tomorrow.show('feed')), [new Date().toLocaleDateString([], { month: 'short', day: 'numeric' })], 'a shout from yesterday says its date');
+    assert.deepEqual(ages(tomorrow.show('feed')), [], 'a shout from an earlier day leaves the rows and folds under Earlier (#7572)');
+    assert.match(tomorrow.show('feed'), /Earlier/);
 
     const weekday = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
@@ -99,7 +100,7 @@ test('times say which day they were [N26]', async () => {
     await later.click({ tab: 'shouts' });
     await later.click({ tab: 'items' });
     await later.click({ tab: 'activity' });
-    assert.deepEqual(ages(later.show('feed')), [date], 'a shout from two days ago says its date');
+    assert.deepEqual(ages(later.show('feed')), [], 'a shout from two days ago stays folded under Earlier');
     const history = times(later.show('detail'));
     assert.ok(history.length >= 6 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt and each note: ${history}`);
 
