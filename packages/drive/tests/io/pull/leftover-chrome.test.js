@@ -29,10 +29,11 @@ async function stub(profile, orphaned = false) {
   const arg = `--user-data-dir=${profile}`;
   const child = orphaned ? spawn(process.execPath, ['-e', LAUNCHER], { stdio: ['ignore', 'pipe', 'ignore'], env: { PATH: process.env.PATH, STUB_CODE: STUB, STUB_ARG: arg } })
     : spawn(process.execPath, ['-e', STUB, '--', arg], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  const launched = orphaned ? once(child, 'exit') : null, closed = once(child, 'close');
   const [first] = await once(child.stdout, 'data');
   child.stdout.resume();
-  if (orphaned) await once(child, 'exit');
-  return { pid: Number(String(first).trim()), closed: once(child, 'close') };
+  await launched;
+  return { pid: Number(String(first).trim()), closed };
 }
 
 test('#7811 clause 1: the sweep after a job ends removes a detached browser that names the job folder, and only that one [C7]', async t => {
