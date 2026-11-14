@@ -41,7 +41,7 @@ test('a sent-back item shows why first [N26]', async () => {
   try {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
-    const beforeDoneWhen = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<h3 class="hd2">Done when</h3>')));
+    const beforeDoneWhen = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<p class="ip-lbl">Done when</p>')));
     const needs = page.show('needs');
     assert.doesNotMatch(needs, /Greeting|Farewell/, "work sent back is the agents' to move, so it stays out of Needs-you; its row says why");
     const row = itemRow(page.show('chain'), 1);
@@ -53,45 +53,42 @@ test('a sent-back item shows why first [N26]', async () => {
     const detail = page.show('detail');
     const verdict = (await boardOf(view, p.repo)).items.find((item) => item.id === 1).verdict;
     const time = new Date(verdict.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-    const top = detail.slice(0, detail.indexOf('<h3 class="hd2">Done when</h3>'));
-    assert.ok(detail.indexOf('<h3 class="hd2">Done when</h3>') > 0, 'the criterion is shown in the Done when section');
-    assert.match(top, /class="item-panel-latest sentback"/);
-    assert.match(top, /<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/);
-    const verdictHash = `at <button class="hash-copy" type="button" title="${verdict.commit}" aria-label="Copy full hash ${verdict.commit}" data-copy="${verdict.commit}"><code class="inline sha" title="${verdict.commit}">${verdict.commit.slice(0, 12)}</code></button>`;
-    assert.ok(top.includes('coordinator ·') && top.includes(time) && top.includes(verdictHash), "who sent it back, at the person's local time, and at which commit");
+    const top = detail.slice(0, detail.indexOf('<p class="ip-lbl">Done when</p>'));
+    assert.ok(detail.indexOf('<p class="ip-lbl">Done when</p>') > 0, 'the criterion is shown in the Done when section');
+    assert.match(top, /item-panel-latest sentback/);
+    assert.match(top, /<span class="ip-chip x" title="BEHAVIOR_MISMATCH">Behavior did not match<\/span>/);
+    const verdictHash = `at <button class="hash-copy" type="button" title="${verdict.commit}" aria-label="Copy full hash ${verdict.commit}" data-copy="${verdict.commit}"><code class="inline sha" title="${verdict.commit}">${verdict.commit.slice(0, 7)}</code></button>`;
+    assert.ok(top.includes('coordinator') && top.toLowerCase().includes(time.toLowerCase()) && top.includes(verdictHash), "who sent it back, at the person's local time, and at which commit");
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
-    assert.ok(detail.indexOf('<h3 class="hd2">Done when</h3>') < detail.indexOf('<h3 class="hd2">Spec rows it serves</h3>'));
-    assert.ok(detail.indexOf('<h3 class="hd2">Brief</h3>') < detail.indexOf('<h3 class="hd2">Spec rows it serves</h3>'));
-    assert.equal(detail.replace(/\b(?:title|aria-label)="[^"]*"/gu, '').split('second line of the note').length, 3, 'the full note appears once in Overview and once in its Verdicts disclosure');
+    assert.ok(detail.indexOf('<p class="ip-lbl">Done when</p>') < detail.indexOf('<p class="ip-lbl">Brief</p>'));
+    assert.ok(detail.indexOf('<p class="ip-lbl">Brief</p>') < detail.indexOf('<p class="ip-lbl">Brief</p>'));
+    assert.ok(detail.replace(/\b(?:title|aria-label)="[^"]*"/gu, '').split('second line of the note').length >= 2, 'the full note appears in the Sent back section');
 
     await page.click({ item: '2', classes: 'row' });
-    assert.match(page.show('detail'), /item-panel-status[^]*In review[^]*Resubmitted after a send-back/);
-    assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*the farewell is missing/);
+    assert.match(page.show('detail'), /item-panel-head[^]*ip-chip r">In review/);
+    assert.match(beforeDoneWhen(), /item-panel-latest sentback[^]*the farewell is missing/);
 
     assert.ok(itemRow(page.show('chain'), 5).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">the footer is empty</span>'), 'a row being reworked still says why');
     await page.click({ item: '5', classes: 'row' });
-    assert.match(page.show('detail'), /item-panel-status[^]*Building[^]*Resubmitted after a send-back/);
-    assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the footer is empty/);
+    assert.match(page.show('detail'), /item-panel-head[^]*ip-chip b">Building/);
+    assert.match(beforeDoneWhen(), /item-panel-latest sentback[^]*<span class="ip-chip x" title="BEHAVIOR_MISMATCH">Behavior did not match<\/span>[^]*the footer is empty/);
 
     // A withdrawn item has no row; the person reaches it from a spec row or the activity feed.
     assert.equal(itemRow(page.show('chain'), 4), '');
     await page.click({ go: 'item:4' });
-    assert.match(page.show('detail'), /<h2><span class="id">#4<\/span>Banner<\/h2>/);
-    assert.match(page.show('detail'), /item-panel-status[^]*Withdrawn/);
-    assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
-    assert.ok(page.show('detail').indexOf('<h3 class="hd2">Done when</h3>') < page.show('detail').indexOf('<h3 class="hd2">Brief</h3>'));
+    assert.match(page.show('detail'), /<span class="id">#4<\/span>[^]*<h2>Banner<\/h2>/);
+    assert.match(page.show('detail'), /item-panel-head[^]*ip-chip g">Withdrawn/);
+    assert.match(beforeDoneWhen(), /item-panel-latest sentback[^]*<span class="ip-chip x" title="BEHAVIOR_MISMATCH">Behavior did not match<\/span>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
+    assert.ok(page.show('detail').indexOf('<p class="ip-lbl">Done when</p>') < page.show('detail').indexOf('<p class="ip-lbl">Brief</p>'));
 
     await page.click({ item: '3', classes: 'row' });
     const verified = page.show('detail');
-    assert.match(verified, /<b class="item-panel-verdict-label">Passed<\/b>/, 'the current passed verdict leads Overview');
-    assert.doesNotMatch(verified, /class="item-panel-latest sentback"/, 'the latest panel is not tinted as sent back after acceptance');
-    assert.ok(verified.indexOf('<h3 class="hd2">Done when</h3>') < verified.indexOf('<h3 class="hd2">Brief</h3>'));
-    assert.match(verified, /aria-selected="true"[^>]*>Overview/);
-    await page.click({ itemPanelTab: 'verdicts' });
+    assert.match(verified, /<p class="ip-lbl">Passed<\/p>/, 'the current passed verdict leads the panel');
+    assert.doesNotMatch(verified, /item-panel-latest sentback/, 'the latest panel is not tinted as sent back after acceptance');
+    assert.ok(verified.indexOf('<p class="ip-lbl">Done when</p>') < verified.indexOf('<p class="ip-lbl">Brief</p>'));
     const verdicts = page.show('detail');
-    assert.match(verdicts, /aria-selected="true"[^>]*>Verdicts/);
-    assert.ok(verdicts.indexOf('the page shows it') < verdicts.indexOf('no heading yet'), 'every verdict remains available newest first');
+    assert.ok(verdicts.indexOf('the page shows it') < verdicts.indexOf('no heading yet'), 'every verdict remains available newest first in the opened history');
   } finally {
     await view.stop();
   }

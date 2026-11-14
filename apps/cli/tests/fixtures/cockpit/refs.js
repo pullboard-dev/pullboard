@@ -104,9 +104,9 @@ export async function proseReferencesAt(t, width) {
       }
       await chrome.click(`document.querySelector('[data-tab="items"]')`); await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
       // The latest verdict has its own panel, and the history row keeps its own copy (639c16dbb5); read the panel's.
-      await chrome.waitFor("document.querySelector('#detail .item-panel-latest .verdict .note')");
-      assert.equal(await chrome.stable("document.querySelectorAll('#detail .item-panel-latest .verdict .note .ref').length"), 1, 'verdict prose keeps its item reference');
-      await chrome.click("document.querySelector('#detail .item-panel-latest .verdict .note .ref')");
+      await chrome.waitFor("document.querySelector('#detail .item-panel-latest .note')");
+      assert.equal(await chrome.stable("document.querySelectorAll('#detail .item-panel-latest .note .ref').length"), 1, 'verdict prose keeps its item reference');
+      await chrome.click("document.querySelector('#detail .item-panel-latest .note .ref')");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
       await chooseFilter(chrome, 'state:active');
       await openItemsNeeds(chrome);

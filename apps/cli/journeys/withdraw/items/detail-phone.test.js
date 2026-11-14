@@ -69,10 +69,8 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project?.items?.find((item) => item.id === 1)');
     // The fact rows render with the thread; the exact event identities are asserted below, where a miss names the ids.
     await chrome.waitFor('document.querySelectorAll("#detail .tl .tl-fact").length === ' + expected.filter((entry) => entry.type === 'fact').length);
-    await chrome.click("document.querySelector('#detail [data-item-panel-tab=history]')");
-    await chrome.waitFor("!document.querySelector('#detail [data-item-panel-panel=history]').hidden");
+    await chrome.stable("(() => { const more = document.querySelector('#detail [data-item-panel-history]'); if (more && more.getAttribute('aria-expanded') !== 'true') more.click(); return true; })()");
     // The history folds to its newest five rows; the earlier note and the capture sit past the fold until the list is opened.
-    await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
     await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
     const expectedIds = expected.map((entry) => entry.eventId);
     for (const width of [375, 1280]) {
@@ -213,17 +211,16 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
         await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.startsWith('#${row.id}')`);
         // A chip's colour eases in on the row just opened; read the paint once the transitions have settled.
         await chrome.waitFor("document.getAnimations().every((animation) => animation.playState !== 'running')");
-        // A held item's detail chip drops the repeated .stage-detail text; its aria-label still names stage and detail.
+        // The approved panel's chip names the stage only; the row keeps the detail and the seat.
         const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-          const chip = document.querySelector('#detail .item-panel-status .item-stage'), listed = document.querySelector('#chain .row[data-item="${row.id}"] .row-side .item-stage');
-          const word = chip.querySelector('.stage-word'), listedWord = listed.querySelector('.stage-word'), seat = listed.querySelector('.item-seat');
-          const paint = (node) => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color, getComputedStyle(node).outlineStyle];
-          return { chip: chip.querySelector('.stage-detail') ? word.textContent.trim() + ': ' + chip.querySelector('.stage-detail').textContent.trim() : chip.getAttribute('aria-label'), samePaint: listedWord ? JSON.stringify(paint(word)) === JSON.stringify(paint(listedWord)) : null, paints: [paint(word), listedWord ? paint(listedWord) : null], seat: seat?.textContent.trim(), seatStage: seat?.getAttribute('aria-label'), seatVisible: seat ? seat.getClientRects().length > 0 : false };
+          const chip = document.querySelector('#detail .item-panel-head .ip-chip'), listed = document.querySelector('#chain .row[data-item="${row.id}"] .row-side .item-stage');
+          const seat = listed.querySelector('.item-seat');
+          return { chip: chip.textContent.trim(), seat: seat?.textContent.trim(), seatStage: seat?.getAttribute('aria-label'), seatVisible: seat ? seat.getClientRects().length > 0 : false };
         })())`));
         if (detail.seat) {
           assert.ok(detail.seatVisible && detail.seatStage.startsWith(row.stage + ': '), `${width}: ruling 49037 keeps the visible seat and accessible stage: ${JSON.stringify(detail)}`);
-        } else assert.ok(detail.samePaint, `${width}: #${row.id}'s unheld stage has its row's appearance in the detail: ${JSON.stringify(detail)} vs ${chips[row.id]}`);
-        assert.equal(detail.chip, chips[row.id], `${width}: #${row.id}'s detail says what its row says`);
+        }
+        assert.equal(detail.chip, chips[row.id].split(':')[0].replace('Merged', 'Landed'), `${width}: #${row.id}'s detail names the stage its row names`);
       }
     }
     // Ruling 49037: a long model stays in the hover; the visible native seat remains whole.

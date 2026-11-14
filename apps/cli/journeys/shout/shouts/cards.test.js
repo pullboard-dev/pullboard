@@ -202,7 +202,7 @@ test('clause 1: real Chrome styles shout code and item text without growing link
         linkedButtons: [...document.querySelectorAll('#feed > .shout')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('a.ref[data-go]').length,
         previewLinks: shout?.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
         outsideHtml: outside?.innerHTML, askNestedButtons: [...(ask?.querySelectorAll('button') || [])].filter(link => link.parentElement.closest('button')).length,
-        criterionHtml: itemDetail.querySelector('.item-panel-expand-text')?.innerHTML, briefHtml: itemDetail.querySelector('.item-panel-brief')?.innerHTML,
+        criterionHtml: itemDetail.querySelector('.ip-cl .t')?.innerHTML, briefHtml: itemDetail.querySelector('.item-panel-brief')?.innerHTML,
         needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentNestedButtons: [...document.querySelectorAll('#agents button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentItemHeight: agentItem?.getBoundingClientRect().height,

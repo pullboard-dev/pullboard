@@ -105,7 +105,7 @@ export async function createTransport({ onUpdate }) {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.click(`document.querySelector('#chain [data-item]')`);
-    await chrome.click(`document.querySelector('[data-item-panel-tab=history]')`);
+    await chrome.stable("(() => { const more = document.querySelector('#detail [data-item-panel-history]'); if (more && more.getAttribute('aria-expanded') !== 'true') more.click(); return true; })()");
     await chrome.waitFor(`${note('item')} === 'Older entries are still loading (75%).'`);
 
     // Complete: every line goes, and a redraw brings none back.

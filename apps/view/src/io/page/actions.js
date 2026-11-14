@@ -1029,10 +1029,10 @@ document.addEventListener('click', (event) => {
     timelineMore.textContent = expanded ? 'Show less' : 'Show all';
     return;
   }
-  const itemPanelTab = event.target.closest('[data-item-panel-tab]');
-  if (itemPanelTab) {
-    view.itemPanel = { root: view.root, item: view.item, tab: itemPanelTab.dataset.itemPanelTab };
-    render();
+  const itemClause = event.target.closest('[data-item-clause]');
+  if (itemClause) {
+    const open = itemClause.classList.toggle('open');
+    itemClause.setAttribute('aria-expanded', String(open));
     return;
   }
   const itemPanelMore = event.target.closest('[data-item-panel-more]');
@@ -1051,7 +1051,7 @@ document.addEventListener('click', (event) => {
     const historyKey = JSON.stringify([view.root, view.item]);
     if (expanded) view.historyOpen.add(historyKey); else view.historyOpen.delete(historyKey);
     itemPanelHistory.setAttribute('aria-expanded', String(expanded));
-    itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
+    itemPanelHistory.textContent = expanded ? 'Less' : 'All ›';
     return;
   }
   const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-choice],[data-status],[data-roadmap-jump],[data-roadmap-page],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-cost-copy],[data-cost-all],[data-root],[data-tab]:not(:root),[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');

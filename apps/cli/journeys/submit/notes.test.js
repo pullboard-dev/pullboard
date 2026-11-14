@@ -56,10 +56,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     chrome = await openSnapshotChrome(executable, href.href, join(box.dir, 'timeline-notes-chrome'));
     await chrome.waitFor('!!document.querySelector(\'[data-tab="items"]\')');
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
-    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-tab=history]")');
-    await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
+    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-history]")');
+    await chrome.stable("(() => { const more = document.querySelector('#detail [data-item-panel-history]'); if (more && more.getAttribute('aria-expanded') !== 'true') more.click(); return true; })()");
     await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
-    await chrome.click(`document.querySelector('#detail [data-item-panel-history]')`);
     // Other notes sit around it (the add records a short one), so the long note is found by its first line.
     const noteKey = await chrome.stable(`[...document.querySelectorAll('#detail .tl-note')].find(note => note.textContent.includes('Line 1: the complete note')).querySelector('[data-timeline-more]').dataset.timelineMore`);
     const noteSelector = '#detail .tl-note:has([data-timeline-more=' + JSON.stringify(noteKey) + '])';
@@ -72,7 +71,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector + ' .tl-body')}).textContent`), /Line 8: the complete note remains available after expansion/u);
     // The history lists other hashes too (claim base, frozen bar); this journey checks the one for the submitted commit.
     const timelineHash = `#detail .tl button.hash-copy[data-copy="${commit}"]`;
-    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 12));
+    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 7));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).dataset.copy`), commit);
     await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(timelineHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
@@ -95,8 +94,8 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await chrome.send('Page.navigate', { url: href.href });
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-copy]")');
     // The item panel's header names the submitted commit beside the item's status.
-    const itemHash = '#detail .item-panel-status .item-head-hash [data-copy]';
-    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 12));
+    const itemHash = '#detail .item-panel-head .ip-who [data-copy]';
+    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 7));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).dataset.copy`), commit);
     await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(itemHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
