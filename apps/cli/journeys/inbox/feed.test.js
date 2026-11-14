@@ -372,6 +372,8 @@ test('activity cursors leave events arriving during an observation pending [N26]
 
 test('inbox delivery uses real Git paths and board-bound cursors without consuming later news [R2,N26,H16]', async () => {
   const box = e2e.project();
+  // A seat's first read starts at the board head [C7,#6152], so it reads once before the activity this test expects.
+  assert.equal((await box.runLocal(box.web, 'inbox', '--json')).code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   const rowFile = 'web/feed-rows.md';
   const first = '## Goals\n- G1 [draft, should] First row.\n- G2 [draft, should] Other row.\n';
@@ -499,6 +501,8 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const foreignRoot = join(box.dir, 'interrupt-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', foreignRoot, 'main');
   assert.equal(fixtureJoin(box.run, foreignRoot, 'api', '--json').code, 0);
+  // A seat's first read starts at the board head [C7,#6152], so web-1 reads once before the interrupts it must receive.
+  assert.equal((await box.runLocal(box.web, 'inbox', '--json')).code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(e2e.commitFile(box, box.web, 'web/interrupt.txt', 'private interrupt fixture\n', 'feat(web): interrupt fixture [G1]').status, 0);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
