@@ -201,7 +201,15 @@ async function runMain(argv, streams) {
   const remoteJoin = parsed?.positionals[0] === 'join' && parsed.positionals[1] !== 'coordinator';
   if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && (remoteJoin || REMOTE_COMMANDS.has(parsed.positionals[0]))) {
     const remote = await import('../remote/board.js');
-    const target = remote.remoteBoard();
+    let target;
+    // A malformed machine settings file is an ordinary refusal, JSON under --json, not a thrown Refused [N2].
+    try { target = remote.remoteBoard(); } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      await io.prepareRefusal();
+      io.refusal(error);
+      io.flush(1);
+      return 1;
+    }
     if (target && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) return remote.runRemoteRead(io, parsed, target);
     // A seat's test runs here and posts only its receipt, so the board host never runs a test on its request path.
     if (target && parsed.positionals[0] === 'test') return (await import('../test/remote.js')).runRemoteTest(io, parsed.positionals.slice(1), parsed.values, target);
