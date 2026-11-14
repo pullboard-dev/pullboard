@@ -49,7 +49,7 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, 'about:blank', profile);
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 560, deviceScaleFactor: 1, mobile: false });
     // Keep this one real refresh under test control; every HTTP response and render remains real (#622).
     await allowLiveHold(chrome);
     await chrome.send('Page.navigate', { url: view.link.href });
