@@ -31,7 +31,8 @@ export function submitGatePlan(root, config, options) {
     proofCommand: 'node bin/proof.js ' + files.map(file => "'./" + file + "'").join(' ') };
 }
 `,
-    'bin/proof.js': `import { appendFileSync } from 'node:fs';
+    'bin/proof.js': "import './tests/proof.js';\n",
+    'bin/tests/proof.js': `import { appendFileSync } from 'node:fs';
 appendFileSync(process.env.PULLBOARD_FIXTURE_STEPS, JSON.stringify({ step: 'proof', files: process.argv.slice(2) }) + '\\n');
 if (${JSON.stringify(red)} && process.argv.includes(${JSON.stringify(red)})) { process.stdout.write(${JSON.stringify(redOutput)}); process.exit(1); }
 `,
