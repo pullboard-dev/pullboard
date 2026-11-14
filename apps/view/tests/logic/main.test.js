@@ -109,6 +109,11 @@ test('Items selection applies explicit search, state, lane and rank observations
   const addressed = selectItemsView({ items, stateById, state: 'active', lane: null, selectedId: 99,
     currentBoard: true, tab: 'items', addressDetail: '99' });
   assert.equal(addressed.nextSelectedId, 99, 'a direct item address keeps its missing id for the not-found detail');
+  const openFirst = selectItemsView({ items: [items[0], items[1]], stateById, state: 'active', lane: null, finished: { verified: 2929, withdrawn: 3074 } });
+  assert.deepEqual(openFirst.stateOptions.map(option => [option.value, option.count]), [['active', 2], ['verified', 2929], ['all', 2931]],
+    'an open-first state shows the finished counts it carries until the finished items load');
+  const nothingOpen = selectItemsView({ items: [], stateById: new Map(), state: 'active', lane: null, tab: 'items', finished: { verified: 3, withdrawn: 0 } });
+  assert.equal(nothingOpen.finishedUnderAll, true, 'a board whose open work is done says so from the counts');
   assert.throws(() => selectItemsView({ items, stateById: { 4: { state: 'open' } }, state: 'active' }), /stateById must be a Map/u);
 });
 

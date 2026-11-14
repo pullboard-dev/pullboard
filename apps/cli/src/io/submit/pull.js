@@ -26,6 +26,7 @@ import { oversizeNote } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
 import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
+import { noteSubmitSession } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
@@ -333,6 +334,9 @@ else {
   const runnerEdit = !refusals.length && analysis.plan?.proofCommand ? changedRunner(analysis.plan.proofCommand) : null;
   if (runnerEdit) refusals.push({ part: 'proof', code: 'PROOF_RUNNER_CHANGED', paths: [runnerEdit],
     message: 'the candidate changed the imports of the proof runner ' + runnerEdit + ' against accepted main; next: land the runner change as its own item, then resubmit' });
+  // A registered guard or submit invariant the candidate deleted refuses as the controller gate did, rather than silently leaving the proof [V4,C7,#7725].
+  const lostGuard = !refusals.length ? [...(analysis.plan?.invariants ?? []).map(path => ['submitInvariants', path]), ...(analysis.plan?.registryGuards ?? []).map(path => ['registryGuards', path])].find(([, path]) => !existsSync(join(root, path))) : null;
+  if (lostGuard) refusals.push({ part: 'proof', code: 'BAD_CONFIG', message: lostGuard[0] + ' file ' + lostGuard[1] + ' is missing or unreadable; restore it or update the list on accepted main' });
   const unbrowsed = !refusals.length && analysis.plan?.proofCommand ? browserless(analysis.plan.proofFiles, analysis.plan.selection?.full === true) : [];
   if (unbrowsed.length) refusals.push({ part: 'proof', code: 'BROWSER_UNAVAILABLE', paths: unbrowsed.slice(0, 200), message: browserRefusal(unbrowsed) });
   if (!refusals.length && !receipt.analysis.infra) {
@@ -482,6 +486,8 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
 export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix }) {
   const { root } = ctx.info;
   const id = held.item_id;
+  // The session ledger notes every submit as it did on the controller path; refuse before any job row when it cannot be written [V1,B3,#7725].
+  noteSubmitSession(ctx.info, id, false);
   // The gate judges what would land: the builder head, or the companions composed onto it.
   const source = companion?.commit ?? commit;
   const configured = submitGateConfig(full || companion ? policyAt(root, source).config : ctx.config, main.config);
@@ -516,6 +522,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
   const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request }));
+  noteSubmitSession(ctx.info, id, true);
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
