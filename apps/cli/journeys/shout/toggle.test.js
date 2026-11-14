@@ -46,7 +46,7 @@ async function measureControl(chrome, selector) {
         const css = getComputedStyle(button), box = button.getBoundingClientRect(), count = button.querySelector('b'), n = count && getComputedStyle(count);
         const edges = [...button.querySelectorAll('.seg-hit')].map(edge => edge.getBoundingClientRect());
         const hitHeight = Math.max(box.bottom, ...edges.map(edge => edge.bottom)) - Math.min(box.top, ...edges.map(edge => edge.top));
-        return { text:button.childNodes[0]?.textContent, count:count?.textContent, pressed:button.getAttribute('aria-pressed'),
+        return { key:button.getAttribute('data-rows'), text:button.childNodes[0]?.textContent, count:count?.textContent, pressed:button.getAttribute('aria-pressed'),
           height:box.height, hitHeight, edgeWidths:edges.map(edge => edge.width), width:box.width, font:css.fontFamily, size:css.fontSize, weight:css.fontWeight, radius:css.borderRadius,
           padding:[css.paddingTop,css.paddingRight,css.paddingBottom,css.paddingLeft], color:css.color, background:css.backgroundColor,
           shadow:css.boxShadow, border:css.borderTopWidth, countSize:n?.fontSize, countFont:n?.fontFamily,
@@ -119,8 +119,8 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
         }
         if (pane === 'spec' || pane === 'doctrine') {
           const rows = pane === 'spec' ? native.spec : native.practice;
-          assert.equal(actual.options.find(option => option.text === 'All rows').count, String(rows.length));
-          assert.equal(actual.options.find(option => option.text === 'Approved').count, String(rows.filter(row => row.status === 'approved').length));
+          assert.equal(actual.options.find(option => option.key === pane + ':all').count, String(rows.length));
+          assert.equal(actual.options.find(option => option.key === pane + ':approved').count, String(rows.filter(row => row.status === 'approved').length));
         } else assert.ok(Number(actual.options.find(option => option.text === 'Shouts').count) > 0, 'a real native shout is counted');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
