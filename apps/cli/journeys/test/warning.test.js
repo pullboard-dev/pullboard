@@ -12,6 +12,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
   installSshStandIn,
@@ -64,10 +65,15 @@ test('clause 1: pullboard test from a checkout with an uncommitted tracked edit 
   assert.doesNotMatch(ran.err, /admitted on|queued test run/u, 'nothing is offered before the refusal');
 });
 
-test('clause 2: pullboard test from a clean checkout prints no uncommitted-changes line [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one stand-in runner run.
+test('clause 2: pullboard test from a clean checkout prints no uncommitted-changes line [C7]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one queued run.
   const box = await greenProject();
+  // A seat holding a claim queues its run and returns; a pulled run of an unclaimed seat would wait for a runner this fixture does not serve [C7,P7,#5772].
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Clean test run');
+  assert.equal(added.code, 0, added.err);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   // Process-level case: as above, only the real process stderr could carry the notice, so a clean run is read there.
   const ran = box.run(box.web, 'test', 'test/green.test.js');
   assert.equal(ran.code, 0, ran.err);
-  assert.doesNotMatch(ran.err, /uncommitted changes/u);
+  assert.doesNotMatch(ran.err, /uncommitted changes|TEST_UNCOMMITTED/u);
+  assert.match(`${ran.out}${ran.err}`, /queued test run/u, 'a clean tree is queued, not refused');
 });
