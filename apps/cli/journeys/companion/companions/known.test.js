@@ -147,8 +147,8 @@ test('an untouched inherited failure passes with a real docs companion [V4,B3]',
   attachCompanion(box, 'docs/companion.md', readFileSync(join(box.builder, 'docs/companion.md'), 'utf8'), 'Before.', 'After.');
   const report = await settledSubmit(t, box, { submitted: true });
   assert.equal(report.gate.green, false);
-  assert.equal(report.gate.knownMainFailures.main, box.main);
-  assert.deepEqual(report.gate.knownMainFailures.failures.map(row => row.file), ['test/inherited.test.js']);
+  assert.equal(report.submission.submissionProof.knownMainFailures.main, box.main);
+  assert.deepEqual(report.submission.submissionProof.knownMainFailures.failures.map(row => row.file), ['test/inherited.test.js']);
   assert.ok(submittedProof(box), 'actual native submit event was recorded');
 });
 
