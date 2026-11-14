@@ -92,7 +92,8 @@ test('submit precheck refuses a candidate stacked on an unverified item without 
   assert.equal(first.gate?.green, true, JSON.stringify(first.gate));
   const firstCommit = JSON.parse((await inProcess(box, box.root, 'show', '1', '--json')).out).item_commit;
   assert.match(firstCommit, /^[0-9a-f]{40}$/u);
-  assert.equal((await inProcess(box, join(box.dir, 'repo'), 'add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--check', MARK(markers.item), '--wait', '--not-duplicate-of', '1 fail fast fixture')).code, 0);
+  const added = await inProcess(box, join(box.dir, 'repo'), 'add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--check', MARK(markers.item), '--wait', '--not-duplicate-of', '1 fail fast fixture');
+  assert.equal(added.code, 0, added.out + added.err);
   assert.equal((await inProcess(box, box.root, 'claim', '2')).code, 0);
   put(box.root, 'src/b.js', 'export const other = 1;\n');
   commitAll(box, 'feat(core): the stacked item adds a source [G1]');
