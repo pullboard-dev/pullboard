@@ -94,7 +94,7 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
   succeeds(box, box.web, 'claim', String(id));
   const accepted = content(box, box.web, 'accepted', 'feat(web): accepted choice [G1]');
   // A pulled submit returns queued; settle its gate job so the item is submitted before review [P7,C7].
-  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.run(cwd, ...args) },
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) },
     JSON.parse(succeeds(box, box.web, 'submit', String(id), '--json').out));
   box.git(box.repo, 'switch', '-q', '--detach', accepted);
   try {
