@@ -202,5 +202,6 @@ export { requireCriterionEvidence, clauseEvidenceWarnings, guardBar } from './sr
 export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
 export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { ASK_CLOSE_ENGINE } from './src/logic/engines/ask-close-engine.js';
+export { PULLED_RED_COUNT_ENGINE } from './src/logic/engines/pulled-red-count-engine.js';
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export { INFRA_RELEASE_ENGINE } from './src/logic/engines/infra-release-engine.js';

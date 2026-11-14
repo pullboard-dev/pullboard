@@ -3,6 +3,7 @@ import { dependencyWaiters } from '../../../../../items/index.js';
 import { dependencyWorkAt } from '../../../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../../../state/index.js';
+import { PULLED_RED_COUNT_ENGINE } from '../../../../../state/index.js';
 import { claimProgress } from '../../../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../../../kernel/light.js";
@@ -123,7 +124,7 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   const observed = Date.parse(snapshot.observedAt);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE && redReturnLeaseHolds(board, item, observed)) changed();
   if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
-  const progress = row.idle === 'progress' ? claimProgress(board, item, observed, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }) : null;
+  const progress = row.idle === 'progress' ? claimProgress(board, item, observed, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, pulledReds: (board.executionEngineVersion ?? ENGINE_VERSION) >= PULLED_RED_COUNT_ENGINE }) : null;
   // A holder who committed in the last 30 minutes is working, whatever the failures or the clock say [B4,B5].
   if (progress && (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && row.commitAt != null
     && observed - Date.parse(row.commitAt) < RECENT_COMMIT_MS) invalid();

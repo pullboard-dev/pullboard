@@ -146,8 +146,11 @@ export function manualLandingFailure(note, { quoted = false } = {}) {
 /** Refusal codes raised by the runner stage of submit: the gate and the frozen check. */
 const RUNNER_STAGE_CODES = new Set(['GATE_RED', 'CHECK_RED', 'TEST_FAILURE']);
 
+/** The measurement fact applyGateReceipt writes for a red pulled gate job. */
+const PULLED_RED_FACT = /^Gate job \S+ red at [0-9a-f]{7,64}; failing parts:/u;
+
 /** Derive progress from native moves: renewals and notes never restart the two-hour submit clock [B4,B5]. */
-export function claimProgress(board, item, now, { runnerOnly = false } = {}) {
+export function claimProgress(board, item, now, { runnerOnly = false, pulledReds = true } = {}) {
   const history = board.db.prepare('SELECT event_id,event_at,event_by,event_kind,event_detail FROM event WHERE item_id=? ORDER BY event_id').all(item.item_id);
   let holder = null, since = null, failures = 0;
   const notes = [];
@@ -162,7 +165,9 @@ export function claimProgress(board, item, now, { runnerOnly = false } = {}) {
     if (event.event_kind === 'accept') failures = 0;
     // From the returns engine on, only the runner stage counts: a fast-stage refusal (conflict, lint, cuts, static) is fixed in minutes [B4,B5].
     const real = !runnerOnly || (RUNNER_STAGE_CODES.has(detail.submitOutcome?.code) && detail.submitOutcome?.stage !== 'fast');
-    if ((detail.submitOutcome && real && event.event_by === item.item_owner) || (event.event_kind === 'reject' && holder === item.item_owner)) failures += 1;
+    // A pulled gate's red receipt writes a measurement fact, not a submit outcome; it counts as one failure unless the caller replays an engine older than the pulled-red one [C7].
+    const pulledRed = pulledReds && event.event_kind === 'fact' && detail.kind === 'measurement' && event.event_by === item.item_owner && PULLED_RED_FACT.test(detail.text ?? '');
+    if (pulledRed || (detail.submitOutcome && real && event.event_by === item.item_owner) || (event.event_kind === 'reject' && holder === item.item_owner)) failures += 1;
     if (['release', 'withdraw', 'merged'].includes(event.event_kind) && !detail.review) { holder = null; since = null; failures = 0; }
   }
   const elapsed = now - Date.parse(since);

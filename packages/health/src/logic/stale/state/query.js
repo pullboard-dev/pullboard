@@ -1,6 +1,7 @@
 import { STRANDED_DEPENDENCY_ENGINE } from '../../../../../state/index.js';
 import { claimProgress } from '../../../../../items/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../../../state/index.js';
+import { PULLED_RED_COUNT_ENGINE } from '../../../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../../state/index.js';
 /** Indexed read-only stale-state observations; no Git scanner or write-board import on status [B4,C7]. */
 import { latestStaleActivity } from '../../../../../store/index.js';
@@ -139,7 +140,7 @@ function claimRow(board, item, limits, now, seats, options) {
   return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimAt: event?.event_at ?? null,
     heartbeatAt: seats.get(item.item_owner)?.heartbeatAt ?? null, claimEventId: event?.event_id ?? null,
     leaseEventId: lease?.event_id ?? null, leaseStartedAt: lease?.event_at ?? null, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease?.event_at),
-    progress: claimProgress(board, item, now, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }), commitAt: observed.commitAt ?? null, episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
+    progress: claimProgress(board, item, now, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, pulledReds: (board.executionEngineVersion ?? ENGINE_VERSION) >= PULLED_RED_COUNT_ENGINE }), commitAt: observed.commitAt ?? null, episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
 }
 
 /** Building, stalled (20 idle minutes) or waiting on an unlanded item, from real work signals only (#1225). */
