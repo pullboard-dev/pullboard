@@ -20,6 +20,9 @@ import { laneOf } from '../logic/lane/lookup.js';
 
 export { laneOf };
 
+/** The one spelling of "the whole repo" a lane may own. */
+const ROOT_LANE_PATH = './';
+
 /**
  * Every lane name, the coordinator first.
  *
@@ -60,14 +63,17 @@ export function outOfLane(config, lane, paths) {
 
 /**
  * One path as a lane prefix: forward slashes, no leading `./`, and a trailing slash on a folder
- * that exists, so `packages/web` cannot also claim `packages/webby`.
+ * that exists, so `packages/web` cannot also claim `packages/webby`. `.` and `./` both mean the
+ * repo root and both become `./` (P7754), which `laneOf` treats as owning every path.
  *
  * @param {string} root
  * @param {string} path
  * @returns {string}
  */
 export function lanePath(root, path) {
-  let prefix = String(path).trim().replaceAll('\\', '/').replace(/^(?:\.\/)+/u, '');
+  const given = String(path).trim().replaceAll('\\', '/');
+  if (/^(?:\.(?:\/+|$))+$/u.test(given)) return ROOT_LANE_PATH;
+  let prefix = given.replace(/^(?:\.\/)+/u, '');
   if (!prefix || prefix.startsWith('/') || prefix.split('/').includes('..')) {
     throw new Refused('BAD_LANE_PATH', `"${path}" is not a folder inside this repo; give a path relative to the repo root, like packages/web/`);
   }
