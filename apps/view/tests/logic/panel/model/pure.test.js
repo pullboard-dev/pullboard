@@ -70,6 +70,11 @@ test('clause 1: a thread is one row with its messages and a reply box only while
   assert.match(opened, /<form class="sx-reply" data-reply="item:613"><i class="sx-si you"><\/i><input[^>]*placeholder="Reply on #613"/u, 'the reply box is inside the thread');
   assert.match(opened, /<button class="sx-xb" type="button" data-shout-thread=""/u, 'a close control, besides Esc and a second click');
   assert.equal(shoutsView({ foundId: 3 }).openKey, 'item:613', 'an address that names a shout opens its thread');
+  const long = Array.from({ length: 25 }, (_, n) => shoutOf(100 + n, 'core-1', today + 36e5 + n, { item: '613', text: 'note ' + n }));
+  const folded = shoutsHtml(shoutsModel({ messages: long, items: itemFacts, startOfToday: today, openKey: 'item:613' }), format);
+  assert.equal([...folded.matchAll(/class="sx-msg[ "]/gu)].length, 12, 'a long thread shows its latest twelve messages');
+  assert.match(folded, /data-fold="msgs:item:613"[^>]*>13 earlier messages<\/button>/u, 'and one line for the rest');
+  assert.equal([...shoutsHtml(shoutsModel({ messages: long, items: itemFacts, startOfToday: today, openKey: 'item:613', foundId: 100 }), format).matchAll(/class="sx-msg[ "]/gu)].length, 25, 'an addressed shout opens the whole thread');
   assert.match(shoutsHtml(shoutsView({ openKey: 'item:613' }), { ...format, readOnly: true }), /class="sx-tp"/u);
   assert.doesNotMatch(shoutsHtml(shoutsView({ openKey: 'item:613' }), { ...format, readOnly: true }), /sx-reply/u, 'a read-only page never offers a reply');
 });
