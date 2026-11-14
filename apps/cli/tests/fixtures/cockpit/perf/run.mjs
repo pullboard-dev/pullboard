@@ -63,7 +63,7 @@ const VIEW_STOP_TIMEOUT_MS = 5_000;
 const LANES = ['core', 'view', 'coordinator', 'docs'];
 const VIEWER_ACTIONS = [
   // Shouts opens on its conversation list since 3a98fbee36; a thread's shouts show only after a press.
-  ['tab:shouts', 'shouts', '#feed .sx-msg'],
+  ['tab:shouts', 'shouts', '#feed .sx-th'],
   ['tab:spec', 'spec', '#spec-list .row'],
   ['tab:doctrine', 'doctrine', '#doctrine-list .row'],
   ['tab:activity', 'activity', '#activity > *'],
@@ -551,7 +551,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     await beginAction(chrome, 'idleSetup', 'mousedown');
     await press(chrome, "document.querySelector('[data-tab=\"shouts\"]')");
     // A live shout updates its conversation row's preview, so the feed's text still shows each write as it lands.
-    await waitPaintedAndStable(chrome, network, 'idleSetup', '#feed .sx-msg',
+    await waitPaintedAndStable(chrome, network, 'idleSetup', '#feed .sx-th',
       `document.querySelector('.tab.on')?.dataset.tab === 'shouts'`);
     const liveMessages = Array.from({ length: Math.ceil(idleMs / liveEveryMs) }, (_, index) =>
       `Live stress update ${index + 1} for seed ${board.seed}, run ${runIndex + 1}.`);
@@ -572,10 +572,10 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       if ([...window.__pb606IdleExpected.values()].some(at => at !== null)) {
         throw new Error('a live update marker was already present before this idle sample');
       }
-      })()`, "document.querySelector('#feed .sx-msg')");
+      })()`, "document.querySelector('#feed .sx-th')");
     let liveBoard = null;
     let liveWrites = 0;
-    const idleStart = await chrome.stable('performance.now()', "document.querySelector('#feed .sx-msg')");
+    const idleStart = await chrome.stable('performance.now()', "document.querySelector('#feed .sx-th')");
     const wallStart = nodePerformance.now();
     const liveWriteOffsetsMs = [];
     try {
@@ -603,7 +603,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
         await new Promise(resolve => setTimeout(resolve, 50)); // budget: poll tick for the render wait, not action performance.
       }
       return false;
-    })()`, "document.querySelector('#feed .sx-msg')");
+    })()`, "document.querySelector('#feed .sx-th')");
     const idle = await chrome.stable(`(() => {
       window.__pb606IdleScan?.();
       const endAt = performance.now();
@@ -612,7 +612,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       report.renderedWrites = renderedAtMs.filter(({ at }) => Number.isFinite(at) && at <= endAt).length;
       report.renderedAtMs = renderedAtMs.map(({ at }) => Number.isFinite(at) ? at - ${idleStart} : null);
       return report;
-    })()`, "document.querySelector('#feed .sx-msg')");
+    })()`, "document.querySelector('#feed .sx-th')");
     idle.liveWriteOffsetsMs = liveWriteOffsetsMs;
     Object.assign(idle, network.snapshot('idleWithLiveWrites', idleStart, idle.endMs, idle.timeOrigin));
     idle.liveWrites = liveWrites;
