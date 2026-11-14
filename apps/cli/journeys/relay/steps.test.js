@@ -1,7 +1,10 @@
 /** A relay refusal's next step is a command the person can run, and running it resolves the refusal [C7,H17]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+} from 'node:fs';
 import {
   join,
   resolve,
@@ -78,7 +81,7 @@ test('RELAY_ACTOR names unset PULLBOARD_RELAY_TOKEN for another agent\'s token, 
   const token = typeof other === 'string' ? other : other.token;
   const wrong = spawnSync(process.execPath, [CLI, 'shout', 'all', 'sent with the wrong token', '--json'], { cwd: box.root, env: { ...box.env, PULLBOARD_RELAY_TOKEN: token }, encoding: 'utf8' });
   const { error } = JSON.parse(wrong.stdout);
-  assert.equal(error.code, 'RELAY_ACTOR');
+  assert.equal(error.code, 'RELAY_ACTOR', error.message);
   assert.equal(error.next, 'run unset PULLBOARD_RELAY_TOKEN in this shell, then run the command again');
   const rerun = await box.cliLocal('shout', 'all', 'sent with the wrong token');
   assert.equal(rerun.code, 0, 'without the token the move is sent');
