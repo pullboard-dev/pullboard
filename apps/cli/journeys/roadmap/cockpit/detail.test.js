@@ -105,7 +105,15 @@ test('expanding a roadmap row paints its detail within 100 ms [N26]', { timeout:
     await chrome.waitFor('data?.project?.items?.length === 1038', 30_000); // budget: hang ceiling for the first read of a board our size.
     stage('state-ready');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
-    await chrome.waitFor("view.tab === 'roadmap' && document.querySelectorAll('#roadmap .milestone-item').length > 100", 30_000); // budget: hang ceiling for the first roadmap draw.
+    await chrome.waitFor("view.tab === 'roadmap' && document.querySelectorAll('#roadmap .milestone-item').length > 0", 30_000); // budget: hang ceiling for the first roadmap draw.
+    // Only the next release lists its items (#7303), so open enough releases, each by its own head, for a roadmap past 100 rows.
+    const closed = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#roadmap-list > [data-key^="m:"] .milestone-head[aria-expanded=false]')].slice(0, 24).map((head) => head.dataset.roadmapKey))`));
+    for (const key of closed) {
+      const head = `document.querySelector('#roadmap-list .milestone-head[data-roadmap-key=${JSON.stringify(key)}]')`;
+      await chrome.click(head);
+      await chrome.waitFor(`${head}.getAttribute('aria-expanded') === 'true'`, 30_000); // budget: hang ceiling for one release to open.
+    }
+    await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length > 100", 30_000); // budget: hang ceiling for the opened releases' rows.
     stage('roadmap-ready');
     // A row below the fold, never fetched ahead: its detail can only come from the delayed request.
     const far = await chrome.stable(`[...document.querySelectorAll('#roadmap .milestone-item[aria-expanded=false]')].filter((each) => /^i:#\\d+$/u.test(each.dataset.roadmapKey)
