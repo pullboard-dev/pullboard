@@ -313,10 +313,13 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   pagePort = page.address().port;
   t.after(() => new Promise((done) => { pageHandler.close(); page.close(done); page.closeIdleConnections(); }));
   const pageState = await fetchFresh('http://127.0.0.1:' + pagePort + box.path + '/state', { headers: { 'x-pullboard-key': 'page-fixture-secret' } });
-  // The same async land retry notes can land between these two full reads, so drop them (thread and tally) from both before comparing.
+  // The same async land retry notes can land between these two full reads, so drop them (thread, history, tally and the activity stamps they move) from both before comparing.
   const withoutLandNotes = (items) => items.map((item) => {
     const kept = item.thread.filter((entry) => !landNote(entry));
-    return { ...item, thread: kept, counts: { ...item.counts, facts: kept.filter((entry) => entry.type === 'fact').length } };
+    const landAt = new Set(item.thread.filter(landNote).map((entry) => entry.at));
+    const { updatedAt, since, ...rest } = item;
+    const { lastActivity, ...progress } = rest.progress ?? {};
+    return { ...rest, progress, thread: kept, history: item.history.filter((event) => !(event.kind === 'fact' && landAt.has(event.at))), counts: { ...item.counts, facts: kept.filter((entry) => entry.type === 'fact').length } };
   });
   assert.deepEqual(withoutLandNotes((await pageState.json()).state.items), withoutLandNotes(fullState.document.state.items), 'a page server that has not opted in keeps every item in full');
   const pageSummary = await fetchFresh('http://127.0.0.1:' + pagePort + box.path + '/state?detail=summary', { headers: { 'x-pullboard-key': 'page-fixture-secret' } });
