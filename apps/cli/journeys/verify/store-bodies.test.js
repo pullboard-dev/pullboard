@@ -21,6 +21,7 @@ import { test } from 'node:test';
 // Re-pinned 11 Nov after reviewed landings: board-query (ac9653241e), board-command-write and board-verify (82ca036e35), board-finish-landing-batch (96a966ffbe), submit-handoff-state (5bff25e8cc).
 // Re-pinned 13 Nov (item 7397) to the bodies accepted on main since: light kernel doors, stats and claim logic, pulled-gate Main red checks (45 bodies).
 // Re-pinned 14 Nov (item 7808) after reviewed landings: 18 bodies moved by e798c085c7, 6a6394afc0, 766eb82fc6, a8399ded10, ea18d8c575, ada2a1b011, fbaee37dec, 53bdc94772, 6e4e5126c3, 578c90e900, 79ba62d636, 5cf9cd6b67, b055195066, 5eaa4827f3, ef7f53565a, 7b06cbf52d, effe9dbaba, ce5e9ff0c6, 0dd4a7b014.
+// Re-pinned 14 Nov (item 7848) after reviewed landings: board-query by c7342b7542 (#7782: imports boardDataVersion from read/light.js, no behaviour change), submit-handoff-read by 82b4f2acfa (#7801: handoffRecords takes a live option that skips verified and withdrawn items; default unchanged).
 const STORE_BODY_HASHES = {
   "src/exit-rules-continuation.js": "e6ce02be3e201fbf7db44f14e3e7a8a08d21ad6f70a07e8ac1351f719e2d89ed", "src/exit-rules-state.js": "1c315bdb875537016effdc05debbca272ebd4aab9ed7680e0dd25041f479d7c2",
   "src/known-main-autofile.js": "6968ec59d36eae7ab25ca881e0a1959f8ae12ca95b70950fc89770b7755afbb0", "src/board-access.js": "4f87d0c27565b15216dcc73d14c542a3b4f78aad3a06eba8a590cf4b486a1192",
@@ -32,7 +33,7 @@ const STORE_BODY_HASHES = {
   "src/board-link-relay.js": "b216005052b2318b06d0995c441ca42747ccce1aa15c2333dd3bb9a93c19cd40", "src/board-link-ssh.js": "292a01501f32f0dba58141e4332c916ff810a8a2a938ab1c68bba284b80ca9c7",
   "src/board-link-state.js": "ec5bae5c8030702aed67d453d9e92360135328ad302cf1e387f816d8f7041ac3", "src/board-link.js": "5f9514dd7aa0025a00e473d80579c1ced442bb674053c8951ba55248287d8850",
   "src/board-members.js": "354b8ae937d85dbb59fc452e658e49941a70fd7beedf014a2becfa69ba258126", "src/board-migrate.js": "e2c668a8a4a61c620932faadf5e78a5afb34147103514a93ec3408587895c504",
-  "src/board-query.js": "45c84ca554ff25e949eca06284fe76f6088c288b1f3bc6a55f539d6cce2d4b99", "src/board-read-auxiliary.js": "6f5758038735a0ed7b875bf73e1fbdf5116922b5c51bfa6311d94eeabff6f044",
+  "src/board-query.js": "1402486ef67d836da93ad843af4fa0e22ee745ba4c0e1367ed9e3814702f7e6d", "src/board-read-auxiliary.js": "6f5758038735a0ed7b875bf73e1fbdf5116922b5c51bfa6311d94eeabff6f044",
   "src/board-read-open.js": "823c9332c04a8a71c5de958fd12acdfa3be4bb7fe19eb9ab992c10efe087c775", "src/board-rehome.js": "ea3f4a0b7ab9584917f404e072c3b1462b2525b1084487ffaa528bbf0f486a21",
   "src/board-schema-source.js": "5c3452d8f15cd9dae45d0018bbdc8cafab5d33550fe82a932f496ee5dec91f0e", "src/board-schema.js": "a8b3576cab7549f81130ee48fde633018ec27369f817689b4126721008c8bef2",
   "src/board-signing-recovery.js": "5d29d936067c3514891d4d8bb050124446cd4e62298d5f84e8d86f69bacd6689", "src/board-stats.js": "f42d444e9bfaa4d3ff9e4c24d40a152d83df6a76e16d93dd72a5c5cfaf36df28",
@@ -88,7 +89,7 @@ const STORE_BODY_HASHES = {
   "src/board-escalate.js": "3a457e6f089927f235f884156e0ec91679ccb91885bb657ea33672103bccad0c", "src/board-record-attempt.js": "26f5280b217eac6d3f3591533961c2eefd64abf7eb36da5335cae68ecccf3691",
   "src/board-line-settings.js": "7082cabaf5c606a0c61f37b51e33802669f8b30c1baa0d496c265ce6a5a414bb", "src/board-coordinator-hold.js": "26c6471c07f37a019f1e37ccf24d326dd156fb6ecbc7eb2ea74657681ca04545",
   "src/release-reasons.js": "d28b1645a22541d89f256af4175bb831ba73c849d7a2e4a3e6faf721229d1cb6", "src/submit-outcome.js": "8607c2830b46b748a072730ee8edf4d35ad64c46c185c41236857ff0967ee740",
-  "src/submit-handoff-state.js": "1f49d3281af38631072132a08b5abb1d198b78f01f25c9369cde880c5fb12004", "src/submit-handoff-read.js": "895bcbf7bf57f7bc053e1173e8e0ed3c2d570851013df9d1416baf396bdf4761",
+  "src/submit-handoff-state.js": "1f49d3281af38631072132a08b5abb1d198b78f01f25c9369cde880c5fb12004", "src/submit-handoff-read.js": "f742ca40556663414b4805466e6969ad69ba22b2404a89d0ab4f46d621ffae66",
   "src/rework-family-routing.js": "7ea6a18eefb12f8843f6c7ee11b1070983ebf6746bddc97d321865b9342d76e0",
 };
 
