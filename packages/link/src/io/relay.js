@@ -1026,7 +1026,7 @@ export async function syncRelay(root, io) {
         }
       } else if (error.code === 'AUTH_REQUIRED') {
         if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
-      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
+      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; ${error.code === 'RELAY_ACTOR' && error.next ? error.next : 'run pullboard status to see pending uploads'}`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, io.openBoard)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
         recovery: recoverySummary(state), ...io.outboxFields(state),
