@@ -437,14 +437,14 @@ else {
         await waitForDemoBoard(view, repo);
         if (!roadmapOnly) {
           await view.viewport(1440, 900);
-          await view.evaluate("document.querySelector('#filter-toggle').click(); document.querySelector('#filter-menu [data-filter-choice=\"state:all\"]').click()");
+          await view.evaluate("document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"all\"]').click()");
           await view.waitFor("!!document.querySelector('#chain .row[data-item=\"1\"]')", 'accepted item in All');
           await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
           await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted')", 'selected accepted item');
           await view.waitFor("!!document.querySelector('#item-panel-tab-verdicts')", 'verdicts tab');
           await view.evaluate("document.querySelector('#item-panel-tab-verdicts').click()");
           await view.waitFor("document.querySelector('#detail').textContent.includes('The example skipped an edge') && document.querySelector('#detail').textContent.includes('edge passes')", 'both verdicts');
-          await view.evaluate("document.querySelector('#filter-toggle').click(); document.querySelector('#filter-menu [data-filter-choice=\"state:active\"]').click()");
+          await view.evaluate("document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"active\"]').click()");
           await view.waitFor("!document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('Questions and sentinels') && document.querySelector('#detail').textContent.includes('edge passes')", 'Active items, Questions and sentinels and the selected review history');
           await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
           for (const theme of THEMES) {

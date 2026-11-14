@@ -30,8 +30,6 @@ export async function browser(chrome, profile, url) {
 
 /** Wait for this demo's API data and rendered controls before storage writes or selection. */
 export async function waitForDemoBoard(view, repo) {
-  const ready = `typeof data !== 'undefined' && data?.project?.root === ${JSON.stringify(repo)} && data.root === view.root && view.tab === 'items' && data.projects.some(project => project.root === ${JSON.stringify(repo)} && project.ok && project.name === 'Demo board') && data.project.items.some(item => item.id === 1 && item.title === 'Reviewed and accepted') && !!document.querySelector('#filter-toggle')`;
-  try { await view.waitFor(ready, 'x'); return; } catch { /* diagnostic only */ }
-  console.error('DIAG', JSON.stringify(await view.evaluate(`({d: typeof data, root: data?.project?.root, droot: data?.root, vroot: view.root, tab: view.tab, projects: data?.projects?.map(p=>[p.root,p.ok,p.name]), item1: data?.project?.items?.find(i=>i.id===1)?.title, filter: !!document.querySelector('#filter-toggle')})`)));
-  await view.waitFor(ready, 'addressed demo board, reviewed item summary and current Filter control');
+  const ready = `typeof data !== 'undefined' && data?.project?.root === ${JSON.stringify(repo)} && data.root === view.root && view.tab === 'items' && data.projects.some(project => project.root === ${JSON.stringify(repo)} && project.ok && project.name === 'Demo board') && !!document.querySelector('#page-controls [data-page-ctl="state"]') && !!document.querySelector('#chain .row[data-item]')`;
+  await view.waitFor(ready, 'addressed demo board, the Show control and an item row');
 }
