@@ -5,10 +5,6 @@ import * as outbox from '../../../../../packages/outbox/index.js';
 import { context } from '../../../index.js';
 import { withBoardRead } from '../../../index.js';
 import { landAfterAcceptance } from '../../../index.js';
-import { primaryCheckoutRoot } from '../../../index.js';
-import { resumeAutomaticLanding } from '../../../../../packages/landing/index.js';
-import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
-import { automaticLandingDirectory } from '../../../../../packages/landing/index.js';
 import {
   retryableLandingRefusal,
   HELD_TRUNK_REFUSALS,
@@ -30,15 +26,9 @@ import {
   landingBatches,
   landingTestDefects,
 } from '../../../../../packages/store/index.js';
-import { readMainAudit } from '../../../../../packages/gate/index.js';
-import { mainPolicy } from '../../../../../packages/sandbox/index.js';
-import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { setTimeout as pause } from 'node:timers/promises';
 import { LANDING_BOARD_BUSY_MS } from '../../../../../packages/landing/index.js';
-import { AGENT_SESSION_IDS } from '../../../../../packages/kernel/index.js';
-import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { existsSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -85,7 +75,7 @@ export function wakeIo(root, { schemaDiagnostics } = {}) {
     openBoard: (...args) => { const board = nativeBoard.openBoard(...args); board.db.exec(`PRAGMA busy_timeout = ${LANDING_BOARD_BUSY_MS}`); return board; },
     nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
     outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
-    // Every lander line carries its time, so a batch's phases read back from worker.log [C7].
+    // Every lander line carries its time, so a batch's phases read back from its log [C7].
     say: (...parts) => console.log(new Date().toISOString(), ...parts), err: (...parts) => console.error(new Date().toISOString(), ...parts) };
 }
 
@@ -97,8 +87,7 @@ function landingObservation(root, ioOptions = {}) {
   // A repository with no board has nothing to land; reading must never create one (withBoardRead would open it for write).
   const verified = !existsSync(ctx.file) ? [] : withBoardRead(ctx, board => listItems(board, { all: true })
     .filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => `${item.item_id}:${item.item_commit}`).sort());
-  return { main: trunk?.commit, branch: trunk?.branch, waiting: verified.length > 0, verified,
-    pending: readMainAudit(join(automaticLandingDirectory(root), 'pending.json'))?.id };
+  return { main: trunk?.commit, branch: trunk?.branch, waiting: verified.length > 0, verified };
 }
 
 /**
@@ -147,29 +136,6 @@ export function landingBackoffWoken(root, job, { schemaDiagnostics, marks = land
   if (!job?.backoff?.marks) return false;
   try { return landingWakeTrigger(job.backoff.marks, marks(root, { schemaDiagnostics })) !== null; }
   catch { return false; }
-}
-
-/**
- * Bootstrap observation for verified work left by an older worker, without replacing a concurrent accept [B35].
- * schemaDiagnostics is the calling command's set of already-reported board mismatches. A backed-off pending record is
- * replaced by an immediate wake when `woken` reports an accept, a green gate or a held-test correction since its back-off
- * began, and is otherwise left to its backed-off timer [C7].
- */
-export async function bootstrapLandingWake(root, { schedule = scheduleAutomaticLanding, now = Date.now, schemaDiagnostics, woken = null } = {}) {
-  const primary = primaryCheckoutRoot(context(wakeIo(root, { schemaDiagnostics })).info);
-  if (!primary) return false;
-  const pending = readMainAudit(join(automaticLandingDirectory(primary), 'pending.json'));
-  // A backed-off record yields to an accept, a green gate or a held-test correction made since its back-off began [C7].
-  if (pending?.backoff) {
-    if (!await (woken ?? (job => landingBackoffWoken(primary, job, { schemaDiagnostics })))(pending)) return false;
-    return Boolean(await schedule(primary, new Date(now() + 1000).toISOString(), new URL('./automatic.js', import.meta.url),
-      { expectedId: pending.id }));
-  }
-  if (pending) return false;
-  const observed = landingObservation(primary, { schemaDiagnostics });
-  if (!observed.waiting || !observed.branch || !automaticLandingEnabled(mainPolicy(primary).config)) return false;
-  return Boolean(await schedule(primary, new Date(now() + 1000).toISOString(), new URL('./automatic.js', import.meta.url),
-    { expectedId: null }));
 }
 
 /**
@@ -222,7 +188,7 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
     }
     if (HELD_TRUNK_REFUSALS.has(error.code)) {
       held = error.code;
-      // The held refusal names what holds the trunk, so a stale hold reads back from worker.log (#3761).
+      // The held refusal names what holds the trunk, so a stale hold reads back from the lander's log (#3761).
       console.log(new Date().toISOString(), `landing held: ${error.message}`);
     }
     else if (retryableLandingRefusal(error.code)) refused = true;
@@ -239,7 +205,7 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
   if (held || !refused && !moved) {
     const outcome = held ?? NOTHING_TO_LAND;
     const backoffMs = nextLandingBackoff(backoff, outcome);
-    const started = observed, until = now() + backoffMs;
+    const until = now() + backoffMs;
     // Items verified while this landing ran count as new: the back-off compares against the set before it.
     const next = { outcome, backoffMs, retryAt: new Date(until).toISOString(), marks: { ...marks(root), verified: before.verified } };
     await onBackoff(next);
@@ -251,13 +217,12 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
         return { reloadAt: new Date(now() + 1000).toISOString(), workerUrl: new URL('./automatic.js', import.meta.url) };
       }
       observed = landingObservation(root);
-      if (!observed.waiting || observed.pending !== started.pending) return;
+      if (!observed.waiting) return;
     }
     return { reloadAt: next.retryAt, workerUrl: new URL('./automatic.js', import.meta.url), backoff: next };
   }
   if (ran?.untried === true) return { reloadAt: new Date(now() + 1000).toISOString(), workerUrl: new URL('./automatic.js', import.meta.url) };
   while (observed.main === before.main && observed.branch === before.branch) {
-    if (observed.pending !== before.pending) return;
     await wait(pollMs);
     if (staleCode()) return handover();
     observed = landingObservation(root);
@@ -265,22 +230,4 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
   }
   // Reload accepted tooling in a fresh worker; this process may have loaded the code the main correction replaced.
   return { reloadAt: new Date(now() + 1000).toISOString(), workerUrl: new URL('./automatic.js', import.meta.url) };
-}
-
-if (process.argv[1] === FILE) {
-const [root, token, scheduled, wakeFlag, dueAt] = process.argv.slice(2);
-if (!isAbsolute(root ?? '') || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')
-  || scheduled !== '--scheduled' || wakeFlag !== '--wake-at' || !Number.isFinite(Date.parse(dueAt)) || process.argv.length !== 7) {
-  throw new Error('automatic landing requires its registered root, token and wake time');
-}
-for (const key of [...AGENT_SESSION_IDS, ...AGENT_SHELL_MARKERS, 'PULLBOARD_AGENT', 'PULLBOARD_AGENT_ID', 'PULLBOARD_PARENT_SESSION']) delete process.env[key];
-await resumeAutomaticLanding(root, token, dueAt, async (wakeRoot, wake, adopted) => {
-  // The replacement records which dead worker's batch it took and how long that batch sat unattended (#2912).
-  if (adopted) process.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(adopted);
-  return runLandingWake(wakeRoot, wake);
-}, { marks: landingWakeMarks });
-// The wake is done: a batch its stop abandoned must not keep running runner jobs and writing to a closed board. Two
-// such orphans from 07:28 still ran at 08:40 on 9 Nov, and one logged "could not be recorded: ERR_INVALID_STATE" [C7].
-process.exit(process.exitCode ?? 0);
-
 }

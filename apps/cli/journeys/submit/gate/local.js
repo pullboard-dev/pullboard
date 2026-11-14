@@ -65,12 +65,23 @@ export function copyRepositoryFixture(box, repository, tracked) {
  * @param {import('node:test').TestContext} t
  * @param {{ root: string, env: object, dir: string }} box - A fixture box from privateRepo or builderRepo.
  * @param {Function} run - (...args) => { code, out, err } or a promise of it: the box's own sync run or runLocal.
- * @returns {Promise<{ code: number, out: string, err: string, gateJob: object | null }>}
+ * @param {string[]} [extra] - Further submit flags, such as --infra with its reason.
+ * @returns {Promise<{ code: number, out: string, err: string, gateJob: object | null, receipt?: object }>} receipt is the queued submit's document with the settled `gate` and `gateJob`.
  */
-export async function submitSettled(t, box, run) {
+export async function submitSettled(t, box, run, extra = []) {
   t.after(() => { stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME); });
-  const submitted = await run('submit', '1', '--json');
+  const submitted = await run('submit', '1', '--json', ...extra);
   if (submitted.code !== 0) return { ...submitted, gateJob: null };
   const settled = await settleSubmit(t, { repo: box.root, env: box.env, run: (_cwd, ...args) => run(...args) }, JSON.parse(submitted.out));
-  return { code: settled.gate?.green === true ? 0 : 1, out: submitted.out, err: `${settled.gate?.green === true ? '' : failingParts({ status: 1, gate: settled.gate }).join('\n')}\n${JSON.stringify(settled.gateJob)}`, gateJob: settled.gateJob };
+  return { code: settled.gate?.green === true ? 0 : 1, out: submitted.out, err: `${settled.gate?.green === true ? '' : failingParts({ status: 1, gate: settled.gate }).join('\n')}\n${JSON.stringify(settled.gateJob)}`, gateJob: settled.gateJob, receipt: settled };
+}
+
+/**
+ * submitSettled for a journey that sets environment variables its gate reads after the fixture was built.
+ * Why: a local runner keeps the environment it started with, so the submit's runner is stopped first and starts again with this one [C7,V10,#7530].
+ * A runner stopped mid-job hands it back and the next runner runs it again, so a journey settles its jobs first (add --check --wait).
+ */
+export function submitWithEnv(t, box, run, extra = []) {
+  stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
+  return submitSettled(t, box, run, extra);
 }

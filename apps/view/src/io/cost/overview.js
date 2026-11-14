@@ -1,5 +1,5 @@
 /** Render a private costAnalytics/1 projection; arithmetic and attribution remain server-owned [N26]. */
-export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, vendorClasses = [], waiting = '', updating = false } = {}) {
+export function costOverviewHtml(data = {}, opened = null, { vendorClasses = [], waiting = '', updating = false } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const duration = ms => ms == null ? '' : ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min' : ms < 36000000 ? (ms / 3600000).toFixed(1) + ' h' : Math.round(ms / 3600000) + ' h';
   const percent = value => value == null ? '' : Math.round(value * 100) + '%';
@@ -71,16 +71,15 @@ export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, 
   const heading = '<section class="cost-page" aria-label="Cost"><div class="shd cost-private-row"><span class="cap2 cost-private">' + lock + 'Only you see this</span>' + (updating ? '<span class="cap2 cost-updating" role="status">Updating…</span>' : '') + '</div>';
   if (waiting) return heading + '<section class="cost-card cost-waiting" role="status">' + esc(waiting) + '</section></section>';
   return heading
-    + (hasPrices ? '' : '<section class="cost-card cost-prices"><span>Showing agent time. <b>Want dollars?</b> Tell your coordinator agent:</span><span class="cost-copy"><code>Add model prices to Pullboard</code><button data-cost-copy type="button">Copy</button></span></section>')
-    + '<div class="cost-overview"><section class="cost-col"><div class="shd"><h2 class="hd1">Agent time</h2></div><article class="cost-card cost-summary"><div><p class="cost-big">' + (totals.agentMs == null ? 'Not recorded' : esc(Math.round(totals.agentMs / 3600000)) + '<small>hours</small>') + '</p><p class="cost-note">for ' + bold(totals.itemCount) + ' landed items · ' + bold(duration(totals.medianItemMs) || '—') + ' for a typical item</p></div><div><h3 class="hd2">Sent back</h3><p class="cost-say"><b class="bad">' + esc(percent(back.itemShare)) + '</b> of items were sent back.' + (share == null ? '' : ' They took <b class="bad">' + esc(percent(share)) + '</b> of the time.') + '</p>'
-    + (share == null ? '' : '<svg class="cost-split" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Agent time split"><rect class="right" width="' + Math.max(0, 100 * (1 - share) - 0.5) + '" height="10"></rect><rect class="back" x="' + (100 * (1 - share) + 0.5) + '" width="' + Math.max(0, 100 * share - 0.5) + '" height="10"></rect></svg><div class="cost-keys"><span><i class="right"></i>Right first time ' + bold(duration(firstMs)) + '</span><span><i class="back"></i>Sent back ' + bold(duration(back.agentMs)) + '</span></div>') + '</div></article></section>'
-    + '<section class="cost-col"><div class="shd"><h2 class="hd1">Agent time each day</h2><span class="cap2 cost-chart-legend"><span><i></i>Right first time</span><span><i class="back"></i>Sent back</span></span></div><article class="cost-card cost-chart">' + (known.length || (data.days ?? []).length ? chart : '') + '</article></section></div>'
+    + '<section class="cost-sect"><div class="shd"><h2 class="hd1">Agent time</h2></div><div class="cost-card cost-overview"><article class="cost-summary"><div><h3 class="hd2">Total</h3><p class="cost-big">' + (totals.agentMs == null ? 'Not recorded' : esc(Math.round(totals.agentMs / 3600000)) + '<small>hours</small>') + '</p><p class="cost-note">for ' + bold(totals.itemCount) + ' landed items · ' + bold(duration(totals.medianItemMs) || '—') + ' for a typical item</p></div><div><h3 class="hd2">Sent back</h3><p class="cost-say"><b class="bad">' + esc(percent(back.itemShare)) + '</b> of items were sent back.' + (share == null ? '' : ' They took <b class="bad">' + esc(percent(share)) + '</b> of the time.') + '</p>'
+    + (share == null ? '' : '<svg class="cost-split" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Agent time split"><rect class="right" width="' + Math.max(0, 100 * (1 - share) - 0.5) + '" height="10"></rect><rect class="back" x="' + (100 * (1 - share) + 0.5) + '" width="' + Math.max(0, 100 * share - 0.5) + '" height="10"></rect></svg><div class="cost-keys"><span><i class="right"></i>Right first time ' + bold(duration(firstMs)) + '</span><span><i class="back"></i>Sent back ' + bold(duration(back.agentMs)) + '</span></div>') + '</div></article>'
+    + '<article class="cost-chart"><div class="cost-chart-head"><h3 class="hd2">Agent time each day</h3><span class="cost-chart-legend"><span><i></i>Right first time</span><span><i class="back"></i>Sent back</span></span></div>' + (known.length || (data.days ?? []).length ? chart : '') + '</article></div></section>'
     + '<section class="cost-sect"><div class="shd"><h2 class="hd1">Models</h2><span class="cap2">Which models earn their seat</span></div><div class="cost-card cost-model-card"><div class="cost-model-calls">' + calls + '</div>' + gap + '<div class="cost-model-table-wrap"><table class="cost-model-table"><thead><tr><th class="grp-gap"></th><th colspan="3" class="grp">Building</th><th colspan="2" class="grp vsep">Verifying</th></tr><tr><th>Model</th><th>Built</th><th>Passed first time <span class="sm">· bar shows likely range</span></th><th>Typical item</th><th class="vsep">Verdicts</th><th>Accepted, came back later</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></section>'
     + '<section class="cost-sect"><div class="shd"><h2 class="hd1">Took the longest</h2><span class="cap2">Click one to see who worked on it</span></div><div class="cost-card cost-longest">' + items + '<button class="cost-all" data-cost-all type="button">All ' + esc(data.allItems) + ' items →</button></div></section></section>';
 }
 
 /** Bind the Cost controls to the host's private projection and navigation services [N26]. */
-export function bindCostOverview(element, { readWindow, openItem, showAll, copyText, hasPrices = false } = {}) {
+export function bindCostOverview(element, { readWindow, openItem, showAll } = {}) {
   let selected = '7d', opened = null, model = null;
   /** Refresh only the currently selected window, ignoring late responses from earlier selections. */
   async function load(window) {
@@ -89,7 +88,7 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
       const result = await readWindow(window);
       if (selected !== window) return;
       model = result;
-      element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses });
+      element.innerHTML = costOverviewHtml(model, opened, { vendorClasses: modelTables.vendorClasses });
       element.querySelector('[data-cost-window="' + window + '"]')?.focus();
     } catch (error) {
       if (selected !== window) return;
@@ -97,13 +96,12 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
     }
   }
   element.addEventListener('click', event => {
-    const target = event.target.closest('[data-cost-window],[data-cost-row],[data-cost-copy],[data-cost-all],[data-go]');
+    const target = event.target.closest('[data-cost-window],[data-cost-row],[data-cost-all],[data-go]');
     if (!target) return;
     if (target.dataset.costWindow) { void load(target.dataset.costWindow); return; }
-    if (target.dataset.costCopy !== undefined) { void copyText('Add model prices to Pullboard'); return; }
     if (target.dataset.costAll !== undefined) { showAll(); return; }
     if (target.dataset.go?.startsWith('item:')) { event.preventDefault(); openItem(Number(target.dataset.go.slice(5))); return; }
-    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
+    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { vendorClasses: modelTables.vendorClasses }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
   });
   return load(selected);
 }

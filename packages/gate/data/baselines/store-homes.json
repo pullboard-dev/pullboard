@@ -7,7 +7,6 @@
     "temporary-edges.json": 1
   },
   "apps/cli/src/io/cli-main/run.js": {
-    "pending.json": 2,
     "board.sqlite": 1
   },
   "apps/cli/src/io/commands/init.js": {
@@ -31,9 +30,6 @@
   },
   "apps/cli/src/io/item/bar.js": {
     "pullboard.json": 1
-  },
-  "apps/cli/src/io/landing/automatic.js": {
-    "pending.json": 2
   },
   "apps/cli/src/io/landing/budget.js": {
     "pullboard.json": 1
@@ -373,10 +369,6 @@
   "packages/keys/src/io/relay/client.js": {
     "relay.json": 1,
     "board.sqlite": 3
-  },
-  "packages/landing/src/io/automatic/scheduler.js": {
-    "pending.json": 3,
-    "timer.json": 1
   },
   "packages/landing/src/io/computed/conflict/return.js": {
     "board.sqlite": 1

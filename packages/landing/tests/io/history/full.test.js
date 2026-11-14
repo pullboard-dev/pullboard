@@ -1,17 +1,17 @@
-/** @pullboard-test-input source-tree */
-/** @pullboard-world-pin: the #6810 and #6812 cases read the committed tree, which must no longer hold the in-process landing batch or the candidate workers. */
+/** @pullboard-world-pin: the #6810, #6812, #6817 and #6818 cases read the committed tree, which must no longer hold the in-process landing batch, the candidate workers or the scheduler. */
 /** A landing reruns its items' submit proof, never the full plan, and a batch of many lands on its items' receipts [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { landingReceiptReuse } from '../../../index.js';
 import { submitProved } from '../../../src/io/step/gate.js';
 import { submittedSelections } from '../../../src/io/step/gate.js';
+
+/** The tracked files under one repository path, as git lists them; empty when none are. */
+function tracked(root, path) { return execFileSync('git', ['ls-files', '--', path], { cwd: root, encoding: 'utf8' }); }
 
 /** #3489's submit on 9 Nov: red only in the relay cases main fails the same way, recorded with gateGreen false. */
 function knownMainSubmit(commit) {
@@ -60,7 +60,7 @@ test('clause 3: a batch of several items lands on their submit receipts, rerunni
 
 test('#6810 clauses 1-2: the in-process landing batch file is gone and its runner is named nowhere in the tree [C7,#6810]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
-  assert.equal(existsSync(fileURLToPath(new URL('../../../src/io/in/process.js', import.meta.url))), false);
+  assert.equal(tracked(root, 'packages/landing/src/io/in'), '');
   // The name is split so this test does not name it; git grep exits 1 when nothing matches.
   const name = 'inProcess' + 'LandingBatch';
   let named = '';
@@ -72,14 +72,41 @@ test('#6810 clauses 1-2: the in-process landing batch file is gone and its runne
 test('#6812 clauses 1-3: candidates.js and step/parallel.js are gone and no file imports either [C7,#6812]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const gone = ['packages/landing/src/io/candidates.js', 'packages/landing/src/io/step/parallel.js'];
-  for (const file of gone) assert.equal(existsSync(join(root, file)), false, file);
-  const files = execFileSync('git', ['ls-files', '-z', '--', '*.js', '*.mjs'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
+  for (const file of gone) assert.equal(tracked(root, file), '', file);
+  // git grep reads the committed tree: every relative import naming either basename, resolved against its file.
+  let lines = '';
+  try { lines = execFileSync('git', ['grep', '-n', '-E', String.raw`(from|import)\s*\(?\s*['"]\.{1,2}/[^'"]*(candidates|parallel)\.js['"]`, '--', '*.js', '*.mjs'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
   const importers = [];
-  for (const file of files) {
-    const text = readFileSync(join(root, file), 'utf8');
-    for (const [, specifier] of text.matchAll(/(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/gu)) {
+  for (const line of lines.split('\n').filter(Boolean)) {
+    const file = line.slice(0, line.indexOf(':'));
+    for (const [, specifier] of line.matchAll(/(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/gu)) {
       if (gone.includes(join(dirname(file), specifier))) importers.push(`${file} -> ${specifier}`);
     }
   }
   assert.deepEqual(importers, []);
+});
+
+test('#6817 clauses 1-2: index.js exports nothing from the scheduler and no source calls its timer, owner or wake [C7,#6817]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  // The scheduler file is gone (#6818), so index.js has nothing of it to export; no source names its four entry points.
+  assert.equal(tracked(root, 'packages/landing/src/io/automatic'), '');
+  const names = ['scheduleAutomaticLanding', 'resumeAutomaticLanding', 'recoverAutomaticLanding', 'mainLandingWorker'];
+  let found = '';
+  try { found = execFileSync('git', ['grep', '-l', '-w', ...names.flatMap(name => ['-e', name]), '--', '*.js'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  const callers = found.split('\n').filter(Boolean).filter(file => !/(^|\/)(tests|journeys)\//u.test(file) && !file.endsWith('.test.js'));
+  assert.deepEqual(callers, []);
+});
+
+test('#6818 clauses 1-3: the scheduler and its test are gone and no landing source reads or writes its pending record or worker log [C7,#6818]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  assert.equal(tracked(root, 'packages/landing/src/io/automatic/scheduler.js'), '');
+  assert.equal(tracked(root, 'packages/landing/tests/io/automatic/scheduler.test.js'), '');
+  // Landing source: the landing package and the CLI's landing folder. The names are split so this file does not hold them.
+  const files = ['pending' + '.json', 'worker' + '.log'];
+  let named = '';
+  try { named = execFileSync('git', ['grep', '-n', '-F', ...files.flatMap(file => ['-e', file]), '--', 'packages/landing/src', 'apps/cli/src/io/landing'], { cwd: root, encoding: 'utf8' }); }
+  catch (error) { if (error.status !== 1) throw error; }
+  assert.equal(named, '');
 });

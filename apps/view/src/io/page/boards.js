@@ -84,7 +84,7 @@ const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
 ${readCostHistory.toString()}
 function costPaneHtml(history, project) {
-  const shown = { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length), vendorClasses: modelTables.vendorClasses };
+  const shown = { vendorClasses: modelTables.vendorClasses };
   // The frame (heading and period buttons) draws at once; the numbers fill in place, or the last read ones stay up.
   if (history.loading && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Reading cost history…' });
   if (history.error && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Cost history is unavailable.' });
