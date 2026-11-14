@@ -37,9 +37,16 @@ import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
+/** Open the board file the way the store does: a live pulled gate job writes it, so a raw handle waits out a lock instead of failing at once [C7]. */
+function openRawBoard(file, options) {
+  const db = new DatabaseSync(file, options);
+  db.exec('PRAGMA busy_timeout = 30000');
+  return db;
+}
+
 /** Install and stamp the real previous declaration in a private fixture, without changing its data version. */
 function olderDeclaration(file, stamp = true) {
-  const db = new DatabaseSync(file);
+  const db = openRawBoard(file);
   try {
     const old = storeTriggers({ ...MACHINE, moves: MACHINE.moves.filter(move => move.verb !== 'submit-merge') })
       .find(trigger => trigger.name === 'machine_item_move');
@@ -51,7 +58,7 @@ function olderDeclaration(file, stamp = true) {
 
 /** Read persistent shape and native evidence without invoking a writable opener. */
 function observe(file) {
-  const db = new DatabaseSync(file, { readOnly: true });
+  const db = openRawBoard(file, { readOnly: true });
   try {
     return {
       standing: boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION),
@@ -175,7 +182,7 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   await succeeds(box, box.web, 'submit', String(id));
   // The carry completes with the pulled gate job's receipt, which can land just after the settled command returns [P7,C7].
   await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'verified', `the pulled gate carries #${id}`, { signal: AbortSignal.timeout(150_000) });
-  const db = new DatabaseSync(file, { readOnly: true });
+  const db = openRawBoard(file, { readOnly: true });
   try {
     const item = db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
     assert.equal(item.item_status, 'verified');
