@@ -61,6 +61,8 @@ test('clause 1: a phone reaches the board on the local network [H19]', { timeout
   // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the board's own work shows.
   await chrome.waitFor('innerWidth === 375 && !!data?.project');
   await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
+  // The board now opens on its Dashboard; the item list is one tab away.
+  await chrome.click('document.querySelector(\'[data-tab="items"]\')');
   await chrome.waitFor(`innerWidth === 375 && document.body.innerText.includes(${JSON.stringify(title)})`);
   assert.equal(await chrome.stable('location.hostname'), view.link.hostname, 'the browser uses the LAN address, not a loopback stand-in');
   await chrome.click('document.querySelector(\'[data-tab="shouts"]\')');

@@ -12,10 +12,11 @@
  * @param {boolean} [options.leftKnown] - Whether the person's last look is a remembered time.
  * @param {number} [options.newer] - How many events arrived since the page was drawn.
  * @param {string} [options.controls] - The filter strip's markup, shown inside the page on a narrow screen.
+ * @param {Function} [options.itemHref] - The address of an item; a quoted #N links to it [N38].
  * @param {boolean} [options.narrow] - A phone-width layout.
  * @returns {string} The page's markup.
  */
-export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newer = 0, controls = '', narrow = false } = {}) {
+export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newer = 0, controls = '', narrow = false, itemHref = id => '/items/' + id } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const MIN = 60_000, HOUR = 3_600_000, PER = 3, PAGE_ROWS = 10, BLEED = 22;
   const now = flow.now, names = flow.names;
@@ -113,10 +114,12 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   };
 
   // ---- event rows ----
+  /** A quote with every cited #N linked to that item, the rest escaped [N38]. */
+  const quoted = text => '“' + String(text ?? '').split(/(#\d+)/u).map(part => /^#\d+$/u.test(part) ? '<a class="ref" href="' + esc(itemHref(part.slice(1))) + '" data-go="item:' + part.slice(1) + '">' + part + '</a>' : esc(part)).join('') + '”';
   const rowHtml = (entry, withTitle) => {
     const [cls, label] = KIND[entry.kind] ?? ['g', entry.kind];
-    const line1 = withTitle ? (entry.id !== null ? '<span class="id">#' + entry.id + '</span>' : '') + (entry.quote ? '“' + esc(entry.quote) + '”' : esc(entry.title || (entry.kind === 'ruling' ? 'A ruling for you' : 'A message')))
-      : entry.quote ? '“' + esc(entry.quote) + '”' : entry.kind === 'landed' ? 'on main' : esc(entry.fact.split(' · ')[0]);
+    const line1 = withTitle ? (entry.id !== null ? '<span class="id">#' + entry.id + '</span>' : '') + (entry.quote ? quoted(entry.quote) : esc(entry.title || (entry.kind === 'ruling' ? 'A ruling for you' : 'A message')))
+      : entry.quote ? quoted(entry.quote) : entry.kind === 'landed' ? 'on main' : esc(entry.fact.split(' · ')[0]);
     const line2 = withTitle ? esc(entry.fact) : entry.quote ? esc(entry.fact) : entry.fact.includes(' · ') ? esc(entry.fact.split(' · ').slice(1).join(' · ')) : '';
     return '<div class="act-row' + (entry.id !== null ? ' has' : '') + '"' + (entry.id !== null ? ' data-row="' + entry.id + '"' : '') + '><span class="t">' + (withTitle ? ago(entry.at) : clockShort(entry.at)) + '</span>' + chip(cls, label) + '<span class="ph">' + line1 + '</span><span class="fa">' + line2 + '</span></div>';
   };
