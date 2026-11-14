@@ -13,7 +13,7 @@ import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
 import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
-import { press } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { pickProject } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
@@ -40,7 +40,7 @@ test('Dashboard Release and the Roadmap release header read the same release at 
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && data.project.milestones?.some(m => m.name === '0.9.4: Restructure for Speed and Cost')`);
     for (const width of [1280, 320]) {
-      await press(chrome, "document.querySelector('[data-tab=dashboard]')");
+      await pressTab(chrome, 'dashboard');
       await chrome.waitFor("document.querySelector('#dashboard .dash-ship .dash-ship-name')");
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // The Dashboard draws the approved Release card (#6646, #6847); the Roadmap keeps its own release header.
@@ -64,7 +64,7 @@ test('Dashboard Release and the Roadmap release header read the same release at 
         assert.equal(seen.swatch, seen.token, `${width}px the ${key} legend swatch is its stage colour`);
       }
 
-      await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+      await pressTab(chrome, 'roadmap');
       await chrome.waitFor("document.querySelector('#roadmap .release-header .release-name')");
       const roadmap = JSON.parse(await chrome.stable("JSON.stringify((()=>{const h=document.querySelector('#roadmap .release-header'),top=h.querySelector('.release-header-top'),title=top.querySelector('.release-name'),left=top.querySelector('.roadmap-left'),line=h.querySelector('.roadmap-forecast, .roadmap-summary-needs'),bar=h.querySelector('.roadmap-summary-bar'),legend=h.querySelector('.roadmap-summary-legend'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}},br=bar.getBoundingClientRect(),lr=legend.getBoundingClientRect();return {title:title.textContent,line:line?'present':'none',left:left.textContent.replace(/\\s+/g,' ').trim(),leftLabel:left.querySelector('[aria-label]').getAttribute('aria-label'),font:getComputedStyle(title).fontSize,header:box(h),top:box(top),bar:box(bar),legend:box(legend),rowAligned:bar.closest('.roadmap-summary-row')===legend.closest('.roadmap-summary-row')&&lr.top>=br.bottom&&lr.left<br.right,carets:h.querySelectorAll('.release-header-toggle > .caret').length,limit:h.querySelector('.milestone-limit')?.textContent||'',overflow:document.documentElement.scrollWidth>innerWidth};})())"));
       assert.equal(roadmap.title, dashboard.name, 'the Roadmap header names the release exactly as the Dashboard card does');
