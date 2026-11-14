@@ -50,6 +50,7 @@ export * from "./src/io/step/diagnose.js";
 export * from "./src/io/step/publish.js";
 export * from "./src/io/step/trunk.js";
 export { withoutStaleVerdicts } from "./src/io/pulled/fresh.js";
+export { relandAcceptedItems } from "./src/io/reland.js";
 export * from "./src/io/train/repoints.js";
 export * from "./src/io/post/land.js";
 export * from "./src/io/plan/check.js";

@@ -17,6 +17,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
 import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
+import { relandAcceptedItems } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
@@ -104,13 +105,13 @@ function landingFlakes(root, policy, item, head, pairPrefix) {
  *
  * @param {object} ctx - The command context at the main checkout.
  * @param {string} root - The main checkout.
- * @param {{ pairPrefix?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
+ * @param {{ pairPrefix?: Function, quarantineWaivers?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
  *   policy and board reads the lander already holds.
  * @param {{ local?: typeof ensureLocalRunner, ids?: number[] | null, forced?: string | null, board?: object | null }} [options] - board: the
  *   board a command already holds open, so a hand landing writes its offer there.
  * @returns {Promise<{ offered: string | null, items: number[], waiting: boolean, forced?: string } | null>}
  */
-export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
+export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix, quarantineWaivers }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
   const policy = mainPolicy(root);
   const configured = configTrunkRemote(policy.config);
   // No trunk remote: the board host's repository is trunk, landed by the local runner, which this starts again if it died.
@@ -122,6 +123,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     if (open) return { offered: open, items: [], waiting: false };
     // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
     const trunkTip = await landingTrunk(root, remote, policy.commit);
+    // An open item a landing reopen left with its accept and green gate returns to verified first, or stays open naming its conflicts [B3,C7,#2997].
+    if (!ids) await relandAcceptedItems({ root, board, base: trunkTip, write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), landingPorts: { quarantineWaivers: quarantineWaivers ?? (() => []) } });
     const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && (!ids || ids.includes(item.item_id)),
       write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line) });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
