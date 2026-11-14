@@ -8,7 +8,6 @@ import { runFixtureExecFile as execFileSync } from '../../../../../apps/cli/test
 import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { settledGateJob } from '../../../../../apps/cli/tests/fixtures/submit/settle.js';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -92,9 +91,13 @@ test('a packed release installs with no network and runs the whole loop from a f
   const commit = git(builder, 'rev-parse', 'HEAD');
   const submitted = pullboard(builder, 'submit', '1');
   assert.match(submitted, new RegExp(`#1 is in the gate as job gate:1:${commit.slice(0, 12)}:[a-z0-9]+: a runner pulls the whole gate and posts one receipt`));
-  // The pulled gate settles on the machine's local runner; verify needs its receipt applied (#6249, #7283).
-  const run = (cwd, ...args) => { const result = runFixtureChild(bin, args, { cwd, env, encoding: 'utf8' }); return { code: result.status, out: result.stdout, err: result.stderr }; };
-  await settledGateJob({ repo, env, run }, 1);
+  // The pulled gate settles on the machine's local runner; verify needs its receipt applied (#6249, #7283, #7867): read the
+  // item through the installed bin until the receipt has moved it off claimed.
+  const deadline = Date.now() + 180_000;
+  while (!/#1 {2}submitted/.test(pullboard(builder, 'show', '1'))) {
+    assert.ok(Date.now() < deadline, 'the pulled gate settled within 180 s');
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
 
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
   const verifier = join(dir, 'repo-web-2');

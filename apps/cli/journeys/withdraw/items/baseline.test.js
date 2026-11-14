@@ -15,6 +15,13 @@ import { startView } from '../../../tests/fixtures/cockpit/harness.js';
 import { openPage } from '../../../tests/fixtures/cockpit/harness.js';
 import { boardOf } from '../../../tests/fixtures/cockpit/harness.js';
 
+/** Refresh the page until its view shows `done`: the server keeps the board's state and a write made behind it reaches the page when the server's read has caught up, not on the first refresh [C7]. */
+async function refreshUntil(page, done) {
+  for (let attempt = 0; attempt < 100 && !done(); attempt++) {
+    await page.run('refresh()');
+  }
+}
+
 test('an item detail shows its pending, red and green check baselines from the API [V2,N26]', async () => {
   const box = machine();
   const alpha = project(box, 'check-baselines');
@@ -74,7 +81,7 @@ test('an item detail shows its pending, red and green check baselines from the A
         } finally {
           closeBoard(completionBoard);
         }
-        await page.run('refresh()');
+        await refreshUntil(page, () => page.show('detail').includes('runs one command · green on main'));
         const completed = page.show('detail');
         assert.match(completed, /<span class="id">#\d+<\/span>[^]*<h2>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
         assert.ok(completed.includes('runs one command · green on main'), 'the open detail updates to the completed result');
