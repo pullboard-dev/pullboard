@@ -30,6 +30,7 @@ import {
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
 import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
+import { settlePulledJobs } from '../../tests/fixtures/e2e.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -80,8 +81,10 @@ async function project(t) {
   // The fixture machine settles each submit's pull gate on the loopback runner inside the command.
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
-  function pullboard(cwd, ...args) {
-    return runCliInProcess(args, { cwd, env });
+  async function pullboard(cwd, ...args) {
+    const result = await runCliInProcess(args, { cwd, env });
+    settlePulledJobs(cwd, args, env); // a pull gate is a job the loopback runner finishes after the command returns
+    return result;
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
   function git(cwd, ...args) {
