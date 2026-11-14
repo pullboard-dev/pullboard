@@ -11,8 +11,9 @@ import { commitAll } from '../../tests/fixtures/submit/gate.js';
 import { privateRepo } from '../../tests/fixtures/submit/gate.js';
 import { put } from '../../tests/fixtures/submit/gate.js';
 import { seedGraph } from '../../tests/fixtures/submit/gate.js';
+import { submitSettled } from '../../tests/fixtures/submit/infra.js';
 
-test('a real submit follows a registered guard through a rename and refuses a deleted one [V4,C7]', (t) => {
+test('a real submit follows a registered guard through a rename and refuses a deleted one [V4,C7]', async (t) => {
   /** Accepted main holds a test-tree guard that records where it ran; the builder checkout renames or deletes it. */
   function project() {
     let box = privateRepo(t);
@@ -39,7 +40,8 @@ test('a real submit follows a registered guard through a rename and refuses a de
   renamed.box.git('mv', 'test/guard.test.js', 'test/area/guard.test.js');
   put(renamed.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(renamed.box, 'feat(core): rename the guard [G1]');
-  const accepted = renamed.box.run('submit', '1', '--json', '--infra', 'the guard fixture renames a registered guard');
+  // The pulled gate runs the guard on the machine's runner, so the journey waits for the settled receipt [C7,#7725].
+  const accepted = await submitSettled(t, renamed.box, '--infra', 'the guard fixture renames a registered guard');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   assert.equal(existsSync(renamed.marker), true, 'the renamed guard executed during the submit');
   assert.equal(readFileSync(renamed.marker, 'utf8'), 'guard at the new path\n',
@@ -49,7 +51,7 @@ test('a real submit follows a registered guard through a rename and refuses a de
   rmSync(join(deleted.box.root, 'test/guard.test.js'));
   put(deleted.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(deleted.box, 'feat(core): delete the guard [G1]');
-  const refused = deleted.box.run('submit', '1', '--json', '--infra', 'the guard fixture deletes a registered guard');
+  const refused = await submitSettled(t, deleted.box, '--infra', 'the guard fixture deletes a registered guard');
   assert.notEqual(refused.code, 0, 'deleting a registered guard is refused');
   assert.match(refused.err + refused.out, /BAD_CONFIG/u);
   assert.match(refused.err + refused.out, /registryGuards file test\/guard\.test\.js is missing or unreadable/u);

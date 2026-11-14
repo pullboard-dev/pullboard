@@ -24,6 +24,7 @@ import {
 import {
   coordinatorLocal,
   runLocal,
+  submitWithEnv,
 } from './local.js';
 import {
   privateRepo,
@@ -128,16 +129,17 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     const outside = join(box.dir, 'outside.txt');
     box.env.BLOCKED_DIAGNOSTIC = `Error: EACCES: permission denied, open '${outside}'`;
     blocked(await runLocal(box, 'check', '1', '--yes'), 'open');
-    blocked(await runLocal(box, 'submit', '1'), 'open');
+    // A pulled submit queues its frozen check with the gate; the sandbox refusal is the settled gate receipt's failing part [C7,#7725].
+    const run = (...args) => runLocal(box, ...args);
+    blocked(await submitWithEnv(t, box, run), 'open');
     const log = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-submit.log.check.log'));
     assert.ok(readFileSync(log, 'utf8').includes(outside), 'the exact refused path remains in the raw log');
     box.env.BLOCKED_DIAGNOSTIC = 'AssertionError [ERR_ASSERTION]: ordinary assertion';
-    const ordinary = await runLocal(box, 'submit', '1');
+    const ordinary = await submitWithEnv(t, box, run);
     assert.equal(ordinary.code, 1);
-    assert.match(ordinary.err, /GATE_RED/u);
     assert.doesNotMatch(ordinary.err, /SANDBOX_BLOCKED/u);
     box.env.BLOCKED_EXIT = '0';
-    assert.equal((await runLocal(box, 'submit', '1')).code, 0, 'the unchanged check can pass when the operation is allowed');
+    assert.equal((await submitWithEnv(t, box, run)).code, 0, 'the unchanged check can pass when the operation is allowed');
     const item = JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out);
     /** Run the actual private checker with only these fixture diagnostics in its child environment. */
     function privateCheck(diagnostic) {
