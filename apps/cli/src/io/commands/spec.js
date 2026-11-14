@@ -369,7 +369,9 @@ export async function specCommand(io, { first, second, rest, values }) {
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
       // Every automatic proposal is preflighted before any draft or decision changes a file.
       const passkeyDecision = record => verifiedPasskeyRowDecision(board, record);
-      planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision }, { loadDoctrine });
+      const first = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision, holdStale: true }, { loadDoctrine });
+      // Stale decisions are held and named; the command fails only when nothing at all could apply [B2].
+      if (first.held.length && !first.records.length) throw new Refused('STALE_ROW_DECISION', first.held.map(held => `${held.why}`).join('; '), first.held.map(held => held.next).join('; '));
       assertNoCitedSpecDecline(store.rowDecisions(board), store.listItems(board, { all: true }));
       const automatic = planAutomaticRigorApply(ctx.info.root, ctx.config, store.rowDrafts(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, automatic);
@@ -378,11 +380,11 @@ export async function specCommand(io, { first, second, rest, values }) {
       const drafted = pendingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).map((draft) => draftRow(ctx.info.root, ctx.config, { target: 'spec', text: draft.text, gate: draft.gate, tier: draft.tier, section: /^(.*?)\d+$/u.exec(draft.id)[1], id: draft.id }, { loadDoctrine }));
       drafted.forEach((row) => io.say(`${row.file}: ${row.id} drafted from a lane, for the person to approve`));
       clashingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).forEach((draft) => io.say(`${ctx.config.spec}: ${draft.id} holds other text, so the draft by ${draft.by} was not written; shout ${draft.by} to run pullboard spec draft again and cite the new id`));
-      const preflight = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision }, { loadDoctrine });
+      const preflight = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision, holdStale: true }, { loadDoctrine });
       let preparedApply;
       const applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: preflight.records.map(record => record.event) }], {
         prepareInWriter(currentBoard) {
-          const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(currentBoard), { passkeyDecision }, { loadDoctrine });
+          const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(currentBoard), { passkeyDecision, holdStale: true }, { loadDoctrine });
           try {
             writeRowApply(ctx.info.root, plan);
             const args = { agentId: me.id, events: plan.records.map(record => record.event) };
@@ -401,7 +403,8 @@ export async function specCommand(io, { first, second, rest, values }) {
       const verifications = planRowVerificationApply(ctx.info.root, ctx.config, store.rowVerifications(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, verifications);
       verifications.applied.forEach(id => io.say(`${ctx.config.spec}: ${id} verifier verdict applied`));
-      io.result?.({ applied, verifications: verifications.applied, files: [...plan.files, ...verifications.files].map((file) => file.file) });
+      first.held.forEach(held => io.say(`${held.id} held: ${held.why}; next: ${held.next}`));
+      io.result?.({ held: first.held.map(({ id, why, next }) => ({ id, why, next })), applied, verifications: verifications.applied, files: [...plan.files, ...verifications.files].map((file) => file.file) });
       applied.forEach((record) => io.say(`${record.file}: ${record.id} ${record.decision === 'approve' ? 'approved' : 'wont'}${record.reason ? `: ${record.reason}` : ''}`));
       if (!applied.length && !drafted.length && !verifications.applied.length) io.say('no pending row decisions');
       else io.say('stage and commit the changed row files and any .pullboard/signoffs.jsonl receipts');
