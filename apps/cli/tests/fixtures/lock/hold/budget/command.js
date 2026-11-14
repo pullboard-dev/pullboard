@@ -2,7 +2,6 @@
 /** Actual private CLI lifecycle and authenticated HTTP reads, with all writer intervals retained [B2,C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { appendFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -43,7 +42,6 @@ function seed(box) {
 function command(box, bin, cwd, label, ...args) {
   const env = { ...box.env, PULLBOARD_LOCK_BUDGET_COMMAND: label };
   const result = runFixtureChild(process.execPath, ['--import', PRELOAD, bin, ...args], { cwd, env, encoding: 'utf8' });
-  appendFileSync('/tmp/7901-timing.log', `${new Date().toISOString()} ${label} ${result.status}\n`);
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   assert.doesNotMatch(result.stderr, /LOCK_BUDGET_OBSERVER_UNAVAILABLE/u);
   return result.stdout;
@@ -95,7 +93,6 @@ export async function assertCommandHoldBudget(t) {
     // Under pull dispatch submit returns before its gate settles (e8f5582942): wait on the runner's receipt so verify sees a submitted item.
     const queued = JSON.parse(command(box, e2e.BIN, box.web, 'submit', 'submit', id, '--no-next', '--json'));
     await settleSubmit(t, { repo: box.web, env: box.env, run: box.run }, queued, { deadlineMs: 120_000 });
-    appendFileSync('/tmp/7901-timing.log', `${new Date().toISOString()} settled\n`);
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     try {
       command(box, e2e.BIN, box.repo, 'verify', 'verify', id, 'accept', '--as', 'coordinator', '--no-next', '--note', 'Private timing fixture only');
