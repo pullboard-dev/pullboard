@@ -39,7 +39,7 @@ test('clause 1: on a linked board a green pulled gate hands its submit to the re
   const ordered = [];
   const posted = post(green(head), { ordered });
   assert.equal(posted.recorded, true, 'the runner\'s receipt is recorded on the job');
-  assert.equal(posted.applied.outcome, 'review', `the apply judged the gate as on a local board: ${JSON.stringify(posted.applied)} ${ordered.map(move => move.args[1]?.text).join(' | ')}`);
+  assert.equal(posted.applied.outcome, 'review', `the apply judged the gate as on a local board: ${JSON.stringify(posted.applied)} ${ordered.map(move => move.args[1]?.text).join(' | ').replace(/\n/gu, ' / ')}`);
   assert.deepEqual(ordered.map(move => move.operation), ['submit', 'appendFact'], 'the submit and its gate note are the moves the relay orders');
   assert.equal(ordered[0].args[0], id);
   assert.equal(ordered[0].args[1].agentId, seat.id);
