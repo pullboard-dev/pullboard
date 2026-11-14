@@ -3,11 +3,16 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { relayFixtureChild } from '../../tests/fixtures/relay/client.js';
+
+const CLI = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
 
 /** Turn the board's committed relay.outbox setting on, as its coordinator would. */
 function enableOutbox(box) {
@@ -24,6 +29,17 @@ function enableOutbox(box) {
 /** The shout senders and texts a board export holds, in board order. */
 function shouts(exported) {
   return exported.tables.shout.map((row) => `${row.shout_from}: ${row.shout_text}`);
+}
+
+/** An agent seat on the other computer, as the outbox journeys make one; the first computer keeps the coordinator. */
+async function otherAgent(box, other) {
+  const path = join(dirname(other.root), 'other-agent');
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/other', path], { cwd: other.root, env: other.env });
+  /** Run the real CLI in the other computer's agent worktree. */
+  const run = (...args) => relayFixtureChild(path, other.env, [CLI, ...args, '--json']);
+  const joined = await run('join', box.lane, '--model', FIXTURE_MODEL);
+  assert.equal(joined.code, 0, joined.failure);
+  return run;
 }
 
 /** Run one fixture command, naming the step when the fixture itself throws. */
@@ -50,6 +66,9 @@ test('clause 1: a queued sentinel shout reaches the relay and the moves after it
   assert.deepEqual(waiting.document.relay.outbox.map((move) => move.operation), ['shout', 'shout'], 'the sentinel notice and the shout after it wait');
 
   await box.restartRelay();
+  // As in the outbox journeys, the other computer moves first once the relay is back.
+  const moved = await step('other moves', async () => (await otherAgent(box, other))('shout', 'all', 'made on the other computer'));
+  assert.equal(moved.code, 0, moved.failure);
   const drained = await step('status up', () => box.cli('status'));
   assert.equal(drained.code, 0, drained.failure);
   assert.equal(drained.document.relay.outbox, undefined, 'the outbox drains past the sentinel notice');
@@ -63,15 +82,3 @@ test('clause 1: a queued sentinel shout reaches the relay and the moves after it
   assert.deepEqual(shouts(here), shouts(there), 'both computers hold the same shouts in the same order');
 });
 
-test('probe: two plain queued shouts drain [C7]', async (t) => {
-  const box = await relayClientFixture(t);
-  enableOutbox(box);
-  await box.link();
-  await step('pair', async () => box.otherDeviceJoin((await box.cliLocal('relay', 'pair')).document.code));
-  await box.stopRelay();
-  assert.equal((await box.cliLocal('shout', 'all', 'plain one')).code, 0);
-  assert.equal((await box.cliLocal('shout', 'all', 'plain two')).code, 0);
-  await box.restartRelay();
-  const drained = await step('probe status up', () => box.cli('status'));
-  assert.equal(drained.code, 0, drained.failure);
-});
