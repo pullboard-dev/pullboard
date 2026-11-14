@@ -31,15 +31,34 @@ export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
 export const INTO_CHECKOUT = '--receive-pack=git -c receive.denyCurrentBranch=updateInstead receive-pack';
 const NO_PUSH_OPTIONS = /does not support push options/u;
+const CHECKED_OUT = /refusing to update checked out branch|branch is currently checked out/u;
+const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could not update working tree/u;
 
 /**
  * Push the landed tip with compare-and-swap, carrying the job's landing permit as push options for the trunk guard
- * (#5848). A remote with no guard may not take push options at all; the push then goes again without them.
+ * (#5848). A remote with no guard may not take push options at all; the push then goes again without them. A remote
+ * that refuses because trunk is checked out there takes the push into its checkout, as payload.checkout asks, since an
+ * offer can miss a checkout it cannot see (#7951).
  */
 export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [] }) {
-  const push = extra => tryGit(root, ['push', '--porcelain', '--quiet', ...(payload.checkout ? [INTO_CHECKOUT] : []), ...extra, `--force-with-lease=${trunk}:${base}`, remote, `${source}:${trunk}`]);
-  const pushed = push(options.flatMap(option => ['-o', option]));
-  return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? push([]) : pushed;
+  const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(into ? [INTO_CHECKOUT] : []), ...extra, `--force-with-lease=${trunk}:${base}`, remote, `${source}:${trunk}`]);
+  const push = into => {
+    const pushed = send(into, options.flatMap(option => ['-o', option]));
+    return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? send(into, []) : pushed;
+  };
+  const pushed = push(Boolean(payload.checkout));
+  return !payload.checkout && pushed.status !== 0 && CHECKED_OUT.test(`${pushed.stderr}\n${pushed.stdout}`) ? push(true) : pushed;
+}
+
+/**
+ * A refused push's receipt detail: git's words, led by a plain LAND_HOST_CHECKOUT_DIRTY line when the board host's
+ * checkout holds uncommitted changes, which updateInstead refuses to overwrite. Why: git's "(Working directory has
+ * unstaged changes)" never said which tree or what to do (#7951).
+ */
+export function pushFailedDetail(pushed, remote, trunk) {
+  const words = (pushed.stderr || pushed.stdout).slice(0, 300);
+  if (!DIRTY_CHECKOUT.test(`${pushed.stderr}\n${pushed.stdout}`)) return words;
+  return `LAND_HOST_CHECKOUT_DIRTY: the board host checkout at ${remote} has uncommitted changes, so it cannot take ${trunk}; next: commit or stash them in that checkout, then run pullboard land to offer the landing again. git: ${words}`;
 }
 
 /**
@@ -386,7 +405,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
-    if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: (pushed.stderr || pushed.stdout).slice(0, 300) });
+    if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: pushFailedDetail(pushed, remote, trunk) });
   }
   return done('trunk-busy', { detail: `trunk moved under each of ${attempts} attempts; offer the landing again` });
 }
