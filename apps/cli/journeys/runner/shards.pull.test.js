@@ -23,13 +23,16 @@ import { submitOne } from '../../tests/fixtures/pull.js';
  */
 function shardTooling(red = null, redOutput = '') {
   return {
-    'packages/gate/index.js': `${TOOLING['packages/gate/index.js'].replace(/export function submitGatePlan[\s\S]*?\n\}\n/u, '')}import { availableParallelism } from 'node:os';
+    'packages/gate/index.js': `${TOOLING['packages/gate/index.js'].replace(/export function submitGatePlan[\s\S]*?\n\}\n/u, '')}import { proofFileNames } from './tests/files.js';
 export function submitGatePlan(root, config, options) {
   record(root, 'selection');
-  const files = Array.from({ length: availableParallelism() + 1 }, (_, n) => 'web/p' + n + '.test.js');
+  const files = proofFileNames();
   return { check: options.check, selection: { full: false, reason: 'fixture', files }, proofFiles: files, testRunner: 'node bin/proof.js',
     proofCommand: 'node bin/proof.js ' + files.map(file => "'./" + file + "'").join(' ') };
 }
+`,
+    'packages/gate/tests/files.js': `import { availableParallelism } from 'node:os';
+export const proofFileNames = () => Array.from({ length: availableParallelism() + 1 }, (_, n) => 'web/p' + n + '.test.js');
 `,
     'bin/proof.js': "import './tests/proof.js';\n",
     'bin/tests/proof.js': `import { appendFileSync } from 'node:fs';
