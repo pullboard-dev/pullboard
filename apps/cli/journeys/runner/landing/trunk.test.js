@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { git } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/index.js';
 import { runLandingJob } from '../../../../../packages/landing/index.js';
 import { carriedRunnerTrunk } from '../../../../../packages/sandbox/light.js';
 import { fixtureCommittedGraph } from '../../../tests/fixtures/testkit.js';
@@ -46,4 +47,17 @@ test('clause 1: the landing check runs on a checkout whose carried runner trunk 
   assert.equal(seen.length, 1);
   assert.deepEqual(seen[0].carried, { ref: 'refs/heads/main', commit: box.seed }, 'the carried trunk is the base the items merged on');
   assert.notEqual(seen[0].head, box.seed, 'HEAD is the merge, so budget changes compare the items against trunk');
+});
+
+test('#7816 clause 1: the landing check runs on a checkout that has the trunk remote\'s release tags, so git archive of an old release works there [C7]', async t => {
+  const box = trunkWithItem(t);
+  git(box.remote, ['tag', 'v0.8.6', box.seed]);
+  const seen = [];
+  const checks = ({ root }) => {
+    seen.push(tryGit(root, ['archive', '--format=tar', 'v0.8.6']).status);
+    return { ok: false, detail: 'stop before the push' };
+  };
+  const receipt = await runLandingJob({ remote: box.remote, trunk: 'refs/heads/main', expect: box.seed, items: [box.item] }, { workdir: box.workdir, checks });
+  assert.equal(receipt.outcome, 'red');
+  assert.deepEqual(seen, [0], 'git archive v0.8.6 succeeds in the landing checkout');
 });
