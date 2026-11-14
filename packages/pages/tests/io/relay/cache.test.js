@@ -1,14 +1,15 @@
 /** The relay page cache acknowledges each uploaded object while another process writes the same cache [H16]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { temporaryDirectory } from '../../../../store/tests/fixtures/tmp.js';
 import { createRelayPageCache } from '../../../index.js';
 import { snapshotSourceId } from '../../../index.js';
 
 test('[H16] an acknowledge after another connection commits mid-upload is recorded, not refused database is locked', (t) => {
-  const { root: home } = privateFixtureFiles('pullboard-page-cache-');
+  const home = realpathSync(temporaryDirectory('pullboard-page-cache-'));
   const saved = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = home;
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = saved; });
