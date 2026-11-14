@@ -125,15 +125,3 @@ test('moved shim exceptions require a live edge or trusted historical import [C7
     } else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
   }
 });
-
-
-/** Render the plan index's actual keyed placement rows. */
-function planIndex(stays) {
-  const engineStays = stays.map(({ path, reason }) => ({ cell: 'state', row: [path, 'packages/state/' + path, reason] }));
-  return JSON.stringify({ version: 1, cells: [], stays, engineStays }, null, 2) + '\n';
-}
-
-/** Render the test-tier manifest's actual file-keyed rows. */
-function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
-
-

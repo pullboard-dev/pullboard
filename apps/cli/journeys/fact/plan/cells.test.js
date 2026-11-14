@@ -379,6 +379,15 @@ test('replay of a version-three receipt keeps the older policy for plan rows [H1
   assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 4 }), [SHARD_FILE]);
 });
 
+/** Render the plan index's actual keyed placement rows. */
+function planIndex(stays) {
+  const engineStays = stays.map(({ path, reason }) => ({ cell: 'state', row: [path, 'packages/state/' + path, reason] }));
+  return JSON.stringify({ version: 1, cells: [], stays, engineStays }, null, 2) + '\n';
+}
+
+/** Render the test-tier manifest's actual file-keyed rows. */
+function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
+
 test('plan index disjoint additions compose identically in both orders [C7,D3]', async t => {
   const row = path => ({ path: path, reason: 'T1' });
   const base = [row('test/base.test.js')];
