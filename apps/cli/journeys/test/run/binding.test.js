@@ -58,7 +58,7 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    gate: { queue: { reviewsFirst: true, currentReleaseFirst: true } } }));
+    gate: { runnerDispatch: 'controller', queue: { reviewsFirst: true, currentReleaseFirst: true } } }));
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
@@ -80,7 +80,8 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   const unclaimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.repo, { BINDING_LOG: log, BINDING_LABEL: 'unclaimed' });
   children.push(unclaimed);
   await observed(unclaimed, () => resources(box)?.line.some(row => row.agent === 'coordinator'), 'unclaimed focused waiter');
-  const claimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.web, { BINDING_LOG: log, BINDING_LABEL: 'claimed' });
+  // A claiming seat's own `pullboard test` queues on the board and never joins the local line; the item check (PULLBOARD_CHECK) is the claimed run that blocks in it [C7].
+  const claimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.web, { BINDING_LOG: log, BINDING_LABEL: 'claimed', PULLBOARD_CHECK: '1' });
   children.push(claimed);
   await observed(claimed, () => resources(box)?.line.some(row => row.agent === seat), 'claimed focused waiter');
   const line = resources(box).line;
