@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/index.js apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js apps/lib/index.js packages/landing/index.js packages/store/index.js */
+/** @pullboard-test-input apps/cli/index.js apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js apps/lib/index.js packages/landing/index.js packages/landing/src/io/automatic/scheduler.js packages/store/index.js */
 /** A landing that loses its lease mid-batch ends cleanly and the next wake adopts and lands its batch [C7,#5770]. */
 import assert from 'node:assert/strict';
 import {
@@ -20,7 +20,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   scheduleAutomaticLanding,
   automaticLandingDirectory,
-} from '../../../../../packages/landing/index.js';
+} from '../../../../../packages/landing/src/io/automatic/scheduler.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -35,7 +35,7 @@ const from = (names, path) => `import { ${names} } from ${JSON.stringify(pathToF
  * lease once its batch is recorded: the board's heartbeat for it is set in the past, as when renewals miss the deadline.
  */
 const WAKE = [
-  from('resumeAutomaticLanding, scheduleAutomaticLanding', '../../../../../packages/landing/index.js'),
+  from('resumeAutomaticLanding, scheduleAutomaticLanding', '../../../../../packages/landing/src/io/automatic/scheduler.js'),
   from('runLandingWake, wakeIo', '../../../src/io/landing/automatic.js'),
   from('context, landAfterAcceptance', '../../../index.js'),
   "import { DatabaseSync } from 'node:sqlite'; import { join } from 'node:path';",
