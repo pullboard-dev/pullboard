@@ -298,7 +298,9 @@ function nextPick(ctx, board, values, ports) {
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
   // A review this seat's family can take only by relaxation never stands in front of build work (#3681).
   const familyOnly = familyRelaxedOnly(ctx, board, me, found?.item);
-  if (found?.mandatory && !ownClaim && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
+  // A review already reserved for this seat comes before its own held build: N41 takes the review, then the build (#7060).
+  const reservedForMe = found?.item?.item_review_by === me.id;
+  if (found?.mandatory && (!ownClaim || reservedForMe) && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
   if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
