@@ -1,4 +1,5 @@
 /** Cockpit search row ages read from one captured commit [N26] */
+/** @pullboard-test-gui */
 import assert from 'node:assert/strict';
 import {
   execFileSync,
