@@ -12,6 +12,7 @@ import { cpus } from 'node:os';
 import { loadavg } from 'node:os';
 import { freemem } from 'node:os';
 import { createE2eHelpers } from '../../../e2e.js';
+import { settlePulledJobs } from '../../../e2e.js';
 import { runFixtureChild } from '../../../child.js';
 import { fixtureJoin } from '../../../testkit.js';
 
@@ -42,6 +43,8 @@ function command(box, bin, cwd, label, ...args) {
   const env = { ...box.env, PULLBOARD_LOCK_BUDGET_COMMAND: label };
   const result = runFixtureChild(process.execPath, ['--import', PRELOAD, bin, ...args], { cwd, env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+  // Under pull dispatch submit returns before its gate settles; wait so the next command sees the submitted item (e8f5582942).
+  settlePulledJobs(cwd, args, env);
   assert.doesNotMatch(result.stderr, /LOCK_BUDGET_OBSERVER_UNAVAILABLE/u);
   return result.stdout;
 }
