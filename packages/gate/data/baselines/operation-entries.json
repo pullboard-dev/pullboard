@@ -27,7 +27,6 @@
     "packages/landing/src/io/runner/job.js",
     "packages/landing/src/io/shards.js",
     "packages/landing/src/io/smoke.js",
-    "packages/landing/src/io/step/batch.js",
     "packages/landing/src/io/step/gate.js",
     "packages/landing/src/io/step/trunk.js",
     "packages/landing/src/logic/land/why.js",
@@ -94,7 +93,6 @@
     "packages/github/src/io/publish.js",
     "packages/items/src/io/patch/submit.js",
     "packages/landing/src/io/smoke.js",
-    "packages/landing/src/io/step/batch.js",
     "packages/landing/src/io/step/gate.js",
     "packages/merge/src/io/compose.js",
     "packages/rigor/src/io/proof.js"
