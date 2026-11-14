@@ -35,6 +35,9 @@ const CASES = 100;
 const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
+import { freemem } from 'node:os';
+import { loadavg } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -81,6 +84,8 @@ const framed = () => {
 };
 const receipt = { version: 1, kind: 'test', main: input.main, source: input.source, files: input.files, steps: { test: Math.round(performance.now() - started) },
   environment: { node: process.versions.node, platform: process.platform, arch: process.arch }, green: ran.status === 0,
+  // The runner's own load, so the board can keep main's side of a comparison as a native receipt [V4,C7].
+  load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
@@ -237,11 +242,26 @@ function redFilesIn(text, paths) {
 }
 
 /**
- * Compare a red run with main's, by one more test job at main over its red files: each red file gets main's verdict
- * (red, green, or absent at main), and each named case either also fails on main or fails only with the change. A
- * case that timed out or was cancelled is judged by its file alone, since a timeout names no identical failure [C7].
+ * The board's main-red receipt for one main-side job, read from this checkout's receipt store; null when none is
+ * there. Why the short wait: the board writes the receipt as it applies the post the job row already shows.
  */
-async function compareWithMain(ctx, run, { main, config, paths, agent, say }) {
+async function boundReceipt(root, job, wait = pause) {
+  const [{ mainRedReceiptId }, { readGateReceipt, receiptStore }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../../../../../packages/gate/index.js')]);
+  for (let tries = 0; ; tries += 1) {
+    const receipt = readGateReceipt(receiptStore(root), mainRedReceiptId(job));
+    if (receipt || tries >= 10) return receipt;
+    await wait(200);
+  }
+}
+
+/**
+ * Compare a red run with main's, by one more test job at main per red file under main's accepted command: each red
+ * file gets main's verdict (red, green, or absent at main), and each named case either also fails on main or fails
+ * only with the change. A case that timed out or was cancelled is judged by its file alone, since a timeout names no
+ * identical failure. Each judged file names the board's main-red receipt and main's signed failures, so the seat's
+ * notice cites the receipt as the controller's comparison does [V4,B3,C7].
+ */
+async function compareWithMain(ctx, run, { main, runner, paths, agent, say }) {
   const candidate = redFilesIn(run.output, paths);
   for (const row of run.failures ?? []) if (paths.includes(row.file) && !candidate.has(row.file)) candidate.set(row.file, false);
   const files = [...candidate.keys()];
@@ -249,26 +269,40 @@ async function compareWithMain(ctx, run, { main, config, paths, agent, say }) {
   const absent = files.filter(file => { try { git(ctx.info.root, ['cat-file', '-e', `${main}:${file}`]); return false; } catch { return true; } });
   const present = files.filter(file => !absent.includes(file));
   say?.('pullboard test: waiting on the main comparison (--compare-main)');
-  const onMain = present.length ? await runJobFor(ctx, { item: undefined, commit: main, main,
-    command: `${config.affectedTests.trimEnd()} ${present.map(file => shellWord('./' + file)).join(' ')}`, files: present }, { agent, say }) : { green: true, failures: [], job: null };
-  const mainRed = redFilesIn(onMain.output ?? '', present);
-  for (const row of onMain.failures ?? []) if (present.includes(row.file)) mainRed.set(row.file, false);
-  // Main's verdict per file is known when its run passed or names which files failed; otherwise no file is judged.
-  const known = onMain.green || mainRed.size ? files.map(file => ({ file, job: onMain.job, result: absent.includes(file) ? 'absent' : mainRed.has(file) ? 'red' : 'green' })) : [];
-  if (!run.failures || !onMain.green && !onMain.failures) {
-    return { notices: [], known, ...(known.length ? {} : { unavailable: !run.failures ? 'the run\'s output does not name every failing case' : `main's run of ${present.join(', ')} names no failing cases` }) };
+  const [{ mainTestCommand }, { MAIN_FAILURE_SIGNATURE_VERSION }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../../../../../packages/kernel/index.js')]);
+  // One job per file, so each file's receipt binds the exact command main ran for it.
+  const runs = new Map(await Promise.all(present.map(async file => [file, await runJobFor(ctx, { item: undefined, commit: main, main,
+    command: mainTestCommand(runner, file), files: [file] }, { agent, say })])));
+  const known = [];
+  for (const file of files) {
+    if (absent.includes(file)) { known.push({ file, job: null, result: 'absent' }); continue; }
+    const onMain = runs.get(file);
+    const red = redFilesIn(onMain.output ?? '', [file]).has(file) || (onMain.failures ?? []).some(row => row.file === file);
+    // Main's verdict on a file is known when its run passed or names it failing; otherwise the file is not judged.
+    if (!onMain.green && !red) continue;
+    const rows = onMain.green ? [] : (onMain.failures ?? []).map((row, index) => ({ file: row.file, name: row.name, signature: onMain.signatures?.[index] ?? null }));
+    const signed = onMain.green || onMain.failures && rows.every(row => row.signature);
+    const receipt = signed ? await boundReceipt(ctx.info.root, onMain.job) : null;
+    known.push({ file, job: onMain.job, result: onMain.green ? 'green' : 'red',
+      ...(receipt ? { receiptId: receipt.id, failures: rows, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) });
+  }
+  const sides = [...runs.values()];
+  if (!run.failures || sides.some(side => !side.green && !side.failures)) {
+    const unnamed = present.filter(file => !runs.get(file).green && !runs.get(file).failures);
+    return { notices: [], known, ...(known.length ? {} : { unavailable: !run.failures ? 'the run\'s output does not name every failing case' : `main's run of ${unnamed.join(', ')} names no failing cases` }) };
   }
   // Main's failing cases with each one's diagnostic signature, so one case red on both sides in different ways is not main's [V4,B3].
-  const mainCases = new Map((onMain.failures ?? []).map((row, index) => [`${row.file}\0${row.name}`, onMain.signatures?.[index] ?? null]));
+  const mainCases = new Map(sides.flatMap(side => (side.failures ?? []).map((row, index) => [`${row.file}\0${row.name}`, { signature: side.signatures?.[index] ?? null, job: side.job }])));
+  const jobOf = file => runs.get(file)?.job ?? null;
   return { known, notices: run.failures.flatMap((row, index) => {
     if (!paths.includes(row.file) || candidate.get(row.file)) return [];
-    const key = `${row.file}\0${row.name}`, mine = run.signatures?.[index] ?? null, theirs = mainCases.get(key) ?? null;
+    const key = `${row.file}\0${row.name}`, mine = run.signatures?.[index] ?? null, theirs = mainCases.get(key)?.signature ?? null;
     // An unsigned case on either side is never matched by its name alone [V4,B3].
     const status = !mainCases.has(key) ? 'candidate-only' : mine && theirs && mine === theirs ? 'also-main' : 'different-on-main';
     return [{ status, main, file: row.file, name: row.name,
-      message: status === 'also-main' ? `also fails on main at ${main}: ${row.file} :: ${row.name} (not yours; test job ${onMain.job})`
-        : status === 'different-on-main' ? `fails differently with your change: ${row.file} :: ${row.name} (main fails it another way at ${main}; main test job ${onMain.job})`
-        : `fails only with your change: ${row.file} :: ${row.name} (main test job ${onMain.job})` }];
+      message: status === 'also-main' ? `also fails on main at ${main}: ${row.file} :: ${row.name} (not yours; test job ${jobOf(row.file)})`
+        : status === 'different-on-main' ? `fails differently with your change: ${row.file} :: ${row.name} (main fails it another way at ${main}; main test job ${jobOf(row.file)})`
+        : `fails only with your change: ${row.file} :: ${row.name} (main test job ${jobOf(row.file)})` }];
   }) };
 }
 
@@ -291,7 +325,8 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const paths = testFiles(root, files);
   await refuseUncommitted(root);
   const commit = headCommit(root);
-  const main = mainPolicy(root).commit;
+  const policy = mainPolicy(root);
+  const main = policy.commit;
   if (!commit || !main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no commit or no accepted main to test against; commit the work and run pullboard test again');
   const started = Date.now();
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
@@ -309,10 +344,14 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const redFiles = [...new Set(ran.failures?.map(row => row.file) ?? paths)];
   const reasons = typeof knownRed === 'function' ? redFiles.map(knownRed) : [];
   if (redFiles.length && reasons.length === redFiles.length && reasons.every(Boolean)) { result.mainSkipped = reasons[0]; return result; }
-  const compared = await compareWithMain(ctx, ran, { main, config, paths, agent, say });
+  const runner = typeof policy.config?.affectedTests === 'string' && policy.config.affectedTests.trim() ? policy.config.affectedTests : config.affectedTests;
+  const compared = await compareWithMain(ctx, ran, { main, runner, paths, agent, say });
   result.main = main;
   result.pulledNotices = compared.notices;
   result.known = compared.known ?? [];
+  // The candidate's signed cases and main's receipt-backed files, which here.js turns into receipt-citing notices [V4,B3].
+  result.pulledCases = (ran.failures ?? []).flatMap((row, index) => paths.includes(row.file) && ran.signatures?.[index] ? [{ file: row.file, name: row.name, signature: ran.signatures[index] }] : []);
+  result.mainComparison = { main, files: result.known };
   if (compared.unavailable) result.mainUnavailable = compared.unavailable;
   return result;
 }

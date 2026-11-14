@@ -10,3 +10,4 @@ export { applyGateReceipt, applyJobReceipt, applyLandingReceipt, applyShardRecei
 export { provideMainRedNotes } from "./src/io/gate/files.js";
 export { CHECK_BASELINE_KIND, offerCheckBaseline, provideBaselineRecorder } from "./src/io/baseline.js";
 export { provideMainTestRecorder } from "./src/io/recheck.js";
+export { applyTestReceipt, mainRedReceiptId, mainTestCommand } from "./src/io/test/receipt.js";
