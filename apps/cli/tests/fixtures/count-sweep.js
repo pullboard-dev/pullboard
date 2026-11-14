@@ -74,16 +74,16 @@ export function countPairs() {
     source('[data-home-count]');
   }
   if (view.tab === 'shouts') {
-    add('Shouts/working agents footer', number(document.querySelector('[data-status="agents"] b')), all('#agents .agent-card').length);
+    add('Shouts/working agents footer', number(document.querySelector('[data-status="agents"] b')), all('#agents .sx-ag').length);
     const pendingQuestions = new Set([...p.decisions, ...p.asked, ...(p.decisionQueue || [])].map(question => question.shout_id));
     add('Shouts/Questions segment', number(document.querySelector('[data-shout-filter=questions] b')), pendingQuestions.size);
     add('Shouts/replaced decisions wall', all('#decisions .shout').length, 0);
     const idle = document.querySelector('#agents [data-fold="idle"][aria-expanded="true"]');
-    if (idle) add('Agents/idle', number(idle), all('#agents .idle-list .agent-pill').length);
-    for (const card of all('#agents .agent-card')) {
-      const more = card.querySelector('.agent-more');
-      if (more && card.querySelector('.agent-work')) add('Agents/additional held items', number(more), card.querySelectorAll('.agent-work').length - 1);
-      if (more) source('#agents .agent-more');
+    if (idle) add('Agents/idle', number(idle), all('#agents .sx-idlelist .sx-idle-n').length);
+    // An agent's row names its held items in its title ("holds #1 and 2 more"); its +N must say the same (#7795).
+    for (const card of all('#agents .sx-ag')) {
+      const more = number(card.querySelector('.sx-more'));
+      if (more) add('Agents/additional held items', more, Number(/ and (\d+) more/u.exec(card.title)?.[1] ?? 0));
     }
   }
   if (view.tab === 'spec' || view.tab === 'doctrine') {
@@ -279,9 +279,9 @@ export async function sweep(chrome, phase) {
       }
       for (const id of expectedQuestions) assert.ok(visibleMessages.has(id), phase + ': every native pending question opens in a real conversation: ' + id);
       await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
-      const agents = await chrome.stable('[...document.querySelectorAll("#agents .agent-card [data-agent]")].map(node => node.dataset.agent)');
+      const agents = await chrome.stable('[...document.querySelectorAll("#agents .sx-ag[data-agent]")].map(node => node.dataset.agent)');
       for (const agent of agents) {
-        await press(chrome, 'document.querySelector(' + JSON.stringify('#agents .agent-card [data-agent="' + agent + '"]') + ')');
+        await press(chrome, 'document.querySelector(' + JSON.stringify('#agents .sx-ag[data-agent="' + agent + '"]') + ')');
         await checkCounts(chrome, phase + '/agent/' + agent);
       }
       await checkCounts(chrome, phase + '/Shouts expanded');

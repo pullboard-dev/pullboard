@@ -873,7 +873,7 @@
     },
     "pullboard.json": {
       "kind": "repo-data",
-      "owner": "packages/kernel/src/logic/config-file.js"
+      "owner": "packages/kernel/browser.js"
     },
     "pure-roots.json": {
       "kind": "repo-data",

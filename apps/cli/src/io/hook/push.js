@@ -25,6 +25,8 @@ const SHARD_CEILING_MS = 20 * 60_000;
 export const PUSH_SHARD_BUDGET_MS = SHARD_CEILING_MS / 4;
 /** Budget: the time assumed for a test file with no record, about the mean file of the full gate. */
 export const PUSH_DEFAULT_FILE_MS = 5_000;
+/** Budget: the waiting hook says its shards are still wanted every 30 s, well inside the 5 minutes after which a claim ends them (PUSH_ALIVE_MS). */
+const ALIVE_MS = 30_000;
 /** Budget: the waiting hook reads its shard rows once a second, one small local read. */
 const POLL_MS = 1_000;
 
@@ -106,12 +108,18 @@ export async function offerPushShards(ctx, plan) {
  *
  * @returns {Promise<{ job: string, posted: { receipt: object, runner: string | null } }[] | { refused: string }>}
  */
-export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = POLL_MS, now = Date.now } = {}) {
-  const { jobViews } = await import('../../../../../packages/api/index.js');
+export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = POLL_MS, now = Date.now, read = work => withBoardRead(ctx, work), write = work => withBoard(ctx, work) } = {}) {
+  const { jobViews, keepJobsAlive } = await import('../../../../../packages/api/index.js');
   const claimedAt = new Map(), posted = new Map();
-  let moved = now();
+  let moved = now(), renewed = -Infinity;
   while (posted.size < jobs.length) {
-    const views = withBoardRead(ctx, board => jobViews(board.db, jobs));
+    // Say the gate is still here, so no claim ends its shards as abandoned (#7805).
+    if (now() - renewed >= ALIVE_MS) {
+      const open = jobs.filter(job => !posted.has(job));
+      write(board => keepJobsAlive(board.db, open, now()));
+      renewed = now();
+    }
+    const views = read(board => jobViews(board.db, jobs));
     for (const [at, view] of views.entries()) {
       const job = jobs[at];
       if (!view) return { refused: `shard job ${job} is gone from the board; push again` };
@@ -134,6 +142,27 @@ export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = P
     await wait(pollMs);
   }
   return jobs.map(job => ({ job, posted: posted.get(job) }));
+}
+
+/**
+ * Wait for the shard jobs (awaitPushShards) and, however the wait ends, withdraw the ones unfinished: a block, a timeout,
+ * a throw, SIGINT or SIGTERM end every shard through the job API, so no runner claims one again [#7805]. `after` runs last.
+ *
+ * @param {object} ctx
+ * @param {string[]} jobs
+ * @param {{ say?: Function, wait?: Function, pollMs?: number, now?: () => number, read?: Function, write?: Function, after?: () => void, exit?: (code: number) => never, signals?: { on: Function, off: Function } }} [options]
+ * @returns {ReturnType<typeof awaitPushShards>}
+ */
+export async function awaitAndWithdraw(ctx, jobs, { after = () => {}, exit = process.exit, signals = process, write = work => withBoard(ctx, work), ...options } = {}) {
+  const { endJobs } = await import('../../../../../packages/api/index.js');
+  const withdraw = () => {
+    try { write(board => endJobs(board.db, jobs, { reason: 'the pre-push gate that offered it stopped' })); } catch { /* a shard left over ends itself once its gate stops renewing it */ }
+    after();
+  };
+  const handlers = [['SIGINT', 130], ['SIGTERM', 143]].map(([signal, code]) => [signal, () => { withdraw(); exit(code); }]);
+  for (const [signal, handler] of handlers) signals.on(signal, handler);
+  try { return await awaitPushShards(ctx, jobs, { ...options, write }); }
+  finally { for (const [signal, handler] of handlers) signals.off(signal, handler); withdraw(); }
 }
 
 /**
@@ -166,9 +195,7 @@ export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
   const { jobs, ref } = await offerPushShards(ctx, plan);
   const files = plan.shards.reduce((sum, shard) => sum + shard.files.length, 0);
   say?.(`pre-push: the full gate's ${files} test files are offered as ${jobs.length} shard jobs at ${plan.source.slice(0, 12)}; every free runner pulls them`);
-  let settled;
-  try { settled = await awaitPushShards(ctx, jobs, { say, wait, pollMs }); }
-  finally { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } }
+  const settled = await awaitAndWithdraw(ctx, jobs, { say, wait, pollMs, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
   if (!Array.isArray(settled)) return { isGreen: false, problem: `the gate did not finish: ${settled.refused}`, jobs };
   const { combinedReceipt, failingParts } = await import('../../../../../packages/api/index.js');
   const combined = combinedReceipt({ status: 0, gate: { green: true, phases: [] } }, settled);
