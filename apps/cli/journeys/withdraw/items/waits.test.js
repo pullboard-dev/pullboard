@@ -48,7 +48,7 @@ test('each row says what it waits on [N26]', async () => {
     assert.deepEqual(rows['6'], { stage: 'Ready', detail: 'strong route', marks: ['Sent back'], gated: false, waits: [] });
 
     await page.click({ go: 'item:2' });
-    assert.match(page.show('detail'), /<h2><span class="id">#2<\/span>Base<\/h2>/, 'the gate links to what it waits on');
+    assert.match(page.show('detail'), /<span class="id">#2<\/span>[^]*<h2>Base<\/h2>/, 'the gate links to what it waits on');
   } finally {
     await view.stop();
   }

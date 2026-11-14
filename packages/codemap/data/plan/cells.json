@@ -1855,10 +1855,6 @@
       "cell": "app:lib"
     },
     {
-      "path": "bin/landing-candidate.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "bin/main-audit.js",
       "cell": "app:cli"
     },
@@ -1887,19 +1883,7 @@
       "cell": "app:cli"
     },
     {
-      "path": "bin/automatic-landing.js",
-      "cell": "app:cli"
-    },
-    {
       "path": "bin/main-red-refresh.js",
-      "cell": "app:cli"
-    },
-    {
-      "path": "bin/handoff-worker-dispatcher.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "bin/gate-drive-worker.js",
       "cell": "app:cli"
     }
   ],

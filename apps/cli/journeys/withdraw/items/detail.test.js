@@ -147,8 +147,8 @@ test('in-text item references stay inline and open their target at phone and des
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
-      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1') && document.querySelector('#detail .item-panel-expand-text a.ref[data-go]') && document.querySelector('#detail .item-panel-brief a.ref[data-go]')");
-      await chrome.click(`document.querySelector('#detail .item-panel-expand-text a.ref[data-go]')`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1') && document.querySelector('#detail .ip-cl .t a.ref[data-go]') && document.querySelector('#detail .item-panel-brief a.ref[data-go]')");
+      await chrome.click(`document.querySelector('#detail .ip-cl .t a.ref[data-go]')`);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
       await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
       await chrome.waitFor("document.querySelector('#detail .item-panel-brief a.ref[data-go]')");

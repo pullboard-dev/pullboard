@@ -45,16 +45,15 @@ const itemReads = (reads) => reads.filter((path) => /\/api\/v1\/boards\/[^/]+\/i
 /** What the detail pane shows of an item: its heading, criterion, check, brief, verdicts, moves and facts. */
 const DETAIL = `(() => {
   const detail = document.querySelector('#detail');
-  const part = (name) => [...detail.querySelectorAll('h3')].find((heading) => heading.textContent === name)?.parentElement;
+  const part = (name) => [...detail.querySelectorAll('.ip-lbl')].find((label) => label.textContent === name)?.closest('section');
   return {
-    title: detail.querySelector('h2')?.innerText ?? null,
+    title: detail.querySelector('h2') ? (detail.querySelector('.item-panel-head .id')?.innerText ?? '') + detail.querySelector('h2').innerText : null,
     waiting: detail.querySelector('.detail-wait')?.textContent ?? null,
     busy: !!detail.querySelector('[aria-busy]'),
-    criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
-    check: part('Check') ? [part('Check').querySelector('.item-panel-command pre').textContent, part('Check').querySelector('.chip').textContent] : null,
-    brief: part('Brief')?.closest('section').querySelector('.item-panel-brief')?.innerText ?? null,
-    // The Verdicts tab and the History tab list newest first; the helper reads them oldest first.
-    verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<run>')]),
+    criterion: part('Done when')?.querySelector('.ip-cl .t').innerText ?? null,
+    check: part('Check') ? [part('Check').querySelector('.ip-fr').title, part('Check').querySelector('.ip-cap').textContent] : null,
+    brief: part('Brief')?.querySelector('.item-panel-brief')?.innerText ?? null,
+    // The opened history lists newest first; the helper reads it oldest first. The latest verdict has its own section.
     moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].reverse().flatMap((move) => move.dataset.eventIds.split(' ').reverse().map(() => move.dataset.timelineKind)),
     // Gate bookkeeping facts (shadow receipts, review comparisons) are not findings; fact/snapshot.test.js drops them the same way.
     facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)),
@@ -141,9 +140,8 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       assert.deepEqual(greeting, {
         title: '#1Offline greeting',
         criterion: 'The greeting renders from the snapshot alone.',
-        check: ['true', 'Green on main'],
+        check: ['true', 'runs one command · green on main'],
         brief: 'Keep the greeting short.',
-        verdicts: [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it\nreused submit proof <run>, <run>']],
         moves: ['add', 'check-baseline', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'accept'],
         facts: ['The corrected greeting renders offline.'],
       }, 'the detail carries what the summary leaves out');
@@ -179,7 +177,6 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length && view.item === 1 && !!document.querySelector('#detail .tl')");
       const exported = await chrome.stable(DETAIL);
       assert.equal(exported.criterion, 'The greeting renders from the snapshot alone.');
-      assert.deepEqual(exported.verdicts, [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it\nreused submit proof <run>, <run>']]);
       assert.deepEqual(exported.facts, ['The corrected greeting renders offline.']);
       await searchFor(chrome, 'zeppelin', 15_000); // budget: hang-only ceiling for a search the page answers itself.
       await chrome.waitFor("!!document.querySelector('#find-results [data-find=\"item:2\"]')");

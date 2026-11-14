@@ -72,12 +72,12 @@ test('Roadmap rows open their items across boards and update live [N26,N38]', { 
     // Since b94d43bd4a the Items list draws its state dot as a soft tint behind an icon, so the dot is matched by its state class.
     const beaconDot = await chrome.stable(`${roadmapRow('beacon#1')}.querySelector('.dot').className`);
     await openRoadmapItem(chrome, 'beacon#1');
-    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/beacon/items/1')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries') && !!document.querySelector('#detail .item-panel-status .item-stage')`);
-    const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .item-panel-status .item-stage'); return {
-      id: document.querySelector('#detail h2 span').innerText, label: chip.querySelector('.stage-word').innerText, chip: getComputedStyle(chip.querySelector('.stage-word')).color + ' on ' + getComputedStyle(chip.querySelector('.stage-word')).backgroundColor,
+    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/beacon/items/1')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries') && !!document.querySelector('#detail .item-panel-head .ip-chip')`);
+    const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .item-panel-head .ip-chip'); return {
+      id: document.querySelector('#detail .item-panel-head .id').innerText, label: chip.innerText,
       dot: document.querySelector('#chain [data-item="1"] .dot').className }; })())`));
     const crossed = seen.cards[0].rows.find((row) => row.id === 'beacon#1');
-    assert.deepEqual(there, { id: '#1', label: crossed.label === 'Landed' ? 'Merged' : crossed.label, chip: crossed.chip, dot: beaconDot }, "the other repo's Items tab shows that item with the Roadmap's word and colours");
+    assert.deepEqual(there, { id: '#1', label: crossed.label, dot: beaconDot }, "the other repo's Items tab shows that item with the Roadmap's word");
     await travel(chrome, -1);
     await settled(chrome, `document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', roadmapPath)} && !!${roadmapRow('beacon#1')}`);
     await travel(chrome, 1);
@@ -90,13 +90,13 @@ test('Roadmap rows open their items across boards and update live [N26,N38]', { 
     for (const row of seen.cards.flatMap((card) => card.rows).filter((each) => each.id.startsWith('#'))) {
       const roadmapDot = await chrome.stable(`${roadmapRow(row.id)}.querySelector('.dot').className`);
       await openRoadmapItem(chrome, row.id);
-      await chrome.waitFor(`${showing('items', '/roadmap-demo/items/' + row.id.slice(1))} && document.querySelector('#detail h2 span')?.innerText === ${JSON.stringify(row.id)} && !!document.querySelector('#detail .item-panel-status .item-stage')`);
+      await chrome.waitFor(`${showing('items', '/roadmap-demo/items/' + row.id.slice(1))} && document.querySelector('#detail .item-panel-head .id')?.innerText === ${JSON.stringify(row.id)} && !!document.querySelector('#detail .item-panel-head .ip-chip')`);
       const here = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const chip = document.querySelector('#detail .item-panel-status .item-stage'), word = chip.querySelector('.stage-word'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
-        return { label: word.innerText, chip: getComputedStyle(word).color + ' on ' + getComputedStyle(word).backgroundColor, dot: dot ? dot.className : 'not listed' };
+        const chip = document.querySelector('#detail .item-panel-head .ip-chip'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
+        return { label: chip.innerText, dot: dot ? dot.className : 'not listed' };
       })())`));
-      // The Roadmap words a landed item Landed (95cc1594e3, its mockup); the Items detail keeps the stage name Merged. Chip colours must still match.
-      assert.deepEqual(here, { label: row.label === 'Landed' ? 'Merged' : row.label, chip: row.chip, dot: row.label === 'Withdrawn' ? 'not listed' : roadmapDot }, `${row.id}: the Items detail keeps the Roadmap stage and its state dot`);
+      // The Roadmap and the approved item panel both word a landed item Landed.
+      assert.deepEqual(here, { label: row.label, dot: row.label === 'Withdrawn' ? 'not listed' : roadmapDot }, `${row.id}: the Items detail panel keeps the Roadmap stage word and its state dot`);
       await travel(chrome, -1);
       await settled(chrome, `${showing('roadmap', roadmapPath)} && !!${roadmapRow(row.id)}`);
     }

@@ -109,7 +109,7 @@ export function notchHtml({ agents = null, perHour = null, rulings = null } = {}
  * @param {{ tab: string, state?: string, stateDefault?: string, lane?: string|null, q?: string, rows?: string|null, rowsDefault?: string|null, shouts?: string, activity?: string, shipped?: boolean, by?: string|null, win?: number, window?: string, ids?: number[]|null }} place
  * @returns {[string, string][]}
  */
-export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', shipped = false, by = null, win = 24, window = '1h', ids = null, release = null, page = 1 }) {
+export function placeQuery({ tab, state = 'active', stateDefault = 'active', lane = null, q = '', rows = null, rowsDefault = null, shouts = 'all', activity = 'all', shipped = false, by = null, win = 24, window = '1h', ids = null, release = null, page = 1, per = 25 }) {
   const pairs = [];
   const words = String(q ?? '').trim();
   if (tab === 'items' && state && state !== stateDefault && !(words && state === 'all')) pairs.push(['state', state]);
@@ -121,7 +121,7 @@ export function placeQuery({ tab, state = 'active', stateDefault = 'active', lan
   if (tab === 'activity' && by) pairs.push(['by', by]);
   if (tab === 'activity' && win && Number(win) !== 24) pairs.push(['win', String(win)]);
   if (tab === 'roadmap' && shipped) pairs.push(['shipped', '1']);
-  if (tab === 'roadmap' && release) { pairs.push(['release', release]); if (page > 1) pairs.push(['page', String(page)]); }
+  if (tab === 'roadmap' && release) { pairs.push(['release', release]); if (page > 1) pairs.push(['page', String(page)]); if (per !== 25) pairs.push(['per', String(per)]); }
   if (tab === 'pipeline' && window && window !== '1h') pairs.push(['w', window]);
   if (tab === 'items' && state === 'ids' && Array.isArray(ids) && ids.length) pairs.push(['ids', ids.join(',')]);
   return pairs;
@@ -144,12 +144,14 @@ export function readPlaceQuery(search) {
  * its page number from 1 (a missing or bad page reads 1).
  *
  * @param {string} search - "?a=b" or "a=b".
- * @returns {{ release: string|null, page: number }}
+ * Its per-page choice is 25, 50 or 100; anything else reads 25.
+ *
+ * @returns {{ release: string|null, page: number, per: number }}
  */
 export function readRoadmapPlace(search) {
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   const page = Number.parseInt(params.get('page') ?? '', 10);
-  return { release: params.get('release') || null, page: Number.isSafeInteger(page) && page > 1 ? page : 1 };
+  return { release: params.get('release') || null, page: Number.isSafeInteger(page) && page > 1 ? page : 1, per: [50, 100].includes(Number(params.get('per'))) ? Number(params.get('per')) : 25 };
 }
 
 /**
@@ -161,7 +163,7 @@ export function readRoadmapPlace(search) {
  * @returns {string} "" or "?…".
  */
 export function withPlaceQuery(search, pairs) {
-  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'shipped', 'by', 'win', 'w', 'ids', 'release', 'page'];
+  const keys = ['state', 'lane', 'q', 'rows', 'shouts', 'activity', 'shipped', 'by', 'win', 'w', 'ids', 'release', 'page', 'per'];
   const params = new URLSearchParams(String(search ?? '').replace(/^\?/u, ''));
   for (const key of keys) params.delete(key);
   for (const [key, value] of pairs) params.append(key, value);
