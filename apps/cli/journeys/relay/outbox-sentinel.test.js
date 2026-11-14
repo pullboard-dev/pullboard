@@ -69,7 +69,7 @@ test('clause 1: a queued sentinel shout reaches the relay and the moves after it
   // As in the outbox journeys, the other computer moves first once the relay is back.
   const moved = await step('other moves', async () => (await otherAgent(box, other))('shout', 'all', 'made on the other computer'));
   assert.equal(moved.code, 0, moved.failure);
-  const drained = await step('status up', () => box.cli('status'));
+  const drained = await step('status up', () => box.cliLocal('status'));
   assert.equal(drained.code, 0, drained.failure);
   assert.equal(drained.document.relay.outbox, undefined, 'the outbox drains past the sentinel notice');
   assert.deepEqual(drained.document.relay.outboxRefusals ?? [], [], 'no queued move is refused');
