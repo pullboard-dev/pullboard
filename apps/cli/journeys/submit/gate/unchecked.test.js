@@ -88,7 +88,7 @@ test('CommonJS and nested package scopes fall back instead of silently missing r
   const commit = commitAll(common, 'feat(core): change CommonJS source [G1]');
   const selection = selectAffectedTests(common.root, { base, commit });
   assert.equal(selection.full, true, 'require import edges cannot be silently omitted');
-  assert.match(selection.reason, /CommonJS|package scope/u);
+  assert.match(selection.reason, /does not declare "type": "module"|package scope/u);
 
   const nested = privateRepo(t);
   seedGraph(nested);
