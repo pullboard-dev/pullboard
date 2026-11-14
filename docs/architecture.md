@@ -585,7 +585,6 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | seat heartbeat | a heartbeat row every 60 s; proves the seat alive and never selects or claims | `heartbeatSeat` in `packages/store/src/io/presence.js` | the seat | `apps/cli/journeys/heartbeat/presence.test.js` |
 | claim heartbeat | re-claims or re-reserves at half the lease while a queued gate runs; stops with ITEM_LEASE_LOST when the item is no longer claimed or submitted by this seat at its digest and commit | `createQueuedItemLease` in `packages/git/src/io/lease.js` | item claimed or submitted by this seat | `apps/cli/journeys/gate/during/holds.test.js` |
 | landing lease | board_meta landing_lease, 120 s, renewed every 5 s by the lander | `landingLeaseMove` in `packages/store/src/logic/board/landing/lease.js` | one lander per board | `apps/lib/tests/landing/lease.test.js` |
-| automatic landing scheduler | a pending.json record; a crashed lander is recovered by the next command, sentinel or view | `recoverAutomaticLanding` in `packages/landing/src/io/automatic/scheduler.js` | verified, unmerged items | `apps/cli/journeys/verify/landing/drill.test.js` |
 
 ### 3. What `next` hands out
 

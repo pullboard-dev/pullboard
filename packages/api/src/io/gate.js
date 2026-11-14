@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../store/index.js';
+import { store } from './gate/moves.js';
+import { orderedReceiptMoves } from './gate/moves.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
@@ -31,6 +32,7 @@ import { ownershipOnly } from './owner.js';
 import { routePulledOwnership } from './owner.js';
 import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
+import { applyTestReceipt } from './test/receipt.js';
 import { caseReworkLines } from './gate/files.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
@@ -745,14 +747,16 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null }} options - compareWithMain:
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null }} options - compareWithMain:
  *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
  *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
+ *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
+ *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -796,14 +800,23 @@ export function gateLedgerHits(db, request, files) {
   return request;
 }
 
-/** Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. */
+/**
+ * Apply one newly recorded receipt by its job's kind; kinds with no board effect only stay recorded. With ports.ordered
+ * (a relay-linked board), the engine moves the apply makes are taken back and pushed onto it for the relay [C7,H16].
+ */
 export function applyJobReceipt(board, posted, ports = {}) {
+  if (Array.isArray(ports.ordered)) {
+    const { result, moves } = orderedReceiptMoves(board, () => applyJobReceipt(board, posted, { ...ports, ordered: null }));
+    ports.ordered.push(...moves);
+    return result;
+  }
   const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
   if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
+  if (kind === 'test') return applyTestReceipt(board, posted);
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);

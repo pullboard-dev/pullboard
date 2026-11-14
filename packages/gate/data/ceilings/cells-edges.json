@@ -2384,10 +2384,6 @@
       "cells": 4,
       "deep": 0
     },
-    "packages/landing/src/io/automatic/scheduler.js": {
-      "cells": 3,
-      "deep": 0
-    },
     "packages/landing/src/io/computed/conflict/receipt.js": {
       "cells": 4,
       "deep": 0
@@ -2495,10 +2491,6 @@
     "packages/landing/src/io/static.js": {
       "cells": 2,
       "deep": 0
-    },
-    "packages/landing/src/io/step/batch.js": {
-      "cells": 7,
-      "deep": 2
     },
     "packages/landing/src/io/step/diagnose.js": {
       "cells": 6,
