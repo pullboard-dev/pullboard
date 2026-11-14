@@ -72,3 +72,16 @@ test('#7639 clause 1: per-job harness paths and gate slot variables do not chang
     }
   } finally { fx.done(); }
 });
+
+test('#7822 clause 1: a land proof keys a gate-proved file as its gate shard did, whatever the pulled job variables differ in [C7]', async () => {
+  const fx = fixture();
+  try {
+    // A gate shard's job carries its worker count and the trunk remote; its land job's proof carries neither (packages/drive pull.js).
+    const gate = { TZ: 'UTC', LANG: 'C.UTF-8', PULLBOARD_JOB_WORKERS: '2', PULLBOARD_TRUNK_REMOTE: 'coreyolson@100.109.124.33:pb-trunk', PULLBOARD_RUNNER_TOOLS: '/runner/a' };
+    const land = { TZ: 'UTC', LANG: 'C.UTF-8', PULLBOARD_RUNNER_TOOLS: '/runner/b' };
+    const [proved, landing, otherGate] = [await keysUnder(fx, gate), await keysUnder(fx, land), await keysUnder(fx, { ...gate, PULLBOARD_JOB_WORKERS: '5', PULLBOARD_TRUNK_REMOTE: '/other/trunk' })];
+    assert.ok(proved.plain && proved.declaring, 'the gate env keys both files');
+    assert.deepEqual(landing, proved, 'the land env reuses the gate receipt key');
+    assert.deepEqual(otherGate, proved, 'a different worker count or trunk remote keys the same');
+  } finally { fx.done(); }
+});
