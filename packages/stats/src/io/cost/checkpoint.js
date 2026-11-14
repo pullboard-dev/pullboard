@@ -42,7 +42,7 @@ function lifecycleIntervals(board, agent, now, lastEventId) {
       current = { key: event.event_id, item: event.item_id, start: at, end: null, model: detail.model, deadline: Number.isFinite(Date.parse(detail.leaseUntil)) ? Date.parse(detail.leaseUntil) : Infinity };
       intervals.push(current);
     } else if (event.event_kind === 'renew' && current?.item === event.item_id) current.deadline = Number.isFinite(Date.parse(detail.leaseUntil)) ? Date.parse(detail.leaseUntil) : Infinity;
-    else if (current?.item === event.item_id) { current.end = Math.min(at, current.deadline ?? at); current = null; }
+    else if (current?.item === event.item_id) { current.end = Math.min(at, current.deadline ?? at); current.endKind = event.event_kind; current = null; }
   }
   if (current && Number.isFinite(current.deadline) && current.deadline <= now) current.end = current.deadline;
   return { intervals, latest: events.at(-1) };
