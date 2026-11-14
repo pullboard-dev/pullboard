@@ -285,14 +285,6 @@ async function privateHandleCollision(box, root, bobRoot, teamFile, localFile, o
   assertMoveReplay(bobTeamFile, record, record.destinationItemId);
 }
 
-/** Run an add through `run`; a likely-duplicate refusal is answered by naming the item it resembles, as the refusal asks. */
-async function addNotDuplicate(run, ...args) {
-  const first = await run('add', ...args);
-  const similar = /^this item reads like an open one: #(\d+)/u.exec(first.document?.error?.message ?? '')?.[1];
-  return first.document?.error?.code === 'DUPLICATE_LIKELY' && similar
-    ? run('add', ...args, '--not-duplicate-of', `${similar} the move fixtures file near-identical private items`) : first;
-}
-
 /** Exercise real CLI handles and both move directions beside the original linked-device privacy controls. */
 export async function privateBoardMoves(box, privateFile) {
   Object.assign(box.providerState, {
@@ -321,8 +313,8 @@ export async function privateBoardMoves(box, privateFile) {
   const addHeartbeat = agePrivateHeartbeat(privateFile, box.root);
   await settleRelayCalls(box);
   const callsBeforePrivateAdd = box.calls.length;
-  const linkedPrivate = await addNotDuplicate(box.cli, box.lane, 'private item delivered through the relay', '--private');
-  assert.equal(linkedPrivate.code, 0, JSON.stringify(linkedPrivate.document?.error ?? linkedPrivate.failure ?? null));
+  const linkedPrivate = await box.cli('add', box.lane, 'private item delivered through the relay', '--private');
+  assert.equal(linkedPrivate.code, 0);
   assert.equal(box.calls.length, callsBeforePrivateAdd, 'a successful private add makes no shared request or publication');
   assertPrivateHeartbeat(privateFile, addHeartbeat);
   assertPrivateTransportIsolation(box, privateFile);
@@ -687,7 +679,7 @@ export async function privateBoardMoves(box, privateFile) {
       'a receipt without authenticated person authority cannot preserve the handled marker');
   });
 
-  const fresh = await addNotDuplicate((...args) => box.cliAt(root, ...args), box.lane, 'new private item after moves', '--private');
+  const fresh = await box.cliAt(root, 'add', box.lane, 'new private item after moves', '--private');
   assert.equal(fresh.code, 0);
   assert.ok(fresh.document.item.item_id > reverseId);
   withMoveBoard(localFile, board => assert.equal(store.itemRedirect(board, 3).moveId, moved.document.moveId,
