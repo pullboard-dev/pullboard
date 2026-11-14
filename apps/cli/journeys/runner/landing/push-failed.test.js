@@ -28,7 +28,8 @@ import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
 function accepted(t) {
   const graph = fixtureCommittedGraph('pullboard-push-failed-');
   t.after(() => rmSync(graph.root, { recursive: true, force: true }));
-  const sha = git(graph.root, ['rev-parse', 'HEAD']);
+  graph.put('a.txt', 'a\n');
+  const sha = graph.commit();
   const board = cellBoard(t, ':memory:', undefined, { gitRoot: graph.root });
   const actor = register(board, { lane: 'core', path: join(graph.root, 'b'), route: 'strong', model: FIXTURE_MODEL });
   const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Item', criterion: 'The item lands.' });
