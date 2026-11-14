@@ -42,8 +42,8 @@ test('attach and submit compose a companion against the item folder, not its old
   const advanced = box.git(folder, 'rev-parse', 'HEAD');
   assert.notEqual(advanced, head);
   const submitted = await document(box, folder, 'submit', String(item), '--no-next');
-  assert.notEqual(submitted.gate.companion.commit, advanced);
-  assert.equal(submitted.gate.companion.source, advanced);
+  // The pulled gate judges the companions composed onto the item head: its source is that composed commit, not the head [P7].
+  assert.notEqual(submitted.gate.source, advanced);
   assert.equal((await document(box, box.repo, 'patch', 'list', String(item))).patches[0].commit, advanced);
 
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), oldHead);
