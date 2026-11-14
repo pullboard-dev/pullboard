@@ -17,6 +17,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { landingFailures } from '../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import {
   json,
@@ -27,7 +28,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
-test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
+test('a landing reopen carries the exact failing assertion [C7,B22]', async () => {
   const box = landProject();
   const gate = join(box.dir, 'land-gate.cjs');
   const source = readFileSync(gate, 'utf8');
@@ -41,7 +42,10 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
   moveMainPastSubmit(box);
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landing = box.run(box.repo, 'land', '--json');
-  assert.equal(landing.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${landing.err}${landing.out}`);
+  // The pulled land job returns the red item on its receipt; land itself offers the job and exits 0 [#4265].
+  const settled = await settleLand(box, JSON.parse(landing.out));
+  assert.deepEqual(settled.landed, [], `every candidate is a culprit, so nothing lands: ${landing.err}${landing.out}`);
+  assert.equal(settled.batch.state, 'blocked', JSON.stringify(settled.landJob ?? {}));
   const item = json(box, box.repo, 'show', String(entry.item));
   assert.equal(item.item_status, 'open');
   const thread = onBoard(box, board => store.itemThread(board, entry.item));
