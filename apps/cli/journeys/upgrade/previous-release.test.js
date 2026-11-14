@@ -139,7 +139,7 @@ const words = line => line.trim().split(/\s+/u);
 
 test('a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', { todo: 'the hook refusal and its repair from a worktree depend on #7760' }, async t => {
   const box = project(t);
-  writeFileSync(join(box.worktree, 'src', 'web', 'index.js'), "export const y = 1;\nexport function footer() { return '<p>bye</p>'; }\n");
+  writeFileSync(join(box.worktree, 'src/web/index.js'), "export const y = 1;\nexport function footer() { return '<p>bye</p>'; }\n");
   assert.equal(box.git(box.worktree, 'add', '-A').status, 0);
   let committed = box.git(box.worktree, 'commit', '-m', 'feat(web): footer [G1]');
   if (committed.status !== 0) {
