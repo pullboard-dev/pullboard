@@ -65,7 +65,7 @@ async function builtFixture(t) {
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): land the result by hand [G1]');
   const landing = box.git(box.web, 'rev-parse', 'HEAD');
   box.git(box.repo, 'merge', '-q', '--ff-only', landing);
-  const merged = await box.runLocal(box.repo, 'merged', String(id), landing, '--forced', 'hand landed around the gate');
+  const merged = await box.runLocal(box.repo, 'merged', String(id), landing, '--forced', 'hand landed around the gate', '--waive-proof', 'fixture has no receipt');
   assert.equal(merged.code, 0, merged.out + merged.err);
   return { box, id };
 }
