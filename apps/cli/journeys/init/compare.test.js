@@ -20,7 +20,6 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
-import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 /** Import ordered native event-shaped fixture records, leaving mutable items visibly open. */
 function seedWindows(box, demo) {
@@ -76,45 +75,17 @@ test('window overview renders canonical seeded values, directions, shares and mi
     await chrome.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
     await chrome.send('Page.navigate',{url:server.link.href});
     await chrome.waitFor('!!data?.project && !!document.querySelector("[data-tab=activity]")');
-    await pressTab(chrome, 'activity'); // the two-hour comparison lives on Activity
-    await chrome.waitFor('document.querySelector("#activity-compare .window-comparison") && data.project.statsComparison.available');
-    const result=JSON.parse(await chrome.stable(`JSON.stringify((() => {
-      const c=data.project.statsComparison, root=document.querySelector('#activity-compare .window-comparison');
-      const keys=[['landed',false],['rejectRate',true],['idleShare',true],['agentHoursPerLanding',false]];
-      return { landed:[c.current.landed,c.previous.landed], reject:[c.current.rejectRate,c.previous.rejectRate],
-        title:root.querySelector('h2').textContent, sentence:root.querySelector('.window-sentence').textContent,
-        ranges:root.querySelector('.window-range').textContent,
-        expectedRange:[c.current.since,c.current.until,c.previous.since,c.previous.until].map(value=>new Date(value).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit'})),
-        tiles:keys.map(([key,share])=>{const tile=root.querySelector('[data-window-tile="'+key+'"]'), a=c.current[key], b=c.previous[key], d=c.change[key];
-          return {key,value:tile.querySelector('b').textContent,expected:share?(a*100).toFixed(1)+'%':key==='landed'?String(a):a.toFixed(1),
-            previous:tile.querySelector('small').textContent,expectedPrevious:'was '+(share?(b*100).toFixed(1)+'%':key==='landed'?String(b):b.toFixed(1)),
-            tone:tile.classList.contains('good')?'good':tile.classList.contains('bad')?'bad':'',expectedTone:d===0?'':(d>0)===(key==='landed')?'good':'bad',
-            change:tile.querySelector('.window-change').textContent};}),
-        stages:[...root.querySelectorAll('[data-window-stage]')].map(node=>{const [period,key]=node.dataset.windowStage.split('.');return [Number(node.dataset.share),c[period].stageShares[key],node.getBoundingClientRect().width/node.ownerSVGElement.getBoundingClientRect().width];}),
-        tableOpen:root.querySelector('details').open, summary:root.querySelector('summary').textContent,
-        visible:root.querySelector('.window-tiles').getBoundingClientRect().height>0 };
-    })())`));
+    // 648b26dc00 (activity matches the approved mockup) removed the Activity comparison section, so the page's own read is the evidence now.
+    await chrome.waitFor('data.project.statsComparison?.available === true');
+    const result=JSON.parse(await chrome.stable('JSON.stringify((() => { const c=data.project.statsComparison; return { landed:[c.current.landed,c.previous.landed], reject:[c.current.rejectRate,c.previous.rejectRate], minutes:c.durationMinutes }; })())'));
     assert.deepEqual(result.landed,[1,2]);
     assert.deepEqual(result.reject,[0,1/3]);
-    assert.equal(result.title,'The last two hours');
-    assert.match(result.sentence,/Landed: 1, down from 2/u);
-    assert.match(result.sentence,/Sent back: 0.0%, down from 33.3%/u);
-    for (const label of result.expectedRange) assert.ok(result.ranges.includes(label),label);
-    assert.doesNotMatch(result.ranges,/T\d{2}:|\d{1,2}:\d{2}:\d{2}/u);
-    for (const tile of result.tiles) {
-      assert.equal(tile.value,tile.expected,tile.key); assert.equal(tile.previous,tile.expectedPrevious,tile.key); assert.equal(tile.tone,tile.expectedTone,tile.key);
-      if (['rejectRate','idleShare'].includes(tile.key)) assert.match(tile.change,/pts|No change/u);
-    }
-    assert.equal(result.stages.length,10);
-    for (const [shown,expected,flex] of result.stages) {assert.equal(shown,expected);assert.ok(Math.abs(flex-expected)<0.000001,'Rendered stage share mismatch: ' + JSON.stringify({shown,expected,flex,stages:result.stages}));}
-    assert.equal(result.visible,true); assert.equal(result.tableOpen,false); assert.equal(result.summary,'All 17 measures →');
-    await chrome.click('document.querySelector("#activity-compare .window-comparison summary")');
-    await chrome.waitFor('document.querySelector("#activity-compare .window-comparison details").open');
-    assert.equal(await chrome.stable('document.querySelectorAll("#activity-compare [data-stats-comparison]").length'),17);
+    assert.equal(result.minutes,120);
+    assert.equal(await chrome.stable('document.querySelector("#activity-compare") === null'),true,'the Activity tab no longer draws a separate comparison section');
     for (const width of [1440,375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false});
       await chrome.waitFor('innerWidth === '+width);
-      assert.equal(await chrome.stable('document.documentElement.scrollWidth <= innerWidth'),true,'comparison fits at '+width);
+      assert.equal(await chrome.stable('document.documentElement.scrollWidth <= innerWidth'),true,'the page fits at '+width);
     }
   } finally {if(chrome) await closeSnapshotChrome(chrome); await server.stop();}
 });

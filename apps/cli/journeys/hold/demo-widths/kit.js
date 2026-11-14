@@ -180,12 +180,12 @@ export function demoWidthTest(only, phase = 'both') {
             for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
           }
           if (tab === 'activity') {
-            const findTitle = `(() => [...document.querySelectorAll('#activity .activity-item')].find(node => node.title === ${JSON.stringify(wrapTitle)}))()`;
+            const findTitle = `(() => [...document.querySelectorAll('#activity .act-row .ph')].find(node => node.title === ${JSON.stringify(wrapTitle)}))()`; // the approved activity rows (648b26dc00, #6916) replaced the old .activity-item feed
             await chrome.waitFor(`(() => { const element = ${findTitle}; return element?.getBoundingClientRect().width > 0; })()`);
             const fit = JSON.parse(await chrome.stable(`JSON.stringify((() => {
               const element = ${findTitle};
               if (!element) return null;
-              const row = element.closest('.activity-event').getBoundingClientRect(), box = element.getBoundingClientRect(), style = getComputedStyle(element);
+              const row = element.closest('.act-row').getBoundingClientRect(), box = element.getBoundingClientRect(), style = getComputedStyle(element);
               return {rowRight: row.right, boxRight: box.right, boxWidth: box.width, boxHeight: box.height, lineHeight: parseFloat(style.fontSize) * 2, overflow: style.textOverflow, whiteSpace: style.whiteSpace, clipped: element.scrollWidth > element.clientWidth, title: element.title};
             })())`));
             assert.ok(fit, `${width}: the activity feed shows the long item title`);
