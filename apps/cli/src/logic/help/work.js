@@ -108,6 +108,7 @@ export const workHelp = `Work
                                         changes included; a red file is compared with main and named known or new
                                         one file skips the main comparison; --compare-main runs it
                                         --diagnose prioritizes one file and prints full failure output
+                                        --no-file-limit lets slow files run to the 10-minute hard stop and prints their seconds
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
                                         in an agent seat it queues on the board and returns at once with a run id;
