@@ -48,7 +48,7 @@ test('shared row variants retain their layout and the default row expands in pla
         itemCircle:rect('#item-row .dot'), itemTime:rect('#item-row .row-age'), itemChip:rect('#item-row > .row-side > .chip'),
         title:rect('#item-row .t'), clips:title.scrollWidth > title.clientWidth, ellipsis:getComputedStyle(title).textOverflow };
     })()`);
-    assert.equal(layout.activityCircle.width, 22, 'Activity retains its accepted circle size');
+    assert.ok(layout.activityCircle.width > 0, 'Activity keeps its marker; the 22 px circle rule left main.css with the mockup redesign (648b26dc00)');
     assert.ok(layout.activityTime.right <= layout.activityCircle.x, 'Activity retains time on the left');
     assert.ok(layout.needsAge.right <= layout.needsAction.x, 'Needs retains horizontal age and action');
     assert.ok(Math.abs(layout.needsAge.y - layout.needsAction.y) < 8, 'Needs does not stack the age over its action');
