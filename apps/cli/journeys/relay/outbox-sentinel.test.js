@@ -26,32 +26,37 @@ function shouts(exported) {
   return exported.tables.shout.map((row) => `${row.shout_from}: ${row.shout_text}`);
 }
 
+/** Run one fixture command, naming the step when the fixture itself throws. */
+async function step(name, run) {
+  try { return await run(); } catch (error) { error.message = `${name}: ${error.message}`; throw error; }
+}
+
 test('clause 1: a queued sentinel shout reaches the relay and the moves after it are acknowledged [C7,B26,H16]', async (t) => {
   const box = await relayClientFixture(t);
   enableOutbox(box);
   await box.link();
-  const other = await box.otherDeviceJoin((await box.cliLocal('relay', 'pair')).document.code);
+  const other = await step('pair', async () => box.otherDeviceJoin((await box.cliLocal('relay', 'pair')).document.code));
 
   await box.stopRelay();
   // A reservation held by a gone submitter is reclaimed at once, and a reclaim is what the wait audit shouts about.
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'handoff-queue');
   mkdirSync(queue, { recursive: true });
   writeFileSync(join(queue, '000000000002-job-b.reserved'), JSON.stringify({ pid: 4194301, started: 'x' }));
-  const audited = await box.cliLocal('waits', 'record');
+  const audited = await step('waits record', () => box.cliLocal('waits', 'record'));
   assert.equal(audited.code, 0, audited.failure);
-  const after = await box.cliLocal('shout', 'all', 'made after the sentinel notice');
+  const after = await step('shout after', () => box.cliLocal('shout', 'all', 'made after the sentinel notice'));
   assert.equal(after.code, 0, after.failure);
-  const waiting = await box.cliLocal('status');
+  const waiting = await step('status down', () => box.cliLocal('status'));
   assert.deepEqual(waiting.document.relay.outbox.map((move) => move.operation), ['shout', 'shout'], 'the sentinel notice and the shout after it wait');
 
   await box.restartRelay();
-  const drained = await box.cliLocal('status');
+  const drained = await step('status up', () => box.cliLocal('status'));
   assert.equal(drained.code, 0, drained.failure);
   assert.equal(drained.document.relay.outbox, undefined, 'the outbox drains past the sentinel notice');
   assert.deepEqual(drained.document.relay.outboxRefusals ?? [], [], 'no queued move is refused');
 
-  const there = (await other.cli('export')).document;
-  const here = (await box.cliLocal('export')).document;
+  const there = (await step('export there', () => other.cli('export'))).document;
+  const here = (await step('export here', () => box.cliLocal('export'))).document;
   const sent = shouts(there).filter((line) => line.startsWith('sentinel: waits:') || line.endsWith('made after the sentinel notice'));
   assert.equal(sent.length, 2, `the other computer reads the sentinel notice and the move after it: ${JSON.stringify(shouts(there))}`);
   assert.ok(sent[0].startsWith('sentinel: '), 'the sentinel notice keeps its system actor');
