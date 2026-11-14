@@ -854,7 +854,7 @@
     "event_by": "coordinator",
     "event_kind": "landing_lease",
     "item_id": null,
-    "event_detail": "{\"action\":\"request\",\"token\":\"d78df246-1b83-41b5-8e4d-31ef215a9bbc\",\"holder\":\"coordinator landing d78df246\",\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"action\":\"request\",\"token\":\"fixture.lease.token.not.real.0000000\",\"holder\":\"coordinator landing d78df246\",\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 19,
@@ -950,7 +950,7 @@
     "event_by": "coordinator",
     "event_kind": "landing_lease",
     "item_id": null,
-    "event_detail": "{\"action\":\"release\",\"token\":\"d78df246-1b83-41b5-8e4d-31ef215a9bbc\",\"holder\":null,\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"action\":\"release\",\"token\":\"fixture.lease.token.not.real.0000000\",\"holder\":null,\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 31,
