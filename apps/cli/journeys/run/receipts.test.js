@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import {
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -240,7 +241,9 @@ test('an all-reused direct invocation preserves a receipt without inventing a fr
   // Process-level: direct suite-runner processes sharing a reuse cache.
   const first = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(first.status, 0, first.stderr + first.stdout);
-  t.diagnostic('DBG ' + JSON.stringify({ err: first.stderr, out: first.stdout.slice(0, 1500), status: box.git(box.repo, 'status', '--porcelain', '--untracked-files=all') }));
+  t.diagnostic('DBG ' + JSON.stringify({ err: first.stderr, out: first.stdout.slice(0, 1500), status: box.git(box.repo, 'status', '--porcelain', '--untracked-files=all'),
+    store: (() => { const root = join(box.repo, '.git/pullboard/test-actions'); const out = {}; for (const d of ['green', 'red', 'runs']) { try { out[d] = readdirSync(join(root, d)); } catch (e) { out[d] = String(e.code); } }
+      try { const f = readdirSync(join(root, 'green'))[0]; out.entry = f && readFileSync(join(root, 'green', f), 'utf8').slice(0, 1500); } catch { out.entry = "none"; } return out; })() }));
   const second = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(second.status, 0, second.stderr + second.stdout);
   assert.match(second.stdout, /# reused/u, 'the native cache really reused the seeded file results');
