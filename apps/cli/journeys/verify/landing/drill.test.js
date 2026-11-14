@@ -10,7 +10,10 @@ import { boardJobQueueCall } from '../../../../../packages/api/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { LEASE_MS } from '../../../../../packages/jobs/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { context } from '../../../index.js';
+import { landAfterAcceptance } from '../../../index.js';
+import { wakeIo } from '../../../src/io/landing/automatic.js';
+import { captureCommandInProcess } from '../../../tests/fixtures/process.js';
 import { acceptGated } from '../../../tests/fixtures/pull.js';
 import { pullProject } from '../../../tests/fixtures/pull.js';
 import { pullQueue } from '../../../tests/fixtures/pull.js';
@@ -18,16 +21,12 @@ import { serveOnce } from '../../../tests/fixtures/pull.js';
 import { submitAll } from '../../../tests/fixtures/pull.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 
-/** Offer the land job as the automatic lander does after an accept, in a child process at the main checkout. */
-function offerLanding(box) {
-  const source = [
-    `import { wakeIo } from ${JSON.stringify(new URL('../../../src/io/landing/automatic.js', import.meta.url).href)};`,
-    `import { context, landAfterAcceptance } from ${JSON.stringify(new URL('../../../index.js', import.meta.url).href)};`,
-    'console.log("RESULT " + JSON.stringify(await landAfterAcceptance(context(wakeIo(process.argv[1])))));',
-  ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-  assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
-  return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice(7));
+/** Offer the land job as the automatic lander does after an accept, in this process at the main checkout. */
+async function offerLanding(box) {
+  let answer = null;
+  const run = await captureCommandInProcess(async () => { answer = await landAfterAcceptance(context(wakeIo(box.repo))); return 0; }, [], { cwd: box.repo, env: { ...box.env } });
+  assert.equal(run.code, 0, run.err);
+  return answer;
 }
 
 /** The NODE_OPTIONS that pause a runner process inside its land job's merge step, writing its pid to `marker` first. */
@@ -56,7 +55,7 @@ async t => {
     acceptGated(queue.board, box.repo, id, submitted[n].commit);
   });
   const before = box.git(box.dir, '--git-dir', trunk, 'rev-parse', 'refs/heads/main');
-  const offered = offerLanding(box);
+  const offered = await offerLanding(box);
   const [job] = jobsOf(queue.board.db, { kind: 'land' });
   assert.equal(offered.offered, job?.id, `one land job: ${JSON.stringify(offered)}`);
   const { payload } = job.steps.find(step => step.name === 'offered').payload;
