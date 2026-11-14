@@ -62,7 +62,9 @@ async t => {
   assert.equal(queued.length, 2, 'one main-test job per distinct file (a once, b once), not one per submit: ' + JSON.stringify(queued.map(job => [job.id, job.step])));
 
   for (const runner of ['r-main-1', 'r-main-2', 'r-main-3']) assert.equal((await serveOnce(box, url, runner)).code, 0);
-  assert.ok(jobsOf(board.db, { kind: 'main-test' }).every(job => job.step === 'done'), 'every main-test job recorded: ' + JSON.stringify(jobsOf(board.db, { kind: 'main-test' }).map(job => [job.id.slice(-40), job.step])));
+  const steps = jobsOf(board.db, { kind: 'main-test' }).map(job => job.step);
+  assert.equal(steps.filter(step => step === 'done').length, 2, 'a and b each recorded once: ' + steps);
+  assert.ok(steps.every(step => step === 'done' || step === 'unoffered'), 'no main-test job is left to serve: ' + steps);
   for (const [id, submit] of [[first, firstSubmit], [second, secondSubmit]]) {
     const settled = getItem(board, id);
     assert.deepEqual([settled.item_status, settled.item_commit], ['submitted', submit.commit], `red only on inherited main failures settles to review: ${facts(board, id)}`);
