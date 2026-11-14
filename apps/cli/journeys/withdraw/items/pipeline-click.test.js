@@ -26,6 +26,7 @@ import {
   settled,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 import { pipelineBoard } from '../../../tests/fixtures/cockpit/pipeline.js';
 import { installPipelinePressDiagnostics } from '../../../tests/fixtures/cockpit/pipeline.js';
@@ -40,7 +41,7 @@ test('the pipeline opens the clicked item under a 6× CPU throttle [N26,N38,C7]'
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('[data-page-ctl=view][data-value=pipeline]')");
@@ -85,7 +86,7 @@ test('a refresh between pointer down and up does not lose the click [N26,N38,C7]
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('[data-page-ctl=view][data-value=pipeline]')");

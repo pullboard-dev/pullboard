@@ -30,6 +30,7 @@ import {
   press,
   travel,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 import { pipelineBoard } from '../../../tests/fixtures/cockpit/pipeline.js';
 import { installPipelinePressDiagnostics } from '../../../tests/fixtures/cockpit/pipeline.js';
@@ -46,7 +47,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     const listRead = "JSON.stringify([...document.querySelectorAll('#chain > li[data-item]')].map(row => ({id:Number(row.dataset.item),title:row.title,meta:row.querySelector('.meta').textContent,tag:row.lastElementChild.textContent})))";
     const listBefore = await chrome.stable(listRead);

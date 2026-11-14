@@ -39,6 +39,7 @@ import {
   press,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { assertFirstStateDelay } from '../../tests/fixtures/cockpit/stable.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 
 test('wait references stay on one line and link to every prerequisite at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
@@ -60,7 +61,7 @@ test('wait references stay on one line and link to every prerequisite at phone a
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     await assertFirstStateDelay(chrome, t);
     // Pages open on the Dashboard and draw only the chosen tab, so click Items as a person would.
-    await click('[data-tab="items"]');
+    await pressTab(chrome, 'items');
     await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });

@@ -13,6 +13,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import {
   armDecisionPressCapture,
@@ -127,7 +128,7 @@ export function demoWidthTest(only, phase = 'both') {
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
-    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     if (pages) await assertFirstStateDelay(chrome, t);
     if (pages) {
@@ -143,7 +144,7 @@ export function demoWidthTest(only, phase = 'both') {
     }
     for (const width of [only]) {
       await setViewport(width);
-      await click('.tab[data-tab="items"]');
+      await pressTab(chrome, 'items');
       if (pages) {
         if (width <= 900) {
           await click('#proj-switch');
@@ -156,7 +157,7 @@ export function demoWidthTest(only, phase = 'both') {
           await click('[data-proj-all]');
           await click(`[data-root="${demo.repo}"]`);
           await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
-          await click('.tab[data-tab="items"]');
+          await pressTab(chrome, 'items');
           await chrome.waitFor("!!document.querySelector('#chain .row')");
         }
         assert.ok(await chrome.stable("[...document.querySelectorAll('#proj-list .pname')].some(e=>e.textContent==='phone-demo')"), `${width}: demo appears in the project list`);
@@ -166,10 +167,8 @@ export function demoWidthTest(only, phase = 'both') {
         assert.ok(await chrome.stable("!!document.querySelector('#detail h2')"), `${width}: selected item detail is visible`);
         await checkLayout(width, 'items, Needs you and detail');
         for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
-          // Spec and Doctrine sit in the Rules menu and Activity in the Insights menu, so open the group first [N26].
-          const group = { spec: 'rules', doctrine: 'rules', activity: 'insights' }[tab];
-          if (group) await click(`[data-nav-group="${group}"]`);
-          await click(`.tab[data-tab="${tab}"]`);
+          // pressTab opens the Menu drawer under 900 px, or the Rules or Insights menu above it [N26].
+          await pressTab(chrome, tab);
           await checkLayout(width, `${tab} tab`);
           if (tab === 'spec') {
             await waitRendered(['#spec-chips button']);
@@ -209,7 +208,7 @@ export function demoWidthTest(only, phase = 'both') {
               `${width}: the reply box sits in the thread and is a target: ${JSON.stringify(open)}`);
           }
         }
-        await click('.tab[data-tab="items"]');
+        await pressTab(chrome, 'items');
       }
 
       if (actions) {
@@ -223,7 +222,7 @@ export function demoWidthTest(only, phase = 'both') {
         await chrome.waitFor("document.querySelector('#console.ok') && document.querySelector('#console').textContent.includes('added #')");
         await checkLayout(width, 'successful add toast');
 
-        await click('.tab[data-tab="shouts"]');
+        await pressTab(chrome, 'shouts');
         await checkLayout(width, 'shout and hold forms');
         const answerText = `Phone answer ${width}`;
         let answerLifecycleCaptureArmed = false;
