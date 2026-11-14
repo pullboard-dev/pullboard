@@ -107,7 +107,9 @@ export async function settledSubmit(box) {
   assert.equal(queued.code, 0, JSON.stringify(queued.document));
   const shown = await whenRunnerSettles(box.env, () => {
     const document = box.cli('show', String(box.id)).document;
-    return document?.gateJob?.step === 'done' ? document : null;
+    // The job reads done once its receipt records; the board applies it just after, ending in a submit or a red measurement.
+    const applied = document?.item_status === 'submitted' || document?.thread?.some(row => String(row.text ?? '').startsWith(`Gate job ${document.gateJob?.id} `) && / red at |passed but not submitted/u.test(row.text));
+    return document?.gateJob?.step === 'done' && applied ? document : null;
   }, { deadlineMs: 180_000, what: `the gate for #${box.id}` });
   return { code: shown.item_status === 'submitted' ? 0 : 1, document: shown };
 }

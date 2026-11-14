@@ -10,6 +10,7 @@ import { fixture } from '../../fixtures/file-pool.js';
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -278,9 +279,12 @@ test('a broken private pool must not return a live loan', async () => {
 test('a run a synchronous call leaves behind lends nothing once the call returns [C7]', { cpuLoad: true }, async (t) => {
   const { root, env, log } = fixture(t, 1);
   for (const file of ['inner-a.test.js', 'inner-b.test.js']) writeFileSync(join(root, file), timedFile(file, 200));
+  // The detached run keeps its own temp folder: under the outer run's, the outer cleanup removes the run's sandbox mid-start under load.
+  const spare = join(root, 'detached-tmp');
+  mkdirSync(spare);
   // The parent's shell call starts a detached run and returns at once; the parent then works on in its own place.
   const detached = `const { execSync } = await import('node:child_process');
-  execSync(${JSON.stringify(`${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} inner-a.test.js inner-b.test.js > /dev/null 2>&1 &`)}, { cwd: ${JSON.stringify(root)}, env: { ...process.env, FIXTURE_RUN: 'inner' } });
+  execSync(${JSON.stringify(`${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} inner-a.test.js inner-b.test.js > /dev/null 2>&1 &`)}, { cwd: ${JSON.stringify(root)}, env: { ...process.env, FIXTURE_RUN: 'inner', TMPDIR: ${JSON.stringify(spare)}, TMP: ${JSON.stringify(spare)}, TEMP: ${JSON.stringify(spare)} } });
   const until = Date.now() + 1500;
   while (Date.now() < until) { /* computing in its own place */ }`;
   writeFileSync(join(root, 'parent.test.js'), timedFile('parent.test.js', 0, detached));

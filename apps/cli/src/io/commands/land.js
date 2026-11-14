@@ -9,6 +9,7 @@ import { badgeCounts } from '../../../../view/index.js';
 import { badgeDocuments } from '../../../../view/index.js';
 import { pairPrefix } from '../../../../../packages/flakes/index.js';
 import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
+import { gateRuns } from '../../../../../packages/flakes/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/index.js';
 import { landWhyLines } from '../../../../../packages/landing/index.js';
@@ -90,7 +91,7 @@ function noLandingRunner() {
 
 /** Offer a runner land job from the main checkout (pull.js's offerPulledLanding), loaded only when a landing is offered. */
 async function offerLanding(ctx, root, options = {}) {
-  return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, pairPrefix, quarantineWaivers, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit, badgeDocuments: board => badgeDocuments(badgeCounts(board)) }, options);
+  return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, pairPrefix, quarantineWaivers, gateRuns, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit, badgeDocuments: board => badgeDocuments(badgeCounts(board)) }, options);
 }
 
 /**
