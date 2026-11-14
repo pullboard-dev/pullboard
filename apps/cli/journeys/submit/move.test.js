@@ -1,9 +1,4 @@
 /** A pulled submit survives an unrelated main move while its gate runs; any pullboard.json policy change still refuses at the receipt [V4,H16,C7]. */
-import { trialLedgerKey } from '../../../../packages/gate/index.js';
-import {
-  composeAfterProof,
-  requireSubmitComposition,
-} from '../../../../packages/items/index.js';
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -29,22 +24,6 @@ function item(box) {
     db.exec('PRAGMA busy_timeout=5000');
     return db.prepare('SELECT item_status,item_commit,item_verdict FROM item WHERE item_id=?').get(box.id);
   } finally { db.close(); }
-}
-
-/**
- * Put both composition rules past their trial, the way twenty clean real gates would: MAIN_NOT_COMPOSED is a trial
- * refusal that only reports until then, and each rule keeps its own trial under the one code.
- */
-function enforceCompositionRules(box) {
-  const file = join(box.repo, '.git/pullboard/refusal-trials.json');
-  const codes = {};
-  for (const rule of [requireSubmitComposition, composeAfterProof]) {
-    const options = { rule: ['composition', rule.toString()] };
-    codes[trialLedgerKey('MAIN_NOT_COMPOSED', options)] = { code: 'MAIN_NOT_COMPOSED', identity: 'seeded', start: 0, falseRefusals: 0 };
-  }
-  assert.equal(Object.keys(codes).length, 2, 'each rule keeps its own trial under one code');
-  mkdirSync(join(box.repo, '.git/pullboard'), { recursive: true });
-  writeFileSync(file, JSON.stringify({ version: 2, gates: 20, codes }) + '\n');
 }
 
 /**
@@ -90,7 +69,6 @@ test('feature [G1]',()=>{ if(feature==='item') { writeFileSync(started,'held'); 
   assert.equal(built.status, 0, built.stderr);
   const ready = await box.runLocal(box.repo, 'bar', 'ready', 'on', '--json');
   assert.equal(ready.code, 0, ready.out + ready.err);
-  if (mode === 'policy') enforceCompositionRules(box);
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   // Process-level: the submit under test is a real child process; it queues the gate and returns at once (#7725).
   const result = runFixtureChild(process.execPath, [helpers.BIN, 'submit', String(box.id), '--no-next', '--json'],
@@ -104,7 +82,8 @@ test('feature [G1]',()=>{ if(feature==='item') { writeFileSync(started,'held'); 
   await helpers.waitFor(() => existsSync(started), 'the pulled check to start', 120000); // budget: runner pickup hang ceiling, no throughput claim.
   if (mode === 'policy') {
     const file = join(box.repo, 'pullboard.json'); const config = JSON.parse(readFileSync(file, 'utf8'));
-    config.submit = { ...config.submit, autoFileMainReds: true };
+    // The sealed policy refuses a changed proof field; a field outside that list (submit.autoFileMainReds) is re-frozen without a refusal by design (#2375).
+    config.affectedTests = `${config.affectedTests} --test-reporter=tap`;
     helpers.commitFile(box, box.repo, 'pullboard.json', JSON.stringify(config), 'chore: land during the gate [G1]');
   } else if (mode === 'shared') {
     const file = join(box.repo, 'pullboard.json'); const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -131,9 +110,9 @@ test('pulled submit lands green when unrelated main moves during its gate [V4,H1
 
 test('pulled submit still refuses when pullboard.json policy changes during its gate [V4,H16,C7]', async t => {
   const { box, output } = await fixture(t, 'policy');
-  // Composition reaches the changed pullboard.json first; the sealed policy check refuses it behind that.
-  assert.match(output, /NO_POLICY|MAIN_NOT_COMPOSED/u);
-  assert.match(output, /pullboard\.json|submit\.autoFileMainReds/u);
+  // A pulled gate has no composition step at the receipt; the sealed policy check refuses the changed proof field.
+  assert.match(output, /NO_POLICY/u);
+  assert.match(output, /accepted submit policy changed: affectedTests/u);
   assert.notEqual(item(box).item_status, 'submitted', output);
 });
 
