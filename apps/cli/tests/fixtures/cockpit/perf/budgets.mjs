@@ -40,7 +40,7 @@ const BETWEEN_MS = 500;
 
 /** Tabs pressed in order from the Items address, each with the content that proves it drew. */
 export const TAB_TARGETS = Object.freeze([
-  ['shouts', '#feed .conversation-row, #feed .shout'],
+  ['shouts', '#feed .sx-msg'],
   ['spec', '#spec-list .row'],
   ['doctrine', '#doctrine-list .row'],
   ['activity', '#activity > *'],
