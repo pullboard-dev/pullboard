@@ -81,7 +81,7 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     assert.equal(feed.match(/class="ref"/g).length, 7);
     await page.click({ go: 'item:2', classes: 'ref' });
     assert.equal(page.run('view.tab'), 'items', 'the link opens the Items tab');
-    assert.match(page.show('detail'), /<h2><span class="id">#2<\/span>Farewell banner<\/h2>/, 'on that item');
+    assert.match(page.show('detail'), /<span class="id">#2<\/span>[^]*<h2>Farewell banner<\/h2>/, 'on that item');
     assert.equal(page.element('detail').scrolled, 0, 'side by side, the detail is already in view');
 
     const narrow = await openPage(view, { width: 600 });

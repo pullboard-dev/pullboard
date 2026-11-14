@@ -88,19 +88,19 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
   await withBrowser(box, async (chrome, server) => {
     await openAddress(chrome, server, '/items/2');
     const refs = JSON.parse(await chrome.stable(`JSON.stringify({
-      criterion:[...([...document.querySelectorAll('#detail h3')].find(node=>node.textContent==='Done when')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname]),
-      brief:[...([...document.querySelectorAll('#detail h3')].find(node=>node.textContent==='Brief')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname])
+      criterion:[...([...document.querySelectorAll('#detail .ip-lbl')].find(node=>node.textContent==='Done when')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname]),
+      brief:[...([...document.querySelectorAll('#detail .ip-lbl')].find(node=>node.textContent==='Brief')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname])
     })`));
     assert.deepEqual(refs.criterion, [['#1', '/items/1']], 'criterion references are real same-board addresses');
     assert.deepEqual(refs.brief, [['#1', '/items/1'], ['#999', '/items/999']], 'known and unknown references are real same-board addresses');
     for (const heading of ['Done when', 'Brief']) {
       const literal = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const section = [...document.querySelectorAll('#detail h3')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section');
+        const section = [...document.querySelectorAll('#detail .ip-lbl')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section');
         return { code: [...section.querySelectorAll('code')].map(node => node.textContent), linkedCode: section.querySelectorAll('code a, a code').length };
       })())`));
       assert.deepEqual(literal, { code: ['#1'], linkedCode: 0 }, `${heading}: backticked references stay unlinked code`);
       const before = await history(chrome);
-      await press(chrome, `[...document.querySelectorAll('#detail h3')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`);
+      await press(chrome, `[...document.querySelectorAll('#detail .ip-lbl')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`);
       assert.deepEqual(await history(chrome), before, `${heading}: clicking code leaves the browser address unchanged`);
     }
     await press(chrome, `document.querySelector('#detail a.ref[data-go="item:999"]')`);
@@ -118,19 +118,19 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
     assert.deepEqual(activityCites, [['#1', '/items/1'], ['#2', '/items/2']], 'the Activity citation and wait prose link to their exact item targets');
     assert.ok(activity.some(([text, href]) => text === '#1' && href === '/items/1'), 'Activity item events also link to their item addresses');
     await openAddress(chrome, server, '/items/1');
-    const verdict = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#detail .item-panel-latest .verdict .note a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
+    const verdict = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#detail .item-panel-latest .note a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
     assert.deepEqual(verdict, [['#2', '/items/2']], 'verdict notes link only their plain cited item');
     const verdictCode = JSON.parse(await chrome.stable(`JSON.stringify({
-      code: [...document.querySelectorAll('#detail .item-panel-latest .verdict .note code')].map(node => node.textContent),
-      linkedCode: document.querySelectorAll('#detail .item-panel-latest .verdict .note code a, #detail .item-panel-latest .verdict .note a code').length
+      code: [...document.querySelectorAll('#detail .item-panel-latest .note code')].map(node => node.textContent),
+      linkedCode: document.querySelectorAll('#detail .item-panel-latest .note code a, #detail .item-panel-latest .note a code').length
     })`));
     assert.deepEqual(verdictCode, { code: ['#2'], linkedCode: 0 }, 'actual recorded verdict notes keep backticked references literal');
     const beforeCode = await history(chrome);
-    await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note code')`);
+    await press(chrome, `document.querySelector('#detail .item-panel-latest .note code')`);
     assert.deepEqual(await history(chrome), beforeCode, 'plain click on verdict code does not navigate');
-    await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note a.ref[data-go]')`);
+    await press(chrome, `document.querySelector('#detail .item-panel-latest .note a.ref[data-go]')`);
     assert.equal(await chrome.stable('location.pathname'), '/items/2', 'plain click stays in the page and opens the linked place');
-    assert.equal(await chrome.stable("document.querySelector('#detail h2 > span')?.textContent"), '#2');
+    assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-head .id')?.textContent"), '#2');
     assert.deepEqual(chrome.exceptions, [], 'the real view raises no page errors');
   });
 });
@@ -147,7 +147,7 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
     await settled(chrome, SCRIPT);
     await openAddress(chrome, server, '/items/2');
     for (const heading of ['Done when', 'Brief']) {
-      const selector = `[...document.querySelectorAll('#detail h3')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`;
+      const selector = `[...document.querySelectorAll('#detail .ip-lbl')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`;
       for (const input of [{ button: 'middle' }, { modifiers: process.platform === 'darwin' ? 4 : 2 }]) {
         const beforeTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
         await press(chrome, selector, input);
@@ -172,13 +172,13 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
     await chrome.send('Target.closeTarget', { targetId: target.id });
     await chrome.send('Target.closeTarget', { targetId: modifierTarget.id });
     await openAddress(chrome, server, '/items/1');
-    const verdictSelector = `document.querySelector('#detail .item-panel-latest .verdict .note a.ref[data-go="item:2"]')`;
-    assert.equal(await chrome.stable(`document.querySelector('#detail .item-panel-latest .verdict .note code')?.textContent ?? null`), '#2', 'modified-click control has a literal verdict code token');
+    const verdictSelector = `document.querySelector('#detail .item-panel-latest .note a.ref[data-go="item:2"]')`;
+    assert.equal(await chrome.stable(`document.querySelector('#detail .item-panel-latest .note code')?.textContent ?? null`), '#2', 'modified-click control has a literal verdict code token');
     const verdictHref = await chrome.stable(`${verdictSelector}?.href`);
     assert.equal(new URL(verdictHref).pathname, '/items/2', 'recorded verdict prose exposes its real href');
     for (const input of [{ button: 'middle' }, { modifiers }]) {
       const beforeTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
-      await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note code')`, input);
+      await press(chrome, `document.querySelector('#detail .item-panel-latest .note code')`, input);
       const afterTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
       assert.deepEqual(afterTargets.filter(id => !beforeTargets.includes(id)), [], 'modified click on literal verdict code opens no tab');
       assert.equal(await chrome.stable('location.pathname'), '/items/1', 'literal code leaves the original tab in place');
@@ -224,9 +224,9 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
       .filter(link=>new URL(link.href).pathname !== '/demo/').map(link=>link.href))`));
     assert.deepEqual(outsideInitialRefs, [], 'item detail references also remain under the exported sub-path');
     await press(chrome, reference);
-    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail h2 > span')?.textContent === '#1'");
+    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail .item-panel-head .id')?.textContent === '#1'");
     await chrome.send('Page.reload');
-    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail h2 > span')?.textContent === '#1'");
+    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail .item-panel-head .id')?.textContent === '#1'");
 
     /** Reload an exported address and verify both its selected detail and its contained references. */
     const checkPlace = async (hash, ready) => {

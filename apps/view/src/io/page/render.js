@@ -5,6 +5,8 @@ import { agentsPanelModel } from "../../logic/panel/model.js";
 import { shoutsModel } from "../../logic/panel/model.js";
 import { agentsPanelHtml } from "../../logic/panel/render.js";
 import { shoutsHtml } from "../../logic/panel/render.js";
+import { itemPanelModel } from "../../logic/panel/item.js";
+import { itemPanelHtml } from "../../logic/panel/item.js";
 import { needsPanelModel } from "../../logic/needs/panel.js";
 import { itemsNeedsModel } from "../../logic/needs/panel.js";
 import { itemsNeedsHtml } from "../../logic/needs/panel.js";
@@ -34,6 +36,8 @@ const agentsPanelModel = (${agentsPanelModel.toString()});
 const shoutsModel = (${shoutsModel.toString()});
 const shoutsHtml = (${shoutsHtml.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
+const itemPanelModel = (${itemPanelModel.toString()});
+const itemPanelHtml = (${itemPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
 const selectItemsView = (${selectItemsView.toString()});
 const patchKeyedRows = (${patchKeyedRows.toString()});
@@ -486,127 +490,66 @@ function render({ tab: switching = false } = {}) {
   $('detail').hidden = adding;
   if (!selected) store.paint($('detail'), '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>');
   const opened = selected && !view.adding ? detailOf(p, selected, view.tab === 'items' && data.root === view.root) : null;
-  /** An item's heading: its id, title, state, lane and route, all of which its summary holds. */
-  /** The opened item's header, drawn the same while its detail loads and once it has arrived: lane, size and milestone as chips, then its state and holder as chips (#6769). */
-  const panelHead = (item, more = '') => {
-    const holder = holderOf(item) || reviewerOf(item);
-    const holderChip = holder ? '<span class="chip holder" title="' + esc((stateOf(item) === 'verify' ? 'Reviewing: ' : 'Building: ') + agentName(holder)) + '">' + esc(agentName(holder)) + '</span>' : '';
-    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
-    return '<header class="item-panel-head"><div class="item-panel-where">' + where.map(part => '<span class="chip">' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">'
-      + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p), false, false, Boolean(holderChip)) + holderChip + more + '</div></header>';
+  /** Every verdict as the shared row, with its complete note in the disclosure, newest first: the opened history keeps what the panel's one verdict section does not show. */
+  const verdictRowsOf = (item) => (item.verdicts || []).toReversed().map(verdict => {
+    const passed = verdict.decision === 'ACCEPT';
+    const note = visibleVerdictNote(verdict.reason, verdict.note);
+    const first = note.split(/\\r?\\n/u, 1)[0];
+    const summary = first.length > 180 ? first.slice(0, 177) + '…' : first;
+    const iconPath = passed ? 'M3.5 8.5l3 3 6-6.5' : 'M6 4 2.5 7.5 6 11M2.5 7.5H10';
+    const title = passed ? 'Passed' : 'Sent back · ' + activityWords({ cause: verdict.reason }).label;
+    return sharedRowHtml({ tag: 'li', variant: 'item', state: passed ? 'verified' : 'back', title: title + ' by ' + agentName(verdict.by),
+      iconHtml: '<svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + iconPath + '"/></svg>',
+      primaryHtml: '<b>' + (passed ? 'Passed' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b> <span class="muted">by ' + esc(agentName(verdict.by)) + '</span>',
+      timeHtml: '<time>' + esc(when(verdict.at)) + '</time>', metaHtml: '<span class="item-verdict-note">' + inline(summary, titles) + '</span>',
+      detailHtml: '<div class="verdict ' + (passed ? 'yes' : 'no') + '"><b>' + (passed ? 'Accepted · <span title="' + esc(verdict.reason) + '">' + esc(activityWords({ cause: verdict.reason }).label) + '</span>' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b><span class="by">' + esc(agentName(verdict.by)) + ' · ' + esc(when(verdict.at)) + (verdict.commit ? ' · at ' + hashButton(verdict.commit) : '') + '</span><div class="note">' + inline(note, titles) + '</div></div>' });
+  }).join('');
+  /** The code a typed fact refers to, each as the collapsed reference block, or a plain refusal naming what is missing. */
+  const referencedCodeOf = (item) => (item.thread || []).filter((entry) => entry.type === 'fact' && entry.ref).map((fact) => {
+    const ref = fact.ref;
+    const path = typeof ref.path === 'string' ? ref.path : '';
+    const start = ref.start;
+    const end = ref.end;
+    const commit = typeof ref.commit === 'string' ? ref.commit : '';
+    const safePath = /^[\\w.-]+(?:\\/[\\w.-]+)*$/.test(path) && !path.split('/').some((part) => part === '.' || part === '..');
+    const safeRange = Number.isSafeInteger(start) && start > 0 && Number.isSafeInteger(end) && end >= start;
+    const safeCommit = /^[0-9a-f]{40}$/.test(commit);
+    if (!safePath || !safeRange || !safeCommit) {
+      const missing = [!safePath && 'repository path', !safeRange && 'line range', !safeCommit && 'full commit SHA'].filter(Boolean).join(', ');
+      return '<div class="fact-code"><span class="chip">' + esc(eventWords(fact.kind)) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span><div class="code no ref-missing" role="status">Code reference unavailable: missing or invalid ' + esc(missing) + '.</div></div>';
+    }
+    const range = path + ':' + start + (end === start ? '' : '-' + end) + '@' + commit;
+    return '<div class="fact-code"><span class="chip">' + esc(eventWords(fact.kind)) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
+  }).join('');
+  /** The items this one waits on, each a link. */
+  const waitsOf = (item) => (item.blockedBy || []).map(id => '<a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a>').join(', ');
+  /** The opened item's whole panel from its model: the header alone while its detail loads, every section once it has arrived (#7571). */
+  const drawPanel = (item) => {
+    const baseline = item.checkBaseline;
+    const baselineLabel = baseline?.result === 'red' ? 'red on main' : baseline?.result === 'green' ? 'green on main' : baseline?.result === 'pending' ? 'pending on main' : 'no baseline on main';
+    const verdict = item.verdict;
+    const model = itemPanelModel(item, { now: Date.now(), esc, name: (seat) => agentName(seat), stage: item.status === 'withdrawn' ? 'Withdrawn' : stageOfItem(item, p, gatedOf(item), '').stage,
+      milestone: (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name,
+      reason: (code) => activityWords({ cause: code }).label, brief: briefCopyOf(item.brief), note: verdict ? visibleVerdictNote(verdict.reason, verdict.note) : '', files: panelFiles(item.brief || ''),
+      baseline: { label: baselineLabel, warn: baseline?.warning === 'CRITERION_PROVES_NOTHING' }, historyOpen: view.historyOpen?.has(JSON.stringify([view.root, view.item])) === true });
+    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), verdicts: item.verdicts?.length ? '<ul class="item-panel-verdicts">' + verdictRowsOf(item) + '</ul>' : '', refs: referencedCodeOf(item), waits: waitsOf(item), marks: itemStageMarks(item, p).filter(mark => !/aria-label="(?:Sent back|Withdrawn)/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
+      note: verdict ? inline(visibleVerdictNote(verdict.reason, verdict.note), titles) : '' });
+  };
+  /** The brief without its Files section, whose paths the panel lists as rows. */
+  const briefCopyOf = (brief) => {
+    let inFiles = false;
+    return String(brief || '').split(/\\r?\\n/u).filter(line => {
+      const label = /^(files|change|test|out of scope|reference)\\s*:/iu.exec(line.trim());
+      if (label) { inFiles = label[1].toLowerCase() === 'files'; return !inFiles; }
+      return !inFiles;
+    }).join('\\n').trim();
   };
   if (opened?.error) store.paint($('detail'), '<div class="stack"><p class="detail-wait muted" role="status">Could not load #' + selected.id + ': ' + esc(opened.error) + '</p></div>');
   // Until its omitted fields arrive, an opened item paints its heading from its summary and fills the rest in place (#1039).
-  else if (opened?.loading) store.paint($('detail'), '<div class="item-panel" aria-busy="true">' + panelHead(selected) + '</div>');
+  else if (opened?.loading) store.paint($('detail'), '<div class="item-panel" aria-busy="true">' + drawPanel(selected) + '</div>');
   const item = opened?.item;
   if (item) {
-    const s = stateOf(item);
-    const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
-    const baseline = item.checkBaseline;
-    const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
-    /** Parse a single named test case only from the recorded check or its baseline evidence. */
-    const namedCase = (() => {
-      const pattern = /--test-name-pattern(?:=|\\s+)(?:"([^"]+)"|'([^']+)'|([^\\s;]+))/u.exec(item.check || '');
-      if (pattern) return pattern[1] || pattern[2] || pattern[3];
-      const evidence = [...(baseline?.testEvidence?.failed || []), ...(baseline?.testEvidence?.passed || [])].filter(name => typeof name === 'string');
-      const names = [...new Set(evidence)];
-      return names.length === 1 ? names[0] : '';
-    })();
-    /** Turn the check into the approved sentence without inventing an unnamed case. */
-    const checkSentence = (() => {
-      const command = String(item.check || '');
-      const testPath = /(?:^|\\s)((?:[\\w.-]+\\/)*[\\w.-]+\\.test\\.[cm]?js)\\b/u.exec(command)?.[1];
-      if (testPath && /(?:^|\\s)(?:bin\\/run-tests\\.js|packages\\/gate\\/src\\/io\\/run\\/tests\\.js)(?:\\s|$)/u.test(command)) {
-        return 'Passes when <span class="file"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 2.5h4M7 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5v-4"/></svg>' + esc(testPath) + '</span> runs with no failures' + (namedCase ? ' and its case <i>"' + esc(namedCase) + '"</i> passes' : '') + '.';
-      }
-      return command ? 'Runs: <code>' + esc(command) + '</code>' : 'No check is recorded.';
-    })();
-    /** Remove the Files section from prose because its paths are rendered as chips below. */
-    const briefCopy = (() => {
-      let inFiles = false;
-      return String(item.brief || '').split(/\\r?\\n/u).filter(line => {
-        const label = /^(files|change|test|out of scope|reference)\\s*:/iu.exec(line.trim());
-        if (label) { inFiles = label[1].toLowerCase() === 'files'; return !inFiles; }
-        return !inFiles;
-      }).join('\\n').trim();
-    })();
-    /** Keep the brief's declared paths visible, grouped into source and test counts. */
-    const files = panelFiles(item.brief || '');
-    /** Render one path with a subdued directory and its file or test glyph. */
-    const fileChip = path => {
-      const slash = path.lastIndexOf('/'), testFile = /^(?:test|tests)\\//u.test(path);
-      return '<span class="file item-file" data-file="' + esc(path) + '"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="' + (testFile ? 'M6 2.5h4M7 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5v-4' : 'M4 2h5l3 3v9H4zM9 2v3h3') + '"/></svg><span><span class="dir">' + esc(slash < 0 ? '' : path.slice(0, slash + 1)) + '</span>' + esc(slash < 0 ? path : path.slice(slash + 1)) + '</span></span>';
-    };
-    const sourceCount = files.filter(path => !/^(?:test|tests)\\//u.test(path)).length;
-    const testCount = files.length - sourceCount;
-    const historyEntries = (item.thread?.length ? item.thread : item.history || []).filter(entry => !['usage', 'shared-usage'].includes(entry.kind));
-    const historyCount = historyEntries.length;
-    const verdicts = item.verdicts || [];
-    const passedCount = verdicts.filter(verdict => verdict.decision === 'ACCEPT').length;
-    const backCount = verdicts.length - passedCount;
-    const panelChoice = view.itemPanel?.root === view.root && view.itemPanel.item === item.id ? view.itemPanel.tab : 'overview';
-    const statusChips = (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
-      + overlapHtml(data.claimOverlaps, item.id)
-      + (item.builtBy ? '<span class="chip">Built by ' + esc(agentName(item.builtBy)) + '</span>' : '')
-      + (item.commit ? '<span class="item-head-hash">at ' + hashButton(item.commit) + '</span>' : '');
-    const factRefs = (item.thread || []).filter((entry) => entry.type === 'fact' && entry.ref);
-    const referencedCode = factRefs.length ? '<div><h3 class="hd2">Referenced code</h3>' + factRefs.map((fact) => {
-      const ref = fact.ref;
-      const path = typeof ref.path === 'string' ? ref.path : '';
-      const start = ref.start;
-      const end = ref.end;
-      const commit = typeof ref.commit === 'string' ? ref.commit : '';
-      const safePath = /^[\\w.-]+(?:\\/[\\w.-]+)*$/.test(path) && !path.split('/').some((part) => part === '.' || part === '..');
-      const safeRange = Number.isSafeInteger(start) && start > 0 && Number.isSafeInteger(end) && end >= start;
-      const safeCommit = /^[0-9a-f]{40}$/.test(commit);
-      if (!safePath || !safeRange || !safeCommit) {
-        const missing = [!safePath && 'repository path', !safeRange && 'line range', !safeCommit && 'full commit SHA'].filter(Boolean).join(', ');
-        return '<div class="fact-code"><span class="chip">' + esc(eventWords(fact.kind)) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span><div class="code no ref-missing" role="status">Code reference unavailable: missing or invalid ' + esc(missing) + '.</div></div>';
-      }
-      const range = path + ':' + start + (end === start ? '' : '-' + end) + '@' + commit;
-      return '<div class="fact-code"><span class="chip">' + esc(eventWords(fact.kind)) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
-    }).join('') + '</div>' : '';
-    /** Render one verdict as the existing shared row, with its complete note in the disclosure. */
-    const verdictRows = verdicts.toReversed().map(verdict => {
-      const passed = verdict.decision === 'ACCEPT';
-      const note = visibleVerdictNote(verdict.reason, verdict.note);
-      const first = note.split(/\\r?\\n/u, 1)[0];
-      const summary = first.length > 180 ? first.slice(0, 177) + '…' : first;
-      const state = passed ? 'verified' : 'back';
-      const iconPath = passed ? 'M3.5 8.5l3 3 6-6.5' : 'M6 4 2.5 7.5 6 11M2.5 7.5H10';
-      const title = passed ? 'Passed' : 'Sent back · ' + activityWords({ cause: verdict.reason }).label;
-      return sharedRowHtml({ tag: 'li', variant: 'item', state, title: title + ' by ' + agentName(verdict.by),
-        iconHtml: '<svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + iconPath + '"/></svg>',
-        primaryHtml: '<b>' + (passed ? 'Passed' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b> <span class="muted">by ' + esc(agentName(verdict.by)) + '</span>',
-        timeHtml: '<time>' + esc(when(verdict.at)) + '</time>', metaHtml: '<span class="item-verdict-note">' + inline(summary, titles) + '</span>',
-        detailHtml: '<div class="verdict ' + (passed ? 'yes' : 'no') + '"><b>' + (passed ? 'Accepted · <span title="' + esc(verdict.reason) + '">' + esc(activityWords({ cause: verdict.reason }).label) + '</span>' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b><span class="by">' + esc(agentName(verdict.by)) + ' · ' + esc(when(verdict.at)) + (verdict.commit ? ' · at ' + hashButton(verdict.commit) : '') + '</span><div class="note">' + inline(note, titles) + '</div></div>' });
-    }).join('');
-    /** Keep the established verdict renderer's reason, timestamp and copyable SHA in the new card. */
-    const latest = item.verdict ? '<div class="item-panel-latest' + (item.verdict.decision === 'REJECT' ? ' sentback' : '') + '"><div class="verdict ' + (item.verdict.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b class="item-panel-verdict-label">' + (item.verdict.decision === 'ACCEPT' ? 'Passed' : 'Sent back · ' + reasonHtml(item.verdict.reason)) + '</b><span class="by">' + esc(agentName(item.verdict.by)) + ' · ' + esc(when(item.verdict.at)) + (item.verdict.commit ? ' · at ' + hashButton(item.verdict.commit) : '') + '</span><div class="note">' + inline(visibleVerdictNote(item.verdict.reason, item.verdict.note), titles) + '</div></div><button class="link" type="button" data-item-panel-more>Show all</button></div>' : '<p class="muted">No verdict yet.</p>';
-    const baselineLabel = baseline?.result === 'red' ? 'Red on main' : baseline?.result === 'green' ? 'Green on main' : baseline?.result === 'pending' ? 'Pending on main' : 'No baseline';
-    const baselineReason = baseline?.result === 'red' ? 'as it should be: the check fails before the change'
-      : baseline?.result === 'green' ? 'the check passed on main before this change'
-        : baseline?.result === 'pending' ? 'the check has not finished on main' : 'no result was recorded on main before this change';
-    const check = '<div class="item-panel-check"><span class="item-panel-check-mark" aria-hidden="true"><svg viewBox="0 0 16 16\"><path d="M3.5 8.5l3 3 6-6.5\"/></svg></span><div><p>' + checkSentence + '</p>'
-      + '<div class="item-panel-baseline"><span class="chip ' + baselineClass + '">' + baselineLabel + '</span><span>' + baselineReason + '</span></div>'
-      + (baseline?.warning === 'CRITERION_PROVES_NOTHING' ? '<p class="check-warning">This check already passed before the work, so it proves nothing.</p>' : '')
-      + (item.check ? '<details class="item-panel-command"><summary>Show the command</summary><pre>' + esc(item.check) + '</pre></details>' : '') + '</div></div>';
-    const historyOpen = view.historyOpen?.has(JSON.stringify([view.root, view.item])) === true;
-    const moreHistory = historyCount > 5 ? '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + historyCount + '" aria-expanded="' + historyOpen + '">' + (historyOpen ? 'Show less' : 'Show all ' + historyCount) + '</button>' : '';
-    /** Render one accessible tab with the selected tab's native count. */
-    const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '<span class="seg-hit seg-hit-top" aria-hidden="true"></span><span class="seg-hit seg-hit-bottom" aria-hidden="true"></span></button>';
-    store.paint($('detail'), '<div class="item-panel">' + panelHead(item, statusChips)
-      + '<div class="seg item-panel-tabs" role="tablist" aria-label="Item details">' + panelTab('overview', 'Overview', null) + panelTab('verdicts', 'Verdicts', verdicts.length) + panelTab('history', 'History', historyCount) + '</div>'
-      + '<section class="item-panel-section" id="item-panel-panel-overview" role="tabpanel" aria-labelledby="item-panel-tab-overview"' + (panelChoice === 'overview' ? '' : ' hidden') + ' data-item-panel-panel="overview">'
-      + '<div class="item-panel-section-head"><p class="label">Latest verdict</p><span class="item-panel-count">Passed ' + passedCount + ' ' + (passedCount === 1 ? 'time' : 'times') + ' · sent back ' + backCount + '</span></div>' + latest
-      + (item.criterion ? '<section class="item-panel-block"><h3 class="hd2">Done when</h3><div class="item-panel-expand"><div class="item-panel-expand-text item-panel-clamp">' + rich(item.criterion, titles) + '</div><button class="link" type="button" data-item-panel-more>Show all</button></div></section>' : '')
-      + (item.check ? '<section class="item-panel-block"><h3 class="hd2">Check</h3>' + check + '</section>' : '')
-      + (item.brief ? '<section class="item-panel-block"><div class="item-panel-section-head"><h3 class="hd2">Brief</h3><span class="item-panel-count">' + files.length + ' files: ' + sourceCount + ' source, ' + testCount + ' tests</span></div>' + (briefCopy ? '<div class="item-panel-brief">' + rich(briefCopy, titles) + '</div>' : '') + (files.length ? '<div class="item-panel-files">' + files.map(fileChip).join('') + '</div>' : '') + '</section>' : '')
-      + referencedCode
-      + (cited.length ? '<section class="item-panel-block"><h3 class="hd2">Spec rows it serves</h3>' + cited.map(r => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</section>' : '')
-      + (item.owner && s === 'building' || item.verifiedBy || item.merged || item.blockedBy.length ? '<section class="item-panel-block"><h3 class="hd2">Work details</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(agentName(item.owner)) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(agentName(item.verifiedBy)) + '</dd>' : '') + (item.merged ? '<dt>merged</dt><dd>' + hashButton(item.merged) + '</dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map(id => '<span class="wait-unit"><a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a></span>').join(', ') + '</dd>' : '') + '</dl></section>' : '')
-      + '</section><section class="item-panel-section item-panel-verdicts" id="item-panel-panel-verdicts" role="tabpanel" aria-labelledby="item-panel-tab-verdicts"' + (panelChoice === 'verdicts' ? '' : ' hidden') + ' data-item-panel-panel="verdicts">' + (verdictRows || '<p class="muted">No verdicts yet.</p>') + '</section>'
-      + '<section class="item-panel-section item-panel-history" id="item-panel-panel-history" role="tabpanel" aria-labelledby="item-panel-tab-history"' + (panelChoice === 'history' ? '' : ' hidden') + ' data-item-panel-panel="history">' + moreHistory + '<div class="item-panel-history-list' + (historyCount > 5 ? ' folded' : '') + (historyCount > 5 && historyOpen ? ' expanded' : '') + '">' + timeline(item, { newestFirst: true }) + '</div></section>'
+    store.paint($('detail'), '<div class="item-panel">' + drawPanel(item)
       + '<div class="links"><button class="ghost" data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button class="go" data-new type="button">New item</button></div></div>');
   }
 

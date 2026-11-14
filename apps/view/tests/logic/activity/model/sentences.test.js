@@ -141,7 +141,7 @@ test('resolved and still-stuck findings stay in their own run, with all filter c
   for (const [filter, count] of Object.entries(model.counts)) {
     const filtered = activityHtml(prepare(model), { filter });
     assert.equal([...filtered.matchAll(/<li class="activity-event"/gu)].length, count);
-    assert.match(filtered, new RegExp(`data-activity-filter="${filter}" aria-pressed="true" class="on">[^<]+<b>${count}</b>`, 'u'));
+    assert.match(filtered, new RegExp(`data-activity-filter="${filter}" aria-pressed="true" class="on"><span class="seg-label">[^<]+</span><b>${count}</b>`, 'u'));
   }
 });
 

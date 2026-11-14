@@ -136,7 +136,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
     page.run('view.agent = null; render();');
 
     page.run("go('item:1')");
-    assert.match(page.show('detail'), /<h2><span class="id">#1<\/span>Header<\/h2>/, 'a held item opens on the Items tab');
+    assert.match(page.show('detail'), /<span class="id">#1<\/span>[^]*<h2>Header<\/h2>/, 'a held item opens on the Items tab');
   } finally {
     await view.stop();
   }

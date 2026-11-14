@@ -103,14 +103,13 @@ test('the private Cost tab consumes the server projection and routes controls [N
   } finally { if (chrome) await closeSnapshotChrome(chrome); await view.stop(); rmSync(dir,{recursive:true,force:true}); }
 });
 
-test('Cost names merge, the unrecorded note hides at zero, and unknown durations stay out of the totals [N26]', () => {
+test('Cost names merge, no unrecorded-model banner, and unknown durations stay out of the totals [N26]', () => {
   assert.equal(modelPresentation('GPT-6/openai').name, 'GPT-6', 'a /vendor suffix is dropped before matching');
   assert.deepEqual([modelPresentation('GPT-6/openai').key, modelPresentation('GPT-6').key], ['gpt-6', 'gpt-6']);
   assert.equal(modelPresentation('GPT-6 Codex').name, 'Codex');
   assert.equal(modelPresentation('GPT-6/openai').vendor, 'OpenAI');
   const base = { version: 1, window: '7d', totals: { agentMs: 7200000, itemCount: 2, sentBack: { itemShare: 0, agentMsShare: 0, agentMs: 0 } }, days: [{ date: '2026-10-28', firstTimeMs: 3600000, sentBackMs: 3600000, items: 2 }], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 2 };
-  assert.doesNotMatch(costOverviewHtml({ ...base, unknownBuilderModelShare: 0 }), /record which model built them/u, 'no note at 0%');
-  assert.match(costOverviewHtml({ ...base, unknownBuilderModelShare: 0.5 }), /50% of items don't record which model built them/u);
+  assert.doesNotMatch(costOverviewHtml({ ...base, unknownBuilderModelShare: 0.5 }), /record which model built them/u, 'no banner about unrecorded models');
   const html = costOverviewHtml(base);
   assert.match(html, />Wed<\/text>/u, 'the axis names the weekday');
   assert.match(html, /<title>Wednesday, Oct 28\n2 items landed/u, 'each bar has a tooltip');
