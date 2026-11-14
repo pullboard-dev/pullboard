@@ -163,7 +163,7 @@ test('#6613 clauses 1 and 2: a tab switch reads the store with no request, and a
     // Clause 2: a live update (item 2 claimed and submitted) rewrites the parts it changes and leaves the rest.
     build(box, demo, 2, 'next.txt');
     await page.run('refresh()');
-    assert.ok(counts.chain === 1, 'the list holds item 2, so it is drawn once: ' + counts.chain);
+    assert.ok(counts.chain === 1, 'DBG ' + JSON.stringify({ counts, chain: page.show('chain').slice(0, 600), reqs: page.requests.slice(-6), tab: page.run('view.tab'), state: page.run('view.state'), n: page.run('data.project.items.map(i => i.id + i.status + (i.stage||""))') }));
     assert.ok(counts['status-board'] === 1, 'the status bar counts item 2, so it is drawn once');
     assert.equal(counts.detail, 0, 'item 3 did not move, so its detail is not drawn again');
     assert.equal(counts['items-view-switch'], 0, 'the List and Pipeline switch did not change');
