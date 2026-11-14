@@ -37,7 +37,7 @@ test('clause 1: Cost draws the last numbers this browser read while the fresh re
   const { readCostHistory, costPaneHtml, calls } = costPage({ 'pb.cost./repo\n7d': JSON.stringify(last) });
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
   assert.equal(calls.api, 1, 'a fresh read still starts');
-  assert.match(html, /<p class="cost-big">2<small>hours<\/small>/u, 'the remembered agent time is drawn at once');
+  assert.match(html, /<b class="cost-total">2\.0 h<\/b>/u, 'the remembered agent time is drawn at once');
   assert.match(html, /class="cap2 cost-updating" role="status">Updating…/u, 'and says it is updating');
   assert.doesNotMatch(html, /cost-waiting|Loading cost history/u);
   assert.doesNotMatch(costOverviewHtml(last, null, { updating: false }), /cost-updating/u, 'a settled page says nothing');
