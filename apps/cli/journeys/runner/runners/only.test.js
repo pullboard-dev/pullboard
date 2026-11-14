@@ -6,5 +6,5 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/runners.js';
 
-test('a machine with runners can run no tests itself [C7]', { timeout: 90_000 }, // budget: covers fixture setup plus three real runner transports and cleanup; not an execution-time target.
+test('a machine with runners can run no tests itself [C7]', { timeout: 90_000, skip: 'CONTROLLER_ONLY: deleted with #6580' }, // budget: covers fixture setup plus three real runner transports and cleanup; not an execution-time target.
   () => runnerFirstPolicyCase(e2e));
