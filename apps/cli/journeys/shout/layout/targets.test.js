@@ -61,13 +61,14 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
       }
       return false;
     };
-    const controls = [...new Set(document.querySelectorAll(selector))].filter(visible).map((e) => ({ text: (e.innerText || e.getAttribute('aria-label') || e.id || e.className).trim().slice(0, 40), height: targetHeight(e),
+    // <html> carries the open tab as data-tab (a state mark, not a control).
+    const controls = [...new Set(document.querySelectorAll(selector))].filter(e => e !== document.documentElement).filter(visible).map((e) => ({ text: (e.innerText || e.getAttribute('aria-label') || e.id || e.className).trim().slice(0, 40), height: targetHeight(e),
       inline: named(e) && inLine(e), named: named(e), inLine: inLine(e) }));
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       tap: getComputedStyle(document.documentElement).getPropertyValue('--tap').trim(), coarse: matchMedia('(pointer: coarse)').matches,
       short: controls.filter((c) => c.height < 44 && !c.inline), count: controls.length,
-      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('#tabs [data-tab=items]')),
+      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('[data-tab=items]')),
       toolbar: { tabs: [...document.querySelectorAll('#tabs .tab')].filter(visible).map((b) => Math.round(targetHeight(b))) },
       composer: { text: height('#shout-text'), send: height('#shout-send') }, status: [...document.querySelectorAll('.status [data-status]')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)),
     };

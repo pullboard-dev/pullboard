@@ -109,7 +109,7 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
           if (option.pressed === 'true') {
             assert.equal(option.weight, '600');
             assert.equal(option.background, actual.expected.pressedBackground);
-            assert.match(option.shadow, /0px 1px 2px 0px/u, 'the pressed option has a soft lift');
+            assert.doesNotMatch(option.shadow, /0px 1px 2px 0px/u, 'the sheet\'s pressed option is flat, with no soft lift');
             assert.match(option.shadow, /0px 0px 0px 1px/u, 'the pressed option has a hairline ring');
           } else assert.equal(option.shadow, 'none');
           if (option.count !== undefined) {
