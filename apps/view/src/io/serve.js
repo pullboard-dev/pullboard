@@ -12,6 +12,8 @@ import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
 import { boardCounts } from "../logic/counts.js";
+import { firstLandings } from "../logic/counts.js";
+import { withReadySplit } from "../logic/counts.js";
 import { machineRead } from "./pipeline/machine.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
@@ -574,7 +576,9 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const projected = projectSpecRevisions({ ...state, ...derived.late }, derived.rowDrafts, derived.rowDecisions);
     const read = { ...projected, needs: personNeeds(projected) };
     // One number in one place: every page reads these counts, never its own (#7310).
-    return { ...read, counts: boardCounts(read, now) };
+    const counts = boardCounts(read, now);
+    // Release and Roadmap read the same ready definition NOW does (#7763).
+    return withReadySplit({ ...read, counts });
   }, providedBoard, boardOpeners);
 }
 
@@ -585,17 +589,11 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
  * @param {any} board
  * @param {any[]} all Every item row.
  * @param {number} now
- * @returns {{ id: number, commit: string }[]}
+ * @returns {{ id: number, commit: string, at: number }[]}
  */
 function recentLandings(board, all, now) {
   const landed = new Map(all.filter(item => item.item_merged_commit).map(item => [item.item_id, item.item_merged_commit]));
-  const recent = new Map();
-  for (const event of store.eventsOfKinds(board, ['merged'])) {
-    const commit = landed.get(event.item_id);
-    if (commit === undefined || recent.has(event.item_id) || Date.parse(event.event_at) <= now - 24 * 3_600_000) continue;
-    try { if (JSON.parse(event.event_detail).commit === commit) recent.set(event.item_id, commit); } catch { /* A malformed receipt lists nothing. */ }
-  }
-  return [...recent].map(([id, commit]) => ({ id, commit }));
+  return firstLandings(landed, store.eventsOfKinds(board, ['merged'])).filter(entry => entry.at > now - 24 * 3_600_000);
 }
 
 /**
