@@ -214,9 +214,11 @@ test('timed shell proof records the actual command child rather than the timeout
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-timed-runtime-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const trace = join(directory, 'actual.json');
+  // The runner app owns the bounded shell; a worker started outside bin/pullboard has no PULLBOARD_TIMED_SHELL, so the test names it.
+  const timedShell = fileURLToPath(new URL('../../../runner/src/io/shell.js', import.meta.url));
   const program = `require('node:fs').writeFileSync(${JSON.stringify(trace)}, JSON.stringify({pid:process.pid,node:process.versions.node}));`;
   const result = runShell(directory, `${JSON.stringify(process.execPath)} -e ${JSON.stringify(program)}`,
-    { timeoutMs: 5_000, captureRuntimes: true }); // budget: declared timeout input exercises the real custody worker.
+    { timeoutMs: 5_000, captureRuntimes: true, timedShell }); // budget: declared timeout input exercises the real custody worker.
   assert.equal(result.isGreen, true, result.output);
   assert.ok(JSON.parse(readFileSync(trace, 'utf8')).pid > 0, 'the opaque command really executed');
   assert.equal(result.testRuntimes, null, 'custody preloads cannot prove an opaque custom command has no synchronous descendants');
@@ -224,7 +226,7 @@ test('timed shell proof records the actual command child rather than the timeout
   writeFileSync(selected, program + "require('node:test')('selected actual timed worker [G1]',()=>{});\n");
   const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
   const admitted = runShell(directory, `${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} ${JSON.stringify(selected)}`,
-    { timeoutMs: 5_000, captureRuntimes: true }); // budget: the same bounded real custody path now runs an admitted selected worker.
+    { timeoutMs: 5_000, captureRuntimes: true, timedShell }); // budget: the same bounded real custody path now runs an admitted selected worker.
   assert.equal(admitted.isGreen, true, admitted.output);
   const actual = JSON.parse(readFileSync(trace, 'utf8'));
   assert.equal(admitted.testRuntimes.length, 1, 'the timeout launcher never substitutes for the actual selected worker');
