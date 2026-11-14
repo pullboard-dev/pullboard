@@ -21,6 +21,7 @@ import {
   safeFixtureDiagnostic,
 } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { openBoard } from '../../../lib/index.js';
 import {
   closeBoard,
@@ -96,7 +97,9 @@ async function fixture(t, { gate = 'true', handoff = true } = {}) {
   git(builder, 'switch', '--detach', claimBase);
   const claimed = document(await run(builder, 'claim', String(id), '--json'));
   git(builder, 'switch', 'web/historical');
-  box = { repo, builder, root: builder, itemFolder: claimed.itemFolder, env, git, runLocal: run, id, helpers, file: join(repo, '.git', 'pullboard', 'board.sqlite') };
+  /** The { code, out, err } shape settleSubmit reads a pulled gate through. */
+  const settleRun = async (cwd, ...args) => { const result = await run(cwd, ...args); return { code: result.status, out: result.stdout, err: result.stderr }; };
+  box = { repo, builder, root: builder, itemFolder: claimed.itemFolder, env, git, runLocal: run, run: settleRun, id, helpers, file: join(repo, '.git', 'pullboard', 'board.sqlite') };
   return box;
 }
 
@@ -104,13 +107,9 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   const box = await fixture(t);
   const acknowledgment = document(await box.runLocal(box.root, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(acknowledgment.queued, true, 'the ordinary captured gate must run');
-  await box.helpers.waitFor(() => { // budget: actual native gate completion ceiling, no elapsed-time assertion.
-    const current = observe(box);
-    if (current.job && !['queued', 'running', 'ownership-wait'].includes(current.job.state)) {
-      assert.fail(`native owner gate stopped: ${JSON.stringify(current.job.error ?? current.job)}`);
-    }
-    return current.job?.state === 'ownership-wait';
-  }, 'native ownership result', 120000); // budget: existing native handoff completion ceiling, not a duration assertion.
+  // A pulled gate settles on the machine's runner; the green proof of foreign paths is routed to its owner when its receipt applies [P7,#6832].
+  await settleSubmit(t, box, acknowledgment);
+  assert.equal(observe(box).waiting.length, 1, 'the settled gate routed the green foreign path to its owner');
   const state = observe(box), wait = state.waiting[0];
   assert.equal(state.item.item_status, 'open');
   assert.equal(state.item.item_owner, null, 'the builder has no retained claim');
@@ -151,9 +150,9 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
 
 test('a red gate cannot free its builder or create an owner wait for foreign paths [B3,L1,V4] [clause 1]', async t => {
   const box = await fixture(t, { gate: 'false', handoff: false });
-  const failed = await box.runLocal(box.root, 'submit', String(box.id), '--no-next', '--json');
-  assert.notEqual(failed.status, 0);
-  assert.equal(JSON.parse(failed.stdout).error.code, 'GATE_RED');
+  const queued = document(await box.runLocal(box.root, 'submit', String(box.id), '--no-next', '--json'));
+  const failed = await settleSubmit(t, box, queued); // a pulled red gate settles on the item, not in the submit's exit code
+  assert.notEqual(failed.gate?.green, true, 'the red gate did not pass');
   const state = observe(box);
   assert.equal(state.item.item_status, 'claimed');
   assert.notEqual(state.item.item_owner, null);
