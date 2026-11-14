@@ -59,6 +59,8 @@ import {
 import { serveApi } from '../../../../../packages/api/index.js';
 import { refusalDocument } from '../../../index.js';
 import { main } from '../native.js';
+import { settleSubmit } from '../submit/settle.js';
+import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import {
   appliedSequence,
   checkpointSequence,
@@ -236,14 +238,16 @@ export async function relayServer(t, directory, auth, { legacyRelay = false } = 
  * scripts' own relative imports, so the fixture's Rigor checks count what the repository's do [D1,H3].
  * Reading the gates from the doctrine, not naming files here, keeps the next check that lands from
  * leaving a fixture without its script, which otherwise raises the ratchet and changes the refusal.
- * A apps/cli/pullboard.js row gets the CLI's whole runtime minus the cells plan and every .test.js and journeys folder (a check runs source, never test files): it imports lazily and reads skills from disk [C7].
+ * A row that runs the CLI itself (`node apps/cli/pullboard.js rigor quality ...`) runs the host CLI instead, the
+ * `pullboard` on the fixture PATH: copying its whole runtime seeded ~2,700 files that every pulled gate checked out
+ * and censused (46-75 s each), while the CLI a fixture row runs is this checkout's either way [C7].
  */
 export function seedDoctrine(seed) {
   const repo = resolve(import.meta.dirname, '../../../../..');
   const text = readFileSync(join(repo, existsSync(join(repo, 'DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md'), 'utf8');
-  writeFileSync(join(seed, 'PRACTICE.md'), text);
-  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]), copied = new Set();
-  if (pending.includes('apps/cli/pullboard.js')) for (const part of ['apps', 'packages', 'skills', 'docs', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') && !/\.test\.js$|\/journeys(\/|$)/.test(from.slice(repo.length)) });
+  const cli = 'apps/cli/pullboard.js';
+  writeFileSync(join(seed, 'PRACTICE.md'), text.replaceAll(`gate: check node ${cli} `, 'gate: check pullboard '));
+  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]).filter((file) => file !== cli), copied = new Set();
   while (pending.length) {
     const file = pending.pop();
     if (copied.has(file)) continue;
@@ -288,7 +292,7 @@ export async function threeReplicaFixture(t, timing) {
   for (const tool of ['sh', 'tar', 'ps', 'lsof']) symlinkSync(realpathSync(toolDirs.map((entry) => join(entry, tool)).find(existsSync)), join(privateBin, tool));
   symlinkSync(resolve(import.meta.dirname, '../../../pullboard.js'), join(privateBin, 'pullboard'));
   const envs = homes.map((home) => {
-    const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
+    const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), PATH: privateBin };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
     for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[key];
     for (const key of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[key];
@@ -297,6 +301,8 @@ export async function threeReplicaFixture(t, timing) {
       GIT_AUTHOR_NAME: 'Relay Clone Test', GIT_AUTHOR_EMAIL: 'relay-clone@example.com',
       GIT_COMMITTER_NAME: 'Relay Clone Test', GIT_COMMITTER_EMAIL: 'relay-clone@example.com',
     });
+    mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true, mode: 0o700 });
+    t.after(() => stopFixtureLocalRunner(env.PULLBOARD_MACHINE_HOME));
     return env;
   });
 
@@ -334,13 +340,15 @@ export async function threeReplicaFixture(t, timing) {
 
   // One pack file, not thousands of loose objects, so each clone copies a single file and a loaded runner cannot fail it mid-copy [C7].
   gitAt(seed, envs[0], 'repack', '-adq');
-  for (const clone of clones) gitAt(scratch, envs[0], 'clone', '-q', seed, clone);
+  // One real clone, copied twice: a loaded runner pays seconds per spawned git, so the copies spawn none [C7].
+  gitAt(scratch, envs[0], 'clone', '-q', seed, clones[0]);
+  gitAt(clones[0], envs[0], 'remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git');
+  for (const clone of clones.slice(1)) cpSync(clones[0], clone, { recursive: true });
   for (let index = 0; index < clones.length; index += 1) {
-    gitAt(clones[index], envs[index], 'remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git');
     gitAt(clones[index], envs[index], 'worktree', 'add', '-q', '-b', `web/race-${index + 1}`, worktrees[index], 'main');
   }
 
-  const seedBoard = store.openBoard(join(commonDir(seed, envs[0]), 'pullboard', 'board.sqlite'));
+  const seedBoard = store.openBoard(join(seed, '.git', 'pullboard', 'board.sqlite'));
   let boardId;
   let snapshot;
   try {
@@ -363,7 +371,7 @@ export async function threeReplicaFixture(t, timing) {
   } finally { store.closeBoard(seedBoard); }
 
   for (let index = 0; index < clones.length; index += 1) {
-    const replica = store.openBoard(join(commonDir(clones[index], envs[index]), 'pullboard', 'board.sqlite'));
+    const replica = store.openBoard(join(clones[index], '.git', 'pullboard', 'board.sqlite'));
     try { importBoard(replica, snapshot); } finally { store.closeBoard(replica); }
   }
 
@@ -404,7 +412,7 @@ export async function threeReplicaFixture(t, timing) {
         keyStorage: 'file', sequence: 0,
         cursor: snapshot.tables.event.at(-1)?.event_id ?? 0,
       };
-      const linkFile = join(commonDir(clones[index], envs[index]), 'pullboard', 'relay.json');
+      const linkFile = join(clones[index], '.git', 'pullboard', 'relay.json');
       writeFileSync(linkFile, JSON.stringify(state) + '\n', { mode: 0o600 });
       chmodSync(linkFile, 0o600);
     }
@@ -426,7 +434,7 @@ export async function threeReplicaFixture(t, timing) {
   assert.equal(uploaded.status, 200, await timing.wait('read an unexpected initial snapshot-upload response', () => uploaded.text()));
 
   const replicaFiles = clones.map((clone, index) => join(commonDir(clone, envs[index]), 'pullboard', 'board.sqlite'));
-  return { scratch, clones, worktrees, envs, gitAt, commonDir, auth, relay, person, key, boardId, replicaFiles };
+  return { t, scratch, clones, worktrees, envs, gitAt, commonDir, auth, relay, person, key, boardId, replicaFiles };
 }
 
 /** Preserve the competing CLI claims, durable refusals, registration and local API ordering checks. */
@@ -945,6 +953,9 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
   const baseSubmit = await timing.wait('submit the stack base item', () => cliResult(worktrees[1], envs[1], 'submit', String(stackedA)));
   assert.equal(baseSubmit.status, 0, baseSubmit.stderr);
   assert.equal(baseSubmit.document.commit, firstRecoveryCommit);
+  // The gate settles on replica B's machine while replica C syncs and the fabrication runs; only the sentinel sweep below needs B submitted [C7].
+  const baseSettled = timing.wait('settle the stack base submission gate', () => settleReplicaSubmit(fixture, 1, baseSubmit.document));
+  baseSettled.catch(() => {});
 
   await timing.wait('sync clone C before checking its fabricated receiptless descriptor', () => cli(clones[2], envs[2], 'status'));
   const freshLinkFile = join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json');
@@ -978,21 +989,50 @@ export async function refuseReceiptMissingStack(fixture, timing, restoreInventor
     sealed: freshSealed,
   };
   writeFileSync(freshLinkFile, JSON.stringify(freshLink) + '\n', { mode: 0o600 });
+  const settledBase = await baseSettled;
   // The coordinator's sentinel sweep marks the unreviewable stack base once; let it upload before the baseline.
   await settledUploadCount(relay, async () => (await Promise.all([...clones, ...worktrees].map((root, index) => cli(root, envs[index % 3], 'status'))))[2]);
+  // Clause 1 (#7562): the gate B's runner pulled settles on C through the relay, never on B's store alone.
+  const seenOnC = store.openBoardForRead(replicaFiles[2]);
+  try { assert.deepEqual(['status', 'commit'].map(key => store.getItem(seenOnC, stackedA)[`item_${key}`]), ['submitted', firstRecoveryCommit], `replica C sees #${stackedA} submitted by B's pulled gate`); }
+  finally { store.closeBoard(seenOnC); }
   const beforeFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
   await restoreInventories();
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
   assert.equal(freshRefusal.status, 1);
-  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
-  assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
-  assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
-  const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
-  assert.equal(afterFreshRefusal, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+  // One handle on replica C names what its board held when the stack refusal did not come, then checks the claim stays.
   const freshAfter = store.openBoard(replicaFiles[2]);
-  try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
-  finally { store.closeBoard(freshAfter); }
+  try {
+    if (freshRefusal.document.error?.code !== 'STACKED_ON_UNVERIFIED') {
+      const base = store.getItem(freshAfter, stackedA);
+      const seen = { status: base.item_status, commit: base.item_commit, applied: appliedSequence(freshAfter),
+        events: store.events(freshAfter, { itemId: stackedA }).map(event => `${event.event_kind} ${event.event_detail}`.slice(0, 400)),
+        gate: JSON.stringify(settledBase.gate ?? settledBase.gateJob ?? null).slice(0, 1500),
+        unverified: store.unverifiedSubmissions(freshAfter).map(row => `${row.item_id}:${row.item_commit.slice(0, 12)}`),
+        inMain: gitAt(worktrees[2], envs[2], 'merge-base', firstRecoveryCommit, 'main') === firstRecoveryCommit,
+        link: JSON.parse(readFileSync(freshLinkFile, 'utf8')).sequence, uploads: relay.uploads.length };
+      assert.fail(`expected STACKED_ON_UNVERIFIED, got ${JSON.stringify(freshRefusal.document.error)}; replica C held ${JSON.stringify(seen)}`);
+    }
+    assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
+    assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
+    const afterFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
+    assert.equal(afterFreshRefusal, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+    assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed');
+  } finally { store.closeBoard(freshAfter); }
   await restoreOutboxDefault();
+}
+
+/**
+ * Settle one replica's pulled submit: its machine's loopback runner takes the gate job and the receipt makes the item submitted [P7,C7].
+ * Why: a pulled submit returns queued, so the item stays claimed until the receipt lands.
+ */
+export function settleReplicaSubmit(fixture, index, submitted) {
+  const { t, worktrees, envs } = fixture;
+  const run = async (_root, ...args) => {
+    const ran = await cliResult(worktrees[index], envs[index], ...args.filter(arg => arg !== '--json'));
+    return { code: ran.status, out: JSON.stringify(ran.document), err: ran.stderr };
+  };
+  return settleSubmit(t, { repo: worktrees[index], env: envs[index], run }, submitted);
 }
 
 /** Reject the future engine move after all three replicas have recovered their ordered prefix. */
