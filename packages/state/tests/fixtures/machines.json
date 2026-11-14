@@ -256,13 +256,15 @@
       "id": "test-run:<uuid>",
       "created": "packages/drive/src/io/queue.js:queueTestRun",
       "serves": "no item that it ends: the seat that queued it, and an optional item for display",
-      "states": ["queued", "running", "result", "lost", "cancelled", "delivered"],
+      "states": ["queued", "running", "pulled", "result", "lost", "cancelled", "delivered"],
       "terminal": ["delivered"],
       "lease": "LEASE_MS 120 s, taken by the worker and renewed every RENEW_MS; a worker that dies stops renewing and the run is reported lost 2 minutes later",
       "transitions": [
         { "from": "(none)", "to": "queued", "trigger": "pullboard test queues a run and starts its detached worker", "at": "packages/drive/src/io/queue.js:queueTestRun" },
         { "from": "queued", "to": "running", "trigger": "the worker takes the lease", "at": "packages/drive/src/io/queue.js:workTestRun" },
         { "from": "running", "to": "result", "trigger": "the work returned or failed; lease released", "at": "packages/drive/src/io/queue.js:workTestRun" },
+        { "from": "running", "to": "pulled", "trigger": "the worker offered its runner job and names it (job id, and how long it may wait unclaimed), so the receipt settles the run if the worker stops", "at": "apps/cli/src/io/test/pull.js:runJobFor" },
+        { "from": "pulled", "to": "result", "trigger": "the worker records the runner receipt; or, once the worker is gone, the receipt is read as the result and the lease released", "at": "packages/drive/src/io/queue.js:endLostTestRuns" },
         { "from": "running", "to": "lost", "trigger": "the lease lapsed and the worker process is gone; lost step recorded and lease released", "at": "packages/drive/src/io/queue.js:endLostTestRuns" },
         { "from": "result", "to": "delivered", "trigger": "next hands the finished run to its seat once", "at": "packages/drive/src/io/queue.js:deliverTestRun" },
         { "from": "lost", "to": "delivered", "trigger": "next hands the lost run to its seat once", "at": "packages/drive/src/io/queue.js:deliverTestRun" }
