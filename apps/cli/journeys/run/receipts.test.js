@@ -240,6 +240,7 @@ test('an all-reused direct invocation preserves a receipt without inventing a fr
   // Process-level: direct suite-runner processes sharing a reuse cache.
   const first = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(first.status, 0, first.stderr + first.stdout);
+  t.diagnostic('DBG ' + JSON.stringify({ err: first.stderr, out: first.stdout.slice(0, 1500), status: box.git(box.repo, 'status', '--porcelain', '--untracked-files=all') }));
   const second = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(second.status, 0, second.stderr + second.stdout);
   assert.match(second.stdout, /# reused/u, 'the native cache really reused the seeded file results');
