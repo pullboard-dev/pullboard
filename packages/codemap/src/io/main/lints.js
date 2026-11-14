@@ -5,7 +5,7 @@ import { cellLintBaseline } from '../cell/lint/ratchet.js';
 import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../../kernel/light.js';
+import { scratchBase } from '../../../../kernel/index.js';
 
 const MAIN_REFS = ['refs/heads/main', 'refs/remotes/origin/main'];
 

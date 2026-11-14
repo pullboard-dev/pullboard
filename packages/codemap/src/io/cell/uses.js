@@ -14,7 +14,7 @@ import { currentCellLintParser } from './parser.js';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
 import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../../kernel/light.js';
+import { scratchBase } from '../../../../kernel/index.js';
 
 const COMPILER = `import vm from 'node:vm'; import {readFileSync} from 'node:fs';
 const sources=JSON.parse(readFileSync(process.argv[1],'utf8'));
