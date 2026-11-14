@@ -1,7 +1,7 @@
 /**
  * The view's navigation: one page list, drawn as the top strip, and the address each place in it has [N26,N38].
  *
- * Why: the approved prototype (nav-switch, Corey 12 Nov) names the pages, their order and their groups once; the
+ * Why: the approved prototype (nav-switch, 12 Nov) names the pages, their order and their groups once; the
  * strip, the crumb and the address all read this list, so a page can't be in one and missing from another. The page
  * embeds these functions' source, so each one reads only its arguments.
  */
@@ -203,7 +203,7 @@ export function pageControlsHtml({ tab = null, state = 'active', lane = null, la
 }
 
 /**
- * The account control at the top right (Corey, 12 Nov: "good call"): the person's initial when signed in, "Sign in" when not.
+ * The account control at the top right (approved 12 Nov): the person's initial when signed in, "Sign in" when not.
  * One control, no banner in the page. The page embeds this function's source, so it uses only its argument.
  *
  * @param {{ signedIn?: boolean, login?: string }} [account]
