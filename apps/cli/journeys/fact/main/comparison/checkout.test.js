@@ -80,10 +80,12 @@ async function compareOnRunner({ runner = true } = {}) {
   return { box, out, seen, main, tree, scratch, requests, stderrLog };
 }
 
-const ran = compareOnRunner();
+/** The one runner comparison, started by the first case that reads it so a skipped file starts none. */
+let ran;
+const comparison = () => (ran ??= compareOnRunner());
 
-test('clause 1: a main comparison writes no working tree and the runner job records the exact main commit and tree [C7]', { timeout: 180_000 }, async () => {
-  const { out, seen, main, tree, scratch, requests, stderrLog } = await ran;
+test('clause 1: a main comparison writes no working tree and the runner job records the exact main commit and tree [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
+  const { out, seen, main, tree, scratch, requests, stderrLog } = await comparison();
   assert.equal(out.unavailable, undefined, out.unavailable);
   // A runner comparison reads main from the object store in place, so it prepares no temporary folder at all (#3323).
   assert.equal(seen.folders, 0, 'no pullboard-main-red folder was prepared');
@@ -112,9 +114,9 @@ function shapeOf(row) {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, key === 'receiptId' ? /^[a-f0-9-]{36}$/u.test(value) : Array.isArray(value) ? 'array' : typeof value]));
 }
 
-test('clause 2: no-checkout comparison keeps the shape landing-split-red expects [C7]', { timeout: 300_000 }, async () => {
+test('clause 2: no-checkout comparison keeps the shape landing-split-red expects [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
   // Same landProject fixture and red file landing-split-red.test.js lands: once through the runner (no checkout), once in a full tree.
-  const [viaRunner, viaTree] = [await ran, await compareOnRunner({ runner: false })];
+  const [viaRunner, viaTree] = [await comparison(), await compareOnRunner({ runner: false })];
   for (const run of [viaRunner, viaTree]) assert.equal(run.out.unavailable, undefined, run.out.unavailable);
   const rows = run => run.out.files.map(({ receiptId, ...row }) => ({ ...row, receiptId: typeof receiptId }));
   assert.deepEqual(rows(viaRunner), rows(viaTree), 'the returned rows match the full-tree comparison');

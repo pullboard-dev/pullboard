@@ -228,14 +228,14 @@ test('[A4,H7] live streams follow the same order, resume by cursor and stop afte
 });
 
 test('[A4,H7] a bounded large sealed snapshot is independent of the smaller move-body limit', async (t) => {
-  const box = await fixture(t);
+  const box = await fixture(t, { moveBodyBytes: 100_000 });
   const document = { record: 'a'.repeat(150_000) };
   const uploaded = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal(document, 'snapshot', 0) } });
   assert.equal(uploaded.status, 200);
   assert.deepEqual(box.clientOpen(uploaded.body.state.sealed, 'snapshot', 0), document);
   const oversizeMove = await box.call(box.path + '/moves', { method: 'POST', body: { sequence: 1, sealed: box.clientSeal(document, 'move', 1) } });
   assert.equal(oversizeMove.status, 400);
-  assert.equal(oversizeMove.body.error.code, 'BAD_REQUEST');
+  assert.equal(oversizeMove.body.error.code, 'MOVE_TOO_LARGE'); // the structured size refusal, #6707
   assert.deepEqual((await box.call(box.path + '/events?after=0')).body.events, []);
   const packageInfo = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../../../package.json'), 'utf8'));
   assert.equal(packageInfo.files.some((entry) => entry === 'relay' || entry.startsWith('relay/')), false);

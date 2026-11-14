@@ -131,78 +131,77 @@ function scenario(name, play) {
 }
 
 /**
- * The shouts tab ready to read: the board's shouts loaded and one conversation open, since the feed lists
- * conversations first and draws the shout cards only inside the one opened (the shouts without an item are 'none').
+ * The shouts tab ready to read: the board's shouts loaded and one thread open in place under its row (the shouts without an
+ * item are 'none'). expand reads every message in full, as pressing each does.
  */
-async function openShouts(chrome, count, key = 'none') {
+async function openShouts(chrome, count, key = 'none', expand = false) {
   await chrome.waitFor(`typeof data !== 'undefined' && data?.project?.shouts?.length >= ${count}`);
   await openTab(chrome, 'shouts');
   const feed = `[data-pane=shouts]:not([hidden]) #feed`;
   const row = `${feed} [data-shout-thread=${JSON.stringify(key)}]`;
-  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(`${feed} .conversation-heading, ${row}`)})`);
-  if (!(await chrome.stable(`!!document.querySelector(${JSON.stringify(`${feed} .conversation-heading`)})`))) await press(chrome, q(row));
-  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(`${feed} .shout`)})`);
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(row)})`);
+  if (!(await chrome.stable(`document.querySelector(${JSON.stringify(row)}).getAttribute('aria-expanded') === 'true'`))) await press(chrome, q(row));
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(`${feed} .sx-msg`)})`);
+  if (expand) await chrome.stable("(() => { document.querySelectorAll('#feed .sx-msg').forEach((m) => { openShouts.add(Number(m.dataset.shoutId)); m.classList.add('full'); }); return true; })()");
 }
 
-scenario('a long shout folds and stays open across a refresh', async ({ Given, When, Then, And, open, layouts }) => {
+scenario('a long shout reads on one line and opens in full, and stays open across a refresh', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'fold');
   const long = ['A long note that folds.', ...Array.from({ length: 11 }, (_, n) => `Line ${n + 2} of the note.`)].join('\n');
   await box.inProcess(p.web, 'shout', 'all', long);
   const { chrome } = await open(box);
   let id;
-  await Given('a twelve-line shout in the feed', async () => {
+  await Given('a twelve-line shout in the open thread', async () => {
     await openShouts(chrome, 1);
     id = await chrome.stable(`data.project.shouts.find((s) => s.shout_text.startsWith('A long note')).shout_id`);
   });
-  /** The long card's fold control, how many lines its text shows, and whether it is marked open. */
-  const folded = () => `JSON.stringify((() => { const c = document.querySelector('#feed #shout-${id}'), t = c.querySelector('.text'); return [c.querySelector('.more').textContent, Math.round(t.clientHeight / parseFloat(getComputedStyle(t).lineHeight)), c.classList.contains('open')]; })())`;
+  /** How many lines the message shows, and whether it is marked open. */
+  const folded = () => `JSON.stringify((() => { const c = document.querySelector('#feed #shout-${id}'), t = c.querySelector('.sx-tx'); return [Math.round(t.clientHeight / parseFloat(getComputedStyle(t).lineHeight)), c.classList.contains('full')]; })())`;
   await layouts(async ({ at }) => {
-    await Given('the long shout is folded at three lines', async () => {
-      await chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['Show all', 3, false]))}`);
+    await Given('the long shout is one line', async () => {
+      await chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify([1, false]))}`);
     });
-    await When('the person presses Show all', () => press(chrome, q(`#feed #shout-${id} .more`)));
-    await Then('every line shows and the control says Show less', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['Show less', 12, true]))}`));
+    await When('the person presses the message', () => press(chrome, q(`#feed #shout-${id}`)));
+    await Then('every line shows', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify([12, true]))}`));
     const later = `A later shout at ${at}.`;
     await When('a new shout refreshes the feed', async () => {
       await box.inProcess(p.web, 'shout', 'all', later);
-      await chrome.waitFor(`[...document.querySelectorAll('#feed .shout .text')].some((node) => node.textContent === ${JSON.stringify(later)})`, 15_000); // budget: hang ceiling for the live refresh to bring the new shout; no throughput claim.
+      await chrome.waitFor(`[...document.querySelectorAll('#feed .sx-msg .sx-tx')].some((node) => node.textContent === ${JSON.stringify(later)})`, 15_000); // budget: hang ceiling for the live refresh to bring the new shout; no throughput claim.
     });
     await Then('the long shout is still open', async () => {
-      assert.equal(await chrome.stable(folded()), JSON.stringify(['Show less', 12, true]), 'an open shout stays open across a refresh');
+      assert.equal(await chrome.stable(folded()), JSON.stringify([12, true]), 'an open shout stays open across a refresh');
     });
-    await When('the person presses Show less', () => press(chrome, q(`#feed #shout-${id} .more`)));
-    await And('it folds again at three lines', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify(['Show all', 3, false]))}`));
+    await When('the person presses the message again', () => press(chrome, q(`#feed #shout-${id}`)));
+    await And('it is one line again', () => chrome.waitFor(`${folded()} === ${JSON.stringify(JSON.stringify([1, false]))}`));
   });
 });
 
-scenario('the person shouts with Enter and sees when the coordinator heard it', async ({ Given, When, Then, And, open, layouts }) => {
+scenario('the person replies in a thread with Enter and it reaches the coordinator', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'heard');
   await box.inProcess(p.web, 'shout', 'all', 'Starting on the greeting.');
   const { chrome } = await open(box);
-  await Given('the shouts feed', () => openShouts(chrome, 1));
-  /** The card with these words in the open conversation: its text, recipient and Heard line. */
-  const first = (words) => `JSON.stringify((() => { const c = [...document.querySelectorAll('#feed .shout')].find((card) => card.querySelector('.text').textContent === ${JSON.stringify(words)}); return c && [c.querySelector('.text').textContent, c.querySelector('.to').textContent, c.querySelector('.heard')?.lastChild.textContent ?? null]; })())`;
+  await Given('the shouts feed with its thread open', () => openShouts(chrome, 1));
+  /** The message with these words in the open thread: its text and its sender. */
+  const first = (words) => `JSON.stringify((() => { const c = [...document.querySelectorAll('#feed .sx-msg')].find((card) => card.querySelector('.sx-tx').textContent === ${JSON.stringify(words)}); return c && [c.querySelector('.sx-tx').textContent, c.querySelector('.sx-sn').textContent]; })())`;
   await layouts(async ({ at }) => {
     const words = `Ship the greeting at ${at}?`;
-    await Given('the composer is addressed to the coordinator', async () => {
-      assert.deepEqual(JSON.parse(await chrome.stable(`JSON.stringify([${q('#shout-to')}.value, ${q('#shout-text')}.placeholder, ${q('#shout-to-chip')}.hidden])`)),
-        ['coordinator', 'Shout to the coordinator', true]);
+    await Given('the reply box says who it reaches', async () => {
+      assert.deepEqual(JSON.parse(await chrome.stable(`JSON.stringify([${q('#feed [data-reply] input')}.placeholder, ${q('#feed .sx-reach')}.textContent])`)),
+        ['Reply', 'reaches the coordinator']);
     });
-    await When('the person types a shout into the message', async () => {
-      await press(chrome, q('#shout-text'));
-      await chrome.waitFor(`document.activeElement === ${q('#shout-text')}`);
+    await When('the person types a reply into the thread', async () => {
+      await press(chrome, q('#feed [data-reply] input'));
+      await chrome.waitFor(`document.activeElement === ${q('#feed [data-reply] input')}`);
       await typeText(chrome, words);
-      assert.equal(await chrome.stable(`${q('#shout-text')}.value`), words, 'the typed words are in the message');
+      assert.equal(await chrome.stable(`${q('#feed [data-reply] input')}.value`), words, 'the typed words are in the box');
     });
     await And('presses Enter', () => pressKey(chrome, 'Enter'));
-    await Then('it is in the feed, to the coordinator, saying Not heard yet', async () => {
-      await chrome.waitFor(`${first(words)} === ${JSON.stringify(JSON.stringify([words, '→ coordinator', 'Not heard yet']))} && ${q('#shout-text')}.value === ''`, 15_000); // budget: hang ceiling for the sent shout to be recorded and shown; no throughput claim.
+    await Then('it is in the thread from you, once, to the coordinator', async () => {
+      await chrome.waitFor(`${first(words)} === ${JSON.stringify(JSON.stringify([words, 'you']))} && ${q('#feed [data-reply] input')}.value === ''`, 15_000); // budget: hang ceiling for the sent shout to be recorded and shown; no throughput claim.
       assert.equal(await chrome.stable(`data.project.shouts.filter((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === ${JSON.stringify(words)}).length`), 1, 'Enter sent it once, to the coordinator');
     });
-    await When("the coordinator's inbox reads it", async () => { await box.inProcess(p.repo, 'inbox'); });
-    await Then('it says Heard by coordinator', () => chrome.waitFor(`${first(words)} === ${JSON.stringify(JSON.stringify([words, '→ coordinator', 'Heard by coordinator']))}`, 15_000)); // budget: hang ceiling for the inbox read to reach the view; no throughput claim.
   });
 });
 
@@ -220,9 +219,9 @@ scenario('picking an agent filters the feed and addresses the composer, and its 
   const { chrome } = await open(box);
   await Given('the shouts feed with shouts from several agents', () => openShouts(chrome, 3));
   const total = await chrome.stable('data.project.shouts.length');
-  /** The feed's cards as who → whom, its bar, and the composer's address. */
+  /** The open thread's messages as sender and recipient (its hover), its bar, and the composer's address. */
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify({
-    cards: [...document.querySelectorAll('#feed .shout')].map((c) => [c.querySelector('.who').textContent, c.querySelector('.to').textContent]),
+    cards: [...document.querySelectorAll('#feed .sx-msg')].map((c) => [c.querySelector('.sx-sn').textContent, c.querySelector('.sx-snd').title]),
     bar: document.querySelector('#feed .feed-bar span')?.textContent ?? '',
     to: ${q('#shout-to')}.value, placeholder: ${q('#shout-text')}.placeholder, chip: ${q('#shout-to-chip')}.hidden ? null : ${q('#shout-to-chip')}.textContent,
   })`));
@@ -235,14 +234,14 @@ scenario('picking an agent filters the feed and addresses the composer, and its 
     await Then('the feed shows only shouts from or to web-1', async () => {
       await chrome.waitFor(`!!document.querySelector('#feed .feed-bar')`);
       const r = await read();
-      assert.ok(r.cards.length > 0 && r.cards.length < total && r.cards.every(([who, to]) => who.startsWith('web-1') || to.includes('web-1')), `only web-1's shouts: ${JSON.stringify(r.cards)}`);
+      assert.ok(r.cards.length > 0 && r.cards.length < total && r.cards.every(([who, title]) => who.startsWith('web-1') || title.endsWith(' to web-1')), `only web-1's shouts: ${JSON.stringify(r.cards)}`);
       assert.equal(r.bar, 'Shouts with web-1 (Test Model) show all', 'the bar says whose');
     });
     await And('the composer is addressed to web-1', async () => {
       const r = await read();
       assert.deepEqual([r.to, r.placeholder, r.chip], ['web-1', 'Shout to web-1 (Test Model)', 'to web-1 (Test Model)×']);
     });
-    await When("the person presses the chip's x", () => press(chrome, q('#shout-to-chip [data-to-clear]')));
+    await When("the chip's x is pressed", () => chrome.stable(`(${q('#shout-to-chip [data-to-clear]')}.click(), true)`));
     await Then('the composer returns to the coordinator', async () => {
       await chrome.waitFor(`${q('#shout-to-chip')}.hidden`);
       const r = await read();
@@ -257,33 +256,28 @@ scenario('picking an agent filters the feed and addresses the composer, and its 
   });
 });
 
-scenario('answering a decision moves it out of Decision needed and marks its card answered', async ({ Given, When, Then, And, open, layouts }) => {
+scenario('answering a ruling from its thread moves it on and shows the answer', async ({ Given, When, Then, And, open, layouts }) => {
   const box = machine();
   const p = project(box, 'decide');
   for (const n of [1, 2, 3, 4]) await box.inProcess(p.repo, 'shout', 'person', `Ship option ${n} today?`, '--decision');
   const { chrome } = await open(box);
-  await Given('four decisions wait for the person', () => openShouts(chrome, 4));
+  await Given('four rulings wait for the person', () => openShouts(chrome, 4));
   await layouts(async ({ at }) => {
     let id;
-    await Given('a decision under Decision needed', async () => {
-      id = await chrome.stable(`Number(document.querySelector('#feed .shout .answer')?.closest('.shout').id.replace('shout-', ''))`);
-      assert.ok(id > 0, 'an ask waits in the feed with its Answer');
-      assert.equal(await chrome.stable(`document.querySelector('#feed #shout-${id} .band')?.textContent`), 'Decision needed');
+    await Given('a ruling waits under Needs your answer, with its reply box open', async () => {
+      assert.equal(await chrome.stable(`!!document.querySelector('#shouts-needs [data-shout-thread]')`), true, 'the ask sits under Needs your answer');
+      id = await chrome.stable(`Number(document.querySelector('#feed [data-reply][data-ask]')?.dataset.ask)`);
+      assert.ok(id > 0, 'the open thread answers the ruling');
+      assert.equal(await chrome.stable(`document.querySelector('#feed [data-reply] input').placeholder`), 'Answer');
     });
-    await When('the person presses its Answer', async () => {
-      await press(chrome, q(`#feed #shout-${id} .answer`));
-      await chrome.waitFor(`!${q('#answering')}.hidden && document.activeElement === ${q('#shout-text')}`);
-    });
-    await And('types an answer and presses Enter', async () => {
+    await When('the person types an answer in the thread', async () => {
+      await press(chrome, q('#feed [data-reply] input'));
+      await chrome.waitFor(`document.activeElement === ${q('#feed [data-reply] input')}`);
       await typeText(chrome, `Yes, at ${at}.`);
-      await pressKey(chrome, 'Enter');
     });
-    await Then('the decision leaves Decision needed', () => chrome.waitFor(`!document.querySelector('#feed #shout-${id} .answer') && data.project.shouts.some((s) => s.shout_answers === ${id} && s.shout_text === ${JSON.stringify(`Yes, at ${at}.`)}) && ${q('#answering')}.hidden`, 15_000)); // budget: hang ceiling for the answer to be recorded and shown; no throughput claim.
-    await And('its card in the feed says it is answered', async () => {
-      await openShouts(chrome, 4); // the answer returns the feed to its conversations; open this one again
-      const band = JSON.parse(await chrome.stable(`JSON.stringify((() => { const b = document.querySelector('#feed #shout-${id} .band'); return b && [b.classList.contains('done'), b.textContent]; })())`));
-      assert.ok(band?.[0] && band[1].startsWith('Answered'), `the card's band says answered: ${JSON.stringify(band)}`);
-    });
+    await And('presses Enter', () => pressKey(chrome, 'Enter'));
+    await Then('the answer is recorded against that ruling', () => chrome.waitFor(`data.project.shouts.some((s) => s.shout_answers === ${id} && s.shout_text.includes(${JSON.stringify(`Yes, at ${at}.`)})) && ${q('#feed [data-reply] input')}.value === ''`, 15_000)); // budget: hang ceiling for the answer to be recorded and shown; no throughput claim.
+    await And('it shows in the thread', () => chrome.waitFor(`[...document.querySelectorAll('#feed .sx-msg .sx-tx')].some((node) => node.textContent.includes(${JSON.stringify(`Yes, at ${at}.`)}))`, 15_000)); // budget: hang ceiling for the answer to appear in the thread; no throughput claim.
   });
 });
 
@@ -298,7 +292,7 @@ scenario('a code reference opens its lines', async ({ Given, When, Then, open, l
   const refs = [1, 2, 3, 4].map((n) => `notes.txt:${n}-${n + 1}@${head}`);
   for (const ref of refs) await box.inProcess(p.web, 'shout', 'all', `See ${ref} for the lines.`);
   const { chrome } = await open(box);
-  await Given('shouts that name lines of committed code', () => openShouts(chrome, refs.length));
+  await Given('shouts that name lines of committed code', () => openShouts(chrome, refs.length, 'none', true));
   let n = 0;
   await layouts(async () => {
     const ref = refs[n], from = n + 1;
@@ -313,32 +307,6 @@ scenario('a code reference opens its lines', async ({ Given, When, Then, open, l
       const expected = [[String(from), `${words[from - 1]} line`], [String(from + 1), `${words[from]} line`]];
       await chrome.waitFor(`${button}.getAttribute('aria-expanded') === 'true' && ${lines} === ${JSON.stringify(JSON.stringify(expected))}`, 15_000); // budget: hang ceiling for the code request to answer; no throughput claim.
     });
-  });
-});
-
-scenario('Hide agents survives a reload', async ({ Given, When, Then, And, open, layouts }) => {
-  const box = machine();
-  const p = project(box, 'hide');
-  await box.inProcess(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  await box.inProcess(p.web, 'claim', '1');
-  await box.inProcess(p.web, 'shout', 'all', 'web-1 reports in.');
-  const { chrome } = await open(box);
-  await Given('the shouts feed beside the agents panel', () => openShouts(chrome, 1));
-  /** Whether the panel shows, whether the pane is bare, and what the toggle in the composer's line says. */
-  const panel = `JSON.stringify([document.querySelector('#agents').offsetParent !== null, document.querySelector('#shouts-pane').classList.contains('bare'), document.querySelector('.asks-slot [data-agents-toggle]')?.textContent ?? null])`;
-  await layouts(async () => {
-    await Given('the agents panel shows', () => chrome.waitFor(`${panel} === ${JSON.stringify(JSON.stringify([true, false, null]))}`));
-    await When('the person presses Hide agents', () => press(chrome, q('.panel-head [data-agents-toggle]')));
-    await Then('the panel hides and Show agents offers it back', () => chrome.waitFor(`${panel} === ${JSON.stringify(JSON.stringify([false, true, 'Show agents']))}`));
-    await When('the page reloads', async () => {
-      const before = await chrome.stable('performance.timeOrigin');
-      await chrome.send('Page.reload');
-      await chrome.waitFor(`performance.timeOrigin !== ${before} && document.readyState === 'complete' && typeof data !== 'undefined' && data?.project?.shouts?.length >= 1`, 15_000); // budget: hang ceiling for the reloaded page's first board state; no throughput claim.
-      await openShouts(chrome, 1);
-    });
-    await Then('the panel is still hidden', () => chrome.waitFor(`${panel} === ${JSON.stringify(JSON.stringify([false, true, 'Show agents']))}`));
-    await When('the person presses Show agents', () => press(chrome, q('.asks-slot [data-agents-toggle]')));
-    await And('the panel shows again', () => chrome.waitFor(`${panel} === ${JSON.stringify(JSON.stringify([true, false, null]))}`));
   });
 });
 

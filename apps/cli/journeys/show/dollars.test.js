@@ -34,7 +34,7 @@ test('local prices compute two models by hand while an unpriced model retains to
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const ids = await Promise.all(['alpha', 'beta', 'unpriced', 'mixed', 'shared'].map(async model => document((await fixtureAdd(box.runLocal, box.repo, 'web', `Pricing ${model}`,
-    '--criterion', 'Local dollars preserve numeric usage.', '--specs', 'G1', '--check', 'test -f web/ready', '--json'))).item.item_id));
+    '--criterion', 'Local dollars preserve numeric usage.', '--specs', 'G1', '--check', 'test -f web/ready', '--wait', '--json'))).item.item_id));
   const agent = document((await box.runLocal(box.web, 'whoami', '--json'))).id;
   for (const id of ids) {
     document((await box.runLocal(box.web, 'claim', String(id), '--json')));
