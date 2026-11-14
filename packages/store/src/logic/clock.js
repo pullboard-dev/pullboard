@@ -24,6 +24,10 @@ export function nativeStateClockWindow(state, history, items, observedAt) {
     // readBlocks includes an entry at exactly its twenty-four-hour boundary.
     consider(Date.parse(block.at) + 24 * HOUR + 1);
   }
+  // The dashboard's four-hour counts drop an event once the read clock reaches its age of four hours.
+  for (const event of history) {
+    if (['merged', 'accept', 'reject', 'reopen', 'shout'].includes(event.event_kind)) consider(Date.parse(event.event_at) + 4 * HOUR);
+  }
   if (state.milestones?.length || state.dashboardPace) {
     const current = new Map(items.map(item => [item.item_id, item]));
     for (const at of qualifyingLandingTimes(history, current)) {
