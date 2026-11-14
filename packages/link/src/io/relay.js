@@ -57,6 +57,7 @@ import { engineReceipt } from '../../../state/index.js';
 import { prepareEngineMove } from '../../../state/index.js';
 import { refuseRelayMove } from '../../../state/index.js';
 import { requireSupportedEngine } from '../../../state/index.js';
+import { restoreRelayEpoch } from '../../../state/index.js';
 import { startRelayEpoch } from '../../../state/index.js';
 import { actorTransport } from './relay/seats.js';
 import { ensurePersonCoordinator } from './relay/seats.js';
@@ -1309,24 +1310,26 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     if (reusableSession && reusableSession.url !== url) throw new Refused('RELAY_SESSION', 'Sign in again to this relay with pullboard relay on --all.');
     // Every clone finds its board in pullboard.json [E12], written before the snapshot so its presentation carries it.
     const restoreConfig = nameBoardInConfig(repoInfo(root).root, nextBoard, io);
-    if (!state) {
-      const snapshot = localRecords(io.openBoard, root, (board) => {
-        startRelayEpoch(board, nextBoard);
-        return { board: store.boardId(board) };
-      });
-      snapshot.document = relaySnapshot(root, {}, presentationPorts);
-      // Save the device key before creating any remote link; a locked keychain cannot strand it.
-      const keyStorage = storeBoardKey(snapshot.board, key);
-      state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,
-        keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
-        cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
-        baselineAccepted: false, linkPending: true };
-      state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
-      if (relink && replacement) { state.previousBoardNotice = relink.previous; state.replaces = replacement; }
+    let epoch; try {
+      if (!state) {
+        const snapshot = localRecords(io.openBoard, root, (board) => { epoch = startRelayEpoch(board, nextBoard); return { board: store.boardId(board) }; });
+        snapshot.document = relaySnapshot(root, {}, presentationPorts);
+        // Save the device key before creating any remote link; a locked keychain cannot strand it.
+        const keyStorage = storeBoardKey(snapshot.board, key);
+        state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,
+          keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
+          cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
+          baselineAccepted: false, linkPending: true };
+        state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
+        if (relink && replacement) { state.previousBoardNotice = relink.previous; state.replaces = replacement; }
+      }
+      // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
+      saveLink(file, state);
+    } catch (error) {
+      restoreConfig(() => { if (epoch) localRecords(io.openBoard, root, (board) => restoreRelayEpoch(board, epoch)); });
+      throw error;
     }
     const account = signed.account ?? signed.user?.id;
-    // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
-    saveLink(file, state);
     if (relink) finishRelink(root);
     if (state.linkPending) {
       if (signed.linkConfirmed && signed.linkedBoard !== state.board) throw new Refused('RELAY_RESPONSE', 'the relay confirmed a different board; sign in again');

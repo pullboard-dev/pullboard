@@ -236,7 +236,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "BOARD_BUSY": "check pullboard next for other work, then retry this command",
   "POLICY_SNAPSHOT_STALE": "retry the original command from the top against current accepted main; its stale database transaction was rolled back",
   "BOARD_NOT_WRITABLE": "give the agent write access to the repo's .git/pullboard folder, or run the command outside the sandbox",
-  "BOARD_SCHEMA_BEHIND": "run a command that changes the board, such as pullboard shout or pullboard add, which upgrades it; then run this again",
+  "BOARD_SCHEMA_BEHIND": "merge this code into the main checkout first, then run pullboard status there; or test it against a throwaway board",
   "BOARD_SCOPE_UNAVAILABLE": "link the board: pullboard relay on",
   "BOARD_UNAVAILABLE": "restore the repo, or drop it: pullboard forget <path>",
   "BRIEF_LANE": "split the item by lane, or add the other lane's part as its own item and make it a prerequisite with --after",
