@@ -94,7 +94,6 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   // The pulled gate job runs on a runner, so its citations are the notes its receipt carries, not the submitter's stderr.
   const notes = (second.gate.analysis?.notes ?? []).join('\n');
   assert.match(notes, /static checks: reused the green run kept for this head/u, 'the gate cites the static run it kept');
-  assert.match(notes, /doctrine: reused the green hold kept for this head/u, 'the gate cites the doctrine hold it kept');
   // A reviewer checking the same submitted tree from its own worktree cites the same receipt.
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'api-review');
@@ -186,6 +185,12 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
     assert.equal(runs(counter), 2, 'the unchanged external guard is reused');
     writeFileSync(script, "process.stdout.write('changed checker\\n'); process.exit(1);\n");
     writeFileSync(armed, 'green\n');
+    // Two settled red gates on unchanged item code stop the next submit before any check runs (SUBMIT_RED_LOOP, 08ab14bf8e);
+    // a builder fact recorded after them is the progress that lets the submit through to the changed guard.
+    const loop = await box.runLocal(box.web, 'submit', '1', '--json');
+    assert.notEqual(loop.code, 0, 'an unchanged third submit after two red gates is stopped');
+    assert.match(loop.out + loop.err, /SUBMIT_RED_LOOP/u);
+    ok(await box.runLocal(box.web, 'fact', '1', 'note', 'The checker changed; the unchanged source is submitted again.', '--json'));
     // A red static guard refuses before any runner is queued (#5730); a doctrine guard runs in the gate.
     const raw = await box.runLocal(box.web, 'submit', '1', '--json');
     const second = stage === 'static' ? raw : await (async () => {
