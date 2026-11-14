@@ -61,10 +61,10 @@ test('clause 2: a runner with a free slot takes an offered push-gate shard befor
 
 test('clause 2: a push shard is first under a priority reserve too, and a gate-shard job not named push: gets no such rank [C7,#7790]', t => {
   const db = boardWith(t);
-  offerJob(db, { id: 'test:run-1', kind: 'test', priority: 'agent', now: 1 });
+  offerJob(db, { id: 'test:run-1', kind: 'test', priority: 'interactive', now: 1 });
   offerJob(db, { id: 'shard:other', kind: SHARD_JOB_KIND, now: 2 });
   offerJob(db, { id: 'push:abc:tag:shard:1', kind: SHARD_JOB_KIND, priority: 'gate', now: 3 });
-  const reserve = { agent: 1 };
+  const reserve = { interactive: 1 };
   assert.equal(claimJob(db, { runner: 'r-a', jobs: 4, reserve, now: 10 }).job, 'push:abc:tag:shard:1', 'a reserve does not push a shard behind a test');
   assert.equal(claimJob(db, { runner: 'r-b', jobs: 4, now: 11 }).job, 'test:run-1', 'a gate-shard job outside a push gate keeps its place after a test');
 });
