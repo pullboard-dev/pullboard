@@ -32,6 +32,7 @@ function accepted(t) {
   graph.put('pullboard.json', '{ "lanes": {} }\n');
   const sha = graph.commit();
   const board = cellBoard(t, ':memory:', undefined, { gitRoot: graph.root });
+  register(board, { lane: 'coordinator', path: graph.root, route: 'strong', model: FIXTURE_MODEL });
   const actor = register(board, { lane: 'core', path: join(graph.root, 'b'), route: 'strong', model: FIXTURE_MODEL });
   const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Item', criterion: 'The item lands.' });
   const frozen = JSON.stringify({ criterion: 'The item lands.' });
