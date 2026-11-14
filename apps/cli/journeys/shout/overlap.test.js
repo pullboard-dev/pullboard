@@ -98,6 +98,11 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
     const selector = '#feed [data-go="decide:' + ask.shout_id + '"]';
     await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    // The open conversation's own press closes it; a second press opens it again with the question selected.
+    if (await chrome.stable("typeof view==='object'&&!view.answering")) {
+      await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
+      await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    }
     const fillAnswer = "(()=>{const field=document.querySelector('#shout-text');field.value=" + JSON.stringify(ANSWER)
       + ";field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));})()";
     await chrome.stable(fillAnswer);
@@ -200,6 +205,11 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
     const selector = '#feed [data-go="decide:' + ask.shout_id + '"]';
     await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    // The open conversation's own press closes it; a second press opens it again with the question selected.
+    if (await chrome.stable("typeof view==='object'&&!view.answering")) {
+      await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
+      await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    }
     const selected = JSON.parse(await chrome.stable("JSON.stringify({answerId:typeof view==='object'?(view.answering?.id??null):null,text:document.querySelector('#shout-text').value,to:document.querySelector('#shout-to').value})"));
     assert.equal(selected.answerId, ask.shout_id, 'the native journey selected the actual question before the prior response completes');
 
