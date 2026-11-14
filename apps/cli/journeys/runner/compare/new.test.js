@@ -35,20 +35,20 @@ async t => {
   }
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'node --test' }, null, 2) + '\n');
-  const claimBase = box.git(box.web, 'rev-parse', 'HEAD'); // The items were claimed here; the gate reads main's receipts at the claim base too.
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: main red cases [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const main = box.git(box.repo, 'rev-parse', 'main');
   // Main's receipts: each file is red on main in "main case" only.
   const red = file => ({ result: 'red', failures: [{ file, name: 'main case', signature: 'a'.repeat(64) }], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: `mr-${file}` });
-  mkdirSync(dirname(cacheFile(box.repo)), { recursive: true });
-  writeFileSync(cacheFile(box.repo), JSON.stringify({ version: 2, entries: Object.fromEntries([main, claimBase].map(commit => [commit, Object.fromEntries(Object.keys(CASES).map(file => [file, red(file)]))])) }), { mode: 0o600 });
 
   const [mixed, mainOnly] = box.ids;
   const mixedSubmit = submitOne(box, mixed);
   const mainSubmit = submitOne(box, mainOnly);
   const { board, url } = await pullQueue(t, box, { queue: (current, body) => boardJobQueueCall(current, body, { mode: 'pull', trunk: () => box.repo, compareWithMain: criterionMainReceipts }) });
+  // The gate reads main's receipts at main and at each item's claim base [V4,B3].
+  mkdirSync(dirname(cacheFile(box.repo)), { recursive: true });
+  writeFileSync(cacheFile(box.repo), JSON.stringify({ version: 2, entries: Object.fromEntries([main, ...box.ids.map(id => getItem(board, id).item_claim_head)].map(commit => [commit, Object.fromEntries(Object.keys(CASES).map(file => [file, red(file)]))])) }), { mode: 0o600 });
   const builder = getItem(board, mixed).item_owner;
   for (const runner of ['r-one', 'r-two']) assert.equal((await serveOnce(box, url, runner)).code, 0);
   const receiptOf = id => jobsOf(board.db, { kind: 'gate', item: id })[0].steps.find(step => step.name === 'receipt').payload.receipt;
