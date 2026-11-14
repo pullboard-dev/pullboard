@@ -54,7 +54,8 @@ import { companionMainFailuresUntouched } from '../src/main-red.js';\ntest(${JSO
 /** Build and claim one private board whose accepted main already has a named red test. */
 function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-main-companion-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  // The fixture's local runner may still be finishing a job as the test ends, so removal retries as it settles.
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
@@ -66,7 +67,7 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Main red fixture', GIT_AUTHOR_EMAIL: 'main-red@example.invalid',
     GIT_COMMITTER_NAME: 'Main red fixture', GIT_COMMITTER_EMAIL: 'main-red@example.invalid',
-    PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
     CODEX_SESSION_ID: 'submit-main-red-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
   // A fixture's submit settles the same way whatever the machine's dispatch default is [P7,C7].
