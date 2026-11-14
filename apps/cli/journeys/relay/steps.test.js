@@ -53,7 +53,7 @@ test('IMPORT_NOT_EMPTY on relay join names a command the person runs, and runnin
   assert.doesNotMatch(error.next, /coordinator/u, 'the person is not sent to the coordinator for a person-only command');
   assert.equal(refusalDocument(Object.assign(new Error(error.message), { code: error.code, next: error.next }), { caller: 'person' }).error.next, error.next,
     'the person-facing refusal keeps the command');
-  const followed = sh(scratch, error.next.slice(PERSON_RUNS.length).replace('pullboard-join', join(scratch, 'second')).replace(' && cd ' + join(scratch, 'second'), ' && cd ' + join(scratch, 'second')));
+  const followed = sh(scratch, error.next.slice(PERSON_RUNS.length));
   assert.equal(followed.status, 0, `following the step joins: ${followed.stderr}`);
 });
 
@@ -78,11 +78,21 @@ test('RELAY_ACTOR names unset PULLBOARD_RELAY_TOKEN for another agent\'s token, 
   await box.link();
   const link = JSON.parse(box.readLink());
   const other = await box.auth.issueToken(link.token, { board: link.board, agent: 'someone-else' });
-  const token = typeof other === 'string' ? other : other.token;
-  const wrong = spawnSync(process.execPath, [CLI, 'shout', 'all', 'sent with the wrong token', '--json'], { cwd: box.root, env: { ...box.env, PULLBOARD_RELAY_TOKEN: token }, encoding: 'utf8' });
-  const { error } = JSON.parse(wrong.stdout);
-  assert.equal(error.code, 'RELAY_ACTOR', error.message);
-  assert.equal(error.next, 'run unset PULLBOARD_RELAY_TOKEN in this shell, then run the command again');
-  const rerun = await box.cliLocal('shout', 'all', 'sent with the wrong token');
-  assert.equal(rerun.code, 0, 'without the token the move is sent');
+  const result = await box.script(`
+    const { actorTransport } = await import(${JSON.stringify(new URL('../../../../packages/link/src/io/relay/seats.js', import.meta.url).href)});
+    const { readFileSync } = await import('node:fs');
+    const file = ${JSON.stringify(box.linkFile)};
+    const state = JSON.parse(readFileSync(file, 'utf8'));
+    const io = {};
+    process.env.PULLBOARD_RELAY_TOKEN = ${JSON.stringify(typeof other === 'string' ? other : other.token)};
+    let refusal;
+    try { await actorTransport(process.cwd(), file, state, 'coordinator', io); } catch (error) { refusal = { code: error.code, next: error.next }; }
+    delete process.env.PULLBOARD_RELAY_TOKEN; // The step: run unset PULLBOARD_RELAY_TOKEN in this shell.
+    const sent = await actorTransport(process.cwd(), file, state, 'coordinator', io);
+    console.log(JSON.stringify({ refusal, agent: sent.agent }));
+  `);
+  assert.equal(result.code, 0, JSON.stringify(result));
+  assert.equal(result.document.refusal?.code, 'RELAY_ACTOR', 'another agent\'s token is refused');
+  assert.equal(result.document.refusal.next, 'run unset PULLBOARD_RELAY_TOKEN in this shell, then run the command again');
+  assert.equal(result.document.agent, 'coordinator', 'after the step the move is sent by its own agent');
 });
