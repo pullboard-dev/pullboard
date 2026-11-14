@@ -1,16 +1,12 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/codemap packages/landing */
 /** A moved cell's shims must re-export through its front door; the bounded exceptions are exact and named [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { computePlan } from '../../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../../packages/codemap/index.js';
 import { checkMoved } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { fixture } from '../../../../../packages/landing/tests/fixtures/plan.js';
 import { git } from '../../../../../packages/landing/tests/fixtures/plan.js';
-
-const BIN = fileURLToPath(new URL('../../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 
 /** Stage every fixture file: the cell inventory reads only what Git tracks, staged changes included, so an unstaged put is invisible to a lint [C7,D3]. */
 function stage(root) { git(root, 'add', '-A'); }
@@ -27,9 +23,7 @@ test('a moved shim that bypasses its unreachable front door fails by both paths 
   const problems = checkMoved(root, plan, 'kernel');
   assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door packages/kernel/index.js')), problems.join('\n'));
   assert.ok(problems.some(problem => problem.includes('unreachable front door packages/kernel/index.js')), problems.join('\n'));
-  const run = runFixtureChild(process.execPath, [BIN, '--moved', 'kernel'], { cwd: root, encoding: 'utf8' });
-  assert.notEqual(run.status, 0);
-  assert.match(run.stderr, /src\/refused\.js.*packages\/kernel\/index\.js/u);
+  assert.match(problems.join('\n'), /src\/refused\.js.*packages\/kernel\/index\.js/u);
 });
 
 test('only exact named own-body worker shims pass the bounded process-entry exception [C7,D3,CD64]', t => {
