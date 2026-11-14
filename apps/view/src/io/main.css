@@ -1537,3 +1537,4 @@ body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }
 /* @pullboard-project-menu-styles */
 /* @pullboard-palette-styles */ /* @pullboard-nav-styles */
 /* @pullboard-shouts-styles */
+/* @pullboard-notch-styles */
