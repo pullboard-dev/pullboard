@@ -28,6 +28,7 @@ import { startView } from '../../tests/fixtures/cockpit/harness.js';
 test('every screen shows an item\'s stage from the seven approved words, in order, with marks beside them [N28]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the stage vocabulary journey.');
+  const T0 = Date.now(); const mark = (label) => console.log('PHASE ' + label + ' ' + (Date.now() - T0));
   const box = machine();
   const alpha = project(box, 'stage-vocabulary', undefined, {
     lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] } },
@@ -69,15 +70,20 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
       version: 1, id: 'stage-vocabulary-active-batch', state: 'gating', items: [{ id: 5 }], startedAt,
     } });
   } finally { store.closeBoard(board); }
+  mark('setup done');
   const view = await startView(box);
+  mark('view up');
   const profile = mkdtempSync(join(box.dir, 'stage-vocabulary-chrome-'));
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    mark('chrome open');
     await chrome.waitFor('!!data?.project');
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)}`);
+    mark('picked');
     await pressTab(chrome, 'items');
+    mark('items tab');
     await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
     await press(chrome, "document.querySelector('[data-filter-toggle]')");
     await press(chrome, "document.querySelector('[data-state=all]')");
