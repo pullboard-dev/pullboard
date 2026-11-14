@@ -50,7 +50,7 @@ test('clause 1: a queued sentinel shout reaches the relay and the moves after it
   assert.deepEqual(waiting.document.relay.outbox.map((move) => move.operation), ['shout', 'shout'], 'the sentinel notice and the shout after it wait');
 
   await box.restartRelay();
-  const drained = await step('status up', () => box.cliLocal('status'));
+  const drained = await step('status up', () => box.cli('status'));
   assert.equal(drained.code, 0, drained.failure);
   assert.equal(drained.document.relay.outbox, undefined, 'the outbox drains past the sentinel notice');
   assert.deepEqual(drained.document.relay.outboxRefusals ?? [], [], 'no queued move is refused');
