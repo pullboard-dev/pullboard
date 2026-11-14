@@ -53,6 +53,7 @@ async function withHome(t, work) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const home = helpers.sandbox().env.PULLBOARD_HOME;
+  mkdirSync(home, { recursive: true });
   const saved = { home: process.env.PULLBOARD_HOME, background: process.env.PULLBOARD_RELAY_SENDER_BACKGROUND };
   process.env.PULLBOARD_HOME = home;
   process.env.PULLBOARD_RELAY_SENDER_BACKGROUND = '1';
@@ -95,7 +96,7 @@ test('clause 1: this version\'s sender records its engine with its claim [H21,H1
   await withHome(t, async home => {
     // No board waits, so the real sender claims, finds nothing to send and exits.
     const child = spawn(process.execPath, [SENDER_WORKER], { cwd: home, stdio: 'ignore', env: { ...process.env, PULLBOARD_HOME: home } });
-    const code = await new Promise(resolve => child.once('exit', resolve));
+    const code = await new Promise((resolve, reject) => { child.once('exit', resolve); child.once('error', reject); });
     assert.equal(code, 0);
     assert.equal(readFileSync(senderFiles().engine, 'utf8'), `${child.pid} ${ENGINE_VERSION}\n`);
   });
