@@ -29,7 +29,7 @@ after(e2e.cleanup);
 const SLOW = 'node:test run of a slow file';
 
 test('clause 1: the flag is a declared boolean and a test job carries the hard stop as its file budget [C7]', () => {
-  assert.equal(parseCommandArgs(['test', '--no-file-limit', 'a.test.js']).values['no-file-limit'], true);
+  assert.equal(parseCommandArgs(['test', '--no-file-limit', 'apps/cli/journeys/test/no-file-limit.test.js']).values['no-file-limit'], true);
   assert.deepEqual(fileBudgetField({ 'no-file-limit': true }), { fileBudgetMs: NO_FILE_LIMIT_MS });
   assert.deepEqual(fileBudgetField({}), {});
   const data = testJobData({ main: 'm', commit: 'c', command: 'x', files: ['a'], fileBudgetMs: NO_FILE_LIMIT_MS });
@@ -39,11 +39,11 @@ test('clause 1: the flag is a declared boolean and a test job carries the hard s
 test('clause 1: the runner turns the job field into the file budget, wall stop and no-limit marker, and idle detection stays [C7]', () => {
   const env = fileLimitEnv({ fileBudgetMs: NO_FILE_LIMIT_MS });
   assert.deepEqual(env, { PULLBOARD_TEST_FILE_BUDGET_MS: '600000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '600000', PULLBOARD_TEST_NO_FILE_LIMIT: '1' });
-  const limits = fileWatchdogLimits('slow.test.js', env);
+  const limits = fileWatchdogLimits('apps/cli/journeys/test/no-file-limit.test.js', env);
   assert.equal(limits.budgetMs, 600_000, 'the 3-minute kill is lifted to the hard stop');
   assert.equal(limits.wallMs, limits.budgetMs, 'the wall stop is the same hard stop');
-  assert.equal(limits.idleMs, fileWatchdogLimits('slow.test.js', {}).idleMs, 'the idle-hang limit is untouched');
-  assert.equal(fileWatchdogLimits('slow.test.js', {}).budgetMs, 180_000);
+  assert.equal(limits.idleMs, fileWatchdogLimits('apps/cli/journeys/test/no-file-limit.test.js', {}).idleMs, 'the idle-hang limit is untouched');
+  assert.equal(fileWatchdogLimits('apps/cli/journeys/test/no-file-limit.test.js', {}).budgetMs, 180_000);
   for (const bad of [0, -1, 600_001, 1.5, '600000', null]) assert.deepEqual(fileLimitEnv({ fileBudgetMs: bad }), {}, `a field of ${bad} is no limit change`);
 });
 
@@ -63,8 +63,8 @@ test('clause 1: a queued run passes --no-file-limit to its worker, and only when
   const seen = [];
   const launch = (_bin, args) => { seen.push(args); return { unref() {} }; };
   const ctx = { info: { commonDir: root, root } };
-  queueTestRun(ctx, work => work(board), { agent: 'seat', files: ['a.test.js'], noFileLimit: true }, { launch });
-  queueTestRun(ctx, work => work(board), { agent: 'seat', files: ['a.test.js'] }, { launch });
+  queueTestRun(ctx, work => work(board), { agent: 'seat', files: ['apps/cli/journeys/test/no-file-limit.test.js'], noFileLimit: true }, { launch });
+  queueTestRun(ctx, work => work(board), { agent: 'seat', files: ['apps/cli/journeys/test/no-file-limit.test.js'] }, { launch });
   assert.ok(seen[0].includes('--no-file-limit'));
   assert.ok(!seen[1].includes('--no-file-limit'));
 });
@@ -113,7 +113,7 @@ test('clause 1: a census with --no-file-limit runs under the lifted limit and ea
 
 test('clause 2: gate and landing jobs and plain test jobs keep the per-file budget unchanged [C7]', () => {
   assert.ok(!('fileBudgetMs' in testJobData({ main: 'm', commit: 'c', command: 'x', files: ['a'] })), 'a test job without the flag carries no field');
-  const gate = gateShardRequest({ main: 'a'.repeat(40), source: 'b'.repeat(40), shard: { index: 1, of: 1, files: ['a.test.js'], command: 'x' } });
+  const gate = gateShardRequest({ main: 'a'.repeat(40), source: 'b'.repeat(40), shard: { index: 1, of: 1, files: ['apps/cli/journeys/test/no-file-limit.test.js'], command: 'x' } });
   assert.ok(!JSON.stringify(gate).includes('fileBudgetMs'), 'a gate job request has no file budget field');
   assert.ok(!gate.input.entry.includes('fileLimitEnv') && !gate.input.entry.includes('NO_FILE_LIMIT'), 'the gate entry never reads it');
   assert.deepEqual(fileLimitEnv(gate.input.data), {}, 'even a gate job\'s data lifts nothing');
