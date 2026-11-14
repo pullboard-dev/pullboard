@@ -370,6 +370,13 @@ test('activity cursors leave events arriving during an observation pending [N26]
     'a corrupt old event cannot block delivery from the canonical message table');
 });
 
+/** Make the next inbox read a session start, as a restart does, after a first read has put the seat at the board head [C7,#6152]. */
+function startNewSession(worktree, boardId) {
+  const delivery = readActivityCursor(worktree, 'web-1', boardId);
+  const saved = JSON.parse(readFileSync(delivery.file, 'utf8'));
+  writeFileSync(delivery.file, JSON.stringify({ ...saved, session: 'older-private-fixture-session' }));
+}
+
 test('inbox delivery uses real Git paths and board-bound cursors without consuming later news [R2,N26,H16]', async () => {
   const box = e2e.project();
   // A seat's first read starts at the board head [C7,#6152], so it reads once before the activity this test expects.
@@ -406,6 +413,7 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
   const firstNews = store.shout(board, { from: 'coordinator', to: 'all', text: 'First private release.', lanes, news: true });
   const boardId = store.boardId(board);
   store.closeBoard(board);
+  startNewSession(box.web, boardId);
   const one = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(one.code, 0, one.err);
   const feed = JSON.parse(one.out);
@@ -536,6 +544,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const other = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private digest work' });
   store.appendFact(board, other, { agentId: 'coordinator', kind: 'note', text: 'PRIVATE_RAW_STATUS_MUST_NOT_BE_DIGEST_TEXT' });
   const claimBefore = store.getItem(board, active);
+  startNewSession(box.web, store.boardId(board));
   const first = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(first.code, 0, first.err);
   const feed = JSON.parse(first.out).activity;
