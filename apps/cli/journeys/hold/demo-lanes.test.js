@@ -30,7 +30,7 @@ import {
 
 /** Release a completed real hold refresh at the next pointer aim, reproducing the captured late console scroll. */
 test('a finished lane hold does not scroll after the next press is aimed [N26,C7]', {
-  timeout: 60_000, // budget: bound a hung real browser journey, not the duration of a successful request.
+  timeout: 120_000, // budget: bound a hung real browser journey, not the duration of a successful request; a loaded runner takes over a minute.
 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the late action scroll control');
@@ -39,11 +39,11 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
   project(box, 'other-late-hold-demo');
   box.run(demo.repo, 'add', 'web', 'Hold control', '--specs', 'G1', '--criterion', 'the next press remains where it was aimed');
   box.run(demo.repo, 'shout', 'person', 'Should the hold control ship?', '--decision');
-  // The captured desktop journey follows phone and desktop shouts; keep that real feed tall enough to scroll.
+  // The captured desktop journey follows phone and desktop shouts; the compact shout rows left the page short, so each earlier shout runs long to keep that real feed tall enough to scroll.
   for (const text of ['Phone shout 375', 'Phone answer 375', 'Phone shout 1280', 'Phone answer 1280']) {
     box.run(demo.repo, 'shout', 'web', text);
   }
-  for (let index = 0; index < 8; index++) box.run(demo.web, 'shout', 'all', 'Earlier board discussion ' + index);
+  for (let index = 0; index < 8; index++) box.run(demo.web, 'shout', 'all', 'Earlier board discussion ' + index + ' ' + 'the hold control keeps the next press steady. '.repeat(7));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-late-hold-'));
   let chrome;
@@ -73,7 +73,8 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
       document.querySelector('#hold-reason').value = 'Keep the next press steady';
       document.querySelector('#hold-form').requestSubmit();
     })()`);
-    await chrome.waitFor('window.__lateHold.ready && !!document.querySelector("#lanes [data-release=web]")');
+    // The hold draws once the build that catches up is announced and read, which a loaded runner takes longer than ten seconds to do (#6850).
+    await chrome.waitFor('window.__lateHold.ready && !!document.querySelector("#lanes [data-release=web]")', 60_000); // budget: hang ceiling for the announced catch-up build, not its duration.
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify({ height: innerHeight,
       pageHeight: document.documentElement.scrollHeight, scrollY,
       console: document.querySelector('#console').getBoundingClientRect().toJSON(),
