@@ -1,7 +1,5 @@
 /** A runner job never leaves a Chrome-like process running after it ends, and a start clears what an earlier job left [C7,#7811]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,32 +7,12 @@ import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
 import { reapJob } from '../../../src/io/pull.js';
 import { pathProcesses } from '../../../src/io/leftovers.js';
+import { alive } from '../../fixtures/stub-chrome.js';
+import { stub } from '../../fixtures/stub-chrome.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
-/** A stand-in for Chrome: it prints its pid, names its profile in its arguments, hides its environment from any marker, and ignores SIGTERM as a hung helper does. */
-const STUB = "process.on('SIGTERM', () => {}); console.log(process.pid); setInterval(() => {}, 1000);";
-/** Spawns the stub detached and exits, so init owns the stub while it keeps this process's stdout pipe open. */
-const LAUNCHER = "const { spawn } = require('node:child_process'); spawn(process.execPath, ['-e', process.env.STUB_CODE, '--', process.env.STUB_ARG], { detached: true, stdio: ['ignore', 'inherit', 'ignore'] }).unref();";
-
-/** Whether a pid is still a live process. */
-const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
-
-/**
- * Start a stub whose command line names `profile`; `orphaned` leaves it parentless, as a killed serve's job does.
- * `closed` settles once the stub is gone, because it holds the pipe the test reads its pid from.
- */
-async function stub(profile, orphaned = false) {
-  const arg = `--user-data-dir=${profile}`;
-  const child = orphaned ? spawn(process.execPath, ['-e', LAUNCHER], { stdio: ['ignore', 'pipe', 'ignore'], env: { PATH: process.env.PATH, STUB_CODE: STUB, STUB_ARG: arg } })
-    : spawn(process.execPath, ['-e', STUB, '--', arg], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
-  const launched = orphaned ? once(child, 'exit') : null, closed = once(child, 'close');
-  const [first] = await once(child.stdout, 'data');
-  child.stdout.resume();
-  await launched;
-  return { pid: Number(String(first).trim()), closed };
-}
 
 test('#7811 clause 1: the sweep after a job ends removes a detached browser that names the job folder, and only that one [C7]', async t => {
   const { root } = privateFixtureFiles('pullboard-leftover-');
