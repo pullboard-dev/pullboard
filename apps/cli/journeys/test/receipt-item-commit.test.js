@@ -43,7 +43,8 @@ async function runnerProject() {
   }
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
+  writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000',
+    claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: 2 } }, null, 2));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test/ok.test.js'), PASSES);
   box.git(box.repo, 'add', '-A');
