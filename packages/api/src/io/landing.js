@@ -15,6 +15,10 @@ import { offerJob } from './jobs.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
+// Budget: a land job's payload stays well under the job payload cap (16 KiB), so a long header or trailer cannot tip it over.
+const LAND_PAYLOAD_BYTES = 8 * 1024;
+// The payload parts a runner may read from the job's request instead: what the board derived, never ids, commits or refs.
+const SPILLABLE = ['proof', 'deferred', 'badges', 'waivers', 'checks'];
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const REF = /^refs\/[A-Za-z0-9._/-]{1,200}$/u;
 // A landing merge's header is one line; its trailers are the builder's Pullboard- lines and nothing else.
@@ -100,9 +104,32 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const staticChecks = !forced && typeof config?.staticChecks === 'string' && config.staticChecks.trim() && !/\0/u.test(config.staticChecks) ? config.staticChecks.trim() : null;
   // landing.perItem is on by default (off under parallel landing); only off rides on the job, so default payloads stay as they were [C7,#2901].
   const batchOnly = config?.landing?.perItem === false || config?.landing?.parallel === true;
-  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
-    payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
-      ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
+  const payload = { remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
+    ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) };
+  const spilled = spillLargeInputs(payload);
+  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) });
+}
+
+/**
+ * Move a land job's board-derived inputs out of its payload when the payload would grow past LAND_PAYLOAD_BYTES: the
+ * largest of the proof (every file an item's gates proved, the ledger hits, main's reds), deferred files, badge
+ * documents, waivers and own checks go to the job's request, which only its runner reads, and the payload keeps the ids,
+ * commits and refs plus `requested`, the names of what moved. Why: a big board's proof alone passed the job payload's
+ * 16 KiB cap and the accepted work was retained instead of landing (#7766); the runner reads the request with its claim.
+ *
+ * @param {Record<string, unknown>} payload
+ * @returns {{ payload: Record<string, unknown>, request: { land: Record<string, unknown> } | null }}
+ */
+export function spillLargeInputs(payload) {
+  const size = value => Buffer.byteLength(JSON.stringify(value));
+  if (size(payload) <= LAND_PAYLOAD_BYTES) return { payload, request: null };
+  const kept = { ...payload }, moved = {};
+  for (const key of SPILLABLE.filter(name => kept[name] !== undefined).sort((a, b) => size(kept[b]) - size(kept[a]))) {
+    if (size({ ...kept, requested: Object.keys(moved) }) <= LAND_PAYLOAD_BYTES) break;
+    moved[key] = kept[key];
+    delete kept[key];
+  }
+  return { payload: { ...kept, requested: Object.keys(moved) }, request: { land: moved } };
 }
 
 /**
