@@ -79,7 +79,7 @@ test('clause 3: with checks.provesNothing hold, next passes over an item whose c
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), checks: { provesNothing: 'hold' } }, null, 2));
   box.git(box.repo, 'commit', '-q', '-am', 'chore: hold checks that pass on main');
   const green = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Already done', args: ['--specs', 'G1'] });
-  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fresh item', args: ['--specs', 'G1'] });
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fresh item', check: 'false', args: ['--specs', 'G1'] }); // fails on main: held only when it passes (3d66d77229)
   const main = box.git(box.repo, 'rev-parse', 'main');
   withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), board => {
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
