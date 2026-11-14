@@ -118,16 +118,16 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.match(conversation.address, /\/shouts\/\d+$/, 'the open thread is kept in the address: ' + conversation.address);
       assert.equal(conversation.item, 'Item #2 ›');
       assert.equal(conversation.coordinator, true, 'the coordinator has its own mark');
-      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\"item:1\"]")');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:1\\"]")');
       await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 1 && document.querySelector("#feed .sx-th.open").dataset.shoutThread === "item:1"');
-      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\"item:1\"]")');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:1\\"]")');
       await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 0');
       assert.doesNotMatch(await chrome.stable('location.pathname + location.hash'), /\/shouts\/\d+$/, 'closing a thread takes it out of the address');
-      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\"item:2\"]")');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:2\\"]")');
       await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 1');
       await escape();
       await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 0');
-      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\"item:2\"]")');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:2\\"]")');
       await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 1');
       await press(chrome, 'document.querySelector("#feed .sx-xb")');
       await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 0');
@@ -139,7 +139,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 4');
     }
     // The ask waiting on the person is answered from inside its thread.
-    await press(chrome, 'document.querySelector("#feed [data-shout-thread=\"item:3\"]")');
+    await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:3\\"]")');
     await chrome.waitFor('!!document.querySelector("#feed [data-reply][data-ask] input")');
     assert.equal(await chrome.stable('document.querySelector("#feed [data-reply] input").placeholder'), 'Answer on #3');
     await chrome.stable('(() => { const input = document.querySelector("#feed [data-reply] input"); input.value = "Use the first greeting."; input.dispatchEvent(new Event("input", { bubbles: true })); input.closest("form").requestSubmit(); return true; })()');

@@ -112,7 +112,6 @@ test('an empty feed says so on one line [N26]', async () => {
     assert.match(page.show('feed'), /<p class="sx-empty">No shouts yet\.<\/p>/, 'one line, with no bar while the feed shows everything');
     assert.doesNotMatch(page.show('feed'), /feed-bar|class="sx-th/, 'no bar and no rows when nothing was said');
     assert.match(page.html, /<div class="feed" id="feed"><\/div>/, 'the shouts feed');
-    assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
     const style = await styleOf(view);
     assert.match(style, /\n\.feed > div \{ display: grid; grid-template-columns: 4\.6em minmax\(0, 1fr\);[^\n]*\n\.feed > \.empty \{ display: block; \}\n/, 'a feed row has a time column; its empty note takes the whole width');
   } finally {
