@@ -2,6 +2,9 @@
 import { spawn } from 'node:child_process';
 import { AGENT_HOOK_EVENTS } from './events.js';
 
+/** Budget: a native hook's worker gets this long before the hook warns and continues; only an in-process caller may widen it (#7800). */
+export const HOOK_TIMEOUT_MS = 2000;
+
 /**
  * Run a single owned worker group; no inherited vendor payload can choose executable arguments.
  * The CLI passes its own worker script path, so the seats cell never names a CLI module.
@@ -32,7 +35,7 @@ export async function runAgentHook(io, event, worker) {
           try { process.kill(-child.pid, 'SIGKILL'); } catch { /* A worker that already closed needs no signal. */ }
         }
         finish(null);
-      }, 2000);
+      }, io.hookTimeoutMs ?? HOOK_TIMEOUT_MS);
       child.once('error', () => finish(null));
       child.once('close', finish);
     });
