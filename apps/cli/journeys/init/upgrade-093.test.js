@@ -106,7 +106,7 @@ async t => {
   migrate(box, repo);
   const seat = join(repo, '.claude', 'worktrees', 'web-1');
   mkdirSync(join(seat, 'src'), { recursive: true });
-  writeFileSync(join(seat, 'src', 'claimed.txt'), 'built under 0.9.3, submitted under 0.9.4\n');
+  writeFileSync(join(seat, 'src/claimed.txt'), 'built under 0.9.3, submitted under 0.9.4\n');
   box.git(seat, 'add', '-A');
   assert.equal(box.tryGit(seat, 'commit', '-q', '-m', 'feat(web): claimed item [G1]').status, 0);
   const submitted = await box.inProcess(seat, 'submit', '2');

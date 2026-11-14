@@ -67,7 +67,7 @@ test('clause 1: a full-gate fallback names no root package.json, a nested packag
   const unplaced = selectAffectedTests(root, { base, commit: base, changed: ['api/Handler.php'] });
   assert.equal(unplaced.full, true);
   assert.match(unplaced.reason, /cannot compute the effect of api\/Handler\.php/);
-  writeFileSync(join(root, 'src', 'x.js'), 'export {};\n');
+  writeFileSync(join(root, 'src/x.js'), 'export {};\n');
   mkdirSync(join(root, 'web'), { recursive: true });
   writeFileSync(join(root, 'web', 'package.json'), '{}\n');
   run('add', '-A'); run('commit', '-qm', 'chore: nested');
