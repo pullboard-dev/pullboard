@@ -93,6 +93,8 @@ function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, 
     const edges = importsIn(sources);
     for (const [index, imports] of edges.entries()) for (const specifier of [...imports, ...extra(sources[index])]) {
       if (isBuiltin(specifier)) continue;
+      // A computed dynamic import the module declares with @pullboard-module-loads is an optional, caught load kept out of the bundle on purpose (3ef434d9b3).
+      if (specifier === '(computed)' && /@pullboard-module-loads\b/u.test(sources[index])) continue;
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error(`non-literal relative ${label} import`);
       const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
       if (/\.json$/u.test(target)) {
