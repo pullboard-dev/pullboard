@@ -493,7 +493,8 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   env[TEST_ACTIONS_ENV] = runDir;
   process.once('exit', code => settleTestActions(runDir, { store, stage, commit, landing, code }));
   const reused = new Set(selectors.filter(file => !run.includes(file)).map(file => file.selector));
-  if (fullSuite) return { args: [...args, ...run.map(file => file.selector)], files: run.map(file => file.selector), done: false, reusedTestOutcomes };
+  // `trimmed` is true when reuse dropped a file: only then did the run stop covering the whole suite [C7,B3].
+  if (fullSuite) return { args: [...args, ...run.map(file => file.selector)], files: run.map(file => file.selector), done: false, trimmed: reused.size > 0, reusedTestOutcomes };
   return { args: args.filter(arg => !reused.has(arg)), files: null, done: false, reusedTestOutcomes };
 }
 

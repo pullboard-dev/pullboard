@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { addWorktree } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 
 /** A kept checkout's folder name: a random id, so no two gates ever pick the same new name. */
 const SLOT = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
@@ -62,7 +63,7 @@ export function exactGateCheckout(git, commonDir, root, commit) {
   if (!identity.ok) return false;
   const [actualCommon, top, head] = identity.out.split('\n');
   try {
-    if (realpathSync(actualCommon) !== realpathSync(commonDir) || realpathSync(top) !== realpathSync(root)) return false;
+    if (!sameCommonDir(realpathSync(actualCommon), realpathSync(commonDir)) || realpathSync(top) !== realpathSync(root)) return false;
   } catch { return false; }
   if (commit && head !== commit) return false;
   const status = inside(git, root, ['status', '--porcelain=v1', '--untracked-files=all', '--ignored=matching']);
