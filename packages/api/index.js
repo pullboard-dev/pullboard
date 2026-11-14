@@ -10,4 +10,5 @@ export { applyGateReceipt, applyJobReceipt, combinedReceipt, applyLandingReceipt
 export { provideMainRedNotes } from "./src/io/gate/files.js";
 export { CHECK_BASELINE_KIND, offerCheckBaseline, provideBaselineRecorder } from "./src/io/baseline.js";
 export { provideMainTestRecorder } from "./src/io/recheck.js";
+export { provideCompanionInheritance } from "./src/io/gate/companion.js";
 export { applyTestReceipt, mainRedReceiptId, mainTestCommand } from "./src/io/test/receipt.js";
