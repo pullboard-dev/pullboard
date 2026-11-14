@@ -1,4 +1,5 @@
 /** Cockpit snapshot export keeps the checkout paths a person wrote and redacts the structured ones [A10,N26]. */
+/** @pullboard-test-gui */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
