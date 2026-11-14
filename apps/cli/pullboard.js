@@ -44,7 +44,9 @@ process.stdout.on('error', (error) => {
 // The common version probe needs only the release metadata, not the command dispatcher.
 if (process.argv.length === 3 && process.argv[2] === '--version') {
   const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
-  process.stdout.write(`${packageData.version}\n`);
+  // A hook one release back is told its own version, so an upgrade never stops a seat's commit (#7760).
+  const { hookProbeVersion } = process.env.GIT_EXEC_PATH ? await import('./src/io/hook/probe.js') : { hookProbeVersion: (release) => release };
+  process.stdout.write(`${hookProbeVersion(packageData.version, { cwd: process.cwd(), env: process.env })}\n`);
   process.exit(0);
 }
 
