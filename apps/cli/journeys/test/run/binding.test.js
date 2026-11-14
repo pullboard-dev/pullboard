@@ -80,7 +80,8 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   const unclaimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.repo, { BINDING_LOG: log, BINDING_LABEL: 'unclaimed' });
   children.push(unclaimed);
   await observed(unclaimed, () => resources(box)?.line.some(row => row.agent === 'coordinator'), 'unclaimed focused waiter');
-  const claimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.web, { BINDING_LOG: log, BINDING_LABEL: 'claimed' });
+  // A claiming seat's own `pullboard test` queues on the board and never joins the local line; the item check (PULLBOARD_CHECK) is the claimed run that blocks in it [C7].
+  const claimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.web, { BINDING_LOG: log, BINDING_LABEL: 'claimed', PULLBOARD_CHECK: '1' });
   children.push(claimed);
   await observed(claimed, () => resources(box)?.line.some(row => row.agent === seat), 'claimed focused waiter');
   const line = resources(box).line;
