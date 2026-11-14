@@ -36,10 +36,17 @@ function board(t) {
   return box;
 }
 
+/** A cells fixture whose put stages what it writes, because the cell inventory reads only files Git tracks or has staged (6193b1e81b). */
+function stagedFixture(t, fixture, git) {
+  const base = fixture(t);
+  return { ...base, put(file, source) { base.put(file, source); git(base.root, 'add', '--', file); } };
+}
+
 /** Register bounded real-board and graph controls in the existing frozen cells-plan test file. */
 export function installCutCases({ PLAN, BIN, fixture, git }) {
+  const staged = t => stagedFixture(t, fixture, git);
   test('testkit is test support and production imports are refused by name [C7,D3,CD64]', t => {
-    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    const { root, put } = staged(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
     put(edge.from, 'export const detached = true;\n');
     put('package.json', JSON.stringify({ type: 'module', imports: { '#testkit/*': './packages/testkit/src/*' } }));
     put('packages/testkit/src/helper.js', `import ${JSON.stringify('../../../' + edge.to)}; export const helper = true;\n`);
@@ -163,7 +170,7 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
   });
 
   test('the cut check rejects direct imports and hidden shims but accepts an actual removed dependency [C7,D3,CD64]', t => {
-    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0];
+    const { root, put } = staged(t), plan = computePlan(root), group = importCuts(plan)[0];
     writePlan(root, plan);
     const red = runFixtureChild(process.execPath, [BIN, '--cuts', group.cell], { cwd: root, encoding: 'utf8' });
     assert.equal(red.status, 1, red.stdout + red.stderr);
@@ -206,7 +213,7 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
   });
 
   test('declared loaders retain lower and later edges through transitive forwarding shims [C7,D3,CD64]', t => {
-    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    const { root, put } = staged(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
     const lower = plan.cells.find(cell => cell.order < group.order);
     const shared = `${lower.root}/src/logic/loader.js`, bridge = `${lower.root}/src/logic/bridge.js`;
     const leaf = `${lower.root}/src/logic/leaf.js`, lowerGlob = `${lower.root}/src/logic/leaf*.js`;
@@ -236,7 +243,7 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
   });
 
   test('closed historical cuts accept exact lower ownership while higher or missing placement still refuses [C7,D3,CD64]', t => {
-    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    const { root, put } = staged(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
     const importer = plan.cells.find(cell => cell.name === group.cell);
     const original = plan.cells.find(cell => cell.name === edge.target);
     const index = original.paths.findIndex(row => row[0] === edge.to);
