@@ -19,6 +19,7 @@ import {
   SCHEMA,
   SCHEMA_VERSION,
   OLDEST_UPGRADABLE_SCHEMA,
+  BOARD_TOO_OLD_NEXT,
   SCHEMA_DIGEST,
   EVENT_LOG_VERSION,
   BOARD_BUSY_TIMEOUT_MS,
@@ -183,7 +184,7 @@ function refuseBoardBeyondOneRelease(file, runtimePorts) {
     current?.close();
   }
   if (version > 0 && version < OLDEST_UPGRADABLE_SCHEMA) {
-    throw new Refused('BOARD_TOO_OLD', `this board is schema ${version}, from before pullboard 0.9.3; pullboard supports one release back, and nothing was changed`, 'open this board with pullboard 0.9.3 first, then open it with this version');
+    throw new Refused('BOARD_TOO_OLD', `this board is schema ${version}, from before pullboard 0.9.3; pullboard supports one release back, and nothing was changed`, BOARD_TOO_OLD_NEXT);
   }
 }
 
