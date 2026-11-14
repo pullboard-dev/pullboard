@@ -36,7 +36,7 @@ function pullboardOnPath(files, bare, path) {
 test('IMPORT_NOT_EMPTY on relay join names a command the person runs, and running it joins [C7,H17]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const code = (await box.cli('relay', 'pair')).document.code;
+  const code = (await box.cliLocal('relay', 'pair')).document.code;
   const files = privateFixtureFiles('pullboard-join-step-');
   const scratch = files.root;
   const bare = join(scratch, 'project.git');

@@ -1,3 +1,4 @@
+import packageData from '../../../../../package.json' with { type: 'json' };
 import { checkAtCommit } from '../../../../runner/index.js';
 /** The pullboard doctor command, in its own module so an item adding another command never edits these lines. */
 import {
@@ -57,7 +58,7 @@ export async function run(io, { values = {} } = {}) {
   io.nativeBoard ??= await io.loadNativeBoard();
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
-  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
+  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit, release: packageData.version }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
   // Preserve doctor's read-only diagnosis of a missing or incompatible board before projecting its rows.
   const incompatible = new Set(['BOARD_MISSING', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
   const cover = problems.some(problem => incompatible.has(problem.code)) ? { missingFamilies: [] }
