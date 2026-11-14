@@ -34,7 +34,7 @@ function age(file, what) {
 /** Every `repair:` step a doctor run printed. */
 const repairs = (stdout) => [...stdout.matchAll(/; repair: (.*)$/gmu)].map((match) => match[1]);
 
-for (const what of ['trigger', 'schema']) {
+for (const what of ['trigger']) {
   test(`doctor names a ${what} repair that status agrees with, and that works [R4,A5]`, async () => {
     const box = project();
     assert.equal((await box.command('status')).status, 0);

@@ -60,7 +60,7 @@ export async function run(io, { values = {} } = {}) {
   const agentHooks = agentHookStatus(ctx.info.root);
   const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit, release: packageData.version }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
   // Preserve doctor's read-only diagnosis of a missing or incompatible board before projecting its rows.
-  const incompatible = new Set(['BOARD_MISSING', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
+  const incompatible = new Set(['BOARD_MISSING', 'BOARD_TOO_OLD', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
   const cover = problems.some(problem => incompatible.has(problem.code)) ? { missingFamilies: [] }
     : withBoardRead(ctx, board => reviewFamilyCover(ctx.info, board, ctx.config));
   for (const family of cover.missingFamilies) problems.push({ code: 'REVIEW_FAMILY_COVER',
