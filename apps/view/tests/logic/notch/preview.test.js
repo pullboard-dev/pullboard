@@ -51,7 +51,7 @@ test('rulings preview: kind bar, kind key and only the top three rulings; the li
   assert.match(list, /<span class="np-tx"><b>Approve<\/b><small><em>Item<\/em> · #6604 new spec row<\/small><\/span>/u, 'muted title, bold class, then the thing');
   assert.match(list, /data-go="item:6604"/u);
   assert.equal(notchPreviewHtml(data, 'nothing'), '');
-  assert.match(notchPreviewHtml({ rulings: { items: [] } }, 'list'), /Nothing needs you/u);
+  assert.match(notchPreviewHtml({ rulings: { items: [] } }, 'list'), /No rulings\./u);
 });
 
 test('board text is escaped and the data is never mutated [N26]', () => {
