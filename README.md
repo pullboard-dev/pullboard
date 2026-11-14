@@ -297,6 +297,12 @@ Set `PULLBOARD_MODEL` to the model your agent actually uses; the `--model` optio
 pullboard worktree web --model "$PULLBOARD_MODEL"
 cd .claude/worktrees/web-1
 pullboard next
+```
+
+`next` claims the item and names its item folder, `.claude/worktrees/web-1-item-1`. Build and commit there; the seat checkout refuses commits.
+
+```sh
+cd .claude/worktrees/web-1-item-1
 pullboard submit 1
 ```
 
