@@ -36,6 +36,39 @@ function command(file, args, cwd, env) {
   return result.stdout.trim();
 }
 
+/**
+ * Wait until a submitted demo item has passed its gate and waits for review.
+ * Why: the gate is a job the loopback local runner pulls, so submit returns at once and the item reads "submitted" only when that runner posts its receipt.
+ *
+ * @param {(cwd: string, ...args: string[]) => string} pb runs a pullboard command in the demo environment
+ * @param {string} cwd the seat folder to read from
+ * @param {string} id the item id
+ */
+async function settleSubmitted(pb, cwd, id) {
+  const deadline = Date.now() + 180_000;
+  while (!/^#\d+ +submitted\b/u.test(pb(cwd, 'show', id))) {
+    if (Date.now() > deadline) throw new Error(`#${id} did not settle its gate within 180 s`);
+    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+  }
+}
+
+/**
+ * Stop the loopback local runner a submit started in the demo's machine home, so the folder can be removed.
+ *
+ * @param {string} home the demo's private machine home
+ */
+async function stopLocalRunner(home) {
+  let pid = 0;
+  try { pid = Number(JSON.parse(await readFile(join(home, 'local-runner', 'state.json'), 'utf8')).pid); } catch { return; }
+  if (!pid) return;
+  try { process.kill(pid, 'SIGTERM'); } catch { return; }
+  for (let waited = 0; waited < 5000; waited += 50) {
+    try { process.kill(pid, 0); } catch { return; }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  try { process.kill(pid, 'SIGKILL'); } catch { /* it has exited */ }
+}
+
 /** Stop a child and wait until it has released its temporary files and sockets. */
 async function stop(child) {
   if (child.exitCode !== null || child.signalCode !== null) return;
@@ -174,13 +207,14 @@ async function buildBoard(base, env) {
   if (!review) throw new Error('Could not create the demo reviewer worktree');
   pb(review, 'join', 'review', '--family', 'claude', '--model', 'Demo reviewer');
   setDemoMinutes(env, 1);
-  pb(app, 'next');
+  pb(app, 'next', '--take');
   await mkdir(join(app, 'src'), { recursive: true });
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = false;\n');
   command('git', ['add', '-A'], app, env);
   command('git', ['commit', '-q', '-m', 'feat(app): draft the demo change [G1]'], app, env);
   setDemoMinutes(env, 2);
   pb(app, 'submit', '1', '--no-next');
+  await settleSubmitted(pb, app, '1');
   const first = command('git', ['rev-parse', 'HEAD'], app, env);
   command('git', ['switch', '-q', '--detach', first], review, env);
   setDemoMinutes(env, 3);
@@ -194,6 +228,7 @@ async function buildBoard(base, env) {
   command('git', ['commit', '-q', '-m', 'feat(app): revise the reviewed demo [G1]'], app, env);
   setDemoMinutes(env, 6);
   pb(app, 'submit', '1', '--no-next');
+  await settleSubmitted(pb, app, '1');
   const second = command('git', ['rev-parse', 'HEAD'], app, env);
   command('git', ['switch', '-q', '--detach', second], review, env);
   setDemoMinutes(env, 12);
@@ -203,12 +238,12 @@ async function buildBoard(base, env) {
   setDemoMinutes(env, 14);
   command('git', ['merge', '-q', '--ff-only', 'app/1'], repo, env);
   pb(repo, 'merged', '1', second);
-  command('git', ['switch', '-q', '-c', 'app/next-review', 'main'], app, env);
   pb(app, 'claim', '3');
   await writeFile(join(app, 'src', 'review.js'), 'export const ready = true;\n');
   command('git', ['add', '-A'], app, env);
   command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], app, env);
   pb(app, 'submit', '3', '--no-next');
+  await settleSubmitted(pb, app, '3');
   pb(app, 'claim', '4');
   setDemoMinutes(env, 75);
   pb(repo, 'lanes', 'lead', 'app', 'app-1');
@@ -345,7 +380,7 @@ else {
   try {
     const clockShim = join(base, 'fixed-clock.mjs');
     await writeFile(clockShim, `const NativeDate = Date;\nconst fixed = NativeDate.parse(process.env.PULLBOARD_DEMO_NOW || ${JSON.stringify(FIXED_TIME)});\nclass FixedDate extends NativeDate { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } }\nglobalThis.Date = FixedDate;\n`);
-    const env = { ...isolatedEnv(join(base, '.pullboard-home'), clockShim), PULLBOARD_DEMO_NOW: FIXED_TIME, TMPDIR: base, TMP: base, TEMP: base };
+    const env = { ...isolatedEnv(join(base, '.pullboard-home'), clockShim), PULLBOARD_DEMO_NOW: FIXED_TIME, PULLBOARD_FIXTURE_ADD_DISTINCT: '1', TMPDIR: base, TMP: base, TEMP: base };
     if (tourOnly) {
       await recordTour(env);
     } else {
@@ -456,6 +491,7 @@ else {
       catch (error) { teardownErrors.push(`${error.name}: observation receipt write failed`); }
     }
     if (teardownErrors.length) process.exitCode = 1;
-    await rm(base, { recursive: true, force: true });
+    await stopLocalRunner(join(base, '.pullboard-home'));
+    await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }
