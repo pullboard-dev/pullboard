@@ -16,6 +16,9 @@ import { renewLease } from '../../../jobs/index.js';
 import { JOB_CLASSES } from '../../../jobs/index.js';
 import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
+import { touchLive } from '../../../jobs/index.js';
+import { liveSince } from '../../../jobs/index.js';
+import { endJob } from '../../../jobs/index.js';
 
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
 export const SHARD_JOB_KIND = 'gate-shard';
@@ -58,6 +61,8 @@ const PART_BYTES = 1024;
 const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
 // Budget: a job is claimed at most this many times (gate.jobMaxAttempts); at the cap it ends as a runaway and the coordinator hears once (#7386).
 export const JOB_MAX_ATTEMPTS = 12;
+// Budget: a pre-push gate renews its shards' liveness every 30 s; a shard unrenewed for this long has lost its gate and ends at its next claim (#7805).
+export const PUSH_ALIVE_MS = 5 * 60_000;
 /** The step a request too large for its offered row is kept in; its parts in the offer name it. */
 const REQUEST_STEP = 'request';
 // Budget: a progress step names each file once with a state word; it stays inline, under the 64 KiB blob threshold, so the live reader parses the row itself.
@@ -274,6 +279,8 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
+      // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
+      if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
       if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
@@ -306,6 +313,40 @@ function noteRepeatClaims(db, row, { now, repeated }) {
   if (recent.length !== REPEAT_CLAIM_COUNT) return;
   const runners = [...new Set(recent.map(step => { try { return JSON.parse(step.payload).runner; } catch { return null; } }).filter(Boolean))];
   repeated.push({ job: row.job_id, kind: row.job_kind, claims: recent.length, runners });
+}
+
+/** True for a pre-push gate's shard job: a gate-shard whose id starts with `push:` (the gate that offered it renews it). */
+function isPushShard(row) {
+  return row.job_kind === SHARD_JOB_KIND && row.job_id.startsWith('push:');
+}
+
+/** End a push shard whose gate stopped renewing it: an `abandoned` step, then done. No shout: a stopped gate is not a fault to report. */
+function endAbandoned(db, row, { now }) {
+  endJob(db, row.job_id, 'abandoned', { attempts: row.job_attempt, detail: `its push gate stopped renewing it ${PUSH_ALIVE_MS / 60_000} minutes ago; ended, not rerun` }, { now });
+}
+
+/**
+ * Say a pre-push gate still waits on these shard jobs, so no claim ends them as abandoned (PUSH_ALIVE_MS).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} ids
+ * @param {number} [now]
+ */
+export function keepJobsAlive(db, ids, now = Date.now()) {
+  touchLive(db, ids, now);
+}
+
+/**
+ * End each of these jobs that has not finished, even one a runner holds: a pre-push gate that blocks, times out or is
+ * interrupted withdraws its shards, so no runner claims them again (#7805).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} ids
+ * @param {{ reason?: string, now?: number }} [options]
+ * @returns {string[]} The jobs ended now.
+ */
+export function endJobs(db, ids, { reason = 'withdrawn by the process that offered it', now = Date.now() } = {}) {
+  return ids.filter(id => endJob(db, id, 'withdrawn', { detail: reason }, { now }));
 }
 
 /** End a job claimed past its cap: a `runaway` step, then done, queued on `ended` for `onRunaway` so the coordinator hears once. */
