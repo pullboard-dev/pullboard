@@ -479,7 +479,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `test-run:<uuid>`. Created by `queueTestRun` in `packages/drive/src/io/queue.js`.
 - **Serves:** no item that it ends: the seat that queued it, and an optional item for display.
-- **States:** `queued`, `running`, `result`, `lost`, `cancelled`, `delivered`. Terminal: `delivered`.
+- **States:** `queued`, `running`, `pulled`, `result`, `lost`, `cancelled`, `delivered`. Terminal: `delivered`.
 - **Lease:** LEASE_MS 120 s, taken by the worker and renewed every RENEW_MS; a worker that dies stops renewing and the run is reported lost 2 minutes later.
 - **Ends when its item moves on:** n/a, at `workTestRun` in `packages/drive/src/io/queue.js`: serves the queuing seat, never an item state; no driver ends it on an item move
 - **Harness:** NONE.
@@ -489,6 +489,8 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | (none) | `queued` | pullboard test queues a run and starts its detached worker | `queueTestRun` in `packages/drive/src/io/queue.js` |
 | `queued` | `running` | the worker takes the lease | `workTestRun` in `packages/drive/src/io/queue.js` |
 | `running` | `result` | the work returned or failed; lease released | `workTestRun` in `packages/drive/src/io/queue.js` |
+| `running` | `pulled` | the worker offered its runner job and names it (job id, and how long it may wait unclaimed), so the receipt settles the run if the worker stops | `runJobFor` in `apps/cli/src/io/test/pull.js` |
+| `pulled` | `result` | the worker records the runner receipt; or, once the worker is gone, the receipt is read as the result and the lease released | `endLostTestRuns` in `packages/drive/src/io/queue.js` |
 | `running` | `lost` | the lease lapsed and the worker process is gone; lost step recorded and lease released | `endLostTestRuns` in `packages/drive/src/io/queue.js` |
 | `result` | `delivered` | next hands the finished run to its seat once | `deliverTestRun` in `packages/drive/src/io/queue.js` |
 | `queued` | `cancelled` | the seat cancels its run; the job ends and the worker group stops | `cancelTestRun` in `packages/drive/src/io/queue.js` |

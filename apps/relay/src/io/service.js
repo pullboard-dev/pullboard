@@ -485,8 +485,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 }
 
 /** Start the opt-in service on a configured address; tests use loopback and an ephemeral port. */
-export function serveRelay({ directory, auth, port = 0, host = '127.0.0.1', pollMs = 200, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority }) {
-  const handler = createRelayHandler({ directory, auth, pollMs, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority });
+export function serveRelay({ directory, auth, port = 0, host = '127.0.0.1', pollMs = 200, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority, moveBodyBytes }) {
+  const handler = createRelayHandler({ directory, auth, pollMs, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority, moveBodyBytes });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {

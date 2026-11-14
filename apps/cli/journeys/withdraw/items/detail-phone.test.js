@@ -69,7 +69,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project?.items?.find((item) => item.id === 1)');
     // The fact rows render with the thread; the exact event identities are asserted below, where a miss names the ids.
     await chrome.waitFor('document.querySelectorAll("#detail .tl .tl-fact").length === ' + expected.filter((entry) => entry.type === 'fact').length);
-    await chrome.stable("(() => { const more = document.querySelector('#detail [data-item-panel-history]'); if (more && more.getAttribute('aria-expanded') !== 'true') more.click(); return true; })()");
+    if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
     // The history folds to its newest five rows; the earlier note and the capture sit past the fold until the list is opened.
     await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
     const expectedIds = expected.map((entry) => entry.eventId);
