@@ -142,6 +142,8 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
       render();
       return true;
     })()`);
+    // The top tabs show at a desktop width; the narrow default hides them behind the menu button.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     // The /live-style Dashboard draws no Rulings card (#6847); the Items list carries the row.
     await press(chrome, 'document.querySelector("[data-tab=items]")');
     await chrome.waitFor(`Array.from(document.querySelectorAll('#needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
@@ -233,6 +235,7 @@ test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_00
       chrome = await openSnapshotChrome(executable, address, profile);
       await chrome.waitFor("data?.project?.needs?.length === 4");
       assert.equal(await chrome.stable('view.tab'), 'dashboard', mode + ' opens on Dashboard');
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
       await press(chrome, 'document.querySelector("[data-tab=items]")');
       await chrome.waitFor("data?.project?.needs?.length === 4 && document.querySelectorAll('#needs .needs-call').length === 4");
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(projectNeeds(data.project))')), expected, mode + ' computes identical entries');
@@ -338,6 +341,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     // The coordinator passes it up with its note (B27): now it is the person's call.
     await box.inProcess(alpha.repo, 'pass', '1', 'over to you');
     await page.run('refresh()');
+    assert.ok(page.run('data.project.decisions.some(shout => shout.shout_id === 42)'), 'the passed ask is decision 42; the page holds ' + page.run('JSON.stringify(data.project.decisions.map(shout => shout.shout_id))'));
     const passedAt = page.run('Date.parse(data.project.decisions.find(shout => shout.shout_id === 42).shout_at)');
     page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
     page.run("openTab('items'); render();");
