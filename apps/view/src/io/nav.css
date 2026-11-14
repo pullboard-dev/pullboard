@@ -1,4 +1,4 @@
-/* The navigation, top layout (#6614, the approved nav-switch prototype, Corey 12 Nov). A 40px top tier (the mark, the
+/* The navigation, top layout (#6614, the approved nav-switch prototype, 12 Nov). A 40px top tier (the mark, the
  * project switcher with its amber rulings, the layout pin, "/ Page", the notch, the search, the account slot), then a
  * 34px strip of plain-text tabs with the Rules and Insights menus, the page's own controls at its right. The active
  * page is ink and bold with a small green dot; hover darkens the text only: never a fill, an underline or a pill.

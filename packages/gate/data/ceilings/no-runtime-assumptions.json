@@ -181,16 +181,13 @@
     "packages/transport/src/io/ssh.js": {
       "binSh": 1
     },
-    "packages/verify/light.js": {
-      "testFile": 1,
-      "nodeTest": 1
-    },
     "packages/verify/src/io/check/accept.js": {
       "testFile": 2,
       "nodeTest": 1
     },
     "packages/verify/src/io/check/widen.js": {
-      "testFile": 1
+      "testFile": 2,
+      "nodeTest": 1
     },
     "packages/verify/src/io/review/packet.js": {
       "testFile": 5

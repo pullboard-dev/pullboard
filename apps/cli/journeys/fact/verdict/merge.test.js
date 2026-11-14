@@ -1,10 +1,8 @@
-import { landingPorts } from '../../../tests/fixtures/landing/ports.js';
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import {
-  land,
-} from '../../../../../packages/landing/index.js';
+import { candidates } from '../../../../../packages/landing/index.js';
+import { emptyLanding } from '../../../../../packages/landing/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -19,6 +17,8 @@ import {
   test,
 } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
+import { landingPorts } from '../../../tests/fixtures/landing/ports.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
@@ -40,6 +40,16 @@ import {
 import { MERGE_ONLY_VERDICT_ENGINE } from '../../../../../packages/state/light.js';
 import { operationIntent } from '../../../../../packages/state/index.js';
 import { capturePrProof } from '../../../../../packages/github/index.js';
+
+/**
+ * Select what a landing would take from this board against the checkout's main, and refuse the way the landing step
+ * does when nothing is landable. Why: `land` no longer merges (lander v2, #6813); candidate selection is the step that
+ * keeps a forged acceptance from reaching a land job [V1,V4,H16].
+ */
+function selectOrRefuse(box, board) {
+  const selected = candidates(board, box.repo, box.git(box.repo, 'rev-parse', 'HEAD'), 10, { landingPorts });
+  return emptyLanding(selected, () => {});
+}
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -68,7 +78,7 @@ function content(box, cwd, value, message) {
   return box.git(cwd, 'rev-parse', 'HEAD');
 }
 
-test('clause 1: a merge-only resubmission keeps its accept and records the resolution diff [V1,V4,H16]', async () => {
+test('clause 1: a merge-only resubmission keeps its accept and records the resolution diff [V1,V4,H16]', async t => {
   const box = e2e.project();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const configured = e2e.commitFile(box, box.repo, 'pullboard.json',
@@ -83,7 +93,9 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
   const id = JSON.parse(added.out).item.item_id;
   succeeds(box, box.web, 'claim', String(id));
   const accepted = content(box, box.web, 'accepted', 'feat(web): accepted choice [G1]');
-  succeeds(box, box.web, 'submit', String(id));
+  // A pulled submit returns queued; settle its gate job so the item is submitted before review [P7,C7].
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.run(cwd, ...args) },
+    JSON.parse(succeeds(box, box.web, 'submit', String(id), '--json').out));
   box.git(box.repo, 'switch', '-q', '--detach', accepted);
   try {
     succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the complete choice criterion');
@@ -253,10 +265,9 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     assert.equal(store.getItem(forged, id).item_status, 'verified',
       'canonical replay records the sealed decision consistently; landing is the authoritative Git backstop');
     const beforeLanding = box.git(box.repo, 'rev-parse', 'HEAD');
-    await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT'
-        && /recorded merge-only acceptance/u.test(error.message),
-      'forged canonical carry must not reach a physical merge');
+    assert.throws(() => selectOrRefuse(box, forged), error => error.code === 'STALE_VERDICT'
+      && /recorded merge-only acceptance/u.test(error.message),
+    'forged canonical carry must not reach a land job');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
     assert.deepEqual(store.verdictsFor(forged, id), original.verdicts);
     assert.deepEqual(store.landingBatches(forged), []);
@@ -277,8 +288,7 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     chained.args[1].mergeOnly = nextProof;
     applyEngineMove(forged, chained, { sequence: 2, at: '2026-01-01T00:00:01.000Z' });
     assert.equal(store.getItem(forged, id).item_status, 'verified');
-    await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT',
+    assert.throws(() => selectOrRefuse(box, forged), error => error.code === 'STALE_VERDICT',
       'a later clean carry must not launder a forged earlier carry into a landable acceptance');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), nextTrunk);
     box.git(box.repo, 'reset', '--hard', trunk);
