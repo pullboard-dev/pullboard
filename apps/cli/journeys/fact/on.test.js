@@ -9,8 +9,9 @@ import {
   withBoard,
 } from '../../tests/fixtures/scenarios/team.js';
 import { join } from 'node:path';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 
-test('an accept whose change main already contains reads fresh and lands without re-review [C7,#2980]', { timeout: 120_000 }, () => { // budget: hang ceiling for real Git, CLI verify and landing; not a speed target.
+test('an accept whose change main already contains reads fresh and lands without re-review [C7,#2980]', { timeout: 120_000 }, async () => { // budget: hang ceiling for real Git, CLI verify and landing; not a speed target.
   const box = helpers.project();
   box.env.PULLBOARD_MODEL = 'already-on-main-fixture';
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', 'feature = 0\nother = 0\n', 'feat(web): baseline [G1]').status, 0);
@@ -34,7 +35,7 @@ test('an accept whose change main already contains reads fresh and lands without
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
-  const landed = JSON.parse(run(box, box.repo, 'land', '--json'));
+  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json'))); // the pulled land job posts its receipt after the command returns [C7]
   assert.deepEqual(landed.landed, [1], JSON.stringify(landed));
   const item = withBoard(box.repo, board => store.getItem(board, 1));
   assert.equal(item.item_merged_commit, landed.batch.tip, 'the item is recorded landed on the main that already held its change');

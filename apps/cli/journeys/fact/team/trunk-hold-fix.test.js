@@ -6,6 +6,6 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/team.js';
 
-test('a committed correction to a held test releases the trunk without a waiver [E27,E28,E29]', { timeout: 180_000 }, () => { // budget: hang ceiling for real Git/CLI landings, bisection and waiver controls; no speed target.
+test('a committed correction to a held test releases the trunk without a waiver [E27,E28,E29]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, () => { // budget: hang ceiling for real Git/CLI landings, bisection and waiver controls; no speed target.
   assertTrunkHoldCorrection(helpers);
 });
