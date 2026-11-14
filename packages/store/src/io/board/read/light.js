@@ -11,10 +11,17 @@ import { itemWorkInFlight } from '../../../logic/red/return.js';
 import { itemStage } from '../../../logic/item/stage.js';
 import { handoffRecords } from '../../submit/handoff/records.js';
 import { pulledGateRecords } from '../../submit/handoff/records.js';
-import { boardDataVersion } from '../version.js';
 import { withSeatPresence } from '../../presence.js';
 import { withDerivedFamily } from '../../../../../items/light.js';
 import { agentParent } from '../../../../../seats/light.js';
+
+/**
+ * A value that changes whenever the board's data may have, for per-revision read caches [H24]: another connection's commit moves
+ * SQLite's data_version, and this connection's own writes move its total_changes. It lives here so the light read loads one module less [C7].
+ */
+export function boardDataVersion(board) {
+  return `${board.db.prepare('PRAGMA data_version').get().data_version}:${board.db.prepare('SELECT total_changes() AS n').get().n}`;
+}
 
 /** Maximum time a board connection waits for another process to release SQLite's lock. */
 export const BOARD_BUSY_TIMEOUT_MS = 10_000;
