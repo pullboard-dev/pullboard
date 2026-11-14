@@ -632,6 +632,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       if (green) startPulledComparison(board, id, submit.agentId);
+      // A carried merge-only accept leaves the item verified with no verify command to offer its land job (#7948).
+      if (store.getItem(board, id)?.item_status === 'verified') startReceiptLanding(board, id);
       return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.failures, knownMainReworks: owners.known?.failures ?? [], knownMainAmbiguous: owners.ambiguous } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -688,6 +690,35 @@ function startPulledComparison(board, id, agentId) {
   if (started === false) return;
   const failed = started?.error ? { ...pending, status: 'unavailable', error: String(started.error?.message ?? started.error).slice(0, 500) } : null;
   store.appendFact(board, id, { agentId, kind: 'measurement', text: COMPARISON_PREFIX + JSON.stringify(failed ?? pending) });
+}
+
+/** The landing starter this process's board API calls when a gate receipt leaves an item accepted; null until a host provides one. */
+let landingStarter = null;
+
+/**
+ * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }).
+ * Why a provider: offering a land job publishes the item's ref and reads the trunk with git from the CLI's lander, so
+ * `pullboard serve` hands it in and the board API keeps no import of the CLI [C7,#7948].
+ * @param {((request: { root: string, item: number }) => unknown) | null} start
+ */
+export function provideLandingStart(start) {
+  landingStarter = typeof start === 'function' ? start : null;
+}
+
+/**
+ * Start the land job offer for an item this receipt left verified, once the receipt's writes are done. Why: a gate that
+ * carries a merge-only accept (reopen --conflict, merge main, resubmit) verifies the item with no `verify accept` run,
+ * so nothing offered its land job and it waited accepted for good (#7948). A failed start is logged with its next
+ * step; the coordinator's `pullboard land` then offers the job.
+ */
+function startReceiptLanding(board, id) {
+  if (!landingStarter || !board.gitRoot) return;
+  const start = landingStarter, root = board.gitRoot;
+  setImmediate(() => {
+    Promise.resolve().then(() => start({ root, item: id })).catch(error => {
+      process.stderr.write(`${new Date().toISOString()} land job for #${id} not offered after its gate receipt: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
+    });
+  });
 }
 
 /** The refusal-trial ledger this process's board API records pulled gates in; null until a host provides one. */

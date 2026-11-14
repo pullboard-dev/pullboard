@@ -40,6 +40,7 @@ import { provideCompanionInheritance } from '../../../../../packages/api/index.j
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
 import { provideComparisonStart } from '../../../../../packages/api/index.js';
+import { provideLandingStart } from '../../../../../packages/api/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
 import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
@@ -112,6 +113,7 @@ export async function serveHere(io, values) {
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
+  provideLandingStart(startReceiptLanding);
   traceServeStartup('serve-listen-start');
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
@@ -174,6 +176,17 @@ function startPulledComparison(request) {
   return import('./verify.js').then(module => module.launchPulledComparison(request)).catch(() => { /* A comparison is observation only. */ });
 }
 
+/**
+ * Offer the land job for an item a gate receipt left accepted, as `verify accept` offers it, from the board host's main
+ * checkout. Why: a carried merge-only accept runs no verify command, so without this its item waited accepted with no
+ * land job (#7948). The lander loads with the first such receipt.
+ * @param {{ root: string, item: number }} request
+ */
+export async function startReceiptLanding({ root }) {
+  const [{ wakeIo }, { landAfterAcceptance }] = await Promise.all([import('../landing/automatic.js'), import('./land.js')]);
+  return landAfterAcceptance(context(wakeIo(root)));
+}
+
 /** The inline gate's main-red wording, which pulled gate facts name an inherited red's owning rework with [V1,C7]. */
 const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(root, board, null, comparison) };
 
@@ -193,6 +206,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
+  provideLandingStart(startReceiptLanding);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -226,6 +240,7 @@ export async function boardHandlerPorts({ isMain } = {}) {
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
+  provideLandingStart(startReceiptLanding);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');
