@@ -21,7 +21,7 @@ import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 test('the roadmap and milestone commands print landed counts, target, limit, foreign references and kept pins [N26,N22]', t => {
   const box = machine(), alpha = project(box, 'milestone-text');
   for (const title of ['Landed work', 'Accepted work', 'Open work', 'Limit one', 'Limit two', 'Rank one', 'Rank two', 'Rank three']) {
-    fileFixtureItem(box, alpha.repo, { lane: 'web', title, check: 'test -f pullboard.json', args: ['--specs', 'G1'], wait: true,
+    fileFixtureItem(box, alpha.repo, { lane: 'web', title, check: 'test -f pullboard.json', args: ['--specs', 'G1', '--accept-green', 'fixture check keeps passing'], wait: true,
       run: (root, ...args) => ({ code: 0, out: box.run(root, ...args), err: '' }) });
   }
   const board = openCellBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
