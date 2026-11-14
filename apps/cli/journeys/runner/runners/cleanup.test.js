@@ -30,7 +30,7 @@ import {
   writeFileSync,
 } from '../../../tests/fixtures/scenarios/runners.js';
 
-test('a queued run executes on a registered runner and its result comes back [C7] (dropped runner returns ticket before later work)', async (t) => {
+test('a queued run executes on a registered runner and its result comes back [C7] (dropped runner returns ticket before later work)', { skip: 'CONTROLLER_ONLY: deleted with #6579 (registered SSH runner ticket and setup-drain placement; pull runners own no SSH tickets)' }, async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-retry-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const home = join(dir, 'home');
@@ -121,7 +121,7 @@ while(!fs.existsSync(${JSON.stringify(releaseFirst)})) await sleep(5); })().catc
   }
 });
 
-test('a queued run executes on a registered runner and its result comes back [C7] (disconnect drains an npm setup child before releasing its gate holder)', async (t) => {
+test('a queued run executes on a registered runner and its result comes back [C7] (disconnect drains an npm setup child before releasing its gate holder)', { skip: 'CONTROLLER_ONLY: deleted with #6579 (registered SSH runner ticket and setup-drain placement; pull runners own no SSH tickets)' }, async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-setup-disconnect-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const home = join(dir, 'home');
