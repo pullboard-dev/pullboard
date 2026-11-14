@@ -136,7 +136,9 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   // Agents at work and not holding an item; seats quiet for 20 minutes are not at work and stay off the table.
   const quiet = m.agents.filter(agent => agent.group === 'between items');
   const quietRows = () => group('Idle', quiet, 'building');
-  if (quiet.length && deferQuiet) deferQuiet(quietRows);
+  // With nobody building or reviewing, the idle seats are the table: they show at once, never behind a toggle (#7945).
+  const onlyQuiet = !building.length && !reviewers.length;
+  if (quiet.length && deferQuiet && !onlyQuiet) deferQuiet(quietRows);
   const longest = quiet.length ? span(Math.max(...quiet.map(agent => m.now - agent.last))) : '';
   const axis = new Date(m.start).toLocaleTimeString(locale, { timeZone, hour: 'numeric', minute: '2-digit' })+' → now';
   const legend = '<span class="dash-legend"><span><i class="build"></i>building</span><span><i class="review"></i>reviewing</span><span><i class="idle"></i>idle</span><span><i class="back"></i>sent back</span><span><i class="landed"></i>landed</span><span><i class="shout"></i>shout</span></span>';
@@ -144,8 +146,8 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     '<div class="dash-card dash-agents">'+landingMarks
     + '<div class="dash-scroll"><table class="dash-agt"><thead><tr><th>Agent</th><th>'+esc(axis)+'</th><th>Now</th><th class="r hide">Build</th><th class="r hide">Review</th><th class="r hide">Idle</th><th class="r hide">Shouts</th></tr></thead>'
     + '<tbody>'+group('Building', building, 'building')+group('Reviewing', reviewers, 'review')+'</tbody>'
-    + (quiet.length ? '<tbody data-dashboard-quiet-rows hidden>'+(deferQuiet ? '' : quietRows())+'</tbody>' : '')+'</table></div>'
-    + (quiet.length ? '<button type="button" class="dash-more" data-dashboard-quiet aria-expanded="false">▸ <b>'+quiet.length+'</b>&nbsp;idle · up to '+longest+'</button>' : '')
+    + (quiet.length ? '<tbody data-dashboard-quiet-rows'+(onlyQuiet ? '' : ' hidden')+'>'+(deferQuiet && !onlyQuiet ? '' : quietRows())+'</tbody>' : '')+'</table></div>'
+    + (quiet.length && !onlyQuiet ? '<button type="button" class="dash-more" data-dashboard-quiet aria-expanded="false">▸ <b>'+quiet.length+'</b>&nbsp;idle · up to '+longest+'</button>' : '')
     + (!m.complete ? '<p class="dash-empty">Complete history is loading; the timelines fill in when it arrives.</p>' : '')+'</div>', { id: 'dashboard-agents', cap: legend });
 
   // 6. The four lists: In the gate, In review, Accepted landing, Landed in 4 h.
@@ -187,11 +189,14 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const job = entry => '<div class="dash-j"><span class="dash-id">'+(entry.item ? '#'+entry.item : '')+'</span><span class="dash-t">'+esc(entry.kind ?? 'job')+(entry.selected ? ' <small>· '+(entry.done ?? 0)+' of '+entry.selected+(entry.selected === 1 ? ' file' : ' files')+'</small>' : '')+'</span><span class="dash-age'+(entry.failing ? ' late' : '')+'">'+(entry.failing ? entry.failing+' red' : entry.minutesLeft !== null && entry.minutesLeft !== undefined ? entry.minutesLeft+'m left' : '')+'</span></div>';
     const runs = Array.isArray(live.runs) ? live.runs : [];
     const kinds = kind => runs.filter(run => run.kind === kind).length;
+    // Runs that finished in the last four hours, so a runner that ran jobs never reads as one that ran none (#7945).
+    const done = live.finished ?? {}, ranTotal = ['gate', 'landing', 'test'].reduce((sum, key) => sum + (Number.isInteger(done[key]) ? done[key] : 0), 0);
+    const ran = ranTotal ? [['gate', 'gates'], ['landing', 'landings'], ['test', 'tests']].filter(([key]) => done[key] > 0).map(([key, word]) => done[key]+' '+word).join(', ') : '';
     return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static" data-count="runners">'+(m.totals?.runners ?? list.length)+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
       + '<p class="dash-sub"><b>'+jobs+'</b> jobs on <b>'+busy+'</b> of '+list.length+' runners</p>'+table+'</div>'
       + '<div class="dash-node"><h3>Runner '+pick.runner+'<small>busiest</small></h3><p class="dash-facts"><b>'+pct(pick.cpu)+'</b> CPU · <b>'+pct(pick.ram)+'</b> RAM · <b>'+pick.jobs.length+'</b> jobs</p>'
       + sub('Running here · '+pick.jobs.length)+(pick.jobs.length ? pick.jobs.map(job).join('') : '<p class="dash-empty">Nothing running.</p>')
-      + sub('In flight, all runners')+(runs.length ? runs.slice(0, 4).map(run => job({ ...run, item: run.item })).join('') : '<p class="dash-empty">No runs.</p>')+'</div>'
+      + sub('In flight, all runners')+(runs.length ? runs.slice(0, 4).map(run => job({ ...run, item: run.item })).join('') : '<p class="dash-empty">'+(ran ? 'None in flight. Ran in the last 4 hours: '+ran+'.' : 'No runs.')+'</p>')+'</div>'
       + '<div class="dash-rfoot"><span><b>'+kinds('gate')+'</b> gates<small>running now</small></span><span><b>'+kinds('landing')+'</b> landings<small>running now</small></span><span><b>'+(runs.length - kinds('gate') - kinds('landing'))+'</b> tests<small>running now</small></span></div></div>', { cap: busy+' busy', link: settings });
   })();
 
