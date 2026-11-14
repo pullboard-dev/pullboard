@@ -240,6 +240,17 @@ function otherLaneWork(me, item, reasons) {
   return { reasons: [...(reasons ?? []), line], idleReason: 'nothing-eligible', otherLane: { item: item.item_id, lane: item.item_lane } };
 }
 
+/**
+ * Open rework in another lane whose builder is still a seat in that lane and not gone: a conflict return or a reject
+ * goes back to that builder, so a seat from another lane never moves over to take it [C7].
+ * Why: a reviewer that took a returned head became one of its builders, so only the coordinator could review it (#7922).
+ */
+function builderRework(board, items, agents, me) {
+  const seats = new Map(agents.map(agent => [agent.agent_id, agent.agent_lane]));
+  return items.filter(item => item.item_status === 'open' && item.item_lane !== me.lane && item.item_built_by
+    && item.item_built_by !== me.id && seats.get(item.item_built_by) === item.item_lane && !store.seatGone(board, item.item_built_by));
+}
+
 /** Whether this seat's own claim is one it may keep building here: its lane, route and runnable filter (#2978). */
 function keepsClaim(me, item, values) {
   return item.item_lane === me.lane && store.ROUTES.includes(me.route) && store.ROUTES.includes(item.item_route)
@@ -312,8 +323,9 @@ function nextPick(ctx, board, values, ports) {
   const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
+  const reworks = own.item ? [] : builderRework(board, items, agents, me);
   const elsewhere = own.item || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
-    lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
+    omitIds: [...selection.omitIds, ...reworks.map(entry => entry.item_id)], lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const picked = elsewhere?.item ? elsewhere : own;
   const { item, reasons, shared, lightReserved } = picked;
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
@@ -330,6 +342,11 @@ function nextPick(ctx, board, values, ports) {
     ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
   const selectedOffer = focusOffer ?? offer;
   if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || held || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: held, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
+  if (!item && reworks.length && !ctx.info.isMain) {
+    const [first] = reworks;
+    const nextStep = `#${first.item_id} went back to its builder ${first.item_built_by} for rework, so this seat leaves it to them: run pullboard next again once ${first.item_built_by} resubmits it`;
+    return { reasons: [...(reasons ?? []), nextStep], nextStep, idleReason: 'nothing-eligible' };
+  }
   if (!item) {
     const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
       || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
