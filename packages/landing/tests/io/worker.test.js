@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/landing/automatic.js packages/landing/index.js */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js packages/landing/index.js packages/landing/src/io/automatic/scheduler.js */
 /** A landing inside a runner's job sizes its shards from that runner's pool, and landings started together coalesce [B35,B3,R3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -15,12 +15,12 @@ import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
 import { executionServices } from '../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { takeResource } from '../../../resources/index.js';
 import { withGateSlot } from '../../../gate/index.js';
-import { automaticLandingDirectory } from '../../index.js';
-import { resumeAutomaticLanding } from '../../index.js';
-import { scheduleAutomaticLanding } from '../../index.js';
+import { automaticLandingDirectory } from '../../src/io/automatic/scheduler.js';
+import { resumeAutomaticLanding } from '../../src/io/automatic/scheduler.js';
+import { scheduleAutomaticLanding } from '../../src/io/automatic/scheduler.js';
 
 const WORKER = new URL('../../../../apps/cli/src/io/landing/automatic.js', import.meta.url);
-const SCHEDULER = new URL('../../index.js', import.meta.url);
+const SCHEDULER = new URL('../../src/io/automatic/scheduler.js', import.meta.url);
 
 /** A private real repository and machine home; the machine home stands in for one runner's own ~/.pullboard. */
 function machine(t, settings) {
