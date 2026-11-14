@@ -21,6 +21,13 @@ async function local(box, cwd, ...args) {
   return result.stdout;
 }
 
+/** Refresh the page until its view shows `done`: the server keeps the board's state and a write made behind it reaches the page when the server's read has caught up, not on the first refresh [C7]. */
+async function refreshUntil(page, done) {
+  for (let attempt = 0; attempt < 100 && !done(); attempt++) {
+    await page.run('refresh()');
+  }
+}
+
 test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]', async () => {
   const box = machine(), alpha = project(box, 'pipeline-lapse');
   const base = Date.now() - 60 * 60_000, commit = box.git(alpha.repo, 'rev-parse', 'HEAD');
@@ -40,7 +47,7 @@ test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]'
     assert.match(open(), /data-go="item:2"/, 'an open item from minute35 is older than a claim that lapses at minute40');
     assert.match(open(), new RegExp(new Date(base+35*60_000).toISOString()), 'the oldest open timestamp is the arrival');
     await local(box, alpha.repo, 'withdraw', '2', 'Private fixture now isolates the lapse age');
-    await page.run('refresh()');
+    await refreshUntil(page, () => /data-go="item:1"/.test(open()));
     assert.match(open(), /data-go="item:1"/);
     assert.match(open(), new RegExp(new Date(base+40*60_000).toISOString()), 'expired claim age starts at its native lease deadline');
   } finally { await view.stop(); }

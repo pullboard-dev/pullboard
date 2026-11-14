@@ -28,7 +28,7 @@ after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
-test('a packed release installs with no network and runs the whole loop from a fresh repo [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, () => {
+test('a packed release installs with no network and runs the whole loop from a fresh repo [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-release-')));
   dirs.push(dir);
   const npmEnv = { ...process.env, npm_config_cache: join(dir, 'npm-cache'), npm_config_update_notifier: 'false', npm_config_loglevel: 'error' };
@@ -89,7 +89,15 @@ test('a packed release installs with no network and runs the whole loop from a f
   git(builder, 'add', '-A');
   git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
   const commit = git(builder, 'rev-parse', 'HEAD');
-  assert.match(pullboard(builder, 'submit', '1'), new RegExp(`submitted #1 at ${commit.slice(0, 12)}; no item check; full gate: affected-test selection is not enabled for this project`));
+  const submitted = pullboard(builder, 'submit', '1');
+  assert.match(submitted, new RegExp(`#1 is in the gate as job gate:1:${commit.slice(0, 12)}:[a-z0-9]+: a runner pulls the whole gate and posts one receipt`));
+  // The pulled gate settles on the machine's local runner; verify needs its receipt applied (#6249, #7283, #7867): read the
+  // item through the installed bin until the receipt has moved it off claimed.
+  const deadline = Date.now() + 180_000;
+  while (!/#1 {2}submitted/.test(pullboard(builder, 'show', '1'))) {
+    assert.ok(Date.now() < deadline, 'the pulled gate settled within 180 s');
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
 
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
   const verifier = join(dir, 'repo-web-2');

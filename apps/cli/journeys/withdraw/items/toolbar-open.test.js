@@ -14,13 +14,20 @@ import {
 import {
   machine,
   project,
-  build,
+  buildLocal,
   startView,
   element,
   openPage,
-  accept,
+  acceptLocal,
   earlier,
 } from '../../../tests/fixtures/cockpit/harness.js';
+
+/** Refresh the page until its view shows `done`: the server keeps the board's state and a write made behind it reaches the page when the server's read has caught up, not on the first refresh [C7]. */
+async function refreshUntil(page, done) {
+  for (let attempt = 0; attempt < 100 && !done(); attempt++) {
+    await page.run('refresh()');
+  }
+}
 
 test('the detail opens on the top item, not a blank form [N26]', async () => {
   const box = machine();
@@ -33,8 +40,8 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
   const empty = project(box, 'empty');
   const done = project(box, 'done');
   await box.inProcess(done.repo, 'add', 'web', 'Shipped page', '--specs', 'G1', '--criterion', 'renders');
-  build(box, done, 1, 'shipped.html');
-  accept(box, done, 1);
+  await buildLocal(box, done, 1, 'shipped.html');
+  await acceptLocal(box, done, 1);
   const gone = project(box, 'gone');
   await box.inProcess(gone.repo, 'add', 'web', 'Dropped page', '--specs', 'G1', '--criterion', 'renders');
   await box.inProcess(gone.repo, 'withdraw', '1', 'nobody needs it');
@@ -54,6 +61,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
     page.element('shout-to').value = 'web';
     page.element('shout-text').value = 'Greeting is claimed';
     await page.fire('shout-form', 'submit');
+    await refreshUntil(page, () => rows()[0] === '1');
     assert.deepEqual(rows(), ['1', '2*'], 'the refresh put the claimed item first');
     assert.equal(shown(), '2 Farewell', 'and the pick held');
 
@@ -79,8 +87,8 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
 
     await page.click({ root: gone.repo, classes: 'proj side' });
     assert.deepEqual(rows(), [], 'no chip lists the only item: it is withdrawn');
-    assert.deepEqual(form(), [true, false], 'but an item exists, so no form');
-    assert.match(page.show('detail'), /Pick an item to see its criterion, verdicts and history\./);
+    // de3affd4f4: a first load reads open work only, so a board whose one item is withdrawn has no open work and opens on the form.
+    assert.deepEqual(form(), [false, true], 'no open work, so the form opens');
   } finally {
     await view.stop();
   }

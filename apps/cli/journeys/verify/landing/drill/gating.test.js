@@ -1,8 +1,11 @@
 /** @pullboard-test-loads apps/cli/tests/fixtures/landing/loader.js */
-/** Kill the landing worker during gating, retaining real Git and SQLite state for the next native accept [B35]. */
+/** Kill a runner's land job before its check of the merged tree; once its lease expires a second runner finishes both items [B35,P7]. */
 import { test } from 'node:test';
+import { boardJobQueueCall } from '../../../../../../packages/api/index.js';
+import { jobsOf } from '../../../../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../../../../packages/jobs/index.js';
 import { getItem } from '../../../../../../packages/store/index.js';
-import { landingBatches } from '../../../../../../packages/store/index.js';
-import { drillCase } from '../../../../tests/fixtures/landing/drill.js';
+import { pulledDrillCase } from '../../../../tests/fixtures/landing/drill.js';
 
-test('killing the landing worker during gating lets the next accept land both items without manual recovery [B35]', drillCase('gating', { getItem, landingBatches }));
+test('killing a runner during its land job\'s gating lets a second runner take the job after the lease expires and land both items [B35,P7]', { timeout: 300_000 }, // budget: hang ceiling for a project, two submits, two pulled gates and two runner landings.
+  pulledDrillCase('gating', { getItem, jobsOf, LEASE_MS, boardJobQueueCall }));
