@@ -165,5 +165,10 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     if (!held?.error || held.prefix !== prefix) held = read(project.root, prefix);
     return { events: upTo(held.events, prefix), complete: held.prefix >= prefix, usable: held.readyOnce === true, version: held.version ?? 0, error: held.error };
   }
-  return { draw, tourStep, warm, history: historyOf };
+  /** The model and history the last draw of this board held, or null before the Dashboard has drawn it; reads nothing from the board. */
+  function held(root) {
+    const kept = histories.get(root + '|' + boardPath(root));
+    return kept?.modelCache ? { state: kept.modelCache.state, events: kept.events.filter(event => event.event_id <= kept.modelCache.prefix) } : null;
+  }
+  return { draw, tourStep, warm, history: historyOf, held };
 }

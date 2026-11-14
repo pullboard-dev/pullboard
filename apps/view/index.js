@@ -12,6 +12,7 @@ export { agentFloorModel } from "./src/logic/agent/floor/model.js";
 export { agentFloorHtml } from "./src/logic/agent/floor/render.js";
 export { agentsPanelModel, shoutsModel } from "./src/logic/panel/model.js";
 export { agentsPanelHtml, shoutsHtml } from "./src/logic/panel/render.js";
+export { notchPreview, notchPreviewData, notchPreviewHtml, notchRulings, notchFloor } from "./src/logic/notch/preview.js";
 export { overlapHtml, overlapLines } from "./src/logic/overlap.js";
 export { cockpitLive } from "./src/logic/cockpit/live.js";
 export { cockpitMarkup } from "./src/logic/cockpit/markup.js";

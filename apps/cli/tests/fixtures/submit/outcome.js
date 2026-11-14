@@ -22,6 +22,7 @@ import { runFixtureChildAsync } from '../child.js';
 import { runCliInProcess } from '../process.js';
 import { runFixtureGit } from '../child.js';
 import { waitForCondition } from '../runner/holders.js';
+import { settleSubmit } from './settle.js';
 import {
   createFixtureWorktree,
   fileFixtureItem,
@@ -239,8 +240,24 @@ async function pulledGate(box) {
   return read();
 }
 
+/**
+ * Submit the box's item as its builder and wait for the pulled gate's receipt: the submit queues, the machine's local runner posts the gate.
+ * Why: a pulled submit prints no verdict, so a journey reads the refusal from the settled receipt's gate [V4,B3,H16,C7,#7726].
+ *
+ * @param {import('node:test').TestContext} t
+ * @param {object} box - The fixture box from fixture().
+ * @returns {Promise<{ queued: object, gate: object, failures: object[] }>} failures: every case the gate's phases name as failed.
+ */
+async function pulledSubmit(t, box) {
+  const queued = await cliAsync(box, box.builder, 'submit', String(box.item));
+  assert.equal(queued.status, 0, queued.stdout + queued.stderr);
+  const run = async (cwd, ...args) => { const result = await local(box, cwd, ...args); return { code: result.status, out: result.stdout ?? '', err: result.stderr ?? '' }; };
+  const settled = await settleSubmit(t, { repo: box.root, env: box.env, run }, JSON.parse(queued.stdout));
+  return { queued: settled, gate: settled.gate, failures: (settled.gate?.phases ?? []).flatMap(phase => phase.failures ?? []) };
+}
+
 /** Read actual profile bytes through public response paths; do not manufacture failure identity. */
 function readProfile(path) { return JSON.parse(readFileSync(path, 'utf8')); }
 
 
-export { beforeMain, pulledGate, remote, readProfile, cli, cliAsync, local, fixture, submittedProof, put, source };
+export { beforeMain, pulledGate, pulledSubmit, remote, readProfile, cli, cliAsync, local, fixture, submittedProof, put, source };
