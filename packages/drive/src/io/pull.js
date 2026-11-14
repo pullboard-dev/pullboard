@@ -756,7 +756,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
       const answer = await reliably({ action: 'receipt', ...held, receipt });
-      say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}`);
+      say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome === 'refused' ? `; the board did not apply it: ${answer.applied.reason}` : ''}`);
       // A relay-linked board orders the receipt's moves through the relay; one it refused is named here, never lost (#7562).
       for (const why of answer?.relayed?.refused ?? []) say(`${claim.job}: the relay refused a receipt move: ${why}`);
       return { job: claim.job, outcome: 'posted', receipt };

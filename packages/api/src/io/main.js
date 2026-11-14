@@ -1288,7 +1288,7 @@ async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
   const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now, drained: drainedRunnerHosts, reserve: jobReserve, trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
-  if (!ordered?.length) return answer;
+  if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
 
