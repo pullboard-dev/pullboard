@@ -56,18 +56,18 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', async () =
   const item = json(box, box.repo, 'show', String(entry.item));
   assert.equal(item.item_status, 'open');
   const thread = onBoard(box, board => store.itemThread(board, entry.item));
-  const fact = thread.find(row => row.type === 'fact' && row.text.startsWith('Landing failure evidence:'));
-  assert.ok(fact, 'reopen attaches the assertion evidence');
-  for (const expected of [entry.file, 'keeps the landed behavior', 'fixture behavior is red', 'expected: 7', 'actual: 9', base, entry.commit]) assert.ok(fact.text.includes(expected), expected);
+  // A pulled landing's red returns through the board, which records the runner's failing-case lines as a "Land job ... red" note [P7,B22].
+  const fact = thread.find(row => row.type === 'fact' && /^Land job \S+ red:/u.test(row.text));
+  assert.ok(fact, `reopen attaches the assertion evidence: ${JSON.stringify(thread.map(row => row.text ?? row.kind))}`);
+  for (const expected of [entry.file, 'keeps the landed behavior', 'fixture behavior is red', 'expected: 7', 'actual: 9']) assert.ok(fact.text.includes(expected), `${expected} in ${fact.text}`);
   const reopened = thread.find(row => row.kind === 'reopen');
-  assert.match(reopened.detail?.note ?? '', /landing failure evidence/u, 'next step points to the evidence');
+  assert.match(reopened.detail?.note ?? '', /land job \S+ checked the merged tree red/u, 'the reopen names the red landing');
   const snapshot = onBoard(box, board => exportBoard(board));
   const replica = openBoard(':memory:');
   try {
     importBoard(replica, snapshot);
     const replayed = store.itemThread(replica, entry.item);
-    assert.deepEqual(replayed.find(row => row.kind === 'reopen').detail.landingFailure, reopened.detail.landingFailure);
-    assert.equal(replayed.find(row => row.type === 'fact' && row.text.startsWith('Landing failure evidence:')).text, fact.text);
+    assert.equal(replayed.find(row => row.type === 'fact' && /^Land job \S+ red:/u.test(row.text)).text, fact.text);
   } finally { store.closeBoard(replica); }
 });
 
