@@ -1092,7 +1092,7 @@ async function openShoutConversation(chrome, key = 'none') {
 async function shoutsAt(chrome, width, scheme) {
   await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
   await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
-  await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches && document.querySelector('#feed .shout')?.getBoundingClientRect().width > 0`);
+  await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches && document.querySelector('#feed .sx-th')?.getBoundingClientRect().width > 0`);
   await chrome.stable('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
 }
 
