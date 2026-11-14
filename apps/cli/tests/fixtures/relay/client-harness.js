@@ -770,9 +770,9 @@ export async function recoverReplicaOutcomes(fixture, timing, restoreInventories
   let submittingAgent;
   try { submittingAgent = store.getItem(submittedBoard, 2).item_owner; }
   finally { store.closeBoard(submittedBoard); }
-  assert.deepEqual(retryMoves.map(({ operation }) => operation), ['appendFact', 'recordActivityDelivery'],
-    'the retry orders only its gate-offer note and activity delivery, never a submit');
-  assert.equal(retryMoves[1].recipient, submittingAgent, 'the activity delivery is recorded for the submitting agent');
+  assert.deepEqual(retryMoves.map(({ operation }) => operation), ['recordActivityDelivery'],
+    'the retry reuses the open gate job and orders only its activity delivery, never a note or a submit');
+  assert.equal(retryMoves[0].recipient, submittingAgent, 'the activity delivery is recorded for the submitting agent');
   assert.equal(retriedSubmit.commit, originalCommit);
   assert.equal(retriedSubmit.gateJob, lostJob, 'the retry reuses the gate job the lost submit offered, never a second gate');
   const settled = await timing.wait('settle the recovered submission gate', () => settleReplicaSubmit(fixture, 0, retriedSubmit));
@@ -876,7 +876,7 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   const beforeRecoveredStack = relay.uploads.length;
   relay.dropNextReply({ offline: true, operation: 'appendFact', item: stackedB, key, boardId });
   await restoreInventories();
-  const lostStackSubmit = await timing.wait('submit recovered-stack item B with its reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB)));
+  const lostStackSubmit = await timing.wait('submit recovered-stack item B with its reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
   const afterLostStackSubmit = relay.uploads.length;
   assertDroppedReplyConsumed(relay, 'the recovered-stack submission reply');
   assert.equal(lostStackSubmit.status, 1);

@@ -91,12 +91,12 @@ export async function assertRecoveredStackUploads({ uploads, bounds, key, boardI
   return stackOwnerB;
 }
 
-/** Require a retried submit to reuse the original gate job: one new note and its activity delivery, never a submit [H16,C7]. */
+/** Require a retried submit to reuse the original gate job: only its activity delivery, never a note or a submit [H16,C7]. */
 export async function assertOriginalOutcomeDelivery(uploads, key, boardId, submitter) {
   const moves = await relayUploadSummary(uploads, key, boardId);
-  assert.deepEqual(moves.map(({ operation }) => operation), ['appendFact', 'recordActivityDelivery'],
-    'the retry orders only its gate-offer note and activity delivery, never a proof run or a submit');
-  assert.equal(moves[1].recipient, submitter);
+  assert.deepEqual(moves.map(({ operation }) => operation), ['recordActivityDelivery'],
+    'the retry reuses the open gate job and orders only its activity delivery, never a proof run or a submit');
+  assert.equal(moves[0].recipient, submitter);
 }
 
 /**
