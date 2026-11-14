@@ -564,12 +564,6 @@
   "apps/cli/tests/fixtures/cadence.js": {
     "raw-board": 1
   },
-  "packages/landing/tests/io/automatic/scheduler.test.js": {
-    "tempdir": 2
-  },
-  "packages/landing/tests/io/automatic.test.js": {
-    "tempdir": 2
-  },
   "apps/cli/journeys/verify/landing.test.js": {
     "hand-policy": 5
   },
