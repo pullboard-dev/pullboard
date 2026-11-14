@@ -173,7 +173,7 @@ function marker(file, completion) {
   });
 }
 
-test('a real worker runs beyond 1024 legacy refs while another live job keeps its candidate [C7]', async () => {
+test('a real worker runs beyond 1024 legacy refs while another live job keeps its candidate [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526 (SSH stand-in runner dispatch via runOnRunnerAsync; a pulled runner job never starts the stand-in worker)' }, async () => {
   const box = cellSandbox(owner), repo = join(box.dir, 'source'), home = join(box.dir, 'home');
   const bin = join(box.dir, 'bin'), worker = join(box.dir, 'worker'), machine = join(box.dir, 'machine');
   for (const directory of [repo, home, bin, worker, machine]) mkdirSync(directory, { recursive: true });
