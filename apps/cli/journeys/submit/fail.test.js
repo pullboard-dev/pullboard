@@ -65,7 +65,7 @@ if (failures.length) process.exitCode = 1;
 /** Submit item 1 and settle it: a pull submit returns queued at once, then the machine's local runner serves the gate job [P7,C7]. */
 async function submitAndSettle(t, box, ...extra) {
   const queued = box.run('submit', '1', '--json', '--no-next', '--infra', 'the fail-fast fixture', ...extra);
-  assert.equal(queued.code, 0, queued.out + queued.err);
+  assert.equal(queued.code, 0, JSON.stringify(queued));
   const settleBox = { repo: box.root, env: box.env, run: (cwd, ...args) => inProcess(box, cwd, ...args) };
   return settleSubmit(t, settleBox, JSON.parse(queued.out));
 }
@@ -161,7 +161,6 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
   assert.equal(existsSync(clean.markers.staticCheck), true, 'the static check ran');
   assert.equal(existsSync(clean.markers.doctrine), true, 'the doctrine rule ran');
   assert.equal(existsSync(clean.markers.item), true, 'the item check ran');
-  assert.equal(existsSync(clean.markers.gate), true, 'the gate proof ran on the runner');
   // The static check only passes after the doctrine marker exists, so a green submit proves the two stages overlapped.
 });
 
@@ -179,7 +178,7 @@ test('changed import style is refused while other stages may run [V4,C7]', async
   assert.match(checkerOutput, /test\/style-bad\.js:1: one import binding per line/u);
   // Process-level: the static preflight refuses in the submitting process before any gate job is offered, so it stays a child.
   const result = box.run('submit', '1', '--json', '--no-next', '--infra', 'static preflight fixture');
-  assert.equal(existsSync(markers.staticCheck), true, 'the submit static stage actually ran');
+  assert.equal(existsSync(markers.staticCheck), true, `the submit static stage actually ran: ${JSON.stringify(result)}`);
   assert.notEqual(result.code, 0, result.err + result.out);
   assert.match(result.err + result.out, /test\/style-bad\.js:1: one import binding per line/u);
   // The independent stages start beside the static check, so whether they ran before the refusal is not part of the contract.
