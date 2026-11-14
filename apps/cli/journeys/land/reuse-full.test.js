@@ -64,7 +64,7 @@ async function landOne(t, box) {
 
 test('clause 1: in the default shape a whole-suite submit receipt for the identical tree is reused with no test run [C7,#6271]', { timeout: 120_000 }, // budget: one real submit, accept and landing; hang ceiling only.
 async t => {
-  const box = shapedProject(config => { delete config.landing.publish; delete config.affectedTests; });
+  const box = shapedProject(config => { delete config.landing.publish; });
   const { output, submitFull, landingFull } = await landOne(t, box);
   assert.ok(submitFull >= 1, 'the submit ran the whole suite');
   assert.equal(landingFull, 0, `the whole-suite receipt stood for the identical tree: ${output}`);

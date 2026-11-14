@@ -81,7 +81,7 @@ async function landSettled(box) {
 
 /** Read completed private fixture executions rather than inferring a phase from admission counts. */
 function runs(box) {
-  return existsSync(box.deferredTrace) ? readFileSync(box.deferredTrace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  return existsSync(box.deferredTrace) ? readFileSync(box.deferredTrace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).map(run => ({ ...run, files: run.files.map(file => file.replace(/^\.\//u, '')) })) : [];
 }
 
 /** Observe the exact native submit record; no fixture writes proof or event metadata. */
@@ -117,7 +117,8 @@ export async function assertAffectedLandingUnstamped(t, { landProject, itemWorkt
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), remote);
   const observed = runs(box).slice(start);
-  assert.ok(observed.length > 0 && observed.every(run => run.kind === 'affected' && run.code === 0), `only real green affected executions ran: ${JSON.stringify(observed)}`);
+  // The land job also runs the project's own gate on the merged tree; every run is green and the deferred importers run as affected tests [C7].
+  assert.ok(observed.length > 0 && observed.every(run => run.code === 0) && observed.some(run => run.kind === 'affected'), `only real green executions ran: ${JSON.stringify(observed)}`);
   assert.ok(observed.some(run => SHARED.every(file => run.files.includes(file))));
   const tree = box.git(box.repo, 'rev-parse', 'main^{tree}');
   for (const cwd of [box.repo]) {

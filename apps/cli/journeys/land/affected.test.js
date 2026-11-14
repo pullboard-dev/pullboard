@@ -110,10 +110,15 @@ async function affectedBatch(t, { stableBadges = false, inline = false, waive = 
     assert.equal(box.git(box.repo, 'rev-parse', 'main'), main, 'red affected tests never move main');
     assert.equal((await json(box, box.repo, 'show', String(item))).item_merged_commit, null);
   }
-  // The merged batch the runner checked: main with the item's commit merged, rebuilt here so the selection reads the same tree [C7,V4].
-  const mergedTree = box.git(box.repo, 'merge-tree', '--write-tree', main, commit);
-  const merged = box.git(box.repo, 'commit-tree', mergedTree, '-p', main, '-p', commit, '-m', 'merged batch');
-  const selection = selectAffectedTests(box.repo, { base: main, commit: merged });
+  // A landed batch is read at its trunk tip. A blocked one left no tip on this checkout, so its merge is rebuilt here; the runner's badge
+  // refresh is not part of that rebuild, so only the finite-subset shape (committed badges already match) is asserted on it [C7,V4].
+  let tip = landing.landed.length ? landing.batch.tip : null;
+  if (!tip && stableBadges) {
+    const mergedTree = box.git(box.repo, 'merge-tree', '--write-tree', main, commit);
+    tip = box.git(box.repo, 'commit-tree', mergedTree, '-p', main, '-p', commit, '-m', 'merged batch');
+  }
+  if (!tip) return;
+  const selection = selectAffectedTests(box.repo, { base: main, commit: tip });
   assert.equal(selection.full, !stableBadges, selection.reason);
   if (stableBadges) assert.deepEqual(selection.files, ['web/new-importer.test.js', 'web/value.test.js']);
 }
