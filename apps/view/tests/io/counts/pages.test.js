@@ -144,9 +144,10 @@ test('clause 3: sent back is a reject or a reopen on the Dashboard, Pipeline and
   assert.equal(measure.value, 2 / 3, 'Pipeline counts the reject and the reopen over the same verdicts');
   // A window with no verdict: the share reads 0%, never a dash beside the Rework share.
   const quiet = pipelineWatchModel({ ...state, statsComparison: compare }, events.filter(event => !['accept', 'reject', 'reopen'].includes(event.event_kind)), { now, windowMinutes: 60 });
-  const html = pipelineWatchHtml(quiet);
-  assert.match(html, /Rework <b[^>]*>38% → 57%<\/b>/u, 'the Rework share shows');
-  assert.doesNotMatch(html, /<b>—<\/b> sent back/u, 'no dash sits beside it');
+  const html = pipelineWatchHtml(quiet), time = html.slice(0, html.indexOf('</section>'));
+  assert.match(time, /Rework <b[^>]*>38% → 57%<\/b>/u, 'the Time card shows the Rework share');
+  assert.match(time, /<b>67%<\/b> sent back/u, 'beside it, the shared four-hour share stands in for the empty window');
+  assert.doesNotMatch(time, /<b>—<\/b> sent back/u, 'no dash sits beside it');
   // Cost counts an item sent back by the same two kinds before it landed.
   const cost = kind => costAnalytics({ items: [{ id: 1, title: 'One' }], agents: [], window: '7d', now: new Date(now), timeZone: 'UTC', modelPresentation: name => ({ key: name, name }),
     events: [{ event_id: 1, event_kind: 'submit', item_id: 1, event_by: 'web-1', event_at: new Date(now - 3e6).toISOString(), event_detail: '{}' },
