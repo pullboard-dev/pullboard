@@ -340,6 +340,8 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   // The Spec tab's Answer box is the one other field; its refresh case in spec/cockpit.test.js proves the draft and focus survive.
   const script = page.slice(page.indexOf('<script>')).replace(/\nasync function copyWords\([^]*?\n}\n/, '\n')
     .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''")
+    // A shout thread's reply box (sx-reply, 154e174c55) is built when a person opens the thread; its unsent text is kept in shoutDrafts and put back after every draw, so a refresh never erases it (io/page/shouts.js).
+    .replace(/'<i class="sx-si you"><\/i><input type="text"[^\n]*/u, "''")
     // The command palette's search box (pal-q) lives in its own overlay, opened and closed by the person, never in a refreshed part.
     .replace(/overlay\.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box"[^\n]*/u, '');
   assert.doesNotMatch(script, /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
