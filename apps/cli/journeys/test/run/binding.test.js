@@ -43,7 +43,8 @@ function child(box, args, cwd, extra = {}) {
 
 /** Wait for actual queue or process evidence; a continuing native child is never judged by a speed threshold. */
 async function observed(started, ready, description) {
-  await waitForFixtureProgress({ child: started, ready, progress: () => started.output.length + started.errors.length, description });
+  try { await waitForFixtureProgress({ child: started, ready, progress: () => started.output.length + started.errors.length, description }); }
+  catch (error) { error.message += ` | output: ${started.output.slice(0, 800)} | stderr: ${started.errors.slice(-800)}`; throw error; }
 }
 
 test('a claimed pinned main-red test names its item and precedes an unclaimed other run in the native queue [C7,Q1,Q2]', async t => {
