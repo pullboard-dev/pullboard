@@ -24,8 +24,8 @@ test('a relay on whose device key cannot be saved leaves board_id, its relink in
   mkdirSync(keys, { recursive: true });
   chmodSync(keys, 0o500);
   t.after(() => chmodSync(keys, 0o700));
-  const failed = await box.cliLocal('relay', 'on', '--url', box.origin);
-  assert.notEqual(failed.code, 0, 'the unwritable key store fails relay on after the snapshot is taken');
+  // The key is saved after the epoch starts and the snapshot is taken, so this is a failure after the id switch.
+  await assert.rejects(box.cliLocal('relay', 'on', '--url', box.origin), { code: 'EACCES' });
   assert.equal(existsSync(box.linkFile), false, 'no link was written');
   assert.equal(currentId(box), before, 'the board id is what it was before relay on');
 });
