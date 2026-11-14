@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { snapshot } from '../../../tests/fixtures/cases/quarantine-submit.js';
-import { submit } from '../../../tests/fixtures/cases/quarantine-submit.js';
+import { settledSubmit } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { openFixtureBoard } from '../../../tests/fixtures/cases/quarantine-submit.js';
 import { TITLE } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -21,11 +21,12 @@ test('clause 1: two actual Submit pairs quarantine once, retain raw receipts, an
   const companion = false;
   const box = fixture(t, false, companion);
   assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
-  const first = submit(box);
+  const first = await settledSubmit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
+  // Each Submit is a pulled gate job settled on its runner (56e2ea4c61).
   // f562d717d8: a Submit pair files its quarantine at once, so the first pair already holds the one active repair.
   assert.equal(snapshot(box).quarantines.length, 1, JSON.stringify({ quarantines: snapshot(box).quarantines, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
-  const second = submit(box);
+  const second = await settledSubmit(box);
   assert.equal(second.code, 0, JSON.stringify(second.document)); // the active quarantine lets the computed verdict through
   const state = snapshot(box);
   assert.equal(state.quarantines.length, 1, JSON.stringify({ first: first.document, second: second.document, quarantines: state.quarantines, runs: state.runs.map(({ id, kind, proof, testOutcomes }) => ({ id, kind, proof, testOutcomes })) }));

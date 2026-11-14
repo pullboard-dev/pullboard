@@ -178,7 +178,7 @@ function pulledProofFiles(receipt) {
 function recordSubmitAdmission(board, { id, item, candidate, submit }) {
   const left = Date.parse(item.item_lease_until) - board.clock.now().getTime();
   if (!(left > 0)) return null;
-  const witness = { id: randomUUID(), commit: candidate, tree: submit.tree };
+  const witness = { id: randomUUID(), commit: candidate, tree: submit.companion?.tree ?? submit.tree };
   try {
     store.admitSubmit(board, id, { agentId: submit.agentId, lane: item.item_lane, leaseMs: left, freeze: () => null, submitAdmission: witness });
     return witness;
@@ -549,7 +549,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     if (sharded) return sharded;
   }
   // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
-  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit });
+  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
