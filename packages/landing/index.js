@@ -58,7 +58,6 @@ export { finishLanding, LANDING_FINISH_STEPS } from './src/io/finish.js';
 export * from './light.js';
 export { PHASE_LINE } from './src/io/timing.js';
 export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES, repeatedBlockedCause, repeatedLandingHold, repeatedLandingHoldCleared, repeatedLandingNotice, runnerSourceHold } from './src/logic/hold.js';
-export { landingReceiptReuse } from './src/io/reuse.js';
 export { refreshMainRedComparisons } from './src/io/main/red.js';
 export { holdRefreshFlight } from './src/io/main/red/refresh/flight.js';
 export { recordLandingAudit, runMergedFollowup, mergedChecksLog } from './src/io/merged/followup.js';

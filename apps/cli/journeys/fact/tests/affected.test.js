@@ -552,5 +552,5 @@ test('repo-wide test guards are found in a CommonJS project while affected tests
     'a header scan needs no ES-module graph, so a plain project is not refused');
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
   assert.equal(selected.full, true, 'the import-graph selection still refuses to guess for CommonJS');
-  assert.match(selected.reason, /CommonJS/u);
+  assert.match(selected.reason, /does not declare "type": "module"/u, 'the fallback names the root package policy that blocks the ES-module graph');
 });

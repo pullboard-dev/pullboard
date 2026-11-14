@@ -20,6 +20,8 @@ import {
 } from '../../../tests/fixtures/e2e.js';
 import { captureCommandInProcess } from '../../../tests/fixtures/process.js';
 import { main } from '../../../tests/fixtures/native.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 /** Run actual submit, review and landing against one private Git repository and persistent native board. */
 async function fixture(t, { companion = false, deleted = false } = {}) {
@@ -66,6 +68,7 @@ async function fixture(t, { companion = false, deleted = false } = {}) {
   }
   const submitted = await cli(box.web, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  await settleSubmit(t, box, JSON.parse(submitted.out)); // the pulled gate must finish before the reviewer is given the item
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => closeBoard(board));
@@ -93,6 +96,8 @@ test('native landing includes every attached companion and a manual omission can
   assert.notEqual(reviewed, box.source);
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err + landed.out);
+  const settled = await settleLand(box, JSON.parse(landed.out));
+  assert.equal(settled.batch.state, 'landed', JSON.stringify(settled.landJob ?? {}));
   assert.equal(readFileSync(join(box.repo, 'api/companion.txt'), 'utf8'), 'required companion\n');
   assert.equal(box.git(box.repo, 'merge-base', '--is-ancestor', reviewed, 'main'), '');
   assert.equal(existsSync(box.marker), false, 'source validation never evaluates the candidate module');

@@ -601,7 +601,11 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   SUBMIT_HANDOFF_REPLACED: "nothing to do for this gate: a newer head replaced it; read the newer gate with pullboard show <id>",
   WORKER_WORKTREE_LIMIT: "finish, release or preserve the work parked in the worker worktrees, then run pullboard run --scale again",
   WORKER_SEAT_IDENTITY: "check that pullboard worktree registers its seat in pullboard status, then run pullboard run --scale again",
-  LAND_GIT: "fetch the source commit the message names into the main checkout, confirm git log --first-parent reads, then run pullboard land --adopt"
+  LAND_GIT: "fetch the source commit the message names into the main checkout, confirm git log --first-parent reads, then run pullboard land --adopt",
+  LAND_OFFER_ONLY: 'run pullboard land with no option, or land <id> --forced "<why>"',
+  TIMED_SHELL_MISSING: 'pass the timed shell entry (options.timedShell or PULLBOARD_TIMED_SHELL) from the app that owns the shell, or run without a timeout',
+  RELAY_OUTBOX_DEPENDS: 'add the item first and let the relay accept it, then repeat the move that acts on it',
+  RUNS_BOARD_MISMATCH: 'move the stray runs file aside; the board rebuilds in-flight work from its run rows'
 });
 
 /** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */

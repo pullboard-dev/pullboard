@@ -1,17 +1,13 @@
 /** A landing whose merged tree is exactly the item's green gated tree reuses that gate instead of rerunning [C7,#2902]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmitHandoff } from '../../../../packages/jobs/index.js';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { recordSubmitHandoff } from '../../../../packages/jobs/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../index.js';
 import { landingProof } from '../../../../packages/landing/index.js';
 import { provenTreeGate } from '../../../../packages/landing/index.js';
-import { quickGuards } from '../../../../packages/landing/index.js';
 
 const TREE = 't'.repeat(40);
 const COMMIT = 'c'.repeat(40);
@@ -53,44 +49,13 @@ test('the landing proof keeps the reused submit receipt id, and a fresh gate run
   assert.equal(landingProof({ isGreen: false }, () => 'waived'), 'waived');
 });
 
-/** A real git repo with one commit; its tree is the merged tree a landing would gate. */
-function repo(t) {
-  const root = mkdtempSync(join(tmpdir(), 'reuse-tree-'));
-  const run = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-  run('init', '-q'); writeFileSync(join(root, 'a.txt'), 'a\n'); run('add', '.');
-  run('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'one');
-  return { root, tree: run('rev-parse', 'HEAD^{tree}'), commit: run('rev-parse', 'HEAD') };
-}
-
-/** The landing state quickGuards reads, with its gate, static check and smoke replaced by recorders. */
-function landing(board, id, git) {
-  const calls = { gate: 0, checks: 0, smoke: 0 };
-  const state = { board, root: git.root, config: {}, say() {}, batch: { root: git.root, items: [{ id, commit: git.commit }] },
-    guardServices: {
-      gateGroup: async () => { calls.gate += 1; return { isGreen: true, tree: git.tree, failures: [], logPath: '/fresh.log' }; },
-      runStaticChecks: async () => { calls.checks += 1; return {}; },
-      runLandingCliSmoke: () => { calls.smoke += 1; } } };
-  return { state, calls };
-}
-
-test('clause 1: a landing whose merged tree equals the submit gate tree skips gateGroup and records the reused receipt [C7,#2902]', async t => {
-  const git = repo(t);
-  const { board, id } = fixture(t, { executionTree: git.tree, commit: git.commit });
-  const { state, calls } = landing(board, id, git);
-  const gate = await quickGuards(state);
-  assert.equal(calls.gate, 0, 'no tests run');
-  assert.equal(calls.checks, 1, 'the static checks still run');
-  assert.equal(calls.smoke, 1, 'the CLI smoke still runs');
-  assert.deepEqual(landingProof(gate, () => assert.fail('green needs no waiver')),
-    { tree: git.tree, failures: [], logPath: null, reusedSubmitGate: 'job-1' });
-});
-
-test('clause 2: a merged tree the submit gate never proved runs the item\'s plan through gateGroup [C7,#2902]', async t => {
-  const git = repo(t);
-  const { board, id } = fixture(t, { executionTree: 'u'.repeat(40), commit: git.commit });
-  const { state, calls } = landing(board, id, git);
-  const gate = await quickGuards(state);
-  assert.equal(calls.gate, 1, 'the gate ran on the different tree');
-  assert.equal(landingProof(gate, () => null).reusedSubmitGate, undefined, 'the fresh run records no reused receipt');
-  assert.equal(landingProof(gate, () => null).logPath, '/fresh.log');
+test('#6816 clauses 1-2: the trunk-move guards are gone from step/trunk.js and named nowhere in the tree [C7,#6816]', () => {
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
+  // The names are split so this test does not name them; git grep exits 1 when nothing matches.
+  for (const name of ['followMoved' + 'Trunk', 'reusedAcross' + 'Move', 'quick' + 'Guards']) {
+    let named = '';
+    try { named = execFileSync('git', ['grep', '-l', '-w', '-F', name], { cwd: root, encoding: 'utf8' }); }
+    catch (error) { if (error.status !== 1) throw error; }
+    assert.equal(named, '', name);
+  }
 });
