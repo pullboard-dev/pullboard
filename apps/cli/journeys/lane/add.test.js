@@ -12,6 +12,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { loadConfig } from '../../../../packages/config/index.js';
+import { outOfLane } from '../../../../packages/seats/src/io/lanes.js';
 
 /** A private repository with the given folders, each holding one file, and pullboard at hand. */
 function project(t, folders) {
@@ -117,4 +119,33 @@ test('init lets the agent add the first lane and tell the person, never stop to 
   const added = await box.runLocal('lane', 'add', 'app', '--owns', 'server/,test/');
   assert.equal(added.status, 0, 'the agent in the main checkout can run the printed command itself: ' + added.stderr);
   assert.deepEqual(box.lanes().app.owns, ['server/', 'test/']);
+});
+
+test('a lane can own the repository root, spelled . or ./, and root files stay inside it [L1,L2,C7]', async (t) => {
+  for (const spelling of ['./', '.', './.', './/']) {
+    const box = project(t, ['src']);
+    writeFileSync(join(box.root, 'app.py'), 'print(1)\n');
+    const added = await box.runLocal('lane', 'add', 'app', '--owns', spelling);
+    assert.equal(added.status, 0, `${spelling}: ${added.stderr}`);
+    assert.match(added.stdout, /^added lane app: owns \.\/$/mu);
+    assert.deepEqual(box.lanes().app, { owns: ['./'] }, `${spelling} is recorded as the one root spelling`);
+    // The pre-commit lane check reads the same declaration: root files and folders are the app lane's.
+    const config = loadConfig(box.root);
+    assert.deepEqual(outOfLane(config, 'app', ['app.py', 'src/index.js', 'deep/new/file.js']), []);
+    const listed = await box.runLocal('lanes');
+    assert.match(listed.stdout, /^app\s+\.\/$/mu);
+  }
+  // A more specific lane still wins inside its folder, and a second root owner is refused.
+  const box = project(t, ['packages/web']);
+  assert.equal((await box.runLocal('lane', 'add', 'web', '--owns', 'packages/web/')).status, 0);
+  assert.equal((await box.runLocal('lane', 'add', 'app', '--owns', '.')).status, 0);
+  const config = loadConfig(box.root);
+  assert.deepEqual(outOfLane(config, 'app', ['app.py']), []);
+  assert.deepEqual(outOfLane(config, 'app', ['packages/web/index.js']), ["packages/web/index.js (web's)"]);
+  const twice = await box.runLocal('lane', 'add', 'other', '--owns', './');
+  assert.equal(twice.status, 1);
+  assert.match(twice.stderr, /\[PATH_OWNED\] \.\/ is already owned by lane "app"/u);
+  // An empty path or one leaving the repo is still refused.
+  const empty = await box.runLocal('lane', 'add', 'x', '--owns', '../');
+  assert.match(empty.stderr, /\[BAD_LANE_PATH\]/u);
 });
