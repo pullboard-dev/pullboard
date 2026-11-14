@@ -31,6 +31,7 @@ import {
 } from "../../../../packages/kernel/index.js";
 import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
 import { settlePulledJobs } from '../../tests/fixtures/e2e.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -162,6 +163,12 @@ async function submit(box, id, name) {
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
   const head = box.git(folder, 'rev-parse', 'HEAD');
   await succeeds(box, folder, 'submit', String(id), '--no-next');
+  // The board marks the gate job done before it applies the receipt that moves the item off claimed; a next claim
+  // that races the receipt still counts this item as held (ONE_CLAIM), so wait for the applied receipt [C7,#7283].
+  await settledGateJob({ repo: box.root, env: box.env, run: async (cwd, ...args) => {
+    const shown = await box.pullboard(cwd, ...args);
+    return { code: shown.status, out: shown.stdout, err: shown.stderr ?? '' };
+  } }, id);
   return head;
 }
 
