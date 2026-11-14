@@ -138,6 +138,10 @@ const HELP_FLAG_EXPLANATIONS = {
 
 /** Lines a command's own help adds after its example. */
 const HELP_NOTES = {
+  serve: [
+    'This is the board API (JSON, behind the session secret in its printed address); it serves no page.',
+    'To see the board in a browser, run pullboard view.',
+  ],
   status: [
     'Counts include live, idle and gone identities; plain text lists only live and idle seats.',
     '--all includes gone seats. JSON retains the full identity history and presence counts.',
