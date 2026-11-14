@@ -1048,10 +1048,6 @@
       "cells": 4,
       "deep": 1
     },
-    "apps/lib/src/io/landing/candidate.js": {
-      "cells": 5,
-      "deep": 1
-    },
     "apps/lib/src/io/main/audit.js": {
       "cells": 5,
       "deep": 1
@@ -2392,10 +2388,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/landing/src/io/candidates.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/landing/src/io/computed/conflict/receipt.js": {
       "cells": 4,
       "deep": 0
@@ -2434,10 +2426,6 @@
     },
     "packages/landing/src/io/host.js": {
       "cells": 3,
-      "deep": 0
-    },
-    "packages/landing/src/io/in/process.js": {
-      "cells": 1,
       "deep": 0
     },
     "packages/landing/src/io/known/main.js": {
@@ -2535,10 +2523,6 @@
     "packages/landing/src/io/step/merge.js": {
       "cells": 3,
       "deep": 1
-    },
-    "packages/landing/src/io/step/parallel.js": {
-      "cells": 2,
-      "deep": 0
     },
     "packages/landing/src/io/step/publish.js": {
       "cells": 5,

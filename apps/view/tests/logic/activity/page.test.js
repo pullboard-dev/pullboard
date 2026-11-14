@@ -24,7 +24,7 @@ const board = (landed, extra = []) => {
   events.sort((a, b) => a.event_id - b.event_id);
   const items = [{ id: 900, title: 'Still building', status: 'claimed', claim: { by: 'core-9', until: new Date(now + HOUR).toISOString() }, blockedBy: [] }];
   for (let n = 0; n < landed; n++) items.push({ id: 100 + n, title: 'Landed ' + n, status: 'verified', stage: 'merged', blockedBy: [] });
-  return { project: { items, agents: [{ agent_id: 'core-9' }], shouts: [], dashboardRunners: { runners: [{ runner: 1, busy: true, cpu: 50, jobs: [{}, {}] }] } }, events };
+  return { project: { stageLimits: { building: 45 }, items, agents: [{ agent_id: 'core-9' }], shouts: [], dashboardRunners: { runners: [{ runner: 1, busy: true, cpu: 50, jobs: [{}, {}] }] } }, events };
 };
 const draw = (landed, extra) => {
   const { project, events } = board(landed, extra);
@@ -98,4 +98,21 @@ test('clause 2: the you-left marker is drawn only with the Since you left line, 
   const ys = [...svg.matchAll(/<text class="act-tick(?: now)?" x="\d+" y="([\d.]+)"/gu)].map(match => Number(match[1]));
   assert.ok(svg.includes('act-tick now'), 'the now label is drawn');
   assert.ok(ys.filter(y => Math.abs(y - 13) < 12).length === 1, 'only the now label sits at the top: ' + ys);
+});
+
+test('clause 1: every board stage limit applies under the chart stage it names [N26,#7559]', () => {
+  const stay = (kind, limits) => {
+    const events = [event(200, 'add', 7, 'coordinator'), event(200, 'claim', 7, 'core-1'), event(150, 'submit', 7), event(140, 'gate-run', 7, 'core-1', { run: { green: true } }), event(100, 'reserve', 7, 'rev-1')];
+    const items = [{ id: 7, title: 'Slow', status: 'submitted', reviewer: 'rev-1', progress: { holder: 'rev-1' }, reviewUntil: new Date(now + HOUR).toISOString(), blockedBy: [] }];
+    return activityFlow({ stageLimits: limits, items, agents: [], shouts: [] }, events, { now }).limits[kind];
+  };
+  const all = { building: 11, gate: 12, 'pending review': 13, 'in review': 14, landing: 15 };
+  for (const [kind, minutes] of [['build', 11], ['gate', 12], ['pend', 13], ['rev', 14], ['land', 15]]) assert.equal(stay(kind, all), minutes, kind + ' reads its board limit');
+});
+
+test('clause 2: a stage with no board limit, such as Ready, is never drawn past limit [N26,#7559]', () => {
+  const flow = activityFlow({ stageLimits: {}, items: [{ id: 8, title: 'Waiting', status: 'open', blockedBy: [] }], agents: [], shouts: [] }, [event(600, 'add', 8, 'coordinator')], { now });
+  assert.deepEqual(flow.limits, {}, 'no placeholder limits remain');
+  assert.equal(flow.journeyById.get(8).segs.some(seg => seg.over), false, 'ten hours in Ready is not past limit');
+  assert.equal(flow.journeyById.get(8).stuck, false);
 });

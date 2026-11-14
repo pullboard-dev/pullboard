@@ -1317,9 +1317,9 @@
     "raw-cli": 2,
     "tempdir": 3
   },
-  "apps/cli/journeys/roadmap/cockpit/refs.test.js": {
-    "raw-cli": 6,
-    "tempdir": 2
+  "apps/cli/tests/fixtures/cockpit/refs.js": {
+    "raw-cli": 4,
+    "tempdir": 1
   },
   "apps/cli/journeys/roadmap/cockpit/releases.test.js": {
     "raw-cli": 2,
