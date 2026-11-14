@@ -12,11 +12,20 @@ import { ledgerMainReds } from '../../../store/index.js';
 import { landingWaiverKind } from '../../../store/index.js';
 import { PERSON } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
+import { offeredRequest } from './jobs.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
 // Budget: a land job's payload stays well under the job payload cap (16 KiB), so a long header or trailer cannot tip it over.
 const LAND_PAYLOAD_BYTES = 8 * 1024;
+/**
+ * The shape of the land payload this board writes. A runner understands shapes up to its own LANDING_PAYLOAD_SHAPE
+ * (packages/landing's runner job) and refuses a newer one with LANDING_PAYLOAD_VERSION, rather than landing without an option
+ * its code never learned (#7791). Shape 2: fields such as `checkout` may sit in the job's request (#7766).
+ */
+export const LAND_PAYLOAD_SHAPE = 2;
+// Budget: a land job whose push failed is offered again this many times, then the coordinator hears a named refusal (#7791).
+export const LAND_PUSH_RETRIES = 2;
 // The payload parts a runner may read from the job's request instead: what the board derived, never ids, commits or refs.
 const SPILLABLE = ['proof', 'deferred', 'badges', 'waivers', 'checks'];
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
@@ -104,7 +113,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const staticChecks = !forced && typeof config?.staticChecks === 'string' && config.staticChecks.trim() && !/\0/u.test(config.staticChecks) ? config.staticChecks.trim() : null;
   // landing.perItem is on by default (off under parallel landing); only off rides on the job, so default payloads stay as they were [C7,#2901].
   const batchOnly = config?.landing?.perItem === false || config?.landing?.parallel === true;
-  const payload = { remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
+  const payload = { shape: LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
     ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) };
   const spilled = spillLargeInputs(payload);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) });
@@ -226,4 +235,30 @@ export function keepLandingLog(board, job, receipt) {
     writeFileSync(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
     return join(folder, 'runner.log');
   } catch { return null; }
+}
+
+/**
+ * Offer a land job again as a new job with the same offered payload and request, after its push failed. The id is the
+ * first job's id plus `~r<n>`, since offering the same landing returns the job as it stands.
+ * Why: a push-failed receipt marked its job done and nothing offered the accepted items again (#7791).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job - The failed land job's id.
+ * @param {{ now?: number }} [options]
+ * @returns {{ id: string, retry: number } | null} The new job, or null when the job has no offered payload.
+ */
+export function reofferLandingJob(db, job, { now = Date.now() } = {}) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
+  if (!row) return null;
+  const offered = JSON.parse(row.job_step_payload);
+  const [, first, retry] = /^(.*?)(?:~r(\d+))?$/u.exec(job);
+  const next = Number(retry ?? 0) + 1;
+  const id = `${first}~r${next}`;
+  offerJob(db, { id, kind: LANDING_JOB_KIND, priority: 'landing', needs: offered.needs ?? [], now, payload: offered.payload ?? null, request: offeredRequest(db, job) });
+  return { id, retry: next };
+}
+
+/** How many times a land job id has been offered again: 0 for the first offer. */
+export function landingRetries(job) {
+  return Number(/~r(\d+)$/u.exec(job)?.[1] ?? 0);
 }
