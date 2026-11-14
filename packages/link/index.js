@@ -16,6 +16,7 @@ export { githubKeys, handOverBoardKeys, handOverKeys, requestBoardKey, statement
 export { PAIR_ENVELOPE_BYTES, PAIR_PACKAGE_BODY_BYTES, PAIR_PACKAGE_BYTES, PAIR_STORED_BYTES, SEALED_SNAPSHOT_BYTES, SNAPSHOT_BODY_BYTES } from './src/logic/relay/limits.js';
 export { relayIo } from './src/io/relay-io.js';
 export { readRelayLink } from './src/io/relay/read.js';
+export { relayRelink } from './src/io/relay/relink.js';
 export { SENDER_BACKGROUND_ENV, SENDER_CLAIM_STALE_MS, alive, boardNote, localFirstBoard, localFirstLink, nudgeRelaySender, senderFiles, senderHolding, senderInBackground } from './src/io/relay/local.js';
 export { locked } from './src/io/relay/lock.js';
 export { acceptDeviceEnrollment, beginDeviceEnrollment, readRelayMachine, relayMachineOwner, relayPersonRoot, removeRecordedDevice, updateRelayMachine, wrapForRecordedDevice } from './src/io/relay/machine.js';
