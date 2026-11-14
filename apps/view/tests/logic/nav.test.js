@@ -15,6 +15,8 @@ import { pageControlsHtml } from '../../src/logic/nav.js';
 import { sharedRowHtml } from '../../src/logic/component.js';
 import { pageRenderScript } from '../../src/io/page/render.js';
 import { pageScriptPart2 } from '../../index.js';
+import { pageScriptPart4 } from '../../index.js';
+import { menuScript } from '../../src/io/page/menu.js';
 import { runInNewContext } from 'node:vm';
 import { placeQuery } from '../../src/logic/nav.js';
 import { readPlaceQuery } from '../../src/logic/nav.js';
@@ -268,6 +270,54 @@ test('clause 2: each control\'s state is in the page address, and the address pu
   const opened = readPlaceQuery('?state=ids&ids=6579%2C6580%2C5994&w=15m');
   assert.deepEqual([opened.state, opened.ids, opened.window], ['ids', '6579,6580,5994', '15m'], 'the address reads the items and the window back');
   assert.deepEqual(opened.ids.split(',').map(Number), [6579, 6580, 5994]);
+});
+
+test('clause 1: at 900 px or less the top bar is Menu with its rulings, the project name, Search and the account, with no notch or strip [N26]', () => {
+  const html = shell(false);
+  const tier = html.slice(html.indexOf('<div class="top-tier">'), html.indexOf('<div class="strip"'));
+  const order = ['id="menu-btn"', '>Menu<', 'id="menu-rulings"', 'id="proj-title"', 'id="q"', 'id="account-slot"'].map(part => tier.indexOf(part));
+  assert.ok(order.every(at => at >= 0) && order.every((at, n) => !n || at > order[n - 1]), `the compact bar: Menu, its rulings, the project name, Search, the account: ${order}`);
+  assert.match(tier, /<button class="menubtn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mdrawer">/u, 'Menu is a button that says what it controls');
+  const css = composeViewStyles();
+  const narrow = css.slice(css.indexOf('@media (max-width: 900px) {\n  :root[data-nav] { --top: 48px; }'));
+  const block = narrow.slice(0, narrow.indexOf('\n}\n') + 3);
+  assert.ok(block.length > 100, 'the stylesheet has the compact block');
+  assert.match(block, /:root\[data-nav\] \.notch, :root\[data-nav\] \.crumb, :root\[data-nav\] \.pin, :root\[data-nav\]\[data-side\] \.side-top, :root\[data-nav="top"\] \.strip \{ display: none; \}/u, 'the notch and the strip give way');
+  assert.match(block, /:root\[data-nav\] \.menubtn \{ display: inline-flex;/u, 'Menu shows');
+  assert.match(block, /:root\[data-nav\] \.ptitle \{ display: block;/u, 'the project name shows');
+  assert.match(block, /:root\[data-nav="top"\] \.page-title \.pagectl \{ width: 100%;/u, 'the page controls sit under the page title');
+  assert.doesNotMatch(css.slice(0, css.indexOf('@media (max-width: 900px) {\n  :root[data-nav] { --top: 48px; }')), /\.menubtn \{ display: inline-flex/u, 'wider pages never show Menu');
+  assert.ok(pageScriptPart4(new Proxy({}, { get: () => function stub() { return {}; } })).includes("matchMedia('(max-width: 900px)').matches ? $('page-title')"), 'the page controls move to the title row');
+});
+
+test('clause 2: Menu opens a drawer from the left with the project, agents and pace, Rulings and every page with its fact; a page picked closes it [N26]', () => {
+  for (const privateCost of [true, false]) {
+    const html = shell(privateCost);
+    const drawer = html.slice(html.indexOf('<aside class="mdrawer"'), html.indexOf('</aside>', html.indexOf('<aside class="mdrawer"')));
+    assert.match(html, /<div class="mveil" id="mveil" hidden><\/div>\n<aside class="mdrawer" id="mdrawer" aria-label="Menu" hidden>/u, 'a dimmed veil, then the drawer, both closed at first');
+    const order = ['id="mdrawer-proj"', 'data-notch="agents"', 'data-notch="perHour"', 'data-needs-list', '>Rulings<', 'data-tab="items"'].map(part => drawer.indexOf(part));
+    assert.ok(order.every(at => at >= 0) && order.every((at, n) => !n || at > order[n - 1]), `the drawer: project, agents, pace, Rulings, pages: ${order}`);
+    assert.deepEqual([...drawer.matchAll(/data-tab="([a-z]+)"/gu)].map(match => match[1]), navPages({ cost: privateCost }).map(page => page.id), 'every page, in the strip\'s order');
+    assert.equal((drawer.match(/data-nav-fact="/gu) || []).length, navPages({ cost: privateCost }).length, 'each page carries its fact slot');
+  }
+  const css = composeViewStyles();
+  assert.match(css, /:root\[data-nav\] \.mdrawer \.side-row \{[^}]*min-height: 40px; height: 40px/u, 'pages are 40 px rows');
+  assert.match(css, /:root\[data-nav\] \.mdrawer \{ position: fixed; top: 0; bottom: 0; left: 0;[^}]*animation: mslide/u, 'the drawer slides in from the left');
+
+  // The page's script: Menu opens it and the pick closes it.
+  const script = menuScript();
+  const start = script.indexOf('const setMenu'), end = script.indexOf("document.addEventListener('click'");
+  assert.ok(start >= 0 && end > start, 'the page script carries the drawer');
+  const nodes = { mveil: { hidden: true }, mdrawer: { hidden: true }, 'menu-btn': { expanded: null, setAttribute(name, value) { this.expanded = value; } } };
+  const context = { $: (id) => nodes[id] };
+  runInNewContext(script.slice(start, end) + '; this.setMenu = setMenu;', context);
+  context.setMenu(true);
+  assert.deepEqual([nodes.mveil.hidden, nodes.mdrawer.hidden, nodes['menu-btn'].expanded], [false, false, 'true'], 'Menu shows the veil and the drawer');
+  context.setMenu(false);
+  assert.deepEqual([nodes.mveil.hidden, nodes.mdrawer.hidden, nodes['menu-btn'].expanded], [true, true, 'false'], 'closing hides both');
+  assert.ok(script.includes("if (event.target.closest('#menu-btn')) { event.stopPropagation(); setMenu($('mdrawer').hidden); return; }"), 'Menu toggles the drawer');
+  assert.ok(script.includes("const picked = event.target.closest('#mdrawer [data-tab], #mdrawer [data-needs-list]');") && script.includes("event.stopPropagation(); setMenu(false); picked.dataset.later = '1';"), 'a page or Rulings picked in the drawer closes it at once, and the pick follows on the next turn');
+  assert.ok(script.includes("if (event.target.closest('#mveil')) { event.stopPropagation(); setMenu(false); return; }"), 'the dimmed page closes it');
 });
 
 test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar above its list; filters and New item live in the strip [N26]', () => {
