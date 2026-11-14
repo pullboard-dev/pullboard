@@ -49,7 +49,7 @@ const MACHINE_MODEL = 'Test Model';
 
 after(() => {
   for (const dir of scratch) stopFixtureLocalRunner(join(dir, 'machine-home'));
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  for (const dir of scratch) rmSync(dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 });
 });
 
 const SPEC = `# Demo spec
