@@ -73,6 +73,7 @@ test('verify and escalate take a note from a file, exactly as written [V12]', as
   (await box.runLocal(box.web, 'claim', '1'));
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   (await box.runLocal(box.web, 'submit', '1'));
+  await settledGateJob(box, 1);
   const note = 'ran `npm test` with $HOME unset: "it failed"\nthen restored it';
   writeFileSync(join(box.dir, 'note.txt'), `${note}\n`);
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
