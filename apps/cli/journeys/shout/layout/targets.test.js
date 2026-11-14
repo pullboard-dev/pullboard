@@ -68,7 +68,7 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       tap: getComputedStyle(document.documentElement).getPropertyValue('--tap').trim(), coarse: matchMedia('(pointer: coarse)').matches,
       short: controls.filter((c) => c.height < 44 && !c.inline), count: controls.length,
-      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('[data-tab=items]')),
+      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('#tabs [data-tab=items]')),
       toolbar: { tabs: [...document.querySelectorAll('#tabs .tab')].filter(visible).map((b) => Math.round(targetHeight(b))) },
       composer: { text: height('#shout-text'), send: height('#shout-send') }, status: [...document.querySelectorAll('.status [data-status]')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)),
     };
