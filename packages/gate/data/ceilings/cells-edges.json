@@ -2492,10 +2492,6 @@
       "cells": 2,
       "deep": 0
     },
-    "packages/landing/src/io/step/batch.js": {
-      "cells": 7,
-      "deep": 2
-    },
     "packages/landing/src/io/step/diagnose.js": {
       "cells": 6,
       "deep": 0
