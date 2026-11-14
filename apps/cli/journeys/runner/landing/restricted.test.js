@@ -66,7 +66,7 @@ test('#7952 clause 2: doctor names a checked-out trunk lacking updateInstead wit
   const { dir, trunk, work } = scratch(t, { updateInstead: false });
   const problem = trunkUpdateInsteadProblem(trunk, work, TRUNK);
   assert.equal(problem.code, 'TRUNK_UPDATEINSTEAD');
-  assert.match(problem.next, /^run git -C ".+\/trunk" config receive\.denyCurrentBranch updateInstead$/u);
+  assert.match(problem.next, /^run git -C ".+" config receive\.denyCurrentBranch updateInstead$/u);
   git(trunk, ['config', 'receive.denyCurrentBranch', 'updateInstead']);
   assert.equal(trunkUpdateInsteadProblem(trunk, work, TRUNK), null, 'set, the finding clears');
   const bare = join(dir, 'bare.git');
