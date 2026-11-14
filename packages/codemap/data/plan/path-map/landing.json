@@ -39,7 +39,6 @@
   "src/landing-step-diagnose.js": "packages/landing/src/io/step/diagnose.js",
   "src/landing-step-publish.js": "packages/landing/src/io/step/publish.js",
   "src/landing-step-trunk.js": "packages/landing/src/io/step/trunk.js",
-  "src/landing-step-batch.js": "packages/landing/src/io/step/batch.js",
   "src/train-check-repoints.js": "packages/landing/src/io/train/repoints.js",
   "src/post-land-suite.js": "packages/landing/src/io/post/land.js"
 }

@@ -52,7 +52,6 @@
   ["src/landing-compose.js","packages/landing/src/io/compose.js","rule"],
   ["src/landing-first.js","packages/landing/src/io/first.js","rule"],
   ["src/landing-step-compose.js","packages/landing/src/io/step/compose.js","rule"],
-  ["src/landing-step-batch.js","packages/landing/src/io/step/batch.js","rule"],
   ["src/train-check-repoints.js","packages/landing/src/io/train/repoints.js","rule"],
   ["src/post-land-suite.js","packages/landing/src/io/post/land.js","rule"]
  ],
