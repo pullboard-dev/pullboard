@@ -171,17 +171,19 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
     const { items, oldest } = notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago);
     return notchPreviewData({ floor: notchFloor(state, notchAgents, board.dashboardPace || null), rulings: items, oldest });
   });
-  text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
+  // The top bar counts the seats on the board: at work when any are, else every agent that joined (#7945).
+  const seats = Number.isInteger(p.counts?.joined) && p.counts.joined > agents ? p.counts.joined : agents;
+  text($('notch')?.querySelector?.('[data-notch="agents"]'), String(seats));
   text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
   const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
   text(ruled, String(rulings));
   ruled?.classList?.toggle('a', rulings > 0);
-  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the Agents table.' : 'No agent at work. Open the Agents table.');
+  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the Agents table.' : seats ? seats + ' joined, none at work. Open the Agents table.' : 'No agent at work. Open the Agents table.');
   text($('proj-rulings'), rulings ? String(rulings) : '');
   // The menu drawer (under 900 px) holds the same numbers: the button's and the project's rulings, agents, pace and Rulings.
   text($('menu-rulings'), rulings ? String(rulings) : '');
   text($('mdrawer-rulings'), rulings ? String(rulings) : '');
-  text($('mdrawer')?.querySelector?.('[data-notch="agents"]'), String(agents));
+  text($('mdrawer')?.querySelector?.('[data-notch="agents"]'), String(seats));
   text($('mdrawer')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
   text($('mdrawer')?.querySelector?.('[data-notch="rulings"]'), String(rulings));
   // Each page's one fact, in the sidebar's rows and the strip's menus: the pace, the open items, the release's work left, the rows.
@@ -296,7 +298,9 @@ function render({ tab: switching = false } = {}) {
   const p = privateModelProject(data.project);
   const group = data.group;
   // An open-first state holds no finished items: the screens that show them (Activity titles every row by item) read them now (#6697, #7756).
-  if (data.project?.itemsOmitted === 'finished' && (view.tab === 'roadmap' || view.tab === 'activity' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
+  // The Dashboard's landed panels name items the open-first state left out, so it reads them when a recent landing has none (#7945).
+  const unnamed = view.tab === 'dashboard' && (data.project?.dashboardLanded ?? []).some((entry) => !data.project.items.some((item) => item.id === entry.id));
+  if (data.project?.itemsOmitted === 'finished' && (unnamed || view.tab === 'roadmap' || view.tab === 'activity' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
     || view.itemsView === 'pipeline' || $('q').value.trim() || view.item && !data.project.items.some((item) => item.id === view.item)))) ensureFinished(data.project);
   renderSide();
   writeChrome();
