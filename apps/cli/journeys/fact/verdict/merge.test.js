@@ -1,7 +1,8 @@
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
+import { candidates } from '../../../../../packages/landing/index.js';
+import { emptyLanding } from '../../../../../packages/landing/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -16,6 +17,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
+import { landingPorts } from '../../../tests/fixtures/landing/ports.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
@@ -39,17 +41,13 @@ import { operationIntent } from '../../../../../packages/state/index.js';
 import { capturePrProof } from '../../../../../packages/github/index.js';
 
 /**
- * What the pulled land offer does with every verified item on this board against the checkout's main: the lines it
- * said and the items it handed back. Why: `land` no longer merges (lander v2, #6813); the offer's stale-verdict
- * filter is the step that keeps a forged acceptance from reaching a land job [V1,V4,H16].
+ * Select what a landing would take from this board against the checkout's main, and refuse the way the landing step
+ * does when nothing is landable. Why: `land` no longer merges (lander v2, #6813); candidate selection is the step that
+ * keeps a forged acceptance from reaching a land job [V1,V4,H16].
  */
-async function offered(box, board) {
-  const said = [];
-  const items = await withoutStaleVerdicts(board, box.repo, box.git(box.repo, 'rev-parse', 'HEAD'), store.listItems(board), {
-    candidate: () => true, say: line => said.push(line),
-    write: async () => { throw new Error('the offer must not rewrite the board in this journey'); },
-  });
-  return { said, items };
+function selectOrRefuse(box, board) {
+  const selected = candidates(board, box.repo, box.git(box.repo, 'rev-parse', 'HEAD'), 10, { landingPorts });
+  return emptyLanding(selected, () => {});
 }
 
 const e2e = createE2eHelpers();
@@ -264,10 +262,9 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     assert.equal(store.getItem(forged, id).item_status, 'verified',
       'canonical replay records the sealed decision consistently; landing is the authoritative Git backstop');
     const beforeLanding = box.git(box.repo, 'rev-parse', 'HEAD');
-    const forgedOffer = await offered(box, forged);
-    assert.ok(forgedOffer.said.some(line => /STALE_VERDICT/u.test(line) || /recorded merge-only acceptance/u.test(line)), forgedOffer.said.join('\n'));
-    assert.ok(forgedOffer.said.some(line => /recorded merge-only acceptance/u.test(line)), 'the refusal names the recorded merge-only acceptance');
-    assert.ok(forgedOffer.items.find(row => row.item_id === id).item_hold_at, 'forged canonical carry must not reach a land job');
+    assert.throws(() => selectOrRefuse(box, forged), error => error.code === 'STALE_VERDICT'
+      && /recorded merge-only acceptance/u.test(error.message),
+    'forged canonical carry must not reach a land job');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
     assert.deepEqual(store.verdictsFor(forged, id), original.verdicts);
     assert.deepEqual(store.landingBatches(forged), []);
@@ -288,9 +285,7 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     chained.args[1].mergeOnly = nextProof;
     applyEngineMove(forged, chained, { sequence: 2, at: '2026-01-01T00:00:01.000Z' });
     assert.equal(store.getItem(forged, id).item_status, 'verified');
-    const chainedOffer = await offered(box, forged);
-    assert.ok(chainedOffer.said.some(line => /STALE_VERDICT/u.test(line) || /merge-only/u.test(line)), chainedOffer.said.join('\n'));
-    assert.ok(chainedOffer.items.find(row => row.item_id === id).item_hold_at,
+    assert.throws(() => selectOrRefuse(box, forged), error => error.code === 'STALE_VERDICT',
       'a later clean carry must not launder a forged earlier carry into a landable acceptance');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), nextTrunk);
     box.git(box.repo, 'reset', '--hard', trunk);
