@@ -11,6 +11,8 @@ import { offerPulledLanding } from '../../src/io/landing/pull.js';
 import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 
 const SECOND_MS = 1_000;
+// The pulled offer reads the primary checkout's branch (c10a702258), so the root it is given is this checkout, a real repository.
+const REPO = join(import.meta.dirname, '../../../..');
 const MAIN = 'a'.repeat(40);
 const CONFIG = { trunk: { remote: '/trunk-remote-of-record.git' } };
 
@@ -33,7 +35,7 @@ test('clause 1: a landing with nothing accepted offers no land job and writes no
   const host = hostBoard(t);
   const said = [];
   const reads = { mainPolicy: () => ({ config: CONFIG, commit: MAIN }), listItems: () => [], checkedLandingCommit: () => { throw new Error('nothing is accepted'); } };
-  const result = await host.onBoard('offer', board => offerPulledLanding({ io: { say: line => said.push(line) } }, '/unused', reads, { board }));
+  const result = await host.onBoard('offer', board => offerPulledLanding({ io: { say: line => said.push(line) } }, REPO, reads, { board }));
   assert.deepEqual(result, { offered: null, items: [], waiting: false });
   assert.equal(await host.onBoard('count', board => host.jobs(board)), 0, 'with nothing accepted, the landing writes no job row');
   assert.deepEqual(said, []);

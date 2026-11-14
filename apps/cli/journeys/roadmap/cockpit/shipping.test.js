@@ -63,7 +63,8 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
       status: document.querySelector('[data-status=release]').textContent.replace(/\\s+/g, ' ').trim(),
       // Desktop and phone each render the shipping counts; only the panel shown at this width counts (cead5a98d7).
       openCounts: [...document.querySelectorAll('#roadmap-panel [data-shipping-stage=waiting] dd')].filter(count => count.getClientRects().length > 0).map(count => count.textContent),
-      headerWaiting: next.querySelector('[data-summary-state=waiting] b').textContent,
+      headerReady: next.querySelector('[data-summary-state=ready] b')?.textContent ?? null,
+      headerBlocked: next.querySelector('[data-summary-state=waiting] b')?.textContent ?? null,
       shippedCount: shipped.querySelector('.milestone-count').textContent,
       shippedRows: [...shipped.querySelectorAll(':scope > .milestone-body > ul .milestone-item .id')].map(id => id.textContent),
       allIds: [...document.querySelectorAll('#roadmap .milestone-item .id')].map(id => id.textContent),
@@ -88,7 +89,8 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
       assert.equal(seen.index, null, `${width}: the release index repeats no landed count`);
       assert.equal(seen.status, 'Next 2/4', `${width}: the status bar names the same next release and count`);
       assert.deepEqual(seen.openCounts, [], `${width}: the rail holds no count tiles`);
-      assert.equal(seen.headerWaiting, '2', `${width}: the header includes both waiting items`);
+      // The board splits ready out of waiting, so the two unblocked items read as ready and blocked counts only what waits (6648c0eb6b, #7763).
+      assert.deepEqual([seen.headerReady, seen.headerBlocked], ['2', '0'], `${width}: the header includes both unblocked items as ready, and none as blocked`);
       assert.equal(seen.shippedCount, '2 items', `${width}: folded history excludes withdrawn work from its total`);
       assert.equal(seen.allIds.includes('#4'), false, `${width}: no withdrawn row is rendered, including folded history`);
       await press(chrome, "document.querySelector('#roadmap .shipped-one[data-key=\"m:Shipped\"] > .milestone-head')");

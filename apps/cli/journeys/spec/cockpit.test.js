@@ -42,6 +42,7 @@ import {
   watchSpecDecisionWait,
   press,
 } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 /** Return regex-literal bodies while skipping comments and quoted strings in a hosted script part. */
 function regexLiterals(source) {
@@ -300,7 +301,7 @@ test('a declined spec row shows its reason in the view [N26,S9]', { timeout: 120
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor(`data?.project?.spec?.some(row => row.id === 'G1' && row.status === 'wont' && row.reason === ${JSON.stringify(reason)})`);
-    await chrome.click("document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !!document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
     await chrome.click("document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
@@ -372,7 +373,7 @@ test('Spec and Doctrine line up, open on a row and decide with filled and outlin
     await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.click("document.querySelector('[data-tab=spec]')"); await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')"); await chrome.stable("view.row.spec = null"); await chrome.stable("render()");
+      await pressTab(chrome, 'spec'); await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]')"); await chrome.stable("view.row.spec = null"); await chrome.stable("render()");
       await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
       const spec = await read('spec');
       if (width === 1280) assert.ok(Math.abs(spec.list.top - spec.detail.top) < 0.5, `${width}: the list and the detail start on one line: ${JSON.stringify([spec.list, spec.detail])}`);
@@ -391,7 +392,7 @@ test('Spec and Doctrine line up, open on a row and decide with filled and outlin
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:approved\"]')");
       const moved = await read('spec');
       assert.deepEqual([moved.picked, moved.shown], ['spec:G3', 'G3'], `${width}: a filter that hides the pick moves it to the first row shown`);
-      await chrome.click("document.querySelector('[data-tab=doctrine]')"); await chrome.stable("view.row.doctrine = null"); await chrome.stable("render()");
+      await pressTab(chrome, 'doctrine'); await chrome.stable("view.row.doctrine = null"); await chrome.stable("render()");
       const doctrine = await read('doctrine');
       if (width === 1280) assert.ok(Math.abs(doctrine.list.top - doctrine.detail.top) < 0.5, `${width}: Doctrine's cards start on one line too`);
       assert.ok(doctrine.picked && doctrine.picked === doctrine.first && doctrine.shown === doctrine.first.split(':')[1], `${width}: and Doctrine opens on its first row: ${JSON.stringify([doctrine.picked, doctrine.shown])}`);
@@ -451,7 +452,7 @@ test('clause 1: spec rows read as a list, decided in the panel [N26]', { timeout
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
   };
   const filter = async (kind, name) => {
-    await chrome.click(`document.querySelector('[data-tab=${kind}]')`); await chrome.click(`document.querySelector('#${kind}-chips [data-rows="${kind}:${name}"]')`);
+    await pressTab(chrome, `${kind}`); await chrome.click(`document.querySelector('#${kind}-chips [data-rows="${kind}:${name}"]')`);
     await chrome.waitFor(`!document.querySelector('[data-pane=${kind}]').hidden && !!document.querySelector('#${kind}-list .srow')`);
   };
   /** A row as the board records it: Spec rows by id, Doctrine rules by id among the merged rules. */
@@ -601,7 +602,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       chrome = await openSnapshotChrome(executable, view.link.href, profile);
       await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.click("document.querySelector('[data-tab=spec]')");
+      await pressTab(chrome, 'spec');
       await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
       await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
       await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"]') && document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b')?.textContent === '31'");
@@ -762,7 +763,7 @@ test('a decline stays on the board it was opened on [B26,N26]', { timeout: 150_0
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor(`typeof data === 'object' && data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proj-list [data-root=${JSON.stringify(beta.repo)}]')`);
-    await chrome.click("document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     const untouched = { alpha: await decided(alpha), beta: await decided(beta) };
     assert.ok(!untouched.beta.includes('declined'), `board B starts with no decline: ${untouched.beta}`);
@@ -834,7 +835,7 @@ test('a pending Spec question can be answered in the view [I1,B26]', { timeout: 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(demo.repo)}`);
-    await press(chrome, "document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await chrome.waitFor("view.row.spec === 'G1' && !!document.querySelector('#spec-detail form[data-spec-answer=\"G1\"]')");
@@ -872,7 +873,7 @@ test('a refresh keeps the draft and focus in a pending Spec question Answer box 
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(demo.repo)}`);
-    await press(chrome, "document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await chrome.waitFor("view.row.spec === 'G1' && !!document.querySelector('#spec-detail form[data-spec-answer=\"G1\"]')");
@@ -905,7 +906,7 @@ test('the spec decision wait names its state on timeout [N26]', { timeout: 60_00
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.click("document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !!document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
     diagnostics = await watchSpecDecisionWait(chrome);
     await press(chrome, `document.querySelector('#spec-list [data-row="spec:G1"]')`);
@@ -950,7 +951,7 @@ test('the Spec decline opens its reason form under a 6× CPU throttle [N26]', { 
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     await chrome.send('Emulation.setDeviceMetricsOverride', { width:375, height:812, deviceScaleFactor:1, mobile:false });
     await chrome.send('Emulation.setCPUThrottlingRate', { rate:6 });
-    await chrome.click("document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.waitFor("innerWidth === 375 && !!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await chrome.waitFor("!!document.querySelector('#spec-detail [data-row-decision=\"decline\"]')");
@@ -1078,12 +1079,12 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
         await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
         await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] });
         await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${theme})').matches`);
-        await press(chrome, "document.querySelector('[data-tab=items]')");
+        await pressTab(chrome, 'items');
         const item = await rowState('#chain .row[data-item="1"]');
         assert.ok(item?.dot, `${width}px ${theme}: the Items reference row has its status dot`);
         assert.equal(item.overflow, false, `${width}px ${theme}: the Items row has no horizontal overflow`);
 
-        await press(chrome, "document.querySelector('[data-tab=spec]')");
+        await pressTab(chrome, 'spec');
         await press(chrome, "document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
         const g1 = await rowState('#spec-list [data-row="spec:G1"]');
         const g2 = await rowState('#spec-list [data-row="spec:G2"]');
@@ -1152,7 +1153,7 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
         assert.ok(actions.every(e=>e.height >= tapTarget(width) && e.border === '1px'), `${width}px ${theme}: detail actions meet #371 targets`);
 
         await shot('spec', width, theme);
-        await press(chrome, "document.querySelector('[data-tab=doctrine]')");
+        await pressTab(chrome, 'doctrine');
         await press(chrome, "document.querySelector('#doctrine-chips [data-rows=\"doctrine:all\"]')");
         const pb1 = await rowState(`#doctrine-list [data-row="doctrine:${inherited.id}"]`);
         const pb2 = await rowState(`#doctrine-list [data-row="doctrine:${overridden.id}"]`);
@@ -1206,7 +1207,7 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
     await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
     await chrome.waitFor("matchMedia('(pointer: coarse)').matches");
     for (const kind of ['spec', 'doctrine']) {
-      await press(chrome, `document.querySelector('[data-tab=${kind}]')`);
+      await pressTab(chrome, `${kind}`);
       await press(chrome, `document.querySelector('#${kind}-chips [data-rows="${kind}:all"]')`);
       const id = kind === 'spec' ? 'G1' : overridden.id;
       await press(chrome, `document.querySelector('#${kind}-list [data-row="${kind}:${id}"]')`);
@@ -1258,7 +1259,7 @@ test('the decline dialog never moves under the pointer [B26,N26]', { timeout: 12
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375');
     await chrome.waitFor('data?.project?.spec?.length === 24');
-    await chrome.click("document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
     // Approving G1 from the list leaves a note in the list for six seconds; the decline for the next row opens inside that window.

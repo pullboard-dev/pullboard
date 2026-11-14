@@ -30,6 +30,7 @@ import {
   press,
   travel,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 import { pipelineBoard } from '../../../tests/fixtures/cockpit/pipeline.js';
 import { installPipelinePressDiagnostics } from '../../../tests/fixtures/cockpit/pipeline.js';
@@ -46,7 +47,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
     const listRead = "JSON.stringify([...document.querySelectorAll('#chain > li[data-item]')].map(row => ({id:Number(row.dataset.item),title:row.title,meta:row.querySelector('.meta').textContent,tag:row.lastElementChild.textContent})))";
     const listBefore = await chrome.stable(listRead);
@@ -86,7 +87,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
         await press(chrome, selector);
         await waitForPipelineItem(chrome, id); // budget: hang-only ceiling for the opened Pipeline item; no speed target.
         assert.equal(await chrome.stable('view.item'), id, `${width}: every item opens its detail`);
-        await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.includes('#${id}')`);
+        await chrome.waitFor(`document.querySelector('#detail .item-panel-head .id')?.textContent === '#${id}'`);
       }
       const geometry = JSON.parse(await chrome.stable("JSON.stringify({ width:innerWidth, body:document.documentElement.scrollWidth, stages:[...document.querySelectorAll('.pipeline-stage')].map(node => ({left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right})) })"));
       assert.ok(geometry.body <= width, `${width}: no sideways scroll: ${JSON.stringify(geometry)}`);

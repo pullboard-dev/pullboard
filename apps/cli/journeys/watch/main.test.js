@@ -480,7 +480,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
       && JSON.parse(proof.event_detail).receipt?.id === fact.ref.id), 'the shadow names a real proof on its item');
   }
   const usage = recorded.filter(event => event.event_kind === 'usage');
-  assert.equal(usage.length, 2, 'release and one submission checkpoint usage');
+  // A pulled submit checkpoints usage as it offers its gate (ff4e5daee0, #7846), so the release and each of the two submissions record one [C7].
+  assert.equal(usage.length, 3, 'release and each submission checkpoint usage');
   assert.ok(usage.every(event => event.event_by === builder.agent));
   // A pulled submit delivers its activity digest as the gate job is queued (6e6391c953, 75f4e618a7; #7076), so each of the two submissions records one.
   const delivered = recorded.filter(event => event.event_kind === 'activity-delivered');

@@ -24,6 +24,7 @@ import {
   closeSnapshotChrome,
   tabBar,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 
 test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
@@ -46,7 +47,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await chrome.click("document.querySelector('[data-tab=\"items\"]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
     // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
     // the room a 320px screen leaves beside a classic 15px scrollbar: Linux CI measured 324px of tabs there.
@@ -55,7 +56,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
     await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font || 'system-ui, sans-serif')})`);
     await chrome.waitFor(`innerWidth === ${width}`);
     for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
-      await chrome.click(`document.querySelector('[data-tab="${tab}"]')`);
+      await pressTab(chrome, `${tab}`);
       await chrome.waitFor(`!document.querySelector('[data-pane="${tab}"]').hidden`);
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const edge = document.documentElement.clientWidth;
@@ -96,11 +97,11 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
       // The grouped top nav keeps Dashboard, Items and the Rules and Insights menus on the strip; the other tabs sit in the menus.
       const strip = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const e = document.querySelector('#tabs').closest('.strip') || document.querySelector('#tabs');
-        return { tabs: document.querySelectorAll('#tabs .tab').length, scrolls: e.scrollWidth > e.clientWidth, overflowX: getComputedStyle(e).overflowX, page: document.documentElement.scrollWidth };
+        return { tabs: document.querySelectorAll('#tabs .tab').length, scrolls: e.scrollWidth > e.clientWidth, overflowX: getComputedStyle(e).overflowX, page: document.documentElement.scrollWidth, wide: [...document.body.querySelectorAll('*')].map(e => { const r = e.getBoundingClientRect(); return { e: e.tagName + (e.id ? '#' + e.id : '') + '.' + (e.getAttribute('class') || '').split(' ')[0], l: Math.round(r.left), r: Math.round(r.right) }; }).filter(x => x.r > document.documentElement.clientWidth + 1 || x.l < -1).slice(0, 8) };
       })())`));
       assert.equal(strip.tabs, 9, `${width}/${font}: Dashboard and all retained tabs remain`);
       // Approved behaviour: at phone width the strip scrolls sideways itself; the page never does.
-      assert.ok(strip.page <= bar.client, `${width}/${font}: the page never scrolls sideways, ${strip.page} wide in ${bar.client}`);
+      assert.ok(strip.page <= bar.client, `${width}/${font}: the page never scrolls sideways, ${strip.page} wide in ${bar.client}: ${JSON.stringify(strip.wide)}`);
       if (strip.scrolls) assert.equal(strip.overflowX, 'auto', `${width}/${font}: a strip wider than the screen scrolls sideways inside itself`);
       for (const layout of bar.layouts) {
         const where = `${width}/${font}/${layout.on}`;

@@ -384,7 +384,7 @@ test('the relay reads an addressed shout [H5,N38]', {
   await chrome.navigate(box.origin + '/#shout-' + shoutId);
   const card = `#shout-${shoutId}.found`;
   await chrome.waitFor(`typeof api === 'function' && transport !== null && document.querySelector(${JSON.stringify(card + ' h2')})?.textContent.includes(${JSON.stringify('Shout #' + shoutId)})`);
-  assert.equal(await chrome.evaluate(`document.querySelector(${JSON.stringify(card + ' .text')})?.textContent`),
+  assert.equal(await chrome.evaluate(`document.querySelector(${JSON.stringify(card + ' .sx-tx')})?.textContent`),
     'OLD_ADDRESSED_DECISION_434', 'the addressed relay fallback opens the actual old shout card');
   assert.equal(await chrome.evaluate("document.querySelector('#shout-address-status') === null"), true,
     'the old-shout fallback does not leave an unavailable-history message');

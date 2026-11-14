@@ -20,6 +20,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
   tapTouch,
   proofShot,
 } from '../../tests/fixtures/cockpit/harness.js';
@@ -83,11 +84,11 @@ test('Spec and Doctrine use one measured toggle with real choices and counts in 
         ['spec', '#spec-chips', 'data-rows', 'spec:all', 'spec:approved'],
         ['doctrine', '#doctrine-chips', 'data-rows', 'doctrine:all', 'doctrine:approved'],
       ]) {
-        await press(chrome, 'document.querySelector("#tabs [data-tab=' + pane + ']")');
+        await pressTab(chrome, pane);
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
         // Press the open page's own tab so the real pointer rests off the track and no option is measured under a hover.
-        await press(chrome, 'document.querySelector("#tabs [data-tab=' + pane + ']")');
+        await pressTab(chrome, pane);
         await chrome.stable('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
         const actual = await measureControl(chrome, selector);
         console.log('PULLBOARD_SEG_MEASURE ' + JSON.stringify({ width, pane, actual }));
