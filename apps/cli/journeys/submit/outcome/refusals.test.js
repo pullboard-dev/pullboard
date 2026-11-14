@@ -10,12 +10,12 @@ import { source } from '../../../tests/fixtures/submit/outcome.js';
 import { submittedProof } from '../../../tests/fixtures/submit/outcome.js';
 
 describe('pulled submit refusals keep file identity and the exact assertion guard [V4,B3,H16]', { concurrency: true }, () => {
-  test('ambiguous pulled duplicate titles keep missing file identity and cannot submit [V4,B3,H16]', async t => {
+  test('ambiguous pulled duplicate titles keep each file identity and cannot submit [V4,B3,H16]', async t => {
     const box = await fixture(t, { beforeMain: beforeMain({ duplicate: true }) });
     const { gate, failures } = await pulledSubmit(t, box);
     assert.equal(gate.green, false, 'the pulled gate receipt is red');
     assert.ok(failures.length >= 2);
-    assert.ok(failures.every(row => row.file === null), 'neither title arbitrarily selects the first file ' + JSON.stringify(failures));
+    assert.deepEqual(failures.map(row => row.file).sort(), ['test/inherited.test.js', 'test/second.test.js'], 'each shared title keeps its own file; neither arbitrarily selects the first file');
     assert.ok(failures.every(row => row.name === 'shared failure [G1]'));
     assert.equal((await submittedProof(box)), null);
   });
