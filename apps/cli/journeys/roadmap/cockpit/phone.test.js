@@ -138,7 +138,8 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
       return { margin:getComputedStyle(target).scrollMarginTop, barBottom:bar.bottom, headingTop:heading.top };
     })())`));
     console.log('desktop release jump geometry', JSON.stringify(desktop));
-    assert.equal(desktop.margin, '72px', `desktop keeps today's scroll offset: ${JSON.stringify(desktop)}`);
+    // The two-tier top bar is 74px high (1586f48a53), and a release scrolls to sit 16px below it (b94d43bd4a).
+    assert.equal(desktop.margin, `${Math.round(desktop.barBottom) + 16}px`, `desktop scrolls a release 16px below the top bar: ${JSON.stringify(desktop)}`);
     assert.ok(desktop.headingTop >= desktop.barBottom, `desktop heading stays below the top bar: ${JSON.stringify(desktop)}`);
     assert.deepEqual(chrome.exceptions, []);
   } finally {
@@ -165,13 +166,13 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
   let chrome;
   /** Each visible release head: its chevron's centre against the centre of its title's first line of text. */
   const offsets = async () => JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#roadmap-list .milestone-head')].filter((head) => head.getClientRects().length).map((head) => {
-    // A release with a shared header (0ab202b994) carries its chevron beside the header, not inside the title.
-    const caret = head.querySelector('h2 > .caret') || head.querySelector(':scope > .caret'), title = head.querySelector('h2');
+    // A release with a shared header (0ab202b994) carries no chevron since #7547 (897349c90b): its whole header is the toggle.
+    const shared = head.classList.contains('release-header-toggle'), caret = head.querySelector('h2 > .caret') || head.querySelector(':scope > .caret'), title = head.querySelector('h2');
     const walker = document.createTreeWalker(title, NodeFilter.SHOW_TEXT, { acceptNode: (node) => node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP });
     const text = walker.nextNode(), range = document.createRange();
     range.selectNodeContents(text);
     const line = range.getClientRects()[0], mark = caret?.getBoundingClientRect();
-    return { key: head.dataset.roadmapKey, open: head.getAttribute('aria-expanded'), svg: caret?.tagName.toLowerCase() || null, size: mark ? [Math.round(mark.width), Math.round(mark.height)] : null,
+    return { key: head.dataset.roadmapKey, shared, open: head.getAttribute('aria-expanded'), svg: caret?.tagName.toLowerCase() || null, size: mark ? [Math.round(mark.width), Math.round(mark.height)] : null,
       offset: mark ? Math.round(((mark.top + mark.height / 2) - (line.top + line.height / 2)) * 10) / 10 : null };
   }))`));
   try {
@@ -185,6 +186,7 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
         const heads = await offsets();
         assert.ok(heads.length >= 3, `${width} ${pass}: every release head is read: ${JSON.stringify(heads)}`);
         for (const head of heads) {
+          if (head.shared) { assert.equal(head.svg, null, `${width} ${pass} ${head.key}: the shared release header carries no chevron`); continue; }
           assert.equal(head.svg, 'svg', `${width} ${pass} ${head.key}: the disclosure is the view's stroke chevron`);
           assert.ok(head.size[0] >= 15 && head.size[0] <= 17, `${width} ${pass} ${head.key}: the chevron is about 16px: ${head.size}`);
           assert.ok(Math.abs(head.offset) <= 2, `${width} ${pass} ${head.key} (${head.open}): the chevron centres on the title's first line: ${head.offset}px`);

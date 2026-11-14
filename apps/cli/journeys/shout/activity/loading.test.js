@@ -84,8 +84,10 @@ export async function createTransport({ onUpdate }) {
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
     await chrome.waitFor(`${note('shouts')} === 'Older shouts are still loading (30%).'`);
     await chrome.click(`document.querySelector('[data-shout-thread="none"]')`);
-    await chrome.waitFor('!!document.querySelector("#feed .shout")');
+    await chrome.waitFor('!!document.querySelector("#feed .sx-th")');
     assert.equal(await chrome.stable(`document.querySelector('#feed').lastElementChild.dataset.historyNote`), 'shouts', 'the line ends the feed');
+    // A long thread shows its latest twelve messages; open the rest, as a person does, so the oldest shout can show.
+    await chrome.click(`document.querySelector('#feed .sx-earlier-msgs')`);
     await chrome.stable(`document.querySelector('[data-history-note="shouts"]').scrollIntoView({ block: 'end' })`);
     await chrome.waitFor(`document.querySelector('#feed').textContent.includes('The oldest shout, read once the feed reaches its end')`);
     assert.ok(reads.some((path) => /\/shouts\/\d+$/.test(path)), 'the next page came from addressed shout reads');
@@ -105,7 +107,7 @@ export async function createTransport({ onUpdate }) {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.click(`document.querySelector('#chain [data-item]')`);
-    await chrome.stable("(() => { const more = document.querySelector('#detail [data-item-panel-history]'); if (more && more.getAttribute('aria-expanded') !== 'true') more.click(); return true; })()");
+    if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
     await chrome.waitFor(`${note('item')} === 'Older entries are still loading (75%).'`);
 
     // Complete: every line goes, and a redraw brings none back.

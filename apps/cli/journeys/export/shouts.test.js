@@ -78,7 +78,7 @@ async function shoutLayout(chrome, id) {
       return { left: rect.left + scrollX, top: rect.top + scrollY, width: rect.width, height: rect.height };
     };
     const heading = card?.querySelector('h2');
-    return { card: box(card), avatar: box(card?.querySelector('.avatar')), text: box(card?.querySelector('.text')), header: box(card?.querySelector('header')),
+    return { card: box(card), avatar: box(card?.querySelector('.avatar')), text: box(card?.querySelector('.sx-tx')), header: box(card?.querySelector('.sx-snd')),
       heading: heading ? { tag: heading.tagName, text: heading.textContent } : null,
       found: card?.classList.contains('found') ?? false };
   })())`));
@@ -100,7 +100,7 @@ test('an addressed shout is highlighted without changing its layout [N26,N38]', 
         await openAddress(chrome, server, '/shouts');
         await assertPlace(chrome, '/shouts', 'shouts', alpha.repo);
         await press(chrome, 'document.querySelector(\'[data-shout-thread="none"]\')');
-        await settled(chrome, `!!document.querySelector('#shout-${shout.shout_id} .text')`);
+        await settled(chrome, `!!document.querySelector('#shout-${shout.shout_id} .sx-tx')`);
         const before = await shoutLayout(chrome, shout.shout_id);
         assert.ok(before.card && before.text && before.header, `${width}px ${scheme}: the opened conversation has its message layout boxes`);
         assert.equal(before.avatar, null, 'the approved conversation has no avatar');
@@ -189,7 +189,7 @@ test('an older relay shout keeps its address and explains retained history [N38,
   for (let visit = 0; visit < 2; visit += 1) {
     await settled(chrome, `${SCRIPT} && !document.querySelector('#shout-address-status')?.textContent.startsWith('Loading')`);
     await assertPlace(chrome, address, 'shouts', link.board);
-    const body = await chrome.stable(`document.querySelector('#feed #shout-${target.shout_id} .text')?.textContent ?? null`);
+    const body = await chrome.stable(`document.querySelector('#feed #shout-${target.shout_id} .sx-tx')?.textContent ?? null`);
     if (body === text) await assertShout(chrome, target.shout_id, text);
     else assert.match(await chrome.stable("document.querySelector('#shout-address-status')?.textContent ?? ''"), /older than the relay holds/i,
       'an unsupported old read explains the relay retention limit in the Shouts pane');

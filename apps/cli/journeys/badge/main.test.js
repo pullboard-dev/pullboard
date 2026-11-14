@@ -57,7 +57,7 @@ function endpoints(box) {
   return ['items', 'checked'].map(name => JSON.parse(readFileSync(join(box.dir, `docs/badges/${name}.json`), 'utf8')));
 }
 
-test('pullboard badge writes the verified counts from the board [B3,V1]', () => {
+test('pullboard badge writes the verified counts from the board [B3,V1]', async t => {
   const five = badgeProject(5, 4);
   const result = five.run(five.dir, 'badge', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
@@ -76,7 +76,7 @@ test('pullboard badge writes the verified counts from the board [B3,V1]', () => 
   assert.equal(nothing.code, 0, nothing.err);
   assert.match(nothing.out, /No finished items.*no badge files/);
   assert.equal(existsSync(join(empty.dir, 'docs/badges')), false, 'no files or directories are written for no finished work');
-  assertBadgeLanding(e2e);
+  await assertBadgeLanding(e2e, t);
 });
 
 

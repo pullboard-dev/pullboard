@@ -79,8 +79,7 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   assert.deepEqual(summaries.get(accepted).verdict, { decision: 'ACCEPT', reason: 'CRITERION_MET' }, 'an accepted item carries no note');
   assert.equal((await box.call(box.path + '/items/' + rejected)).document.item.verdict.note, note, 'the whole note stays in the detail');
 
-  // A verdict hands the verifier the next build, which is the item it just sent back; the builder takes it from there.
-  await move({ verb: 'release', item: rejected, agent: verifier.agent, args: { reason: 'ROUTED_ELSEWHERE' } });
+  // A verdict no longer auto-claims the next build for the verifier [P7,C7,#7705], so the sent-back item is open and the builder takes it.
   await move({ verb: 'claim', item: rejected, agent: builder.agent });
   const reworked = (await box.call(box.path + '/state')).document.state.items.find((item) => item.id === rejected);
   assert.equal(reworked.verdict.note, 'The page shows no greeting.', 'a row being reworked still says why');
