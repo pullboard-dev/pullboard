@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
-import { accept } from '../../tests/fixtures/cockpit/harness.js';
-import { build } from '../../tests/fixtures/cockpit/harness.js';
+import { acceptLocal } from '../../tests/fixtures/cockpit/harness.js';
+import { buildLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
@@ -28,7 +28,7 @@ import { startView } from '../../tests/fixtures/cockpit/harness.js';
 test('every screen shows an item\'s stage from the seven approved words, in order, with marks beside them [N28]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the stage vocabulary journey.');
-  const T0 = Date.now(); const mark = (label) => { if (Date.now() - T0 > 60000) throw new Error('PHASE ' + label + ' ' + (Date.now() - T0)); }
+  // Setup builds run in this process, not as launches: seven launched builds alone took 79 s under runner load (the 180 s budget).
   const box = machine();
   const alpha = project(box, 'stage-vocabulary', undefined, {
     lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] } },
@@ -40,26 +40,24 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     const after = index === 1 ? ['--after', '1'] : [];
     box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'Stage words stay consistent.', ...after);
   }
-  build(box, alpha, 4, 'review.txt');
-  build(box, alpha, 5, 'landing.txt');
-  accept(box, alpha, 5);
-  build(box, alpha, 6, 'merged.txt');
-  accept(box, alpha, 6);
+  await buildLocal(box, alpha, 4, 'review.txt');
+  await buildLocal(box, alpha, 5, 'landing.txt');
+  await acceptLocal(box, alpha, 5);
+  await buildLocal(box, alpha, 6, 'merged.txt');
+  await acceptLocal(box, alpha, 6);
   const mergeBranch = alpha.itemBranches.get(`${alpha.baseBranch}:6`);
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge stage fixture', mergeBranch);
   box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  build(box, alpha, 7, 'verified.txt');
-  accept(box, alpha, 7);
-  mark('after builds 4-7');
+  await buildLocal(box, alpha, 7, 'verified.txt');
+  await acceptLocal(box, alpha, 7);
   box.run(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
   box.run(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
-  build(box, alpha, 10, 'returned.txt');
+  await buildLocal(box, alpha, 10, 'returned.txt');
   sendBack(box, alpha, 10, 'The first draft needs a clear label.');
   box.run(alpha.web, 'claim', '11');
   box.run(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
   box.run(alpha.web, 'claim', '3');
   box.run(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
-  mark('after sendback and milestone');
   const reviewer = join(box.dir, 'stage-vocabulary-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/stage-vocabulary-reviewer', reviewer, 'main');
   box.run(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
@@ -72,20 +70,15 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
       version: 1, id: 'stage-vocabulary-active-batch', state: 'gating', items: [{ id: 5 }], startedAt,
     } });
   } finally { store.closeBoard(board); }
-  mark('setup done');
   const view = await startView(box);
-  mark('view up');
   const profile = mkdtempSync(join(box.dir, 'stage-vocabulary-chrome-'));
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    mark('chrome open');
     await chrome.waitFor('!!data?.project');
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)}`);
-    mark('picked');
     await pressTab(chrome, 'items');
-    mark('items tab');
     await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
     await press(chrome, "document.querySelector('[data-filter-toggle]')");
     await press(chrome, "document.querySelector('[data-state=all]')");
