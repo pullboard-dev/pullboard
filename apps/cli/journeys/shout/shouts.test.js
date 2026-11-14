@@ -134,7 +134,8 @@ test('a shout shows the evidence it carries [B22]', async () => {
     page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     const feed = page.show('feed');
     const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (${MACHINE_MODEL}) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
-    const after = (text) => feed.slice(feed.indexOf(text) + text.length);
+    // The row's preview repeats the newest words, so read what follows the last place a message's words appear.
+    const after = (text) => feed.slice(feed.lastIndexOf(text) + text.length);
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
     assert.match(feed, /<b class="sx-id">#1<\/b><b class="sx-tt">Greeting<\/b>/, 'the opened conversation names the real item above its messages');
