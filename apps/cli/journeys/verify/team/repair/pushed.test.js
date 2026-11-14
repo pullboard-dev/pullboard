@@ -119,7 +119,7 @@ test('clause 2: an older pushed landing shows stale checked proof and a correcti
     assert.equal(unavailable.item_verdict_state?.checked, checked);
     assert.match(run(box, missing, 'show', '1'), /create a correction item/u,
       'missing reviewed objects must never suggest re-reviewing an immutable landing');
-    const refused = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Cannot rewrite the original landing.');
+    const refused = await box.runLocal(reviewer, 'verify', '1', 'accept', '--note', 'Cannot rewrite the original landing.');
     assert.equal(refused.code, 1);
     assert.match(refused.err, /NOT_SUBMITTED|ALREADY_MERGED/u, 'the existing merged-receipt guards stay in force');
     box.git(box.repo, 'merge', '-q', '--no-edit', checked);
