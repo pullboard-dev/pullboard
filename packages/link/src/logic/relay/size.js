@@ -1,6 +1,7 @@
 /** Measure and format sealed snapshot size refusals without transport or link state [H5,H17]. */
 import {
   SEALED_SNAPSHOT_BYTES as SEALED_SNAPSHOT_LIMIT,
+  RELAY_PRESENTATION_BYTES,
   SNAPSHOT_BODY_BYTES,
 } from './limits.js';
 
@@ -41,3 +42,18 @@ export function formatSnapshotLimit(problem, { paused = false } = {}) {
   return `relay snapshot for ${problem.board}: sealed snapshot ${size} over the relay limit ${limit}`;
 }
 
+
+/**
+ * Measure a board's stored size against the largest presentation relay on can build, before anything changes (#7777).
+ * A lower `limit` (PULLBOARD_RELAY_PRESENTATION_LIMIT) only tightens the check, so tests need no giant board.
+ */
+export function presentationRoom(boardBytes, override) {
+  const lower = Number(override);
+  const limit = Number.isSafeInteger(lower) && lower > 0 ? Math.min(lower, RELAY_PRESENTATION_BYTES) : RELAY_PRESENTATION_BYTES;
+  return boardBytes > limit ? { boardBytes, limit } : null;
+}
+
+/** Say how large the board is and what the relay takes, in whole megabytes. */
+export function formatPresentationLimit({ boardBytes, limit }) {
+  return `this board is ${(boardBytes / 1_000_000).toFixed(1)} MB, over the ${(limit / 1_000_000).toFixed(1)} MB the relay takes`;
+}

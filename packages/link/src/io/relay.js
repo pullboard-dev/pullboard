@@ -1292,7 +1292,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
   const file = linkFile(root);
   // A clone whose pullboard.json names another board joins that board instead of linking a second one [E12].
   const joining = await (await import('./relay/join.js')).joinNamedBoardIfAny(root, file, { linked: Boolean(loadLink(file)), url: relayOrigin(address || DEFAULT_RELAY), repository, signIn: (url) => deviceSignIn(url, io), openBoard: io.openBoard }, io);
-  if (joining) return joining;
+  if (joining) return joining; (await import('./relay/board-size.js')).requireBoardFitsRelay(repoInfo(root).commonDir); // Too large a board refuses before anything changes [#7777].
   const { nameBoardInConfig } = await import('./relay/config.js');
   return locked(file, async () => {
     let state = loadLink(file);
