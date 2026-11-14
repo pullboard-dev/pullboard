@@ -458,7 +458,7 @@ else {
           }
           await view.viewport(1440, 900);
           await view.evaluate("document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-tab=\"shouts\"]').click()");
-          await view.waitFor("!document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .sx-th').length >= 1 && document.querySelector('#feed').textContent.includes('can continue while #3 waits')", 'the demo shout threads');
+          try { await view.waitFor("!document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .sx-th').length >= 1 && document.querySelector('#feed').textContent.includes('can continue while #3 waits')", 'the demo shout threads'); } catch (error) { throw new Error('DIAG7863S ' + await view.evaluate(`JSON.stringify({tab: view.tab, hidden: document.querySelector('#shouts-pane')?.hidden, feedHtml: document.querySelector('#feed')?.innerHTML.slice(0, 1500), text: document.querySelector('#feed')?.innerText.slice(0, 500), shouts: data.project.shouts?.length})`), { cause: error }); }
           for (const theme of THEMES) {
             await paintTheme(view, theme);
             await view.screenshot(join(OUTPUT, `shouts-${theme}.png`));
