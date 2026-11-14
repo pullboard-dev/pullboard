@@ -75,13 +75,13 @@ function classify(pairResult, mainResult) {
  * One version-two native run for a pulled phase or probe, stored byte for byte in the board's receipt folder, so the
  * board's gate-run record binds to it. Null when its outcomes are missing or the store refuses the body.
  */
-function storedRun(ports, board, { item, submit, candidate, tree, main, runner, command, status, testOutcomes, durationMs, submitPhase }) {
+function storedRun(ports, board, { item, submit, candidate, tree, main, runner, command, status, testOutcomes, durationMs, submitPhase, admission = null }) {
   if (!Array.isArray(testOutcomes) || !testOutcomes.length || ![0, 1].includes(status)) return null;
   const failures = testOutcomes.filter(row => !row.passed && !row.skipped).map(({ file, name }) => ({ file, name }));
   const run = { version: 2, id: randomUUID(), kind: 'submit', tree, head: candidate, main, command, green: status === 0 && !failures.length, failures,
     load: null, at: new Date().toISOString(), testOutcomes,
     proof: { item, frozenDigest: submit.digest ?? null, seat: submit.agentId, runner, exitCode: status, durationMs: Number.isSafeInteger(durationMs) && durationMs >= 0 ? durationMs : 0,
-      sourceClean: true, environment: null, counts: { passed: null, failed: null, skipped: null }, submitPhase } };
+      sourceClean: true, environment: null, counts: { passed: null, failed: null, skipped: null }, submitPhase, ...(admission ? { diagnosticAdmission: admission } : {}) } };
   const body = ports.receipts.receiptBody(run);
   const folder = ports.receipts.boardReceiptStore(board);
   if (!body || !folder) return null;
@@ -99,7 +99,7 @@ function storedRun(ports, board, { item, submit, candidate, tree, main, runner, 
  * @param {{ job: string, receipt: Record<string, any>, item: number, candidate: string, main: string, submit: Record<string, any> }} gateJob
  * @returns {{ observations: number, runs: number } | null} null when the receipt carries no pairs.
  */
-export function recordPulledPairs(board, { job, receipt, item, candidate, main, submit }) {
+export function recordPulledPairs(board, { job, receipt, item, candidate, main, submit, admit = null }) {
   const pairs = Array.isArray(receipt?.gate?.pairs) ? receipt.gate.pairs.filter(pair => typeof pair?.file === 'string' && Array.isArray(pair.names) && pair.paired) : [];
   const ports = boardPorts(board);
   const tree = submit.companion?.tree ?? submit.tree;
@@ -109,6 +109,8 @@ export function recordPulledPairs(board, { job, receipt, item, candidate, main, 
   const runner = board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
   const runnerName = runner ? JSON.parse(runner.job_step_payload).runner ?? null : null;
   const done = { observations: 0, runs: 0 }, problems = [];
+  // The pair's runs name the Submit admission this gate job held, the witness the controller's Submit recorded as it paired [C7,H16].
+  let witness;
   for (const pair of pairs) {
     const phase = (receipt.gate.phases ?? []).find(row => row.role === pair.phase && row.status !== 0);
     if (!phase) continue;
@@ -129,7 +131,8 @@ export function recordPulledPairs(board, { job, receipt, item, candidate, main, 
     }
     // The red phase's run and the pair's run, both with per-case outcomes on the candidate's tree, are what files a quarantine.
     try {
-      const fields = { item, submit, candidate, tree, main, runner: runnerName, command: pair.commandSha256 };
+      witness ??= admit?.() ?? null;
+      const fields = { item, submit, candidate, tree, main, runner: runnerName, command: pair.commandSha256, admission: witness?.id };
       const original = storedRun(ports, board, { ...fields, status: phase.status, testOutcomes: phase.testOutcomes, durationMs: receipt.gate.steps?.[phase.role], submitPhase: phase.role === 'check' ? 'criterion' : 'proof' });
       const paired = original && storedRun(ports, board, { ...fields, status: pair.paired.status, testOutcomes: pair.paired.testOutcomes, durationMs: pair.paired.ms, submitPhase: 'diagnostic' });
       for (const run of paired ? [original, paired] : []) { ports.moves.recordGateRun(board, { agentId: submit.agentId, receipt: run, lane }); done.runs += 1; }

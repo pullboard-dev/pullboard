@@ -42,8 +42,7 @@ test('clause 1: two actual Submit pairs quarantine once, retain raw receipts, an
   assert.ok(receipts.every(Boolean), 'both proving receipts are native-produced private bytes');
   if (companion) assert.ok(receipts.every(receipt => receipt.head !== box.builder.git('rev-parse', 'HEAD')), 'all proving receipts execute the actual composition, not the bare builder head');
   assert.equal(new Set(receipts.map(receipt => receipt.proof.diagnosticAdmission)).size, 1);
-  // A pulled Submit gate pairs its red on the runner under one lease; the second Submit passes on the active quarantine with no pair, so one lease is witnessed (56e2ea4c61).
-  assert.equal(state.admissions.length, 1, 'the one Submit lease that paired a red creates exactly one authenticated native witness');
+  assert.equal(state.admissions.length, 2, 'each actually acquired Submit lease creates exactly one authenticated native witness');
   assert.ok(receipts.every(receipt => state.admissions.some(admission => admission.id === receipt.proof.diagnosticAdmission)));
   // These are synthetic validator inputs copied from actual sealed native bytes, never execution receipts or writes.
   const admissionBoard = openFixtureBoard(box);
