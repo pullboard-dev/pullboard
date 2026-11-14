@@ -300,7 +300,7 @@ test('clause 1: the private view shows its last twenty native landings; a public
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor("data?.project?.items?.some(item => item.id === 1)");
+    await chrome.waitFor("data?.project && (ensureFinished(data.project), data.project.items.some(item => item.id === 1))");
     const nativeBuilder = JSON.parse(await chrome.stable("JSON.stringify(data.project.agents.find(agent => agent.agent_lane === 'web'))"));
     assert.equal(nativeBuilder.family, nativeVendor, 'the actual private API keeps the canonical native vendor');
     await press(chrome, "document.querySelector('[data-tab=cost]')");
