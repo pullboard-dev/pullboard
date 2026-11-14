@@ -19,6 +19,9 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
 import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
+import { requirePublishGreen } from '../../../../../packages/landing/index.js';
+import { publishRedTouched } from '../../../../../packages/landing/index.js';
+import { landingChangedFiles } from '../../../../../packages/landing/index.js';
 import { relandAcceptedItems } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
@@ -167,13 +170,13 @@ function landingFlakes(root, policy, item, head, pairPrefix) {
  *
  * @param {object} ctx - The command context at the main checkout.
  * @param {string} root - The main checkout.
- * @param {{ pairPrefix?: Function, quarantineWaivers?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
+ * @param {{ pairPrefix?: Function, quarantineWaivers?: Function, gateRuns?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
  *   policy and board reads the lander already holds.
  * @param {{ local?: typeof ensureLocalRunner, ids?: number[] | null, forced?: string | null, board?: object | null }} [options] - board: the
  *   board a command already holds open, so a hand landing writes its offer there.
  * @returns {Promise<{ offered: string | null, items: number[], waiting: boolean, forced?: string } | null>}
  */
-export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix, quarantineWaivers }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
+export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix, quarantineWaivers, gateRuns = () => [] }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
   const policy = mainPolicy(root);
   const configured = configTrunkRemote(policy.config);
   // No trunk remote: the board host's repository is trunk, landed by the local runner, which this starts again if it died.
@@ -201,13 +204,17 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
     const candidates = all.filter(wanted);
     const unverified = forced || !candidates.length ? [] : unverifiedSubmissions(board);
+    // landing.pauseOnRed: a red publish holds the items touching its files, and every item when it names none or no item is left [C7,V4].
+    const publishHold = forced ? null : requirePublishGreen(root, board, policy.config, { gateRuns }, { perItem: true });
     const chosen = candidates.filter(item => {
+      if (publishHold && publishRedTouched(publishHold.files, landingChangedFiles(root, trunkTip, commitOf(item))).length) return false;
       const stacked = stackedUnverified(root, trunkTip, unverified, item, commitOf(item));
       if (stacked && ids) throw new Refused('STACKED_UNVERIFIED', `#${item.item_id} holds #${stacked.item_id}'s unverified submission ${stacked.item_commit.slice(0, 12)}`, `land #${stacked.item_id} after its verify, or rebuild #${item.item_id} without it`);
       if (stacked) ctx.io.say?.(`#${item.item_id} waits: STACKED_UNVERIFIED on #${stacked.item_id} ${stacked.item_commit.slice(0, 12)}`);
       return !stacked;
     }).sort((left, right) => pin(left) - pin(right) || rank(left) - rank(right) || left.item_id - right.item_id);
     // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
+    if (publishHold && !chosen.length) throw publishHold.refusal;
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
     const items = chosen.map(item => {
       const message = messages.get(item.item_id);

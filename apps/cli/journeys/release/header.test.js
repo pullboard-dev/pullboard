@@ -13,7 +13,7 @@ import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
 import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
-import { press } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { pickProject } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
@@ -40,7 +40,7 @@ test('Dashboard Release and the Roadmap release header read the same release at 
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && data.project.milestones?.some(m => m.name === '0.9.4: Restructure for Speed and Cost')`);
     for (const width of [1280, 320]) {
-      await press(chrome, "document.querySelector('[data-tab=dashboard]')");
+      await pressTab(chrome, 'dashboard');
       await chrome.waitFor("document.querySelector('#dashboard .dash-ship .dash-ship-name')");
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // The Dashboard draws the approved Release card (#6646, #6847); the Roadmap keeps its own release header.
@@ -53,17 +53,18 @@ test('Dashboard Release and the Roadmap release header read the same release at 
       assert.equal(dashboard.nameSize, '17px');
       assert.equal(dashboard.left, '2 to go3 of 5 landed');
       assert.equal(dashboard.bars, 1, 'one stage bar');
-      assert.ok(dashboard.bar.width > 0 && dashboard.keys.width > 0 && dashboard.keysBelow, `${width}px the legend sits under the bar`);
+      assert.ok(dashboard.bar.width > 0 && dashboard.keys.width > 0 && dashboard.keysBelow, `${width}px the legend sits under the bar: ${JSON.stringify({ bar: dashboard.bar, keys: dashboard.keys, below: dashboard.keysBelow })}`);
       assert.deepEqual(dashboard.tiles, ['Today’s pace', 'Right now', 'ETA']);
       assert.equal(dashboard.overflow, false, `${width}px Dashboard has no horizontal overflow`);
       // The bar and its legend paint in the formal stage colours (Waiting is the sheet's grey): each segment and its swatch resolve to the same token.
-      const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','waiting']]){out[key]={token:token(name),fill:getComputedStyle(c.querySelector('rect.dash-seg-'+key)).fill,swatch:getComputedStyle(c.querySelector('i.dash-seg-'+key)).backgroundColor};}probe.remove();return out;})())"));
+      const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','waiting']]){out[key]={token:token(name),fill:c.querySelector('rect.dash-seg-'+key)?getComputedStyle(c.querySelector('rect.dash-seg-'+key)).fill:null,swatch:getComputedStyle(c.querySelector('i.dash-seg-'+key)).backgroundColor};}probe.remove();return out;})())"));
       for (const [key, seen] of Object.entries(colours)) {
-        assert.equal(seen.fill, seen.token, `${width}px the ${key} segment is its stage colour`);
+        // The bar draws a segment only for a stage that holds items; this fixture has none Waiting, so only its legend swatch exists.
+        if (seen.fill !== null) assert.equal(seen.fill, seen.token, `${width}px the ${key} segment is its stage colour`);
         assert.equal(seen.swatch, seen.token, `${width}px the ${key} legend swatch is its stage colour`);
       }
 
-      await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+      await pressTab(chrome, 'roadmap');
       await chrome.waitFor("document.querySelector('#roadmap .release-header .release-name')");
       const roadmap = JSON.parse(await chrome.stable("JSON.stringify((()=>{const h=document.querySelector('#roadmap .release-header'),top=h.querySelector('.release-header-top'),title=top.querySelector('.release-name'),left=top.querySelector('.roadmap-left'),line=h.querySelector('.roadmap-forecast, .roadmap-summary-needs'),bar=h.querySelector('.roadmap-summary-bar'),legend=h.querySelector('.roadmap-summary-legend'),box=n=>{const r=n.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}},br=bar.getBoundingClientRect(),lr=legend.getBoundingClientRect();return {title:title.textContent,line:line?'present':'none',left:left.textContent.replace(/\\s+/g,' ').trim(),leftLabel:left.querySelector('[aria-label]').getAttribute('aria-label'),font:getComputedStyle(title).fontSize,header:box(h),top:box(top),bar:box(bar),legend:box(legend),rowAligned:bar.closest('.roadmap-summary-row')===legend.closest('.roadmap-summary-row')&&lr.top>=br.bottom&&lr.left<br.right,carets:h.querySelectorAll('.release-header-toggle > .caret').length,limit:h.querySelector('.milestone-limit')?.textContent||'',overflow:document.documentElement.scrollWidth>innerWidth};})())"));
       assert.equal(roadmap.title, dashboard.name, 'the Roadmap header names the release exactly as the Dashboard card does');

@@ -7,6 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
 import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
@@ -37,7 +38,7 @@ test('Spec and Doctrine descriptions stay under their row toggles on desktop and
         ['spec', 'What to build: the requirements you approve.'],
         ['doctrine', "How it's built: the rules every agent follows."],
       ]) {
-        await chrome.click(`document.querySelector('[data-tab="${kind}"]')`);
+        await pressTab(chrome, `${kind}`);
         await chrome.waitFor(`!document.querySelector('[data-pane="${kind}"]').hidden && !!document.querySelector('#${kind}-description')`);
         const layout = JSON.parse(await chrome.stable(`JSON.stringify((() => {
           const toggle = document.querySelector('#${kind}-chips [data-segmented-control]');

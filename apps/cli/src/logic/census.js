@@ -117,3 +117,21 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
     return { file, status: verdict, cases: failed.get(file) ?? [], secs: Number.isFinite(ms) ? Math.round(ms / 100) / 10 : null, sha, shard: label, host };
   });
 }
+
+/**
+ * One outcome row per file from a pulled shard's per-file verdicts, for a shard whose framed case outcomes were dropped
+ * (too long for the receipt line, or voided by a nested failure). Why: without rows a red shard's files read as
+ * no-result together, though the runner saw each file's own result [C7,#7920].
+ *
+ * @param {Record<string, 'green' | string[]> | null | undefined} verdicts - File to 'green' or its first failing cases.
+ * @returns {Array<{ file: string, name: string, passed: boolean, skipped: boolean }> | null}
+ */
+export function verdictOutcomes(verdicts) {
+  if (!verdicts || typeof verdicts !== 'object') return null;
+  const rows = [];
+  for (const [file, verdict] of Object.entries(verdicts)) {
+    if (verdict === 'green') rows.push({ file, name: 'every case in the file', passed: true, skipped: false });
+    else if (Array.isArray(verdict)) for (const name of verdict) rows.push({ file, name: String(name), passed: false, skipped: false });
+  }
+  return rows.length ? rows : null;
+}

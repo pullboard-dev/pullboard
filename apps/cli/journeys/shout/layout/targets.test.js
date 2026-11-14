@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   openShoutConversation,
+  pressTab,
   SPEC,
   machine,
   project,
@@ -73,7 +74,7 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
       composer: { text: height('#shout-text'), send: height('#shout-send') }, status: [...document.querySelectorAll('.status [data-status]')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)),
     };
   })())`));
-  const tab = async (name) => { await chrome.click(`document.querySelector('[data-tab=${name}]')`); await chrome.waitFor(`!document.querySelector('[data-pane=${name}]').hidden`); };
+  const tab = async (name) => { await pressTab(chrome, name); await chrome.waitFor(`!document.querySelector('[data-pane=${name}]').hidden`); };
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 2 && data.project.shouts.length >= 2");
@@ -87,6 +88,8 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
         const items = await audit();
         await tab('shouts');
         await openShoutConversation(chrome, 'item:2');
+        // 154e174c55: the composer is folded until opened, as a refused reply or a Shout button opens it.
+        await chrome.stable("(() => { document.querySelector('#shouts-pane').dataset.compose = 'open'; return true; })()");
         const shouts = await audit();
         for (const r of [items, shouts]) assert.ok(r.page.scroll <= r.page.width, `${at}: no sideways scroll`);
         if (width === 375) {

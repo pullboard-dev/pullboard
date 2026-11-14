@@ -15,6 +15,7 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { settlePulledJobs } from '../../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { checkpointAfterMove } from '../../../../../packages/stats/index.js';
 
@@ -43,6 +44,7 @@ function fixture({ missing = false, locked = false } = {}) {
   const run = (...args) => {
     const result = runFixtureChild(process.execPath, [helpers.BIN, ...args], { cwd: box.web, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `${args[0]}: ${result.stdout}${result.stderr}`);
+    settlePulledJobs(box.web, args, env); // a pulled Submit returns once its gate job is queued; show reads the item after the board submitted it (P7)
     return result;
   };
   const lock = join(box.repo, '.git/pullboard/cost-ledger.json.lock');
@@ -68,6 +70,29 @@ test('a normal native claim, work and submit preserves its real counter anchor [
   assert.equal(shown.usage.inputTokens, 27);
   assert.equal(shown.usage.outputTokens, 5);
   assert.ok(!shown.usage.unknownReasons.includes('missed-claim-anchor'));
+});
+
+test('a red pulled Submit gate leaves the claim open, so the resubmit continues its usage allocation [N2]', () => {
+  const { box, item, usage, run } = fixture();
+  usage(37, 6);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web/draft'), 'draft\n');
+  box.git(box.web, 'add', 'web/draft');
+  box.git(box.web, 'commit', '-qm', 'feat(web): synthetic draft without the check file [G1]');
+  run('submit', String(item), '--no-next', '--json');
+  const red = JSON.parse(run('show', String(item), '--json').stdout);
+  assert.notEqual(red.item_status, 'submitted', 'the check file is missing, so the gate is red');
+  assert.equal(red.usage.inputTokens, 27, 'the offered gate closed the allocation at the first Submit');
+  usage(50, 9);
+  writeFileSync(join(box.web, 'web/ready'), 'ready\n');
+  box.git(box.web, 'add', 'web/ready');
+  box.git(box.web, 'commit', '-qm', 'feat(web): synthetic usage work [G1]');
+  run('submit', String(item), '--no-next', '--json');
+  const shown = JSON.parse(run('show', String(item), '--json').stdout);
+  assert.equal(shown.item_status, 'submitted');
+  assert.equal(shown.usage.inputTokens, 40);
+  assert.equal(shown.usage.outputTokens, 8);
+  assert.deepEqual(shown.usage.unknownReasons, []);
 });
 
 test('a synthetic claim-time ledger lock alone produces recovered missed-claim-anchor [N2]', () => {

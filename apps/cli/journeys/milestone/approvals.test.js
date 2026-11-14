@@ -15,6 +15,7 @@ import {
   closeSnapshotChrome,
   openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 test('agent approvals show full rows and styled actions at narrow width and resolve from Spec detail [B26,N26,S1,P6]', { timeout: 120_000 }, async () => { // budget: real Git/API/browser setup and two person decisions; no performance claim.
   const box = machine();
@@ -39,7 +40,7 @@ test('agent approvals show full rows and styled actions at narrow width and reso
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     // The /live-style Dashboard (#6847) draws no Rulings rows; the approvals are ruled on in Items.
     await chrome.waitFor('innerWidth === 375 && !!document.querySelector("#dashboard .dash-live")');
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2 && document.querySelector("#needs [data-needs-field=approved-in-git] time")');
     assert.equal(await chrome.stable('document.querySelector("#needs [data-needs-field=approved-in-git] time").textContent'), 'Oct 25, 2:51 PM', 'Items uses the approved minute display without a locale date, year or seconds');
     await openItemsNeeds(chrome);
@@ -82,7 +83,7 @@ test('agent approvals show full rows and styled actions at narrow width and reso
       assert.equal(shown.beside, true, 'both styled buttons remain side by side on a phone');
       assert.equal(shown.overflow, false);
     }
-    await chrome.click("document.querySelector('[data-tab=spec]')");
+    await pressTab(chrome, 'spec');
     await chrome.click('document.querySelector(\'#spec-chips [data-rows="spec:all"]\')');
     await chrome.click('document.querySelector(\'#spec-list [data-row="spec:G1"]\')');
     await chrome.waitFor('document.querySelector("#spec-detail h2 span")?.textContent === "G1"');
@@ -104,7 +105,7 @@ test('agent approvals show full rows and styled actions at narrow width and reso
     assert.equal(declined.needs.some(row => row.kind === 'agent-approved' && row.id === 'G2'), false);
     appendFileSync(join(alpha.repo, 'SPEC.md'), '- G3 [approved, must] A working-tree approval has no commit date. | gate: manual review\n');
     await chrome.stable('refresh()');
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor('document.querySelector(\'#needs [data-agent-approved="G3"]\') !== null');
     assert.equal(await chrome.stable('data.project.spec.find(row => row.id === "G3").agentApproval.commit'), null);
     assert.match(await chrome.stable('document.querySelector(\'#needs [data-agent-approved="G3"]\').textContent'), /Date unknown/u,

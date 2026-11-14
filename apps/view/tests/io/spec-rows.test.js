@@ -22,5 +22,5 @@ test('clause 2: rows end refs and test paths in an ellipsis inside the row, and 
   assert.match(css, /\.spec-record a\.ref \{[^}]*max-width: 100%;[^}]*text-overflow: ellipsis/u, 'a ref in a row never outgrows it');
   const phone = css.slice(css.indexOf('@media (max-width: 700px) {\n  #spec-chips .seg'));
   assert.match(phone, /#spec-chips \.seg, #doctrine-chips \.seg \{ display: flex; width: 100%; overflow: hidden; \}/u, 'the tabs fill the card and do not scroll past it');
-  assert.match(phone, /\.seg button \{ flex: 1 1 0; min-width: 0;/u, 'each tab shrinks to its share');
+  assert.match(phone, /\.seg button \{ flex: 0 1 auto; min-width: 0;/u, 'each tab keeps its natural width and shrinks only when the row is full');
 });

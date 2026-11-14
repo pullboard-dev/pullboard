@@ -31,8 +31,11 @@ import { pulledShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
 import { parseShardHeader } from '../../logic/census.js';
 import { shardRows } from '../../logic/census.js';
+import { verdictOutcomes } from '../../logic/census.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
+import { fileBudgetField } from './file-limit.js';
+import { withFileLimit } from './file-limit.js';
 
 /** Tracked test entry files at HEAD, the way the gate lists them for a full suite. */
 async function trackedTests(root) {
@@ -59,7 +62,7 @@ const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
  * @param {object} ctx
  * @param {{ err: (line: string) => void }} io
  */
-function pulledCensus(ctx, io) {
+function pulledCensus(ctx, io, values = {}) {
   return async ({ root, files, count, write }) => {
     const command = ctx.config?.affectedTests;
     if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
@@ -70,9 +73,9 @@ function pulledCensus(ctx, io) {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
       try {
-        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID() });
+        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
-        write(`${ran.outcomes ? formatTestOutcomes(randomUUID(), ran.outcomes) : ''}${ran.output}\n`);
+        write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${ran.output}\n`);
       } catch (error) {
         io.err(`pullboard test --census: shard ${label} got no answer: ${error?.message ?? error}`);
         write(`# landing shard ${label} attempt 1 on none: infrastructure (${error?.code ?? 'error'}) in ${Date.now() - started} ms\n`);
@@ -90,7 +93,7 @@ function pulledCensus(ctx, io) {
  *
  * @param {object} io
  * @param {{ info: { root: string } }} ctx
- * @param {{ out?: string, json?: boolean }} values
+ * @param {{ out?: string, json?: boolean, 'no-file-limit'?: boolean }} values
  * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards }} [options] - `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
  * @returns {Promise<number>}
  */
@@ -104,7 +107,8 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   writeFileSync(out, '');
   // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
   const pulled = !run && runnerDispatchMode() === 'pull';
-  run ??= pulled ? pulledCensus(ctx, io) : runLandingShards;
+  const dispatch = run ?? (pulled ? pulledCensus(ctx, io, values) : runLandingShards);
+  run = (...args) => withFileLimit(values, () => dispatch(...args));
   const runners = censusShardCount(loadMachineSettings().runners);
   const count = Math.min(shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
   // The same plan runLandingShards cuts, so a shard's label names the files it held.

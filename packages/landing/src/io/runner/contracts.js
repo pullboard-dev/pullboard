@@ -1,4 +1,4 @@
-/** The land job's contracts: affected tests on the merged tree that no landed item's submit proved [C7]. */
+/** The land job's contracts: affected tests main gained since the items' bases that no landed item's submit proved [C7,#7821]. */
 import { selectAffectedTests } from '../../../../gate/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { ledgerProofCheck } from './proof.js';
@@ -9,16 +9,40 @@ import { must } from './job.js';
 const REACHES_EVERY = 'the change reaches every test file';
 
 /**
- * The test files the gate's selection reaches from the merged change, less the files the items' submits already
- * proved (the ledger proof's and the deferred files). Empty when the selection falls back to the full suite: an
- * unselectable change keeps its items' own proofs, since one runner cannot finish every test in a landing [C7].
+ * The files main changed after any merged item's own base (its merge-base with the trunk tip): what the merge onto
+ * current main brings that the item's gate never saw. Null when an item commit is unknown to the checkout, so the
+ * caller cannot narrow the selection and keeps none of it.
+ */
+function mainGained(root, base, commits) {
+  const gained = new Set();
+  for (const commit of commits) {
+    const fork = tryGit(root, ['merge-base', commit, base]);
+    if (fork.status !== 0) return null;
+    const diff = tryGit(root, ['diff', '--no-renames', '--name-only', '-z', fork.stdout.trim(), base]);
+    if (diff.status !== 0) return null;
+    for (const file of diff.stdout.split('\0')) if (file) gained.add(file);
+  }
+  return gained;
+}
+
+/**
+ * The contract test files a landing owes: the affected tests of the merged change that main gained or changed after
+ * the merged items' bases, less the files the items' submits already proved (the ledger proof's and the deferred
+ * files). Empty when the selection falls back to the full suite: an unselectable change keeps its items' own proofs,
+ * since one runner cannot finish every test in a landing [C7].
+ * Why main's files only: every other affected test either is in an item's gate set, which the ledger proof reruns
+ * when main moved its import closure, or was left out by that gate on purpose; reselecting the item's whole change
+ * reran 2,067 files serially for #7767, whose gate proved 151 (#7821).
  *
  * @param {string} root - The merged landing checkout.
  * @param {string} base - The trunk tip the items merged onto.
- * @param {{ proved: Set<string>, derived: Set<string> }} known - proved: files the submits ran; derived: files the landing itself writes.
+ * @param {{ proved: Set<string>, derived: Set<string>, commits?: string[] }} known - proved: files the submits ran; derived: files the landing itself writes; commits: the merged items' commits.
  * @returns {{ files: string[], full: string | null }} full: why the selection fell back to every test, when it did.
  */
-export function contractFiles(root, base, { proved, derived }) {
+export function contractFiles(root, base, { proved, derived, commits = [] }) {
+  const gained = mainGained(root, base, commits);
+  // Main moved no file since the items' bases: their gates saw this tree's every contract [#7821].
+  if (!gained?.size) return { files: [], full: null };
   const diff = tryGit(root, ['diff', '--no-renames', '--name-only', '-z', base, 'HEAD']);
   if (diff.status !== 0) throw new Error(`git diff of the merged tree failed: ${diff.stderr.slice(0, 300)}`);
   // The badge documents a landing writes select nothing; counted as changes they sent the selection to the full suite [C7].
@@ -27,7 +51,7 @@ export function contractFiles(root, base, { proved, derived }) {
   const selected = selectAffectedTests(root, { base, commit: 'HEAD', changed });
   // A change that reaches every test file still names them; only an unselectable change falls back [C7].
   if (selected.full && selected.reason !== REACHES_EVERY) return { files: [], full: selected.reason };
-  return { files: selected.files.filter(file => !proved.has(file)), full: null };
+  return { files: selected.files.filter(file => gained.has(file) && !proved.has(file)), full: null };
 }
 
 /**
@@ -36,9 +60,9 @@ export function contractFiles(root, base, { proved, derived }) {
  * land job proved only each item's own files, so an item landed red against a test main gained after its submit; the
  * controller's batch gate ran them, and it is being deleted (#6807, #7378) [C7].
  *
- * @param {{ contracts?: { runner?: string }, proof?: { files?: string[] } | null, deferred?: { files?: Record<string, string[]> } | null, badges?: { path: string }[], waivers?: object[] }} payload
+ * @param {{ contracts?: { runner?: string }, items?: { id: number, commit: string }[], proof?: { files?: string[] } | null, deferred?: { files?: Record<string, string[]> } | null, badges?: { path: string }[], waivers?: object[] }} payload
  * @param {NodeJS.ProcessEnv} env
- * @returns {((context: { root: string, base: string }) => Promise<{ ok: boolean, detail: string | null, contracts: { files: string[], count: number, full?: string, mainRed?: { file: string, name: string }[] } }>) | null} null when the job names no runner;
+ * @returns {((context: { root: string, base: string, items?: number[] }) => Promise<{ ok: boolean, detail: string | null, contracts: { files: string[], count: number, full?: string, mainRed?: { file: string, name: string }[] } }>) | null} null when the job names no runner;
  *   mainRed: a red the base fails identically, recorded as a known main red while the item lands.
  */
 export function contractCheck(payload, env) {
@@ -50,7 +74,10 @@ export function contractCheck(payload, env) {
   // An enclosing node --test run's context never reaches the contracts, which would then report to it, not as their own run.
   const { NODE_TEST_CONTEXT, ...own } = env;
   return async context => {
-    const { files, full } = contractFiles(context.root, context.base, { proved, derived });
+    // The items in the tree being checked: a culprit search checks a prefix of them [P7].
+    const merged = new Set(context.items ?? (payload.items ?? []).map(entry => entry.id));
+    const commits = (payload.items ?? []).filter(entry => merged.has(entry.id)).map(entry => entry.commit);
+    const { files, full } = contractFiles(context.root, context.base, { proved, derived, commits });
     // The receipt names what ran, so a landing that ran no contract says why [C7].
     const contracts = { files: files.slice(0, 20), count: files.length, ...(full ? { full } : {}) };
     if (!files.length) return { ok: true, detail: null, contracts };

@@ -27,6 +27,7 @@ import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { CONFLICT_ENGINE } from '../../../../packages/state/light.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 // The worktree join in project() inherits PULLBOARD_MODEL; without it the join refuses with MODEL_REQUIRED
 // and the fixture fails before any case runs, so the file declares a model for its own sandboxes.
@@ -53,8 +54,8 @@ function refusal(result) {
   return JSON.parse(result.out).error.code;
 }
 
-/** Add, claim, build and submit one web item from the joined builder worktree. */
-async function submitItem(box, title, contents) {
+/** Add, claim, build and submit one web item from the joined builder worktree; the pulled gate settles before the accept [C7]. */
+async function submitItem(t, box, title, contents) {
   const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', `${title} stays valid`, '--check', 'node --check web/feature.js', '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -63,8 +64,9 @@ async function submitItem(box, title, contents) {
   for (const file of ODD_FILES) writeFileSync(join(box.web, file), contents);
   const committed = commitFile(box, box.web, 'web/feature.js', contents, `feat(web): ${title.toLowerCase()} [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = (await box.runLocal(box.web, 'submit', String(id)));
+  const submitted = (await box.runLocal(box.web, 'submit', String(id), '--no-next', '--json'));
   assert.equal(submitted.code, 0, submitted.err);
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, JSON.parse(submitted.out));
   return { id, commit: box.git(box.web, 'rev-parse', 'HEAD') };
 }
 
@@ -85,9 +87,9 @@ function moveTrunk(box) {
   return box.git(box.repo, 'rev-parse', 'HEAD');
 }
 
-test('a conflicting accepted item reopens for a main merge [B3,D1]', async () => {
+test('a conflicting accepted item reopens for a main merge [B3,D1]', async (t) => {
   const box = project();
-  const clean = (await submitItem(box, 'Clean item', 'export const status = "CLEAN";\n'));
+  const clean = (await submitItem(t, box, 'Clean item', 'export const status = "CLEAN";\n'));
   (await accept(box, clean.id, clean.commit));
   const cleanReopen = (await box.runLocal(box.repo, 'reopen', String(clean.id), '--conflict', 'web/feature.js', '--json'));
   assert.equal(refusal(cleanReopen), 'NOT_CONFLICTING', 'accepted work that merges cleanly cannot be reopened as a conflict');
@@ -96,7 +98,7 @@ test('a conflicting accepted item reopens for a main merge [B3,D1]', async () =>
   assert.equal(box.tryGit(box.repo, 'merge', '-q', '--no-edit', clean.commit).status, 0);
   assert.equal((await box.runLocal(box.repo, 'merged', String(clean.id), box.git(box.repo, 'rev-parse', 'HEAD'))).code, 0);
 
-  const item = (await submitItem(box, 'Conflicting item', 'export const status = "ITEM";\n'));
+  const item = (await submitItem(t, box, 'Conflicting item', 'export const status = "ITEM";\n'));
   const submittedConflict = (await box.runLocal(box.repo, 'reopen', String(item.id), '--conflict', 'web/feature.js', '--json'));
   assert.equal(refusal(submittedConflict), 'NOT_ACCEPTED', 'a submission is not accepted work; it reopens with --note');
   (await accept(box, item.id, item.commit));
@@ -153,22 +155,24 @@ test('a conflicting accepted item reopens for a main merge [B3,D1]', async () =>
   const resolved = commitFile(box, box.web, 'web/feature.js', 'export const status = "ITEM";\n', 'fix(web): merge main into the item [G1]');
   assert.equal(resolved.status, 0, resolved.stderr);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
-  const resubmitted = (await box.runLocal(box.web, 'submit', String(item.id)));
+  const resubmitted = (await box.runLocal(box.web, 'submit', String(item.id), '--no-next', '--json'));
   assert.equal(resubmitted.code, 0, resubmitted.err);
+  // A seat holding its claim never blocks on its own gate, so wait for the pulled job to submit the item [C7].
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, JSON.parse(resubmitted.out));
   const review = (await box.runLocal(box.repo, 'show', String(item.id)));
   assert.match(review.out, new RegExp(`re-review: main merge only; run the frozen check at ${head.slice(0, 12)}`, 'u'), 'the re-review is the frozen check at the new head');
   (await accept(box, item.id, head));
   assert.doesNotMatch((await box.runLocal(box.repo, 'show', String(item.id))).out, /needs main merge/u, 'the new accept clears the label');
 });
 
-test('a trunk conflict is not counted as a test cause [D1,B3]', async () => {
+test('a trunk conflict is not counted as a test cause [D1,B3]', async (t) => {
   const box = project();
-  const red = (await submitItem(box, 'Red landing item', 'export const status = "RED";\n'));
+  const red = (await submitItem(t, box, 'Red landing item', 'export const status = "RED";\n'));
   (await accept(box, red.id, red.commit));
   const landing = (await box.runLocal(box.repo, 'reopen', String(red.id), '--note', `web/landing.test.js: keeps the landed behavior; merge commit ${'c'.repeat(40)}`, '--json'));
   assert.equal(landing.code, 0, landing.out);
   box.git(box.web, 'reset', '-q', '--hard', 'main');
-  const item = (await submitItem(box, 'Conflict item', 'export const status = "ITEM";\n'));
+  const item = (await submitItem(t, box, 'Conflict item', 'export const status = "ITEM";\n'));
   (await accept(box, item.id, item.commit));
   const trunk = moveTrunk(box);
   const reopened = (await box.runLocal(box.repo, 'reopen', String(item.id), ...ALL_FILES.flatMap((file) => ['--conflict', file]), '--note', 'two accepted items changed web/feature.js'));
@@ -191,7 +195,7 @@ test('a trunk conflict is not counted as a test cause [D1,B3]', async () => {
 
 test('an older engine refuses a trunk conflict reopen before changing anything [B3,H16]', async (t) => {
   const box = project();
-  const item = (await submitItem(box, 'Engine item', 'export const status = "ITEM";\n'));
+  const item = (await submitItem(t, box, 'Engine item', 'export const status = "ITEM";\n'));
   (await accept(box, item.id, item.commit));
   const trunk = moveTrunk(box);
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-conflict-engine-'));

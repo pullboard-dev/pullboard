@@ -1075,7 +1075,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 
 /* The hosted page paints only its neutral mark until its script knows which screen applies (#932). */
 .hosted-mark { display: none; }
-.hosted-page.loading .shell { display: none; }
+/* :root outranks the navigation strip's own :root[data-nav] .shell display, which loads after this sheet. */
+:root .hosted-page.loading .shell { display: none; }
 /* @private-view-css src/view/cost.css */
 
 .hosted-page.loading .hosted-mark { display: grid; place-items: center; min-height: 100vh; color: var(--ink-muted); }
@@ -1378,12 +1379,12 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 :is(#spec-list, #doctrine-list) .spec-record .meta { min-width: 0; overflow: hidden; }
 :is(#spec-list, #doctrine-list) .spec-record .meta > * { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :is(#spec-list, #doctrine-list) .spec-record a.ref { display: inline; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Each label is one whole word beside its full count, so no tab needs a cut; a tab never ends in an ellipsis (#7400). */
+/* Each label is one whole word beside its full count, so no tab needs a cut; a chip keeps its natural width and shrinks only when the row cannot hold them all (#7400, #7908). */
 @media (max-width: 700px) {
   #spec-chips .seg, #doctrine-chips .seg { display: flex; width: 100%; overflow: hidden; }
-  #spec-chips .seg button, #doctrine-chips .seg button { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); white-space: nowrap; }
+  #spec-chips .seg button, #doctrine-chips .seg button { flex: 0 1 auto; min-width: 0; padding-inline: var(--space-1); white-space: nowrap; }
   #spec-chips .seg button, #doctrine-chips .seg button { display: flex; align-items: center; justify-content: center; }
-  #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: visible; }
+  #spec-chips .seg-label, #doctrine-chips .seg-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   #spec-chips .seg-full, #doctrine-chips .seg-full { display: none; }
   #spec-chips .seg-short, #doctrine-chips .seg-short { display: inline; }
   #spec-chips .seg button b, #doctrine-chips .seg button b { flex: none; margin-left: var(--space-1); }

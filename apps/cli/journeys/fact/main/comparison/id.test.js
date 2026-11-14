@@ -94,7 +94,8 @@ async function submitRepoId(box, main, tree) {
 
 const ran = compareTwiceOnRunner();
 
-test('clause 1: a main comparison uses the submit path\'s runner cache id and a second one ships under 1 MB [C7]', { timeout: 300_000 }, async () => {
+// Pull is the only fixture dispatch since e8f5582942: the SSH stand-in no longer carries the worker's receipts or the source pack, so this transport observation has no receipts to read; #7526 deletes it.
+test('clause 1: a main comparison uses the submit path\'s runner cache id and a second one ships under 1 MB [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => {
   const { box, runs, jobs, log, main, tree, remoteHome } = await ran;
   for (const run of runs) assert.equal(run.unavailable, undefined, run.unavailable);
   for (const run of runs) assert.deepEqual(run.files.map(row => [row.file, row.result]), [['web/land-1.test.js', 'red']]);

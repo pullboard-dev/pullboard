@@ -706,7 +706,7 @@ test('a board made by an older version is migrated on open [O3]', () => {
     old.db.exec('ALTER TABLE verdict DROP COLUMN verdict_verifier_family');
     old.db.exec('DROP TABLE hold');
     // An older version's board carries an older user_version; only that makes an open migrate (#1047).
-    old.db.exec('PRAGMA user_version = 1');
+    old.db.exec('PRAGMA user_version = 0');
     store.closeBoard(old);
     const reopened = openBoard(file, clock);
     const columns = (table) => reopened.db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);

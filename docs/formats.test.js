@@ -557,6 +557,12 @@ function exerciseUpgrade() {
     const old = new DatabaseSync(file);
     old.exec("ALTER TABLE shout DROP COLUMN shout_evidence_kind; DROP TABLE hold; DROP INDEX item_lane_status; DROP TRIGGER machine_event_delete; DROP TRIGGER machine_event_update; CREATE TRIGGER machine_event_update AFTER DELETE ON event BEGIN SELECT 1; END; CREATE TRIGGER machine_old_extra AFTER INSERT ON item BEGIN SELECT 1; END; PRAGMA user_version = 1;");
     old.close();
+    // One release back (#7767): 0.9.3 is schema SCHEMA_VERSION, so a schema-1 board is refused untouched.
+    assert.throws(() => openBoard(file), { code: 'BOARD_TOO_OLD' }, 'a board from before the supported release is refused, never upgraded');
+    const supported = new DatabaseSync(file);
+    // Schema 3 is the oldest supported version, so an event log marker at the unversioned state is what makes the board behind, and it migrates.
+    supported.exec(`PRAGMA user_version = ${SCHEMA_VERSION}; DELETE FROM board_meta WHERE meta_key = 'event_log_version'`);
+    supported.close();
 
     board = openBoard(file);
     assert.equal(board.db.prepare("SELECT item_title FROM item").get().item_title, 'Preserved row');

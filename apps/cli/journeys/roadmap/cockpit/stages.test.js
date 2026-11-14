@@ -120,7 +120,10 @@ test('the Roadmap uses its approved stage words and keeps its own address [N26,N
       await settled(chrome, `${showing('roadmap', roadmapPath)} && document.querySelector('.tab.on')?.dataset.tab === 'roadmap'`);
       await travel(chrome, 1);
       await settled(chrome, `${showing('items', '/roadmap-demo/items/3')} && document.querySelector('.tab.on')?.dataset.tab === 'items' && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
-      await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
+      // Under 900 px the tabs live in the Menu drawer, not the strip (dcf117ebc6): open it, then pick the Roadmap in it.
+      const drawer = await chrome.stable(`document.querySelector('#menu-btn')?.getBoundingClientRect().width > 0`);
+      if (drawer) await press(chrome, `document.querySelector('#menu-btn')`);
+      await press(chrome, `document.querySelector('${drawer ? '#mdrawer ' : ''}[data-tab="roadmap"]')`);
       await pressedInto(chrome, `${showing('roadmap', roadmapPath)} && /^(\\?release=[^&]*)?$/u.test(location.search)`);
     }
 
