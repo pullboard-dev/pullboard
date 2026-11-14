@@ -28,6 +28,7 @@ import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
 import { noteSubmitSession } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { whoAmI } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
@@ -556,5 +557,34 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);
   // The submit hands the seat its next work, and tops it up to its N claims, as the controller path did [N2,V4,C7].
   if (ctx.afterSubmission) await ctx.afterSubmission(acknowledgment);
+  return 0;
+}
+
+/** A gate-offer note offerSubmitGate orders: its job, its source, and the builder head companions were composed onto. */
+const OFFER_NOTE = /^Gate job (\S+) offered for ([0-9a-f]{12})(?: \(companions composed onto ([0-9a-f]{12})\))? on main /u;
+
+/**
+ * Finish a pulled submit whose gate-offer note reached the relay but lost its reply: replay that exact note for its
+ * original outcome and acknowledge the job it names. Why: the job is already offered, and a fresh submit recomputes
+ * the note from a board that moved on (a stack base submitted since), which the relay refuses as a different move [C7,H16].
+ *
+ * @returns {Promise<number | null>} null when the held note is not this seat's offer of this item's pinned gate.
+ */
+export async function recoverOfferedGate(ctx, id, recovered) {
+  const found = OFFER_NOTE.exec(recovered.args[1]?.text ?? '');
+  if (!found || recovered.args[1]?.agentId !== withBoard(ctx, board => whoAmI(ctx, board)).id) return null;
+  const [, gateJob, sourceShort, ontoShort] = found;
+  let source, commit;
+  try {
+    source = git(ctx.info.root, ['rev-parse', '--verify', `refs/pullboard/gate/${id}`]).trim();
+    commit = ontoShort ? git(ctx.info.root, ['rev-parse', '--verify', `refs/pullboard/items/${id}/${ontoShort}`]).trim() : source;
+  } catch { return null; }
+  if (!source.startsWith(sourceShort)) return null;
+  await withBoard(ctx, board => ordered(ctx, board, 'appendFact', recovered.args));
+  const delivered = {};
+  await deliverSubmitActivity(ctx, id, delivered);
+  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(ontoShort ? { composed: source } : {}), gateJob, queued: true, recovered: true, ...(delivered.activity ? { activity: delivered.activity } : {}), localRunner: null };
+  if (ctx.json) ctx.io.result(acknowledgment);
+  else ctx.io.say(`#${id} is in the gate as job ${gateJob}: recovered the original offer, whose reply was lost; a runner pulls it and posts one receipt.`);
   return 0;
 }
