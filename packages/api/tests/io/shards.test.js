@@ -46,3 +46,25 @@ test('clause 1: a finished or released shard frees a slot; a one-core runner hol
   const kinds = [claimJob(db, { runner: 'r-small', cores: 2, now: 22 }), claimJob(db, { runner: 'r-small', cores: 2, now: 23 })].map(claim => claim?.kind);
   assert.deepEqual(kinds.sort(), ['gate', 'test'], 'a runner at its shard cap still claims every other kind of job');
 });
+
+test('clause 2: a runner with a free slot takes an offered push-gate shard before an item gate or a test job, and still stops at its shard cap [C7,#7790]', t => {
+  const db = boardWith(t);
+  offerJob(db, { id: 'gate:item-1', kind: 'gate', now: 1 });
+  offerJob(db, { id: 'test:run-1', kind: 'test', now: 2 });
+  offerJob(db, { id: 'land:one', kind: 'land', now: 3 });
+  offerShards(db, 2);
+  const order = [1, 2, 3, 4, 5].map(at => claimJob(db, { runner: 'r-free', cores: 3, jobs: 5, now: 100 + at })?.job);
+  assert.deepEqual(order.slice(0, 1), ['push:abc:tag:shard:1'], 'the shard comes first though every other job is older');
+  assert.equal(order.includes('push:abc:tag:shard:2'), false, 'the cap of one shard per three cores holds (#7765)');
+  assert.deepEqual(order.slice(1).sort(), ['gate:item-1', 'land:one', 'test:run-1', undefined].sort(), 'the capped runner still takes every other job');
+});
+
+test('clause 2: a push shard is first under a priority reserve too, and a gate-shard job not named push: gets no such rank [C7,#7790]', t => {
+  const db = boardWith(t);
+  offerJob(db, { id: 'test:run-1', kind: 'test', priority: 'agent', now: 1 });
+  offerJob(db, { id: 'shard:other', kind: SHARD_JOB_KIND, now: 2 });
+  offerJob(db, { id: 'push:abc:tag:shard:1', kind: SHARD_JOB_KIND, priority: 'gate', now: 3 });
+  const reserve = { agent: 1 };
+  assert.equal(claimJob(db, { runner: 'r-a', jobs: 4, reserve, now: 10 }).job, 'push:abc:tag:shard:1', 'a reserve does not push a shard behind a test');
+  assert.equal(claimJob(db, { runner: 'r-b', jobs: 4, now: 11 }).job, 'test:run-1', 'a gate-shard job outside a push gate keeps its place after a test');
+});
