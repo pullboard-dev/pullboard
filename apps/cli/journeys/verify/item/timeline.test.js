@@ -114,7 +114,7 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
     const href = new URL(view.link.href); href.pathname = '/items/1';
     chrome = await openSnapshotChrome(executable, href.href, profile);
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail .tl .tl-body")');
-    if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
+    if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
     for (const [width, mobile] of [[1440, false], [375, true]]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
       // The pulled gate writes its own note fact; the clamp checks read the fixture's long note [P7].
