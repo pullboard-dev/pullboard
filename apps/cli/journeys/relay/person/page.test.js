@@ -27,6 +27,7 @@ import {
   emptyPhoneFixture,
   emptyPhoneScreen,
 } from '../../../tests/fixtures/relay/phone.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import { tapTouch } from '../../../tests/fixtures/cockpit/stable.js';
 import { stableChrome } from '../../../tests/fixtures/cockpit/stable.js';
 
@@ -225,7 +226,7 @@ window.fetch = async (input, options) => {
   const linked = await run.closed;
   assert.equal(linked.code, 0, 'the same foreground command finishes after one real phone tap');
   await chrome.waitFor(`data?.root === ${JSON.stringify(proposal.context.board)} && !!document.querySelector('[data-tab=items]')`);
-  await chrome.click("document.querySelector('[data-tab=items]')");
+  await pressTab(chrome, 'items');
   await chrome.waitFor(`document.body.innerText.includes(${JSON.stringify(marker)}) && data?.root === ${JSON.stringify(proposal.context.board)}`);
   assert.equal(await chrome.stable('document.documentElement.dataset.relayScreen ?? null'), null, 'the readable board replaces the first screen');
   assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length - authorizations, 1, 'one tap authorizes exactly once');
@@ -266,7 +267,7 @@ window.fetch = (input, options) => {
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.readyState === 'complete'");
   await chrome.waitFor("!!document.querySelector('[data-tab=items]')");
-  await chrome.click("document.querySelector('[data-tab=items]')");
+  await pressTab(chrome, 'items');
   const panelOwnership = await chrome.stable(`(async () => {
     const { phoneApprovalStatus, placePhoneApprovals, forgetPhoneApprovals } = await import('/relay/browser-approval-card.js');
     const doc = document.implementation.createHTMLDocument('Private approval ownership');
@@ -556,7 +557,7 @@ test('the actual relay page seals its shout and refuses generic direct moves [H1
   const direct = await chrome.stable(`api(boardPath(view.root) + '/moves', {verb:'claim',item:1}).then(() => 'allowed', error => error.message)`);
   assert.match(direct, /read-only view/);
   assert.equal(box.calls.slice(callsBefore).some(call => call.method === 'POST'), false, 'the generic direct move never reaches the relay');
-  await chrome.click("document.querySelector('[data-tab=shouts]')");
+  await pressTab(chrome, 'shouts');
   await chrome.waitFor("document.querySelector('#shout-form')?.getClientRects().length > 0 && document.querySelector('#shout-text')?.getClientRects().length > 0");
   const composer = await chrome.stable(`(() => {
     const form = document.querySelector('#shout-form'), text = document.querySelector('#shout-text'), send = document.querySelector('#shout-send');
