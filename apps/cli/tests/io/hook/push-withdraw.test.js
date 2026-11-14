@@ -7,6 +7,7 @@ import { PUSH_ALIVE_MS } from '../../../../../packages/api/index.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { jobViews } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
+import { liveSince } from '../../../../../packages/jobs/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { awaitAndWithdraw } from '../../../src/io/hook/push.js';
 
@@ -39,7 +40,7 @@ test('clause 1: a gate that throws or is interrupted by SIGINT or SIGTERM withdr
     let release;
     const wait = () => new Promise(resolve => { release = resolve; });
     const running = awaitAndWithdraw({}, NAMES, { ...seams, wait, pollMs: 0, exit: exitCode => exits.push(exitCode), signals });
-    await new Promise(resolve => setImmediate(resolve));
+    while (!signals.listenerCount(signal) || !release) await new Promise(resolve => setImmediate(resolve));
     signals.emit(signal);
     assert.deepEqual(exits, [code]);
     assert.deepEqual(steps(db), ['done', 'done', 'done'], `${signal} ends every shard`);
@@ -54,13 +55,11 @@ test('clause 1: a gate that throws or is interrupted by SIGINT or SIGTERM withdr
 test('clause 2: a waiting gate renews its shards every 30 seconds, so none ends as abandoned while it waits [C7,#7805]', async t => {
   const clock = { at: 1_000_000 };
   const { db, seams } = gateOn(t, clock);
-  let polls = 0, taken = null;
-  // Each poll is a minute: past the 5-minute window by the sixth, so only the gate's renewals keep a claim possible.
-  const wait = async () => {
-    polls += 1; clock.at += 60_000;
-    if (polls === 8) { taken = claimJob(db, { runner: 'r1', now: clock.at })?.job; throw new Error('stop'); }
-  };
+  // A runner holds every shard, so the wait runs on to the ceiling and only the renewals keep the claim scan from ending them.
+  for (let at = 0; at < NAMES.length; at += 1) claimJob(db, { runner: `r${at}`, now: clock.at, leaseMs: 60 * 60_000 });
+  let polls = 0;
+  const wait = async () => { polls += 1; clock.at += 60_000; if (polls === 8) throw new Error('stop'); };
   await assert.rejects(awaitAndWithdraw({}, NAMES, { ...seams, wait, pollMs: 0, signals: new EventEmitter() }), /stop/u);
   assert.ok(clock.at - 1_000_000 > PUSH_ALIVE_MS, 'the wait outlasted the alive window');
-  assert.equal(taken, NAMES[0], 'eight minutes in, the renewals kept the shards claimable');
+  for (const id of NAMES) assert.ok(liveSince(db, id) >= clock.at - 60_000, `${id} was renewed within the last minute of the wait`);
 });
