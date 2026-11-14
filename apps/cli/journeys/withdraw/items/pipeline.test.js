@@ -87,7 +87,7 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
         await press(chrome, selector);
         await waitForPipelineItem(chrome, id); // budget: hang-only ceiling for the opened Pipeline item; no speed target.
         assert.equal(await chrome.stable('view.item'), id, `${width}: every item opens its detail`);
-        await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.includes('#${id}')`);
+        await chrome.waitFor(`document.querySelector('#detail .item-panel-head .id')?.textContent === '#${id}'`);
       }
       const geometry = JSON.parse(await chrome.stable("JSON.stringify({ width:innerWidth, body:document.documentElement.scrollWidth, stages:[...document.querySelectorAll('.pipeline-stage')].map(node => ({left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right})) })"));
       assert.ok(geometry.body <= width, `${width}: no sideways scroll: ${JSON.stringify(geometry)}`);

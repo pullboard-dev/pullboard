@@ -18,6 +18,7 @@ import {
   chromeExecutable,
   closeSnapshotChrome,
   press,
+  pressTab,
   pickProject,
   chooseFilter,
   openItemsNeeds,

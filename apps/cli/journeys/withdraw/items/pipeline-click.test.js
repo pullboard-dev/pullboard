@@ -66,7 +66,7 @@ test('the pipeline opens the clicked item under a 6× CPU throttle [N26,N38,C7]'
     assert.equal(evidence.click?.dataItem, String(id), `the real click reached the intended card: ${JSON.stringify(evidence)}`);
     assert.equal(evidence.viewItem, id, `the intended item is selected: ${JSON.stringify(evidence)}`);
     assert.equal(evidence.pathname, `/items/${id}`, `the address names the intended item: ${JSON.stringify(evidence)}`);
-    await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.includes('#${id}')`);
+    await chrome.waitFor(`document.querySelector('#detail .item-panel-head .id')?.textContent === '#${id}'`);
     t.diagnostic(`375px 6× Pipeline click: ${JSON.stringify(evidence)}`);
     assert.deepEqual(chrome.exceptions, [], 'the throttled Pipeline click has no uncaught page errors');
   } finally {
@@ -123,7 +123,7 @@ test('a refresh between pointer down and up does not lose the click [N26,N38,C7]
     assert.equal(evidence.viewItem, 2, `the native click opens item #2: ${JSON.stringify(evidence)}`);
     assert.equal(evidence.pathname, '/items/2', `the item address agrees with the real selection: ${JSON.stringify(evidence)}`);
     assert.equal(evidence.pipelineRedrawsBetweenDownAndUp, 0, `no Pipeline redraw separates mousedown and mouseup: ${JSON.stringify(evidence)}`);
-    await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('#2')");
+    await chrome.waitFor("document.querySelector('#detail .item-panel-head .id')?.textContent === '#2'");
     await chrome.stable('refresh()');
     assert.equal(await chrome.stable('view.item'), 2, 'refresh preserves the selected item instead of an address candidate');
     await chrome.send('Page.reload', {});

@@ -128,6 +128,7 @@ export function demoWidthTest(only, phase = 'both') {
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await chrome.waitFor("document.readyState === 'complete' && !document.body.classList.contains('loading')");
     await pressTab(chrome, 'items');
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     if (pages) await assertFirstStateDelay(chrome, t);
@@ -147,14 +148,14 @@ export function demoWidthTest(only, phase = 'both') {
       await pressTab(chrome, 'items');
       if (pages) {
         if (width <= 900) {
-          await click('#proj-switch');
-          await click('[data-proj-all]');
+          await click('#menu-btn');
+          await click('#mdrawer-proj');
           await chrome.waitFor("getComputedStyle(document.querySelector('#proj-list')).display !== 'none'");
           await checkLayout(width, 'open project list');
           await click(`[data-root="${other.repo}"]`);
           await chrome.waitFor("document.querySelector('#proj-name').textContent === 'other-demo'");
-          await click('#proj-switch');
-          await click('[data-proj-all]');
+          await click('#menu-btn');
+          await click('#mdrawer-proj');
           await click(`[data-root="${demo.repo}"]`);
           await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
           await pressTab(chrome, 'items');
