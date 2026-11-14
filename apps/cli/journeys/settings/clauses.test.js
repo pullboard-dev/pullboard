@@ -1,3 +1,4 @@
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../packages/state/light.js';
 /** Prove clause inspection: an unticked clause refuses submit and is named, free text is unaffected [#2050]. */
 import assert from 'node:assert/strict';
@@ -114,7 +115,7 @@ test('a free-text criterion is unaffected [V4,B3]', t => {
   }
 });
 
-test('a real CLI submit refuses an unticked clause and accepts once every clause is ticked [V4,B3]', async () => {
+test('a real CLI submit refuses an unticked clause and accepts once every clause is ticked [V4,B3]', async t => {
   const box = e2e.project();
   const criterion = 'the page is right when:\n1. the heading renders [test]\n2. the footer shows the count [command]\n3. the page is clear at 375px [screenshot]';
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
@@ -140,9 +141,11 @@ test('a real CLI submit refuses an unticked clause and accepts once every clause
   assert.notEqual(mismatch.code, 0);
   assert.match(mismatch.err, /clause 2 .*needs command evidence/u);
   assert.equal((await tick(2, 'command', 'node bin/count.js prints 3')).code, 0);
-  const submitted = await box.runLocal(box.web, 'submit', '1');
+  const submitted = await box.runLocal(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1/u);
+  // The pulled gate queues the submit; the item is submitted once its receipt lands.
+  const settled = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, JSON.parse(submitted.out));
+  assert.equal(settled.item, 1);
   const shown = await box.runLocal(box.web, 'show', '1', '--detail');
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /inspection, clause by clause:/u, 'submit records the clause-by-clause evidence for the reviewer');
