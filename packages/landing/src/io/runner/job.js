@@ -379,7 +379,9 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
       return Boolean(renewed.renewed);
     } catch { return false; }
   };
-  const receipt = await runLandingJob(claim.payload, { workdir, checks, renew, env, diagnose, pushOptions: () => permit ? permitPushOptions(permit) : [] });
+  // What a big job moved out of its payload (a large proof) is read back from the job's request, which only its holder reads [#7766].
+  const moved = Array.isArray(claim.payload?.requested) && claim.payload.requested.length ? (await call({ action: 'request', job, runner, token }))?.request?.land : null;
+  const receipt = await runLandingJob(moved ? { ...claim.payload, ...moved } : claim.payload, { workdir, checks, renew, env, diagnose, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {
     const posted = await call({ action: 'receipt', job, runner, token, receipt });
     return { job, receipt, recorded: Boolean(posted.recorded) };
