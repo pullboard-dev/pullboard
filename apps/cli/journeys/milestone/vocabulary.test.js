@@ -29,7 +29,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the stage vocabulary journey.');
   // Setup builds run in this process, not as launches: seven launched builds alone took 79 s under runner load (the 180 s budget).
-  let last = Date.now(); const mark = (label) => { const now = Date.now(); const took = now - last; last = now; if (took > 25000) throw new Error('SLOW segment before ' + label + ': ' + took + 'ms'); };
+  let last = Date.now(); const seen = []; const mark = (label) => { const now = Date.now(); seen.push(label + ':' + (now - last)); last = now; if (label === 'hold' || label === 'reviewer') throw new Error('TIMES ' + seen.join(' ')); };
   const box = machine();
   const alpha = project(box, 'stage-vocabulary', undefined, {
     lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] } },
@@ -41,16 +41,24 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     const after = index === 1 ? ['--after', '1'] : [];
     await box.inProcess(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'Stage words stay consistent.', ...after);
   }
+  mark('adds');
   await buildLocal(box, alpha, 4, 'review.txt');
+  mark('bui4');
   await buildLocal(box, alpha, 5, 'landing.txt');
+  mark('bui5');
   await acceptLocal(box, alpha, 5);
+  mark('acc5');
   await buildLocal(box, alpha, 6, 'merged.txt');
+  mark('bui6');
   await acceptLocal(box, alpha, 6);
+  mark('acc6');
   const mergeBranch = alpha.itemBranches.get(`${alpha.baseBranch}:6`);
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge stage fixture', mergeBranch);
   await box.inProcess(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   await buildLocal(box, alpha, 7, 'verified.txt');
+  mark('bui7');
   await acceptLocal(box, alpha, 7);
+  mark('acc7');
   mark('hold');
   await box.inProcess(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
   await box.inProcess(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
