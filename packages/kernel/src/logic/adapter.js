@@ -8,3 +8,8 @@ export function createRelayAdapter(request) {
 
 /** Make an isolated test transport from an explicit request handler. */
 export function createFakeRelayAdapter(handler) { return createRelayAdapter(handler); }
+
+/** Audit executions explicitly select real adapters locally and on remote runners; it lives beside the adapters so the light door loads one module less [C7]. */
+export function auditAdapterEnvironment(audit) {
+  return audit ? { PULLBOARD_TEST_REAL: 'all', PULLBOARD_ADAPTER_AUDIT: '1' } : {};
+}
