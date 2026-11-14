@@ -49,8 +49,8 @@ test('linked computers use person-given names in coordinator holds and devices [
   const first = await refusedCoordinatorAdd(box, box.lane, 'Former coordinator is refused');
   assert.match(first.message, /Travel laptop/u);
   // Following the takeover step answers the refusal: no RELAY_OUTBOX_REFUSED line is left for it [#7939].
-  assert.equal((await box.cli('takeover')).code, 0);
-  const answered = await box.cli('status');
+  assert.equal((await box.cliLocal('takeover')).code, 0);
+  const answered = await box.cliLocal('status');
   assert.equal(answered.code, 0, answered.failure);
   assert.deepEqual((answered.document.relay.outboxRefusals ?? []).filter(entry => entry.code === 'COORDINATOR_HELD'), [], 'the takeover clears the held refusals');
   assert.equal((await other.cli('takeover')).code, 0);
