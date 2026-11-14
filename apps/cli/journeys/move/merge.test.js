@@ -78,8 +78,9 @@ test('the conflict predicate stays on the light core door in the accepted main m
   assert.ok(before.files.includes(identities.get(CARRIAGE) ?? CARRIAGE), 'the move closure reaches the exact conflict predicate through the core door');
   assert.deepEqual(importsIn([read(CARRIAGE)])[0], [], 'the conflict predicate imports nothing, so it adds no process launcher to the move closure');
   // Other moves already reach the merge index, so a broad-index control can no longer differ; the reopen move's own merge import is pinned instead.
-  assert.deepEqual(importsIn([read(REOPEN)])[0].filter(specifier => /(?:^|\/)merge\//u.test(specifier)), ['../../../../merge/light.js'],
-    'the reopen move reads the merge cell only through its light core door');
+  assert.deepEqual(importsIn([read(REOPEN)])[0].filter(specifier => /(?:^|\/)merge\//u.test(specifier)), ['../../../../merge/browser.js'],
+    // 361514f030 moved reopen to the pure browser door, which carries the conflict predicate with no node: built-in.
+    'the reopen move reads the merge cell only through its pure browser door');
 });
 
 test('clause 1: this file pins no hash digest of the live conflict body or package.json [C7,CD60,H16]', () => {
