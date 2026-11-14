@@ -17,6 +17,7 @@ import { runRuleCheck } from '../../../../packages/doctrine/index.js';
 import { checkReceiptKey } from '../../../../packages/git/index.js';
 import { readCheckReceipt } from '../../../../packages/git/index.js';
 import { writeCheckReceipt } from '../../../../packages/git/index.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
@@ -71,14 +72,15 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   t.after(helpers.cleanup);
   const { box, logs, armed } = await project(helpers);
   rmSync(armed, { force: true });
-  const red = (await box.runLocal(box.web, 'submit', '1', '--json'));
-  assert.notEqual(red.code, 0, 'the item check is red on the first submit');
+  const red = await settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
+  assert.equal(red.gate.green, false, 'the item check is red on the first submit');
   assert.equal(runs(logs.static), 1, 'the static check ran once');
   // The doctrine hold measures main's problems once (since #2575) and the candidate once: two runs, then none.
   assert.equal(runs(logs.doctrine), 2, 'the doctrine check ran once at main and once at the candidate');
   writeFileSync(armed, 'green\n');
-  const second = await withStderrTap(() => box.runLocal(box.web, 'submit', '1'));
-  assert.equal(second.code, 0, second.out + second.err);
+  const second = await settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
+  console.log('DBG', JSON.stringify(second).slice(0,6000));
+  assert.equal(second.gate.green, true, JSON.stringify(second.gate));
   assert.equal(runs(logs.static), 1, 'the unchanged tree runs no static check again');
   assert.equal(runs(logs.doctrine), 2, 'the unchanged tree runs no doctrine check again');
   assert.match(second.out + second.err, /static check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the static receipt');
