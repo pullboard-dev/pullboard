@@ -438,7 +438,7 @@ else {
         await waitForDemoBoard(view, repo);
         if (!roadmapOnly) {
           await view.viewport(1440, 900);
-          try { await view.waitFor("(() => { if (view.state !== 'all') document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"all\"]')?.click(); return !!document.querySelector('#chain .row[data-item=\"1\"]'); })()", 'accepted item in All'); } catch (error) { throw new Error('DIAG7863 ' + await view.evaluate(`JSON.stringify({state: view.state, tab: view.tab, rows: [...document.querySelectorAll('#chain .row')].map(r => r.dataset.item), ids: data.project.items.map(i => [i.id, i.state]), ctl: [...document.querySelectorAll('#page-controls [data-page-ctl]')].map(b => b.dataset.value + (b.classList.contains('on') ? '*' : '')), chain: document.querySelector('#chain')?.textContent.slice(0, 300), url: location.href})`), { cause: error }); }
+          await view.waitFor("(() => { if (view.state !== 'all') document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"all\"]')?.click(); return !!document.querySelector('#chain .row[data-item=\"1\"]'); })()", 'accepted item in All');
           await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
           await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted')", 'selected accepted item');
           await view.waitFor("!!document.querySelector('#detail [data-item-panel-history]')", 'history control');
