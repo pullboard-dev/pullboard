@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { settleLand } from './land/settle.js';
 import { settleSubmit } from './submit/settle.js';
 import { fixtureAdd } from './testkit.js';
 import { fixtureJoin } from './testkit.js';
@@ -44,7 +45,7 @@ export async function assertBadgeLanding(e2e, t) {
   const beforeLanding = box.git(box.repo, 'rev-parse', 'main');
   const result = box.run(box.repo, 'land', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
-  const landed = JSON.parse(result.out);
+  const landed = await settleLand(box, JSON.parse(result.out));
   assert.deepEqual(landed.landed, [id]);
   const recorded = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
   assert.equal(recorded.item_merged_commit, landed.batch.tip, 'badge refresh remains inside the first-containing item merge');
