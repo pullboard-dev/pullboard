@@ -65,8 +65,9 @@ test('a normal native claim, work and submit preserves its real counter anchor [
   writeFileSync(join(box.web, 'web/ready'), 'ready\n');
   box.git(box.web, 'add', 'web/ready');
   box.git(box.web, 'commit', '-qm', 'feat(web): synthetic usage work [G1]');
-  run('submit', String(item), '--no-next', '--json');
+  const submitted = run('submit', String(item), '--no-next', '--json');
   const shown = JSON.parse(run('show', String(item), '--json').stdout);
+  assert.ok(shown.usage, JSON.stringify({ status: shown.item_status, gateJob: shown.gateJob?.step, submit: submitted.stdout.slice(0, 600), err: submitted.stderr.slice(0, 600), ledger: readFileSync(join(box.repo, '.git/pullboard/cost-ledger.json'), 'utf8').slice(0, 800) }));
   assert.equal(shown.usage.inputTokens, 27);
   assert.equal(shown.usage.outputTokens, 5);
   assert.ok(!shown.usage.unknownReasons.includes('missed-claim-anchor'));
