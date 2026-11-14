@@ -37,7 +37,7 @@ function child(box, args, cwd, extra = {}) {
   started.output = ''; started.errors = '';
   started.stdout.setEncoding('utf8').on('data', part => { started.output += part; });
   started.stderr.setEncoding('utf8').on('data', part => { started.errors += part; });
-  started.finished = new Promise(resolve => started.once('close', (code, signal) => resolve({ code, signal })));
+  started.finished = new Promise(resolve => started.once('close', (code, signal) => { started.endedAt = process.hrtime.bigint(); resolve({ code, signal }); }));
   return started;
 }
 
@@ -63,7 +63,7 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test/ready.test.js'), "import { test } from 'node:test';\nimport { appendFileSync } from 'node:fs';\ntest('private fixture body', () => appendFileSync(process.env.BINDING_LOG, process.env.BINDING_LABEL+'\\n'));\n");
+  writeFileSync(join(box.repo, 'test/ready.test.js'), "import { test } from 'node:test';\ntest('private fixture body', () => {});\n");
   box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'test(web): configure focused runner [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const added = fixtureAdd(box.run, box.repo, 'web', 'Main red: synthetic item binding', '--criterion', 'The actual queue retains the claimed item.', '--json');
@@ -77,11 +77,10 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   const holder = child(box, ['--input-type=module', '-e', `import {takeResource} from ${JSON.stringify(RESOURCES)}; const lease=await takeResource({name:'gate',capacity:1,scope:'machine',root:process.cwd(),agent:'fixture-holder'}); console.log('held'); for await (const line of process.stdin) if(String(line).trim()==='release')break; lease.release();`], box.repo);
   children.push(holder);
   await observed(holder, () => holder.output.includes('held'), 'private gate holder');
-  const log = join(box.dir, 'execution-order');
-  const unclaimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.repo, { BINDING_LOG: log, BINDING_LABEL: 'unclaimed' });
+  const unclaimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.repo);
   children.push(unclaimed);
   await observed(unclaimed, () => resources(box)?.line.some(row => row.agent === 'coordinator'), 'unclaimed focused waiter');
-  const claimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.web, { BINDING_LOG: log, BINDING_LABEL: 'claimed' });
+  const claimed = child(box, [BIN, 'test', 'test/ready.test.js', '--json'], box.web);
   children.push(claimed);
   await observed(claimed, () => resources(box)?.line.some(row => row.agent === seat), 'claimed focused waiter');
   const line = resources(box).line;
@@ -93,5 +92,6 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   assert.ok(line.indexOf(owned) < line.indexOf(other), 'the claimed current pinned item precedes the earlier unclaimed run');
   holder.stdin.end('release\n');
   for (const started of [holder, claimed, unclaimed]) assert.equal((await started.finished).code, 0, started.errors + started.output);
-  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['claimed', 'unclaimed'], 'actual test execution follows native queue order');
+  // The test process gets a scrubbed environment, so order is the order the two runs finish through the one gate slot.
+  assert.ok(claimed.endedAt < unclaimed.endedAt, 'actual test execution follows native queue order');
 });
