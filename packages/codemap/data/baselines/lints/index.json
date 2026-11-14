@@ -161,7 +161,7 @@
       ]
     },
     "unreachableExports": {
-      "count": 1176,
+      "count": 1175,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/unreachableExports-001.json",
@@ -169,7 +169,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/unreachableExports-002.json",
-          "sha256": "f872a1bc5c31ea0884da707c0fe227ae48330b6c5f7d787dd65e5582406cf08a"
+          "sha256": "d0c35d2ae99326481cfc62b6f03d2a1255dd2b926a32577abdc4237f47ab2940"
         },
         {
           "file": "packages/codemap/data/baselines/lints/unreachableExports-003.json",
