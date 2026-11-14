@@ -32,6 +32,7 @@ import { loadSpec } from '../../../spec/index.js';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import {
   preMergeHookProblems,
+  staleHookProblems,
   unwiredHookProblems,
 } from '../../../commits/index.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
@@ -52,10 +53,10 @@ export function doctrineProblems(root, config) {
  * @param {string} root
  * @param {(root: string, args: string[]) => { status: number, stdout: string }} tryGit
  * @param {any} [config] - Compare frozen rows with this checkout's current source when supplied.
- * @param {{ isMain?: boolean }} [options] - Give older-board repair steps for the running source.
+ * @param {{ isMain?: boolean, release?: string }} [options] - Give older-board repair steps for the running source.
  * @returns {{ code: string, message: string, next: string }[]}
  */
-export function doctorProblems(file, root, tryGit, config, { isMain = true, checkAtCommit } = {}) {
+export function doctorProblems(file, root, tryGit, config, { isMain = true, checkAtCommit, release } = {}) {
   if (!existsSync(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
   const startedAt = Date.now();
   let db;
@@ -80,6 +81,7 @@ export function doctorProblems(file, root, tryGit, config, { isMain = true, chec
     return [
       ...preMergeHookProblems(root),
       ...unwiredHookProblems(root),
+      ...(release ? staleHookProblems(root, release) : []),
       ...eventProblems,
       ...triggerProblems(db),
       ...layout.problems,
