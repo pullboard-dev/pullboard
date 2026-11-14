@@ -45,8 +45,8 @@ test("accepted-main invariants override the candidate, and a deleted one still r
   change(missing.box);
   const absent = await submitWithEnv(t, missing.box, (...args) => runLocal(missing.box, ...args), ['--infra', 'the landing fixture edits its pullboard.json']);
   assert.notEqual(absent.code, 0, 'deleting a mandatory file cannot make the guard disappear');
-  // The pulled proof names the missing file in the runner's own error rather than the inline gate's wording.
-  assert.match(absent.err, /Could not find '\.\/test\/invariant\.test\.js'/u);
+  // The pulled gate's analysis refuses a deleted registered guard by name before any proof runs (0bf84f48f7).
+  assert.match(absent.err, /BAD_CONFIG: submitInvariants file test\/invariant\.test\.js is missing or unreadable/u);
   unstamped(missing.box);
 
   const named = await project(t, ['test/invariant.test.js', 'test/invariant.test.js']);

@@ -31,7 +31,6 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
     ['The item is implemented and 68 checks are green.'],
     ['Which check should run next?'],
     ['The outage is not resolved; coordinator intervention is needed.'],
-    ['Choose the next check.', '--decision'],
     ['The gate is blocked by an unavailable runner.', '--kind', 'status'],
   ]) {
     const refused = await box.runIn(box.web, 'shout', 'coordinator', ...args, '--json');
@@ -48,6 +47,7 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
     ['Which check should run next?', '--kind', 'question'],
     ['Main red on current main: cockpit/snapshot.test.js fails.', '--kind', 'blocker'],
     ['Choose the next check.', '--kind', 'decision', '--decision'],
+    ['Choose the next check.', '--decision'],
     ['The outage is not resolved; coordinator intervention is needed.', '--kind', 'exception'],
     ['idea: add a visual diff for review receipts', '--kind', 'idea'],
   ]) {
@@ -56,9 +56,9 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
   }
   const typed = await box.runIn(box.repo, 'export', '--json');
   assert.equal(typed.code, 0, typed.err);
-  assert.equal(JSON.parse(typed.out).tables.shout.length, count + 5, 'four coordination kinds and idea intake reach the coordinator');
+  assert.equal(JSON.parse(typed.out).tables.shout.length, count + 6, 'four coordination kinds, bare --decision (kind decision since 96d18c0406) and idea intake reach the coordinator');
   assert.deepEqual(JSON.parse(typed.out).tables.shout.slice(count).map(row => row.shout_to),
-    Array(5).fill('coordinator'), 'every declared kind reaches the coordinator');
+    Array(6).fill('coordinator'), 'every declared kind reaches the coordinator');
 
   const apiModule = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/api/src/io/main.js')).href;
   const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../tests/fixtures/native.js')).href;
@@ -85,7 +85,7 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
   assert.equal(broadcast.code, 0, broadcast.err + broadcast.out);
   const afterShouts = await box.runIn(box.repo, 'export', '--json');
   assert.equal(afterShouts.code, 0, afterShouts.err);
-  assert.equal(JSON.parse(afterShouts.out).tables.shout.length, count + 8, 'person, peer and all shouts remain untyped');
+  assert.equal(JSON.parse(afterShouts.out).tables.shout.length, count + 9, 'person, peer and all shouts remain untyped');
 });
 
 test('new coordinator kinds have a distinct replay floor and converge on replicas [C7,H16]', t => {
