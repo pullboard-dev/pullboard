@@ -82,7 +82,7 @@ async function compareOnRunner({ runner = true } = {}) {
 
 const ran = compareOnRunner();
 
-test('clause 1: a main comparison writes no working tree and the runner job records the exact main commit and tree [C7]', { timeout: 180_000 }, async () => {
+test('clause 1: a main comparison writes no working tree and the runner job records the exact main commit and tree [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
   const { out, seen, main, tree, scratch, requests, stderrLog } = await ran;
   assert.equal(out.unavailable, undefined, out.unavailable);
   // A runner comparison reads main from the object store in place, so it prepares no temporary folder at all (#3323).
@@ -112,7 +112,7 @@ function shapeOf(row) {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, key === 'receiptId' ? /^[a-f0-9-]{36}$/u.test(value) : Array.isArray(value) ? 'array' : typeof value]));
 }
 
-test('clause 2: no-checkout comparison keeps the shape landing-split-red expects [C7]', { timeout: 300_000 }, async () => {
+test('clause 2: no-checkout comparison keeps the shape landing-split-red expects [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, async () => {
   // Same landProject fixture and red file landing-split-red.test.js lands: once through the runner (no checkout), once in a full tree.
   const [viaRunner, viaTree] = [await ran, await compareOnRunner({ runner: false })];
   for (const run of [viaRunner, viaTree]) assert.equal(run.out.unavailable, undefined, run.out.unavailable);
