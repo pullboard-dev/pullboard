@@ -1,7 +1,7 @@
 /** Pause only an owned fixture worker at a real landing side-effect boundary [B35]. */
 const targets = {
-  // A runner's land job, paused once its items are merged and before its check of the merged tree.
-  gating: ['packages/landing/src/io/runner/job.js', 'const derived = await deriveMerged(root, { base, badges: payload.badges });'],
+  // A runner's land job, paused once its items are merged and its tree derived, before its check of the merged tree.
+  gating: ['packages/landing/src/io/runner/job.js', 'const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: pending.map'],
   // A runner's land job, paused before it pushes the checked merge, and just after the push succeeds, before its receipt is built.
   pushing: ['packages/landing/src/io/runner/job.js', "const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });"],
   recording: ['packages/landing/src/io/runner/job.js', "if (pushed.status === 0) return done('landed', { trunk: tip,"],
