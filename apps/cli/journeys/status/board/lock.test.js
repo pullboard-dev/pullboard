@@ -203,7 +203,7 @@ test('a read answers while a writer holds the lock [C7]', async (t) => {
   // A version-2 board, from before #1044's hot-path indexes, is still migrated by the next command
   // that writes, from the released copy: it gains them then, and never on a read.
   const db = new DatabaseSync(file);
-  db.exec(`${HOT_INDEXES.map((name) => `DROP INDEX ${name};`).join(' ')} PRAGMA user_version = 2`);
+  db.exec(`${HOT_INDEXES.map((name) => `DROP INDEX ${name};`).join(' ')} PRAGMA user_version = 0`);
   db.close();
   // Process-level: the released copy migrates the older board, so it runs as its own process (not this tree's in-process dispatcher).
   const cli = (...argv) => runFixtureChild(process.execPath, [join(box.release, 'apps/cli/pullboard.js'), ...argv], { cwd: box.repo, env: box.env, encoding: 'utf8' });
