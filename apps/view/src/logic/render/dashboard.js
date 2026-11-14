@@ -175,7 +175,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const runners = (() => {
     const live = m.runners, list = Array.isArray(live?.runners) ? live.runners : [];
     const settings = '<button type="button" class="dash-lk" data-tab="settings">Settings ›</button>';
-    if (!list.length) return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static">0</span>'), '<div class="dash-card dash-runners"><div class="dash-l"><p class="dash-empty">No runner reports to this board.</p></div></div>', { link: settings });
+    if (!list.length) return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static" data-count="runners">'+(m.totals?.runners ?? 0)+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l"><p class="dash-empty">No runner reports to this board.</p></div></div>', { link: settings });
     const busy = list.filter(runner => runner.busy).length, jobs = list.reduce((sum, runner) => sum + runner.jobs.length, 0);
     const pick = list.toSorted((a, b) => b.jobs.length - a.jobs.length || (b.cpu ?? 0) - (a.cpu ?? 0))[0];
     const load = cpu => '<svg class="dash-load" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect class="bg" width="100" height="1"/>'+(Number.isFinite(cpu) ? '<rect class="'+(cpu >= 90 ? 'hot' : cpu >= 70 ? 'hi' : '')+'" width="'+Math.min(100, cpu)+'" height="1"/>' : '')+'</svg>';

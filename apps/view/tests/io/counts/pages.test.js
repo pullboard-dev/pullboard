@@ -39,7 +39,7 @@ function notch(project) {
     personNeeds: () => { throw new Error('the notch read its own rulings, not the shared count'); },
     workingAgents: () => { throw new Error('the notch counted its own agents, not the shared count'); },
     stateOf: item => item.status === 'claimed' ? 'building' : item.status === 'submitted' ? 'verify' : item.status === 'verified' ? 'verified' : 'open', agentName: id => id };
-  const numbers = runInNewContext(slice(cockpitSidebar({}), 'navNumbers') + '\nnavNumbers(project)', { ...context, project });
+  const numbers = runInNewContext(slice(cockpitSidebar({ COMMAND_SOURCE: '', groupActivityModel() {}, groupNeedsHtml() {}, groupEventHtml() {} }), 'navNumbers') + '\nnavNumbers(project)', { ...context, project });
   runInNewContext(slice(pageRenderScript(), 'drawNav') + '\ndrawNav(project, numbers)', Object.assign(context, { project, numbers }));
   return { agents: Number(shell.querySelector('[data-notch="agents"]').textContent), rulings: Number(shell.querySelector('[data-notch="rulings"]').textContent), ids: [...numbers.agentIds] };
 }

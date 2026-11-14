@@ -271,7 +271,9 @@ export function pipelineWatchModel(project, events, { now, windowMinutes = 60, c
   const tone = (delta, higherBetter) => !measured(delta) || delta === 0 ? '' : (delta > 0) === higherBetter ? 'good' : 'bad';
   const verdicts = (period) => period.accepts + period.rejects;
   // Sent back is rejects and reopens over verdicts, the board's own definition (#7261); a window with none reads 0%, never a dash beside a Rework share (#7310).
-  const shareNow = rec.review ? (verdicts(w) > 0 ? w.rejects / verdicts(w) : 0) : null, shareBefore = rec.review ? (verdicts(b) > 0 ? b.rejects / verdicts(b) : 0) : null;
+  const shared = project?.counts?.sentBack && Number.isFinite(project.counts.sentBack.share) ? project.counts.sentBack.share : null;
+  // With no review recorded in the window, the state's shared four-hour share stands in, so no dash sits beside the Rework share.
+  const shareNow = rec.review ? (verdicts(w) > 0 ? w.rejects / verdicts(w) : 0) : shared, shareBefore = rec.review ? (verdicts(b) > 0 ? b.rejects / verdicts(b) : 0) : null;
   const landedNow = w.landed.size, landedBefore = b.landed.size;
   const measures = [
     { key: 'landed', label: 'landed', value: rec.land ? landedNow : null, unit: '', delta: rec.land ? landedNow - landedBefore : null, higherBetter: true, ids: idsOf(w.landed) },
