@@ -33,6 +33,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { LANDING_LEASE_MS } from '../../../../../packages/store/index.js';
 import { makeLandProjectFixtures } from '../land/project.js';
+import { calls as landCalls } from '../land/board.js';
 import { landJobs } from '../land/board.js';
 import { settleLand } from '../land/settle.js';
 
@@ -299,7 +300,7 @@ async function pulledPolicyCase(helpers) {
   assert.deepEqual(after.landed, [first.item], JSON.stringify(after));
   const gate = config.gate.trim();
   assert.deepEqual(offeredLandChecks(box), [['sh', '-c', gate], ['sh', '-c', `${gate} --new-policy`]], 'each land job carries the gate main accepted when it was offered');
-  const calls = readFileSync(box.calls, 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(args => !args.includes('--alone'));
+  const calls = landCalls(box).filter(args => !args.includes('--alone'));
   assert.deepEqual(calls, [[], ['--new-policy']], 'the policy change lands on the old args; the next land job ran the new ones');
 }
 
