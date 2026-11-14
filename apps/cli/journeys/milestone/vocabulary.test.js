@@ -92,7 +92,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
         marks: [...row.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()),
         reasons: [...row.querySelectorAll('.stage-marks > *')].map(mark => mark.getAttribute('title') || mark.getAttribute('aria-label') || '') }])) )`));
     assert.deepEqual(list['1'].stage, 'Ready');
-    for (const entry of Object.values(list)) { assert.ok(entry.accessible.includes(entry.stage) && entry.accessible.includes(entry.detail)); assert.equal(entry.hover, entry.detail, 'compact rows keep the full native detail available on hover'); }
+    for (const entry of Object.values(list)) { assert.ok(entry.accessible.includes(entry.stage) && entry.accessible.includes(entry.detail)); assert.equal(entry.hover, entry.detail, 'compact rows keep the full native detail available on hover: ' + JSON.stringify([entry.stage, entry.detail, entry.hover, entry.accessible])); }
     assert.match(list['1'].detail, /strong route/u);
     assert.deepEqual(list['2'].stage, 'Blocked');
     assert.match(list['2'].detail, /#1/u);
