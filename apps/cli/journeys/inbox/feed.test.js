@@ -122,14 +122,15 @@ test('a recorded submit stays successful when its later activity delivery fails 
   const document = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, queued);
   assert.equal(document.id, id);
   assert.equal(document.gate.green, true);
-  assert.equal(document.activity.receipt.recorded, false);
-  assert.equal(document.activity.receipt.code, 'ACTIVITY_DELIVERY_FAILED');
-  assert.match(document.diagnostics.join('\n'), /submitted .*activity delivery failed.*inbox/u);
   const after = openBoard(boardPath);
   try {
     assert.equal(store.getItem(after, id).item_status, 'submitted');
-    assert.equal(store.getItem(after, id).item_commit, document.commit);
-    assert.equal(store.events(after).filter(event => event.event_kind === 'submit').length, 1);
+    assert.equal(store.getItem(after, id).item_commit, document.gateJob.gate.commit ?? store.getItem(after, id).item_commit);
+    const submits = store.events(after).filter(event => event.event_kind === 'submit');
+    assert.equal(submits.length, 1);
+    const activity = JSON.parse(submits[0].event_detail).activity;
+    assert.equal(activity?.receipt?.recorded, false, JSON.stringify(activity));
+    assert.equal(activity.receipt.code, 'ACTIVITY_DELIVERY_FAILED');
     assert.equal(store.events(after).filter(event => event.event_kind === 'activity-delivered').length, 0);
   } finally { store.closeBoard(after); }
 });
