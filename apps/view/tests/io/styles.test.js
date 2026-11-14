@@ -33,6 +33,30 @@ test('clause 2: serve.js builds SHARED_VIEW_CSS only through composeViewStyles()
   for (const selector of ['.row.item-row', '.stage-word', '.roadmap-status']) assert.ok(css.includes(selector), `${selector} reaches the shared stylesheet`);
 });
 
+test('clause 1: row titles never wrap, end in an ellipsis, and show inline code as plain monospace with no box [test,N26,#6840]', () => {
+  const css = composeViewStyles();
+  const rule = selector => [...css.matchAll(/([^{}]+)\{([^}]*)\}/gu)].filter(match => match[1].split(',').some(part => part.trim() === selector)).map(match => match[2]).join(' ');
+  for (const selector of ['.row .t', '.milestone-item .t']) assert.match(rule(selector), /overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, `${selector} is one line that ends in an ellipsis`);
+  assert.ok(css.indexOf('.row .t, .milestone-item .t, .milestone-item.blocked .t {') > css.indexOf('.milestone-item .t { display: flex'), 'the one-line rule comes after the roadmap row\'s flex rule, so it wins');
+  const code = rule('.row .t code.inline') + rule('.milestone-item .t code.inline');
+  assert.match(code, /background: none;/u, 'inline code in a title has no grey box');
+  assert.match(code, /padding: 0;/u);
+  assert.match(code, /white-space: nowrap;/u);
+});
+
+test('clause 2: state chips in rows are compact text chips with 4px corners, not tall pills [test,N26,#6840]', () => {
+  const css = composeViewStyles();
+  const chips = ['.row.item-row .row-side .chip', '.milestone-item .stage-word', '.milestone-item .stage-mark', '.item-stage[data-stage] > .stage-line > .stage-word, .item-stage[data-stage] .chip.item-status .stage-word'];
+  for (const selector of chips) {
+    const at = css.indexOf(`${selector} {`);
+    assert.ok(at >= 0, `${selector} is styled`);
+    const body = css.slice(at, css.indexOf('}', at));
+    assert.match(body, /border-radius: var\(--radius-chip\)/u, `${selector} has 4px corners`);
+    assert.match(body, /\/18px/u, `${selector} is 18px tall`);
+    assert.doesNotMatch(body, /min-width: 84px|radius-pill/u, `${selector} is not a pill`);
+  }
+});
+
 test('Items never cuts a question id off: the folded group shows each id whole [N26]', () => {
   const css = composeViewStyles();
   assert.match(css, /\.needs-fold \.needs-id \{ max-width: none; overflow: visible; \}/u, 'Items shows doctrine:RG4901 whole');
