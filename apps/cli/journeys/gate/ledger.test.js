@@ -64,6 +64,11 @@ async t => {
   assert.match(ran.text, new RegExp(`# reused [0-9a-f]{64} from ledger \\(${GREEN.replaceAll('.', '\\.')}\\)`), ran.text.slice(0, 2000));
   assert.deepEqual(ran.args, [`./${RED}`], 'only the miss runs');
 
+  // A pulled gate proof owes a test account (account: true): with no stored outcome for GREEN here, the hit runs [C7,#7937].
+  writeFileSync(hitFile, JSON.stringify({ ...hits, account: true }));
+  const owed = await plan(cleanEnv(join(scratch, 'owed'), { PULLBOARD_LEDGER_HITS: hitFile }));
+  assert.deepEqual(owed.args, [GREEN, RED].map(file => `./${file}`), 'an owed account never reuses a hit without its outcomes');
+
   // A hit under another context class is a miss: both files run.
   writeFileSync(hitFile, JSON.stringify({ ...hits, contexts: hits.contexts.map(() => 'f'.repeat(64)) }));
   const foreign = await plan(cleanEnv(join(scratch, 'foreign'), { PULLBOARD_LEDGER_HITS: hitFile }));

@@ -23,6 +23,7 @@ import {
   outboxWaiting,
 } from '../relay.js';
 import {
+  recordSenderEngine,
   senderFiles,
   senderHolding,
 } from '../../../../link/index.js';
@@ -67,6 +68,7 @@ async function claim() {
   return withFileLock(join(files.directory, 'claim.sqlite'), () => {
     const holder = senderHolding();
     if (holder && holder !== process.pid) return false;
+    recordSenderEngine(process.pid); // Before the claim, so no reader sees this claim without its engine (#7938).
     writeFileSync(files.pid, `${process.pid}\n`, { mode: 0o600 });
     rmSync(files.starting, { force: true }); // Started: the next nudge sees this claim instead.
     writeFileSync(files.log, '', { mode: 0o600 }); // Each sender keeps only its own short story.
