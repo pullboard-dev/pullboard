@@ -342,7 +342,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     // machine().inProcess returns stdout and refuses a non-zero status itself.
     const handed = await box.inProcess(alpha.repo, 'pass', '1', 'over to you');
     assert.match(handed, /passed #1 upward as #\d+/u, 'pass hands the ask up: ' + handed);
-    await page.run('refresh()');
+    // The view's state worker rebuilds a board after a write, so the page may read the earlier state first; read until it holds the passed ask.
+    for (let tries = 0; tries < 60 && !page.run('data.project.decisions.some(shout => shout.shout_id === 42)'); tries += 1) await page.run('refresh()');
     assert.ok(page.run('data.project.decisions.some(shout => shout.shout_id === 42)'), 'the passed ask is decision 42; the page holds ' + page.run('JSON.stringify(data.project.decisions.map(shout => shout.shout_id))'));
     const passedAt = page.run('Date.parse(data.project.decisions.find(shout => shout.shout_id === 42).shout_at)');
     page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
@@ -619,7 +620,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     // However many calls there are, each is a row: six more decisions make ten rows, none folded into a count.
     for (const n of [1, 2, 3, 4, 5, 6]) await box.inProcess(alpha.repo, 'shout', 'person', `Ship part ${n} today?`, '--decision');
     await click('[data-tab=items]');
-    await chrome.waitFor("document.querySelectorAll('#needs .needs-call').length >= 10", 15_000); // budget: hang ceiling for ten native decision rows to appear; no throughput claim.
+    await chrome.waitFor("(refresh(), document.querySelectorAll('#needs .needs-call').length >= 10)", 30_000); // budget: hang ceiling for ten native decision rows to appear; no throughput claim.
     r = await read();
     assert.deepEqual([r.needs.length, r.needs.filter((need) => /^Ship part [1-6] today\?$/.test(need.title)).length, r.needs.every((need) => need.label)], [10, 6, true],
       `ten calls, ten rows, each with its kind in the warning colour: ${JSON.stringify(r.needs)}`);
