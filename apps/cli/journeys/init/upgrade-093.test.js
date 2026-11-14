@@ -109,7 +109,7 @@ async t => {
   writeFileSync(join(seat, 'src/claimed.txt'), 'built under 0.9.3, submitted under 0.9.4\n');
   box.git(seat, 'add', '-A');
   assert.equal(box.tryGit(seat, 'commit', '-q', '-m', 'feat(web): claimed item [G1]').status, 0);
-  const submitted = await box.inProcess(seat, 'submit', '2');
+  const submitted = await box.inProcess(seat, 'submit', '2', '--no-next');
   assert.equal(submitted.code, 0, `${submitted.err}${submitted.out}`);
   const pid = /local runner \(pid (\d+)\)/u.exec(submitted.out)?.[1];
   t.after(() => { try { if (pid) process.kill(Number(pid), 'SIGKILL'); } catch { /* already gone */ } });
