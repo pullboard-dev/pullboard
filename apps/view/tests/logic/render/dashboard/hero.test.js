@@ -25,6 +25,6 @@ test('the server counts the last four hours from real SQLite events, stopping at
   add(new Date(now + 60_000).toISOString(), 'accept', 6); // after the snapshot clock
   const items = new Map([[1, { item_merged_commit: 'a' }], [2, { item_merged_commit: 'b' }], [3, { item_merged_commit: 'new' }]]);
   const counts = dashboardRecent({ db }, items, now);
-  assert.deepEqual(counts, { landed: 1, passed: 1, sentBack: 2, shouts: 1, since: now - 4 * 3_600_000, until: now });
+  assert.deepEqual(counts, { landed: 1, passed: 1, accepted: 1, sentBack: 2, shouts: 1, since: now - 4 * 3_600_000, until: now });
   assert.deepEqual(dashboardRecent({ db }, items, now + 10 * 3_600_000).landed, 0, 'an empty window counts 0');
 });
