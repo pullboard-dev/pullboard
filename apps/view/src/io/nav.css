@@ -104,24 +104,53 @@
 :root[data-nav][data-side="collapsed"] .side.open .side-body { position: static; display: grid; width: auto; max-height: none; padding: var(--space-2); border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 /* The status bar: the system's own state, along the foot. */
 :root[data-nav] .status { height: 26px; border-top: var(--border); }
-/* Narrow screens: the notch and the crumb step aside, the strip scrolls sideways and its menus drop under it. */
+/* Narrow screens (#6725, the approved compact mockup, Corey 13 Nov): a plain Menu button opens a drawer from the left; the notch,
+ * the crumb, the pin and the strip give way. The top bar reads Menu with its rulings, the project name, Search, the account. */
+.menubtn, .ptitle, .mveil, .mdrawer { display: none; }
 @media (max-width: 900px) {
-  :root[data-nav] .notch { display: none; }
-  :root[data-nav] .top-right { left: auto; width: min(260px, 50vw); }
-  :root[data-nav="top"] .strip { overflow-x: auto; scrollbar-width: none; }
-  :root[data-nav="top"] .tabs { gap: var(--space-5); }
-  :root[data-nav="top"] .tab-menu { position: fixed; top: 74px; right: 8px; left: 8px; width: auto; }
+  :root[data-nav] { --top: 48px; }
+  :root[data-nav] .top-tier { gap: var(--space-4); height: 48px; padding: 0 var(--space-5); }
+  :root[data-nav] .menubtn { display: inline-flex; flex: none; align-items: center; gap: var(--space-4); height: 32px; margin-left: calc(var(--space-2) * -1); padding: 0 var(--space-4) 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  :root[data-nav] .menubtn:hover { background: var(--surface-2); }
+  :root[data-nav] .menubtn .bars { width: 16px; height: 2px; margin: 0 2px; border-radius: 1px; background: var(--ink); box-shadow: 0 -5px 0 var(--ink), 0 5px 0 var(--ink); }
+  :root[data-nav] .menubtn .badge { font: 600 var(--text-xs)/1 var(--mono); color: var(--warn); }
+  :root[data-nav] .menubtn .badge:empty { display: none; }
+  :root[data-nav] .ptitle { display: block; min-width: 0; overflow: hidden; color: var(--ink-muted); text-overflow: ellipsis; white-space: nowrap; }
+  :root[data-nav] .notch, :root[data-nav] .crumb, :root[data-nav] .pin, :root[data-nav][data-side] .side-top, :root[data-nav="top"] .strip { display: none; }
+  :root[data-nav] .top-right { position: static; flex: none; margin-left: auto; gap: var(--space-4); }
+  :root[data-nav] .top-find { flex: none; }
+  :root[data-nav] .top-find input { width: 84px; height: 32px; padding: 0 var(--space-4); background: var(--surface-2); }
+  :root[data-nav] .top-find kbd, :root[data-nav] .top-find .pal-hint { display: none; }
+  /* The page's title with its controls under it: the strip is gone, so the controls take their own line. */
+  :root[data-nav="top"] .page-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-5); margin: 0 0 var(--space-4); }
+  :root[data-nav="top"] .page-title h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+  :root[data-nav="top"] .page-title .pagectl { width: 100%; margin-left: 0; overflow-x: auto; }
+  /* The drawer: the project and the numbers, Rulings, then every page with its fact in 40px rows, over a dimmed page. */
+  :root[data-nav] .mveil { position: fixed; inset: 0; z-index: 30; display: block; background: rgba(18, 18, 18, .3); animation: mfade .18s ease; }
+  :root[data-nav] .mdrawer { position: fixed; top: 0; bottom: 0; left: 0; z-index: 31; display: flex; flex-direction: column; width: min(300px, 86vw); overflow-y: auto; background: var(--surface); box-shadow: 8px 0 30px rgba(0, 0, 0, .15); animation: mslide .22s cubic-bezier(.2, .8, .2, 1); }
+  :root[data-nav] .mveil[hidden], :root[data-nav] .mdrawer[hidden] { display: none; }
+  :root[data-nav] .mdrawer .mh { padding: var(--space-4) var(--space-4) var(--space-3); border-bottom: 1px solid var(--line); }
+  :root[data-nav] .mdrawer .mh .switch-btn { display: flex; margin: 0 0 var(--space-2) calc(var(--space-1) * -1); }
+  :root[data-nav] .mdrawer .stats { display: flex; gap: var(--space-5); padding: 0 var(--space-2); color: var(--ink-faint); font-size: var(--text-xs); }
+  :root[data-nav] .mdrawer .stats b { color: var(--ink); font: 600 var(--text-xs) var(--mono); }
+  :root[data-nav] .mdrawer .stats b.g { color: var(--accent); }
+  :root[data-nav] .mdrawer .rul { display: flex; flex: none; align-items: center; gap: var(--space-3); min-height: 40px; height: 40px; margin: var(--space-3) var(--space-3) 0; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: 600; text-align: left; cursor: pointer; }
+  :root[data-nav] .mdrawer .rul:hover { background: var(--surface-2); }
+  :root[data-nav] .mdrawer .rul i { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+  :root[data-nav] .mdrawer .rul em { margin-left: auto; color: var(--warn); font: 600 var(--text-xs) var(--mono); font-style: normal; }
+  :root[data-nav] .mdrawer .mnav { display: flex; flex: 1; flex-direction: column; padding: var(--space-1) var(--space-3) var(--space-4); }
+  :root[data-nav] .mdrawer .side-h { margin: 14px var(--space-3) var(--space-1); color: light-dark(#a9b3ad, #5d6b63); font: 500 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+  :root[data-nav] .mdrawer .side-row { display: flex; flex: none; align-items: center; gap: var(--space-3); width: 100%; min-height: 40px; height: 40px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink-muted); font: inherit; font-size: var(--text-md); text-align: left; white-space: nowrap; cursor: pointer; }
+  :root[data-nav] .mdrawer .side-row:hover { background: none; color: var(--ink); }
+  :root[data-nav] .mdrawer .side-row.on { padding-left: 2px; color: var(--ink); font-weight: 600; }
+  :root[data-nav] .mdrawer .side-row.on::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  :root[data-nav] .mdrawer .side-row .f { margin-left: auto; color: var(--ink-faint); font: 11.5px var(--mono); font-weight: 400; }
+  :root[data-nav] .mdrawer .side-row.on .f { color: var(--accent); }
+  :root[data-nav] .mdrawer .side-row .f.a { color: var(--warn); font-weight: 600; }
+  :root[data-nav] .mdrawer .side-row .f:empty { display: none; }
 }
-@media (max-width: 900px) {
-  :root[data-nav] .pin { display: none; }
-}
-@media (width < 480px) {
-  /* The phone tab keeps a 3px inset so its label never touches the highlight edge. */
-  :root[data-nav="top"] .tabs > .tab { padding: 0 3px; }
-}
-@media (max-width: 600px) {
-  :root[data-nav] .crumb { display: none; }
-}
+@keyframes mslide { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes mfade { from { opacity: 0; } to { opacity: 1; } }
 /* The pin: the layout switch, a glyph that turns a quarter when the navigation is in the sidebar. */
 :root[data-nav] .pin { border: 0; border-radius: var(--radius-xs); background: none; font: inherit; cursor: pointer; }
 :root[data-nav] .pin:hover { background: var(--surface-2); color: var(--ink); }

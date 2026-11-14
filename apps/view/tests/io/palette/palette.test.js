@@ -57,6 +57,11 @@ test('clause 1: the search box reads "Search" and a press on it opens the palett
   assert.match(overlay.innerHTML, /placeholder="Search"/);
 });
 
+test('clause 1: under 900 px the search box says just "Search" [N26]', () => {
+  globalThis.matchMedia = () => ({ matches: true });
+  try { assert.equal(page().box.placeholder, 'Search'); } finally { delete globalThis.matchMedia; }
+});
+
 test('clause 1: Cmd+K or Ctrl+K and / open the palette, and Cmd+K again closes it [U94,#6616]', () => {
   for (const extra of [{ metaKey: true }, { ctrlKey: true }]) {
     const { palette, press } = page();

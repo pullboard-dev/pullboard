@@ -29,10 +29,12 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 <div class="body">
 <header class="top">
   <div class="top-tier">
+    <button class="menubtn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mdrawer"><span class="bars" aria-hidden="true"></span>Menu<span class="badge" id="menu-rulings" title="Rulings on this board"></span></button>
     <div class="side-top">
     <span class="brand" id="side-toggle" title="Pullboard"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></span>
     <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body" title="Switch project"><span id="proj-name">Projects</span><span class="badge" id="proj-rulings" title="Rulings on this board"></span><small aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></small></button>
     </div>
+    <span class="ptitle" id="proj-title"></span>
     <button class="pin" id="nav-pin" type="button" aria-pressed="false" aria-label="Move the navigation to the sidebar" title="Move the navigation to the sidebar (\\)"><span class="pg">⇤</span></button>
     <span class="crumb">/ <b id="crumb-page"></b></span>
     <span class="notch" id="notch" aria-label="The board now">${notchHtml()}</span>
@@ -119,6 +121,13 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 </div>
 <nav class="sidenav" id="sidenav" aria-label="Pages">${navSideHtml({ cost: privateCost, amber: ['shouts'] })}</nav>
 </div>
+<div class="mveil" id="mveil" hidden></div>
+<aside class="mdrawer" id="mdrawer" aria-label="Menu" hidden>
+  <div class="mh"><button class="switch-btn" id="mdrawer-proj" type="button" title="Switch project"><span id="mdrawer-proj-name">Projects</span><span class="badge" id="mdrawer-rulings"></span><small aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></small></button>
+  <div class="stats"><span><b data-notch="agents">—</b> agents</span><span><b class="g" data-notch="perHour">—/h</b></span></div></div>
+  <button class="rul" type="button" data-needs-list><i aria-hidden="true"></i>Rulings<em data-notch="rulings">0</em></button>
+  <nav class="mnav" aria-label="Pages">${navSideHtml({ cost: privateCost, amber: ['shouts'] })}</nav>
+</aside>
 <footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span>${snapshot ? `<div class="snapshot-controls" id="snapshot-controls" aria-label="Snapshot replay">
   <button class="snapshot-play" id="replay-play" type="button" aria-label="Play from first event" title="Play from first event"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5 13 8l-9 5.5z" fill="currentColor"/></svg></button>
   <button class="snapshot-pause" id="replay-pause" type="button" aria-label="Pause replay" title="Pause replay" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zm5 0h3v10H9z" fill="currentColor"/></svg></button>
