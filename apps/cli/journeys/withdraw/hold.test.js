@@ -77,7 +77,7 @@ async function acceptedBesideDefect(t) {
   const item = await submitted(box, 'waiting');
   const defect = fileDefect(box);
   box.git(reviewer, 'checkout', '-q', '--detach', item.head);
-  const accepted = await box.runLocal(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
+  const accepted = await box.runLocal(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--no-next', '--json');
   assert.equal((await json(box, box.repo, 'show', String(item.id))).item_status, 'verified', 'the item is accepted');
   return { box, item, defect, accepted };
 }
