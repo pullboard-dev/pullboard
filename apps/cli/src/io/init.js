@@ -861,7 +861,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
   if (!configuredGate(root)) {
     notes.push(gate
       ? `no gate yet: record the command that proves the build with ${settingCommand(root, gate)}`
-      : `no test command detected; ask the person which command tests this project, then record it with pullboard gate set "<command>"; if this board has no build, use ${settingCommand(root)} to check its spec and practice files; a second agent review checks the actual work`);
+      : `no test command detected; ask the person which command tests this project, then record it with pullboard gate set '<command>'; if this board has no build, use ${settingCommand(root)} to check its spec and practice files; a second agent review checks the actual work`);
   }
   if (written.length) notes.push(`git add -f -- ${written.map((path) => `'${path.replaceAll("'", "'\\''")}'`).join(' ')}`);
   return notes;

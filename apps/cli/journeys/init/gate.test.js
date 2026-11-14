@@ -161,6 +161,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   assert.equal(existsSync(join(root, 'package.json')), false, 'the newcomer repo has no package manifest');
   assert.equal(existsSync(marker), false, 'init does not execute a project command it has not detected');
   assert.match(initialized.out, /ask the person which command tests this project/u);
+  assert.match(initialized.out, /pullboard gate set '<command>'/u);
   const initializedGate = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).gate;
   const pending = await box.runLocal(root, 'resume', '--diagnostics', '--json');
   assert.equal(pending.code, 0, pending.err || pending.out);
