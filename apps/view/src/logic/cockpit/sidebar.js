@@ -47,6 +47,8 @@ function renderSide() {
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   const selectedRepo = data.projects.find((x) => x.root === view.root);
   $('proj-name').textContent = selectedGroup?.name || selectedRepo?.name || (p ? p.root.split('/').pop() : 'No project');
+  if ($('proj-title')) $('proj-title').textContent = $('proj-name').textContent;
+  if ($('mdrawer-proj-name')) $('mdrawer-proj-name').textContent = $('proj-name').textContent;
 }
 
 /** The Spec rows that need the person, read once per board from the store (#6613). */
@@ -78,7 +80,9 @@ function workingAgents(p) {
 
 /** The navigation's board numbers from one board: agents at work, the active items, and those building and in review. */
 function navNumbers(p) {
-  const busy = workingAgents(p), active = p.items.filter((i) => i.status !== 'withdrawn' && stateOf(i) !== 'verified');
+  // The state's shared count is the notch's, the Dashboard's and Activity's one number (#7310); a state without it counts here.
+  const shared = Array.isArray(p.counts?.agentIds) ? new Set(p.counts.agentIds) : null;
+  const busy = shared ? p.agents.filter((agent) => shared.has(agent.agent_id)) : workingAgents(p), active = p.items.filter((i) => i.status !== 'withdrawn' && stateOf(i) !== 'verified');
   return { agents: busy.length, agentIds: busy.map((a) => a.agent_id), agentNames: busy.map((a) => agentName(a.agent_id)), active: active.length,
     building: active.filter((i) => stateOf(i) === 'building').length, review: active.filter((i) => stateOf(i) === 'verify').length };
 }

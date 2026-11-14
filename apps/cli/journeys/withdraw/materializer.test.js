@@ -32,13 +32,23 @@ async function cliLocal(box, ...args) {
 }
 
 /** A fixture board with `items` items filed through the CLI and `events` events in all, the rest edits spread over the items. */
+/**
+ * Add numbered fixture items: each after the first says why it is not a duplicate of the one before, since add refuses a
+ * likely duplicate of an open item (#6475) and these differ only by number.
+ */
+async function addNumbered(box, name, count) {
+  const ids = [];
+  for (let index = 0; index < count; index += 1) {
+    const differs = ids.length ? ['--not-duplicate-of', `${ids.at(-1)} a separate numbered fixture item`] : [];
+    ids.push((await cliLocal(box, 'add', 'app', `${name} ${index + 1}`, '--route', 'strong', '--criterion', `Detail ${index + 1}`, '--brief', BRIEF, ...differs)).item.item_id);
+  }
+  return ids;
+}
+
 async function largeBoard(t, { items = 24, events = 12_000 } = {}) {
   const box = apiHttpFixture(t);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
-  const ids = [];
-  for (let index = 0; index < items; index += 1) {
-    ids.push((await cliLocal(box, 'add', 'app', `Large item ${index + 1}`, '--route', 'strong', '--criterion', `Detail ${index + 1}`, '--brief', BRIEF)).item.item_id);
-  }
+  const ids = await addNumbered(box, 'Large item', items);
   const db = new DatabaseSync(file);
   try { appendEdits(db, ids, events - db.prepare('SELECT COUNT(*) AS n FROM event').get().n); } finally { db.close(); }
   return { box, file, ids };
@@ -171,8 +181,7 @@ test('[A2,C7] a read with no write starts no build, and a read after a write ret
 
 test('[A2,C7] an open page hears one change notice per write, and none from its own reads', async (t) => {
   const box = apiHttpFixture(t);
-  const ids = [];
-  for (const index of [1, 2]) ids.push((await cliLocal(box, 'add', 'app', `Notice item ${index}`, '--route', 'strong', '--criterion', `Detail ${index}`, '--brief', BRIEF)).item.item_id);
+  const ids = await addNumbered(box, 'Notice item', 2);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const builds = [];
   const { api, read } = await materializedApi(t, box, builds);
@@ -205,6 +214,59 @@ test('[A2,C7] an open page hears one change notice per write, and none from its 
   const second = await read();
   assert.equal(changes(), 2, 'each write sends one change notice, and the page reads between them send none');
   assert.equal(second.document.state.sequence, (await read()).document.state.sequence, 'the page read after the second write is current');
+  controller.abort();
+  await pump;
+});
+
+test('#6850 clause 1 [A2,C7]: after a restart, a page that loaded the restored build catches up through a delta, not a fresh snapshot', async (t) => {
+  const { box, file, ids } = await largeBoard(t);
+  const first = await materializedApi(t, box, []);
+  const sequence = (await first.read()).document.state.sequence;
+  await first.api.close();
+  appendLater(file, ids, 1, 95_000);
+  const builds = [];
+  const again = await materializedApi(t, box, builds);
+  const kept = await again.read('items=compact&kept=1');
+  assert.equal(kept.document.state.sequence, sequence, 'the kept read answers from the restored build, from before the write');
+  const caught = await again.read();
+  assert.equal(caught.document.state.sequence, sequence + 1, 'the build after the restart has the write');
+  const delta = await again.read(`since=${sequence}`);
+  assert.equal(delta.status, 200);
+  assert.ok(delta.document.delta, `a delta from the restored build is answered, not reset: ${JSON.stringify(delta.document.reset)}`);
+  assert.equal(delta.document.sequence, sequence + 1);
+});
+
+test('#6850 clause 2 [A2,C7]: a page read answered from an older build hears, on its event stream, when the build that catches up lands', async (t) => {
+  const box = apiHttpFixture(t);
+  const ids = await addNumbered(box, 'Landing item', 2);
+  const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const builds = [];
+  const { api, read } = await materializedApi(t, box, builds);
+  const url = new URL(api.url);
+  const headers = { 'x-pullboard-key': url.searchParams.get('k') };
+  const id = (await (await fetch(url.origin + '/api/v1/boards', { headers })).json()).boards[0].id;
+  const first = await read();
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const response = await fetch(`${url.origin}/api/v1/boards/${id}/events`, { headers: { ...headers, accept: 'text/event-stream' }, signal: controller.signal });
+  const decoder = new TextDecoder();
+  let text = '';
+  const waiters = new Set();
+  /** Resolve once the stream text satisfies `ready`; the stream's own frames drive it, never a timer. */
+  const until = (ready) => new Promise((done) => { const check = () => { if (ready()) { waiters.delete(check); done(); } }; waiters.add(check); check(); });
+  const pump = (async () => {
+    try { for await (const chunk of response.body) { text += decoder.decode(chunk, { stream: true }); for (const check of [...waiters]) check(); } }
+    catch { /* The test aborts the stream. */ }
+  })();
+  const changes = () => text.split('event: changed').length - 1;
+  await until(() => text.includes(': API v1'));
+  appendLater(file, ids, 1, 90_000);
+  await until(() => changes() >= 1);
+  const kept = await read('items=compact&kept=1');
+  assert.equal(kept.document.state.sequence, first.document.state.sequence, 'the kept read answers from the build before the write, without waiting');
+  await until(() => changes() >= 2);
+  const caught = await read('items=compact&kept=1');
+  assert.equal(caught.document.state.sequence, first.document.state.sequence + 1, 'after the notice, the page read has the write');
   controller.abort();
   await pump;
 });

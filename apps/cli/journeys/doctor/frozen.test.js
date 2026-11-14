@@ -30,6 +30,10 @@ import {
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
 import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
+import { settlePulledJobs } from '../../tests/fixtures/e2e.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const TEMP_DIRS = [];
@@ -43,7 +47,13 @@ const NEW_TEXT = 'The person approved this exact updated promise.';
 
 /** Remove each private repo, board and home created by this file. */
 function cleanup() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) removeDir(dir);
+}
+
+/** Stop the loopback runner a submit started, then remove one fixture directory, retrying a last gate flush [C7]. */
+function removeDir(dir) {
+  stopFixtureLocalRunner(join(dir, 'machine-home'));
+  rmSync(dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 });
 }
 
 after(cleanup);
@@ -57,7 +67,7 @@ function shellWord(value) {
 async function project(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-stale-frozen-'));
   TEMP_DIRS.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => removeDir(dir));
   const root = join(dir, 'repo');
   const web = join(dir, 'web');
   const bin = join(dir, 'bin');
@@ -74,10 +84,15 @@ async function project(t) {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', // the lifecycle items repeat one title shape on purpose
   });
+  // The fixture machine settles each submit's pull gate on the loopback runner inside the command.
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
-  function pullboard(cwd, ...args) {
-    return runCliInProcess(args, { cwd, env });
+  async function pullboard(cwd, ...args) {
+    const result = await runCliInProcess(args, { cwd, env });
+    settlePulledJobs(cwd, args, env); // a pull gate is a job the loopback runner finishes after the command returns
+    return result;
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
   function git(cwd, ...args) {
@@ -115,7 +130,7 @@ async function addItem(box, title, specId = 'G1') {
  * no status, so the message carries its signal and elapsed time, never a bare null [S19].
  */
 function requireExit(result, status) {
-  const message = `${result.stdout}${result.context}`;
+  const message = `${result.stdout}${result.stderr ?? ''}${result.context ?? ''}`;
   if (status === 'refused') assert.ok(Number.isInteger(result.status) && result.status !== 0, `expected a refusal\n${message}`);
   else assert.equal(result.status, status, message);
   return result;
@@ -155,6 +170,12 @@ async function submit(box, id, name) {
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
   const head = box.git(folder, 'rev-parse', 'HEAD');
   await succeeds(box, folder, 'submit', String(id), '--no-next');
+  // The board marks the gate job done before it applies the receipt that moves the item off claimed; a next claim
+  // that races the receipt still counts this item as held (ONE_CLAIM), so wait for the applied receipt [C7,#7283].
+  await settledGateJob({ repo: box.root, env: box.env, run: async (cwd, ...args) => {
+    const shown = await box.pullboard(cwd, ...args);
+    return { code: shown.status, out: shown.stdout, err: shown.stderr ?? '' };
+  } }, id);
   return head;
 }
 

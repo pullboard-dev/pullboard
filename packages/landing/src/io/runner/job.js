@@ -16,6 +16,11 @@ import { amendLandingRegistries } from '../derive.js';
 export const LANDING_JOB_KIND = 'land';
 // Budget: a landing whose push keeps finding trunk moved tries this many tips, then hands the job back as trunk-busy.
 const PUSH_ATTEMPTS = 5;
+/**
+ * The newest land payload shape this runner's code understands (packages/api's LAND_PAYLOAD_SHAPE is what the board writes).
+ * A job of a newer shape is refused, never pushed without the options this code never learned (#7791).
+ */
+export const LANDING_PAYLOAD_SHAPE = 2;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@pullboard.invalid', '-c', 'core.hooksPath=/dev/null'];
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
@@ -51,6 +56,15 @@ export function must(root, args) {
   const result = tryGit(root, args);
   if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${(result.stderr || result.stdout).slice(0, 300)}`);
   return result.stdout;
+}
+
+/**
+ * Run one landing phase and push its elapsed milliseconds onto `phases`, even when it throws, as the batch landing's
+ * timedPhase said each phase. Why: a pulled landing's receipt is where a slow merge, static guard or CLI smoke reads its own time [C7,B3].
+ */
+async function timed(phases, name, work) {
+  const start = Date.now();
+  try { return await work(); } finally { phases?.push({ phase: name, ms: Date.now() - start }); }
 }
 
 /** The runner's landing checkout: a cache it can rebuild, never a durable home for work. */
@@ -139,7 +153,7 @@ export function commandCheck(argv) {
  * lines merged since the base, then the candidate's CLI smoke on a scratch board. A refusal is the check's red, named
  * by its code. Why: a pulled land job ran neither, so a duplicate import or a broken help reached trunk [C7,#7307].
  */
-function landingGuards(payload) {
+function landingGuards(payload, phases) {
   return async ({ root, base, items }) => {
     const merged = new Set(items);
     try {
@@ -147,7 +161,7 @@ function landingGuards(payload) {
       // A rename the path map does not record is refused as the batch landing refused it: LAND_MOVE_UNRECORDED [C7,#7700].
       for (const entry of payload.items.filter(row => merged.has(row.id))) guards.requireRecordedMoves(root, base, entry.commit);
       await guards.requireLandingModuleResolution(root, base, 'HEAD');
-      (await import('../smoke.js')).runLandingCliSmoke(root);
+      await timed(phases, 'cli smoke', async () => (await import('../smoke.js')).runLandingCliSmoke(root));
       return { ok: true, detail: null };
     } catch (error) {
       if (!error?.code) throw error;
@@ -161,15 +175,16 @@ function landingGuards(payload) {
  * the ledger proof over the proved files the merged tree holds, then the contracts, stopping at the first red. Why the file filter: a
  * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
-async function landingCheck(payload, env) {
+async function landingCheck(payload, env, phases = null) {
   const prove = payload.proof || payload.deferred ? (await import('./proof.js')).ledgerProofCheck : null;
   return async context => {
     const merged = new Set(context.items);
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
-    const guard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, commandCheck) : null;
-    const parts = [['check', landingGuards(payload)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
+    const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, commandCheck) : null;
+    const guard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
+    const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
       ...(payload.check ? [['proof', commandCheck(payload.check)]] : []),
       ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
@@ -272,11 +287,17 @@ function firstMerges(root, base, tip, pending) {
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null }) {
   const { remote, trunk, expect, items } = payload;
+  if (Number.isSafeInteger(payload.shape) && payload.shape > LANDING_PAYLOAD_SHAPE) {
+    // A plain coded error: this cell takes no kernel import, and the runner releases the job with this message, which names the code.
+    throw Object.assign(new Error(`[LANDING_PAYLOAD_VERSION] land job payload shape ${payload.shape} is newer than this runner's code (shape ${LANDING_PAYLOAD_SHAPE}); next: update this runner's pullboard checkout and restart it`), { name: 'Refused', code: 'LANDING_PAYLOAD_VERSION' });
+  }
   // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
-  const check = checks ?? await landingCheck(payload, env);
+  const phases = [];
+  const check = checks ?? await landingCheck(payload, env, phases);
   const separate = payload.publish === 'separate';
   const root = landingCheckout(workdir);
-  const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null, returned: [] };
+  // phases: each timed landing phase in the order it ran (merge, static checks, cli smoke, push), as the batch landing said them [C7,B3].
+  const receipt = { kind: LANDING_JOB_KIND, outcome: 'trunk-busy', expect, base: null, trunk: null, landed: [], already: [], attempts: 0, moved: [], detail: null, returned: [], phases };
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
   // guard: the static guard row a red came from; the board returns that item to its builder even under separate publish [#7492].
   const giveBack = (id, reason, detail, guard = null) => { receipt.returned.push({ id, reason, detail, ...(guard ? { guard } : {}) }); receipt.detail ??= detail; };
@@ -298,11 +319,13 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     must(root, ['checkout', '-q', '--detach', '--force', base]);
     must(root, ['clean', '-q', '-fd']);
     // A sibling that collides goes back alone, as in 0.9.3: the items that merge cleanly still land [P7].
+    const mergeStart = Date.now();
     let pending = waiting.filter(entry => {
       const collided = mergeItem(root, entry, base);
       if (collided) giveBack(entry.id, 'conflict', collided);
       return !collided;
     });
+    phases.push({ phase: 'merge', ms: Date.now() - mergeStart });
     if (pending.length === 0) return done('conflict');
     // Renew around the check: a check longer than the lease may let a second runner take the job, which is safe, since
     // the push's compare-and-swap and the on-trunk skip keep a duplicate landing from losing or doubling a commit.
@@ -333,7 +356,9 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     }
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
+    const pushStart = Date.now();
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });
+    phases.push({ phase: 'push', ms: Date.now() - pushStart });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: (pushed.stderr || pushed.stdout).slice(0, 300) });
@@ -363,7 +388,9 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
       return Boolean(renewed.renewed);
     } catch { return false; }
   };
-  const receipt = await runLandingJob(claim.payload, { workdir, checks, renew, env, diagnose, pushOptions: () => permit ? permitPushOptions(permit) : [] });
+  // What a big job moved out of its payload (a large proof) is read back from the job's request, which only its holder reads [#7766].
+  const moved = Array.isArray(claim.payload?.requested) && claim.payload.requested.length ? (await call({ action: 'request', job, runner, token }))?.request?.land : null;
+  const receipt = await runLandingJob(moved ? { ...claim.payload, ...moved } : claim.payload, { workdir, checks, renew, env, diagnose, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {
     const posted = await call({ action: 'receipt', job, runner, token, receipt });
     return { job, receipt, recorded: Boolean(posted.recorded) };

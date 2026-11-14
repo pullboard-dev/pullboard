@@ -17,6 +17,28 @@ import { JOB_CLASSES } from '../../../jobs/index.js';
 import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
 
+/** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
+export const SHARD_JOB_KIND = 'gate-shard';
+// Budget: a runner holds one gate shard per this many cores at a time, as a serve's default slots do (drive's CORES_PER_JOB), however many slots it was set to.
+const CORES_PER_SHARD = 3;
+
+/**
+ * The most gate-shard jobs one runner holds at once: one per CORES_PER_SHARD cores, at least one. Why: the first two
+ * runners to poll took all 18 shards of a dry push gate within a second and ran 8 and 10 at once on 10 cores, while four
+ * runners idled and the heaviest shard passed the 20-minute ceiling (#7765); a cap by cores leaves the rest to them.
+ *
+ * @param {number} cores - The cores the runner reported with its claim.
+ * @returns {number}
+ */
+export function shardClaimCap(cores) {
+  return Math.max(1, Math.floor(cores / CORES_PER_SHARD));
+}
+
+/** How many gate-shard jobs this runner holds a live lease on now. */
+function heldShards(db, runner, now) {
+  return db.prepare("SELECT COUNT(*) AS held FROM job WHERE job_kind = ? AND job_lease_owner = ? AND job_lease_until >= ? AND job_step IN ('offered', 'claimed')").get(SHARD_JOB_KIND, runner, now).held;
+}
+
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
 // Budget: a receipt is a small record (status, digests, receipt ids); output belongs in a report file, not the row.
@@ -187,6 +209,18 @@ export function openJob(db, { kind, item, candidate }) {
 }
 
 /**
+ * Each named job's view, or null for one gone from the board. Why: the pre-push gate waits on its item-less shard jobs
+ * through the board API, as a runner reads the queue [P7,#7743].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} ids
+ * @returns {(ReturnType<typeof jobView> | null)[]}
+ */
+export function jobViews(db, ids) {
+  return ids.map(id => jobView(db, id));
+}
+
+/**
  * True while the queue holds a job offered through it that has not finished: a gate or landing row a pull submit or
  * pilot wrote, offered or leased. Why: turning pull or its pilot off must let those jobs drain, so no queued or running
  * gate is stranded with its builder waiting; new submits already take the controller path [P7].
@@ -218,7 +252,7 @@ export function boardQueueMode(db, wanted) {
  * lapse, and the token the claim returns is what authenticates that runner's renewals and receipt.
  *
  * With a reserve (gate.jobReserve), the claim takes the highest priority class first and keeps each class its reserved
- * share of the runner's `jobs` slots; with none, landing jobs first, then test runs, then the rest, each by age (claimableJobs) [C7].
+ * share of the runner's `jobs` slots; with none, pre-push gate shards first (#7790), then landing jobs, test runs and the rest, each by age (claimableJobs) [C7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
@@ -234,8 +268,10 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   const ended = [];
   const repeated = [];
   const claimed = atomically(db, () => {
+    // A runner that reported its cores and holds its cap of gate shards is offered no more, so idle runners get the rest (#7765).
+    const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores);
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
-      runnable: (row, offer) => (!only || only.has(row.job_kind)) && (offer.needs ?? []).every(need => has.has(need)) });
+      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.

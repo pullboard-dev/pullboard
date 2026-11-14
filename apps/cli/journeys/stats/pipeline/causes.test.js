@@ -19,6 +19,7 @@ import {
 import { pipelineStats } from '../../../../../packages/stats/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 const BASE = Date.parse('2026-10-01T00:00:00Z');
 const CRITERION = 'The page renders its title.';
@@ -137,7 +138,7 @@ test('real refused submit records its original coded outcome without changing th
   } finally { store.closeBoard(board); }
 });
 
-test('real successful submit records immediate admission before its bound proof receipts [V4,R2,H16]', async () => {
+test('real successful submit records immediate admission before its bound proof receipts [V4,R2,H16]', async t => {
   const gate = 'node --test web/title.test.js';
   const box = helpers.project(gate);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -153,7 +154,8 @@ test('real successful submit records immediate admission before its bound proof 
   writeFileSync(join(box.web, 'web/title.js'), "export const title = 'after';\n");
   box.git(box.web, 'add', 'web/title.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): correct private fixture title [G1]');
-  const submitted = await json(box.web, 'submit', String(id), '--no-next');
+  // A pulled submit queues; the gate's receipt, applied by the machine's runner, carries the green gate and the proof events [C7,#7725].
+  const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, await json(box.web, 'submit', String(id), '--no-next'));
   assert.equal(submitted.gate.green, true);
   // @pullboard-board-file persistence: observe only the successful private fixture's native admission/proof order.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));

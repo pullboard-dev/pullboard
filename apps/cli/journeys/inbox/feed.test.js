@@ -50,6 +50,7 @@ import { budgetInbox } from '../../../../packages/activity/index.js';
 import { readActivityCursor } from '../../../../packages/activity/index.js';
 import { readActivityDelivery } from '../../../../packages/activity/index.js';
 import { saveActivityCursor } from '../../../../packages/activity/index.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -99,7 +100,7 @@ test('inbox reads leave the writer available and acknowledge only after selectio
   assert.equal(reads, 2);
 });
 
-test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', async () => {
+test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', async t => {
   const box = e2e.project('true');
   const boardPath = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const board = openBoard(boardPath);
@@ -116,17 +117,19 @@ test('a recorded submit stays successful when its later activity delivery fails 
   store.closeBoard(broken);
   const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  const document = JSON.parse(submitted.out);
+  const queued = JSON.parse(submitted.out);
+  // A pulled submit returns queued; the gate result comes from its settled gate job [P7,C7].
+  const document = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, queued);
   assert.equal(document.id, id);
   assert.equal(document.gate.green, true);
-  assert.equal(document.activity.receipt.recorded, false);
-  assert.equal(document.activity.receipt.code, 'ACTIVITY_DELIVERY_FAILED');
-  assert.match(document.diagnostics.join('\n'), /submitted .*activity delivery failed.*inbox/u);
   const after = openBoard(boardPath);
   try {
     assert.equal(store.getItem(after, id).item_status, 'submitted');
-    assert.equal(store.getItem(after, id).item_commit, document.commit);
+    assert.equal(store.getItem(after, id).item_commit, document.gateJob.gate.commit ?? store.getItem(after, id).item_commit);
     assert.equal(store.events(after).filter(event => event.event_kind === 'submit').length, 1);
+    // The pulled submit delivers the digest as the gate job is queued and reports the failed delivery on its acknowledgment [N26,H16,V4].
+    assert.equal(queued.activity?.receipt?.recorded, false, JSON.stringify(queued.activity));
+    assert.equal(queued.activity.receipt.code, 'ACTIVITY_DELIVERY_FAILED');
     assert.equal(store.events(after).filter(event => event.event_kind === 'activity-delivered').length, 0);
   } finally { store.closeBoard(after); }
 });
@@ -367,8 +370,17 @@ test('activity cursors leave events arriving during an observation pending [N26]
     'a corrupt old event cannot block delivery from the canonical message table');
 });
 
+/** Make the next inbox read a session start, as a restart does, after a first read has put the seat at the board head [C7,#6152]. */
+function startNewSession(worktree, boardId) {
+  const delivery = readActivityCursor(worktree, 'web-1', boardId);
+  const saved = JSON.parse(readFileSync(delivery.file, 'utf8'));
+  writeFileSync(delivery.file, JSON.stringify({ ...saved, session: 'older-private-fixture-session' }));
+}
+
 test('inbox delivery uses real Git paths and board-bound cursors without consuming later news [R2,N26,H16]', async () => {
   const box = e2e.project();
+  // A seat's first read starts at the board head [C7,#6152], so it reads once before the activity this test expects.
+  assert.equal((await box.runLocal(box.web, 'inbox', '--json')).code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   const rowFile = 'web/feed-rows.md';
   const first = '## Goals\n- G1 [draft, should] First row.\n- G2 [draft, should] Other row.\n';
@@ -401,6 +413,7 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
   const firstNews = store.shout(board, { from: 'coordinator', to: 'all', text: 'First private release.', lanes, news: true });
   const boardId = store.boardId(board);
   store.closeBoard(board);
+  startNewSession(box.web, boardId);
   const one = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(one.code, 0, one.err);
   const feed = JSON.parse(one.out);
@@ -496,6 +509,8 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const foreignRoot = join(box.dir, 'interrupt-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', foreignRoot, 'main');
   assert.equal(fixtureJoin(box.run, foreignRoot, 'api', '--json').code, 0);
+  // A seat's first read starts at the board head [C7,#6152], so web-1 reads once before the interrupts it must receive.
+  assert.equal((await box.runLocal(box.web, 'inbox', '--json')).code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(e2e.commitFile(box, box.web, 'web/interrupt.txt', 'private interrupt fixture\n', 'feat(web): interrupt fixture [G1]').status, 0);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
@@ -529,6 +544,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const other = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private digest work' });
   store.appendFact(board, other, { agentId: 'coordinator', kind: 'note', text: 'PRIVATE_RAW_STATUS_MUST_NOT_BE_DIGEST_TEXT' });
   const claimBefore = store.getItem(board, active);
+  startNewSession(box.web, store.boardId(board));
   const first = await box.runLocal(box.web, 'inbox', '--json');
   assert.equal(first.code, 0, first.err);
   const feed = JSON.parse(first.out).activity;

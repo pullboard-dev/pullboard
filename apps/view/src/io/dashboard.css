@@ -113,6 +113,7 @@
 .dash-seg-landing { fill: color-mix(in oklab, var(--stage-merged) 55%, var(--surface)); background: var(--stage-stripe); }
 .dash-seg-review { fill: var(--stage-review); background: var(--stage-review); }
 .dash-seg-building { fill: var(--stage-building); background: var(--stage-building); }
+.dash-seg-ready { fill: var(--stage-ready); background: var(--stage-ready); }
 .dash-seg-waiting { fill: var(--waiting); background: var(--waiting); }
 rect.dash-seg-held { fill: var(--surface); stroke: var(--mark-held); stroke-width: .6; stroke-dasharray: 1.2 .8; vector-effect: non-scaling-stroke; }
 i.dash-seg-held { background: none; border: var(--border-held-thin); }
@@ -258,6 +259,8 @@ i.dash-seg-held { background: none; border: var(--border-held-thin); }
   .dash-runners { grid-template-columns: minmax(0, 1fr); } .dash-runners .dash-l { border-right: 0; border-bottom: var(--border); } .dash-node { padding-top: 10px; } .dash-rfoot { grid-column: 1; }
   .dash-legend { display: none; }
   .dash-live th.hide, .dash-live td.hide { display: none; }
+  /* Tighter cells keep a wide-font table inside the narrowest phone, so the page never scrolls sideways (N26). */
+  .dash-live th, .dash-live td { padding-inline: var(--space-2); }
   .dash-agt td.who { width: 1%; } .dash-agt td.tl { width: auto; } .dash-agt td.now { width: 1%; max-width: none; } .dash-agt td.now .tt { display: none; } .dash-agt td.now .dash-chip { margin-right: 0; }
   .dash-tbl .mini { display: none; }
 }

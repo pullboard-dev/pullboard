@@ -1,5 +1,8 @@
 import { modelLabelRules } from "../cost/tab.js";
 import { projectSummary } from "../../logic/summary/project.js";
+import { readyAndBlocked } from "../../logic/counts.js";
+import { splitReady } from "../../logic/counts.js";
+import { withReadySplit } from "../../logic/counts.js";
 /**
  * Read the private board's cost event history once per board and window, and again only after a usage, shared-usage
  * or merged event has arrived since the last read; a gap in the visible ids reads the event log for the missing ones. The drawn numbers stay on screen while a new read is on its way.
@@ -170,6 +173,8 @@ function renderPersonRequests(project) {
 function boardSummary(board, state) {
   return {
     ...board, ok: true, ...projectSummary(state, personNeeds(state)),
+    // An open-first state counts the finished items it left out in state.finished (#6697).
+    ...(state.itemsOmitted === 'finished' ? { verified: state.items.filter((item) => item.status === 'verified').length + (state.finished?.verified ?? 0) } : {}),
     releaseNotes: state.releaseNotes,
     laneHolds: state.holds,
     // What each item's state reads from, so another repo's roadmap can show it as this board's
@@ -387,17 +392,26 @@ async function boardRead(board, seen) {
     const reply = await api(path + '?since=' + held.sequence + (mark && '&' + mark) + (held.version === undefined ? '' : '&eventLogVersion=' + encodeURIComponent(held.version)));
     if (reply.delta) {
       const state = applyStateDelta(held.state, reply.delta);
-      sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion });
-      return state;
+      // A state that already holds the finished items stays whole: the delta's counts never mark them omitted again (#6697).
+      if (held.whole) { delete state.itemsOmitted; delete state.finished; }
+      sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion, whole: held.whole });
+      return withReadySplit(state);
     }
   }
   // A first load takes the state the server keeps (kept=1): the stream's opening catch-up reads the delta to now [A2,C7].
-  const query = [mark, local ? 'items=compact' : '', local && !held ? 'kept=1' : ''].filter(Boolean).join('&');
+  // It asks for open work only (finished=omit): finished and withdrawn items come from ensureFinished when a screen shows them (#6697).
+  const query = [mark, local ? 'items=compact' : '', local && !held ? 'finished=omit' : '', local && !held ? 'kept=1' : ''].filter(Boolean).join('&');
   const reply = await api(path + (query && '?' + query));
   const state = expandItemSummaries(reply.state);
   if (local) sentStates.set(board.id, { state, sequence: state.sequence, version: reply.eventLogVersion });
-  return state;
+  // Release and Roadmap call ready what the Dashboard's NOW calls ready; the kept state stays as the board sent it (#7763).
+  return withReadySplit(state);
 }
+
+// The same split the server's counts use, embedded so the page and the server agree on which open items are ready.
+const readyAndBlocked = (${readyAndBlocked.toString()});
+const splitReady = (${splitReady.toString()});
+const withReadySplit = (${withReadySplit.toString()});
 
 // U94's sidebar summary, embedded as its own source so the page and a server that serves it count alike.
 const projectSummary = (${projectSummary.toString()});
@@ -414,6 +428,29 @@ async function summaryRead(board) {
   }
   const state = await boardRead(board, null);
   return projectSummary(state, personNeeds(state));
+}
+
+const finishedReads = new Set();
+/**
+ * Read the finished and withdrawn items an open-first state left out, once per board, and put them into the state the
+ * page draws, so Items on Verified or All, the pipeline, search, Roadmap and an item address show them (#6697).
+ * @param {object|null} project The state the page draws now.
+ */
+function ensureFinished(project) {
+  const board = project?.itemsOmitted === 'finished' && data?.project === project ? data.projects.find((row) => row.root === data.root && row.ok) : null;
+  if (!board || finishedReads.has(board.id)) return;
+  finishedReads.add(board.id);
+  api('/api/v1/boards/' + encodeURIComponent(board.id) + '/finished').then((reply) => {
+    const held = sentStates.get(board.id);
+    const into = held?.state ?? data.project;
+    if (!into || into.itemsOmitted !== 'finished') return;
+    const have = new Set(into.items.map((item) => item.id));
+    const whole = { ...into, items: [...into.items, ...expandItemSummaries(reply.state).items.filter((item) => !have.has(item.id))] };
+    delete whole.itemsOmitted; delete whole.finished;
+    if (held) sentStates.set(board.id, { ...held, state: whole, whole: true });
+    if (data.project === into) data.project = whole;
+    render();
+  }, () => { finishedReads.delete(board.id); });
 }
 
 /** Whether a board state already carries every item's detail, as exports and event replays do. */

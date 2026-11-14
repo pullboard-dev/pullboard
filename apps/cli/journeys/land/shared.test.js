@@ -8,10 +8,10 @@ import { assertDeferredBatchIsolation } from '../../tests/fixtures/land/deferred
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { landProject, itemWorktree, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('a deferred red shared importer returns only its culprit and lands innocent owners locally [B3,R3,C7,V4]', { timeout: 120_000 }, // budget: four real submit/accept cycles and shared-importer isolation; hang ceiling only.
-() => assertDeferredBatchIsolation({ landProject, itemWorktree, submitItem, acceptItem }));
+t => assertDeferredBatchIsolation(t, { landProject, itemWorktree, acceptItem, commitFile }));
 
 test('a green affected-only local landing never stamps the full gate [B3,R3,C7,V4]', { timeout: 90_000 }, // budget: one real submit/accept and finite affected landing; hang ceiling only.
-() => assertAffectedLandingUnstamped({ landProject, itemWorktree, submitItem, acceptItem }));
+t => assertAffectedLandingUnstamped(t, { landProject, itemWorktree, acceptItem, commitFile }));

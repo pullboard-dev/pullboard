@@ -14,6 +14,7 @@ import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
+import { lineSettings } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
@@ -80,6 +81,56 @@ export function hostUpstream(root, config) {
 }
 
 /**
+ * The item ids an open land job already names. Why: a second accept offers its own items as their own job and never
+ * names one twice, so no two jobs push the same land ref or merge the same item [C7,#7728].
+ */
+function openLandingItems(db) {
+  const rows = db.prepare(`SELECT step.job_step_payload FROM job JOIN job_step AS step ON step.job_step_job = job.job_id
+    AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_kind = 'land' AND job.job_step <> 'done'`).all();
+  const ids = new Set();
+  for (const row of rows) {
+    try { for (const entry of JSON.parse(row.job_step_payload)?.payload?.items ?? []) ids.add(entry.id); } catch { /* an unreadable offer names nothing */ }
+  }
+  return ids;
+}
+
+/**
+ * Publish an item's commit under its land ref on the trunk remote; a push that lost a race to the same commit counts,
+ * and a lost race to anything else tries once more. Why: two hosts may offer at once, and a ref already at the
+ * accepted commit is the landing's input, not a failure [C7,#7728].
+ */
+function publishItemRef(root, remote, entry) {
+  let pushed = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    pushed = tryGit(root, ['push', '--quiet', '--no-verify', remote, `+${entry.commit}:${entry.ref}`]);
+    if (pushed.status === 0) return;
+    const listed = tryGit(root, ['ls-remote', '--', remote, entry.ref]);
+    if (listed.status === 0 && listed.stdout.slice(0, 40) === entry.commit) return;
+  }
+  throw Object.assign(new Error(`could not publish #${entry.id} to the trunk remote: ${(pushed.stderr || pushed.stdout).slice(0, 300)}`), { code: 'LANDING_TRUNK_REMOTE' });
+}
+
+/**
+ * Run `work` under the board's write lock, or inside the caller's transaction when one is open.
+ * Why: two accepts at once each chose the same items and offered overlapping jobs (#7728); under the lock the second
+ * offer sees the first one's jobs and names none of their items [C7].
+ */
+function underBoardWriteLock(db, work) {
+  try { db.exec('BEGIN IMMEDIATE'); } catch (error) {
+    if (/within a transaction/u.test(String(error?.message))) return work();
+    throw error;
+  }
+  try {
+    const result = work();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/**
  * The deferred files each item's latest submission recorded, by item id; null when no item deferred any.
  * Why: the pulled gate records them in the submission proof, and only the landing job can run them on the merged tree [C7].
  */
@@ -130,16 +181,16 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
   if (!configured && !hosted) return null;
   const remote = configured ?? root;
   return (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
-    const open = ids ? null : openLandingJob(board.db);
-    if (open) return { offered: open, items: [], waiting: false };
+    // An open land job keeps its own items; this offer takes only the accepted items no open job names [C7,#7728].
+    const taken = ids ? new Set() : openLandingItems(board.db);
     // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
     const trunkTip = await landingTrunk(root, remote, policy.commit);
     // An open item a landing reopen left with its accept and green gate returns to verified first, or stays open naming its conflicts [B3,C7,#2997].
     if (!ids) await relandAcceptedItems({ root, board, base: trunkTip, write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), landingPorts: { quarantineWaivers: quarantineWaivers ?? (() => []) } });
-    const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && (!ids || ids.includes(item.item_id)),
+    const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && !taken.has(item.item_id) && (!ids || ids.includes(item.item_id)),
       write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line) });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
-    const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at);
+    const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at && !taken.has(item.item_id));
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].
     const accepted = new Map(board.db.prepare("SELECT item_id, MAX(event_id) AS event_id FROM event WHERE event_kind = 'accept' GROUP BY item_id").all().map(row => [row.item_id, row.event_id]));
     // landing.first in accepted trunk policy goes ahead of the accept order, in the order listed; named ids keep the order named [C7,#7387].
@@ -163,20 +214,37 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       return { id: item.item_id, commit: commitOf(item), ref: landingItemRef(item.item_id), header: message.header, trailers: message.trailers };
     });
     if (ids && items.length !== ids.length) throw new Refused('LAND_NOT_ACCEPTED', `${ids.filter(id => !items.some(entry => entry.id === id)).map(id => `#${id}`).join(' ')} is not accepted`, 'land it after its verify, or go around the gate with --forced "<why>"');
-    if (!items.length) return { offered: null, items: [], waiting: false };
-    for (const entry of items) {
-      const pushed = tryGit(root, ['push', '--quiet', '--no-verify', remote, `+${entry.commit}:${entry.ref}`]);
-      if (pushed.status !== 0) throw Object.assign(new Error(`could not publish #${entry.id} to the trunk remote: ${(pushed.stderr || pushed.stdout).slice(0, 300)}`), { code: 'LANDING_TRUNK_REMOTE' });
-    }
+    if (!items.length) return { offered: ids ? null : openLandingJob(board.db), items: [], waiting: false };
+    for (const entry of items) publishItemRef(root, remote, entry);
     const listed = tryGit(root, ['ls-remote', '--', remote, trunkRef(root)]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
-    // Each item's submit may have deferred test files to this landing; the job runs them on the merged tree [C7].
-    const deferred = deferredFilesOf(board.db, items);
-    // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
-    const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen[0], items[0].commit, pairPrefix) : null;
-    const job = offerLandingJob(board.db, { items, expect, trunk: trunkRef(root), forced, deferred, flakes, badges: badgeDocuments?.(board) ?? [],
-      ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config }) });
-    ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${items.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
-    return { offered: job.id, items: items.map(entry => entry.id), waiting: false, ...(forced ? { forced } : {}) };
+    return underBoardWriteLock(board.db, () => {
+      // A concurrent accept may have offered some of these since they were chosen; those stay with its job [C7,#7728].
+      const fresh = ids ? new Set() : openLandingItems(board.db);
+      const free = items.filter(entry => !fresh.has(entry.id));
+      if (!free.length) return { offered: openLandingJob(board.db), items: [], waiting: false };
+      // A set line.landingBatchSize splits an automatic offer into jobs of at most that many, as it capped the engine's
+      // batches; each job's push finds trunk moved by the one before and merges again on the new tip [C7,#7728].
+      const size = ids ? free.length : Math.min(free.length, batchCap(board));
+      const jobs = [];
+      for (let start = 0; start < free.length; start += size) {
+        const batch = free.slice(start, start + size);
+        // Each item's submit may have deferred test files to this landing; the job runs them on the merged tree [C7].
+        const deferred = deferredFilesOf(board.db, batch);
+        // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
+        const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, badges: badgeDocuments?.(board) ?? [],
+          ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config }) });
+        ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
+        jobs.push(job.id);
+      }
+      return { offered: jobs[0], items: free.map(entry => entry.id), waiting: false, ...(jobs.length > 1 ? { jobs } : {}), ...(forced ? { forced } : {}) };
+    });
   });
+}
+
+/** The most items one automatic land offer takes: a set line.landingBatchSize, else no cap. */
+function batchCap(board) {
+  const size = lineSettings(board).landingBatchSize;
+  return Number.isSafeInteger(size) && size >= 1 ? size : Infinity;
 }

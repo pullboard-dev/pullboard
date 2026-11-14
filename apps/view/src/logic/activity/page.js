@@ -12,10 +12,11 @@
  * @param {boolean} [options.leftKnown] - Whether the person's last look is a remembered time.
  * @param {number} [options.newer] - How many events arrived since the page was drawn.
  * @param {string} [options.controls] - The filter strip's markup, shown inside the page on a narrow screen.
+ * @param {Function} [options.itemHref] - The address of an item; a quoted #N links to it [N38].
  * @param {boolean} [options.narrow] - A phone-width layout.
  * @returns {string} The page's markup.
  */
-export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newer = 0, controls = '', narrow = false } = {}) {
+export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newer = 0, controls = '', narrow = false, itemHref = id => '/items/' + id } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const MIN = 60_000, HOUR = 3_600_000, PER = 3, PAGE_ROWS = 10, BLEED = 22;
   const now = flow.now, names = flow.names;
@@ -25,7 +26,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   const dur = ms => { const m = Math.max(1, Math.round(ms / MIN)); return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + 'm'; };
   const ago = ms => { const m = Math.max(0, Math.round((now - ms) / MIN)); return m < 60 ? m + 'm ago' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
   const KIND = { landed: ['l', 'Landed'], sentback: ['x', 'Sent back'], held: ['h', 'Held'], blocked: ['g', 'Blocked'], pending: ['r', 'Pending review'], ruling: ['ru', 'Ruling'],
-    shout: ['g', 'Shout'], building: ['b', 'Building'], review: ['r', 'In review'], ready: ['rd', 'Ready'], sentinel: ['g', 'Sentinel'], gate: ['gt', 'Gate'], landing: ['l', 'Landing'] };
+    shout: ['g', 'Shout'], building: ['b', 'Building'], review: ['r', 'In review'], ready: ['rd', 'Ready'], withdrawn: ['x', 'Withdrawn'], sentinel: ['g', 'Sentinel'], gate: ['gt', 'Gate'], landing: ['l', 'Landing'] };
   const SEG = { ready: 'rd', build: 'b', blk: 'g', gate: 'gt', pend: 'r', rev: 'r', land: 'l', held: 'h' };
   const FILTERS = [['all', 'All'], ['landed', 'Landed'], ['sentback', 'Sent back'], ['held', 'Held'], ['blocked', 'Blocked'], ['pending', 'Pending review'], ['ruling', 'Rulings'], ['shout', 'Shouts']];
   const STAGE_COLOR = { ready: 'ready', building: 'building', gate: 'gate', pending: 'review', landing: 'merged' };
@@ -113,10 +114,12 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   };
 
   // ---- event rows ----
+  /** A quote with every cited #N linked to that item, the rest escaped [N38]. */
+  const quoted = text => '“' + String(text ?? '').split(/(#\d+)/u).map(part => /^#\d+$/u.test(part) ? '<a class="ref" href="' + esc(itemHref(part.slice(1))) + '" data-go="item:' + part.slice(1) + '">' + part + '</a>' : esc(part)).join('') + '”';
   const rowHtml = (entry, withTitle) => {
     const [cls, label] = KIND[entry.kind] ?? ['g', entry.kind];
-    const line1 = withTitle ? (entry.id !== null ? '<span class="id">#' + entry.id + '</span>' : '') + (entry.quote ? '“' + esc(entry.quote) + '”' : esc(entry.title || (entry.kind === 'ruling' ? 'A ruling for you' : 'A message')))
-      : entry.quote ? '“' + esc(entry.quote) + '”' : entry.kind === 'landed' ? 'on main' : esc(entry.fact.split(' · ')[0]);
+    const line1 = withTitle ? (entry.id !== null ? '<span class="id">#' + entry.id + '</span>' : '') + (entry.quote ? quoted(entry.quote) : esc(entry.title || (entry.kind === 'ruling' ? 'A ruling for you' : entry.id !== null ? 'This item' : 'A message')))
+      : entry.quote ? quoted(entry.quote) : entry.kind === 'landed' ? 'on main' : esc(entry.fact.split(' · ')[0]);
     const line2 = withTitle ? esc(entry.fact) : entry.quote ? esc(entry.fact) : entry.fact.includes(' · ') ? esc(entry.fact.split(' · ').slice(1).join(' · ')) : '';
     return '<div class="act-row' + (entry.id !== null ? ' has' : '') + '"' + (entry.id !== null ? ' data-row="' + entry.id + '"' : '') + '><span class="t">' + (withTitle ? ago(entry.at) : clockShort(entry.at)) + '</span>' + chip(cls, label) + '<span class="ph">' + line1 + '</span><span class="fa">' + line2 + '</span></div>';
   };
@@ -210,7 +213,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   // ---- Since you left, Bottlenecks ----
   const s = flow.since, minutesLeft = s.at === null ? null : Math.max(1, Math.round((now - s.at) / MIN));
   const sinceHtml = '<p class="act-since">' + (leftKnown && s.at !== null ? 'Since you left ' + dur(now - s.at) + ' ago: ' : 'In the last hour: ')
-    + '<a data-act-go="landed">' + s.landed + ' landed</a> · <a data-act-go="sentback">' + s.sentBack + ' sent back</a> · <a class="amb" data-act-go="ruling">' + s.rulings + (s.rulings === 1 ? ' ruling' : ' rulings') + '</a>'
+    + '<a data-act-go="landed">' + s.landed + ' landed</a> · <a data-act-go="sentback">' + s.sentBack + ' sent back</a> · <a class="amb" data-act-go="ruling" title="Rulings raised in this window, not the top bar count">' + s.rulings + (s.rulings === 1 ? ' ruling' : ' rulings') + '</a>'
     + (newer > 0 ? '<a class="newer" data-act-new>' + newer + ' new ↑</a>' : '') + '</p>';
   void minutesLeft;
   const bottlenecks = '<section class="act-sec act-first"><div class="act-shd"><p class="act-lbl">Bottlenecks · now</p><span class="act-cap">'
@@ -237,8 +240,8 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
     '<div class="act-card rc main1"><span class="mdot' + (R.main.green ? '' : ' red') + '"></span><b class="' + (R.main.green ? '' : 'red') + '">' + (R.main.green ? 'Green' : 'Red') + '</b><span class="faint">' + (R.main.green ? (R.main.at ? 'for ' + dur(now - R.main.at) : '') : R.main.repairs + ' repair item' + (R.main.repairs === 1 ? '' : 's') + ' open') + '</span>' + (R.main.sha ? '<span class="commit">' + esc(R.main.sha.slice(0, 7)) + '</span>' : '') + '</div>',
   ];
   const rail = '<aside class="act-rail" aria-label="Resources">'
-    + sec('<div class="act-shd"><p class="act-lbl">Agents<span class="act-pill">' + A.total + '</span></p><button type="button" class="lk" data-tab="dashboard">Dashboard ›</button></div>', cards[0], false)
-    + sec('<div class="act-shd"><p class="act-lbl">Runners<span class="act-pill">' + R.runners.length + '</span></p><span class="act-cap">' + (hot ? '<b class="hotn">' + hot + '</b> hot · ' : '') + jobs + ' jobs</span></div>', cards[1])
+    + sec('<div class="act-shd"><p class="act-lbl">Agents<span class="act-pill" data-count="agents">' + A.total + '</span></p><button type="button" class="lk" data-tab="dashboard">Dashboard ›</button></div>', cards[0], false)
+    + sec('<div class="act-shd"><p class="act-lbl">Runners<span class="act-pill" data-count="runners">' + (R.runnerCount ?? R.runners.length) + '</span></p><span class="act-cap">' + (hot ? '<b class="hotn">' + hot + '</b> hot · ' : '') + jobs + ' jobs</span></div>', cards[1])
     + sec('<div class="act-shd"><p class="act-lbl">Queue</p></div>', cards[2])
     + sec('<div class="act-shd"><p class="act-lbl">Main</p></div>', cards[3])
     + '</aside>';

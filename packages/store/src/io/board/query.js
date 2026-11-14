@@ -471,7 +471,10 @@ export function proofReceipts(board, itemId) {
 }
 
 
-/** Read the adjacent batch receipt, never a per-item scan of all landing history. */
+/**
+ * Read the adjacent batch receipt, never a per-item scan of all landing history. A pulled landing writes no batch
+ * receipt, only a main-moved event naming its land job, so its base is that job's recorded main [#7751].
+ */
 function activityBatchBase(board, event) {
   const detail = activityEventDetail(event);
   if (!detail) return null;
@@ -480,7 +483,11 @@ function activityBatchBase(board, event) {
       json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END,'$.batch.base') AS base,
       json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END,'$.batch.tip') AS tip
       FROM event WHERE event_kind='landing_batch' AND event_id${operator}? ORDER BY event_id ${order} LIMIT 1`).get(event.event_id);
-    if (batch?.id === detail.batch && batch.tip === detail.sha && /^[a-f0-9]{40}$/u.test(batch.base ?? '')) return batch.base;
+    if (batch && batch.id === detail.batch && batch.tip === detail.sha && /^[a-f0-9]{40}$/u.test(batch.base ?? '')) return batch.base;
+  }
+  if (typeof detail.job === 'string' && !detail.batch) {
+    const base = board.db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(detail.job)?.job_base;
+    if (/^[a-f0-9]{40}$/u.test(base ?? '')) return base;
   }
   return null;
 }
@@ -530,7 +537,22 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
       AND json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END, '$.shout') IN (SELECT value FROM json_each(?))`).get(cursor, messageIds).id;
     if (first !== null) after = Math.min(after, first - 1);
   }
+  // A fresh seat still owes itself the typed requests filed to it and answered to it before its first read: they are open
+  // obligations, not history, so the head start must not drop them (the coordinator's queue, a requester's answers) [B3,N26,C7].
+  let owedFrom = Infinity;
+  const owedTyped = [];
+  if (fromHead) {
+    const answered = new Set();
+    const typed = board.db.prepare("SELECT * FROM event WHERE event_kind IN ('typed-request','typed-request-answer') AND event_id<=? ORDER BY event_id").all(cursor);
+    for (const event of typed) if (event.event_kind === 'typed-request-answer') answered.add(activityEventDetail(event)?.requestId);
+    for (const event of typed) {
+      const detail = activityEventDetail(event);
+      if (event.event_kind === 'typed-request' ? agentId === 'coordinator' && !answered.has(event.event_id) : detail?.requester === agentId) owedTyped.push(event);
+    }
+    if (owedTyped.length) owedFrom = owedTyped[0].event_id - 1;
+  }
   const rows = new Map();
+  for (const event of owedTyped) rows.set(event.event_id, event);
   // Read the new events once by id range and keep the wanted items' ones: an advanced cursor leaves a handful of rows,
   // where probing the item index once per wanted item cost tens of milliseconds on a board of a thousand items.
   const wantedIds = new Set(wanted);
@@ -571,7 +593,7 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     }
   }
   return { ...projectAgentActivity({ agent, interests, events: [...rows.values()].toSorted((a, b) => a.event_id - b.event_id),
-    shouts: messages, changesForMain, sessionStart, after, newsAfter, cursor }), shoutCursor, newsShouts: newsIds };
+    shouts: messages, changesForMain, sessionStart, after: Math.min(after, owedFrom), newsAfter, cursor }), shoutCursor, newsShouts: newsIds };
 }
 
 /**

@@ -74,6 +74,7 @@ const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, 
 // The Activity page: the board's last hours of events and the live snapshot, drawn into #activity (#6916).
 const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html: activityPageHtml, tip: activityTipHtml, step: activityStep, start: activityStart, api, boardPath,
   current: () => view.root, view: () => view, project: () => data?.project, active: () => view.tab === 'activity',
+  itemHref: id => itemAddress(id),
   working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds,
   controls: () => pageControlsHtml({ tab: 'activity', by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24 }),
   onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(), drawn: () => drawHistoryNotes(),

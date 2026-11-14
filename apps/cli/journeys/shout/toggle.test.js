@@ -24,6 +24,11 @@ import {
   proofShot,
 } from '../../tests/fixtures/cockpit/harness.js';
 
+/** Scroll one choice into the segmented track, which scrolls sideways at phone width, before real input reaches it. */
+async function reveal(chrome, expression) {
+  await chrome.stable(`(() => { ${expression}.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; })()`);
+}
+
 /** Read the real browser cascade and bounds, independently of the renderer's markup strings. */
 async function measureControl(chrome, selector) {
   return JSON.parse(await chrome.stable(`JSON.stringify((() => {
@@ -46,7 +51,7 @@ async function measureControl(chrome, selector) {
         const css = getComputedStyle(button), box = button.getBoundingClientRect(), count = button.querySelector('b'), n = count && getComputedStyle(count);
         const edges = [...button.querySelectorAll('.seg-hit')].map(edge => edge.getBoundingClientRect());
         const hitHeight = Math.max(box.bottom, ...edges.map(edge => edge.bottom)) - Math.min(box.top, ...edges.map(edge => edge.top));
-        return { text:button.childNodes[0]?.textContent, count:count?.textContent, pressed:button.getAttribute('aria-pressed'),
+        return { hovered:button.matches(':hover'), key:button.getAttribute('data-rows'), text:button.childNodes[0]?.textContent, count:count?.textContent, pressed:button.getAttribute('aria-pressed'),
           height:box.height, hitHeight, edgeWidths:edges.map(edge => edge.width), width:box.width, font:css.fontFamily, size:css.fontSize, weight:css.fontWeight, radius:css.borderRadius,
           padding:[css.paddingTop,css.paddingRight,css.paddingBottom,css.paddingLeft], color:css.color, background:css.backgroundColor,
           shadow:css.boxShadow, border:css.borderTopWidth, countSize:n?.fontSize, countFont:n?.fontFamily,
@@ -55,16 +60,15 @@ async function measureControl(chrome, selector) {
   })())`));
 }
 
-test('Items, Spec, Doctrine and Activity use one measured toggle with real choices and counts in Chrome [N26]', {
-  timeout: 120_000, // budget: hang ceiling for a real board and eight pane/viewport interaction journeys.
+test('Spec and Doctrine use one measured toggle with real choices and counts in Chrome [N26]', {
+  timeout: 120_000, // budget: hang ceiling for a real board and four pane/viewport interaction journeys.
 }, async () => {
   const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required to measure all four segmented controls');
+  assert.ok(executable, 'Chrome is required to measure both segmented controls');
   const box = machine();
   const demo = project(box, 'seg-toggle', SPEC + '\n- G3 [draft, must] A proposed page requirement. | gate: web test\n', { practice: 'DOCTRINE.md' });
   writeFileSync(join(demo.repo, 'DOCTRINE.md'), '# Team doctrine\n\n## Local rules\n- R1 [approved, must] Keep the board accurate. | gate: web test\n- R2 [draft, must] A proposed team rule. | gate: web test\n');
   box.run(demo.repo, 'add', 'web', 'An item for the controls', '--specs', 'G1', '--criterion', 'The page greets the visitor.');
-  box.run(demo.repo, 'shout', 'web', 'A real shout in Activity.');
   const view = await startView(box);
   const native = await boardOf(view, demo.repo);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-seg-toggle-chrome-'));
@@ -76,15 +80,14 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
       for (const [pane, selector, attribute, selected, alternative] of [
-        ['items', '#items-view-switch', 'data-items-view', 'list', 'pipeline'],
         ['spec', '#spec-chips', 'data-rows', 'spec:all', 'spec:approved'],
         ['doctrine', '#doctrine-chips', 'data-rows', 'doctrine:all', 'doctrine:approved'],
-        ['activity', '#activity-filters .activity-bar', 'data-activity-filter', 'all', 'shouts'],
       ]) {
-        await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
+        await press(chrome, 'document.querySelector("#tabs [data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
-        await press(chrome, "document.querySelector('#q')");
+        // Press the open page's own tab so the real pointer rests off the track and no option is measured under a hover.
+        await press(chrome, 'document.querySelector("#tabs [data-tab=' + pane + ']")');
         await chrome.stable('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
         const actual = await measureControl(chrome, selector);
         console.log('PULLBOARD_SEG_MEASURE ' + JSON.stringify({ width, pane, actual }));
@@ -104,32 +107,34 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
           assert.equal(option.size, '13px');
           assert.match(option.font, /system-ui/u);
           assert.equal(option.radius, actual.expected.optionRadius);
-          assert.deepEqual(option.padding, ['0px', '12px', '0px', '12px']);
+          // On a phone the rows keep each label one whole word beside its count by trimming the side padding (#7400).
+          const side = width === 1440 ? '12px' : '4px';
+          assert.deepEqual(option.padding, ['0px', side, '0px', side]);
           assert.equal(option.border, '0px');
-          assert.equal(option.color, option.pressed === 'true' ? actual.expected.pressedColor : actual.expected.color, width + '/' + pane + '/' + option.text + ': resting option color');
+          if (!option.hovered) assert.equal(option.color, option.pressed === 'true' ? actual.expected.pressedColor : actual.expected.color, width + '/' + pane + '/' + option.text + ': resting option color');
           if (option.pressed === 'true') {
             assert.equal(option.weight, '600');
             assert.equal(option.background, actual.expected.pressedBackground);
-            assert.match(option.shadow, /0px 1px 2px 0px/u, 'the pressed option has a soft lift');
+            assert.doesNotMatch(option.shadow, /0px 1px 2px 0px/u, 'the sheet\'s pressed option is flat, with no soft lift');
             assert.match(option.shadow, /0px 0px 0px 1px/u, 'the pressed option has a hairline ring');
           } else assert.equal(option.shadow, 'none');
           if (option.count !== undefined) {
             assert.equal(option.countSize, '11px'); assert.match(option.countFont, /monospace/u);
-            assert.equal(option.countWeight, '400'); assert.equal(option.countGap, '6px'); assert.equal(option.countColor, actual.expected.countColor);
+            assert.equal(option.countWeight, '400'); assert.equal(option.countGap, width === 1440 ? '6px' : '4px'); assert.equal(option.countColor, actual.expected.countColor);
           }
         }
-        if (pane === 'items') {
-          assert.deepEqual(actual.options.map(option => option.text), ['List', 'Pipeline']);
-          assert.equal(await chrome.stable('document.querySelector("#filter-toggle").getBoundingClientRect().height'), actual.height, 'Items Filter and toggle match');
-        } else if (pane === 'spec' || pane === 'doctrine') {
+        if (pane === 'spec' || pane === 'doctrine') {
           const rows = pane === 'spec' ? native.spec : native.practice;
-          assert.equal(actual.options.find(option => option.text === 'All rows').count, String(rows.length));
-          assert.equal(actual.options.find(option => option.text === 'Approved').count, String(rows.filter(row => row.status === 'approved').length));
-        } else assert.ok(Number(actual.options.find(option => option.text === 'Shouts').count) > 0, 'a real native shout is counted');
+          assert.equal(actual.options.find(option => option.key === pane + ':all').count, String(rows.length));
+          assert.equal(actual.options.find(option => option.key === pane + ':approved').count, String(rows.filter(row => row.status === 'approved').length));
+        }
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
         await tapTouch(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"] .seg-hit-top') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ').getAttribute("aria-pressed") === "true"');
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await tapTouch(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"] .seg-hit-bottom') + ')');
         await chrome.waitFor('document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ').getAttribute("aria-pressed") === "true"');
         const selectedVisible = await chrome.stable(`(() => {
@@ -149,8 +154,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         })())`));
         assert.equal(focus.visible, true, 'native Tab gives the next option a visible keyboard focus');
         assert.equal(focus.width, '2px'); assert.equal(focus.offset, '-2px'); assert.equal(focus.contained, true, 'the whole focus ring remains inside the scrolling track');
-        if (pane === 'items') assert.equal(await chrome.stable('document.querySelector("#pipeline").hidden'), false, 'Pipeline still opens');
-        if (pane === 'activity') assert.equal(await chrome.stable('[...document.querySelectorAll("#activity [data-activity-kind]")].every(row => row.dataset.activityKind === "shout")'), true, 'Shouts still filters the real feed');
+        await reveal(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + alternative + '"]') + ')');
         await proofShot(chrome, 'seg-toggle-' + pane, width);
         const screenshot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -158,7 +162,7 @@ test('Items, Spec, Doctrine and Activity use one measured toggle with real choic
         for (const [index, image] of chunks.entries()) console.log('PULLBOARD_SEG_SCREENSHOT ' + JSON.stringify({ pane, width, index, total: chunks.length, image }));
       }
     }
-    assert.deepEqual(chrome.exceptions, [], 'all four controls work without page exceptions');
+    assert.deepEqual(chrome.exceptions, [], 'both controls work without page exceptions');
   } finally {
     await closeSnapshotChrome(chrome);
     await view.stop();

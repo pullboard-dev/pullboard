@@ -13,9 +13,13 @@ import { phaseReceiptId } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
+import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { keepLandingLog } from './landing.js';
 import { livePersonWaivers } from './landing.js';
+import { reofferLandingJob } from './landing.js';
+import { landingRetries } from './landing.js';
+import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
@@ -42,8 +46,6 @@ const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
 const PART_TEXT = 600;
-/** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
-export const SHARD_JOB_KIND = 'gate-shard';
 /** Budget: a gate request with its ledger hits stays this far under the queue's 60 KiB job-request cap (jobs.js). */
 const LEDGER_REQUEST_BYTES = 56 * 1024;
 // Budget: one gate's proof splits into at most 32 shard jobs, so one receipt never floods the queue.
@@ -263,7 +265,7 @@ function redShard(part) {
  * The gate receipt the shards of one proof make together: the gate's own receipt with one proof phase that is green
  * only when every shard is, naming every failing case its red shards name (none when any red shard names none).
  */
-function combinedReceipt(gateReceipt, shards) {
+export function combinedReceipt(gateReceipt, shards) {
   const gate = gateReceipt.gate ?? {};
   const parts = shards.map(({ job, posted }) => {
     const shardGate = posted?.receipt?.gate ?? {};
@@ -922,6 +924,26 @@ export function reportRunaway(board, { job, kind, attempts, detail }) {
 }
 
 /**
+ * A land job whose push failed leaves its items accepted: offer the landing again, up to LAND_PUSH_RETRIES times, and
+ * past that note each item and shout the coordinator the named refusal LAND_PUSH_FAILED. Why: the job was marked done
+ * and nothing offered the items again, so an accepted item waited landing for good (#7791).
+ */
+function retryFailedPush(board, job, named, receipt) {
+  const waiting = [...named].filter(id => { const item = store.getItem(board, id); return item?.item_status === 'verified' && !item.item_merged_commit; });
+  if (!waiting.length) return;
+  const detail = String(receipt.detail ?? 'no detail recorded').trim();
+  const tries = landingRetries(job);
+  let again = null;
+  if (tries < LAND_PUSH_RETRIES) {
+    try { again = reofferLandingJob(board.db, job); } catch { again = null; }
+  }
+  const tail = again ? `offered land job ${again.id} (retry ${again.retry} of ${LAND_PUSH_RETRIES})`
+    : `LAND_PUSH_FAILED after ${tries + 1} tries; next: fix the trunk push, then pullboard land`;
+  for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} push-failed: ${detail}; ${tail}`.slice(0, 900) });
+  if (!again) store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `LAND_PUSH_FAILED: land job ${job} could not push trunk (${detail.slice(0, 200)}); ${waiting.map(id => `#${id}`).join(' ')} stay accepted; next: fix the trunk push, then pullboard land`.slice(0, 600) });
+}
+
+/**
  * Mark each item a landed receipt names merged at the trunk commit the runner pushed: the items it merged and those
  * trunk already held. An item no longer accepted and unmerged is left as it is. The items the receipt gives back (red
  * or colliding) return to their builders or park (returnLandedReds); a busy trunk or lost lease changes no item, and
@@ -937,6 +959,7 @@ export function applyLandingReceipt(board, { job, receipt }) {
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
   if (receipt?.red) { try { recordLandedRed(board, { job, receipt, item: returned[0] ?? null }); } catch { /* a diagnostic that cannot record leaves the red as it was */ } }
+  if (receipt?.outcome === 'push-failed') retryFailedPush(board, job, named, receipt);
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
   const waivers = new Map((offered.payload?.waivers ?? []).map(waiver => [waiver.id, waiver]));
   const waived = (Array.isArray(receipt.waived) ? receipt.waived : []).map(row => {

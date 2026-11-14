@@ -12,9 +12,22 @@ import { ledgerMainReds } from '../../../store/index.js';
 import { landingWaiverKind } from '../../../store/index.js';
 import { PERSON } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
+import { offeredRequest } from './jobs.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
+// Budget: a land job's payload stays well under the job payload cap (16 KiB), so a long header or trailer cannot tip it over.
+const LAND_PAYLOAD_BYTES = 8 * 1024;
+/**
+ * The shape of the land payload this board writes. A runner understands shapes up to its own LANDING_PAYLOAD_SHAPE
+ * (packages/landing's runner job) and refuses a newer one with LANDING_PAYLOAD_VERSION, rather than landing without an option
+ * its code never learned (#7791). Shape 2: fields such as `checkout` may sit in the job's request (#7766).
+ */
+export const LAND_PAYLOAD_SHAPE = 2;
+// Budget: a land job whose push failed is offered again this many times, then the coordinator hears a named refusal (#7791).
+export const LAND_PUSH_RETRIES = 2;
+// The payload parts a runner may read from the job's request instead: what the board derived, never ids, commits or refs.
+const SPILLABLE = ['proof', 'deferred', 'badges', 'waivers', 'checks'];
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const REF = /^refs\/[A-Za-z0-9._/-]{1,200}$/u;
 // A landing merge's header is one line; its trailers are the builder's Pullboard- lines and nothing else.
@@ -86,9 +99,6 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect);
-  // The person's live waivers ride on the job, so its runner holds no landing for a waived test; a new waiver is a new job [#655].
-  const waivers = proof ? livePersonWaivers(db, now) : [];
-  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   // A deferred selection replaces only the affected tests; the project's own gate still judges the merged tree [C7].
   const deferGate = defer && !forced && typeof config?.gate === 'string' && config.gate.trim() ? ['sh', '-c', config.gate.trim()] : null;
@@ -96,13 +106,39 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   // The runner selects, on each tree it checks, the affected tests no submit proved: contracts main gained after submit [C7,#7378].
   const runner = typeof config?.affectedTests === 'string' && config.affectedTests.trim();
   const contracts = !forced && runner && !/[\0\n\r]/u.test(runner) ? { runner } : null;
+  // The person's live waivers ride on the job, so its runner holds no landing for a waived test, whether the proof or the contracts ran it; a new waiver is a new job [#655,C7].
+  const waivers = proof || contracts ? livePersonWaivers(db, now) : [];
+  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   // The board's static guard runs on the merged tree, from accepted main's config, never the item's own [C7,#7492].
   const staticChecks = !forced && typeof config?.staticChecks === 'string' && config.staticChecks.trim() && !/\0/u.test(config.staticChecks) ? config.staticChecks.trim() : null;
   // landing.perItem is on by default (off under parallel landing); only off rides on the job, so default payloads stay as they were [C7,#2901].
   const batchOnly = config?.landing?.perItem === false || config?.landing?.parallel === true;
-  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now,
-    payload: { remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
-      ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) } });
+  const payload = { shape: LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
+    ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) };
+  const spilled = spillLargeInputs(payload);
+  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) });
+}
+
+/**
+ * Move a land job's board-derived inputs out of its payload when the payload would grow past LAND_PAYLOAD_BYTES: the
+ * largest of the proof (every file an item's gates proved, the ledger hits, main's reds), deferred files, badge
+ * documents, waivers and own checks go to the job's request, which only its runner reads, and the payload keeps the ids,
+ * commits and refs plus `requested`, the names of what moved. Why: a big board's proof alone passed the job payload's
+ * 16 KiB cap and the accepted work was retained instead of landing (#7766); the runner reads the request with its claim.
+ *
+ * @param {Record<string, unknown>} payload
+ * @returns {{ payload: Record<string, unknown>, request: { land: Record<string, unknown> } | null }}
+ */
+export function spillLargeInputs(payload) {
+  const size = value => Buffer.byteLength(JSON.stringify(value));
+  if (size(payload) <= LAND_PAYLOAD_BYTES) return { payload, request: null };
+  const kept = { ...payload }, moved = {};
+  for (const key of SPILLABLE.filter(name => kept[name] !== undefined).sort((a, b) => size(kept[b]) - size(kept[a]))) {
+    if (size({ ...kept, requested: Object.keys(moved) }) <= LAND_PAYLOAD_BYTES) break;
+    moved[key] = kept[key];
+    delete kept[key];
+  }
+  return { payload: { ...kept, requested: Object.keys(moved) }, request: { land: moved } };
 }
 
 /**
@@ -199,4 +235,30 @@ export function keepLandingLog(board, job, receipt) {
     writeFileSync(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
     return join(folder, 'runner.log');
   } catch { return null; }
+}
+
+/**
+ * Offer a land job again as a new job with the same offered payload and request, after its push failed. The id is the
+ * first job's id plus `~r<n>`, since offering the same landing returns the job as it stands.
+ * Why: a push-failed receipt marked its job done and nothing offered the accepted items again (#7791).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job - The failed land job's id.
+ * @param {{ now?: number }} [options]
+ * @returns {{ id: string, retry: number } | null} The new job, or null when the job has no offered payload.
+ */
+export function reofferLandingJob(db, job, { now = Date.now() } = {}) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
+  if (!row) return null;
+  const offered = JSON.parse(row.job_step_payload);
+  const [, first, retry] = /^(.*?)(?:~r(\d+))?$/u.exec(job);
+  const next = Number(retry ?? 0) + 1;
+  const id = `${first}~r${next}`;
+  offerJob(db, { id, kind: LANDING_JOB_KIND, priority: 'landing', needs: offered.needs ?? [], now, payload: offered.payload ?? null, request: offeredRequest(db, job) });
+  return { id, retry: next };
+}
+
+/** How many times a land job id has been offered again: 0 for the first offer. */
+export function landingRetries(job) {
+  return Number(/~r(\d+)$/u.exec(job)?.[1] ?? 0);
 }

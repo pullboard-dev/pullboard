@@ -33,9 +33,8 @@ test('the private Cost overview renders prepared analytics and each confidence [
   const server = createServer((_q,r) => r.writeHead(200,{'content-type':'text/html'}).end(html)); const dir = mkdtempSync(join(tmpdir(),'cost-redesign-')); let chrome;
   try { await new Promise(resolve => server.listen(0,'127.0.0.1',resolve)); chrome = await openSnapshotChrome(executable,'http://127.0.0.1:'+server.address().port,join(dir,'chrome'));
     await chrome.waitFor('!!document.querySelector(".cost-model-card")');
-    await chrome.click("document.querySelector('[data-cost-row]')");
     const text = await chrome.stable('document.body.innerText');
-    for (const expected of ['Leaning','Nothing to compare','Agent time each day','50%','60%','Long item','No token count']) assert.ok(text.includes(expected), expected);
+    for (const expected of ['Leaning','Nothing to compare','Agent time each day','50%','60%']) assert.ok(text.includes(expected), expected);
     assert.match(costOverviewHtml({...fixture, builders:{...fixture.builders,verdict:'clear'}}), /Clear/u);
     assert.doesNotMatch(costOverviewHtml(fixture, null, {hasPrices:true}), /Want dollars/u);
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify((() => { const bar=document.querySelector('.cost-chart-bar'), parts=[...bar.querySelectorAll('rect')].map(e=>({y:Number(e.getAttribute('y')),height:Number(e.getAttribute('height'))})); return {parts,ranges:document.querySelectorAll('.cost-range').length,split:document.querySelectorAll('.cost-split rect').length}; })())`));
@@ -44,15 +43,8 @@ test('the private Cost overview renders prepared analytics and each confidence [
     assert.equal(await chrome.stable("document.querySelectorAll('.cost-model-table').length"), 1, 'building and verifying share the model table');
     assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted, came back later/u);
 
-    await chrome.click("document.querySelector('[data-go]')");
-    await chrome.click("document.querySelector('[data-cost-all]')");
-    assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.calls)')), ['item:1', 'all']);
-    const unknown = costOverviewHtml({...fixture, longest:[{id:2,title:'Unknown',agentMs:null,sentBack:0,sessions:[{label:'Unknown model',count:null,agentMs:null,tokensIn:null}]}]}, 2);
-    assert.doesNotMatch(unknown, /0 sessions|cost-time-bar/u);
-    assert.match(unknown, /No token count/u);
-    const dated = costOverviewHtml({...fixture, longest:[{id:3,title:'Dated',agentMs:1,landedAt:'2026-10-30T12:00:00Z',sessions:[]}]}, 3);
-    assert.match(dated, /datetime="2026-10-30T12:00:00Z"/u);
-    assert.doesNotMatch(dated, />2026-10-30T12:00:00Z</u);
+    const order = costOverviewHtml(fixture).match(/cost-summary|cost-model-card|cost-chart"|cost-longest|Took the longest/gu);
+    assert.deepEqual(order, ['cost-model-card', 'cost-summary', 'cost-chart"'], 'Models sit above Agent time each day and nothing is Took the longest');
     assert.deepEqual(chrome.exceptions, []);
   } finally { if (chrome) await closeSnapshotChrome(chrome); await new Promise(resolve => server.close(resolve)); rmSync(dir,{recursive:true,force:true}); }
 });
@@ -75,17 +67,11 @@ test('the private Cost tab consumes the server projection and routes controls [N
     await press(chrome, 'document.querySelector("[data-tab=cost]")');
     await chrome.waitFor('!!document.querySelector("#cost .cost-model-card")');
     let text = await chrome.stable('document.querySelector("#cost").innerText');
-    for (const expected of ['Fixture model','Nothing to compare','Clear','Seeded item']) assert.ok(text.includes(expected),expected);
-    await chrome.click('document.querySelector("#cost [data-cost-row]")');
-    await chrome.waitFor('document.querySelector("#cost .cost-detail")');
-    text = await chrome.stable('document.querySelector("#cost .cost-detail").innerText');
-    assert.ok(text.includes('No token count')); assert.ok(!text.includes('0 sessions'));
+    for (const expected of ['Fixture model','Nothing to compare','Clear']) assert.ok(text.includes(expected),expected);
     await chrome.click('document.querySelector("#page-controls [data-page-ctl=costwindow][data-value=\\"30d\\"]")');
     await chrome.waitFor('document.querySelector("#page-controls [data-page-ctl=costwindow][data-value=\\"30d\\"]")?.getAttribute("aria-pressed") === "true"');
     assert.equal(await chrome.stable('document.querySelectorAll("#cost [data-cost-window], #cost h1").length'), 0, 'the window lives in the strip and Cost has no page heading of its own');
     assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.costRequests)')), ['7d','30d']);
-    await chrome.click('document.querySelector("#cost [data-cost-all]")');
-    await chrome.waitFor('view.tab === "items"');
     assert.doesNotMatch(cockpitPage('', { snapshot:true, readOnly:true }), /costOverviewHtml|cost-analytics|Only you see this/u, 'public snapshots omit private Cost implementation');
     assert.deepEqual(chrome.exceptions, []);
     const output = join(dir, 'public');

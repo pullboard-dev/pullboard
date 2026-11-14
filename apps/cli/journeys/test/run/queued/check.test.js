@@ -24,6 +24,7 @@ import {
 import { fixtureAdd } from '../../../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../../../pullboard.js');
+const RUN_TESTS = resolve(import.meta.dirname, '../../../../../../packages/gate/src/io/run/tests.js');
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -36,7 +37,10 @@ test('an item check that runs pullboard test on a red file fails, never a queued
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: a red file in the web lane');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--criterion', 'the red file fails its check', '--brief', 'Files: web/page.js. Change: none. Test case: red case.', '--check', `"${process.execPath}" "${BIN}" test web/red.test.js`);
+  // add refuses a check that runs pullboard test (CHECK_RUNS_PULLBOARD_TEST); the item check runs the files directly.
+  const bad = fixtureAdd(box.run, box.repo, 'web', 'Pull check', '--specs', 'G1', '--criterion', 'the red file fails its check', '--brief', 'Files: web/page.js. Change: none. Test case: red case.', '--check', `"${process.execPath}" "${BIN}" test web/red.test.js`);
+  assert.match(bad.out + bad.err, /CHECK_RUNS_PULLBOARD_TEST/u, 'a check that runs pullboard test is refused at add');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--criterion', 'the red file fails its check', '--brief', 'Files: web/page.js. Change: none. Test case: red case.', '--check', `"${process.execPath}" "${RUN_TESTS}" web/red.test.js`);
   assert.equal(added.code, 0, `add: ${added.out}${added.err}`);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, `claim: ${claimed.out}${claimed.err}`);

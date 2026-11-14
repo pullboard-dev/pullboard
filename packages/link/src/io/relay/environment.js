@@ -67,10 +67,10 @@ export async function environmentLink(root, file, io) {
     if (Array.isArray(boards)) CHECKED.add(file);
     return false;
   }
-  if (!Array.isArray(boards) || boards.length !== 1) throw new Refused('RELAY_ACTOR', 'PULLBOARD_RELAY_TOKEN must be one agent token, scoped to one board');
+  if (!Array.isArray(boards) || boards.length !== 1) throw new Refused('RELAY_ACTOR', 'PULLBOARD_RELAY_TOKEN must be one agent token, scoped to one board', 'run unset PULLBOARD_RELAY_TOKEN in this shell, then run the command again');
   const { session } = await request(probe, '/auth/session?board=' + boards[0].id, {}, io);
   if (session?.kind !== 'board' || !/^[0-9a-f]{32}$/u.test(session.board ?? '') || typeof session.agent !== 'string') {
-    throw new Refused('RELAY_ACTOR', 'PULLBOARD_RELAY_TOKEN must be one agent token, scoped to one board');
+    throw new Refused('RELAY_ACTOR', 'PULLBOARD_RELAY_TOKEN must be one agent token, scoped to one board', 'run unset PULLBOARD_RELAY_TOKEN in this shell, then run the command again');
   }
   const state = { version: 1, mode: 'ordered', board: session.board, url, token: null, personReauth: true, environment: { agent: session.agent },
     sequence: 0, cursor: 0, baselineAccepted: true };

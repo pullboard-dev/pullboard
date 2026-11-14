@@ -16,18 +16,10 @@ import {
   resolve,
 } from 'node:path';
 import {
-  refuseSandboxBlocked,
-} from '../../../../../packages/gate/index.js';
-import {
-  checkAtCommit,
-} from '../../../../runner/index.js';
-import {
-  coordinatorLocal,
   runLocal,
 } from './local.js';
 import {
   privateRepo,
-  builderRepo,
   put,
   commitAll,
   seedGraph,
@@ -114,55 +106,5 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     const allowed = await runLocal(box, 'gate');
     assert.equal(allowed.code, 0, allowed.out + allowed.err);
     assert.equal(readFileSync(outside, 'utf8'), 'blocked during module evaluation');
-  });
-  await t.test('frozen checks retain outside-file refusal before submit proof [I1,C7]', async () => {
-    let box = privateRepo(t);
-    put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
-    seedGraph(box);
-    box = builderRepo(box);
-    const added = await coordinatorLocal(box, 'add', 'build', 'Sandbox check', '--check', command);
-    assert.equal(added.code, 0, added.err);
-    assert.equal((await runLocal(box, 'claim', '1')).code, 0);
-    put(box.root, 'src/a.js', 'export const value = 2;\n');
-    commitAll(box, 'feat(core): update selected source [G1]');
-    const outside = join(box.dir, 'outside.txt');
-    box.env.BLOCKED_DIAGNOSTIC = `Error: EACCES: permission denied, open '${outside}'`;
-    blocked(await runLocal(box, 'check', '1', '--yes'), 'open');
-    blocked(await runLocal(box, 'submit', '1'), 'open');
-    const log = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-submit.log.check.log'));
-    assert.ok(readFileSync(log, 'utf8').includes(outside), 'the exact refused path remains in the raw log');
-    box.env.BLOCKED_DIAGNOSTIC = 'AssertionError [ERR_ASSERTION]: ordinary assertion';
-    const ordinary = await runLocal(box, 'submit', '1');
-    assert.equal(ordinary.code, 1);
-    assert.match(ordinary.err, /GATE_RED/u);
-    assert.doesNotMatch(ordinary.err, /SANDBOX_BLOCKED/u);
-    box.env.BLOCKED_EXIT = '0';
-    assert.equal((await runLocal(box, 'submit', '1')).code, 0, 'the unchanged check can pass when the operation is allowed');
-    const item = JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out);
-    /** Run the actual private checker with only these fixture diagnostics in its child environment. */
-    function privateCheck(diagnostic) {
-      const savedDiagnostic = process.env.BLOCKED_DIAGNOSTIC;
-      const savedExit = process.env.BLOCKED_EXIT;
-      process.env.BLOCKED_DIAGNOSTIC = diagnostic;
-      process.env.BLOCKED_EXIT = '1';
-      try { return checkAtCommit(box.root, item); }
-      finally {
-        if (savedDiagnostic === undefined) delete process.env.BLOCKED_DIAGNOSTIC;
-        else process.env.BLOCKED_DIAGNOSTIC = savedDiagnostic;
-        if (savedExit === undefined) delete process.env.BLOCKED_EXIT;
-        else process.env.BLOCKED_EXIT = savedExit;
-      }
-    }
-    const privateResult = privateCheck('Error: listen EPERM: operation not permitted\n' + 'ordinary trailing output\n'.repeat(80));
-    assert.equal(privateResult.state, 'red');
-    assert.equal(privateResult.sandboxBlocked, 'listen (EPERM)', 'classification scans before the bounded tail');
-    assert.doesNotMatch(privateResult.outputTail, /EPERM/u);
-    assert.throws(() => refuseSandboxBlocked(privateResult), { code: 'SANDBOX_BLOCKED' });
-    assert.match(readFileSync(privateResult.outputPath, 'utf8'), /Error: listen EPERM/u);
-    assert.ok(existsSync(privateResult.profilePath));
-    const inside = privateCheck("Error: EACCES: permission denied, open './inside.txt'");
-    assert.equal(inside.state, 'red');
-    assert.equal(inside.sandboxBlocked, null, 'a private-clone file stays inside that check worktree');
-    assert.equal(JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out).item_status, 'submitted', 'checks alone record no verdict');
   });
 });

@@ -181,7 +181,7 @@ function drawPageControls() {
 
 /** Put the page controls on the strip in the top layout and on the page's title row in the sidebar layout. */
 function placeControls() {
-  const slot = $('page-controls'), home = document.documentElement.dataset.nav === 'side' ? $('page-title') : $('nav-strip');
+  const slot = $('page-controls'), home = document.documentElement.dataset.nav === 'side' || matchMedia('(max-width: 900px)').matches ? $('page-title') : $('nav-strip');
   if (slot && home && slot.parentElement !== home) home.appendChild?.(slot);
   const page = navPages({ cost: privateCost }).find((entry) => entry.id === view.tab);
   if ($('page-title-text')) $('page-title-text').textContent = page ? page.name : view.tab === 'settings' ? 'Settings' : '';
