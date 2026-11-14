@@ -191,7 +191,7 @@ test('why on an old name includes work landed at the new name [C7]', async (t) =
     await json(box.web, 'claim', String(id));
     assert.equal(e2e.commitFile(box, box.web, file, content, 'feat(web): preserve moved history [G1]').status, 0);
     const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, await json(box.web, 'submit', String(id)));
-      box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
+    box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
     try { await json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The named fixture file exists at the submitted source.'); }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
     // A pulled landing offers a runner job; its receipt names what landed [P7,C7].
