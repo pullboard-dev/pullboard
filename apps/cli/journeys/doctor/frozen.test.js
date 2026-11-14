@@ -32,6 +32,7 @@ import {
 import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
 import { settlePulledJobs } from '../../tests/fixtures/e2e.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -46,7 +47,13 @@ const NEW_TEXT = 'The person approved this exact updated promise.';
 
 /** Remove each private repo, board and home created by this file. */
 function cleanup() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) removeDir(dir);
+}
+
+/** Stop the loopback runner a submit started, then remove one fixture directory, retrying a last gate flush [C7]. */
+function removeDir(dir) {
+  stopFixtureLocalRunner(join(dir, 'machine-home'));
+  rmSync(dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 });
 }
 
 after(cleanup);
@@ -60,7 +67,7 @@ function shellWord(value) {
 async function project(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-stale-frozen-'));
   TEMP_DIRS.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => removeDir(dir));
   const root = join(dir, 'repo');
   const web = join(dir, 'web');
   const bin = join(dir, 'bin');
