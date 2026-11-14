@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC = '# Fixture\n\n## G · Goals\n- G1 [approved, must] The fixture item is complete. | gate: none\n';
@@ -80,7 +81,7 @@ async function succeeds(box, cwd, ...args) {
 }
 
 /** Add, claim, commit and submit an item whose criterion names a guard, then check out its commit. */
-async function submittedWithGuard(box, repo, web, check) {
+async function submittedWithGuard(t, box, repo, web, check) {
   const criterion = 'The fixture item is complete. guard: web/guard.js:1-1';
   const added = await succeeds(box, repo, 'add', 'web', 'Guarded fix', '--specs', 'G1', '--criterion', criterion, '--check', check, '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check');
   const id = Number(/#(\d+)/.exec(added)?.[1]);
@@ -89,16 +90,18 @@ async function submittedWithGuard(box, repo, web, check) {
   writeFileSync(join(web, 'web', 'guard.js'), SOURCE);
   box.git(web, 'add', '-A');
   box.git(web, 'commit', '-q', '-m', `fix(web): guarded fix [G1]`);
-  await succeeds(box, web, 'submit', String(id));
+  // A pulled submit returns queued; settle its gate so verify reads a submitted item [V4,C7].
+  const queued = JSON.parse(await succeeds(box, web, 'submit', String(id), '--json'));
+  assert.equal((await settleSubmit(t, { repo, env: box.env, run: box.runLocal }, queued)).gate.green, true);
   box.git(repo, 'switch', '--detach', 'web/one');
   return id;
 }
 
-test('accept refuses a fix whose guard revert stays green [C7,V4]', async () => {
+test('accept refuses a fix whose guard revert stays green [C7,V4]', async t => {
   const box = sandbox();
   try {
     const { repo, web } = await project(box);
-    const id = await submittedWithGuard(box, repo, web, 'test -f web/guard.js');
+    const id = await submittedWithGuard(t, box, repo, web, 'test -f web/guard.js');
     const refused = await box.runLocal(repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'the check passed');
     assert.notEqual(refused.code, 0, refused.out);
     assert.match(`${refused.out}\n${refused.err}`, /GUARD_CANNOT_FAIL/u);
@@ -106,11 +109,11 @@ test('accept refuses a fix whose guard revert stays green [C7,V4]', async () => 
   } finally { rmSync(box.dir, { recursive: true, force: true }); }
 });
 
-test('a named guard that turns the check red is accepted [C7,V4]', async () => {
+test('a named guard that turns the check red is accepted [C7,V4]', async t => {
   const box = sandbox();
   try {
     const { repo, web } = await project(box);
-    const id = await submittedWithGuard(box, repo, web, 'grep -q "answer = 42" web/guard.js');
+    const id = await submittedWithGuard(t, box, repo, web, 'grep -q "answer = 42" web/guard.js');
     const accepted = await succeeds(box, repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'the check passed');
     assert.match(accepted, /verified #/u);
     const shown = await succeeds(box, repo, 'show', String(id));

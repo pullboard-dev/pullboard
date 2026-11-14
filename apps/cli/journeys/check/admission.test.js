@@ -14,6 +14,7 @@ import {
   fixtureJoin,
 } from '../../tests/fixtures/testkit.js';
 import { fixtureCommittedPolicy } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { recentReceipts } from '../../../../packages/gate/index.js';
 import {
   GATE_SLOT_HELD_ENV,
@@ -53,7 +54,8 @@ for (const timing of [true, false]) {
     assert.equal(JSON.parse(frozen.item_frozen).checkTiming === true, timing);
     if (!timing) assert.equal(Object.hasOwn(JSON.parse(frozen.item_frozen), 'checkTiming'), false, 'unflagged historical bytes remain absent');
     helpers.commitFile(box, box.web, 'web/change.txt', 'actual candidate\n', 'feat(web): real timing candidate [G1]');
-    const submitted = document((await box.runLocal(box.web, 'submit', '1', '--no-next', '--json')));
+    // A pulled submit returns queued; settle its gate before reading the result [V4,C7].
+    const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, document((await box.runLocal(box.web, 'submit', '1', '--no-next', '--json'))));
     assert.equal(submitted.gate.green, true, 'actual native submit check and proof completed');
     const submitReceipt = recentReceipts(box.repo).filter(row => row.kind === 'submit').at(-1);
     assert.ok(submitReceipt, 'native submit persisted its real admission receipt');
