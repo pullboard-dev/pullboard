@@ -120,3 +120,11 @@
   .ip-hr { grid-template-columns: 46px 70px minmax(0, 1fr); column-gap: var(--space-3); }
   .ip-cl { column-gap: var(--space-2); }
 }
+/* The opened history lists every verdict, newest first, above the full thread. */
+.item-panel-verdicts { display: grid; gap: var(--space-1); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+.item-panel-verdicts > li { min-width: 0; list-style: none; }
+.item-panel-verdicts .item-row { min-width: 0; }
+.item-panel-verdicts .item-verdict-note { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); font-size: var(--text-xs); }
+.item-panel-verdicts .row-detail { padding: var(--space-2) var(--space-4) var(--space-3); }
+.item-panel-verdicts .row-detail .verdict { margin: 0; }
+.ip-row.waits-on { overflow: hidden; }

@@ -41,7 +41,7 @@ test('clause 1: the header is one block of id, stage chip with its sent-back mar
   assert.equal(head.includes('item-panel-where'), false, 'no chip rows');
   assert.equal(html.includes('role="tab"'), false, 'no tabs');
   assert.equal(html.includes('item-panel-tabs'), false);
-  assert.match(draw(landed, { stage: 'Merged' }), /<span class="ip-chip l">Landed<\/span><span class="ip-who"><button class="hash-copy"[^>]*data-copy="2568569ebc936d"[^>]*><code class="inline sha"[^>]*>2568569<\/code><\/button> · \d+ Nov<\/span>/u, 'a landed item shows its landing commit and day at the right, with no sent-back mark');
+  assert.match(draw(landed, { stage: 'Merged' }), /<span class="ip-chip l">Landed<\/span><span class="ip-who"><button class="hash-copy"[^>]*data-copy="2568569ebc936d"[^>]*><code class="inline sha"[^>]*>2568569ebc93<\/code><\/button> · \d+ Nov<\/span>/u, 'a landed item shows its landing commit and day at the right, with no sent-back mark');
   assert.match(draw(ready), /<span class="ip-who">added 6 m ago<\/span>/u, 'a ready item says when it was added');
   assert.equal(draw(ready, {}).includes('ip-mark'), false, 'no mark on an item that was never sent back');
   assert.match(css, /\.item-panel-head h2 \{[^}]*-webkit-line-clamp: 3/u);

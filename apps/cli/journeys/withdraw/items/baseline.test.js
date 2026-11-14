@@ -76,8 +76,8 @@ test('an item detail shows its pending, red and green check baselines from the A
         }
         await page.run('refresh()');
         const completed = page.show('detail');
-        assert.match(completed, /<h2><span class="id">#\d+<\/span>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
-        assert.ok(completed.includes('<span class="chip ok">Green on main</span>'), 'the open detail updates to the completed result');
+        assert.match(completed, /<span class="id">#\d+<\/span>[^]*<h2>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
+        assert.ok(completed.includes('runs one command · green on main'), 'the open detail updates to the completed result');
         assert.ok(completed.includes('This check already passed before the work, so it proves nothing.'), 'the completed warning appears without reopening the detail');
       }
     }

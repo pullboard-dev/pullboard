@@ -258,13 +258,15 @@ export function itemPanelHtml(model, h) {
       return '<div class="ip-row ip-fr file item-file" data-file="' + esc(path) + '" title="' + esc(path) + '">' + icon(ICON.file) + '<span class="p"><span class="dir">' + esc(slash < 0 ? '' : path.slice(0, slash + 1)) + '</span>' + esc(path.slice(slash + 1)) + '</span></div>';
     }).join('') + '</details>' : '') + '</div>');
   }
+  if (h.waits) out += sec('Waits on', '', '<div class="ip-card"><div class="ip-row waits-on">' + h.waits + '</div></div>');
+  if (h.refs) out += sec('Referenced code', '', '<div class="ip-card ip-bc">' + h.refs + '</div>');
   if (model.history.length) {
     const rows = model.history.slice(0, 6);
     out += '<section class="ip-sec item-panel-history" data-item-panel-panel="history"><div class="ip-shd"><p class="ip-lbl">History</p><span class="ip-cap">' + model.full + ' event' + (model.full === 1 ? '' : 's') + '</span>'
       + '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + model.full + '" aria-expanded="' + model.historyOpen + '">' + (model.historyOpen ? 'Less' : 'All ›') + '</button></div>'
       + '<div class="ip-card item-panel-history-list' + (model.historyOpen ? ' expanded' : '') + '"><div class="ip-hrs">'
       + rows.map(row => '<div class="ip-hr" title="' + esc(row.full) + '"><span class="tm">' + esc(row.t) + '</span><span class="ip-chip ' + row.tone + '">' + esc(row.chip) + '</span><span class="tx">' + row.text + '</span></div>').join('')
-      + '</div><div class="ip-full">' + h.timeline + '</div></div></section>';
+      + '</div><div class="ip-full">' + (h.verdicts || '') + h.timeline + '</div></div></section>';
   }
   return header + out;
 }

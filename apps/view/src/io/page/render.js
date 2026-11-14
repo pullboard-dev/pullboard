@@ -486,6 +486,39 @@ function render({ tab: switching = false } = {}) {
   $('detail').hidden = adding;
   if (!selected) store.paint($('detail'), '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>');
   const opened = selected && !view.adding ? detailOf(p, selected, view.tab === 'items' && data.root === view.root) : null;
+  /** Every verdict as the shared row, with its complete note in the disclosure, newest first: the opened history keeps what the panel's one verdict section does not show. */
+  const verdictRowsOf = (item) => (item.verdicts || []).toReversed().map(verdict => {
+    const passed = verdict.decision === 'ACCEPT';
+    const note = visibleVerdictNote(verdict.reason, verdict.note);
+    const first = note.split(/\\r?\\n/u, 1)[0];
+    const summary = first.length > 180 ? first.slice(0, 177) + '…' : first;
+    const iconPath = passed ? 'M3.5 8.5l3 3 6-6.5' : 'M6 4 2.5 7.5 6 11M2.5 7.5H10';
+    const title = passed ? 'Passed' : 'Sent back · ' + activityWords({ cause: verdict.reason }).label;
+    return sharedRowHtml({ tag: 'li', variant: 'item', state: passed ? 'verified' : 'back', title: title + ' by ' + agentName(verdict.by),
+      iconHtml: '<svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + iconPath + '"/></svg>',
+      primaryHtml: '<b>' + (passed ? 'Passed' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b> <span class="muted">by ' + esc(agentName(verdict.by)) + '</span>',
+      timeHtml: '<time>' + esc(when(verdict.at)) + '</time>', metaHtml: '<span class="item-verdict-note">' + inline(summary, titles) + '</span>',
+      detailHtml: '<div class="verdict ' + (passed ? 'yes' : 'no') + '"><b>' + (passed ? 'Accepted · <span title="' + esc(verdict.reason) + '">' + esc(activityWords({ cause: verdict.reason }).label) + '</span>' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b><span class="by">' + esc(agentName(verdict.by)) + ' · ' + esc(when(verdict.at)) + (verdict.commit ? ' · at ' + hashButton(verdict.commit) : '') + '</span><div class="note">' + inline(note, titles) + '</div></div>' });
+  }).join('');
+  /** The code a typed fact refers to, each as the collapsed reference block, or a plain refusal naming what is missing. */
+  const referencedCodeOf = (item) => (item.thread || []).filter((entry) => entry.type === 'fact' && entry.ref).map((fact) => {
+    const ref = fact.ref;
+    const path = typeof ref.path === 'string' ? ref.path : '';
+    const start = ref.start;
+    const end = ref.end;
+    const commit = typeof ref.commit === 'string' ? ref.commit : '';
+    const safePath = /^[\\w.-]+(?:\\/[\\w.-]+)*$/.test(path) && !path.split('/').some((part) => part === '.' || part === '..');
+    const safeRange = Number.isSafeInteger(start) && start > 0 && Number.isSafeInteger(end) && end >= start;
+    const safeCommit = /^[0-9a-f]{40}$/.test(commit);
+    if (!safePath || !safeRange || !safeCommit) {
+      const missing = [!safePath && 'repository path', !safeRange && 'line range', !safeCommit && 'full commit SHA'].filter(Boolean).join(', ');
+      return '<div class="fact-code"><span class="chip">' + esc(eventWords(fact.kind)) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span><div class="code no ref-missing" role="status">Code reference unavailable: missing or invalid ' + esc(missing) + '.</div></div>';
+    }
+    const range = path + ':' + start + (end === start ? '' : '-' + end) + '@' + commit;
+    return '<div class="fact-code"><span class="chip">' + esc(eventWords(fact.kind)) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
+  }).join('');
+  /** The items this one waits on, each a link. */
+  const waitsOf = (item) => (item.blockedBy || []).map(id => '<a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a>').join(', ');
   /** The opened item's whole panel from its model: the header alone while its detail loads, every section once it has arrived (#7571). */
   const drawPanel = (item) => {
     const baseline = item.checkBaseline;
@@ -495,7 +528,7 @@ function render({ tab: switching = false } = {}) {
       milestone: (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name,
       reason: (code) => activityWords({ cause: code }).label, brief: briefCopyOf(item.brief), note: verdict ? visibleVerdictNote(verdict.reason, verdict.note) : '', files: panelFiles(item.brief || ''),
       baseline: { label: baselineLabel, warn: baseline?.warning === 'CRITERION_PROVES_NOTHING' }, historyOpen: view.historyOpen?.has(JSON.stringify([view.root, view.item])) === true });
-    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), marks: itemStageMarks(item, p).filter(mark => !/aria-label="(?:Sent back|Withdrawn)/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
+    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), verdicts: item.verdicts?.length ? '<ul class="item-panel-verdicts">' + verdictRowsOf(item) + '</ul>' : '', refs: referencedCodeOf(item), waits: waitsOf(item), marks: itemStageMarks(item, p).filter(mark => !/aria-label="(?:Sent back|Withdrawn)/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
       note: verdict ? inline(visibleVerdictNote(verdict.reason, verdict.note), titles) : '' });
   };
   /** The brief without its Files section, whose paths the panel lists as rows. */
