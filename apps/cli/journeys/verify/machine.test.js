@@ -813,12 +813,11 @@ test('an older board gets the triggers quietly on its next open; one dropped by 
     tampered.exec('DROP TRIGGER machine_proof_verified');
     tampered.exec('DROP TRIGGER machine_item_move');
     tampered.exec('CREATE TRIGGER machine_item_move BEFORE UPDATE OF item_status ON item WHEN 0 BEGIN SELECT 1; END');
-    // Only a board whose user_version is behind is audited on open (#1047); a guarded older board still reports.
-    tampered.exec('PRAGMA user_version = 1');
+    tampered.exec('PRAGMA user_version = 3'); // current, so drifted and left alone on open; behind it is refused (#7767)
     tampered.close();
 
     const restored = openBoard(lab.file);
-    try {
+    try { store.guardStore(restored); // the install that audits a hand-dropped guard, as a migration runs it
       assert.deepEqual(triggerNames(restored), every);
       const logged = restored.db.prepare("SELECT event_by, event_detail FROM event WHERE event_kind = 'guards'").all();
       assert.deepEqual(logged.map((row) => [row.event_by, JSON.parse(row.event_detail)]), [['board', { missing: ['machine_proof_verified'], changed: ['machine_item_move'], stale: [] }]]);

@@ -200,10 +200,10 @@ test('a read answers while a writer holds the lock [C7]', async (t) => {
     assert.ok(held - free < 100, `${argv[0]}: a held writer added ${Math.round(held - free)} ms to the median`); // budget: approved row criterion bar, under 100 ms over the unlocked median (shout #23649)
   }
 
-  // A version-2 board, from before #1044's hot-path indexes, is still migrated by the next command
+  // A board from before #1044's hot-path indexes (a version-0 stand-in, as a board older than 0.9.3 is refused, #7767), is still migrated by the next command
   // that writes, from the released copy: it gains them then, and never on a read.
   const db = new DatabaseSync(file);
-  db.exec(`${HOT_INDEXES.map((name) => `DROP INDEX ${name};`).join(' ')} PRAGMA user_version = 2`);
+  db.exec(`${HOT_INDEXES.map((name) => `DROP INDEX ${name};`).join(' ')} PRAGMA user_version = 0`);
   db.close();
   // Process-level: the released copy migrates the older board, so it runs as its own process (not this tree's in-process dispatcher).
   const cli = (...argv) => runFixtureChild(process.execPath, [join(box.release, 'apps/cli/pullboard.js'), ...argv], { cwd: box.repo, env: box.env, encoding: 'utf8' });
@@ -224,13 +224,13 @@ test('a read answers while a writer holds the lock [C7]', async (t) => {
   const read = cli('status');
   assert.equal(read.status, 0, read.failure ?? read.stderr);
   assert.match(read.stdout, /board: 1001 open/u);
-  assert.equal(version(), 2, 'status never migrates the board');
+  assert.equal(version(), 0, 'status never migrates the board');
   assert.deepEqual(hotIndexes(), [], 'status adds no index');
   const write = cli('add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'renders');
   assert.equal(write.status, 0, write.failure ?? write.stderr);
   assert.equal(version(), store.SCHEMA_VERSION, 'the next write command migrates it');
   assert.equal(store.SCHEMA_VERSION, 3, 'the version that carries the hot-path indexes');
-  assert.deepEqual(hotIndexes(), [...HOT_INDEXES].sort(), 'the write gave the version-2 board every hot-path index');
+  assert.deepEqual(hotIndexes(), [...HOT_INDEXES].sort(), 'the write gave the older board every hot-path index');
 
   // At the current version, a shape changed outside pullboard is reported once and left as it is.
   const drifted = new DatabaseSync(file);

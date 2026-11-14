@@ -45,7 +45,7 @@ import { temporaryDirectory } from '../../../../packages/store/tests/fixtures/tm
  * Open the production schema and moves in memory, with cleanup owned by the test.
  * A file requires a named database boundary; an unsupported mode never silently falls back.
  */
-export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
+export function fixtureBoard(t, { clock, storage = 'memory', purpose, file: existing } = {}) {
   if (storage !== 'memory' && storage !== 'file') {
     throw new Refused('TEST_BOARD_STORAGE', 'choose memory, or file with a persistence, locking or migration purpose');
   }
@@ -54,7 +54,8 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
   }
   let file = ':memory:';
   let directory;
-  if (storage === 'file') {
+  if (storage === 'file' && existing) file = existing; // the caller owns this file and its folder
+  else if (storage === 'file') {
     directory = temporaryDirectory('pullboard-board-contract-');
     file = join(directory, 'board.sqlite');
   }
