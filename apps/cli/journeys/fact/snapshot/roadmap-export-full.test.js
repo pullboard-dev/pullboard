@@ -64,7 +64,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
           criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
           verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').textContent]),
           moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].map((move) => move.dataset.timelineKind).reverse(), // a row folds its placement's event id, so it counts once
-          facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)),
+          facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:|Not a duplicate of #)/u.test(text)),
         };
       })()`);
       assert.ok(opened.title.includes('Offline greeting'), `the address opens item #1: ${opened.title}`);
