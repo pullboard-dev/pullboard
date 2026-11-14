@@ -117,6 +117,12 @@ function landingTab() {
 
 const view = { roadmapOpen: new Map(), roadmapPage: null, root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, shoutFilter: 'all', shoutThread: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;
+// Shouts: the open thread and each thread's newest shout as the last draw saw them, each thread's unsent reply, and this viewer's read marks per board.
+let shoutOpenKey = null;
+let shoutThreadIds = new Map();
+let shoutsWasShown = false;
+const shoutDrafts = new Map();
+const shoutMarks = new Map();
 // Each board read in the order it started, and the newest one drawn: an answer older than that one is stale.
 let refreshStarted = 0;
 let refreshDrawn = { generation: 0, full: true };

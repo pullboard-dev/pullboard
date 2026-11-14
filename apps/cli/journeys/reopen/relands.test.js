@@ -18,6 +18,7 @@ import {
   onBoard,
 } from '../../tests/fixtures/land/board.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -56,9 +57,9 @@ function reopenedAccepted() {
   return { box, entry, since };
 }
 
-test('an open landing return with its accept and green gate at its head returns to verified and lands [C7,#2997]', () => {
+test('an open landing return with its accept and green gate at its head returns to verified and lands [C7,#2997]', async () => {
   const { box, entry, since } = reopenedAccepted();
-  const result = json(box, box.repo, 'land');
+  const result = await settleLand(box, json(box, box.repo, 'land'));
   assert.deepEqual(result.landed, [entry.item], JSON.stringify(result));
   const item = json(box, box.repo, 'show', String(entry.item));
   assert.equal(item.item_status, 'verified');

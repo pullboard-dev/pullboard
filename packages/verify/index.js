@@ -1,5 +1,6 @@
 /** Canonical entry points for the verify cell; every moved body is exported here once [C7]. */
 export * from './light.js';
+export { laneCheckFiles, requireOwnLaneCheck, coordinatorCheck } from './src/io/check/widen.js';
 export { normalizeReviewDefaults } from './src/io/review/default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/io/bar/actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/logic/bar/check.js';
