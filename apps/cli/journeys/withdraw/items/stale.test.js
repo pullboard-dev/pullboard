@@ -6,16 +6,16 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { machine } from '../../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../../tests/fixtures/cockpit/harness.js';
-import { build } from '../../../tests/fixtures/cockpit/harness.js';
+import { buildLocal } from '../../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../../tests/fixtures/cockpit/harness.js';
 import { openPage } from '../../../tests/fixtures/cockpit/harness.js';
-import { accept } from '../../../tests/fixtures/cockpit/harness.js';
+import { acceptLocal } from '../../../tests/fixtures/cockpit/harness.js';
 import { itemRow } from '../../../tests/fixtures/cockpit/harness.js';
 
 test('a stale verdict shows a stale chip [N26,V4]', async () => {
   const box = machine(), alpha = project(box, 'alpha');
   for (const [index, title] of ['Stale', 'Fresh', 'Landed', 'Legacy', 'Open'].entries()) await box.inProcess(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders', ...(index ? ['--not-duplicate-of', '1 a distinct fixture row'] : []));
-  for (const id of [1, 2, 3, 4]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); }
+  for (const id of [1, 2, 3, 4]) { await buildLocal(box, alpha, id, `page-${id}.html`); await acceptLocal(box, alpha, id); }
   box.git(alpha.repo, 'merge', '-q', '--ff-only', alpha.itemBranches.get(`${alpha.baseBranch}:3`));
   await box.inProcess(alpha.repo, 'merged', '3', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2,3,4,5', '--reason', 'Arrange fixture release');
@@ -46,6 +46,7 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
     assert.deepEqual(rows(page.show('roadmap'), (id) => `data-roadmap-key="i:#${id}"`), [stale, '', '', legacy], 'the Roadmap marks the same rows');
     await page.click({ tab: 'shouts' });
     page.run('view.agent = "web-1"; render();');
-    assert.deepEqual(rows(page.show('agents').replaceAll('<div class="agent-work"', '<li'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the builder holds its stale verdicts in the agent rows');
+    // 154e174c55: an agent's row is one line, its first held item and a count of the rest; the stale chip lives on the list, detail and Roadmap rows.
+    assert.match(page.show('agents'), /<button class="sx-ag [^"]*"[^>]*data-agent="web-1"[^>]*title="web-1 holds #4 and 1 more/u, 'the builder holds its stale verdicts in the agent rows');
   } finally { await view.stop(); }
 });
