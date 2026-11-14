@@ -117,7 +117,7 @@ export async function assertAffectedLandingUnstamped(t, { landProject, itemWorkt
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), remote);
   const observed = runs(box).slice(start);
-  assert.ok(observed.length > 0 && observed.every(run => run.kind === 'affected' && run.code === 0), 'only real green affected executions ran');
+  assert.ok(observed.length > 0 && observed.every(run => run.kind === 'affected' && run.code === 0), `only real green affected executions ran: ${JSON.stringify(observed)}`);
   assert.ok(observed.some(run => SHARED.every(file => run.files.includes(file))));
   const tree = box.git(box.repo, 'rev-parse', 'main^{tree}');
   for (const cwd of [box.repo]) {
@@ -146,7 +146,8 @@ export async function assertDeferredBatchIsolation(t, { landProject, itemWorktre
   assert.deepEqual(result.returned.map(entry => entry.id), [entries[0].item]);
   assert.ok(SHARED.some(file => result.returned[0].detail.includes(file) || String(result.landJob.receipt.detail).includes(file)), `the culprit retains its actual importer failure: ${JSON.stringify(result.returned)}`);
   assert.deepEqual(result.landed, entries.slice(1).map(entry => entry.item), 'innocent shared-file owners survive isolation');
-  assert.equal(json(box, box.repo, 'show', String(entries[0].item)).item_status, 'open');
+  // Under separate publish the land job parks its red item for the builder instead of reopening it [C7,#7492].
+  assert.ok(['open', 'verified'].includes(json(box, box.repo, 'show', String(entries[0].item)).item_status), 'the culprit is returned, not landed');
   assert.equal(json(box, box.repo, 'show', String(entries[0].item)).item_merged_commit, null);
   for (const entry of entries.slice(1)) assert.ok(json(box, box.repo, 'show', String(entry.item)).item_merged_commit);
   assert.notEqual(result.batch.tip, base);
