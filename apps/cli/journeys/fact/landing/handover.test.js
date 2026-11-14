@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js packages/landing/index.js */
+/** @pullboard-test-input apps/cli/src/io/landing/automatic.js apps/cli/tests/fixtures/child.js packages/landing/index.js packages/landing/src/io/automatic/scheduler.js */
 /** A waiting lander whose code is older than main's releases its place, names the change and hands over to a fresh lander [C7,#3467]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -20,7 +20,7 @@ import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import * as store from '../../../../../packages/store/index.js';
-import { automaticLandingDirectory } from '../../../../../packages/landing/index.js';
+import { automaticLandingDirectory } from '../../../../../packages/landing/src/io/automatic/scheduler.js';
 import { staleLanderReason } from '../../../src/io/landing/automatic.js';
 
 const e2e = createE2eHelpers();
@@ -101,7 +101,7 @@ test('clause 1 and clause 2: a waiting lander started before main changed its co
   // real 30 s watch; only where it reads its code is the fixture's. Main changes that code after it loaded.
   const source = [
     `import { runLandingWake, landingWakeMarks } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/io/landing/automatic.js')).href)};`,
-    `import { resumeAutomaticLanding, scheduleAutomaticLanding } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
+    `import { resumeAutomaticLanding, scheduleAutomaticLanding } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/src/io/automatic/scheduler.js')).href)};`,
     `import { runFixtureGit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../tests/fixtures/child.js')).href)};`,
     "import { writeFileSync } from 'node:fs'; import { join } from 'node:path'; import { randomUUID } from 'node:crypto';",
     'const { root, file, worker } = JSON.parse(process.argv[1]);',
