@@ -18,6 +18,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
   proofShot,
   openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
@@ -42,7 +43,7 @@ test('clause 1: sentinel draft Command, Directory and Schedule labels never over
       await chrome.waitFor('innerWidth === ' + width);
       // The approved Dashboard shows only the Rulings count, so the card is measured on Items [N26].
       for (const [tab, root] of [['items', '#needs']]) {
-        await press(chrome, 'document.querySelector("#tabs [data-tab=' + tab + ']")');
+        await pressTab(chrome, tab);
         if (tab === 'items') await openItemsNeeds(chrome);
         const selector = root + ' [data-sentinel-draft] details';
         await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
