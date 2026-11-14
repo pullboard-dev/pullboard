@@ -73,7 +73,7 @@ function textOf(seed, label, targetLength) {
 }
 
 /** Allocate all five lifecycle states proportionally while keeping each state represented. */
-function statusCounts(size) {
+export function statusCounts(size) {
   const totalWeight = STATUS_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
   const exact = STATUS_WEIGHTS.map((weight) => size * weight / totalWeight);
   const counts = exact.map(Math.floor);

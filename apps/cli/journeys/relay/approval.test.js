@@ -22,6 +22,7 @@ import {
   findChromeExecutable,
   startChrome,
 } from '../../tests/fixtures/relay/browser.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
 const CLI = resolve(import.meta.dirname, '../../pullboard.js');
@@ -212,7 +213,7 @@ function approvedLinkScenario(t) {
     const released = new Promise(resolveRelease => { release = resolveRelease; });
     box.beforeNextSnapshot(async () => { held = true; await released; });
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await pressTab(chrome, 'shouts');
     await chrome.waitFor(`view.tab === "shouts" && document.querySelector('[data-pane="items"]').hidden`);
     const documentOrigin = await chrome.stable('performance.timeOrigin');
     const authorizeBefore = box.calls.filter(call => call.path.endsWith('/authorize')).length;
