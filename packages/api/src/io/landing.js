@@ -86,9 +86,6 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect);
-  // The person's live waivers ride on the job, so its runner holds no landing for a waived test; a new waiver is a new job [#655].
-  const waivers = proof ? livePersonWaivers(db, now) : [];
-  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   // A deferred selection replaces only the affected tests; the project's own gate still judges the merged tree [C7].
   const deferGate = defer && !forced && typeof config?.gate === 'string' && config.gate.trim() ? ['sh', '-c', config.gate.trim()] : null;
@@ -96,6 +93,9 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   // The runner selects, on each tree it checks, the affected tests no submit proved: contracts main gained after submit [C7,#7378].
   const runner = typeof config?.affectedTests === 'string' && config.affectedTests.trim();
   const contracts = !forced && runner && !/[\0\n\r]/u.test(runner) ? { runner } : null;
+  // The person's live waivers ride on the job, so its runner holds no landing for a waived test, whether the proof or the contracts ran it; a new waiver is a new job [#655,C7].
+  const waivers = proof || contracts ? livePersonWaivers(db, now) : [];
+  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
   // The board's static guard runs on the merged tree, from accepted main's config, never the item's own [C7,#7492].
   const staticChecks = !forced && typeof config?.staticChecks === 'string' && config.staticChecks.trim() && !/\0/u.test(config.staticChecks) ? config.staticChecks.trim() : null;
   // landing.perItem is on by default (off under parallel landing); only off rides on the job, so default payloads stay as they were [C7,#2901].

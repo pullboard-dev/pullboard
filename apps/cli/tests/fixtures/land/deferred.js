@@ -14,6 +14,8 @@ import {
   events,
   json,
 } from './board.js';
+import { settleLand } from './settle.js';
+import { settleSubmit } from '../submit/settle.js';
 
 const SHARED = ['web/shared-a.test.js', 'web/shared-b.test.js'];
 
@@ -57,9 +59,29 @@ function deferredProject(landProject) {
   return box;
 }
 
+/**
+ * Build and submit one fixture item and wait for its pulled gate to apply: the submit event this fixture then reads
+ * is the board's record of the runner's receipt, not something the submitting process wrote [P7,C7].
+ */
+async function submitSettled(t, { box, commitFile }, entry, contents) {
+  const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
+  assert.equal(committed.status, 0, committed.stderr);
+  entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
+  const queued = await box.runLocal(entry.path, 'submit', String(entry.item), '--no-next', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  const settled = await settleSubmit(t, box, JSON.parse(queued.out));
+  assert.equal(settled.gate?.green, true, JSON.stringify(settled.gate));
+  return settled;
+}
+
+/** Land the waiting queue as a pulled land job and wait for its receipt, in the shape the batch landing printed [P7,C7]. */
+async function landSettled(box) {
+  return settleLand(box, json(box, box.repo, 'land'));
+}
+
 /** Read completed private fixture executions rather than inferring a phase from admission counts. */
 function runs(box) {
-  return existsSync(box.deferredTrace) ? readFileSync(box.deferredTrace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  return existsSync(box.deferredTrace) ? readFileSync(box.deferredTrace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).map(run => ({ ...run, files: run.files.map(file => file.replace(/^\.\//u, '')) })) : [];
 }
 
 /** Observe the exact native submit record; no fixture writes proof or event metadata. */
@@ -80,50 +102,53 @@ function stableBadges(box) {
 }
 
 /** A finite green affected proof may adopt locally, but must never masquerade as a complete full-gate proof. */
-export function assertAffectedLandingUnstamped({ landProject, itemWorktree, submitItem, acceptItem }) {
+export async function assertAffectedLandingUnstamped(t, { landProject, itemWorktree, acceptItem, commitFile }) {
   const box = deferredProject(landProject);
   const entry = itemWorktree(box, 1, 'web/leaf-1.js');
-  submitItem(box, entry, 'export const value = 0; // item1\n');
+  await submitSettled(t, { box, commitFile }, entry, 'export const value = 0; // item1\n');
   assertDeferred(box, entry);
   acceptItem(box, entry);
   stableBadges(box);
   const start = runs(box).length;
   const remote = box.git(box.remote, 'rev-parse', 'main');
-  const result = json(box, box.repo, 'land');
+  const result = await landSettled(box);
   assert.deepEqual(result.landed, [entry.item]);
   assert.equal(result.batch.state, 'landed');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), result.batch.tip);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), remote);
   const observed = runs(box).slice(start);
-  assert.ok(observed.length > 0 && observed.every(run => run.kind === 'affected' && run.code === 0), 'only real green affected executions ran');
+  // The land job also runs the project's own gate on the merged tree; every run is green and the deferred importers run as affected tests [C7].
+  assert.ok(observed.length > 0 && observed.every(run => run.code === 0) && observed.some(run => run.kind === 'affected'), `only real green executions ran: ${JSON.stringify(observed)}`);
   assert.ok(observed.some(run => SHARED.every(file => run.files.includes(file))));
   const tree = box.git(box.repo, 'rev-parse', 'main^{tree}');
-  for (const cwd of [box.repo, result.batch.root]) {
+  for (const cwd of [box.repo]) {
     const stamp = resolve(cwd, box.git(cwd, 'rev-parse', '--git-path', 'pullboard-gate-green'));
     assert.ok(!existsSync(stamp) || readFileSync(stamp, 'utf8').trim() !== tree, 'affected-only adoption writes no full-gate stamp');
   }
 }
 
 /** A deferred shared-file red returns only its actual source culprit, not every innocent owner of that file. */
-export function assertDeferredBatchIsolation({ landProject, itemWorktree, submitItem, acceptItem }) {
+export async function assertDeferredBatchIsolation(t, { landProject, itemWorktree, acceptItem, commitFile }) {
   const box = deferredProject(landProject);
   const entries = [1, 2, 3].map(n => itemWorktree(box, n, `web/leaf-${n}.js`));
   entries.push(itemWorktree(box, 4, 'web/land-4.data'));
   for (const [index, entry] of entries.entries()) {
-    submitItem(box, entry, index < 3 ? `export const value = ${index === 0 ? 1 : 0}; // item${index + 1}\n` : 'harmless opaque input\n');
+    await submitSettled(t, { box, commitFile }, entry, index < 3 ? `export const value = ${index === 0 ? 1 : 0}; // item${index + 1}\n` : 'harmless opaque input\n');
     if (index < 3) assertDeferred(box, entry);
   }
   for (const entry of entries) acceptItem(box, entry);
   const start = runs(box).length;
   const base = box.git(box.repo, 'rev-parse', 'main');
   const remote = box.git(box.remote, 'rev-parse', 'main');
-  const result = json(box, box.repo, 'land');
-  assert.equal(result.batch.candidates.length, 4, 'plain land takes the whole waiting queue');
+  const result = await landSettled(box);
+  assert.equal(result.batch.items.length, 4, 'plain land takes the whole waiting queue');
   assert.equal(result.batch.state, 'landed');
-  assert.deepEqual(result.culprits.map(entry => entry.id), [entries[0].item]);
-  assert.ok(result.culprits[0].tests.some(failure => SHARED.includes(failure.file)), 'the culprit retains its actual importer failure');
+  // The land receipt returns the culprit to its builder with the failing importer named in the red's detail [C7].
+  assert.deepEqual(result.returned.map(entry => entry.id), [entries[0].item]);
+  assert.ok(SHARED.some(file => result.returned[0].detail.includes(file) || String(result.landJob.receipt.detail).includes(file)), `the culprit retains its actual importer failure: ${JSON.stringify(result.returned)}`);
   assert.deepEqual(result.landed, entries.slice(1).map(entry => entry.item), 'innocent shared-file owners survive isolation');
-  assert.equal(json(box, box.repo, 'show', String(entries[0].item)).item_status, 'open');
+  // Under separate publish the land job parks its red item for the builder instead of reopening it [C7,#7492].
+  assert.ok(['open', 'verified'].includes(json(box, box.repo, 'show', String(entries[0].item)).item_status), 'the culprit is returned, not landed');
   assert.equal(json(box, box.repo, 'show', String(entries[0].item)).item_merged_commit, null);
   for (const entry of entries.slice(1)) assert.ok(json(box, box.repo, 'show', String(entry.item)).item_merged_commit);
   assert.notEqual(result.batch.tip, base);
