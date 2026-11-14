@@ -50,12 +50,12 @@ test('an item detail shows its pending, red and green check baselines from the A
     for (let index = 0; index < checks.length; index += 1) {
       await page.click({ item: String(ids[index]), classes: 'row' });
       const detail = page.show('detail');
-      assert.match(detail, /<h3 class="hd2">Check<\/h3>/);
-      assert.ok(detail.indexOf('<h3 class="hd2">Done when</h3>') < detail.indexOf('<h3 class="hd2">Check</h3>')
-        && detail.indexOf('<h3 class="hd2">Check</h3>') < detail.indexOf('<h3 class="hd2">Spec rows it serves</h3>'), 'the check sits beside the criterion');
-      assert.ok(detail.includes(`<code>${checks[index].command}</code>`), 'the displayed check is the API command');
+      assert.match(detail, /<p class="ip-lbl">Check<\/p>/);
+      assert.ok(detail.indexOf('<p class="ip-lbl">Done when</p>') < detail.indexOf('<p class="ip-lbl">Check</p>')
+        && detail.indexOf('<p class="ip-lbl">Check</p>') < detail.indexOf('<p class="ip-lbl">History</p>'), 'the check sits beside the criterion');
+      assert.ok(detail.includes(`<span class="p">${checks[index].command}</span>`), 'the displayed check is the API command');
       const word = checks[index].result.charAt(0).toUpperCase() + checks[index].result.slice(1);
-      assert.ok(detail.includes(`<span class="chip ${checks[index].result === 'green' ? 'ok' : checks[index].result === 'red' ? 'no' : 'warn'}">${word} on main</span>`),
+      assert.ok(detail.includes(`runs one command · ${checks[index].result} on main`) && word,
         `the ${checks[index].result} baseline is visible`);
       if (checks[index].result === 'green') {
         assert.ok(detail.includes('This check already passed before the work, so it proves nothing.'), 'green baseline warning is plain language');
@@ -76,8 +76,8 @@ test('an item detail shows its pending, red and green check baselines from the A
         }
         await page.run('refresh()');
         const completed = page.show('detail');
-        assert.match(completed, /<h2><span class="id">#\d+<\/span>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
-        assert.ok(completed.includes('<span class="chip ok">Green on main</span>'), 'the open detail updates to the completed result');
+        assert.match(completed, /<span class="id">#\d+<\/span>[^]*<h2>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
+        assert.ok(completed.includes('runs one command · green on main'), 'the open detail updates to the completed result');
         assert.ok(completed.includes('This check already passed before the work, so it proves nothing.'), 'the completed warning appears without reopening the detail');
       }
     }

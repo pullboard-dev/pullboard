@@ -85,7 +85,7 @@
 .act-lg i { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: var(--radius-bar); }
 .act-lg .ready { background: var(--seg-ready); } .act-lg .building { background: var(--seg-build); } .act-lg .gate { background: var(--seg-gate); } .act-lg .wait { background: var(--seg-pend); }
 .act-lg .review { background: var(--seg-rev); } .act-lg .landing { background: var(--seg-land); } .act-lg .blocked { background: var(--seg-blk); }
-.act-lg .held { border: var(--border-held-thin); } .act-lg .over { background: repeating-linear-gradient(135deg, var(--mark-back) 0 1.5px, transparent 1.5px 4px), var(--seg-build); }
+.act-lg .held { border: var(--border-held-thin); } .act-lg .cap { width: 11px; height: 3px; border-radius: var(--radius-hair); background: var(--mark-back); } .act-lg .mute { background: color-mix(in oklab, var(--seg-build) 22%, var(--surface)); } .act-lg .over { background: repeating-linear-gradient(135deg, var(--mark-back) 0 1.5px, transparent 1.5px 4px), var(--seg-build); }
 .act-lg .k-cap { width: 10px; height: 3px; border-radius: var(--radius-hair); background: var(--stage-merged); } .act-lg .k-back { width: 10px; height: 2px; border-radius: 0; background: var(--mark-back); }
 .act-lg .k-dot { width: 7px; height: 7px; border-radius: var(--radius-dot); } .act-lg .k-dot.rul { background: var(--amber-dot); } .act-lg .k-dot.sh { background: var(--mark-idle); }
 .act-lg .x { width: 1px; height: 11px; background: var(--line); align-self: center; }
@@ -100,7 +100,6 @@
 .act-wfsvg { display: block; }
 .act-wfsvg .act-grid { stroke: var(--line-soft); }
 .act-wfsvg .act-lleft { stroke: var(--line-strong); stroke-dasharray: 2 3; }
-.act-wfsvg .act-veil { fill: var(--surface); opacity: .62; pointer-events: none; }
 .act-wfsvg .act-edge { stroke: var(--line-strong); stroke-dasharray: 3 3; pointer-events: none; }
 .act-wfsvg .act-lnow { stroke: var(--stage-merged); stroke-dasharray: 3 3; }
 .act-wfsvg .act-tick, .act-wfsvg .act-bleed { font: 10px var(--sans); fill: var(--ink-faint); pointer-events: none; }
@@ -113,6 +112,12 @@
 .act-live svg .m-rul { fill: var(--amber-dot); stroke: var(--surface); stroke-width: 1; } .act-live svg .m-sh { fill: var(--mark-idle); stroke: var(--surface); stroke-width: 1; }
 .act-wfsvg .act-hit { fill: transparent; }
 .act-wfsvg g[data-id] { cursor: pointer; }
+.act-wfsvg .nb { opacity: .22; }
+.act-wfsvg .mut.s-ready { fill: color-mix(in oklab, var(--seg-ready) 22%, var(--surface)); } .act-wfsvg .mut.s-build { fill: color-mix(in oklab, var(--seg-build) 22%, var(--surface)); } .act-wfsvg .mut.s-blk { fill: color-mix(in oklab, var(--seg-blk) 25%, var(--surface)); }
+.act-wfsvg .mut.s-gate { fill: color-mix(in oklab, var(--seg-gate) 22%, var(--surface)); } .act-wfsvg .mut.s-pend { fill: color-mix(in oklab, var(--seg-pend) 35%, var(--surface)); } .act-wfsvg .mut.s-rev { fill: color-mix(in oklab, var(--seg-rev) 25%, var(--surface)); }
+.act-wfsvg .mut.s-land { fill: color-mix(in oklab, var(--stage-merged) 22%, var(--surface)); } .act-wfsvg .mut.s-held { opacity: .35; }
+.act-wfsvg .m-cap { fill: var(--mark-back); }
+.act-wfnote { margin: 0; padding: 6px 10px; border-top: var(--border-row); font-size: var(--text-xs); color: var(--ink-faint); }
 .act-wfsvg g.dim { opacity: .13; }
 .act-hours.hovering g[data-id] { opacity: .12; }
 .act-hours.hovering g.hot { opacity: 1; }

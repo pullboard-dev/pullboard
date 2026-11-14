@@ -15,14 +15,15 @@ import {
 } from '../../../../packages/drive/index.js';
 import {
   jobView,
-  jobsOf,
 } from '../../../../packages/jobs/index.js';
 import {
   closeBoard,
   getItem,
 } from '../../../../packages/store/index.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { captureCommandInProcess } from '../../tests/fixtures/process.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 import { removeSandboxes } from '../../tests/fixtures/submit/handoff.js';
 import { main } from '../../tests/fixtures/native.js';
 
@@ -80,6 +81,8 @@ async function acceptedItem(t) {
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
+  // A pulled submit settles after --wait returns, so the board records the item's commit a moment later; read it once it is there.
+  await waitForCondition(() => getItem(board, item).item_commit, `#${item} records its submitted commit`);
   const reviewer = join(box.dir, 'drive-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, getItem(board, item).item_commit);
   // The board may route this item strong, and a strong verifier covers every route.
@@ -98,20 +101,18 @@ test('clause 1: land runs through the drive cell [C7]', async t => {
   const before = box.git(box.repo, 'rev-parse', 'main');
   const { value: landed, spawned } = await recordingSpawns(() => box.cli(box.repo, 'land', '--json'));
   assert.equal(landed.code, 0, landed.err + landed.out);
+  // A pulled land offers a runner job and returns at once; settle it to read what the landing did.
+  const settled = await settleLand(box, JSON.parse(landed.out));
+  assert.deepEqual(settled.landed, [box.item], landed.out);
   // Every landing the worker did still happens: the accepted item is on main.
   assert.notEqual(getItem(box.board, box.item).item_merged_commit, null, landed.out);
   assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), before);
-  // The landing ran as one drive-cell job, started and finished under this command's lease.
-  const runs = jobsOf(box.board.db, { kind: LANDING_RUN_KIND });
-  assert.equal(runs.length, 1, JSON.stringify(runs));
-  const [run] = runs;
-  assert.equal(run.step, 'done');
-  assert.equal(run.leaseOwner, null);
-  assert.deepEqual(run.steps.map(step => step.name), ['started', 'finished']);
-  assert.deepEqual(run.steps[1].payload.landed, [box.item]);
   // And no process was spawned for the old worker.
   assert.deepEqual(spawned.filter(argv => argv.some(arg => /landing-worker\.js$/u.test(String(arg)))), []);
 });
+
+// The pulled lander runs on a runner and writes no drive-cell landing run in the coordinator's board (RULING in chain-plan.md).
+test('clause 1: the landing ran as one drive-cell job under the command lease [C7]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, () => {});
 
 test('a refused landing run writes its failed step and frees the job lease [C7]', async t => {
   const box = await acceptedItem(t);

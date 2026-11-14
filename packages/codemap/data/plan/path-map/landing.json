@@ -6,7 +6,6 @@
   "src/land.js": "packages/landing/src/io/land.js",
   "src/landing-batch-history.js": "packages/landing/src/logic/batch/history.js",
   "src/landing-cadence.js": "packages/landing/src/logic/cadence.js",
-  "src/landing-candidates.js": "packages/landing/src/io/candidates.js",
   "src/landing-deferred-run.js": "packages/landing/src/io/deferred/run.js",
   "src/landing-doctrine.js": "packages/landing/src/io/doctrine.js",
   "src/landing-environment-guards.js": "packages/landing/src/logic/environment.js",
@@ -32,7 +31,6 @@
   "src/publish-pause.js": "packages/landing/src/io/pause.js",
   "src/record-train-landing.js": "packages/landing/src/io/trainrecord.js",
   "src/train-landing-receipt.js": "packages/landing/src/io/train/receipt.js",
-  "src/train-landing.js": "packages/landing/src/io/train.js",
   "src/landing-step-selection.js": "packages/landing/src/io/step/selection.js",
   "src/landing-step-merge.js": "packages/landing/src/io/step/merge.js",
   "src/landing-step-failures.js": "packages/landing/src/io/step/failures.js",
@@ -40,8 +38,6 @@
   "src/landing-step-diagnose.js": "packages/landing/src/io/step/diagnose.js",
   "src/landing-step-publish.js": "packages/landing/src/io/step/publish.js",
   "src/landing-step-trunk.js": "packages/landing/src/io/step/trunk.js",
-  "src/landing-step-parallel.js": "packages/landing/src/io/step/parallel.js",
-  "src/landing-step-batch.js": "packages/landing/src/io/step/batch.js",
   "src/train-check-repoints.js": "packages/landing/src/io/train/repoints.js",
   "src/post-land-suite.js": "packages/landing/src/io/post/land.js"
 }

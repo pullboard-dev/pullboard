@@ -100,7 +100,7 @@ test('no box carries a coloured edge [N26]', async () => {
     assert.doesNotMatch(style, /box-shadow:[^;}]*inset -?\d+(?:\.\d+)?px 0 0/, 'and no stripe drawn by a shadow');
 
     await page.click({ go: 'item:1' });
-    assert.match(page.show('detail'), /<div class="verdict no"><b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/, 'a verdict says what it decided');
+    assert.match(page.show('detail'), /<span class="ip-chip x" title="BEHAVIOR_MISMATCH">Behavior did not match<\/span>/, 'a verdict says what it decided');
     assert.match(style, /\.verdict\.yes b \{ color: var\(--accent-strong\); \} \.verdict\.no b \{ color: var\(--reject\); \}/, 'in the colour of its word, not a bar');
   } finally {
     await view.stop();
@@ -146,12 +146,12 @@ test("the authenticated local view assembles its shared and private styles [N26]
     await page.click({ rows: 'spec:all' });
     await page.click({ row: 'spec:G1' });
     assert.match(page.show('prod-list'), /<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="50" height="1"\/><\/svg>/, 'a product bar is drawn, half full');
-    // The approved item-panel header spaces its status row with a grid gap; spec metadata keeps its own spacing.
+    // The approved item-panel header is one grid block over its meta line; spec metadata keeps its own spacing.
     const style = await styleOf(view);
-    assert.match(page.show('detail'), /<\/h2><div class="item-panel-status">/);
+    assert.match(page.show('detail'), /<\/h2><p class="ip-meta">/);
     assert.match(page.show('spec-detail'), /<\/h2><div class="meta">/);
     assert.match(style, /\n\.meta \{ [^}]*margin-top: var\(--space-0\); \}\n/);
-    assert.match(style, /\n\.item-panel-head \{ [^}]*gap: var\(--space-2\); \}\n/);
+    assert.match(style, /\n\.item-panel-head \{ [^}]*display: grid; [^}]*\}\n/);
     assert.doesNotMatch(style, /h2 \+ \.meta/, 'no rule reaches past the item into a spec row');
     for (const id of [...page.html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1])) {
       assert.doesNotMatch(page.show(id), /style=/, `#${id} holds no style`);

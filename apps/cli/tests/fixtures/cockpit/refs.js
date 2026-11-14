@@ -93,20 +93,20 @@ export async function proseReferencesAt(t, width) {
           assert.equal(await chrome.stable('location.href'), address, 'inline title text expands without leaving Roadmap');
           assert.equal(await chrome.stable('view.tab'), 'roadmap');
           await chrome.click(row + ".parentElement.querySelector('.milestone-why a[data-go]')");
-          await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2 > span')?.textContent === '#2'");
+          await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail .item-panel-head .id')?.textContent === '#2'");
           assert.equal(await chrome.stable('view.root'), target === 'Remote target' ? other.repo : demo.repo);
           continue;
         }
         await chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
-        await chrome.waitFor("!document.body.classList.contains('switching') && document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2 > span')?.textContent === '#1'");
+        await chrome.waitFor("!document.body.classList.contains('switching') && document.querySelector('[data-tab=items].on') && document.querySelector('#detail .item-panel-head .id')?.textContent === '#1'");
         assert.ok((await chrome.stable("document.querySelector('#detail h2').textContent")).includes(target), 'the reference opens its target title');
         assert.equal(await chrome.stable('view.root'), target === 'Remote target' ? other.repo : demo.repo, 'duplicate item numbers stay bound to their own board');
       }
       await chrome.click(`document.querySelector('[data-tab="items"]')`); await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
       // The latest verdict has its own panel, and the history row keeps its own copy (639c16dbb5); read the panel's.
-      await chrome.waitFor("document.querySelector('#detail .item-panel-latest .verdict .note')");
-      assert.equal(await chrome.stable("document.querySelectorAll('#detail .item-panel-latest .verdict .note .ref').length"), 1, 'verdict prose keeps its item reference');
-      await chrome.click("document.querySelector('#detail .item-panel-latest .verdict .note .ref')");
+      await chrome.waitFor("document.querySelector('#detail .item-panel-latest .note')");
+      assert.equal(await chrome.stable("document.querySelectorAll('#detail .item-panel-latest .note .ref').length"), 1, 'verdict prose keeps its item reference');
+      await chrome.click("document.querySelector('#detail .item-panel-latest .note .ref')");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
       await chooseFilter(chrome, 'state:active');
       await openItemsNeeds(chrome);

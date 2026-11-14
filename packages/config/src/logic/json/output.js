@@ -6,7 +6,7 @@ export const COORDINATOR_PERSON_REQUEST = 'ask the coordinator to bring it to th
 export const PERSON_PLAIN_STEP = 'your coordinator will sort this out; nothing needs you right now';
 
 /** Internals the person never sees (H23): a shell command line, a token or key, a relay term. */
-const PERSON_LEAK = /(?:^|[\s`$])(?:\$ ?)?(?:pullboard|node|git|npm|npx|sh|bash)\s+[-\w./<]|\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._~+/=-]{16,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{32,}={0,2})\b|\b(?:checkpoints?|outbox(?:es)?|digests?|leases?)\b/iu;
+const PERSON_LEAK = /(?:^|[\s`$(/])(?:\$ ?)?(?:pullboard|node|git|npm|npx|sh|bash)\s+[-\w./<]|\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._~+/=-]{16,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{32,}={0,2})\b|\b(?:checkpoints?|outbox(?:es)?|digests?|leases?)\b/iu;
 
 /**
  * Keep the person's refusal line free of codes, commands, tokens and relay terms; seats and the coordinator keep full text.

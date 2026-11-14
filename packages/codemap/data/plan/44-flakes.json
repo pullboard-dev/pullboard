@@ -28,7 +28,7 @@
   {"cell":"github","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"landing","imports":2,"edges":["src/land-local-guard.js->src/flakes.js","src/landing-step-parallel.js->src/flakes.js"]}
+  {"cell":"landing","imports":1,"edges":["src/land-local-guard.js->src/flakes.js"]}
  ],
  "ratchets": {
   "legacySource": -1,

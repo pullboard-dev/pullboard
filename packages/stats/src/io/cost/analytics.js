@@ -124,7 +124,8 @@ function* projectCost({ items, agents, events, window = '30d', now = new Date(),
   const sent = projected.filter(row => row.sentBack), sentMs = sent.length ? knownSum(sent.map(row => row.agentMs)) : 0;
   const days = [...new Set(projected.map(row => row.date))].sort().map(day => {
     const rows = projected.filter(row => row.date === day), first = rows.filter(row => !row.sentBack), returned = rows.filter(row => row.sentBack);
-    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length };
+    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length,
+      timedItems: rows.filter(row => row.agentMs !== null).length, untimedItems: rows.filter(row => row.agentMs === null).length };
   });
   /** Agent time per model and per lane: hours, share of the total and the part sent back [N26]. */
   const spread = (entries) => [...entries.values()].filter(row => row.agentMs > 0).sort((x, y) => y.agentMs - x.agentMs || String(x.key).localeCompare(String(y.key)))
@@ -150,7 +151,7 @@ function* projectCost({ items, agents, events, window = '30d', now = new Date(),
   }
   const builderRows = [...builders.values()].map(({ times, ...row }) => ({ ...row, rate: row.passedFirst / row.built, ...(row.built < 5 ? { low: null, high: null } : wilson(row.passedFirst, row.built)), typicalItemMs: median(times), judged: row.built >= 30, tooFew: row.built < 5 }));
   const verifierRows = [...verifiers.values()].map(row => ({ ...row, rate: row.accepts ? (row.accepts - row.reopenedLater) / row.accepts : null, ...(row.accepts < 5 ? { low: null, high: null } : wilson(row.accepts - row.reopenedLater, row.accepts)), judged: row.accepts >= 30, tooFew: row.accepts < 5 }));
-  const longest = [...projected].filter(row => row.agentMs !== null).sort((a, b) => b.agentMs - a.agentMs || a.id - b.id).slice(0, 5).map(row => ({ id: row.id, title: row.title, agentMs: row.agentMs, sentBack: row.sentBack, verifiedBy: row.verifier?.name ?? null, landedAt: row.landedAt, sessions: row.sessions }));
+  const longest = [...projected].filter(row => row.agentMs !== null).sort((a, b) => b.agentMs - a.agentMs || a.id - b.id).slice(0, 10).map(row => ({ id: row.id, title: row.title, agentMs: row.agentMs, sentBack: row.sentBack, verifiedBy: row.verifier?.name ?? null, landedAt: row.landedAt, sessions: row.sessions }));
   return { version: 1, window, from: from.toISOString(), to: to.toISOString(), totals: { agentMs: totalMs, itemCount: projected.length, medianItemMs: median(projected.map(row => row.agentMs)), sentBack: { items: sent.length, itemShare: projected.length ? sent.length / projected.length : 0, agentMs: sentMs, agentMsShare: totalMs > 0 && sentMs !== null ? sentMs / totalMs : totalMs === 0 ? 0 : null } }, days, byModel: spread(byModel), byLane: spread(byLane), builders: comparison(builderRows), verifiers: comparison(verifierRows), unknownBuilderModelShare: projected.length ? projected.filter(row => !row.builder).length / projected.length : 0, longest, allItems: projected.length };
 }
 

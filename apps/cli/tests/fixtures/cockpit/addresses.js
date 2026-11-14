@@ -40,7 +40,7 @@ export async function openAddress(chrome, server, address) {
 }
 /** Assert the detail itself, so suppressing row rendering produces an assertion failure. */
 export async function assertHeading(chrome, selector, id, text) {
-  const heading = await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' h2')})?.textContent ?? null`);
+  const heading = await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' .item-panel-head, ' + selector + ' h2')})?.textContent ?? null`);
   assert.ok(heading?.includes(id) && heading.includes(text), `detail heading names ${id} ${text}: ${heading}`);
 }
 /** Read the real browser stack, including same-document pushState entries. */

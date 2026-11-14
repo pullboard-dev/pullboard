@@ -59,10 +59,10 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
       rows: [...next.querySelectorAll(':scope > .milestone-body > ul .milestone-item .id')].map(id => id.textContent),
       count: next.querySelector('.roadmap-left [aria-label]').getAttribute('aria-label'),
       progress: [progress.querySelector('[data-summary-segment=landed]').dataset.count, progress.dataset.total],
-      index: document.querySelector('#roadmap-panel [data-roadmap-jump="m:Next"] b').textContent,
+      index: document.querySelector('#roadmap-panel [data-roadmap-jump="m:Next"] b')?.textContent ?? null,
       status: document.querySelector('[data-status=release]').textContent.replace(/\\s+/g, ' ').trim(),
       // Desktop and phone each render the shipping counts; only the panel shown at this width counts (cead5a98d7).
-      openCounts: [...document.querySelectorAll('[data-shipping-stage=waiting] dd')].filter(count => count.getClientRects().length > 0).map(count => count.textContent),
+      openCounts: [...document.querySelectorAll('#roadmap-panel [data-shipping-stage=waiting] dd')].filter(count => count.getClientRects().length > 0).map(count => count.textContent),
       headerWaiting: next.querySelector('[data-summary-state=waiting] b').textContent,
       shippedCount: shipped.querySelector('.milestone-count').textContent,
       shippedRows: [...shipped.querySelectorAll(':scope > .milestone-body > ul .milestone-item .id')].map(id => id.textContent),
@@ -82,9 +82,9 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
       assert.deepEqual(seen.rows, ['#2', '#5', '#1', '#3'], `${width}: work to ship leads, and landed items follow in landing order`);
       assert.equal(seen.count, '2/4 landed', `${width}: withdrawn work is absent from the card count`);
       assert.deepEqual(seen.progress, ['2', '4'], `${width}: progress counts only retained items`);
-      assert.equal(seen.index, '2/4', `${width}: the release index uses the same count`);
+      assert.equal(seen.index, null, `${width}: the release index repeats no landed count`);
       assert.equal(seen.status, 'Next 2/4', `${width}: the status bar names the same next release and count`);
-      assert.deepEqual(seen.openCounts, ['2'], `${width}: the companion panel reads the supplied waiting count`);
+      assert.deepEqual(seen.openCounts, [], `${width}: the rail holds no count tiles`);
       assert.equal(seen.headerWaiting, '2', `${width}: the header includes both waiting items`);
       assert.equal(seen.shippedCount, '2 items', `${width}: folded history excludes withdrawn work from its total`);
       assert.equal(seen.allIds.includes('#4'), false, `${width}: no withdrawn row is rendered, including folded history`);

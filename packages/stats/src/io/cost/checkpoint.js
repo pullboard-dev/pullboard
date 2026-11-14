@@ -49,6 +49,23 @@ function lifecycleIntervals(board, agent, now, lastEventId) {
 }
 
 /**
+ * Publish one slice of revisions, isolating any the board refuses; returns how many it refused.
+ * Why: the board rolls a whole batch back when one record is invalid, so a single oversized shared group (more than 100 seats)
+ * kept every other revision of its seat from ever publishing, and busy days read as little or no agent time [#7578].
+ */
+export async function writeSlice(ctx, board, agent, slice, ordered) {
+  const items = slice.filter(entry => entry.item).map(({ item: change }) => ({ ...change, records: publicUsage(change.records) }));
+  const sharedSessions = slice.filter(entry => entry.shared).map(({ shared: change }) => ({ ...change, records: publicUsage(change.records) }));
+  try { await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]); return 0; }
+  catch (error) {
+    if (error?.code !== 'USAGE_RECORD') throw error;
+    if (slice.length === 1) return 1;
+    const middle = slice.length >> 1;
+    return await writeSlice(ctx, board, agent, slice.slice(0, middle), ordered) + await writeSlice(ctx, board, agent, slice.slice(middle), ordered);
+  }
+}
+
+/**
  * Publish all private revisions not yet acknowledged, including allocations already closed by submit/release.
  * A deferred checkpoint passes the move's own time, last board event and session environment, so it
  * attributes exactly what the in-line checkpoint would have at that move.
@@ -66,13 +83,11 @@ export async function publishUsage(ctx, board, { agent, item, operation }, { ord
   const publish = [...pendingItems.map(change => ({ item: change })), ...changes.sharedSessions.map(change => ({ shared: change }))];
   // The detached worker drains everything in short writes; a command's own checkpoint stays one batch [C7].
   const limit = drain ? publish.length : Math.min(publish.length, USAGE_BATCH_LIMIT);
-  let size = drain ? USAGE_WRITE_START : limit, published = 0;
+  let size = drain ? USAGE_WRITE_START : limit, published = 0, refused = 0;
   while (published < limit) {
     const slice = publish.slice(published, published + Math.min(size, limit - published));
-    const items = slice.filter(entry => entry.item).map(({ item: change }) => ({ ...change, records: publicUsage(change.records) }));
-    const sharedSessions = slice.filter(entry => entry.shared).map(({ shared: change }) => ({ ...change, records: publicUsage(change.records) }));
     const started = performance.now();
-    await ordered(ctx, board, 'recordUsageBatch', [{ agentId: agent, items, sharedSessions }]);
+    refused += await writeSlice(ctx, board, agent, slice, ordered);
     published += slice.length;
     if (!drain) continue;
     // Each batch is its own write under the board lock, so one that nears the budget halves the next and a quick one doubles it;
@@ -81,6 +96,7 @@ export async function publishUsage(ctx, board, { agent, item, operation }, { ord
     size = took > USAGE_WRITE_BUDGET_MS ? Math.max(1, size >> 1) : took * 2 < USAGE_WRITE_BUDGET_MS ? Math.min(USAGE_BATCH_LIMIT, size * 2) : size;
     await pause();
   }
+  if (refused) ctx.io.err(`pullboard: USAGE_REFUSED: the board refused ${refused} usage revision${refused === 1 ? '' : 's'}; the seat's other revisions were published.`);
   const pending = publish.length - published;
   if (pending) ctx.io.err(`pullboard: USAGE_PENDING: published ${published} usage revisions in one batch; ${pending} remain for the next native claim, submit or release.`);
 }
