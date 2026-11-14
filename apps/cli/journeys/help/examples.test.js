@@ -15,7 +15,9 @@ function requiredFlags(usage) {
     else if (optionalDepth === 0 && usage.startsWith('--', index)) {
       const match = usage.slice(index).match(/^--[a-z][a-z-]*(?:\|--[a-z][a-z-]*)*/u);
       if (match) {
-        flags.push(match[0].split('|'));
+        // `--remove | --board <url>` spaced alternatives are one group, like `--remove|--board`.
+        if (flags.length && usage.slice(0, index).trimEnd().endsWith('|')) flags[flags.length - 1].push(...match[0].split('|'));
+        else flags.push(match[0].split('|'));
         index += match[0].length - 1;
       }
     }
@@ -27,6 +29,7 @@ test('help example flag groups preserve alternatives and optional nesting [O3]',
   assert.deepEqual(requiredFlags('pullboard command --first <id> --add|--remove ids [--optional]'),
     [['--first'], ['--add', '--remove']]);
   assert.deepEqual(requiredFlags('pullboard command [--one [--nested]] --required'), [['--required']]);
+  assert.deepEqual(requiredFlags('pullboard runner install-serve <host> --remove | --board <url> [--key <key>]'), [['--remove', '--board']]);
 });
 
 test('every help example carries its required flags [O3]', async () => {
