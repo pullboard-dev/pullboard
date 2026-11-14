@@ -27,7 +27,6 @@ import {
 /** Scroll one choice into the segmented track, which scrolls sideways at phone width, before real input reaches it. */
 async function reveal(chrome, expression) {
   await chrome.stable(`(() => { ${expression}.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; })()`);
-  console.log('PROBE ' + await chrome.stable(`(() => { const e = ${expression}, r = e.getBoundingClientRect(), h = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return innerWidth + ' ' + JSON.stringify([r.x, r.y, r.width, r.height]) + ' hit=' + (h ? h.outerHTML.slice(0, 200) : null) + ' track=' + JSON.stringify(e.parentElement.getBoundingClientRect()); })()`));
 }
 
 /** Read the real browser cascade and bounds, independently of the renderer's markup strings. */
@@ -89,7 +88,8 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
         await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
-        await press(chrome, "document.querySelector('#q')");
+        // Move the real pointer off the track so no option is measured under a hover; the Search box is not a resting place.
+        await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 });
         await chrome.stable('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
         const actual = await measureControl(chrome, selector);
         console.log('PULLBOARD_SEG_MEASURE ' + JSON.stringify({ width, pane, actual }));
