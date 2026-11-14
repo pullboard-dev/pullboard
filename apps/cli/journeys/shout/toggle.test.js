@@ -51,7 +51,7 @@ async function measureControl(chrome, selector) {
         const css = getComputedStyle(button), box = button.getBoundingClientRect(), count = button.querySelector('b'), n = count && getComputedStyle(count);
         const edges = [...button.querySelectorAll('.seg-hit')].map(edge => edge.getBoundingClientRect());
         const hitHeight = Math.max(box.bottom, ...edges.map(edge => edge.bottom)) - Math.min(box.top, ...edges.map(edge => edge.top));
-        return { key:button.getAttribute('data-rows'), text:button.childNodes[0]?.textContent, count:count?.textContent, pressed:button.getAttribute('aria-pressed'),
+        return { hovered:button.matches(':hover'), key:button.getAttribute('data-rows'), text:button.childNodes[0]?.textContent, count:count?.textContent, pressed:button.getAttribute('aria-pressed'),
           height:box.height, hitHeight, edgeWidths:edges.map(edge => edge.width), width:box.width, font:css.fontFamily, size:css.fontSize, weight:css.fontWeight, radius:css.borderRadius,
           padding:[css.paddingTop,css.paddingRight,css.paddingBottom,css.paddingLeft], color:css.color, background:css.backgroundColor,
           shadow:css.boxShadow, border:css.borderTopWidth, countSize:n?.fontSize, countFont:n?.fontFamily,
@@ -111,7 +111,7 @@ test('Spec and Doctrine use one measured toggle with real choices and counts in 
           const side = width === 1440 ? '12px' : '4px';
           assert.deepEqual(option.padding, ['0px', side, '0px', side]);
           assert.equal(option.border, '0px');
-          assert.equal(option.color, option.pressed === 'true' ? actual.expected.pressedColor : actual.expected.color, width + '/' + pane + '/' + option.text + ': resting option color');
+          if (!option.hovered) assert.equal(option.color, option.pressed === 'true' ? actual.expected.pressedColor : actual.expected.color, width + '/' + pane + '/' + option.text + ': resting option color');
           if (option.pressed === 'true') {
             assert.equal(option.weight, '600');
             assert.equal(option.background, actual.expected.pressedBackground);
