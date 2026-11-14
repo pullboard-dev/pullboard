@@ -62,6 +62,14 @@ test('native landing cohorts, duration, unknowns and Wilson score remain consist
   assert.ok(Math.abs(interval.high - 0.763407) < 0.00001);
 });
 
+test('the longest list holds the ten longest items, longest first [N26]', () => {
+  const input = seeded([[FIXTURE_MODEL, 12, 0]]);
+  input.events.filter(event => event.event_kind === 'usage').forEach((event, index) => { event.event_detail = JSON.stringify({ item: index + 1, revision: 1, records: [{ model: FIXTURE_MODEL, wallMs: 1000 * (index + 1), inputTokens: 10 }] }); });
+  const result = costAnalytics(input);
+  assert.equal(result.longest.length, 10);
+  assert.deepEqual(result.longest.map(row => row.id), [12, 11, 10, 9, 8, 7, 6, 5, 4, 3]);
+});
+
 test('model comparison distinguishes overlapping, small and single qualified cohorts [N26]', () => {
   assert.equal(costAnalytics(seeded([['A', 30, 3], ['B', 30, 4]])).builders.verdict, 'leaning');
   const one = costAnalytics(seeded([['A', 30, 3], ['B', 4, 0]])).builders;
