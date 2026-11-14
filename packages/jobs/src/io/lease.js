@@ -153,3 +153,24 @@ export function pinQueuedJob(db, job, commit, { now = Date.now() } = {}) {
 export function markApplied(db, job, { now = Date.now() } = {}) {
   return db.prepare('UPDATE job SET job_applied = ?, job_updated = ? WHERE job_id = ? AND job_applied IS NULL').run(now, now, job).changes === 1;
 }
+/**
+ * End a job that has not finished, whoever holds its lease: a step naming why, then done. False when it is gone or already done.
+ * Why: a withdrawn or abandoned job must stop even while a runner holds a live lease; that runner's next renewal then finds it done.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} name - The step that says why it ended, such as `withdrawn` or `abandoned`.
+ * @param {Record<string, unknown>} [payload]
+ * @param {{now?: number}} [options]
+ * @returns {boolean}
+ */
+export function endJob(db, job, name, payload = {}, { now = Date.now() } = {}) {
+  return atomically(db, () => {
+    const row = db.prepare('SELECT job_attempt, job_step FROM job WHERE job_id = ?').get(job);
+    if (!row || row.job_step === 'done') return false;
+    writeStep(db, job, name, payload, { seq: row.job_attempt, now });
+    db.prepare("UPDATE job SET job_step = 'done', job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ?").run(now, job);
+    return true;
+  });
+}
+

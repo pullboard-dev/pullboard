@@ -5,8 +5,11 @@
  */
 import { createHash } from 'node:crypto';
 
-/** Whether an item summary is finished: verified, or withdrawn. */
-const finished = (item) => item.status === 'verified' || item.status === 'withdrawn';
+/**
+ * Whether an item is finished: withdrawn, or verified and landed. Why not every verified item: one accepted and waiting
+ * to land still needs the person's eye, so it stays in the first state (#7795).
+ */
+const finished = (item) => item.status === 'withdrawn' || item.status === 'verified' && (item.stage === 'merged' || Boolean(item.merged));
 /** The finished items' text, kept per board by the items' digest, so a build that finished nothing new reuses it. */
 const kept = new Map();
 
@@ -22,7 +25,7 @@ export function searchText(item) {
 
 /** How many items are verified and how many withdrawn: the counts an open-first state carries for the items it leaves out. */
 export function finishedCounts(items) {
-  return { verified: items.filter((item) => item.status === 'verified').length, withdrawn: items.filter((item) => item.status === 'withdrawn').length };
+  return { verified: items.filter((item) => item.status === 'verified' && finished(item)).length, withdrawn: items.filter((item) => item.status === 'withdrawn').length };
 }
 
 /** A summary state with only its open, claimed and submitted items, naming what it left out in `itemsOmitted`. */
