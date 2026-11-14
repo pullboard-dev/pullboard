@@ -172,6 +172,9 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   config.gate = '';
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify(config, null, 2));
+  // lane add refuses NO_POLICY until main has a first commit [C7].
+  box.git(root, 'add', '-A');
+  box.git(root, 'commit', '-q', '-m', 'chore: initialize the no-manifest board');
   const lane = await box.runLocal(root, 'lane', 'add', 'app', '--owns', 'app/');
   assert.equal(lane.code, 0, lane.err || lane.out);
   box.git(root, 'add', '-A');
