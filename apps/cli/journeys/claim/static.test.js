@@ -56,9 +56,9 @@ test('an actual submit runner red counts toward the three runner failures [B4,B5
   assert.equal(queued.code, 0, queued.err);
   await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, JSON.parse(queued.out));
   const observed = onBoard(box, board => {
-    const outcomes = store.events(board, { itemId: id }).map(event => JSON.parse(event.event_detail).submitOutcome).filter(Boolean);
-    assert.match(outcomes.at(-1)?.code ?? '', /^(?:GATE_RED|CHECK_RED)$/u);
-    assert.notEqual(outcomes.at(-1)?.stage, 'fast');
+    // A pulled red receipt is a measurement fact, not a submit outcome; it still counts as one runner failure [C7].
+    const reds = store.events(board, { itemId: id }).map(event => JSON.parse(event.event_detail)).filter(detail => detail.kind === 'measurement' && /^Gate job \S+ red at /u.test(detail.text ?? ''));
+    assert.equal(reds.length, 1, 'the pulled gate recorded its red');
     return claimProgress(board, store.getItem(board, id), Date.now(), { runnerOnly: true });
   });
   assert.equal(observed.failures, 1);
