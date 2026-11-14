@@ -25,7 +25,7 @@ export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getIt
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
 export { readBoardSnapshot } from './src/io/board/read/snapshot.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/io/board/facade.js';
-export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION, SCHEMA, SCHEMA_DIGEST } from './src/io/board/schema/source.js';
+export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION, OLDEST_UPGRADABLE_SCHEMA, BOARD_TOO_OLD_NEXT, SCHEMA, SCHEMA_DIGEST } from './src/io/board/schema/source.js';
 export { isRepositoryBoard, boardSchema, declaredBoardSchema, sharedSchemaDiagnostic, reportSharedSchema, sharedSchemaOwner, expectedBoardSchema } from './src/io/board/schema.js';
 export { legacySigningMatchesStamp } from './src/io/board/recovery.js';
 export { recordNextIdle } from './src/logic/board/stats.js';

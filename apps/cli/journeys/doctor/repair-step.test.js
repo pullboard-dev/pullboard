@@ -45,9 +45,13 @@ for (const what of ['trigger', 'schema']) {
     assert.ok(step, found.stdout);
     const status = await box.command('status');
     if (status.status === 0) {
-      assert.match(step, /^run pullboard status/u, 'status is the step doctor names when status can repair');
+      // A changed trigger is rewritten by the first board write, so doctor names a write; a schema step is status [#7924].
+      assert.match(step, what === 'trigger' ? /^run pullboard inbox/u : /^run pullboard status/u, 'the step doctor names is one that repairs');
       // Only the main checkout's code repairs a board; a runner runs this source from a linked worktree.
-      if (codeIsFromMain()) assert.equal((await box.command('doctor')).status, 0, 'doctor is clean once the named repair ran');
+      if (codeIsFromMain()) {
+        if (what === 'trigger') assert.equal((await box.command('inbox')).status, 0);
+        assert.equal((await box.command('doctor')).status, 0, 'doctor is clean once the named repair ran');
+      }
     } else {
       // Code outside the main checkout cannot upgrade a board; status and doctor both send the person to main's pullboard.
       const said = status.stderr + status.stdout;
@@ -57,3 +61,20 @@ for (const what of ['trigger', 'schema']) {
     }
   });
 }
+
+test('doctor on a board from before 0.9.3 says it is too old and gives the BOARD_TOO_OLD step [R4] (#7924)', async () => {
+  const box = project();
+  assert.equal((await box.command('status')).status, 0);
+  const db = new DatabaseSync(box.file);
+  try { db.exec('PRAGMA user_version = 2'); } finally { db.close(); }
+  const found = await box.command('doctor');
+  assert.equal(found.status, 1);
+  assert.match(found.stdout, /too old/u);
+  const [step] = repairs(found.stdout);
+  assert.doesNotMatch(step, /pullboard status/u, 'status never upgrades a board this old');
+  const write = await box.command('inbox');
+  assert.notEqual(write.status, 0);
+  const said = write.stderr + write.stdout;
+  assert.match(said, /BOARD_TOO_OLD/u);
+  assert.ok(said.includes(step), `the refusal and doctor give one step: ${step}`);
+});
