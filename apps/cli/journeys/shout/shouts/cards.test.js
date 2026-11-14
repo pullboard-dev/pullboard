@@ -30,6 +30,7 @@ import {
 } from '../../../tests/fixtures/cockpit/harness.js';
 import {
   assertFirstStateDelay,
+  pressTab,
 } from '../../../tests/fixtures/cockpit/stable.js';
 
 async function openConversation(chrome, key = 'none') {
@@ -60,7 +61,7 @@ test('a short code chip at a line end stays whole, and long code stays one chip 
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!document.querySelector(\'[data-tab="shouts"]\')');
-    await chrome.click('document.querySelector(\'[data-tab="shouts"]\')');
+    await pressTab(chrome, 'shouts');
     await openConversation(chrome);
     await chrome.waitFor(`[...document.querySelectorAll('#feed code.inline')].some((code) => code.textContent === ${JSON.stringify(wide)})`);
     for (const width of [320, 375, 1280]) {
@@ -135,7 +136,7 @@ test('clause 1: real Chrome styles shout code and item text without growing link
     });
     await chrome.send('Log.enable');
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4');
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.click("document.querySelector('#chain [data-item=\"1\"]')");
     await assertFirstStateDelay(chrome, t);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -160,7 +161,7 @@ test('clause 1: real Chrome styles shout code and item text without growing link
     assert.ok(desktopForm.fields.every((field, index, fields) => field.width > 0 && field.left >= desktopForm.box.left && field.right <= desktopForm.box.right && field.top >= desktopForm.box.top && field.bottom <= desktopForm.box.bottom && (index === 0 || field.top >= fields[index - 1].bottom)), `1280px add-item fields remain a non-overlapping grid: ${JSON.stringify(desktopForm)}`);
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
-    await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await pressTab(chrome, 'shouts');
     await openConversation(chrome);
     await chrome.waitFor('document.querySelectorAll("#feed .sx-msg").length >= 4');
 
@@ -243,7 +244,7 @@ test('clause 1: real Chrome styles shout code and item text without growing link
     assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.linkedMetrics.lineHeight) < 1, 'the linked desktop box equals one computed line-height');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed .sx-msg")?.getBoundingClientRect().width > 0');
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor('document.querySelector("[data-pane=items]:not([hidden])") && document.querySelector("#detail .item-panel-brief code.inline")?.getBoundingClientRect().width > 0');
     const phoneBrief = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const code=document.querySelector('#detail .item-panel-brief code.inline'), line=code?.parentElement;
@@ -265,7 +266,7 @@ test('clause 1: real Chrome styles shout code and item text without growing link
     assert.ok(phoneForm.fields.every((field, index, fields) => field.width > 0 && field.left >= phoneForm.box.left && field.right <= phoneForm.box.right && field.top >= phoneForm.box.top && field.bottom <= phoneForm.box.bottom && (index === 0 || field.top >= fields[index - 1].bottom)), `375px add-item fields remain a non-overlapping grid: ${JSON.stringify(phoneForm)}`);
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
-    await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await pressTab(chrome, 'shouts');
     await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden])") && document.querySelector("#feed code.inline")?.getBoundingClientRect().width > 0');
     /** Compare native linked and plain line boxes after visiting their respective conversations at the same viewport. */
