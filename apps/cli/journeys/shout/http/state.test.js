@@ -248,7 +248,8 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.equal(acceptedDetail.checkBaseline.result, 'green');
   assert.match(acceptedDetail.verdict.note, /^ran the check and read the summary\n(?:reused submit proof [0-9a-f-]+(?:, [0-9a-f-]+)*\n)?verified against agent-approved G1$/u,
     'the post-init approved fixture row qualifies the receipt without losing the reviewer note');
-  assert.deepEqual(acceptedDetail.thread.filter((entry) => entry.type === 'fact').map((entry) => entry.text).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:)/u.test(text)), ['a fact only the thread carries']);
+  // A push-failed land retry notes the thread (b9093a3767, #7791); the fixture trunk push fails, so that note is not the fact under test.
+  assert.deepEqual(acceptedDetail.thread.filter((entry) => entry.type === 'fact').map((entry) => entry.text).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:|Land job \S+ push-failed: )/u.test(text)), ['a fact only the thread carries']);
 
   /** Search through HTTP and return the matching ids in board order. */
   const search = async (text) => {
