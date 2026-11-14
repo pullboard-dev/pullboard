@@ -14,11 +14,11 @@ function notice(value, box, { owner, only = false } = {}) {
   assert.equal(value.file, FILE);
   assert.equal(value.name, NAME);
   assert.equal(value.main, box.main);
-  // The owner is read from the submit proof; the notice names the main test job that judged the case [P7,C7].
+  // The owner is read from the submit proof; the notice names the main receipt that judged the case, as the main comparison words it [P7,C7].
   const expected = only ? `fails only with your change: ${FILE} :: ${NAME}`
-    : `also fails on main at ${box.main}: ${FILE} :: ${NAME} (not yours; ${owner ? 'test job ' : 'accepted'}`;
+    : `also fails on main at ${box.main}: ${FILE} :: ${NAME} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`;
   assert.ok(value.message.startsWith(expected), value.message);
-  assert.match(value.message, /test job test:[a-f0-9]+:[a-f0-9]+\)$/u);
+  assert.match(value.message, /\[main receipt [a-f0-9-]+\]$/u);
   assert.equal(value.status, only ? 'candidate-only' : 'also-main');
 }
 
