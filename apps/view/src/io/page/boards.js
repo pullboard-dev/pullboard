@@ -448,7 +448,8 @@ function ensureFinished(project) {
     const whole = { ...into, items: [...into.items, ...expandItemSummaries(reply.state).items.filter((item) => !have.has(item.id))] };
     delete whole.itemsOmitted; delete whole.finished;
     if (held) sentStates.set(board.id, { ...held, state: whole, whole: true });
-    if (data.project === into) data.project = whole;
+    // The page draws a ready-split copy of the kept state (#7763), so the page's own state is replaced as well as the kept one (#7738).
+    if (data.project === into || data.project === project) data.project = withReadySplit(whole);
     render();
   }, () => { finishedReads.delete(board.id); });
 }

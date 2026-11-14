@@ -87,9 +87,10 @@ test('#6613 clause 3: the title and each badge count have exactly one writer in 
   assert.equal(page.match(/\$\('status-board'\)/gu).length, 1, 'one writer draws the status bar counts');
   assert.equal(page.match(/\$\('status-unread'\)/gu).length, 1, 'one writer fills the unread count');
   assert.equal(page.match(/'\[data-nav-fact="' \+ page \+ '"\]'/gu).length, 1, 'one writer sets every page count, the Spec count included');
-  assert.match(page, /function writeChrome\(\)/u, 'the chrome writer is one function');
+  // writeChrome takes a paint flag so a live update can read ahead without painting (1b5726c613).
+  assert.match(page, /function writeChrome\((?:paint = true)?\)/u, 'the chrome writer is one function');
   assert.equal(page.match(/document\.title = next|\$\('status-board'\)|\$\('status-unread'\)|'\[data-nav-fact="' \+ page \+ '"\]'/gu).length, 4);
-  const chrome = page.slice(page.indexOf('function writeChrome()'));
+  const chrome = page.slice(page.indexOf('function writeChrome('));
   const body = chrome.slice(0, chrome.indexOf('\n}\n'));
   for (const write of ['document.title = next', "$('status-board')", "$('status-unread')", 'drawNav(shown']) assert.ok(body.includes(write), write + ' happens inside writeChrome');
 });
@@ -162,6 +163,8 @@ test('#6613 clauses 1 and 2: a tab switch reads the store with no request, and a
 
     // Clause 2: a live update (item 2 claimed and submitted) rewrites the parts it changes and leaves the rest.
     build(box, demo, 2, 'next.txt');
+    // The view serves the state it keeps (kept=1, de3affd4f4), which follows the log a beat after the submit: refresh until item 2 shows.
+    for (let tries = 0; tries < 200 && !page.run('data.project.items.some(item => item.id === 2 && item.status !== "open")'); tries++) await page.run('refresh()');
     await page.run('refresh()');
     assert.ok(counts.chain === 1, 'the list holds item 2, so it is drawn once: ' + counts.chain);
     assert.ok(counts['status-board'] === 1, 'the status bar counts item 2, so it is drawn once');
