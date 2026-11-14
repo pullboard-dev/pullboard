@@ -528,11 +528,12 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
+  // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued, in json too, and the acknowledgment carries its receipt (#7076).
+  const delivered = {};
+  await deliverSubmitActivity(ctx, id, delivered);
   // id and pin keep the fields the inline submit document carried, so a script reading .id still reads the item (#6832).
-  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, localRunner: local.running ? { pid: local.pid, started: local.started } : null };
+  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, ...(delivered.activity ? { activity: delivered.activity } : {}), localRunner: local.running ? { pid: local.pid, started: local.started } : null };
   if (ctx.json) ctx.io.result(acknowledgment);
-  // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued (#7076).
-  else await deliverSubmitActivity(ctx, id);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).

@@ -2,6 +2,7 @@
 /** One composer fills every @pullboard-*-styles marker of the view's stylesheet [C7,#3020]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { composeViewStyles } from '../../index.js';
 import { composeViewStyles as composerModule } from '../../src/io/styles.js';
@@ -70,4 +71,36 @@ test('clause 1: the Dashboard Rulings show each reference whole and cut a title 
   const title = /\.needs-copy b, \.needs-copy small \{([^}]*)\}/u.exec(css)?.[1] ?? '';
   assert.match(title, /overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'a title is cut with an ellipsis where its row ends');
   assert.doesNotMatch(title + ([...css.matchAll(/\.needs-copy b \{([^}]*)\}/gu)].map(match => match[1]).join(' ')), /(?:^|[ {;])(?:max-)?width:/u, 'no fixed width on the title');
+});
+
+test('clause 1: the tokens set cards to 6px, controls and chips to 4px, dots stay round, and cards carry a thin border and no shadow [test,N26,#6836]', () => {
+  const css = composeViewStyles() + ['cost', 'no-link'].map(file => readFileSync(new URL(`${file}.css`, SHELL), 'utf8')).join('\n');
+  const token = name => new RegExp(`${name}: ([^;]+);`, 'u').exec(css)?.[1];
+  assert.equal(token('--round'), '1');
+  assert.equal(token('--radius-card'), 'calc(6px * var(--round))');
+  assert.equal(token('--radius-lg'), 'calc(6px * var(--round))');
+  assert.equal(token('--radius-sm'), 'calc(4px * var(--round))');
+  assert.equal(token('--radius-xs'), 'calc(4px * var(--round))');
+  assert.equal(token('--radius-chip'), 'calc(4px * var(--round))', 'chips are 4px; only dots are round');
+  assert.equal(token('--radius-float'), 'calc(8px * var(--round))', 'floating panels have 8px corners');
+  assert.equal(token('--radius-dot'), '50%');
+  for (const selector of ['.card-panel', '.dash-card', '.cost-card', '.set-group', '.no-link']) {
+    const rule = new RegExp(`(?:^|\\n)${selector.replace('.', '\\.')} \\{([^}]*)\\}`, 'u').exec(css)?.[1] ?? '';
+    assert.match(rule, /border: var\(--border\)/u, `${selector} has a thin border`);
+    assert.match(rule, /border-radius: var\(--radius-card\)/u, `${selector} has the card corner`);
+    assert.doesNotMatch(rule, /box-shadow/u, `${selector} has no shadow`);
+  }
+  for (const selector of ['.pal-box', '.projpop', '.find-results']) assert.match(css, new RegExp(`${selector.replace('.', '\\.')} \\{[^}]*border-radius: var\\(--radius-float\\)[^}]*box-shadow: var\\(--shadow-float\\)`, 'u'), `${selector} floats on the shadow token with 8px corners`);
+});
+
+test('clause 2: no stylesheet sets its own pixel corner radius or a card shadow outside the tokens [test,N26,#6836]', () => {
+  const sheets = readdirSync(SHELL, { recursive: true }).filter(file => String(file).endsWith('.css'));
+  assert.ok(sheets.length >= 12, 'every stylesheet under src/io is read');
+  for (const file of sheets) {
+    const css = readFileSync(new URL(file, SHELL), 'utf8');
+    const own = [...css.matchAll(/border-radius: *([^;}]+)/gu)].map(match => match[1]).filter(value => /\d(?:\.\d+)?(?:px|rem|em)/u.test(value.replace(/var\([^)]*\)/gu, '')));
+    assert.deepEqual(own, [], `${file} sets no corner radius of its own`);
+    const shadows = [...css.matchAll(/box-shadow: *([^;}]+)/gu)].map(match => match[1]).filter(value => !/^(?:none|var\(--(?:shadow-float|shadow-modal|inset-line|inset-line-strong|ring-[a-z]+)\))$/u.test(value.trim()));
+    assert.deepEqual(shadows, [], `${file} sets no shadow outside the tokens`);
+  }
 });
