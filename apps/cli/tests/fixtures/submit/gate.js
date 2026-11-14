@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
 import { fixtureSettledMachine } from '../testkit.js';
+import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -33,7 +34,9 @@ function resolveBin() {
 export function privateRepo(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-gate-')));
   dirs.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 }));
+  // The machine's local runner stops before the folder goes: after hooks run in the order they were added, so a runner a
+  // later submit started still heartbeat into this folder while it was removed, and rmdir failed ENOTEMPTY [#7530].
+  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 }); });
   const root = join(dir, 'repo');
   mkdirSync(root);
   const env = {
