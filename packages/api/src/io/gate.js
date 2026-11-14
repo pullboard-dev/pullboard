@@ -13,6 +13,7 @@ import { phaseReceiptId } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
+import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { keepLandingLog } from './landing.js';
 import { livePersonWaivers } from './landing.js';
@@ -42,8 +43,6 @@ const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
 const PART_TEXT = 600;
-/** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
-export const SHARD_JOB_KIND = 'gate-shard';
 /** Budget: a gate request with its ledger hits stays this far under the queue's 60 KiB job-request cap (jobs.js). */
 const LEDGER_REQUEST_BYTES = 56 * 1024;
 // Budget: one gate's proof splits into at most 32 shard jobs, so one receipt never floods the queue.
