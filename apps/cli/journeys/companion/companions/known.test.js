@@ -47,8 +47,7 @@ function commit(box, root) {
 
 /** Produce a real assertion failure whose name and error details are independently variable. */
 function source(name = 'shared failure [G1]', expected = 2) {
-  return `import assert from 'node:assert/strict';\nimport { test } from 'node:test';
-import { companionMainFailuresUntouched } from '../src/main-red.js';\ntest(${JSON.stringify(name)}, () => assert.equal(1, ${expected}));\n`;
+  return `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest(${JSON.stringify(name)}, () => assert.equal(1, ${expected}));\n`;
 }
 
 /** Build and claim one private board whose accepted main already has a named red test. */
