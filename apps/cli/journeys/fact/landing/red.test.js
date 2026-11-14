@@ -46,7 +46,8 @@ function check({ root, items }) {
 
 test('a red pair lands nothing; then its green item lands alone and its red item ends red, never bisected on trunk [C7,P7]', async t => {
   const box = redPair(t);
-  const payload = (items, expect) => ({ remote: box.remote, trunk: 'refs/heads/main', expect, items });
+  // perItem false is the configuration whose red pair lands nothing; the default lands the clean item beside the red one [#2901].
+  const payload = (items, expect) => ({ remote: box.remote, trunk: 'refs/heads/main', expect, items, perItem: false });
   const pair = await runLandingJob(payload([box.green, box.red], box.seed), { workdir: join(box.root, 'r1'), checks: check });
   assert.deepEqual([pair.outcome, pair.landed, pair.attempts], ['red', [], 1], JSON.stringify(pair));
   assert.match(pair.detail, /land-2\.test\.js/u, 'the red names its failing file');

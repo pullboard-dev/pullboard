@@ -274,7 +274,6 @@
   ["src/cli-main/run-main.js","apps/cli/src/io/cli-main/run.js","rule"],
   ["src/cli-trace.js","apps/cli/src/io/trace.js","rule"],
   ["src/submit-remote-gate.js","apps/cli/src/io/submit/gate.js","rule"],
-  ["src/submit-handoff-worker.js","apps/cli/src/io/submit/handoff/worker.js","rule"],
   ["src/cli-hook-work.js","apps/cli/src/io/hook/work.js","rule"]
  ],
  "reexports": ["src/cli-read-context.js","src/commands/index.js","src/help.js","src/next-steps.js"],

@@ -876,13 +876,18 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   return { status: 200, body: { version: VERSION, event, result } };
 }
 
+/** The relay ports a board API move sends with: the higher composition root's, saying nothing on this process's stderr; extra adds or replaces ports. */
+function relayMoveIo(boardOpeners, extra = {}) {
+  return { ...extra, err: () => {}, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem };
+}
+
 /** Create a person's coordinator request through the view's channel, never a standalone serve key. */
 async function createRequest(root, body, isMain, personChannel, boardOpeners) {
   if (personChannel !== 'view') throw new Refused('B26_PERSON_CHANNEL', 'person requests use the terminal or the view; run pullboard view');
   if (typeof body.text !== 'string' || !body.text.trim() || Object.keys(body).some((key) => key !== 'text')) throw new Refused('BAD_REQUEST', 'a request needs {text: "what the coordinator should do"}');
   const message = { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) };
   if (relayLinked(root)) {
-    const id = await relayOperation(root, 'shout', [message], { err: () => {}, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem });
+    const id = await relayOperation(root, 'shout', [message], relayMoveIo(boardOpeners));
     return withBoard(root, (board) => ({ version: VERSION,
       event: store.events(board).find((event) => JSON.parse(event.event_detail).shout === id),
       result: { id, request: true } }), isMain, boardOpeners);
@@ -1279,8 +1284,37 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 }
 
 /** One runner job queue call on a board, as POST /api/v1/boards/:id/jobs answers it, in a pool worker or in-thread [P7]. */
-function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
-  return withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now, drained: drainedRunnerHosts, reserve: jobReserve, trunk: () => trunkRemote(board.root) ?? board.root }), isMain, boardOpeners);
+async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
+  // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
+  const ordered = relayLinked(board.root) ? [] : null;
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now, drained: drainedRunnerHosts, reserve: jobReserve, trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
+  if (!ordered) return answer;
+  return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
+}
+
+/**
+ * Queue a receipt's engine moves in this replica's relay outbox, oldest first: each applies here at once and the
+ * sender (or the next command's sync) orders it through the relay, so every replica sees it [C7,H16,H21].
+ * Why the outbox even when relay.outbox is off: the runner waits on this answer with a 15 s budget, and the receipt
+ * is recorded before the moves are sent, so a move that waited on the relay inline was lost when the runner gave up
+ * and its retry found the receipt already applied (#7562). The opt-out keeps a waiting command on the relay's ACK;
+ * no one waits on a receipt's moves, and the outbox keeps them across a timeout or a relay outage.
+ * A move the relay or the board refuses is named in the answer and the rest still go, so a refused wake-up shout never
+ * holds back the submit before it, and the runner's log says what did not reach the other replicas.
+ *
+ * @returns {Promise<{ moves: number, refused: string[] }>}
+ */
+async function relayReceiptMoves(root, moves, boardOpeners) {
+  const refused = [];
+  const io = relayMoveIo(boardOpeners, { relayOutbox: () => true, launchRelaySender: boardOpeners.launchRelaySender });
+  for (const { operation, args } of moves) {
+    try { await relayOperation(root, operation, args, io); }
+    catch (error) {
+      if (typeof error?.code !== 'string') throw error;
+      refused.push(`${operation} ${error.code}: ${error.message}`.slice(0, 400));
+    }
+  }
+  return { moves: moves.length, refused };
 }
 
 /**

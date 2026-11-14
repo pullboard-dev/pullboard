@@ -1,4 +1,3 @@
-import { landingFailureObservation } from '../../../../../packages/health/index.js';
 import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
@@ -109,13 +108,6 @@ async function offerForcedLanding(ctx, io, board, args, values) {
 }
 
 /**
- * How long an accept's landing wake waits before it starts: none, so the lander starts the accepted item's landing at
- * once (the scheduler's own 1 s floor still applies). Why: a 10 s wait to gather accepts into one batch was a batching
- * delay, and batches hold one item (Corey 5 Nov); accepts made while a landing runs still go to that one worker [C7].
- */
-export const LANDING_COALESCE_MS = 0;
-
-/**
  * Offer the land job after acceptance; the caller catches this entire post-verdict effect. A runner merges and pushes,
  * so no session on this host lands anything (#2499). Returns the offer, or false (with the next step said) when
  * automatic landing is off or no runner can take the job [#6119].
@@ -129,84 +121,4 @@ export async function landAfterAcceptance(ctx) {
   const refusal = noLandingRunner();
   ctx.io.say?.(`not landed: ${refusal.message}; next: ${refusal.next}`);
   return false;
-}
-
-/**
- * Whether a verified, unheld, unmerged item waits outside a batch that just ended blocked: work the next batch can take
- * at once. Why: after each blocked batch the lander backed off 1 to 4 minutes while #3862, never tried, waited [C7].
- *
- * @param {object[]} items - The board's items.
- * @param {object | undefined} batch - The batch this run ended with.
- * @returns {boolean}
- */
-export function untriedAfter(items, batch) {
-  if (batch?.state !== 'blocked') return false;
-  const tried = new Set((batch.items ?? batch.candidates ?? []).map(entry => entry.id));
-  return items.some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at && !tried.has(item.item_id));
-}
-
-/** How long a landing waits before trying again while verified items still wait, when no cadence is set [C7]. */
-export const LANDING_RETRY_MS = 30_000; // 5 min idled the lander after every blocked batch while 60 items waited [C7].
-
-/** How soon the next batch starts after a run that landed or reopened items while others still wait [C7]. */
-export const LANDING_NEXT_BATCH_MS = 1_000;
-
-/**
- * Run one board write, waiting out a busy board lock with doubling backoff instead of ending the landing. Only the
- * refused write repeats, never the batch work before it. Why: board write locks are held for seconds (5.3 s at most
- * over 400 writes on 4 Nov), yet a BOARD_BUSY ended the landing and left accepted work idle until the next cycle; any
- * other refusal still ends the attempt (#3149).
- */
-export async function untilBoardFree(work, { wait = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, pauseMs = 1_000, maxPauseMs = 8_000, maxWaitMs = 120_000 } = {}) {
-  for (let waited = 0, pause = pauseMs; ; pause = Math.min(pause * 2, maxPauseMs)) {
-    try { return await work(); }
-    catch (error) {
-      // A stale flake-ratchet boundary is not a lock: the same snapshot can never be accepted while seats keep
-      // writing, so the worker must recompute it (prepareFlakeLanding), not sleep; 2 minutes of sleeping ended a
-      // worker and cost #3167 a second gate on 6 Nov [C7].
-      if (error?.code !== 'BOARD_BUSY' || /flake evidence or repair status changed/u.test(error.message ?? '') || waited + pause > maxWaitMs) throw error;
-      say(`landing met a busy board lock; waiting ${Math.round(pause / 1000)} s and continuing the same landing`);
-      await wait(pause);
-      waited += pause;
-    }
-  }
-}
-
-/**
- * When the board's next landing wake is due: within seconds after a run that moved work, else a recorded deferral, else one retry interval from now while verified,
- * unheld items are still waiting; null when nothing waits [C7,#2898].
- * Why: only an accept scheduled a landing, so a blocked batch left verified work idle until the next accept.
- */
-export function landingRetryAt(result, now) {
-  if (!result?.waiting) return null;
-  // A run that moved work (landed it, or reopened a conflict or culprit) starts the next batch at once while verified
-  // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
-  // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
-  // loops hot.
-  // A batch that ended blocked tried its items; the next batch takes the untried ones behind it at once [C7].
-  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0
-    || result?.batch?.state === 'blocked' && result.untried === true;
-  if (moved && result.waiting) return new Date(now + LANDING_NEXT_BATCH_MS).toISOString();
-  if (result?.deferredUntil) return result.deferredUntil;
-  return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
-}
-
-/**
- * Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. A notice never
- * blocks or repeats a landing: a HEALTH_SCAN_STALE refusal (the board moved between the read and the move) reads
- * the observation again once, and any other failure is logged and dropped, as on 9 Nov [C7].
- * `write` is the ordered-move port, so a test drives the notice against a real board without the CLI's transport.
- */
-export async function recordLandingNotices(ctx, board, io, write = (operation, args) => ordered(ctx, board, operation, args)) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const observation = landingFailureObservation(board);
-      if (observation) await write('recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
-      return;
-    } catch (error) {
-      if (error?.code === 'HEALTH_SCAN_STALE' && attempt === 0) continue;
-      io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR'));
-      return;
-    }
-  }
 }

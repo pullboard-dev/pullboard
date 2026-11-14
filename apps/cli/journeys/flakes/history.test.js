@@ -35,6 +35,8 @@ import { parseProcessCensus } from '../../../../packages/kernel/light.js';
 import { proveCauseCheck } from '../../../../packages/rigor/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -104,7 +106,7 @@ test('a check baseline resolves paths at its selected main and retains the recor
   assert.equal(checkBaseline(box.repo, box.command, { main: box.base }).result, 'green', 'the old source keeps its old path');
 });
 
-test('native check, submit and independent verification execute the old frozen path after a move [C7]', async () => {
+test('native check, submit and independent verification execute the old frozen path after a move [C7]', async (t) => {
   const box = movedFixture();
   const web = join(box.dir, 'path-map-builder');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/path-map-builder');
@@ -120,7 +122,8 @@ test('native check, submit and independent verification execute the old frozen p
   const before = (await json(web, 'show', '1')).item_frozen;
   assert.equal((await json(web, 'check', '1', '--yes')).green, true);
   assert.equal(e2e.commitFile(box, web, 'web/item.txt', 'built\n', 'feat(web): build mapped fixture [G1]').status, 0);
-  const submitted = await json(web, 'submit', '1');
+  // The pulled gate settles before the item is verified [P7,C7].
+  const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, await json(web, 'submit', '1'));
   box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
   try { await json(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'The original frozen command executes the mapped file.'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -168,7 +171,7 @@ test('a named Rigor proof checks the actual old red file and moved green file [C
   assert.match(passed.stdout, /ok 1 - mapped proof/u);
 });
 
-test('why on an old name includes work landed at the new name [C7]', async () => {
+test('why on an old name includes work landed at the new name [C7]', async (t) => {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
@@ -187,11 +190,12 @@ test('why on an old name includes work landed at the new name [C7]', async () =>
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     await json(box.web, 'claim', String(id));
     assert.equal(e2e.commitFile(box, box.web, file, content, 'feat(web): preserve moved history [G1]').status, 0);
-    const submitted = await json(box.web, 'submit', String(id));
+    const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, await json(box.web, 'submit', String(id)));
     box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
     try { await json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The named fixture file exists at the submitted source.'); }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
-    assert.deepEqual((await json(box.repo, 'land')).landed, [id]);
+    // A pulled landing offers a runner job; its receipt names what landed [P7,C7].
+    assert.deepEqual((await settleLand(box, await json(box.repo, 'land'))).landed, [id]);
   };
   await land(1, OLD, 'console.log("before-move");\n');
   mkdirSync(join(box.repo, 'web/cell'), { recursive: true });

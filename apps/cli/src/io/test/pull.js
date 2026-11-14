@@ -15,6 +15,8 @@ import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../../packages/jobs/index.js';
+import { PULLED } from '../../../../../packages/drive/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 
@@ -176,9 +178,13 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS 
   }
 }
 
-/** Run one test job to its receipt and drop its pin; the receipt's phase is the run. */
-async function runJobFor(ctx, fields, { agent, say }) {
+/**
+ * Run one test job to its receipt and drop its pin; the receipt's phase is the run. A queued run's worker (`testRun`)
+ * names the job on its run, so the receipt still settles the run if the worker stops before it (#7574).
+ */
+async function runJobFor(ctx, fields, { agent, say, testRun }) {
   const offered = await offerTestJob(ctx, fields);
+  if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep(board.db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
     const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say });
@@ -350,7 +356,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   if (!commit || !main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no commit or no accepted main to test against; commit the work and run pullboard test again');
   const started = Date.now();
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
-  const ran = await runJobFor(ctx, { item, commit, main, command, files: paths }, { agent, say });
+  const ran = await runJobFor(ctx, { item, commit, main, command, files: paths }, { agent, say, testRun: values['test-run'] });
   const summary = retainTestOutput(root, ran.output);
   // A runner's TAP names a case's file by the runner's own work folder; a failure is shown by the repo path the seat named [C7].
   for (const row of summary.failures) {

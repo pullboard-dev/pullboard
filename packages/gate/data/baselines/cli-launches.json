@@ -404,9 +404,6 @@
   "apps/cli/journeys/health/main.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/verify/landing/verdict.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/runner/lost.transient.test.js": {
     "launch": 1
   },
@@ -531,9 +528,6 @@
     "launch": 1
   },
   "apps/cli/journeys/fact/verdict/quarantine.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/verify/landing/reuse.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/resume/tour-slow.test.js": {

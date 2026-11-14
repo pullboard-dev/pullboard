@@ -13,6 +13,7 @@ import {
 import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { joinFixtureSeat } from '../../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -96,23 +97,26 @@ async function tickNotes(box, id) {
   return JSON.stringify(shown).match(/clause \d \[test\][^"]*/gu) ?? [];
 }
 
-test('clause 1 and 2: a [test] clause naming a test file submits with no pre-proof tick, and the green gate ticks it with its named cases [C7,V4]', { timeout: 300_000 }, async () => {
+test('clause 1 and 2: a [test] clause naming a test file submits with no pre-proof tick, and the green gate ticks it with its named cases [C7,V4]', { timeout: 300_000 }, async t => {
   const { box, builder, id } = await builderItem(CRITERION);
   const submitted = await box.runLocal(builder, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   assert.doesNotMatch(submitted.err + submitted.out, /CLAUSE_UNTICKED/u, 'no pre-proof tick was needed');
-  assert.equal(JSON.parse(submitted.out).gate.green, true, 'the gate ran the named file');
+  // A pulled submit queues its gate: the receipt's gate arrives once the local runner has pulled the job [P7,#7580].
+  const settled = await settleSubmit(t, { repo: builder, env: box.env, run: (_cwd, ...args) => box.runLocal(builder, ...args) }, JSON.parse(submitted.out));
+  assert.equal(settled.gate.green, true, 'the gate ran the named file');
   const ticks = await tickNotes(box, id);
   assert.equal(ticks.length, 2, `the gate ticked each clause: ${ticks.join(' | ')}`);
   assert.match(ticks[0], /^clause 1 \[test\]: .*web\/gate-ticks\.test\.js.*the heading is present/u);
   assert.match(ticks[1], /^clause 2 \[test\]: .*web\/gate-ticks\.test\.js.*the count appears/u);
 });
 
-test('clause 2: a red gate leaves the clause unticked and returns the item [C7,V4]', { timeout: 300_000 }, async () => {
+test('clause 2: a red gate leaves the clause unticked and returns the item [C7,V4]', { timeout: 300_000 }, async t => {
   const { box, builder, id } = await builderItem(CRITERION, { failing: true });
   const submitted = await box.runLocal(builder, 'submit', String(id), '--no-next', '--json');
-  assert.notEqual(submitted.code, 0, 'a red gate does not submit');
   assert.doesNotMatch(submitted.err + submitted.out, /CLAUSE_UNTICKED/u);
+  const settled = await settleSubmit(t, { repo: builder, env: box.env, run: (_cwd, ...args) => box.runLocal(builder, ...args) }, JSON.parse(submitted.out));
+  assert.equal(settled.gate.green, false, 'a red gate does not submit');
   assert.deepEqual(await tickNotes(box, id), [], 'a red gate ticks nothing');
   assert.equal(JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out).item_status ?? JSON.parse((await ok(box, box.repo, 'show', String(id), '--json')).out).status, 'claimed', 'the item stays with its builder');
 });

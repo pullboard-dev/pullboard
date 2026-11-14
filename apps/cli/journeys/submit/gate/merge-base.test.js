@@ -21,6 +21,7 @@ import {
 import {
   coordinatorLocal,
   runLocal,
+  submitSettled,
 } from './local.js';
 import {
   fileFixtureItem,
@@ -69,11 +70,11 @@ test('affected submit includes branch changes made before the item claim [V4,C7,
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/other.js', 'export const other = false;\n');
   commitAll(box, 'feat(core): source after claim [G1]');
-  const refused = await runLocal(box, 'submit', '1');
+  const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(refused.code, 1, refused.out || refused.err);
-  assert.match(refused.err + refused.out, /GATE_RED/u);
-  assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
-  assert.match(refused.err, /ERR_ASSERTION/u);
+  assert.equal(refused.receipt.gate.green, false, 'the pulled gate came back red');
+  assert.match(refused.err, /test\/a\.test\.js/u, 'the red names the affected importer');
+  assert.match(JSON.stringify(refused.gateJob), /ERR_ASSERTION/u);
 });
 
 
@@ -82,11 +83,13 @@ for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
     const box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test', lanes: { core: { owns: ['src/', 'test/'], specs: ['G'] } } }));
     seedGraph(box);
+    // The pulled gate runs in the runner's checkout without this test's environment, so the marker path is written into the importer.
+    const marker = join(box.dir, 'main-importer-ran.log');
     put(box.root, 'test/a.test.js', [
       "import assert from 'node:assert/strict';",
       "import { appendFileSync } from 'node:fs';",
       "import { value } from '../src/middle.js';",
-      "appendFileSync(process.env.AFFECTED_MARKER, 'ran\\n');",
+      `appendFileSync(${JSON.stringify(marker)}, 'ran\\n');`,
       'assert.equal(value, 1);',
     ].join('\n'));
     commitAll(box);
@@ -111,18 +114,16 @@ for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
       assert.equal(box.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').length, 3);
     }
     assert.equal(box.git('branch', '--show-current'), 'main', 'submit runs in the actual main checkout');
-    const marker = join(box.dir, 'main-importer-ran.log');
-    box.env.AFFECTED_MARKER = marker;
     // Process-level: the unchanged importer runs under its own node --test, not the CLI.
     const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
     assert.equal(standalone.status, 1, 'the unchanged importer detects the source regression');
     assert.match(standalone.stdout, mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
     rmSync(marker, { force: true });
-    const refused = await runLocal(box, 'submit', '1');
+    const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(refused.code, 1, refused.out || refused.err);
-    assert.match(refused.err + refused.out, /GATE_RED/u);
-    assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
-    assert.match(refused.err, mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
+    assert.equal(refused.receipt.gate.green, false, 'the pulled gate came back red');
+    assert.match(refused.err, /test\/a\.test\.js/u, 'the red names the affected importer');
+    assert.match(JSON.stringify(refused.gateJob), mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
     if (mode !== 'deleted source') assert.equal(readFileSync(marker, 'utf8'), 'ran\nran\n', 'submit executes the unchanged transitive importer against the candidate and exact main');
   });
 }

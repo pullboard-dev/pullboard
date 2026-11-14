@@ -11,6 +11,7 @@ import {
   existsSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import {
   join,
@@ -22,6 +23,7 @@ import {
 import {
   coordinatorLocal,
   runLocal,
+  submitSettled,
 } from './local.js';
 import {
   privateRepo,
@@ -38,7 +40,9 @@ test('submit without a frozen check reports no item check and still runs affecte
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
-  put(box.root, 'test/a.test.js', "import '../src/a.js'; import { appendFileSync } from 'node:fs'; appendFileSync(process.env.AFFECTED_MARKER, 'ran');\n");
+  // The pulled gate runs in the runner's checkout without this test's environment, so the marker path is written into the test.
+  const marker = join(box.dir, 'without-check.log');
+  put(box.root, 'test/a.test.js', `import '../src/a.js'; import { appendFileSync } from 'node:fs'; appendFileSync(${JSON.stringify(marker)}, 'ran');\n`);
   put(box.root, 'test/b.test.js', "import assert from 'node:assert/strict'; assert.fail('unrelated');\n");
   commitAll(box);
   box = builderRepo(box);
@@ -46,12 +50,11 @@ test('submit without a frozen check reports no item check and still runs affecte
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): update selected source [G1]');
-  const marker = join(box.dir, 'without-check.log');
-  box.env.AFFECTED_MARKER = marker;
-  const result = await runLocal(box, 'submit', '1', '--json');
+  const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(result.code, 0, result.err);
-  const receipt = JSON.parse(result.out);
-  assert.match(receipt.gate.report, /no item check/u);
+  const receipt = result.receipt;
+  // The pulled report names the selection; the absent check is the receipt's own checked flag.
+  assert.match(receipt.gate.report, /affected tests: test\/a\.test\.js/u);
   assert.equal(receipt.gate.check.checked, false);
   assert.equal(receipt.gate.full, false);
   assert.deepEqual(receipt.gate.files, ['test/a.test.js']);
@@ -64,16 +67,21 @@ test('a red frozen item check refuses submit before affected tests run [V4,C7,V1
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   seedGraph(box);
   box = builderRepo(box);
-  const added = await coordinatorLocal(box, 'add', 'build', 'Frozen check', '--check', 'node -e "process.exit(process.env.CHECK_REFUSE ? 1 : 0)"');
+  // The pulled gate runs the frozen check without this test's environment, so the refusal is a file the check looks for.
+  const refusal = join(box.dir, 'check-refuse');
+  const added = await coordinatorLocal(box, 'add', 'build', 'Frozen check', '--check', `node -e "process.exit(require('fs').existsSync(${JSON.stringify(refusal)}) ? 1 : 0)"`);
   assert.equal(added.code, 0, added.err);
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): update selected source [G1]');
-  box.env.CHECK_REFUSE = '1';
-  const refused = await runLocal(box, 'submit', '1');
+  writeFileSync(refusal, 'refuse\n');
+  const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(refused.code, 1, refused.out);
-  assert.match(refused.err + refused.out, /GATE_RED/u);
-  assert.match(refused.err, /item check red/u);
+  assert.equal(refused.receipt.gate.green, false, 'the pulled gate came back red');
+  assert.match(refused.err, /check exited 1/u, 'the red is the frozen item check');
+  // The pulled gate starts the check and the proof together, so the red check is the refusal's cause, not proof that nothing else ran.
+  assert.equal(refused.receipt.gate.check.checked, true);
+  assert.equal(refused.receipt.gate.check.green, false, 'the frozen item check is the red one');
 });
 
 
@@ -88,7 +96,7 @@ test('CommonJS and nested package scopes fall back instead of silently missing r
   const commit = commitAll(common, 'feat(core): change CommonJS source [G1]');
   const selection = selectAffectedTests(common.root, { base, commit });
   assert.equal(selection.full, true, 'require import edges cannot be silently omitted');
-  assert.match(selection.reason, /CommonJS|package scope/u);
+  assert.match(selection.reason, /does not declare "type": "module"|package scope/u);
 
   const nested = privateRepo(t);
   seedGraph(nested);
@@ -116,11 +124,13 @@ for (const mode of ['topic parent', 'merge commit']) {
     let box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
     seedGraph(box);
+    // The pulled gate runs in the runner's checkout without this test's environment, so the marker path is written into the importer.
+    const marker = join(box.dir, 'merged-test-ran.log');
     put(box.root, 'test/a.test.js', [
       "import assert from 'node:assert/strict';",
       "import { appendFileSync } from 'node:fs';",
       "import { value } from '../src/middle.js';",
-      "appendFileSync(process.env.AFFECTED_MARKER, 'ran\\n');",
+      `appendFileSync(${JSON.stringify(marker)}, 'ran\\n');`,
       'assert.equal(value, 1);',
     ].join('\n'));
     box = builderRepo(box);
@@ -139,18 +149,16 @@ for (const mode of ['topic parent', 'merge commit']) {
       commitAll(box, 'feat(core): resolve merged source [G1]');
     } else box.git('merge', '--no-ff', '-q', 'topic', '-m', 'feat(core): merge topic source [G1]');
     assert.equal(box.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').length, 3, 'the candidate really has two parents');
-    const marker = join(box.dir, 'merged-test-ran.log');
-    box.env.AFFECTED_MARKER = marker;
     // Process-level: the unchanged importer runs under its own node --test, not the CLI.
     const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
     assert.equal(standalone.status, 1, 'the unchanged importer detects the merged source regression');
     assert.match(standalone.stdout, /ERR_ASSERTION/u);
     rmSync(marker);
-    const refused = await runLocal(box, 'submit', '1');
+    const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(refused.code, 1, refused.out || refused.err);
-    assert.match(refused.err + refused.out, /GATE_RED/u);
-    assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
-    assert.match(refused.err, /ERR_ASSERTION/u);
+    assert.equal(refused.receipt.gate.green, false, 'the pulled gate came back red');
+    assert.match(refused.err, /test\/a\.test\.js/u, 'the red names the affected importer');
+    assert.match(JSON.stringify(refused.gateJob), /ERR_ASSERTION/u);
     assert.equal(readFileSync(marker, 'utf8'), 'ran\nran\n', 'submit executes the transitive importer against the candidate and exact main');
   });
 }
