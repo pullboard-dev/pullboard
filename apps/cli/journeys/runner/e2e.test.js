@@ -310,6 +310,8 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): page [G1]');
   assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
+  // A pulled submit queues its gate: the item is to verify once the local runner's receipt is applied [P7].
+  await settledGateJob(box, 1);
   const coordinator = (await box.runLocal(box.repo, 'resume')).out;
   assert.match(coordinator, /^resume: coordinator \(unknown\), coordinator lane, the main checkout/);
   assert.match(coordinator, /to verify: #1 web \(\d+[mhd]\)/);
