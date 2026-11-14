@@ -321,6 +321,30 @@ export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
     openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
 }
 
+/**
+ * How many pulled jobs finished on this board in the last four hours, by what the Dashboard's runner card names them:
+ * gates, landings and tests. Why: the card lists runs in flight, so an idle runner that just ran nine jobs read "No runs" (#7945).
+ *
+ * @param {string} commonDir - The board's git common folder.
+ * @param {number} now - The snapshot clock in milliseconds.
+ * @returns {{ gate: number, landing: number, test: number }}
+ */
+export function finishedRuns(commonDir, now) {
+  const count = { gate: 0, landing: 0, test: 0 };
+  const file = store.boardFilePath(commonDir);
+  let db = null;
+  try {
+    if (!existsSync(file)) return count;
+    db = store.openBoardReadOnly(file);
+    const rows = db.prepare("SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind").all(now - 4 * 3_600_000);
+    for (const { kind, n } of rows) {
+      const key = { gate: 'gate', 'gate-shard': 'gate', land: 'landing', landing: 'landing', test: 'test', 'main-test': 'test' }[kind];
+      if (key) count[key] += Number(n);
+    }
+  } catch { /* A board with no job table or no readable file has finished nothing to show. */ } finally { try { db?.close(); } catch { /* Already closed. */ } }
+  return count;
+}
+
 /** The last runner read per board, so a burst of state reads opens the machine's lease records once. */
 const runnerReads = new Map();
 
@@ -338,6 +362,8 @@ function dashboardRunners(root, commonDir, now) {
   if (kept && now >= kept.at && now - kept.at < 15_000) return kept.value;
   let value = null;
   try { value = publicLiveSnapshot(root, { now }); } catch { value = null; }
+  // The runs already done sit beside those in flight, so a runner that ran jobs never reads as one that ran none (#7945).
+  if (value) value = { ...value, finished: finishedRuns(commonDir, now) };
   runnerReads.set(commonDir, { at: now, value });
   return value;
 }
