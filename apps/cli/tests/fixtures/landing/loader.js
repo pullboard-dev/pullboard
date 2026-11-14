@@ -2,8 +2,9 @@
 const targets = {
   merging: ['packages/landing/src/io/step/merge.js', 'export async function mergeGroup(state, items) {'],
   gating: ['packages/landing/src/io/step/gate.js', "await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });"],
-  pushing: ['packages/landing/src/io/step/publish.js', "const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));"],
-  recording: ['packages/landing/src/io/step/publish.js', "state.batch = state.config.landing?.requireReceipts === true"],
+  // A runner's land job, paused before it pushes the checked merge, and just after the push succeeds, before its receipt is built.
+  pushing: ['packages/landing/src/io/runner/job.js', "const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });"],
+  recording: ['packages/landing/src/io/runner/job.js', "if (pushed.status === 0) return done('landed', { trunk: tip,"],
   // A runner's land job, paused once its items are merged in the runner's checkout and before its check or push.
   'land-merge': ['packages/landing/src/io/runner/job.js', "if (pending.length === 0) return done('conflict');"],
 };

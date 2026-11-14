@@ -1,16 +1,14 @@
-/** @pullboard-test-input apps/cli/src/io/landing/automatic.js */
-/** A recorded test defect is a repair item, never a trunk hold: the lander lands beside it [C7,#5862]. */
+/** A recorded test defect is a repair item, never a trunk hold: the pulled land job lands beside it [C7,#5862]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { onBoard } from '../../tests/fixtures/land/board.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import * as store from '../../../../packages/store/index.js';
 
@@ -79,9 +77,9 @@ async function acceptedBesideDefect(t) {
   const item = await submitted(box, 'waiting');
   const defect = fileDefect(box);
   box.git(reviewer, 'checkout', '-q', '--detach', item.head);
-  await box.runLocal(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--json');
+  const accepted = await box.runLocal(reviewer, 'verify', String(item.id), 'accept', '--note', 'Read the change and ran its frozen check.', '--no-next', '--json');
   assert.equal((await json(box, box.repo, 'show', String(item.id))).item_status, 'verified', 'the item is accepted');
-  return { box, item, defect };
+  return { box, item, defect, accepted };
 }
 
 /** Whether the board recorded the item merged. */
@@ -89,30 +87,12 @@ function merged(box, id) {
   return onBoard(box, board => store.getItem(board, id).item_merged_commit ?? null);
 }
 
-/**
- * One pass of the scheduled lander exactly as its timer runs it: apps/cli/src/io/landing/automatic.js runLandingWake with the real
- * landing, in a child whose stdout is what the scheduler keeps as worker.log. Only its clock is injected, so a back-off
- * is waited out at once.
- */
-function landerPass(box) {
-  const source = [
-    `import { runLandingWake } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../src/io/landing/automatic.js')).href)};`,
-    'const { root } = JSON.parse(process.argv[1]); let clock = Date.now();',
-    'const result = await runLandingWake(root, { loaded: null, now: () => clock, wait: async ms => { clock += ms; } });',
-    'console.log("RESULT " + JSON.stringify(result ? { ...result, workerUrl: String(result.workerUrl) } : null));',
-  ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, JSON.stringify({ root: box.repo })],
-    { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
-  assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
-  const line = run.stdout.split('\n').find(text => text.startsWith('RESULT '));
-  return { log: run.stdout, result: JSON.parse(line.slice('RESULT '.length)) };
-}
-
 test('clause 1: an open test-defect repair item no longer holds the trunk: the lander\'s first pass lands the waiting accepted item [C7,#5862]', { timeout: 300_000 }, async t => { // budget: one accept and one real lander pass in a private repo; hang ceiling, not speed.
-  const { box, item, defect } = await acceptedBesideDefect(t);
+  const { box, item, defect, accepted } = await acceptedBesideDefect(t);
   assert.equal(onBoard(box, board => store.getItem(board, defect.item).item_status), 'open', 'the repair item is still open');
-  // No pullboard land and no withdrawal: the accept-time landing or the scheduled lander's own pass lands the item.
-  const pass = merged(box, item.id) ? { log: '' } : landerPass(box);
-  assert.doesNotMatch(pass.log, /LAND_TEST_DEFECT/u, `the pass is not refused: ${pass.log}`);
-  assert.ok(merged(box, item.id), `the accepted item lands beside the open defect: ${pass.log}`);
+  // No pullboard land and no withdrawal: the land job the accept offered lands the item, and its receipt is what marks it merged [C7].
+  const log = accepted.out + accepted.err;
+  await settleLand(box, { messages: accepted.out.split('\n') });
+  assert.doesNotMatch(log, /LAND_TEST_DEFECT/u, `the accept is not refused: ${log}`);
+  assert.ok(merged(box, item.id), `the accepted item lands beside the open defect: ${log}`);
 });

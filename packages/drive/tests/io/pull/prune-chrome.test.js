@@ -1,4 +1,5 @@
 // pullboard: browser
+/** @pullboard-test-gui */
 /** A browser test leaves no Chrome temp folder in TMPDIR, and the runner prune removes stale ones after an hour [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

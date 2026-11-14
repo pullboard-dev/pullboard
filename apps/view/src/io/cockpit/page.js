@@ -68,6 +68,7 @@ import { pageScriptPart3 } from "../page/boards.js";
 import { pageScriptPart4 } from "../page/actions.js";
 import { paletteScript } from "../palette/index.js";
 import { accountScript } from "../page/account.js";
+import { shoutsScript } from "../page/shouts.js";
 import { settingsMarkup } from "../../logic/settings/page.js";
 import { settingsPageScript } from "../../logic/settings/page.js";
 import { agentApprovalScript } from "../../logic/agent/approval.js";
@@ -137,7 +138,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
     milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
-    agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript, accountScript };
+    agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript, accountScript, shoutsScript };
   return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections) + cockpitProjectMenu()
     + cockpitRoadmap(sections) + cockpitProse(sections);
 }

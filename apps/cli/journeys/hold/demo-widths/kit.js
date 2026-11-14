@@ -195,34 +195,18 @@ export function demoWidthTest(only, phase = 'both') {
           }
           if (tab === 'shouts') {
             await click('[data-shout-thread="none"]');
-            await waitRendered(['#feed .shout:not(:has(.answer)) header', '#feed .shout:not(:has(.answer)) .text', '#feed .shout .answer']);
-            const asks = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-              const waiting = document.querySelector('#feed .shout:not(:has(.answer))');
-              const waitingMeta = waiting?.querySelector('header');
-              const waitingText = waiting?.querySelector('.text');
-              const button = document.querySelector('#feed .shout .answer');
-              const answerText = button?.closest('.shout-main').querySelector('.text');
-              const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}; };
-              return {
-                waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
-                waitingMeta: waitingMeta && rect(waitingMeta),
-                waitingMetaLine: waitingMeta && Math.max(...[...waitingMeta.children].map(e => e.getBoundingClientRect().height)),
-                waitingMetaRows: waitingMeta && (() => {
-                  const ys = [...waitingMeta.children].flatMap(e => { const range = document.createRange(); range.selectNodeContents(e); return [...range.getClientRects()].map(r => r.top + r.height / 2); });
-                  // Baseline alignment puts a smaller time label a few px off the address, so one row is a centre spread under half a line, not a rounding bucket [C7].
-                  return Math.max(...ys) - Math.min(...ys) < 10 ? 1 : 2;
-                })(),
-                waitingMain: waiting && rect(waiting.querySelector('.shout-main')), waitingText: waitingText && rect(waitingText),
-                answerText: answerText && rect(answerText), button: button && rect(button),
-              };
+            await waitRendered(['#feed .sx-tp', '#feed .sx-msg .sx-tx', '#feed [data-reply] input']);
+            const open = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+              const rect = e => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+              const message = document.querySelector('#feed .sx-msg'), reply = document.querySelector('#feed [data-reply]');
+              return { message: rect(message), time: rect(message.querySelector('time')), text: rect(message.querySelector('.sx-tx')), reply: rect(reply),
+                page: document.documentElement.scrollWidth, viewport: innerWidth };
             })())`));
-            assert.ok(asks.waitingHasNoAnswer, `${width}: the waiting ask is a conversation card without an Answer button`);
-            assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1 && asks.waitingMetaRows === 1,
-              `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
-            assert.ok(asks.waitingText.width >= asks.waitingMain.width - 1,
-              `${width}: waiting ask text spans the card: ${JSON.stringify(asks)}`);
-            assert.ok(asks.button.top >= asks.answerText.bottom && asks.button.left >= asks.answerText.left - 1 && asks.button.height >= tapTarget(width),
-              `${width}: the Answer button sits under the ask it answers: ${JSON.stringify(asks)}`);
+            assert.ok(open.page <= open.viewport, `${width}: the open thread never widens the page: ${JSON.stringify(open)}`);
+            assert.ok(open.time.width > 0 && open.time.right <= open.message.right + 1 && open.text.right <= open.message.right + 1,
+              `${width}: a message's who, words and time stay inside it: ${JSON.stringify(open)}`);
+            assert.ok(open.reply.height >= tapTarget(width) - 2 && open.reply.left >= open.message.left - 1 && open.reply.right <= open.message.right + 1,
+              `${width}: the reply box sits in the thread and is a target: ${JSON.stringify(open)}`);
           }
         }
         await click('.tab[data-tab="items"]');

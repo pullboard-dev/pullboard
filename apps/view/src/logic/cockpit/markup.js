@@ -88,12 +88,15 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </section>
   <section data-pane="shouts" class="two narrow" id="shouts-pane">
     <div class="primary">
-      <div class="card-panel shouts-card"><form id="shout-form" class="shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div><span class="asks-slot" id="asks-slot"></span></form><section class="rulings-box" id="coordinator-decisions" aria-label="Coordinator decision queue" hidden></section><section class="rulings-box" id="decisions" aria-label="Decisions needed" hidden></section><div class="feed" id="feed"></div></div>
+      <div class="card-panel shouts-card sx-compose"><form id="shout-form" class="shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></form></div><section class="rulings-box" id="coordinator-decisions" aria-label="Coordinator decision queue" hidden></section><section class="rulings-box" id="decisions" aria-label="Decisions needed" hidden></section><div class="feed" id="feed"></div>
     </div>
-    <aside class="card-panel detail" aria-label="Agents and lanes">
-      <div><h3 class="panel-head hd2">Agents<button class="link" data-agents-toggle type="button">hide</button></h3><div id="agents"></div><section id="credentials" aria-label="Agent credentials"></section></div>
-      <div><h3 class="hd2">Lanes</h3><div id="lanes"></div></div>
-      <form id="hold-form" class="panel-form"><label>Hold a lane<select id="hold-lane"></select></label><label>Why<input id="hold-reason" required placeholder="What its agents should wait for"></label><button class="go" type="submit">Hold lane</button></form>
+    <aside class="detail sx-rail" aria-label="Agents and lanes">
+      <div id="agents"></div>
+      <section id="credentials" aria-label="Agent credentials"></section>
+      <details class="sx-lanes" id="lanes-fold"><summary>Lanes</summary>
+        <div id="lanes"></div>
+        <form id="hold-form" class="panel-form"><label>Hold a lane<select id="hold-lane"></select></label><label>Why<input id="hold-reason" required placeholder="What its agents should wait for"></label><button class="go" type="submit">Hold lane</button></form>
+      </details>
     </aside>
   </section>
   <section data-pane="spec" class="two">
