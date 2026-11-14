@@ -217,7 +217,7 @@ test('historical structured quarantine requires twenty clean runs before the bou
 });
 
 /** Exercise the actual landing route against a private board and remote. */
-test('a real landing refuses a newly observed unquarantined flake [C7,T12]', async t => {
+test('a real landing no longer refuses a newly observed unquarantined flake: reds never hold the trunk [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -236,17 +236,14 @@ test('a real landing refuses a newly observed unquarantined flake [C7,T12]', asy
   const before = box.git(box.repo, 'rev-parse', 'main');
   const offered = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(offered.code, 0, offered.err + offered.out);
+  // lander-v2 L1 (#6813): the pulled land job never holds the trunk for a flake; the open-quarantine count is a health ratchet, so the landing lands.
   const result = await settleLand(box, JSON.parse(offered.out));
-  assert.equal(result.batch.state, 'blocked', JSON.stringify(result.landJob.receipt));
-  const said = JSON.stringify(result.landJob.receipt);
-  assert.match(said, /FLAKE_RATCHET|unquarantined flaky test/);
-  assert.match(said, /test\/unstable\.test\.js/);
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), before);
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), before);
+  assert.equal(result.batch.state, 'landed', JSON.stringify(result.landJob.receipt));
+  assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), before);
 });
 
 /** Two actual landings retain a falling, named quarantine count in their batch receipts. */
-test('real landings record the quarantine baseline and lower it after repair [C7,T12]', async t => {
+test('real landings record the quarantine baseline and lower it after repair [C7,T12]', { skip: 'CONTROLLER_ONLY: the pulled land receipt carries no batch.flakeRatchet (the host batch step went with #6813, lander-v2 L1); the manual merged case below still records the count' }, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
