@@ -42,7 +42,7 @@ export function itemPanelModel(item, ctx) {
     commit = item.merged || merged?.detail?.commit || '';
     right = (commit ? '\u0001' : '') + (commit && merged ? ' · ' : '') + (merged ? esc(day(at(merged.at))) : '');
   } else if (item.status === 'submitted' && !who && item.commit) { commit = item.commit; right = 'submitted \u0001'; }
-  else if (who) right = esc(name(who)) + (claim && item.status === 'claimed' ? ' · ' + esc(dur(now - at(claim.at))) : '');
+  else if (who) right = esc((ctx.holderName || name)(who)) + (claim && item.status === 'claimed' ? ' · ' + esc(dur(now - at(claim.at))) : '');
   else if (added) right = 'added ' + esc(dur(now - at(added.at))) + ' ago';
   const meta = [item.lane, item.route, String(ctx.milestone || '').replace(/^(\S+): /u, '$1 ')].filter(Boolean);
   const head = { id: item.id, stage: ctx.stage, back: landed ? 0 : sentBack, right, commit, meta };
