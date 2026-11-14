@@ -11,11 +11,11 @@ const LAUNCHER = "const { spawn } = require('node:child_process'); spawn(process
 export const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 
 /**
- * Start a stub whose command line names `profile`; `orphaned` leaves it parentless, as a killed serve's job does.
+ * Start a stub whose command line names `profile` after `flag`; `orphaned` leaves it parentless, as a killed serve's job does.
  * `closed` settles once the stub is gone, because it holds the pipe the test reads its pid from.
  */
-export async function stub(profile, orphaned = false) {
-  const arg = `--user-data-dir=${profile}`;
+export async function stub(profile, orphaned = false, flag = '--user-data-dir=') {
+  const arg = `${flag}${profile}`;
   const child = orphaned ? spawn(process.execPath, ['-e', LAUNCHER], { stdio: ['ignore', 'pipe', 'ignore'], env: { PATH: process.env.PATH, STUB_CODE: STUB, STUB_ARG: arg } })
     : spawn(process.execPath, ['-e', STUB, '--', arg], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
   const launched = orphaned ? once(child, 'exit') : null, closed = once(child, 'close');
