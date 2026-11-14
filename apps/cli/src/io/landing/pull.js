@@ -29,6 +29,7 @@ import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
 import { openLandJobs } from './waiting.js';
+import { trunkCheckedOut } from './checkout.js';
 
 const TRUNK = 'refs/heads/main';
 
@@ -178,6 +179,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
   const hosted = !configured && runnerDispatchMode() === 'pull' && (await local(root)).running;
   if (!configured && !hosted) return null;
   const remote = configured ?? root;
+  // A trunk remote of record that is a checkout here with trunk checked out (pb-trunk links to this one) takes its push in place [C7,#7951].
+  const intoCheckout = Boolean(configured) && trunkCheckedOut(configured, root, trunkRef(root));
   return (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
     // An open land job keeps its own items; this offer takes only the accepted items no open job names [C7,#7728].
     const taken = ids ? new Set() : openLandingItems(board.db);
@@ -236,7 +239,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
         const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
         const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, badges: badgeDocuments?.(board) ?? [],
-          ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config }) });
+          ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);
       }
