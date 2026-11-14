@@ -27,6 +27,7 @@ import {
 /** Scroll one choice into the segmented track, which scrolls sideways at phone width, before real input reaches it. */
 async function reveal(chrome, expression) {
   await chrome.stable(`(() => { ${expression}.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; })()`);
+  console.log('PROBE ' + await chrome.stable(`(() => { const e = ${expression}, r = e.getBoundingClientRect(), h = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return innerWidth + ' ' + JSON.stringify([r.x, r.y, r.width, r.height]) + ' hit=' + (h ? h.outerHTML.slice(0, 200) : null) + ' track=' + JSON.stringify(e.parentElement.getBoundingClientRect()); })()`));
 }
 
 /** Read the real browser cascade and bounds, independently of the renderer's markup strings. */
