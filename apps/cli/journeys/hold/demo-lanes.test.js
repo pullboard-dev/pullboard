@@ -49,6 +49,7 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, 'about:blank', profile);
+    // A short desktop window: the compact shout rows (#7572) fit the page into the old 900 px height, so only a shorter window keeps the real feed scrollable.
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 560, deviceScaleFactor: 1, mobile: false });
     // Keep this one real refresh under test control; every HTTP response and render remains real (#622).
     await allowLiveHold(chrome);
@@ -78,8 +79,7 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify({ height: innerHeight,
       pageHeight: document.documentElement.scrollHeight, scrollY,
       console: document.querySelector('#console').getBoundingClientRect().toJSON(),
-      success: document.querySelector('#console').classList.contains('ok'),
-      probe: [...document.querySelectorAll('body *')].map(e => [e.id || String(e.className) || e.tagName, Math.round(e.getBoundingClientRect().bottom), e.scrollHeight, e.clientHeight, getComputedStyle(e).overflowY, getComputedStyle(e).position]).filter(r => r[2] > r[3] + 4 || r[1] > 800).slice(0, 25) })`));
+      success: document.querySelector('#console').classList.contains('ok') })`));
     t.diagnostic('late hold geometry: ' + JSON.stringify(geometry));
     assert.ok(geometry.pageHeight > geometry.height, 'the real feed can scroll, so a redundant scroll cannot pass vacuously');
     assert.ok(geometry.success && geometry.console.height > 0 && geometry.console.top >= 0 && geometry.console.bottom <= geometry.height,
