@@ -4,7 +4,7 @@
  * The disposable repo and private PULLBOARD_HOME keep personal projects and shouts out of the art.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { readlinkSync } from 'node:fs';
+import { appendFileSync, readlinkSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -31,7 +31,9 @@ function setDemoMinutes(env, minutes) {
 
 /** Run a pullboard or git command in the disposable demo environment. */
 function command(file, args, cwd, env) {
+  const began = Date.now();
   const result = spawnSync(file, args, { cwd, env, encoding: 'utf8' });
+  try { appendFileSync('/tmp/claude-501/7863-phases.log', `${new Date().toISOString()} ${Date.now() - began}ms ${args.slice(file === 'git' ? 0 : 1, 4).join(' ')}\n`); } catch { /* diag only */ }
   if (result.status !== 0) throw new Error(`${file} ${args.join(' ')} failed: ${(result.stderr || result.stdout).trim()}`);
   return result.stdout.trim();
 }
@@ -432,7 +434,9 @@ else {
           observation.viewLaunch.branch = observation.viewPid === server.pid ? 'foreground' : observation.viewPid ? 'background' : 'unknown';
           observation.viewLaunch.reportedIdentity = processIdentity(observation.viewPid);
         }
+        try { appendFileSync('/tmp/claude-501/7863-phases.log', `${new Date().toISOString()} view up\n`); } catch { /* diag */ }
         view = await browser(chrome, join(base, 'chrome-profile'), url);
+        try { appendFileSync('/tmp/claude-501/7863-phases.log', `${new Date().toISOString()} chrome up\n`); } catch { /* diag */ }
         await view.evaluate("document.querySelector('[data-tab=\"items\"]').click()");
         await waitForDemoBoard(view, repo);
         if (!roadmapOnly) {
@@ -465,7 +469,9 @@ else {
             await view.screenshot(join(OUTPUT, `shouts-${theme}.png`));
           }
         }
+        try { appendFileSync('/tmp/claude-501/7863-phases.log', `${new Date().toISOString()} shots done\n`); } catch { /* diag */ }
         await captureRoadmap(view, repo, observation);
+        try { appendFileSync('/tmp/claude-501/7863-phases.log', `${new Date().toISOString()} roadmap done\n`); } catch { /* diag */ }
         await view.close(); view = null;
         recordBeforeViewStop(observation);
         await stop(server); server = null;
