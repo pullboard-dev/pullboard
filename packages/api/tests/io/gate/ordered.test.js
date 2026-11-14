@@ -39,7 +39,7 @@ test('clause 1: on a linked board a green pulled gate hands its submit to the re
   const ordered = [];
   const posted = post(green(head), { ordered });
   assert.equal(posted.recorded, true, 'the runner\'s receipt is recorded on the job');
-  assert.equal(posted.applied.outcome, 'review', 'the apply judged the gate as on a local board');
+  assert.equal(posted.applied.outcome, 'review', `the apply judged the gate as on a local board: ${JSON.stringify(posted.applied)} ${store.itemThread(board, id).map(row => row.text).join(' | ')}`);
   assert.deepEqual(ordered.map(move => move.operation), ['submit', 'appendFact'], 'the submit and its gate note are the moves the relay orders');
   assert.equal(ordered[0].args[0], id);
   assert.equal(ordered[0].args[1].agentId, seat.id);
@@ -72,7 +72,7 @@ test('clause 1: on a linked board a red pulled gate hands its failing parts to t
 test('clause 1: a local board applies a green pulled gate at once, as before [C7]', t => {
   const { board, id, head, job, post } = pulledSubmit(t);
   const posted = post(green(head));
-  assert.equal(posted.applied.outcome, 'review');
+  assert.equal(posted.applied.outcome, 'review', JSON.stringify(posted.applied));
   const item = store.getItem(board, id);
   assert.equal(item.item_status, 'submitted');
   assert.equal(item.item_commit, head);
