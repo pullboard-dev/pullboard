@@ -24,6 +24,7 @@ import {
   proofShot,
   earlier,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import { openRoadmapChrome } from '../../../tests/fixtures/cockpit/roadmap.js';
 
 test('the roadmap panel jumps to each release [N26]', {
@@ -90,7 +91,7 @@ test('the roadmap panel jumps to each release [N26]', {
         for (const width of [900, 899]) {
           await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
           await chrome.waitFor(`innerWidth === ${width}`);
-          await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+          await pressTab(chrome, 'roadmap');
           const edge = JSON.parse(await chrome.stable(`JSON.stringify((() => {
             const panel = document.querySelector('#roadmap-panel'), list = document.querySelector('#roadmap-list');
             const shown = (e) => !!e && e.getClientRects().length > 0 && e.getBoundingClientRect().height > 0;
@@ -113,7 +114,7 @@ test('the roadmap panel jumps to each release [N26]', {
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
-      await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+      await pressTab(chrome, 'roadmap');
       stage('width-' + width);
       const initial = await read();
       if (width >= 900) {

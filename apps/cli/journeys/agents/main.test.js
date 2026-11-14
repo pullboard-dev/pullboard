@@ -44,6 +44,7 @@ import {
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import { startChrome } from '../../tests/fixtures/relay/browser.js';
 import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 import {
   BIN,
   tapTarget,
@@ -166,7 +167,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.agents?.length >= 4 && data.project.shouts.length >= 2');
-    await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await pressTab(chrome, 'shouts');
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #agents [data-agent]")');
     await openConversation(chrome);
     assert.equal(await chrome.stable("document.querySelectorAll('#agents .sx-idle-n').length + ':' + document.querySelector('#agents .sx-idlehead[data-fold=\"idle\"]').getAttribute('aria-expanded')"), '0:false', 'the idle agents start folded');
@@ -245,7 +246,7 @@ test('the shout feed names a seat broadcast and an item shout in product words [
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 2');
-    await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await pressTab(chrome, 'shouts');
     await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 2');
     for (const width of [1280, 375]) {
       await shoutsAt(chrome, width, 'light');
@@ -309,12 +310,12 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
   const text = (selector) => chrome.stable(`document.querySelector(${JSON.stringify(selector)})?.textContent || ''`);
   /** Press a real control and wait until its requested pane is drawn. */
   const tab = async (name) => {
-    await press(chrome, `document.querySelector('[data-tab="${name}"]')`);
+    await pressTab(chrome, name);
     await settled(chrome, `view.tab === ${JSON.stringify(name)}`);
   };
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.click("document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.stable(`(() => {
       const nativeFetch = window.fetch.bind(window);
       window.__modelDetailDelay = { started: 0, completed: 0, milliseconds: 5000 };

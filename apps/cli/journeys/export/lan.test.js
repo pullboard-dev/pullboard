@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { fetchLive } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
@@ -62,7 +63,7 @@ test('clause 1: a phone reaches the board on the local network [H19]', { timeout
   await chrome.waitFor('innerWidth === 375 && !!data?.project');
   await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
   // The board now opens on its Dashboard; the item list is one tab away.
-  await chrome.click('document.querySelector(\'[data-tab="items"]\')');
+  await pressTab(chrome, 'items');
   await chrome.waitFor(`innerWidth === 375 && document.body.innerText.includes(${JSON.stringify(title)})`);
   assert.equal(await chrome.stable('location.hostname'), view.link.hostname, 'the browser uses the LAN address, not a loopback stand-in');
   // The Shouts page folds its composer; the item's own "Shout the lane" button opens it, addressed to that lane.
