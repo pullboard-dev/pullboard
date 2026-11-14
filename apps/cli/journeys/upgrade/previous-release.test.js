@@ -1,7 +1,7 @@
 /**
  * A board made by the previous release (0.9.3) upgrades in place and keeps working: current code opens it and replays
  * 0.9.3's recorded moves with the same results, a seat commits through the hooks 0.9.3 installed, and doctor ends clean
- * [R4,I1,A5] (#7788). Only the pre-push full gate runs this file; item gates leave it out through landing.auditOnly (#7788).
+ * [R4,I1,A5] (#7788). Only the pre-push full gate runs this file; item gates leave it out through packages/gate/data/tests/push-only.json (#7788).
  */
 import assert from 'node:assert/strict';
 import {
@@ -52,22 +52,32 @@ test('current code opens the 0.9.3 board and replays its recorded moves with ide
   copyFileSync(join(FIXTURE, 'board.sqlite'), file);
   const recorded = JSON.parse(readFileSync(join(FIXTURE, 'moves.json'), 'utf8'));
   assert.equal(recorded.release, '0.9.3');
+  /** A result or table with the event ids dropped: opening the board adds one guards event first, which shifts every later id by one. */
+  const unnumbered = value => JSON.parse(JSON.stringify(value, (key, field) => key === 'event_id' ? undefined : field));
   withFixtureBoard(file, board => {
     const opened = tables(board);
     assert.deepEqual(opened.item.map(row => [row.item_id, row.item_status]), [[1, 'verified'], [2, 'claimed'], [3, 'submitted'], [4, 'open']]);
     assert.equal(opened.item.find(row => row.item_id === 4).item_hold_by, 'coordinator', 'the hold survives the upgrade');
     assert.equal(opened.shout.length, 1, 'the shout survives the upgrade');
     assert.deepEqual(opened.agent.map(row => row.agent_id), ['coordinator', 'api-1', 'web-1', 'review-1']);
+    const guards = opened.event.at(-1);
+    assert.deepEqual([guards.event_kind, guards.event_by], ['guards', 'board'], 'opening installs this release\'s guards and records that once');
+    assert.ok(JSON.parse(guards.event_detail).changed.includes('machine_item_move'));
     const refused = [];
     for (const { label, move, order, recorded: before, prepareRefused } of recorded.moves) {
       if (prepareRefused) { refused.push(label); continue; }
       let now;
       try { now = applyRelayMove(board, move, order); } catch (error) { now = { thrown: `${error.code} ${error.message}` }; }
-      assert.deepEqual(JSON.parse(JSON.stringify(now)), JSON.parse(JSON.stringify(before)), `${label}: the result 0.9.3 recorded`);
+      assert.deepEqual(unnumbered(now), unnumbered(before), `${label}: the result 0.9.3 recorded`);
       if (before?.error) refused.push(label);
     }
     assert.deepEqual(refused, ['claim in the wrong lane (refused)', 'withdraw again (refused)', 'reopen the landed item'], 'the refusals 0.9.3 gave are given again');
-    assert.deepEqual(tables(board), recorded.final, 'every table matches what 0.9.3 held after the same moves');
+    const { sqlite_sequence: sequenceNow, ...now } = tables(board);
+    const { sqlite_sequence: sequenceThen, ...then } = recorded.final;
+    now.event = now.event.filter(row => row.event_id !== guards.event_id);
+    assert.deepEqual(unnumbered(now), unnumbered(then), 'every table matches what 0.9.3 held after the same moves');
+    const eventsThen = sequenceThen.find(row => row.name === 'event').seq, eventsNow = sequenceNow.find(row => row.name === 'event').seq;
+    assert.equal(eventsNow, eventsThen + 1, 'the guards event is the only extra event');
   });
 });
 
@@ -96,14 +106,14 @@ function project(t) {
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   const git = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
-  const setup = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env, encoding: 'utf8' });
-  assert.equal(setup(repo, 'init', '-q', '-b', 'main').status, 0);
-  assert.equal(setup(repo, 'config', 'core.hooksPath', '.githooks').status, 0);
-  assert.equal(setup(repo, 'config', 'pullboard.trunk', 'refs/heads/main').status, 0);
-  assert.equal(setup(repo, 'add', '-A').status, 0);
-  assert.equal(setup(repo, 'commit', '-q', '-m', 'initial').status, 0);
+  const setup = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
+  setup(repo, 'init', '-q', '-b', 'main');
+  setup(repo, 'config', 'core.hooksPath', '.githooks');
+  setup(repo, 'config', 'pullboard.trunk', 'refs/heads/main');
+  setup(repo, 'add', '-A');
+  setup(repo, 'commit', '-q', '-m', 'initial');
   const worktree = join(repo, '.claude', 'worktrees', 'web-t');
-  assert.equal(setup(repo, 'worktree', 'add', '-q', '--detach', worktree, 'main').status, 0);
+  setup(repo, 'worktree', 'add', '-q', '--detach', worktree, 'main');
   mkdirSync(join(repo, '.git', 'pullboard'), { recursive: true });
   const board = join(repo, '.git', 'pullboard', 'board.sqlite');
   copyFileSync(join(FIXTURE, 'board.sqlite'), board);
