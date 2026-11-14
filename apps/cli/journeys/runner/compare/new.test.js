@@ -35,7 +35,7 @@ async t => {
   }
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'node --test' }, null, 2) + '\n');
-  const claimBase = box.git(box.repo, 'rev-parse', 'main'); // The items were claimed here; the gate reads main's receipts at the claim base too.
+  const claimBase = box.git(box.web, 'rev-parse', 'HEAD'); // The items were claimed here; the gate reads main's receipts at the claim base too.
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: main red cases [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
