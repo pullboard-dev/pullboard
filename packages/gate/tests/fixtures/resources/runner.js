@@ -71,6 +71,7 @@ function policy(box, runnersOnly, runnerWaitMs = 80) {
 
 /** Require native CLI success before using any fixture result as setup evidence. */
 function succeeded(result) {
+  process.stderr.write(`LAP ${Date.now()} ${result.code}\n`);
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   return result;
 }
