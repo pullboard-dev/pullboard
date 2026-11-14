@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { performance } from 'node:perf_hooks';
 import {
   after,
@@ -138,7 +139,9 @@ async function submittedItem({ uncovered, reasoning = false, check = true }) {
     await ok(box, builder, 'fact', String(id), 'note', 'clause 2 [test]: web/packet.test.js "clause 2: the visitor is named" passes');
     await ok(box, builder, 'fact', String(id), 'note', 'clause 3 [reasoning]: greet returns plain text with no markup');
   }
-  const submitted = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
+  const queued = JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out);
+  // The pulled gate queues the submit; its receipt lands after the command returns [C7].
+  const submitted = queued.queued ? { ...queued, gate: (await settledGateJob({ repo: box.repo, env: box.env, run: box.runLocal }, id)).gate } : queued;
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
   const packet = JSON.parse((await ok(box, box.repo, 'show', String(id), '--review', '--json')).out);
   rmSync(marker, { force: true });
