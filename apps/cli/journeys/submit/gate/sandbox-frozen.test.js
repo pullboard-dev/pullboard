@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli apps/runner apps/lib gate config landing state store items */
 /**
  * Frozen checks keep the sandbox refusal before submit proof: one slice of the submit gate proof, split from sandbox.test.js to stay under the runner time budget [I1,C7,#7725].
  */

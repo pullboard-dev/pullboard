@@ -187,6 +187,18 @@ export function openJob(db, { kind, item, candidate }) {
 }
 
 /**
+ * Each named job's view, or null for one gone from the board. Why: the pre-push gate waits on its item-less shard jobs
+ * through the board API, as a runner reads the queue [P7,#7743].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} ids
+ * @returns {(ReturnType<typeof jobView> | null)[]}
+ */
+export function jobViews(db, ids) {
+  return ids.map(id => jobView(db, id));
+}
+
+/**
  * True while the queue holds a job offered through it that has not finished: a gate or landing row a pull submit or
  * pilot wrote, offered or leased. Why: turning pull or its pilot off must let those jobs drain, so no queued or running
  * gate is stranded with its builder waiting; new submits already take the controller path [P7].

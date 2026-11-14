@@ -307,30 +307,22 @@ test('clause 1: the private view shows its last twenty native landings; a public
     await chrome.waitFor("document.querySelector('#cost .cost-model-card')");
     const analytics = JSON.parse(await chrome.stable("JSON.stringify(costHistory.get(view.root + '\\n' + (view.costWindow ?? '7d')).model)"));
     assert.equal(analytics.allItems, 22, 'the real endpoint counts the seeded landings: ' + JSON.stringify({ window: analytics.window, from: analytics.from, to: analytics.to, totals: analytics.totals }));
-    assert.equal(analytics.longest.length, 10, 'the server selects the ten longest landings (#7577)');
-    await chrome.waitFor("document.querySelectorAll('#cost .cost-row').length === 10");
-    const ids = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#cost [data-cost-row]')].map(node => Number(node.dataset.costRow)))"));
-    assert.deepEqual(ids, analytics.longest.map(row => row.id), 'the page renders the server-selected items in order');
+    assert.equal(await chrome.stable("document.querySelector('#cost').innerText.includes('Took the longest')"), false, 'Cost no longer shows Took the longest');
+    assert.equal(await chrome.stable("document.querySelectorAll('#cost [data-cost-row]').length"), 0);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
     await chrome.stable("document.documentElement.dataset.theme = 'light'");
-    await press(chrome, "document.querySelector('#cost [data-cost-row]')");
-    await chrome.waitFor("document.querySelector('#cost .cost-detail')");
     const shotPath = '/tmp/pullboard-2092-cost-light-1440.png';
     const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
     writeFileSync(shotPath, Buffer.from(shot.data, 'base64'));
     console.log('Cost proof screenshot:', shotPath);
     for (const width of [1280, 320]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      const layout = JSON.parse(await chrome.stable("JSON.stringify({text:document.querySelector('#cost').innerText,documentWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth,buttonHeight:document.querySelector('[data-cost-row]').getBoundingClientRect().height})"));
+      const layout = JSON.parse(await chrome.stable("JSON.stringify({text:document.querySelector('#cost').innerText,documentWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth})"));
       assert.match(layout.text, /Models/iu);
       assert.doesNotMatch(layout.text, /\$[0-9]/u, 'no dollar figure renders without a server dollars block');
       assert.ok(layout.documentWidth <= layout.viewportWidth, `${width}px view has no horizontal page overflow: ` + await chrome.stable("JSON.stringify([...document.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0,12).map(e => ({tag:e.tagName, cls:e.className, right:e.getBoundingClientRect().right, width:e.getBoundingClientRect().width})))"));
-      assert.ok(layout.buttonHeight >= (width < 900 ? 44 : 32), `${width}px landing row remains a reachable control`);
     }
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
-    const detail = await chrome.stable("document.querySelector('#cost .cost-detail').innerText");
-    assert.match(detail, /tokens in|No token count/u);
-    assert.doesNotMatch(detail, /0 sessions/u, 'unknown native session counts stay blank');
     const publicView = await serveFolder(publicOutput, '/public/');
     try {
       await chrome.send('Page.navigate', { url: publicView.base + '/public/#cost' });
