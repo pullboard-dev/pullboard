@@ -72,7 +72,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     if (!release || !counted('total') || !counted('left')) return section('Release', 'dash-shipsec', label('Release'), '<div class="dash-card dash-ship"><p class="dash-empty">No release is in progress.</p></div>', { link: roadmap });
     const named = /^(\d+(?:\.\d+)+)\s*:\s*(.+)$/u.exec(String(release.name ?? ''));
     const title = named ? '<span class="dash-ver">'+esc(named[1])+'</span>'+esc(named[2]) : esc(release.name);
-    const parts = [['landed','landed','landed'],['landing','landing','passed'],['review','in review','review'],['building','building','building'],['waiting','blocked','gated'],['held','held','held']].filter(([key]) => counted(key));
+    const parts = [['landed','landed','landed'],['landing','landing','passed'],['review','in review','review'],['building','building','building'],['ready','ready','next'],['waiting','blocked','gated'],['held','held','held']].filter(([key]) => counted(key));
     let offset = 0;
     const gap = Math.max(0.002 * summary.total, 0);
     const bar = '<svg class="dash-sbar" viewBox="0 0 '+(summary.total || 1)+' 1" preserveAspectRatio="none" role="img" aria-label="'+esc(release.name+': '+parts.map(([key,word]) => summary[key]+' '+word).join(', '))+'">'+parts.filter(([key]) => summary[key]).map(([key,word]) => { const x = offset; offset += summary[key]; return '<rect class="dash-seg-'+key+'" data-release-segment="'+key+'" data-count="'+summary[key]+'" x="'+x+'" width="'+Math.max(0, summary[key]-gap)+'" height="1"><title>'+summary[key]+' '+word+'</title></rect>'; }).join('')+'</svg>';

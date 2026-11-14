@@ -1026,7 +1026,7 @@ export async function syncRelay(root, io) {
         }
       } else if (error.code === 'AUTH_REQUIRED') {
         if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
-      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
+      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; ${error.code === 'RELAY_ACTOR' && error.next ? error.next : 'run pullboard status to see pending uploads'}`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, io.openBoard)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
         recovery: recoverySummary(state), ...io.outboxFields(state),
@@ -1292,7 +1292,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
   const file = linkFile(root);
   // A clone whose pullboard.json names another board joins that board instead of linking a second one [E12].
   const joining = await (await import('./relay/join.js')).joinNamedBoardIfAny(root, file, { linked: Boolean(loadLink(file)), url: relayOrigin(address || DEFAULT_RELAY), repository, signIn: (url) => deviceSignIn(url, io), openBoard: io.openBoard }, io);
-  if (joining) return joining;
+  if (joining) return joining; (await import('./relay/board-size.js')).requireBoardFitsRelay(repoInfo(root).commonDir); // Too large a board refuses before anything changes [#7777].
   const { nameBoardInConfig } = await import('./relay/config.js');
   return locked(file, async () => {
     let state = loadLink(file);

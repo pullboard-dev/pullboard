@@ -36,7 +36,7 @@ import { itemFiles } from "../../../../items/light.js";
 import { parseSpec } from "../../../../spec/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/light.js";
-import { boardDataVersion } from "./version.js";
+import { boardDataVersion } from "./read/light.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./read/snapshot.js";
 export { schemaMissing, writeRefused } from "./migrate.js";
 export { stats } from "../../logic/board/stats.js";
