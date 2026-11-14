@@ -22,11 +22,11 @@ const LIGHT = `export { tapFailures } from ${JSON.stringify(pathToFileURL(join(R
 const PASS = "import { test } from 'node:test';\ntest('passes on the runner', () => {});\n";
 
 /** Run one CLI command as the seat's agent session at its own prompt: the agent-shell marker set, no machine-work variable. */
-function asSeat(box, ...args) {
+async function asSeat(box, ...args) {
   const saved = Object.fromEntries([...MACHINE_CONTEXT_ENV, 'PULLBOARD_CLI_PID', 'CLAUDECODE'].map(name => [name, box.env[name]]));
   for (const name of Object.keys(saved)) delete box.env[name];
   box.env.CLAUDECODE = '1';
-  try { return box.run(box.web, ...args); }
+  try { const ran = await box.runLocal(box.web, ...args); return { code: ran.status, out: ran.stdout, err: ran.stderr }; }
   finally {
     for (const name of Object.keys(saved)) delete box.env[name];
     for (const [name, value] of Object.entries(saved)) if (value !== undefined) box.env[name] = value;
@@ -47,7 +47,7 @@ async t => {
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): a test to run on a runner [G1]');
   const queue = await pullQueue(t, box);
 
-  const queued = asSeat(box, 'test', 'web/pass.test.js');
+  const queued = await asSeat(box, 'test', 'web/pass.test.js');
   assert.equal(queued.code, 0, queued.err);
   const id = /queued test run ([0-9a-f-]{36})/u.exec(queued.out)?.[1];
   assert.ok(id, `the client names its run and exits: ${queued.out}`);
@@ -62,7 +62,7 @@ async t => {
   const served = await serveOnce(box, queue.url, 'r-test');
   assert.equal(served.code, 0, served.output);
 
-  const status = asSeat(box, 'test', '--status', id);
+  const status = await asSeat(box, 'test', '--status', id);
   assert.equal(status.code, 0, `${status.err}\n${status.out}`);
   assert.match(status.out, new RegExp(`test run ${id} green on r-test`, 'u'), 'the runner\'s receipt is the run\'s result');
   assert.doesNotMatch(status.out + status.err, /lost/u);
@@ -72,7 +72,7 @@ async t => {
   const after = jobView(queue.board.db, id);
   assert.equal(after.steps.some(step => step.name === 'lost'), false);
   assert.equal(after.steps.find(step => step.name === 'result')?.payload?.green, true, 'the sweep recorded the runner\'s green');
-  const swept = asSeat(box, 'test', '--status', id);
+  const swept = await asSeat(box, 'test', '--status', id);
   assert.match(swept.out, new RegExp(`test run ${id} green on r-test`, 'u'));
   assert.equal(readTestRun(queue.board, id).status, 'green');
 });
