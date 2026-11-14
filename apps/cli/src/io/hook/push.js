@@ -19,16 +19,33 @@ import { untracked } from '../../../../../packages/git/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 
-/** Budget: a shard a runner holds must post within the 20-minute per-job ceiling (packages/runners RUN_CEILING_MS). */
-const SHARD_CEILING_MS = 20 * 60_000;
-/** Budget: each shard's summed recorded file time stays under this quarter of the job ceiling, so the heaviest shard still finishes when its runner claims it late (#7790). */
-export const PUSH_SHARD_BUDGET_MS = SHARD_CEILING_MS / 4;
+/** Budget: a shard a runner holds must post within pushGate.shardMinutes, 20 by default like the runner's per-job ceiling (packages/runners RUN_CEILING_MS) [#7810]. */
+const DEFAULT_SHARD_MINUTES = 20;
+/** Budget: each shard's summed recorded file time stays under this quarter of the default limit, so the heaviest shard still finishes when its runner claims it late (#7790). */
+export const PUSH_SHARD_BUDGET_MS = DEFAULT_SHARD_MINUTES * 60_000 / 4;
 /** Budget: the time assumed for a test file with no record, about the mean file of the full gate. */
 export const PUSH_DEFAULT_FILE_MS = 5_000;
 /** Budget: the waiting hook says its shards are still wanted every 30 s, well inside the 5 minutes after which a claim ends them (PUSH_ALIVE_MS). */
 const ALIVE_MS = 30_000;
 /** Budget: the waiting hook reads its shard rows once a second, one small local read. */
 const POLL_MS = 1_000;
+
+/**
+ * How long a push shard may run before the push gate gives up: pushGate.shardMinutes from pullboard.json (default 20), or a
+ * raised PULLBOARD_RUNNER_RUN_CEILING_MS when that is longer, so the gate never gives up on a shard its runner still allows.
+ * A runner ceiling of 0 (off) or unset adds nothing beyond the setting. Why: the limit was a hard-coded 20 minutes that no
+ * setting or runner override could raise [#7810].
+ *
+ * @param {{ pushGate?: { shardMinutes?: number } } | undefined} config
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {number} Milliseconds.
+ */
+export function pushShardLimitMs(config, env = process.env) {
+  const minutes = config?.pushGate?.shardMinutes ?? DEFAULT_SHARD_MINUTES;
+  const raw = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
+  const runner = raw === undefined || raw === '' ? 0 : Number(raw);
+  return Math.max(minutes * 60_000, Number.isSafeInteger(runner) && runner > 0 ? runner : 0);
+}
 
 /**
  * Split the gate's files into shards whose summed recorded time stays under PUSH_SHARD_BUDGET_MS, heaviest file first
@@ -73,7 +90,7 @@ export async function pushShardPlan(root, config) {
   const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
   const files = trackedDefaultTestFiles(root, process.env);
   if (files.length < 2 || !valueGateCommand(root, config.gate, files)) return null;
-  const shards = planPushShards(files, readFileTimes(root)).map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
+  const shards = planPushShards(files, readFileTimes(root), pushShardLimitMs(config) / 4).map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
   const source = headCommit(root);
   const trunk = trunkRef(root);
   const main = (trunk && tryGit(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${trunk}^{commit}`]).stdout.trim()) || source;
@@ -104,11 +121,11 @@ export async function offerPushShards(ctx, plan) {
 
 /**
  * Wait until every shard job has posted its receipt. Refuses when no shard changes hands or posts within
- * gate.runnerWaitMs while one still waits for a runner, or when a held shard runs past the 20-minute job ceiling.
+ * gate.runnerWaitMs while one still waits for a runner, or when a held shard runs past pushGate.shardMinutes (or a longer runner ceiling).
  *
  * @returns {Promise<{ job: string, posted: { receipt: object, runner: string | null } }[] | { refused: string }>}
  */
-export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = POLL_MS, now = Date.now, read = work => withBoardRead(ctx, work), write = work => withBoard(ctx, work) } = {}) {
+export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = POLL_MS, now = Date.now, read = work => withBoardRead(ctx, work), write = work => withBoard(ctx, work), limitMs = pushShardLimitMs(ctx.config) } = {}) {
   const { jobViews, keepJobsAlive } = await import('../../../../../packages/api/index.js');
   const claimedAt = new Map(), posted = new Map();
   let moved = now(), renewed = -Infinity;
@@ -131,8 +148,8 @@ export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = P
         moved = now();
         say?.(`pre-push: runner ${view.leaseOwner} took shard job ${job}`);
       }
-      if (!posted.has(job) && claimedAt.has(job) && now() - claimedAt.get(job).at > SHARD_CEILING_MS) {
-        return { refused: `shard job ${job} ran past the ${SHARD_CEILING_MS / 60_000}-minute job ceiling on runner ${view.leaseOwner ?? 'unknown'}; push again` };
+      if (!posted.has(job) && claimedAt.has(job) && now() - claimedAt.get(job).at > limitMs) {
+        return { refused: `shard job ${job} ran past the ${Math.round(limitMs / 60_000)}-minute shard limit on runner ${view.leaseOwner ?? 'unknown'}; to allow a longer run, raise pushGate.shardMinutes in pullboard.json (default ${DEFAULT_SHARD_MINUTES}) and PULLBOARD_RUNNER_RUN_CEILING_MS on the runners to match, then push again` };
       }
     }
     if (posted.size === jobs.length) break;
