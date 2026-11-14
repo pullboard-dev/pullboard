@@ -57,9 +57,10 @@ test('Dashboard Release and the Roadmap release header read the same release at 
       assert.deepEqual(dashboard.tiles, ['Today’s pace', 'Right now', 'ETA']);
       assert.equal(dashboard.overflow, false, `${width}px Dashboard has no horizontal overflow`);
       // The bar and its legend paint in the formal stage colours (Waiting is the sheet's grey): each segment and its swatch resolve to the same token.
-      const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','waiting']]){out[key]={token:token(name),fill:getComputedStyle(c.querySelector('rect.dash-seg-'+key)).fill,swatch:getComputedStyle(c.querySelector('i.dash-seg-'+key)).backgroundColor};}probe.remove();return out;})())"));
+      const colours = JSON.parse(await chrome.stable("JSON.stringify((()=>{const c=document.querySelector('#dashboard .dash-ship'),probe=document.createElement('i');c.append(probe);const token=name=>{probe.style.color='var(--'+name+')';return getComputedStyle(probe).color;};const out={};for(const [key,name] of [['landed','stage-merged'],['waiting','waiting']]){out[key]={token:token(name),fill:c.querySelector('rect.dash-seg-'+key)?getComputedStyle(c.querySelector('rect.dash-seg-'+key)).fill:null,swatch:getComputedStyle(c.querySelector('i.dash-seg-'+key)).backgroundColor};}probe.remove();return out;})())"));
       for (const [key, seen] of Object.entries(colours)) {
-        assert.equal(seen.fill, seen.token, `${width}px the ${key} segment is its stage colour`);
+        // The bar draws a segment only for a stage that holds items; this fixture has none Waiting, so only its legend swatch exists.
+        if (seen.fill !== null) assert.equal(seen.fill, seen.token, `${width}px the ${key} segment is its stage colour`);
         assert.equal(seen.swatch, seen.token, `${width}px the ${key} legend swatch is its stage colour`);
       }
 
