@@ -28,7 +28,7 @@ test('clause 1: a gate that blocks at its ceiling withdraws every unfinished sha
   claimJob(db, { runner: 'r1', now: clock.at });
   const wait = async () => { clock.at += 21 * 60_000; };
   const settled = await awaitAndWithdraw({}, NAMES, { ...seams, wait, pollMs: 0, exit: () => assert.fail('no exit'), signals: new EventEmitter() });
-  assert.match(settled.refused, /ran past the 20-minute job ceiling/u);
+  assert.match(settled.refused, /ran past the 20-minute shard limit.*pushGate\.shardMinutes/u);
   assert.deepEqual(steps(db), ['done', 'done', 'done']);
   assert.equal(claimJob(db, { runner: 'r2', now: clock.at }), null);
 });
