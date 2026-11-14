@@ -29,9 +29,9 @@ test('clause 2: a land job for an accepted item with a large proof is offered un
   assert.equal(offered.proof, undefined, 'the proof is not in the payload');
   assert.deepEqual(offered.items, [{ id: 7752, commit: COMMIT, ref: 'refs/pullboard/land/7752' }]);
   assert.deepEqual(offered.requested, ['proof'], 'the payload names what moved to the request');
-  const { claim } = jobQueueCall(board.db, { action: 'claim', runner: 'r-land', capabilities: [], kinds: ['land'] });
+  const { claim } = jobQueueCall(board.db, { action: 'claim', runner: 'r-land', capabilities: [], kinds: ['land'] }, { mode: 'pull' });
   assert.equal(claim.job, job.id);
-  const asked = jobQueueCall(board.db, { action: 'request', job: claim.job, runner: 'r-land', token: claim.token });
+  const asked = jobQueueCall(board.db, { action: 'request', job: claim.job, runner: 'r-land', token: claim.token }, { mode: 'pull' });
   assert.deepEqual(asked.request.land.proof.files, files.slice().sort(), 'the runner reads every proved file from the request');
   assert.equal(asked.request.land.proof.runner, 'node bin/proof.mjs');
 });
