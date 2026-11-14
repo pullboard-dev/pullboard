@@ -14,6 +14,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   S10: 'drop the full-suite or CI requirement and keep the clause tied to this item\u2019s named files',
   BAD_IDLE_SKIPS: 'run next again and record up to three distinct candidate ids with their first native skip codes',
   WRONG_BRANCH: 'submit the item whose commits this head carries, or switch to the branch built for this item',
+  LANE_CHECK_FOREIGN: 'shout the owning lane or the coordinator to set a check that names the file, or name only your own lane\'s test files',
   ITEM_FOLDER_DIRTY: 'commit or stash the dirty files in that item folder, then claim again',
   SUBMIT_HANDOFF_NOT_LAUNCHED: 'run pullboard submit again from the item folder; the hand-off did not start',
   LAND_STALLED: 'run pullboard resume to inspect the batch record, then retry landing',
