@@ -39,7 +39,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   for (const [index, title] of titles.entries()) {
     const lane = index === 8 ? 'docs' : 'web';
     const after = index === 1 ? ['--after', '1'] : [];
-    box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'Stage words stay consistent.', ...after);
+    await box.inProcess(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'Stage words stay consistent.', ...after);
   }
   await buildLocal(box, alpha, 4, 'review.txt');
   await buildLocal(box, alpha, 5, 'landing.txt');
@@ -48,22 +48,22 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   await acceptLocal(box, alpha, 6);
   const mergeBranch = alpha.itemBranches.get(`${alpha.baseBranch}:6`);
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge stage fixture', mergeBranch);
-  box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  await box.inProcess(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   await buildLocal(box, alpha, 7, 'verified.txt');
   await acceptLocal(box, alpha, 7);
   mark('hold');
-  box.run(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
-  box.run(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
+  await box.inProcess(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
+  await box.inProcess(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
   await buildLocal(box, alpha, 10, 'returned.txt');
   sendBack(box, alpha, 10, 'The first draft needs a clear label.');
-  box.run(alpha.web, 'claim', '11');
-  box.run(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
-  box.run(alpha.web, 'claim', '3');
-  box.run(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
+  await box.inProcess(alpha.web, 'claim', '11');
+  await box.inProcess(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
+  await box.inProcess(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
   mark('reviewer');
   const reviewer = join(box.dir, 'stage-vocabulary-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/stage-vocabulary-reviewer', reviewer, 'main');
-  box.run(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
+  await box.inProcess(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
   // @pullboard-board-file journey: the authenticated Chrome view reads this persisted fixture board over HTTP.
   const board = openBoard(join(alpha.repo, '.git/pullboard/board.sqlite'));
   try {
