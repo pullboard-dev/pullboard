@@ -13,6 +13,7 @@ import {
 } from '../../../tests/fixtures/e2e.js';
 import { captureCommandInProcess } from '../../../tests/fixtures/process.js';
 import { main } from '../../../tests/fixtures/native.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 /** Run actual submit, review and landing against one private repository whose candidate renames a tracked file. */
 async function fixture(t, { recorded = false } = {}) {
@@ -47,6 +48,8 @@ async function fixture(t, { recorded = false } = {}) {
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): private rename source [G1]');
   const submitted = await cli(box.web, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  // A pulled submit returns queued; wait for its gate job so the item carries its submitted commit [P7,C7].
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: cli }, JSON.parse(submitted.out));
   /** The item as the board shows it, read through the public CLI. */
   const show = async () => JSON.parse((await cli(box.repo, 'show', String(item), '--json')).out);
   const reviewer = join(box.dir, 'landing-reviewer');
