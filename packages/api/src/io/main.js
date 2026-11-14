@@ -64,6 +64,7 @@ import {
 } from '../../../git/index.js';
 import {
   relayLinked,
+  relayRelink,
   relayOperation,
   relayRevoke,
   relayTokens,
@@ -779,9 +780,17 @@ function projectDecisionListing(selected, projects, isMain, boardOpeners) {
   return { version: 1, project: home.project ?? '', decisions, unreadable };
 }
 
+/** The id a relink intent says the board carried before `current`, or null: a runner pointed at it keeps claiming (#7772). */
+function previousBoardId(root, current) {
+  try {
+    const relink = relayRelink(root);
+    return relink?.next === current ? relink.previous : null;
+  } catch { return null; }
+}
+
 /** Resolve only registered boards, opened read-only up to the match (#1040), so a request cannot open an arbitrary path. */
 function findBoard(id, projects, isMain, boardOpeners) {
-  return registeredBoard(id, projects, (root) => withReadBoard(root, (current) => store.boardId(current), isMain, boardOpeners));
+  return registeredBoard(id, projects, (root) => withReadBoard(root, (current) => store.boardId(current), isMain, boardOpeners), previousBoardId);
 }
 
 /** Restrict a local API to exactly one registered repository by its canonical Git common directory.
