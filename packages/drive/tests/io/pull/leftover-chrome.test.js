@@ -30,6 +30,7 @@ async function stub(profile, orphaned = false) {
   const child = orphaned ? spawn(process.execPath, ['-e', LAUNCHER, STUB, arg], { stdio: ['ignore', 'pipe', 'ignore'] })
     : spawn(process.execPath, ['-e', STUB, arg], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
   const [first] = await once(child.stdout, 'data');
+  child.stdout.resume();
   if (orphaned) await once(child, 'exit');
   return { pid: Number(String(first).trim()), closed: once(child, 'close') };
 }
