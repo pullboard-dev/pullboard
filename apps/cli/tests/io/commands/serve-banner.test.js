@@ -11,7 +11,7 @@ test('clause 1: the serve help says it is the board API with no page and names p
   assert.match(text, /serves no page/u);
   assert.match(text, /run pullboard view/u);
   assert.match(HELP.all, /pullboard serve .*the board API v1 \(JSON, no page\)/u);
-  assert.match(HELP.all, /pullboard view shows the page/u);
+  assert.match(HELP.all, /for the page, run pullboard view/u);
 });
 
 test('clause 1: the first line serve prints keeps the address and the next names the view command [C7]', () => {
